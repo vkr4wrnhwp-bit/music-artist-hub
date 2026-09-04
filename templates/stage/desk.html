@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Engineer Desk - Stage Control{% endblock %}
+
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=4">
+{% endblock %}
+
+{% block content %}
+{{ sb.plate("/static/img/eq-room", [900, 1200, 1600],
+            "Street Banker · Stage Control", "Engineer Desk",
+            "What the stage is asking for, oldest first — except the things happening to the audience too, which come first. Nothing here touches a console.",
+            position="center 42%") }}
+
+{#- The mode banner is permanent, not a toast. The brief: the active mode must
+    always be visible, and the product must never move from Request Mode into
+    Connected Control silently. -#}
+<p class="sc-mode">
+  <span class="sc-mode-what">Request Mode</span>
+  <span class="sc-mode-note">
+    No console is connected. You apply changes on the desk and record what you
+    did; nothing here can move a fader.
+  </span>
+</p>
+
+{% if not snapshot %}
+  <section class="sb-panel">
+    <p class="sb-note">
+      This show has no passport attached, so there are no monitor mixes to take
+      requests against. Advance it against a published version first.
+    </p>
+  </section>
+{% else %}
+
+  <div class="sc-desk-counts">
+    <div class="sc-count">
+      <span class="sc-count-n" data-count="open">{{ summary.open }}</span>
+      <span class="sc-count-label">Open</span>
+    </div>
+    <div class="sc-count sc-count--urgent">
+      <span class="sc-count-n" data-count="urgent">{{ summary.urgent }}</span>
+      <span class="sc-count-label">Urgent</span>
+    </div>
+    <div class="sc-count">
+      <span class="sc-count-n" data-count="unseen">{{ summary.unseen }}</span>
+      <span class="sc-count-label">Not yet seen</span>
+    </div>
+  </div>
+
+  {% if summary.locks %}
+    <p class="sc-mode">
+      <span class="sc-mode-what">Locked</span>
+      <span class="sc-mode-note">
+        {% for l in summary.locks %}
+          {{ l.scope }}{% if l.target %} · {{ l.target }}{% endif %}{{ ", " if not loop.last }}
+        {% endfor %}
+        — nobody covered by a lock can send.
+      </span>
+    </p>
+  {% endif %}
+
+  <section class="sb-panel">
+    <h2 class="sb-label sb-label-gold">The queue</h2>
+    {% if not requests %}
+      <p class="sb-note">Nothing waiting. The stage is happy, or nobody has the page open.</p>
+    {% else %}
+      <ul class="sc-q">
+        {% for r in requests %}
+          <li class="sc-req {{ 'sc-req--urgent' if r.urgent }}">
+            <div class="sc-req-head">
+              <span class="sc-req-who">{{ r.performer or "Somebody" }}</span>
+              <span class="sc-req-mix">{{ r.mix }}</span>
+              <span class="sc-req-what">
+                {{ labels.get(r.kind, r.kind) }}{% if r.source %} — {{ r.source }}{% endif %}
+                {%- if r.kind in ["more", "less"] %} · {{ step_labels.get(r.approved_step_db or r.step_db, "") }}{% endif %}
+              </span>
+              <span class="sc-req-state">{{ r.state|replace("_", " ") }}</span>
+            </div>
+            {% if r.note %}<p class="sb-note">“{{ r.note }}”</p>{% endif %}
+
+            <div class="sc-req-acts">
+              {% if r.state == "pending" %}
+                <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/acknowledge">
+                  <button class="sc-act" type="submit">Seen</button>
+                </form>
+              {% endif %}
+
+              {#- Modify offers the same three steps a performer can ask for.
+                  The engineer decides the amount; the vocabulary stays shared
+                  so "a bit" means one thing on both ends of the stage. -#}
+              {% if r.kind in ["more", "less"] and r.state in ["pending", "acknowledged"] %}
+                {% for s in steps %}
+                  <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/modify">
+                    <input type="hidden" name="step_db" value="{{ s }}">
+                    <button class="sc-act" type="submit">Make it {{ step_labels[s] }}</button>
+                  </form>
+                {% endfor %}
+              {% endif %}
+
+              {% if r.state in open_states and r.state not in ["queued_for_device", "sent"] %}
+                <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/applied">
+                  <button class="sc-act sc-act--go" type="submit">Done on the desk</button>
+                </form>
+                <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/reject">
+                  <input class="sc-in" type="text" name="reason" aria-label="Why not"
+                         placeholder="Why not" style="max-width:14rem;">
+                  <button class="sc-act sc-act--no" type="submit">Not this time</button>
+                </form>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+
+  <section class="sb-panel">
+    <h2 class="sb-label sb-label-gold">Hold requests</h2>
+    <p class="sb-note">
+      A lock stops new requests reaching you. It does not silence anybody —
+      they can still find you on comms.
+    </p>
+    <form method="post" action="/stage/{{ show_id }}/lock" class="sb-row sb-row--wrap">
+      <label class="sc-count-label" for="lock-scope">Scope</label>
+      <select class="sc-in" id="lock-scope" name="scope" style="max-width:10rem;">
+        <option value="show">The whole show</option>
+        <option value="mix">One mix</option>
+        <option value="performer">One performer</option>
+      </select>
+      <input class="sc-in" name="target" aria-label="Which mix or performer"
+             placeholder="Which one (mix or performer)" style="max-width:14rem;">
+      <input class="sc-in" name="reason" aria-label="Reason"
+             placeholder="Reason they will read" style="max-width:16rem;">
+      <button class="sc-act" type="submit">Lock</button>
+      <button class="sc-act" type="submit" name="release" value="1">Release</button>
+    </form>
+  </section>
+
+  {% if history %}
+    <section class="sb-panel">
+      <h2 class="sb-label sb-label-gold">Tonight, so far</h2>
+      <ul class="sc-mine">
+        {% for r in history %}
+          <li>
+            <span class="sc-said {{ 'sc-said--done' if r.state in ['applied','applied_manually'] }}{{ ' sc-said--no' if r.state in ['rejected','failed'] }}">
+              {{ wording.get(r.state, r.state) }}
+            </span>
+            <span>{{ r.performer }} · {{ r.mix }}</span>
+            <span class="sc-muted">
+              {{ labels.get(r.kind, r.kind) }}{% if r.source %} {{ r.source }}{% endif %}
+            </span>
+            {% if r.engineer %}<span class="sc-muted">{{ r.engineer }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <p class="sc-stale" data-stale="no" id="sc-conn">Live · updated just now</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* The realtime. There is no websocket here and the deployment cannot host one
+   (eight request slots total), so this polls the event cursor. A poll that
+   fails does not clear the screen - it says the page is STALE, because a desk
+   quietly showing a minute-old queue during a show is worse than one that
+   admits it. */
+(function () {
+  var showId = {{ show_id|tojson }};
+  var cursor = {{ cursor|tojson }};
+  var conn = document.getElementById("sc-conn");
+  if (!conn) { return; }
+  var missed = 0;
+
+  function paint(summary) {
+    ["open", "urgent", "unseen"].forEach(function (k) {
+      var el = document.querySelector('[data-count="' + k + '"]');
+      if (el && summary && typeof summary[k] === "number") {
+        el.textContent = summary[k];
+      }
+    });
+  }
+
+  function poll() {
+    fetch("/stage/" + showId + "/events?since=" + cursor, {credentials: "same-origin"})
+      .then(function (r) { if (!r.ok) { throw new Error("poll"); } return r.json(); })
+      .then(function (data) {
+        missed = 0;
+        conn.dataset.stale = "no";
+        paint(data.summary);
+        if (data.cursor > cursor) {
+          cursor = data.cursor;
+          /* Something moved. The queue's actions are forms, so the honest
+             refresh is a reload rather than half-rebuilding it here. */
+          conn.textContent = "New request — reloading";
+          window.location.reload();
+          return;
+        }
+        conn.textContent = "Live · updated just now";
+      })
+      .catch(function () {
+        missed += 1;
+        conn.dataset.stale = "yes";
+        conn.textContent = "Not connected — this list may be out of date";
+      });
+  }
+
+  poll();
+  setInterval(poll, 5000);
+}());
+</script>
+{% endblock %}

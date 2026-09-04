@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Your mix - Stage Control{% endblock %}
+
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=4">
+{% endblock %}
+
+{% block content %}
+{{ sb.plate("/static/img/eq-room", [900, 1200, 1600],
+            "Street Banker · Stage Control", "Your mix",
+            "Ask the monitor engineer for more or less of something, or tell them what is wrong. They decide — nothing here changes the desk by itself.",
+            position="center 42%") }}
+
+<div class="sc-perf">
+
+  <p class="sc-mode">
+    <span class="sc-mode-what">Request Mode</span>
+    <span class="sc-mode-note">Your engineer sees this and makes the change.</span>
+  </p>
+
+  {% if request.args.get("refused") %}
+    <p class="sc-refused">{{ request.args.get("refused") }}</p>
+  {% endif %}
+
+  {% if not snapshot %}
+    <section class="sb-panel">
+      <p class="sb-note">
+        This show has no passport attached yet, so there are no mixes to ask
+        about.
+      </p>
+    </section>
+  {% elif not who %}
+    {#- Who you are decides which mixes are yours, and the server checks it
+        again on every request - this picker is a convenience, not the gate. -#}
+    <section class="sb-panel">
+      <h2 class="sb-label sb-label-gold">Who is this?</h2>
+      {% if people %}
+        <ul class="sc-mine">
+          {% for p in people %}
+            <li>
+              <a class="sc-step" style="flex:1 1 auto;text-align:left;"
+                 href="/stage/{{ show_id }}/me?as={{ p|urlencode }}">{{ p }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="sb-note">
+          No monitor mix on the attached version names a performer, so there is
+          nobody to be. Assign performers to mixes in the passport.
+        </p>
+      {% endif %}
+    </section>
+  {% elif locked %}
+    <section class="sb-panel">
+      <h2 class="sb-label sb-label-gold">Requests are on hold</h2>
+      <p class="sc-refused">{{ locked }}</p>
+      <p class="sb-note">Find your engineer on comms.</p>
+    </section>
+  {% elif not my_mixes %}
+    <section class="sb-panel">
+      <p class="sb-note">
+        No mix on the attached version belongs to {{ who }}.
+      </p>
+    </section>
+  {% else %}
+
+    <p class="sc-perf-mix">
+      {{ who }} · {{ mix }}
+      {% if my_mixes|length > 1 %}
+        {% for m in my_mixes if m != mix %}
+          · <a href="/stage/{{ show_id }}/me?as={{ who|urlencode }}&mix={{ m|urlencode }}">{{ m }}</a>
+        {% endfor %}
+      {% endif %}
+    </p>
+
+    {#- Bounded steps, never a slider. Three fixed amounts, each its own
+        button, each well over the 44px floor because this is pressed
+        mid-song by somebody holding an instrument. -#}
+    {% for src in sources %}
+      <div class="sc-src">
+        <p class="sc-src-name">{{ src }}</p>
+        <div class="sc-steps">
+          {% for s in steps %}
+            <form method="post" action="/stage/{{ show_id }}/ask">
+              <input type="hidden" name="performer" value="{{ who }}">
+              <input type="hidden" name="mix" value="{{ mix }}">
+              <input type="hidden" name="source" value="{{ src }}">
+              <input type="hidden" name="kind" value="more">
+              <input type="hidden" name="step_db" value="{{ s }}">
+              <button class="sc-step" type="submit">
+                More <small>{{ step_labels[s] }}</small>
+              </button>
+            </form>
+          {% endfor %}
+          {% for s in steps %}
+            <form method="post" action="/stage/{{ show_id }}/ask">
+              <input type="hidden" name="performer" value="{{ who }}">
+              <input type="hidden" name="mix" value="{{ mix }}">
+              <input type="hidden" name="source" value="{{ src }}">
+              <input type="hidden" name="kind" value="less">
+              <input type="hidden" name="step_db" value="{{ s }}">
+              <button class="sc-step" type="submit">
+                Less <small>{{ step_labels[s] }}</small>
+              </button>
+            </form>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+
+    <div class="sc-reports">
+      {% for kind in ["feedback", "no_signal", "too_loud", "distortion", "talkback"] %}
+        <form method="post" action="/stage/{{ show_id }}/ask">
+          <input type="hidden" name="performer" value="{{ who }}">
+          <input type="hidden" name="mix" value="{{ mix }}">
+          <input type="hidden" name="kind" value="{{ kind }}">
+          <button class="sc-report" type="submit" style="width:100%;">
+            {{ labels.get(kind, kind) }}
+          </button>
+        </form>
+      {% endfor %}
+    </div>
+
+    {% if mine_open %}
+      <ul class="sc-mine" id="sc-mine">
+        {% for r in mine_open %}
+          <li>
+            {#- Only "Done" says it happened, and only two of fourteen states
+                can reach it. Everything else reads as waiting, because it is. -#}
+            <span class="sc-said {{ 'sc-said--done' if r.state in ['applied','applied_manually'] }}{{ ' sc-said--no' if r.state in ['rejected','failed'] }}">
+              {{ wording.get(r.state, r.state) }}
+            </span>
+            <span>
+              {{ labels.get(r.kind, r.kind) }}{% if r.source %} {{ r.source }}{% endif %}
+              {%- if r.kind in ["more", "less"] %} · {{ step_labels.get(r.approved_step_db or r.step_db, "") }}{% endif %}
+            </span>
+            {% if r.engineer_note %}<span class="sc-muted">“{{ r.engineer_note }}”</span>{% endif %}
+            {% if r.state == "pending" %}
+              <form method="post" action="/stage/{{ show_id }}/cancel/{{ r.id }}"
+                    style="margin-left:auto;">
+                <button class="sc-act" type="submit">Cancel</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    <p class="sc-stale" data-stale="no" id="sc-conn">Live</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Same cursor as the desk. The rule that matters here: when the network goes,
+   the page must SAY the state it is showing is old. A performer who thinks a
+   request was seen when it never left the phone will stand there waiting
+   through a song. */
+(function () {
+  var showId = {{ show_id|tojson }};
+  var cursor = {{ cursor|tojson }};
+  var conn = document.getElementById("sc-conn");
+  if (!conn) { return; }
+
+  function poll() {
+    fetch("/stage/" + showId + "/events?since=" + cursor, {credentials: "same-origin"})
+      .then(function (r) { if (!r.ok) { throw new Error("poll"); } return r.json(); })
+      .then(function (data) {
+        conn.dataset.stale = "no";
+        if (data.cursor > cursor) {
+          cursor = data.cursor;
+          window.location.reload();
+          return;
+        }
+        conn.textContent = "Live";
+      })
+      .catch(function () {
+        conn.dataset.stale = "yes";
+        conn.textContent = "Offline — what you see below is the last thing that reached you";
+      });
+  }
+
+  poll();
+  setInterval(poll, 5000);
+}());
+</script>
+{% endblock %}

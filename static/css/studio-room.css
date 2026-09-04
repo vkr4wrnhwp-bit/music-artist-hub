@@ -368,3 +368,65 @@ a.sr-tab:focus-visible { outline: none; box-shadow: var(--sb-focus); border-radi
   .sr-direction, .sr-direction::before, .sr-dir-ico, .sr-dir-go, #sb-sims button { transition: none; }
   .sr-direction:hover .sr-dir-go { transform: none; }
 }
+
+/* --- session switcher ------------------------------------------------------
+ * /studio opens the most recently touched project. That is right most of the
+ * time and wrong the moment you want a different one, and the owner reported
+ * exactly that: always landing on the same song, with the only way out being
+ * a link that redirected back to it. */
+
+.sr-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sb-s2);
+  margin-top: var(--sb-s2);
+}
+
+.sr-switch-label {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+}
+
+.sr-switch-sel {
+  max-width: 22rem;
+  padding: var(--sb-s1) var(--sb-s2);
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--sb-ink);
+  background: var(--sb-surface-2);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+}
+
+.sr-switch-go,
+.sr-switch-all {
+  padding: var(--sb-s1) var(--sb-s3);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-ink-2);
+  background: transparent;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sr-switch-go:hover,
+.sr-switch-all:hover { color: var(--sb-gold); border-color: var(--sb-gold-line); }
+
+.sr-switch-sel:focus-visible,
+.sr-switch-go:focus-visible,
+.sr-switch-all:focus-visible {
+  outline: none;
+  box-shadow: var(--sb-focus);
+}
+
+@media (pointer: coarse) {
+  .sr-switch-sel, .sr-switch-go, .sr-switch-all { min-height: 44px; }
+}

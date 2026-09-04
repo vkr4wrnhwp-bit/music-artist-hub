@@ -39,8 +39,28 @@
   <section class="sr-hero" aria-labelledby="sr-title">
     <div class="sr-hero-head">
       <div class="sr-identity">
-        <p class="sr-eyebrow"><a href="{{ url_for('studio.studio_home') }}">Street Banker Studio</a> &middot; Control Room</p>
+        {#- This linked to studio_home, which redirects straight back into the
+            newest session - so the console's only way out led to the console.
+            It points at the list now. -#}
+        <p class="sr-eyebrow"><a href="{{ url_for('studio.studio_projects') }}">Street Banker Studio</a> &middot; Control Room</p>
         <h1 class="sr-title" id="sr-title">{{ project.title }}</h1>
+        {#- The switcher. /studio opens the most recently touched project, which
+            is right most of the time and wrong the moment you want a different
+            one; without this the answer was "know the URL". -#}
+        {% if sessions and sessions|length > 1 %}
+          <form class="sr-switch" method="get" action="/studio/open">
+            <label class="sr-switch-label" for="sr-switch">Session</label>
+            <select class="sr-switch-sel" id="sr-switch" name="project_id">
+              {% for p in sessions %}
+                <option value="{{ p.id }}" {{ "selected" if p.id == project.id }}>
+                  {{ p.title }}{% if p.artist_name %} — {{ p.artist_name }}{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+            <button class="sr-switch-go" type="submit">Open</button>
+            <a class="sr-switch-all" href="{{ url_for('studio.studio_projects') }}">All sessions</a>
+          </form>
+        {% endif %}
         <p class="sr-artist">{{ project.artist_name or "No artist set" }}</p>
         <ul class="sr-meta">
           {% if source %}

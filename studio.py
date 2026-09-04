@@ -138,21 +138,36 @@ def studio_home():
     if shared:
         return redirect(url_for("studio.studio_session",
                                 project_id=shared[0]["id"]))
-    recent = []
-    continue_has_source = False
-    if projects:
-        recent = sstore.provenance(_partner(user), projects[0]["id"], limit=8)
-        continue_has_source = bool(
-            sstore.project_summary(_partner(user), user["id"],
-                                   projects[0]["id"])["source"])
+    # Reached only when there is nothing to open. The branch that used to sit
+    # here read `if projects:` - which could never be true, because the
+    # redirects above already returned in that case. It was dead the day it
+    # was written, so continue_project was always None and the "continue"
+    # card never rendered.
     return render_template("studio/home.html",
-                           continue_has_source=continue_has_source,
+                           continue_has_source=False,
                            active_page="studio",
-                           projects=projects,
-                           continue_project=projects[0] if projects else None,
-                           recent=recent,
+                           projects=[],
+                           continue_project=None,
+                           recent=[],
                            readiness=studio_config.readiness(),
                            project_types=sstore.PROJECT_TYPES)
+
+
+@bp.route("/studio/open")
+def studio_open():
+    """Switch session from inside a room.
+
+    A GET because it is navigation, not a change: the switcher submits a
+    project id and this sends you there, after checking the project is yours.
+    An id that is not is a 404, not a redirect to somebody else's console.
+    """
+    _live()
+    user = _user()
+    wanted = (request.args.get("project_id") or "").strip()
+    mine = {p["id"] for p in sstore.list_projects(_partner(user), user["id"], limit=200)}
+    if wanted not in mine:
+        abort(404)
+    return redirect(url_for("studio.studio_session", project_id=wanted))
 
 
 @bp.route("/studio/projects")
@@ -439,6 +454,11 @@ def _room(project_id, room, template, error=None, status_code=200):
         team_pool=(__import__("db").list_team(user["id"])
                    if viewer_role == "owner" else []),
         mix_scores=mix_scores,
+        # Every room carries the other sessions. /studio redirects
+        # straight into the newest project, so without this the console
+        # is a room with no door: the owner reported always landing on
+        # the same song with no way to reach another.
+        sessions=sstore.list_projects(_partner(user), user["id"], limit=25),
         mix_score=studio_metrics.mix_score(mix_metrics),
         master_scores=studio_score.master_intelligence(measurements),
         mix_metrics=mix_metrics,

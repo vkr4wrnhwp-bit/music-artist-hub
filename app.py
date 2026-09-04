@@ -32,6 +32,7 @@ import studio_store
 import audio_webhooks
 import partner_os
 import passport_os
+import stage_os
 import partner_store
 # NB: signal_hub, not signal - a module named `signal` in the repo root would
 # shadow the standard library module that gunicorn and Werkzeug import.
@@ -9103,6 +9104,10 @@ def create_app():
     # than becoming a second-looking product inside the first.
     passport_os.init(app, current_user=current_user,
                      dashboard_context=build_dashboard_context)
+    # Stage Control's two rooms. Same shell as everything else; the rooms
+    # themselves are dark by design because they are read beside a console.
+    stage_os.init(app, current_user=current_user,
+                  dashboard_context=build_dashboard_context)
 
     # Last, so it wraps everything above and gets the final say on the
     # headers Flask's session handling would otherwise leave in place.

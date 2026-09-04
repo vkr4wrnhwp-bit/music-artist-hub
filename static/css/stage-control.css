@@ -452,3 +452,264 @@ select.sc-in {
   .sc-section { break-inside: avoid; }
   .sc-table { font-size: 11pt; }
 }
+
+/* ==========================================================================
+   THE TWO ROOMS. Deliberately the inverse of the passport's ivory sheet.
+   The passport is a document you print; these are screens read in the dark
+   next to a console, so they sit on the app's own ground and never on paper.
+   ========================================================================== */
+
+.sc-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sb-s3);
+  padding: var(--sb-s3) var(--sb-s4);
+  border: 1px solid var(--sb-gold-line);
+  border-left: 3px solid var(--sb-gold);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-gold-wash);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sb-gold);
+}
+
+/* The brief: the active mode must ALWAYS be visible, and the product must
+ * never move from Request Mode into Connected Control silently. It is a
+ * permanent banner, not a toast. */
+.sc-mode-what { font-weight: 700; }
+.sc-mode-note {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--sb-ink-2);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+/* --- the desk -------------------------------------------------------------- */
+
+.sc-desk-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-s4);
+  margin: var(--sb-s4) 0;
+}
+
+.sc-count {
+  min-width: 6rem;
+  padding: var(--sb-s3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2);
+}
+
+.sc-count-n {
+  display: block;
+  font-family: var(--sb-mono);
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+  color: var(--sb-ink);
+}
+
+.sc-count--urgent .sc-count-n { color: var(--sb-warn); }
+
+.sc-count-label {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+}
+
+.sc-q { list-style: none; margin: 0; padding: 0; }
+
+.sc-req {
+  padding: var(--sb-s4);
+  margin-bottom: var(--sb-s3);
+  border: 1px solid var(--sb-line);
+  border-left: 3px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2);
+}
+
+/* Feedback and a dead channel are happening to the audience too, so they do
+ * not queue politely behind four "more vocal" requests. */
+.sc-req--urgent {
+  border-left-color: var(--sb-warn);
+  background: var(--sb-warn-wash);
+}
+
+.sc-req-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sb-s3);
+}
+
+.sc-req-who {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--sb-ink);
+}
+
+.sc-req-what { font-size: 15px; color: var(--sb-ink); }
+
+.sc-req-mix {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--sb-gold);
+}
+
+.sc-req-state {
+  margin-left: auto;
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+}
+
+.sc-req-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-s2);
+  margin-top: var(--sb-s3);
+}
+
+.sc-act {
+  padding: var(--sb-s2) var(--sb-s4);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-ink-2);
+  background: var(--sb-surface-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+  cursor: pointer;
+}
+
+.sc-act:hover { color: var(--sb-ink); border-color: var(--sb-line-strong); }
+.sc-act--go { background: var(--sb-gold); border-color: var(--sb-gold); color: var(--sb-on-gold); font-weight: 700; }
+.sc-act--no { color: var(--sb-crit); border-color: var(--sb-crit-line); }
+
+.sc-act:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+
+/* --- the phone ------------------------------------------------------------- */
+/* Read mid-song, by somebody holding an instrument, on a dark stage. Every
+ * target here is deliberately larger than the 44px floor. */
+
+.sc-perf { max-width: 32rem; margin: 0 auto; }
+
+.sc-perf-mix {
+  margin: var(--sb-s4) 0;
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sb-gold);
+}
+
+.sc-src {
+  padding: var(--sb-s4) 0;
+  border-bottom: 1px solid var(--sb-line);
+}
+
+.sc-src-name {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--sb-ink);
+  margin-bottom: var(--sb-s3);
+}
+
+.sc-steps { display: flex; flex-wrap: wrap; gap: var(--sb-s2); }
+
+/* Bounded steps, never a slider. A horizontal control that can jump a level
+ * is the one interaction the brief rules out by name. */
+.sc-step {
+  flex: 1 1 6rem;
+  min-height: 64px;
+  padding: var(--sb-s3);
+  font-family: var(--sb-mono);
+  font-size: 15px;
+  color: var(--sb-ink);
+  background: var(--sb-surface-2);
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+  cursor: pointer;
+}
+
+.sc-step:hover { border-color: var(--sb-gold); }
+.sc-step:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+.sc-step small { display: block; font-size: 12px; color: var(--sb-ink-3); }
+
+.sc-reports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-s2);
+  margin-top: var(--sb-s5);
+}
+
+.sc-report {
+  flex: 1 1 9rem;
+  min-height: 56px;
+  font-family: var(--sb-mono);
+  font-size: 13px;
+  color: var(--sb-warn);
+  background: var(--sb-warn-wash);
+  border: 1px solid var(--sb-warn-line);
+  border-radius: var(--sb-r-control);
+  cursor: pointer;
+}
+
+.sc-report:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+
+.sc-mine { list-style: none; margin: var(--sb-s5) 0 0; padding: 0; }
+
+.sc-mine li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sb-s3);
+  padding: var(--sb-s3) 0;
+  border-bottom: 1px solid var(--sb-line);
+  font-size: 15px;
+}
+
+/* Only "Done" says the change happened, and only two of fourteen states can
+ * reach it. Everything else reads as what it is: waiting. */
+.sc-said {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+}
+
+.sc-said--done { color: var(--sb-good); }
+.sc-said--no { color: var(--sb-crit); }
+
+.sc-refused {
+  padding: var(--sb-s3) var(--sb-s4);
+  border: 1px solid var(--sb-crit-line);
+  border-left: 3px solid var(--sb-crit);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-crit-wash);
+  color: var(--sb-ink);
+}
+
+/* The connection line. A phone that has lost the network must say the state
+ * it is showing is OLD rather than quietly showing yesterday's answer. */
+.sc-stale {
+  margin-top: var(--sb-s4);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+}
+
+.sc-stale[data-stale="yes"] { color: var(--sb-warn); }
