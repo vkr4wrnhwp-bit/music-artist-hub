@@ -10,6 +10,16 @@ import type { TurnToolpath } from "./operations";
  * because that is what it is; the honest label is the feature.
  */
 
+/**
+ * The lathe posts that exist. One, and it is a development post.
+ *
+ * A machine row carries the post its control expects; if a shop records a
+ * lathe whose control is not this, the readiness gate has to fail. The set is
+ * here rather than in the package builder so adding a post and forgetting the
+ * gate is not possible.
+ */
+export const LATHE_POSTS = new Set(["lathe-fanuc-dev"]);
+
 export interface LathePostContext {
   programNumber: string;
   partName: string;
@@ -18,6 +28,17 @@ export interface LathePostContext {
   /** G50 spindle clamp, RPM — REQUIRED when any operation runs CSS. */
   maxRpmClamp: number | null;
   generatedAtIso: string;
+  /**
+   * Where the turret retracts between operations, on diameter and in Z.
+   *
+   * This was `G0 X6.0 Z2.0`, hardcoded — a number that fits some lathes and
+   * some parts and was derived from neither. On a machine with less X travel
+   * it is outside the envelope; on a part longer than the Z guess it is
+   * inside the work. Null refuses the program rather than guessing, which is
+   * the same rule the deterministic engines follow everywhere else.
+   */
+  clearX: number | null;
+  clearZ: number | null;
 }
 
 export interface LatheOpForPost {
@@ -38,6 +59,38 @@ export function emitLatheProgram(ops: LatheOpForPost[], ctx: LathePostContext): 
     return { code: "", refusals };
   }
 
+  /*
+   * THREADING UNDER CSS IS A SCRAPPED PART, AND IT WAS ONLY A CONVENTION.
+   *
+   * A thread's lead comes from feed-per-rev against a CONSTANT spindle speed.
+   * Under G96 the RPM changes as X changes, so the lead changes down the
+   * thread and the second pass does not follow the first. The planner sets
+   * cssEnabled false for threading and the comment in operations.ts says CSS
+   * is never used for threading — but nothing stopped a caller handing this
+   * emitter a threading operation with CSS on, and the post would have
+   * written G96 followed by G32 without a word.
+   *
+   * The rule belongs here, beside the G50 check, for the same reason the mill
+   * post refuses G41 D0 rather than trusting whoever built the toolpath.
+   */
+  for (const op of ops) {
+    if (!op.cssEnabled) continue;
+    if (op.toolpath.moves.some((m) => m.kind === "THREAD_PASS")) {
+      refusals.push(
+        `${op.description}: threading is programmed with CSS on. A thread's lead is feed-per-rev against a FIXED spindle speed — under G96 the RPM changes with X and the lead changes with it, so each pass cuts a different helix. Refusing to emit.`,
+      );
+    }
+  }
+  if (refusals.length > 0) return { code: "", refusals };
+
+  if (ctx.clearX === null || ctx.clearZ === null) {
+    refusals.push(
+      "No retract position. The clear point has to come from the machine's travels and the part's own length; this post will not guess one, because a guess that is inside the work is a crash on the first tool change.",
+    );
+    return { code: "", refusals };
+  }
+  const clear = `G0 X${ctx.clearX.toFixed(4)} Z${ctx.clearZ.toFixed(4)} (CLEAR)`;
+
   const L: string[] = [];
   L.push("%");
   L.push(`O${ctx.programNumber}`);
@@ -52,6 +105,14 @@ export function emitLatheProgram(ops: LatheOpForPost[], ctx: LathePostContext): 
 
   for (const op of ops) {
     L.push(`(${op.description.toUpperCase().slice(0, 40)})`);
+    /*
+     * Index at the machine's own reference position, not wherever the last
+     * operation happened to finish. A Haas lathe rotates the turret in place:
+     * a long boring bar indexed near the chuck sweeps through it. G28 U0 W0
+     * goes to reference incrementally with no intermediate point, so it is
+     * defined by the machine rather than by a number this post invented.
+     */
+    L.push("G28 U0 W0");
     L.push(`T${op.station}`);
 
     /*
@@ -76,7 +137,7 @@ export function emitLatheProgram(ops: LatheOpForPost[], ctx: LathePostContext): 
       L.push(`G84 Z${plunge.z.toFixed(4)} F${plunge.feedPerRev.toFixed(4)}`);
       L.push("G80");
       if (op.coolant) L.push("M9");
-      L.push("G0 X6.0 Z2.0 (CLEAR)");
+      L.push(clear);
       continue;
     }
 
@@ -94,9 +155,10 @@ export function emitLatheProgram(ops: LatheOpForPost[], ctx: LathePostContext): 
       else L.push(`G1 ${x} ${z} F${m.feedPerRev!.toFixed(4)}`);
     }
     if (op.coolant) L.push("M9");
-    L.push("G0 X6.0 Z2.0 (CLEAR)");
+    L.push(clear);
     L.push("M5");
   }
+  L.push("G28 U0 W0");
   L.push("M30");
   L.push("%");
   return { code: L.join("\n"), refusals };

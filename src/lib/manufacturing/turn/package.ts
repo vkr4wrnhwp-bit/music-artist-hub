@@ -1,10 +1,10 @@
 import { db } from "@/lib/db";
 import { turnApprovalState } from "./approval";
-import type { RotationalProfile } from "./geometry";
+import { overallLength, type RotationalProfile } from "./geometry";
 import { generateTurnToolpath, type TurnOperation, type TurnToolpathResult } from "./operations";
 import { assessChuckGrip, assessStickout, assessBoringBar, assessPartOff } from "./analysis";
 import { evaluateTurnReadiness } from "./readiness";
-import { emitLatheProgram } from "./post";
+import { emitLatheProgram, LATHE_POSTS } from "./post";
 import { parseThreadPitch } from "@/lib/engines/cam/thread";
 import { criticalToleranceBand, cutoffDistanceFromChuck, inspectionCapableFor, materialFromIntent } from "./derive";
 
@@ -188,7 +188,16 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
     chuckRpmKnown: holding?.maxRPM != null,
     cssUsed,
     inspectionCapable,
-    postSelected: true,
+    /*
+     * The post gate used to be handed a literal `true`, so it could not fail
+     * — the same defect the material gate carried two paragraphs up. A lathe
+     * row records the post its control expects; this reads it and checks it
+     * against the posts that exist, rather than asserting that one was
+     * chosen. There is exactly one lathe post today, which is the honest
+     * answer and the reason the gate matters: a shop running anything else
+     * should see this fail, not pass.
+     */
+    postSelected: lathe !== null && LATHE_POSTS.has(lathe.supportedPostProcessor),
     approval: turnApprovalState(rot, rot),
   });
   const blocking = readiness.gates.filter((g) => g.blocking && (g.status === "FAIL" || g.status === "NOT_ATTEMPTED"));
@@ -205,6 +214,18 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
       rpm: r.op.params.rpm,
       coolant: r.op.params.coolant === "FLOOD",
     }));
+  /*
+   * THE RETRACT POINT, DERIVED RATHER THAN GUESSED.
+   *
+   * On diameter: 0.5" clear of the stock, and never past the machine's X
+   * travel. In Z: 0.5" clear of the back of the part. Both need a machine and
+   * a profile — without either the post refuses rather than inventing a
+   * position, because a retract inside the work is a crash on the first tool
+   * change and it looks exactly like a retract that is fine.
+   */
+  const clearX = lathe ? Math.min(profile.stockDiameter + 1.0, lathe.xTravel) : null;
+  const clearZ = lathe ? overallLength(profile) + 0.5 : null;
+
   const program = emitLatheProgram(postOps, {
     programNumber: "2001",
     partName: part.name,
@@ -212,6 +233,8 @@ export async function buildTurnPackage(organizationId: string, partId: string): 
     workOffset: "G54",
     maxRpmClamp: rot.maxRpmClamp,
     generatedAtIso: new Date().toISOString().slice(0, 10),
+    clearX,
+    clearZ,
   });
 
   return {

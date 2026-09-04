@@ -182,11 +182,11 @@ test("the development post refuses CSS without a G50 clamp, and says DEVELOPMENT
   assert.ok(tp.ok);
   if (!tp.ok) return;
   const baseOp = { toolpath: tp.toolpath, station: "0202", description: "finish", cssEnabled: true, surfaceSpeed: 700, rpm: 3200, coolant: true };
-  const refused = emitLatheProgram([baseOp], { programNumber: "2001", partName: "x", machine: "test", workOffset: "G54", maxRpmClamp: null, generatedAtIso: "2026-08-12" });
+  const refused = emitLatheProgram([baseOp], { programNumber: "2001", partName: "x", machine: "test", workOffset: "G54", maxRpmClamp: null, generatedAtIso: "2026-08-12", clearX: 6, clearZ: 2 });
   assert.equal(refused.code, "");
   assert.ok(refused.refusals.some((r) => /G50/.test(r)));
 
-  const ok = emitLatheProgram([baseOp], { programNumber: "2001", partName: "x", machine: "test", workOffset: "G54", maxRpmClamp: 3000, generatedAtIso: "2026-08-12" });
+  const ok = emitLatheProgram([baseOp], { programNumber: "2001", partName: "x", machine: "test", workOffset: "G54", maxRpmClamp: 3000, generatedAtIso: "2026-08-12", clearX: 6, clearZ: 2 });
   assert.equal(ok.refusals.length, 0);
   assert.match(ok.code, /NOT FOR PRODUCTION USE/);
   assert.match(ok.code, /G50 S3000/);
@@ -204,7 +204,7 @@ test("SELF-TEST: the parser reads the development post's own output with zero re
   if (!tp.ok) return;
   const emitted = emitLatheProgram(
     [{ toolpath: tp.toolpath, station: "0202", description: "finish journal", cssEnabled: true, surfaceSpeed: 700, rpm: 3200, coolant: true }],
-    { programNumber: "2001", partName: "self test", machine: "ref", workOffset: "G54", maxRpmClamp: 3000, generatedAtIso: "2026-08-12" },
+    { programNumber: "2001", partName: "self test", machine: "ref", workOffset: "G54", maxRpmClamp: 3000, generatedAtIso: "2026-08-12", clearX: 6, clearZ: 2 },
   );
   const parsed = parseLatheNc(emitted.code);
   assert.equal(parsed.refusals.length, 0, "the post and the parser must agree on the dialect");
@@ -320,7 +320,7 @@ test("SELF-TEST: the optimizer leaves the engine's own program alone where feeds
   if (!tp.ok) return;
   const { code, refusals } = emitLatheProgram(
     [{ toolpath: tp.toolpath, station: "0101", description: "rough", cssEnabled: true, surfaceSpeed: 550, rpm: 3000, coolant: true }],
-    { programNumber: "2002", partName: "opt self test", machine: "ref", workOffset: "G54", maxRpmClamp: 3000, generatedAtIso: "2026-08-12" },
+    { programNumber: "2002", partName: "opt self test", machine: "ref", workOffset: "G54", maxRpmClamp: 3000, generatedAtIso: "2026-08-12", clearX: 6, clearZ: 2 },
   );
   assert.equal(refusals.length, 0);
   const opt = optimizeTurnCycle(parseLatheNc(code), { tools: optTools, chuckMaxRpm: 4200, preset: "BALANCED" });
@@ -991,7 +991,7 @@ test("the lathe post emits the tap as a canned cycle that owns the spindle", () 
   if (!r.ok) return;
   const { code, refusals } = emitLatheProgram(
     [{ toolpath: r.toolpath, station: "0909", description: "Tap 1/4-20", cssEnabled: false, surfaceSpeed: null, rpm: 400, coolant: true }],
-    { programNumber: "2002", partName: "x", machine: "lathe", workOffset: "G54", maxRpmClamp: null, generatedAtIso: "2026-08-23" },
+    { programNumber: "2002", partName: "x", machine: "lathe", workOffset: "G54", maxRpmClamp: null, generatedAtIso: "2026-08-23", clearX: 6, clearZ: 2 },
   );
   assert.equal(refusals.length, 0, refusals.join(" | "));
   const lines = code.split("\n");
@@ -1012,7 +1012,7 @@ test("the post prefers the engine's capped rpm over the plan's", () => {
   if (!fast.ok) return;
   const { code } = emitLatheProgram(
     [{ toolpath: fast.toolpath, station: "0909", description: "Tap", cssEnabled: false, surfaceSpeed: null, rpm: 3000, coolant: false }],
-    { programNumber: "2002", partName: "x", machine: "lathe", workOffset: "G54", maxRpmClamp: null, generatedAtIso: "2026-08-23" },
+    { programNumber: "2002", partName: "x", machine: "lathe", workOffset: "G54", maxRpmClamp: null, generatedAtIso: "2026-08-23", clearX: 6, clearZ: 2 },
   );
   assert.match(code, /M29 S600\b/, "the post must carry the tapping cap, not the plan's 3000");
 });
@@ -1276,4 +1276,82 @@ test("the turning package never substitutes zero for an unrecorded hold", () => 
       `${field} substitutes zero for an unrecorded value: ${line!.trim()}`,
     );
   }
+});
+
+/* ---------------- The post refuses what convention used to prevent ---------------- */
+
+test("threading with CSS on is refused, not emitted", () => {
+  /*
+   * A thread's lead is feed-per-rev against a FIXED spindle speed. Under G96
+   * the RPM changes with X, so the lead changes down the thread and pass two
+   * does not follow pass one — a scrapped thread at best.
+   *
+   * The planner sets cssEnabled false for threading and operations.ts says in
+   * a comment that CSS is never used for threading. Neither is a guard: the
+   * emitter would happily have written G96 followed by G32 for any caller
+   * that did it differently, exactly as the mill post would once have emitted
+   * comp on an arc.
+   */
+  const threadOp = {
+    toolpath: {
+      moves: [
+        { kind: "RAPID" as const, x: 0.95, z: 0.05, feedPerRev: null },
+        { kind: "THREAD_PASS" as const, x: 0.71, z: 0.65, feedPerRev: 0.0625 },
+      ],
+      rigidTapCycle: false,
+      spindleRpmOverride: null,
+    },
+    station: "0404",
+    description: "Thread 3/4-16",
+    cssEnabled: true,
+    surfaceSpeed: 400,
+    rpm: 800,
+    coolant: true,
+  } as never;
+  const r = emitLatheProgram([threadOp], {
+    programNumber: "2001", partName: "x", machine: "test", workOffset: "G54",
+    maxRpmClamp: 3000, generatedAtIso: "2026-09-04", clearX: 6, clearZ: 2,
+  });
+  assert.equal(r.code, "", "a program was emitted for a thread cut under CSS");
+  assert.match(r.refusals.join(" "), /lead/i);
+  assert.ok(!r.refusals.join(" ").includes("G96 S"), "the refusal should explain, not quote the line it did not write");
+});
+
+test("no retract position refuses the program rather than guessing one", () => {
+  // It was `G0 X6.0 Z2.0`, hardcoded — outside the envelope on a small
+  // machine, inside the work on a long part, and indistinguishable from a
+  // retract that is fine.
+  const op = {
+    toolpath: { moves: [{ kind: "CUT" as const, x: 1, z: 1, feedPerRev: 0.01 }], rigidTapCycle: false, spindleRpmOverride: null },
+    station: "0101", description: "turn", cssEnabled: false, surfaceSpeed: null, rpm: 800, coolant: false,
+  } as never;
+  const ctx = { programNumber: "2001", partName: "x", machine: "t", workOffset: "G54", maxRpmClamp: 3000, generatedAtIso: "2026-09-04" };
+  for (const missing of [{ clearX: null, clearZ: 2 }, { clearX: 6, clearZ: null }]) {
+    const r = emitLatheProgram([op], { ...ctx, ...missing } as never);
+    assert.equal(r.code, "", `emitted with ${JSON.stringify(missing)}`);
+    assert.match(r.refusals.join(" "), /retract|clear point/i);
+  }
+  const good = emitLatheProgram([op], { ...ctx, clearX: 3.5, clearZ: 5.1 } as never);
+  assert.match(good.code, /G0 X3\.5000 Z5\.1000 \(CLEAR\)/);
+  assert.ok(!/X6\.0 Z2\.0/.test(good.code), "the hardcoded retract is back");
+});
+
+test("every tool change indexes at the machine's reference position", () => {
+  // A Haas lathe rotates the turret in place. Indexing wherever the last
+  // operation finished sweeps a long boring bar through whatever is there.
+  const op = (station: string) =>
+    ({
+      toolpath: { moves: [{ kind: "CUT" as const, x: 1, z: 1, feedPerRev: 0.01 }], rigidTapCycle: false, spindleRpmOverride: null },
+      station, description: `op ${station}`, cssEnabled: false, surfaceSpeed: null, rpm: 800, coolant: false,
+    }) as never;
+  const { code } = emitLatheProgram([op("0101"), op("0202")], {
+    programNumber: "2001", partName: "x", machine: "t", workOffset: "G54",
+    maxRpmClamp: 3000, generatedAtIso: "2026-09-04", clearX: 3, clearZ: 4,
+  });
+  const lines = code.split("\n");
+  for (const [i, l] of lines.entries()) {
+    if (/^T\d{4}$/.test(l)) assert.equal(lines[i - 1], "G28 U0 W0", `${l} indexes without returning to reference`);
+  }
+  assert.equal(lines.at(-2), "M30");
+  assert.equal(lines.at(-3), "G28 U0 W0", "the program ends away from reference");
 });
