@@ -131,19 +131,35 @@ never a comp change in a corner), populate the D register from the tool record,
 and add the offset value to the setup sheet. Keep the software-offset path for
 roughing where nobody adjusts.
 
-**A3 — Canned cycles. (SMALL)**
-`post.ts` special-cases only `TAP` → `G84` (`:88`). Every drill and peck comes
+**A3 — Canned cycles. — BUILT**
+The post special-cased only `TAP` → `G84`, and derived its Z and R by running
+`Math.min` over the move list — pattern-matching a program out of a path, which
+gets the wrong answer the day the path changes shape. Every drill and peck came
 out as long-hand `G1` plunges and retracts.
 
-What the machinist gets: it will cut, but it is not what anyone expects to
-read, and it forfeits everything the control does better — `G83` chip-break
-timing, dwell at the bottom, retract to R rather than to Z, and single-block
-stepping through a cycle instead of forty lines.
+Hole-making now carries a `CannedCycle` descriptor built by the engine
+*alongside* the move list and from the same numbers: `G81` to drill, `G83` to
+peck, `G84` to rigid tap, `G98` so the tool returns to the initial level rather
+than to R, and `G80` to close. X and Y go on the cycle block itself rather than
+being left to the positioning move, because "drills at the current position" is
+true on some controls and not others.
 
-Build: `G81` (drill), `G82` (spot/counterbore with dwell), `G83` (peck),
-`G73` (chip-break), `G85` (bore/ream, feed out), `G86`, `G76`, with `G80`
-cancellation, plus the `R`-plane discipline that goes with them. Structurally
-identical to the `G84` case that already exists.
+The important part is that the cycle and the moves describe the **same**
+motion — the simulator walks the moves and the machine runs the cycle, and two
+different paths there is a simulation proving a program that will not run. The
+peck retract used to go to `topZ + 0.05` while the rapid came down to
+`clearanceZ`: two planes for one operation. Both are now the one `rPlane` the
+descriptor carries.
+
+GRBL has no canned cycles at all and faults on them, so it drills as feed moves
+and the program says why. Heidenhain (`CYCL DEF 200/203`) and Siemens
+(`CYCLE81/83`) are not implemented here and say so too.
+
+One thing fixed in passing: the old special-cased tap branch was the single path
+out of this post that ended a tool without an `M5`, leaving the spindle turning.
+
+`CannedCycle` in `cam/types.ts`, the descriptors in `cam/engine.ts`, the cycle
+block in `cam/post.ts`.
 
 **A4 — A feature with no operation is silently not cut. — BUILT**
 `preflight.ts` already reasoned this way about placeholder toolpaths: "the
@@ -539,7 +555,7 @@ Saying no is part of the plan.
 2. **B1** setup sheet — the program cannot leave the office without it.
 3. ~~**A1** arc output~~ — BUILT. 1,685 blocks to 420 on the seeded part, and
    a bore that is round.
-4. **A3** canned cycles — small, and the program starts reading like a program.
+4. ~~**A3** canned cycles~~ — BUILT. The program reads like a program.
 5. **C1 + C2** simulate and reconcile the posted text — closes the loop that
    makes every later post change safe.
 6. **A2** cutter compensation — the machinist gets their offset back.

@@ -145,7 +145,11 @@ test("Haas post emits a G84 canned cycle with no M3, closed by G80, and lints cl
   assert.ok(rb.ok && rt.ok);
   if (!rb.ok || !rt.ok) return;
   const nc = getPost("haas-ngc-dev")!.emit([rb.toolpath, rt.toolpath], postCtx);
-  assert.match(nc, /G84 Z-0\.700 R0\.100 F\d+\.\d\d/);
+  // X and Y are on the cycle block itself, not left to the positioning move
+  // before it. A cycle block with no axis word relies on "drills at the
+  // current position", which is true on some controls and not others; naming
+  // the point is unambiguous everywhere and costs two words.
+  assert.match(nc, /G98 G84 X-?\d+\.\d+ Y-?\d+\.\d+ Z-0\.700 R0\.100 F\d+\.\d\d/);
   assert.ok(nc.includes("G80"));
   const tapBlock = nc.slice(nc.indexOf("RIGID TAP"), nc.indexOf("G80"));
   assert.ok(!/\bM3\b/.test(tapBlock), "G84 owns the spindle; no M3 in the tap block");

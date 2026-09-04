@@ -1,6 +1,7 @@
 import type { Feature, Stock } from "@/lib/domain/features";
 import { canReach, fitsInternalCorner } from "@/lib/domain/shop";
 import type {
+  CannedCycle,
   CuttingParameters,
   MachiningContext,
   Move,
@@ -252,6 +253,7 @@ export function generateToolpath(
 
   let moves: Move[] = [];
   let removed = 0;
+  let cannedCycle: CannedCycle | undefined;
 
   switch (req.type) {
     case "FACE": {
@@ -287,6 +289,7 @@ export function generateToolpath(
       moves = r.moves;
       removed = r.removed;
       warnings.push(...r.warnings);
+      cannedCycle = r.cycle;
       break;
     }
     case "BORE": {
@@ -305,6 +308,7 @@ export function generateToolpath(
       moves = r.moves;
       removed = r.removed;
       warnings.push(...r.warnings);
+      cannedCycle = r.cycle;
       break;
     }
     case "CONTOUR_2D": {
@@ -356,6 +360,7 @@ export function generateToolpath(
       cuttingDistance: Number(cuttingDistance.toFixed(2)),
       warnings,
       isPlaceholder: false,
+      ...(cannedCycle ? { cannedCycle } : {}),
     },
   };
 }
@@ -683,7 +688,7 @@ function drillToolpath(
   ctx: MachiningContext,
   p: CuttingParameters,
   peck: boolean,
-): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
+): { moves: Move[]; removed: number; warnings: string[]; cycle: CannedCycle } | { error: { reason: string; recommendations: string[] } } {
   if (
     feature.kind !== "DRILLED_HOLE" &&
     feature.kind !== "TAPPED_HOLE" &&
@@ -712,14 +717,20 @@ function drillToolpath(
   // Drill feed is chipload per revolution, not per tooth.
   const drillFeed = Math.round(p.rpm * ctx.tool.chiploadMax * 2);
 
-  moves.push({ type: "RAPID", x: feature.centerX, y: feature.centerY, z: req.clearanceZ, feed: null });
+  // The R plane. The moves rapid to it, the cycle retracts to it between
+  // pecks, and both are this number — the peck retract used to be
+  // topZ + 0.05 while the rapid came down to clearanceZ, which meant the
+  // simulated path and the cycle would have been two different paths.
+  const rPlane = req.clearanceZ;
+  const peckDepth = ctx.tool.diameter * 0.75;
+
+  moves.push({ type: "RAPID", x: feature.centerX, y: feature.centerY, z: rPlane, feed: null });
   if (peck) {
-    const peckDepth = ctx.tool.diameter * 0.75;
     let z = req.topZ;
     while (z > req.finalZ + 1e-6) {
       z = Math.max(req.finalZ, z - peckDepth);
       moves.push({ type: "PLUNGE", x: feature.centerX, y: feature.centerY, z, feed: drillFeed });
-      moves.push({ type: "RETRACT", x: feature.centerX, y: feature.centerY, z: req.topZ + 0.05, feed: null });
+      moves.push({ type: "RETRACT", x: feature.centerX, y: feature.centerY, z: rPlane, feed: null });
     }
   } else {
     moves.push({ type: "PLUNGE", x: feature.centerX, y: feature.centerY, z: req.finalZ, feed: drillFeed });
@@ -727,7 +738,21 @@ function drillToolpath(
   moves.push({ type: "RETRACT", x: feature.centerX, y: feature.centerY, z: req.retractZ, feed: null });
 
   const removed = Math.PI * (ctx.tool.diameter / 2) ** 2 * depth;
-  return { moves, removed, warnings };
+  return {
+    moves,
+    removed,
+    warnings,
+    cycle: {
+      code: peck ? "G83" : "G81",
+      x: feature.centerX,
+      y: feature.centerY,
+      z: req.finalZ,
+      r: rPlane,
+      ...(peck ? { q: Number(peckDepth.toFixed(4)) } : {}),
+      feed: drillFeed,
+      rpm: p.rpm,
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1101,7 +1126,7 @@ function tapToolpath(
   feature: Feature,
   ctx: MachiningContext,
   p: CuttingParameters,
-): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
+): { moves: Move[]; removed: number; warnings: string[]; cycle: CannedCycle } | { error: { reason: string; recommendations: string[] } } {
   if (feature.kind !== "TAPPED_HOLE") {
     return {
       error: {
@@ -1169,7 +1194,24 @@ function tapToolpath(
 
   // A tap displaces more than it removes; the removal figure is the thread
   // relief over the drilled hole, small and honest enough at zero.
-  return { moves, removed: 0, warnings };
+  //
+  // The cycle carries the feed the engine locked, not a feed the post derives.
+  // G84 owns the spindle, and a feed that is not exactly pitch x rpm breaks the
+  // tap in the hole.
+  return {
+    moves,
+    removed: 0,
+    warnings,
+    cycle: {
+      code: "G84",
+      x: feature.centerX,
+      y: feature.centerY,
+      z: req.finalZ,
+      r: req.clearanceZ,
+      feed,
+      rpm,
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */

@@ -107,6 +107,43 @@ export interface Move {
   cw?: boolean;
 }
 
+/**
+ * A hole-making operation, as the control's own cycle.
+ *
+ * Drilling used to leave the post writing long-hand `G1` plunges and retracts.
+ * It cuts, but it is not what anybody expects to read at the control, and it
+ * gives up everything the control does better: `G83` chip-break timing, dwell
+ * at the bottom, retract to R rather than all the way to Z, and single-block
+ * stepping through one cycle instead of forty lines.
+ *
+ * The descriptor is produced by the engine ALONGSIDE the move list and from the
+ * same numbers, never pattern-matched out of the moves afterwards. Both have to
+ * describe the same motion: the simulator walks the moves and the machine runs
+ * the cycle, and if those two disagree the simulation is proving a program that
+ * will not run. `Q` and `R` are therefore the same peck increment and the same
+ * retract plane the moves were built from.
+ *
+ * A post whose control does not have these cycles — GRBL has none at all —
+ * emits the moves instead and says so. That is correct motion in more blocks,
+ * which beats a cycle the control will fault on.
+ */
+export interface CannedCycle {
+  /** G81 drill, G83 peck, G84 rigid tap. */
+  code: "G81" | "G83" | "G84";
+  x: number;
+  y: number;
+  /** Final depth, absolute. */
+  z: number;
+  /** Retract plane, absolute. The same plane the move list retracts to. */
+  r: number;
+  /** Peck increment for G83. Absent otherwise. */
+  q?: number;
+  /** Feed. For a tap this is pitch × rpm and must not be altered. */
+  feed: number;
+  /** Spindle speed the cycle runs at. */
+  rpm: number;
+}
+
 export interface Toolpath {
   operationId: string;
   type: OperationType;
@@ -123,6 +160,8 @@ export interface Toolpath {
   warnings: string[];
   /** True when the engine could not produce real motion for this type. */
   isPlaceholder: boolean;
+  /** Present for hole-making, so a post can emit the control's own cycle. */
+  cannedCycle?: CannedCycle;
 }
 
 export interface ToolpathError {

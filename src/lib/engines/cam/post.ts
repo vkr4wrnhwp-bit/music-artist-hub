@@ -81,22 +81,43 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
         currentTool = tp.toolNumber;
       }
 
-      if (tp.type === "TAP") {
-        // Rigid tap as a canned cycle. G84 owns the spindle — no M3, and the
-        // feed is pitch × rpm exactly as the engine locked it. Emitting these
-        // moves as G1 lines instead would strip the spindle synchronisation
-        // and break the tap, which is why the generic path is not used here.
-        const finalZ = Math.min(...tp.moves.map((m) => m.z));
-        const rPlane = tp.moves[0]?.z ?? ctx.safeZ;
-        lines.push(c(`RIGID TAP — F ${tp.parameters.feed.toFixed(2)} = ${tp.parameters.rpm} RPM x pitch`));
-        lines.push(`${ctx.workOffset} G0 X${n(tp.moves[0]?.x ?? 0)} Y${n(tp.moves[0]?.y ?? 0)}`);
+      /*
+       * HOLE-MAKING GOES OUT AS THE CONTROL'S OWN CYCLE.
+       *
+       * G81 to drill, G83 to peck, G84 to rigid tap. The numbers come from the
+       * descriptor the engine built beside the move list, never from reading
+       * the moves back — this used to derive the tap's Z and R with a
+       * `Math.min` over the move list, which is pattern-matching a program out
+       * of a path and gets the wrong answer the day the path changes shape.
+       *
+       * G84 owns the spindle: no M3, and the feed is pitch × rpm exactly as the
+       * engine locked it. G98 so the tool returns to the initial level rather
+       * than to R, which is what clears a clamp on the way to the next hole.
+       */
+      if (tp.cannedCycle) {
+        const cy = tp.cannedCycle;
+        const tap = cy.code === "G84";
+        lines.push(
+          c(
+            tap
+              ? `RIGID TAP — F ${cy.feed.toFixed(2)} = ${cy.rpm} RPM x pitch`
+              : `${cy.code === "G83" ? "PECK DRILL" : "DRILL"} — Z${n(cy.z, 3)} R${n(cy.r, 3)}${cy.q ? ` Q${n(cy.q, 4)}` : ""}`,
+          ),
+        );
+        lines.push(`${ctx.workOffset} G0 X${n(cy.x)} Y${n(cy.y)}`);
         lines.push(`G43 H${entry?.lengthOffset ?? tp.toolNumber} Z${n(ctx.safeZ, 3)}`);
         if (tp.parameters.coolant !== "OFF") lines.push("M8");
-        lines.push(`S${tp.parameters.rpm}`);
-        lines.push(`G84 Z${n(finalZ, 3)} R${n(rPlane, 3)} F${tp.parameters.feed.toFixed(2)}`);
+        lines.push(tap ? `S${cy.rpm}` : `S${cy.rpm} M3`);
+        lines.push(
+          `G98 ${cy.code} X${n(cy.x)} Y${n(cy.y)} Z${n(cy.z, 3)} R${n(cy.r, 3)}${cy.q ? ` Q${n(cy.q, 4)}` : ""} F${cy.feed.toFixed(2)}`,
+        );
         lines.push("G80");
         lines.push("M9");
         lines.push("G53 G0 Z0.");
+        // M5 after the tap too. G80 has cancelled the cycle by here, so the
+        // spindle is back under normal control — and the old special-cased tap
+        // branch was the one path out of this post that left it turning.
+        lines.push("M5");
         continue;
       }
 
@@ -175,6 +196,12 @@ const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
       lines.push(c(`TAP NOT EMITTED — GRBL CANNOT RIGID TAP. TAP THIS HOLE BY HAND.`));
       continue;
     }
+    // GRBL has no canned cycles either — G81 and G83 are not in its vocabulary
+    // and it faults on them. Drilling therefore goes out as the long-hand
+    // moves, which is the same motion in more blocks.
+    if (tp.cannedCycle) {
+      lines.push(c(`${tp.cannedCycle.code} NOT AVAILABLE ON GRBL — DRILLED AS FEED MOVES`));
+    }
     lines.push("");
     lines.push(c(`${tp.type} — T${tp.toolNumber}`));
     lines.push("M5");
@@ -211,6 +238,11 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
       // not implement. Unsynchronised feed lines would break the tap.
       lines.push(`; TAP NOT EMITTED — TAPPING CYCLE 207 NOT IMPLEMENTED IN THIS DEVELOPMENT POST`);
       continue;
+    }
+    // Drilling on a TNC is CYCL DEF 200/203, not implemented here. The moves
+    // cut the same hole in more blocks, which is the honest trade.
+    if (tp.cannedCycle) {
+      lines.push(`; DRILLING CYCLE 200/203 NOT IMPLEMENTED — DRILLED AS FEED MOVES`);
     }
     push(`TOOL CALL ${tp.toolNumber} Z S${tp.parameters.rpm}`);
     push(`L Z+${n(ctx.safeZ, 3)} R0 FMAX M3`);
@@ -267,6 +299,10 @@ const emitSiemens = (toolpaths: Toolpath[], ctx: PostContext): string => {
       // not implement. Unsynchronised feed lines would break the tap.
       lines.push(c("TAP NOT EMITTED — CYCLE84 NOT IMPLEMENTED IN THIS DEVELOPMENT POST"));
       continue;
+    }
+    // Drilling on 840D is CYCLE81/83, not implemented here.
+    if (tp.cannedCycle) {
+      lines.push(c("DRILLING CYCLE81/83 NOT IMPLEMENTED — DRILLED AS FEED MOVES"));
     }
     lines.push("");
     lines.push(c(`${tp.type}`));

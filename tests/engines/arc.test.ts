@@ -241,3 +241,81 @@ test("one tessellation, so the simulator and the post cannot disagree", () => {
   }
   assert.ok(/export function flattenArcs/.test(arc));
 });
+
+/* ------------------------------------------------------------------ */
+/* Canned cycles                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Drilling used to go out as long-hand G1 plunges and retracts. It cuts, and it
+ * is not what anybody expects to read at the control — and it gives up G83's
+ * chip-break timing, the retract to R rather than to Z, and single-block
+ * stepping through one cycle instead of forty lines.
+ *
+ * The thing that must not break: the cycle and the move list have to describe
+ * the same motion. The simulator walks the moves and the machine runs the
+ * cycle, so if those two disagree the simulation is proving a program that
+ * will not run.
+ */
+test("the drill cycle and the moves agree about depth and the R plane", () => {
+  const post = strip(readFileSync("src/lib/engines/cam/post.ts", "utf8"));
+  const eng = strip(readFileSync("src/lib/engines/cam/engine.ts", "utf8"));
+
+  // Both come from one `rPlane` in the generator, so there is no second number
+  // to drift. The peck retract used to be topZ + 0.05 while the rapid came
+  // down to clearanceZ — two planes for one operation.
+  assert.ok(/const rPlane = req\.clearanceZ;/.test(eng), "the R plane is not a single value");
+  // Scoped to the peck loop. `z: rPlane` also appears on the rapid down, so an
+  // unscoped match here would pass while the retract between pecks went
+  // somewhere else entirely — which is exactly what a mutation proved.
+  const peckLoop = /while \(z > req\.finalZ \+ 1e-6\) \{[\s\S]*?\n  \}/.exec(eng);
+  assert.ok(peckLoop, "the peck loop moved — this test cannot check it any more");
+  assert.ok(
+    /type: "RETRACT"[^}]*z: rPlane/.test(peckLoop![0]),
+    "the retract between pecks no longer returns to the plane the cycle uses",
+  );
+  assert.ok(/r: rPlane,/.test(eng), "the cycle's R is not the move list's R");
+
+  // And the post reads the descriptor rather than the moves.
+  assert.equal(
+    /Math\.min\(\.\.\.tp\.moves\.map/.test(post),
+    false,
+    "the post is pattern-matching a cycle out of the move list again",
+  );
+});
+
+test("the Haas family emits G81, G83 and G84 and always closes with G80", () => {
+  const post = strip(readFileSync("src/lib/engines/cam/post.ts", "utf8"));
+  assert.ok(/G98 \$\{cy\.code\}/.test(post), "no canned cycle block");
+  // G98 rather than G99: the tool returns to the initial level, which is what
+  // clears a clamp on the way to the next hole.
+  assert.ok(/lines\.push\("G80"\)/.test(post), "a cycle is left open");
+});
+
+test("G84 gets no M3, and a drill does", () => {
+  // G84 owns the spindle — it reverses at the bottom. An M3 alongside it is a
+  // broken tap. A drill needs the spindle started like anything else.
+  const post = strip(readFileSync("src/lib/engines/cam/post.ts", "utf8"));
+  assert.ok(/tap \? `S\$\{cy\.rpm\}` : `S\$\{cy\.rpm\} M3`/.test(post), "the spindle handling is not split by cycle");
+});
+
+test("no cycle leaves the spindle turning", () => {
+  // The old special-cased tap branch was the one path out of this post that
+  // ended a tool without an M5. G80 has cancelled the cycle by then, so the
+  // spindle is back under normal control and stopping it is both safe and
+  // what every other block here does.
+  const post = strip(readFileSync("src/lib/engines/cam/post.ts", "utf8"));
+  const block = /if \(tp\.cannedCycle\) \{[\s\S]*?continue;/.exec(post);
+  assert.ok(block, "the canned-cycle block moved — this test cannot check it any more");
+  assert.ok(/lines\.push\("M5"\);/.test(block![0]), "a canned cycle can end with the spindle running");
+});
+
+test("a control with no canned cycles drills as moves and says so", () => {
+  // GRBL has no G81 or G83 at all — it faults on them. The same motion in more
+  // blocks is correct; a cycle the control cannot run is not.
+  const post = strip(readFileSync("src/lib/engines/cam/post.ts", "utf8"));
+  assert.ok(/NOT AVAILABLE ON GRBL — DRILLED AS FEED MOVES/.test(post));
+  for (const said of ["CYCLE 200/203 NOT IMPLEMENTED", "CYCLE81/83 NOT IMPLEMENTED"]) {
+    assert.ok(post.includes(said), `${said} is not stated in the program`);
+  }
+});
