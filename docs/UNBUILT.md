@@ -132,6 +132,49 @@ own CAM has no CANVAS program and is not less ready for it, and executable NC ha
 its own export gates that this one does not stand in for. Non-blocking in both
 branches now, with a test asserting the two branches agree.
 
+## Found by auditing writers against readers
+
+The most productive check this pass has been mechanical: take a schema field,
+count its readers, count its writers. Five blocking defects came out of it, all
+the same shape — a gate asking for evidence, and no control anywhere that could
+record that evidence.
+
+### A feature's function and criticality were decided once and could never be corrected
+
+`Feature.functionalRole` and `Feature.critical` were written by `createFeature`
+and by the accept-a-proposal path, and by nothing else. A machinist who
+realised the top face was the datum, or that a bore was critical after all, had
+one option: delete the feature and enter it again — losing its measurements,
+its assigned inspection method and its history along with the mistake.
+
+That is backwards for a product whose ninth principle is function before
+process. CANVAS asks what the part does and then made the answer permanent,
+while the geometry it drives could be re-measured at any time.
+
+Both fields reach further than they look. `functionalRole = DATUM_FACE` is what
+the workholding engine looks for when it reports "no feature is designated as a
+datum face" — a factor whose suggestion, "assign a datum face on the part", had
+no control behind it for a feature that already existed. `critical` decides
+whether the critical-tolerance-strategy gate applies and whether the feature
+appears in a derived inspection plan.
+
+An assigned inspection method is deliberately KEPT when a feature stops being
+critical. The method is a decision somebody made about how to check the
+feature, and it stays true whether or not a gate is watching it.
+
+Verified both directions in the browser on a real part: removing the datum role
+made the workholding factor appear, marking the feature critical moved the
+tolerance gate from NOT_ATTEMPTED to REVIEW naming the missing method, and
+putting both back cleared them again. Two HUMAN audit rows record old and new.
+
+`src/app/(app)/parts/[id]/features/responsibility-actions.ts`,
+the FUNCTION tab of `/parts/[id]/features/[fid]`.
+
+**Still not correctable:** a feature's geometry. A diameter typed wrong is
+permanent in the same way, and it is a larger question than this one — the
+toolpaths, the simulation and every recorded measurement are all downstream of
+it, so changing it is closer to a revision than to an edit.
+
 ## NEVER STARTED
 
 ### Build a Feature Specimen View: selecting a feature isolates and enlarges it, allows rotation, shows dimension lines and nominal vs measured, with GEOMETRY / FUNCTION / MEASURE / MACHINE / INSPECT / HISTORY tabs

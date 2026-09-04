@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { buildPackage } from "@/lib/package";
 import { getMetrology } from "@/lib/data";
-import { fmtTol } from "@/lib/domain/features";
+import { fmtTol, FUNCTIONAL_ROLES } from "@/lib/domain/features";
 import {
   analyseMating,
   MATING_COMPONENTS,
@@ -24,6 +24,7 @@ import { comparableJobs } from "@/lib/disagreement";
 import { Disagree } from "@/components/disagree";
 import { MatingDesignationField } from "@/components/mating-designation";
 import { recordPartDisagreement } from "../../disagree-actions";
+import { recordFeatureResponsibility } from "../responsibility-actions";
 import { FeatureSpecimen } from "@/components/feature-specimen";
 import {
   SPECIMEN_TABS,
@@ -121,6 +122,7 @@ export default async function FeatureDetailPage(props: {
   }));
   const options = methodOptions(feature, instrumentList);
   const assignMethod = assignInspectionMethod.bind(null, id);
+  const responsibilityAction = recordFeatureResponsibility.bind(null, id);
 
   /* ---- Reasoning from the interface ---- */
 
@@ -441,6 +443,73 @@ export default async function FeatureDetailPage(props: {
           )}
 
           {/* ---------------- FUNCTION ---------------- */}
+          {tab === "FUNCTION" && (
+          <Panel title="What this feature is for">
+            <p className="max-w-2xl text-[12.5px] leading-relaxed text-muted">
+              Set when the feature was entered, and correctable here. It was not: a machinist who realised the top face
+              was the datum had to delete the feature and enter it again, losing its measurements and its inspection
+              method along with the mistake.
+            </p>
+
+            <form action={responsibilityAction} className="mt-4 space-y-4">
+              <input type="hidden" name="featureId" value={feature.id} />
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="label" className="tech-label mb-1 block">
+                    Name
+                  </label>
+                  <input id="label" name="label" defaultValue={row.label} className={inputClass} />
+                </div>
+                <div>
+                  <label htmlFor="functionalRole" className="tech-label mb-1 block">
+                    What it does
+                  </label>
+                  <select id="functionalRole" name="functionalRole" defaultValue={row.functionalRole} className={inputClass}>
+                    {FUNCTIONAL_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r.replace(/_/g, " ").toLowerCase()}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[10.5px] leading-relaxed text-muted">
+                    A datum face is what the workholding assessment looks for when it says none is designated.
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="surfaceFinish" className="tech-label mb-1 block">
+                    Surface finish, Ra µin
+                  </label>
+                  <input
+                    id="surfaceFinish"
+                    name="surfaceFinish"
+                    inputMode="decimal"
+                    defaultValue={row.surfaceFinish ?? ""}
+                    placeholder="none stated"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-start gap-2 text-[12.5px] text-platinum-dim">
+                <input type="checkbox" name="critical" defaultChecked={row.critical} className="mt-0.5 accent-[color:var(--c-blue)]" />
+                <span>
+                  This feature is critical
+                  <span className="mt-0.5 block text-[11px] leading-relaxed text-muted">
+                    {row.critical
+                      ? "Turning this off closes the critical tolerance strategy gate for this feature and drops it from a derived inspection plan. Any inspection method already assigned is kept — it is still a decision somebody made."
+                      : "Turning this on opens the critical tolerance strategy gate for this feature until a method is assigned to it, and puts it in a derived inspection plan."}
+                  </span>
+                </span>
+              </label>
+
+              <Button type="submit" variant="primary" size="sm">
+                Record what it is for
+              </Button>
+            </form>
+          </Panel>
+          )}
+
           {tab === "FUNCTION" && (
           <Panel title="What mates with this feature?">
             <form action={saveInterface} className="space-y-4">
