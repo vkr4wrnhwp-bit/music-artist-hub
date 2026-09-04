@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}{{ passport.artist_name or "Passport" }} - Show Passport{% endblock %}
+
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=1">
+{% endblock %}
+
+{% block content %}
+{#- Column specs as DATA, so the six editable sections share one renderer.
+    Six hand-written tables would drift apart within a month, and the input
+    list is the one document in here nobody can afford to have drift. Each
+    entry is (field, label, kind) where kind is text | num | check | a list
+    of options for a select. -#}
+{%- set specs = {
+  "contacts": [("name","Name","text"), ("role","Role","text"),
+               ("phone","Phone","text"), ("email","Email","text"),
+               ("visibility","Visible to", vocab.visibility)],
+  "personnel": [("kind","Kind", vocab.personnel_kinds), ("name","Name","text"),
+                ("role","Role","text"), ("instruments","Instruments","text"),
+                ("visibility","Visible to", vocab.visibility),
+                ("notes","Notes","text")],
+  "inputs": [("channel","Ch","num"), ("source","Source","text"),
+             ("performer","Performer","text"), ("mic_di","Mic / DI","text"),
+             ("stand","Stand","text"), ("phantom","48V","check"),
+             ("patch","Patch","num"), ("stagebox","Stagebox","text"),
+             ("required","Req","check"), ("notes","Notes","text")],
+  "outputs": [("mix_name","Mix","text"), ("performer","Performer","text"),
+              ("kind","Type", vocab.output_kinds), ("tx_rx","TX / RX","text"),
+              ("stereo","St","check"), ("output_patch","Out","num"),
+              ("talkback","Talkback","text"),
+              ("safe_start","Safe start","text"), ("notes","Notes","text")],
+  "equipment": [("item","Item","text"), ("provided_by","Provided by", vocab.provided_by),
+                ("substitutions","Substitutions","text"), ("power","Power","text"),
+                ("network","Network","text"), ("notes","Notes","text")],
+  "cues": [("song","Song","text"), ("cue_no","Cue","num"),
+           ("cue_type","Type","text"), ("operator","Operator","text"),
+           ("trigger","Trigger","text"), ("confirm_required","Confirm","check"),
+           ("fallback","Fallback","text"), ("notes","Notes","text")],
+} -%}
+{%- set order = ["contacts", "personnel", "inputs", "outputs", "equipment", "cues"] -%}
+
+{%- macro cell(spec, row) -%}
+  {%- set name, label, kind = spec -%}
+  {%- if kind == "check" -%}
+    <input class="sc-in" type="checkbox" name="{{ name }}" value="1"
+           aria-label="{{ label }}" {{ "checked" if row and row[name] }}>
+  {%- elif kind is string -%}
+    <input class="sc-in{{ ' sc-num' if kind == 'num' }}" type="text" name="{{ name }}"
+           aria-label="{{ label }}" value="{{ row[name] if row else '' }}"
+           {% if not row %}placeholder="{{ label }}"{% endif %}>
+  {%- else -%}
+    <select class="sc-in" name="{{ name }}" aria-label="{{ label }}">
+      {% for opt in kind %}
+        <option value="{{ opt }}" {{ "selected" if row and row[name] == opt }}>
+          {{ opt|replace("_", " ")|title }}
+        </option>
+      {% endfor %}
+    </select>
+  {%- endif -%}
+{%- endmacro -%}
+
+{{ sb.plate("/static/img/passport-wide", [900, 1300, 1672],
+            "Street Banker · Stage Control",
+            passport.artist_name or "Show Passport",
+            passport.production_name or none, position="center 45%") }}
+
+<article class="sc-sheet">
+
+  <header class="sc-head">
+    <div>
+      <h2 class="sc-head-artist">{{ passport.artist_name or "Untitled passport" }}</h2>
+      <p class="sc-head-production">
+        {{ passport.production_name or "No production name" }}
+        {% if passport.variant %} · {{ passport.variant }}{% endif %}
+        {% if passport.tour_name %} · {{ passport.tour_name }}{% endif %}
+      </p>
+    </div>
+    {% if current %}
+      <span class="sc-stamp {{ 'sc-stamp--draft' if unpublished }}">
+        <span class="sc-stamp-no">v{{ current.number }}</span>
+        <span class="sc-stamp-state">
+          {{ "changed since" if unpublished else "published" }}
+        </span>
+      </span>
+    {% else %}
+      <span class="sc-stamp sc-stamp--none">
+        <span class="sc-stamp-no">—</span>
+        <span class="sc-stamp-state">never published</span>
+      </span>
+    {% endif %}
+  </header>
+
+  {% if gaps %}
+    <div class="sc-gaps">
+      <h3>Not ready to send</h3>
+      <ul>{% for g in gaps %}<li>{{ g }}</li>{% endfor %}</ul>
+    </div>
+  {% else %}
+    <p class="sc-ready">
+      Every section a venue needs is filled in. Publish it to freeze a version
+      a show can be advanced against.
+    </p>
+  {% endif %}
+
+  {#- Identity, section 01. -#}
+  <section class="sc-section" id="identity">
+    <div class="sc-section-head">
+      <span class="sc-section-no">01</span>
+      <h3 class="sc-section-title">Identity</h3>
+    </div>
+    <form method="post" action="/passports/{{ passport.id }}/identity"
+          class="sc-table-wrap sc-noprint">
+      <table class="sc-table">
+        <tbody>
+          <tr>
+            <td><input class="sc-in" name="artist_name" value="{{ passport.artist_name }}" aria-label="Artist" placeholder="Artist"></td>
+            <td><input class="sc-in" name="production_name" value="{{ passport.production_name }}" aria-label="Production" placeholder="Production"></td>
+            <td><input class="sc-in" name="tour_name" value="{{ passport.tour_name }}" aria-label="Tour" placeholder="Tour"></td>
+          </tr>
+          <tr>
+            <td><input class="sc-in" name="variant" value="{{ passport.variant }}" aria-label="Format" placeholder="Format (theatre, festival)"></td>
+            <td><input class="sc-in" name="territories" value="{{ passport.territories }}" aria-label="Territories" placeholder="Territories"></td>
+            <td><input class="sc-in" name="emergency_contact" value="{{ passport.emergency_contact }}" aria-label="Emergency production contact" placeholder="Emergency production contact"></td>
+          </tr>
+        </tbody>
+      </table>
+      <p><button class="sc-btn" type="submit">Save identity</button></p>
+    </form>
+  </section>
+
+  {#- Stage plot, section 02. Dimensions and access only for now; the element
+      editor is its own piece of work and an empty canvas would claim more
+      than it does. -#}
+  <section class="sc-section" id="stage_plot">
+    <div class="sc-section-head">
+      <span class="sc-section-no">02</span>
+      <h3 class="sc-section-title">Stage plot</h3>
+      <span class="sc-section-count">
+        {{ stage_plot.elements|length }} element{{ "" if stage_plot.elements|length == 1 else "s" }}
+      </span>
+    </div>
+    <form method="post" action="/passports/{{ passport.id }}/stage-plot" class="sc-table-wrap sc-noprint">
+      <table class="sc-table">
+        <tbody>
+          <tr>
+            <td><input class="sc-in sc-num" name="width_m" value="{{ stage_plot.width_m }}" aria-label="Stage width" placeholder="Width (m)"></td>
+            <td><input class="sc-in sc-num" name="depth_m" value="{{ stage_plot.depth_m }}" aria-label="Stage depth" placeholder="Depth (m)"></td>
+            <td><input class="sc-in" name="power_notes" value="{{ stage_plot.power_notes }}" aria-label="Power" placeholder="Power requirements"></td>
+            <td><input class="sc-in" name="access_notes" value="{{ stage_plot.access_notes }}" aria-label="Access" placeholder="Access requirements"></td>
+          </tr>
+        </tbody>
+      </table>
+      <p><button class="sc-btn" type="submit">Save stage plot</button></p>
+    </form>
+  </section>
+
+  {#- The six row sections, 03 onward. -#}
+  {% for section in order %}
+    {% set rows = sections[section] %}
+    <section class="sc-section" id="{{ section }}">
+      <div class="sc-section-head">
+        <span class="sc-section-no">{{ "%02d"|format(loop.index + 2) }}</span>
+        <h3 class="sc-section-title">{{ section_labels[section] }}</h3>
+        <span class="sc-section-count">{{ rows|length }}</span>
+      </div>
+      <div class="sc-table-wrap">
+        <table class="sc-table">
+          <thead>
+            <tr>
+              {% for name, label, kind in specs[section] %}<th>{{ label }}</th>{% endfor %}
+              <th class="sc-noprint"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr>
+                {% for spec in specs[section] %}
+                  <td>{{ cell(spec, row) }}</td>
+                {% endfor %}
+                <td class="sc-noprint">
+                  <span class="sc-actions">
+                    <button class="sc-btn" type="submit" form="f-{{ row.id }}">Save</button>
+                    <button class="sc-x" type="submit" form="d-{{ row.id }}"
+                            aria-label="Delete row">&times;</button>
+                  </span>
+                </td>
+              </tr>
+            {% endfor %}
+            <tr class="sc-addrow sc-noprint">
+              {% for spec in specs[section] %}
+                <td>{{ cell(spec, none) }}</td>
+              {% endfor %}
+              <td><button class="sc-btn" type="submit" form="a-{{ section }}">Add</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {#- The forms live OUTSIDE the table and the inputs reach them by the
+          `form=` attribute. A <form> is not a legal child of <tr> or <table>:
+          the parser hoists it out, which is what put the delete button on its
+          own line and made every row double height. -#}
+      <div class="sc-forms sc-noprint">
+        <form method="post" id="a-{{ section }}"
+              action="/passports/{{ passport.id }}/{{ section }}/add"></form>
+        {% for row in rows %}
+          <form method="post" id="f-{{ row.id }}"
+                action="/passports/{{ passport.id }}/{{ section }}/{{ row.id }}/save"></form>
+          <form method="post" id="d-{{ row.id }}"
+                action="/passports/{{ passport.id }}/{{ section }}/{{ row.id }}/delete"></form>
+        {% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+
+  {#- Playback, section 09. -#}
+  <section class="sc-section" id="playback">
+    <div class="sc-section-head">
+      <span class="sc-section-no">09</span>
+      <h3 class="sc-section-title">Playback and timecode</h3>
+    </div>
+    <form method="post" action="/passports/{{ passport.id }}/playback" class="sc-table-wrap sc-noprint">
+      <table class="sc-table">
+        <tbody>
+          {% for group in [["system","Playback system"],["primary_device","Primary device"],["redundant_device","Redundant device"]],
+                          [["out_format","Output format"],["sample_rate","Sample rate"],["bit_depth","Bit depth"]],
+                          [["channel_map","Channel map"],["click","Click"],["cues","Cues"]],
+                          [["tc_type","Timecode type"],["tc_fps","Frame rate"],["midi_osc","MIDI / OSC"]],
+                          [["redundancy","Redundancy procedure"],["failure","Failure procedure"],["",""]] %}
+            <tr>
+              {% for name, label in group %}
+                <td>
+                  {% if name %}
+                    <input class="sc-in" name="{{ name }}" value="{{ playback[name] }}"
+                           aria-label="{{ label }}" placeholder="{{ label }}">
+                  {% endif %}
+                </td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p><button class="sc-btn" type="submit">Save playback</button></p>
+    </form>
+  </section>
+
+  {#- Publishing. The note is the confirmation: it is what the change log
+      shows, so a publish nobody can explain is a publish that reads badly
+      later. -#}
+  <form class="sc-publish sc-noprint" method="post"
+        action="/passports/{{ passport.id }}/publish">
+    <input class="sc-in" name="change_note" aria-label="What changed"
+           placeholder="What changed in this version?">
+    <button class="sc-btn sc-btn--go" type="submit"
+            {{ "disabled" if current and not unpublished }}>
+      {{ "Publish version 1" if not current else "Publish version %d"|format(current.number + 1) }}
+    </button>
+    <a class="sc-btn" href="/passports/{{ passport.id }}/versions">
+      History{% if versions %} ({{ versions|length }}){% endif %}
+    </a>
+  </form>
+  {% if current and not unpublished %}
+    <p class="sc-muted" style="font-size:13px;">
+      Nothing has changed since version {{ current.number }} was published.
+    </p>
+  {% endif %}
+
+</article>
+{% endblock %}

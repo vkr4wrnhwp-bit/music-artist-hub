@@ -312,7 +312,13 @@ def test_the_static_assets_were_bumped(page):
     assert "remix-lab.css?v=9" in page
     assert "remix-lab.js?v=4" in page
     sw = open(_os.path.join(_HERE, "static", "js", "sw.js"), encoding="utf-8").read()
-    assert "sb-v169" in sw
+    # A MINIMUM, not an exact match. Pinning the literal version made
+    # this test fail on every later unrelated bump - which is what it
+    # did when Show Passport shipped v170. What the test is actually
+    # for is "the worker moved on when this feature landed", and >=
+    # says that without taxing every future static change.
+    got = int(re.search(r'VERSION = "sb-v(\d+)"', sw).group(1))
+    assert got >= 169, "the service worker must be bumped on a static change"
 
 
 def test_the_waveform_is_decoded_locally_and_references_are_named():

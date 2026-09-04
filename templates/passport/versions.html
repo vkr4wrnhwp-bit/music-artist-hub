@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Change log - {{ passport.artist_name or "Passport" }}{% endblock %}
+
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=1">
+{% endblock %}
+
+{% block content %}
+{{ sb.plate("/static/img/passport-wide", [900, 1300, 1672],
+            "Street Banker · Stage Control", "Change log",
+            "Every published version, and what moved between them. A show keeps the version it was advanced against, so this is the record of what a crew was actually handed.",
+            position="center 45%") }}
+
+<article class="sc-sheet">
+  <header class="sc-head">
+    <div>
+      <h2 class="sc-head-artist">{{ passport.artist_name or "Untitled passport" }}</h2>
+      <p class="sc-head-production">
+        {{ versions|length }} published version{{ "" if versions|length == 1 else "s" }}
+      </p>
+    </div>
+    <a class="sc-btn" href="/passports/{{ passport.id }}">Back to the draft</a>
+  </header>
+
+  {% if not versions %}
+    <p class="sc-ready" style="margin-top:var(--sb-s5);">
+      Nothing published yet. Until a version exists there is no document a
+      show can be advanced against.
+    </p>
+  {% else %}
+    <section class="sc-section">
+      <div class="sc-section-head">
+        <span class="sc-section-no">01</span>
+        <h3 class="sc-section-title">Versions</h3>
+      </div>
+      {% for v in versions %}
+        <div class="sc-vrow">
+          <span class="sc-vno">v{{ v.number }}</span>
+          <span class="sc-flag {{ 'sc-flag--on' if v.state == 'published' }}">{{ v.state }}</span>
+          <span class="sc-num sc-muted">{{ v.published_at[:16]|replace("T", " ") }}</span>
+          {% if v.published_by %}<span class="sc-muted">{{ v.published_by }}</span>{% endif %}
+          <span>{{ v.change_note or "" }}</span>
+          <a class="sc-btn" style="margin-left:auto;"
+             href="/passports/{{ passport.id }}/version/{{ v.id }}">Read</a>
+        </div>
+      {% endfor %}
+    </section>
+
+    {% if versions|length > 1 %}
+      <section class="sc-section sc-diff">
+        <div class="sc-section-head">
+          <span class="sc-section-no">02</span>
+          <h3 class="sc-section-title">What changed</h3>
+        </div>
+        <form method="get" class="sb-row sb-row--wrap sc-noprint" style="gap:var(--sb-s3);">
+          <label class="sc-muted" style="font-size:13px;">
+            From
+            <select class="sc-in" name="from">
+              {% for v in versions %}
+                <option value="{{ v.id }}" {{ "selected" if v.id == older }}>v{{ v.number }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="sc-muted" style="font-size:13px;">
+            To
+            <select class="sc-in" name="to">
+              {% for v in versions %}
+                <option value="{{ v.id }}" {{ "selected" if v.id == newer }}>v{{ v.number }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button class="sc-btn" type="submit">Compare</button>
+        </form>
+
+        {% if diff is none %}
+          <p class="sc-muted" style="font-size:13px;">Pick two different versions.</p>
+        {% elif not diff %}
+          <p class="sc-ready">
+            Nothing differs between these two versions.
+          </p>
+        {% else %}
+          {% for section, change in diff.items() %}
+            <div class="sc-diff-section">
+              <h4 class="sc-section-title" style="font-size:15px;">
+                {{ section_labels.get(section, section)|replace("_", " ")|title }}
+              </h4>
+              {% for row in change.added %}
+                <div class="sc-diff-line">
+                  <span class="sc-diff-tag sc-diff-tag--add">added</span>
+                  <span class="sc-now">
+                    {{ row.get("source") or row.get("mix_name") or row.get("name")
+                       or row.get("item") or row.get("song") or "row" }}
+                  </span>
+                </div>
+              {% endfor %}
+              {% for row in change.removed %}
+                <div class="sc-diff-line">
+                  <span class="sc-diff-tag sc-diff-tag--rm">removed</span>
+                  <span class="sc-was">
+                    {{ row.get("source") or row.get("mix_name") or row.get("name")
+                       or row.get("item") or row.get("song") or "row" }}
+                  </span>
+                </div>
+              {% endfor %}
+              {#- Field-level, because "the input list changed" is not something
+                  a monitor engineer can act on, and "channel 12 moved from an
+                  SM58 to a DI" is. -#}
+              {% for ch in change.changed %}
+                {% for field in ch.fields %}
+                  <div class="sc-diff-line">
+                    <span class="sc-diff-tag sc-diff-tag--ch">changed</span>
+                    <span class="sc-num">{{ ch.key }}</span>
+                    <span class="sc-muted">{{ field|replace("_", " ") }}</span>
+                    <span class="sc-was">{{ ch.before.get(field) or "—" }}</span>
+                    <span aria-hidden="true">→</span>
+                    <span class="sc-now">{{ ch.after.get(field) or "—" }}</span>
+                  </div>
+                {% endfor %}
+              {% endfor %}
+            </div>
+          {% endfor %}
+        {% endif %}
+      </section>
+    {% endif %}
+  {% endif %}
+</article>
+{% endblock %}

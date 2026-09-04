@@ -246,7 +246,13 @@ def test_every_old_tab_url_still_answers_and_lands_on_its_element(flask_app):
 
 def test_the_assets_moved_on_with_the_page():
     sw = open(os.path.join(HERE, "static", "js", "sw.js"), encoding="utf-8").read()
-    assert 'VERSION = "sb-v169"' in sw
+    # A MINIMUM, not an exact match. Pinning the literal version made
+    # this test fail on every later unrelated bump - which is what it
+    # did when Show Passport shipped v170. What the test is actually
+    # for is "the worker moved on when this feature landed", and >=
+    # says that without taxing every future static change.
+    got = int(re.search(r'VERSION = "sb-v(\d+)"', sw).group(1))
+    assert got >= 169, "the service worker must be bumped on a static change"
     shell = open(os.path.join(HERE, "templates", "tour", "_shell.html"), encoding="utf-8").read()
     assert "tour-os.css?v=6" in shell
     css = open(os.path.join(HERE, "static", "css", "tour-os.css"), encoding="utf-8").read()

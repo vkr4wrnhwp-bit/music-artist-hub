@@ -1,0 +1,429 @@
+/* Stage Control + Show Passport.
+ *
+ * THE IDEA. A passport is a document that travels: it gets printed, emailed to
+ * a venue, and read on a clipboard by somebody who has never heard the band.
+ * So it is drawn as a SHEET OF PAPER framed by the dark app - ivory ground,
+ * gold rules, numbered sections, monospace channel numbers - rather than as
+ * another dark panel. That is not decoration; it is what the thing is, and it
+ * makes the printable export and the screen the same object.
+ *
+ * The Engineer Desk (phase 4) will be the exact inverse: dark, high contrast,
+ * minimal, because it is read at front of house during a blackout. The two
+ * halves of this product look different on purpose.
+ *
+ * Every colour is a token. The design lock forbids raw hex outside an exempt
+ * list and this file is not on it.
+ */
+
+/* --- the sheet ----------------------------------------------------------- */
+
+.sc-sheet {
+  background: var(--sb-paper);
+  color: var(--sb-paper-ink);
+  border: 1px solid var(--sb-paper-line);
+  border-radius: var(--sb-r-panel);
+  padding: var(--sb-s6);
+  box-shadow: var(--sb-e2);
+}
+
+@media (max-width: 640px) {
+  .sc-sheet { padding: var(--sb-s4); }
+}
+
+.sc-sheet h2,
+.sc-sheet h3 { color: var(--sb-paper-ink); }
+
+/* The masthead of the document: who it is for, and which version this is. */
+.sc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sb-s4);
+  padding-bottom: var(--sb-s4);
+  border-bottom: 2px solid var(--sb-paper-gold);
+}
+
+.sc-head-artist {
+  font-family: var(--sb-display);
+  font-size: 28px;
+  line-height: 1.1;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.sc-head-production {
+  margin: var(--sb-s1) 0 0;
+  font-size: 14px;
+  color: var(--sb-paper-ink-2);
+}
+
+/* --- the version stamp ---------------------------------------------------- */
+/* Rotated like a rubber stamp because that is exactly its job: it says which
+ * document you are holding. Kept off the print path's way at small widths. */
+
+.sc-stamp {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sb-s2) var(--sb-s4);
+  border: 2px solid var(--sb-paper-gold);
+  border-radius: var(--sb-r-control);
+  color: var(--sb-paper-gold);
+  font-family: var(--sb-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  transform: rotate(-2deg);
+}
+
+.sc-stamp-no {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.sc-stamp-state { font-size: 12px; }
+
+/* A passport with nothing published yet is not a failure state, so it is drawn
+ * in ink rather than in a warning colour - it just has not happened. */
+.sc-stamp--none {
+  border-color: var(--sb-paper-line);
+  color: var(--sb-paper-ink-3);
+  transform: none;
+}
+
+.sc-stamp--draft {
+  border-style: dashed;
+}
+
+/* --- numbered sections ---------------------------------------------------- */
+
+.sc-section { margin-top: var(--sb-s6); }
+
+.sc-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sb-s3);
+  padding-bottom: var(--sb-s2);
+  border-bottom: 1px solid var(--sb-paper-line);
+}
+
+/* The number is real information on a rider - crew say "section four" down a
+ * phone - so it is set in mono and given room, not used as decoration. */
+.sc-section-no {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  color: var(--sb-paper-gold);
+  letter-spacing: 0.14em;
+}
+
+.sc-section-title {
+  font-family: var(--sb-display);
+  font-size: 17px;
+  margin: 0;
+}
+
+.sc-section-count {
+  margin-left: auto;
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  color: var(--sb-paper-ink-3);
+}
+
+/* --- tables --------------------------------------------------------------- */
+
+.sc-table-wrap { overflow-x: auto; }
+
+.sc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sc-table th {
+  text-align: left;
+  padding: var(--sb-s2) var(--sb-s3);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--sb-paper-ink-3);
+  border-bottom: 1px solid var(--sb-paper-line);
+  white-space: nowrap;
+}
+
+.sc-table td {
+  padding: var(--sb-s2) var(--sb-s3);
+  border-bottom: 1px solid var(--sb-paper-line-soft);
+  vertical-align: top;
+}
+
+.sc-table tr:last-child td { border-bottom: 0; }
+
+/* Channel numbers, patch points and timecode all line up or they are useless. */
+.sc-num {
+  font-family: var(--sb-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sc-muted { color: var(--sb-paper-ink-3); }
+
+/* --- flags ---------------------------------------------------------------- */
+
+.sc-flag {
+  display: inline-block;
+  padding: 1px var(--sb-s2);
+  border-radius: var(--sb-r-pill);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--sb-paper-line);
+  color: var(--sb-paper-ink-2);
+}
+
+.sc-flag--on {
+  border-color: var(--sb-paper-gold);
+  color: var(--sb-paper-gold);
+}
+
+/* --- what is missing ------------------------------------------------------ */
+/* Facts, not a score. A passport that is "80% complete" is not 80% useful -
+ * the missing part is exactly what the engineer needed. */
+
+.sc-gaps {
+  margin-top: var(--sb-s4);
+  padding: var(--sb-s4);
+  border: 1px solid var(--sb-warn-line);
+  border-left: 3px solid var(--sb-warn);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-warn-wash);
+}
+
+.sc-gaps h3 {
+  margin: 0 0 var(--sb-s2);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--sb-warn);
+}
+
+.sc-gaps ul { margin: 0; padding-left: var(--sb-s5); }
+.sc-gaps li { font-size: 13px; margin: 2px 0; }
+
+.sc-ready {
+  margin-top: var(--sb-s4);
+  padding: var(--sb-s3) var(--sb-s4);
+  border: 1px solid var(--sb-good-line);
+  border-left: 3px solid var(--sb-good);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-good-wash);
+  font-size: 13px;
+}
+
+/* --- editing -------------------------------------------------------------- */
+/* An input on paper: underlined, not boxed, so a filled sheet reads as a
+ * document rather than as a form. */
+
+.sc-in {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--sb-paper-ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--sb-paper-line);
+  border-radius: 0;
+}
+
+.sc-in:focus {
+  outline: 2px solid var(--sb-focus);
+  outline-offset: 2px;
+  border-bottom-color: var(--sb-paper-gold);
+}
+
+.sc-in::placeholder { color: var(--sb-paper-ink-3); }
+
+/* A select narrow enough to clip "Performer" to "Performe" is worse than a
+ * slightly wider column: the value IS the label here, so it has to be
+ * readable at rest, not on click. */
+select.sc-in {
+  padding-right: var(--sb-s3);
+  min-width: 7rem;
+}
+
+.sc-addrow td { background: var(--sb-paper-panel); }
+
+/* Save and delete belong on one line. They are a pair of controls for one
+ * row, and stacking them made every row double height. */
+.sc-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sb-s2);
+  white-space: nowrap;
+}
+
+/* The row forms are parked here purely so the `form=` attribute can reach
+ * them. They carry no fields and must occupy no space. */
+.sc-forms { display: none; }
+
+.sc-x {
+  padding: 2px var(--sb-s2);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  color: var(--sb-paper-ink-3);
+  background: transparent;
+  border: 1px solid var(--sb-paper-line);
+  border-radius: var(--sb-r-control);
+  cursor: pointer;
+}
+
+.sc-x:hover { color: var(--sb-crit); border-color: var(--sb-crit); }
+
+.sc-btn {
+  padding: var(--sb-s2) var(--sb-s4);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--sb-paper-ink);
+  background: transparent;
+  border: 1px solid var(--sb-paper-line);
+  border-radius: var(--sb-r-control);
+  cursor: pointer;
+}
+
+.sc-btn:hover { border-color: var(--sb-paper-gold); color: var(--sb-paper-gold); }
+
+.sc-btn--go {
+  background: var(--sb-paper-gold);
+  border-color: var(--sb-paper-gold);
+  color: var(--sb-paper);
+  font-weight: 600;
+}
+
+.sc-btn--go:hover { color: var(--sb-paper); filter: brightness(1.06); }
+.sc-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+/* --- publishing ----------------------------------------------------------- */
+
+.sc-publish {
+  margin-top: var(--sb-s6);
+  padding-top: var(--sb-s4);
+  border-top: 2px solid var(--sb-paper-gold);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sb-s3);
+}
+
+.sc-publish .sc-in { flex: 1 1 16rem; }
+
+/* --- the index ------------------------------------------------------------ */
+
+.sc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: var(--sb-s4);
+  margin-top: var(--sb-s5);
+}
+
+.sc-card {
+  display: block;
+  padding: var(--sb-s4);
+  background: var(--sb-paper);
+  color: var(--sb-paper-ink);
+  border: 1px solid var(--sb-paper-line);
+  border-top: 3px solid var(--sb-paper-gold);
+  border-radius: var(--sb-r-panel);
+  text-decoration: none;
+  box-shadow: var(--sb-e1);
+  transition: transform var(--sb-fast) var(--sb-ease),
+              box-shadow var(--sb-fast) var(--sb-ease);
+}
+
+.sc-card:hover { transform: translateY(-2px); box-shadow: var(--sb-e2); }
+
+.sc-card-artist {
+  font-family: var(--sb-display);
+  font-size: 18px;
+  margin: 0;
+}
+
+.sc-card-meta {
+  margin: var(--sb-s2) 0 0;
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  color: var(--sb-paper-ink-3);
+}
+
+/* --- version history ------------------------------------------------------ */
+
+.sc-vrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sb-s3);
+  padding: var(--sb-s3) 0;
+  border-bottom: 1px solid var(--sb-paper-line-soft);
+}
+
+.sc-vno {
+  font-family: var(--sb-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sb-paper-gold);
+  min-width: 3rem;
+}
+
+.sc-diff { margin-top: var(--sb-s5); }
+
+.sc-diff-section {
+  margin-top: var(--sb-s4);
+  padding-top: var(--sb-s3);
+  border-top: 1px solid var(--sb-paper-line);
+}
+
+.sc-diff-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-s2);
+  align-items: baseline;
+  padding: 2px 0;
+  font-size: 13px;
+}
+
+.sc-diff-tag {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  min-width: 5.5rem;
+}
+
+.sc-diff-tag--add { color: var(--sb-good); }
+.sc-diff-tag--rm { color: var(--sb-crit); }
+.sc-diff-tag--ch { color: var(--sb-warn); }
+
+.sc-was {
+  color: var(--sb-paper-ink-3);
+  text-decoration: line-through;
+}
+
+.sc-now { color: var(--sb-paper-ink); font-weight: 600; }
+
+/* --- print ---------------------------------------------------------------- */
+/* The sheet is already the document, so printing mostly means getting the app
+ * out of the way. */
+
+@media print {
+  .sc-noprint { display: none !important; }
+  .sc-sheet { border: 0; box-shadow: none; padding: 0; }
+  .sc-section { break-inside: avoid; }
+  .sc-table { font-size: 11pt; }
+}

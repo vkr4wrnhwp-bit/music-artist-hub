@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}v{{ version.number }} - {{ passport.artist_name or "Passport" }}{% endblock %}
+
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=1">
+{% endblock %}
+
+{% block content %}
+{#- A frozen version rendered as the document it is: read-only, printable,
+    and drawn ONLY from the snapshot. It never touches the working tables -
+    that is the whole promise of publishing. -#}
+{#- Explicit column labels, not name|title: that turns mic_di into "Mic Di"
+    and cue_no into "Cue No", which reads as carelessness on a document a
+    venue is being asked to work from. -#}
+{%- set order = [("contacts", "Production contacts",
+                  [("name","Name"),("role","Role"),("phone","Phone"),("email","Email")]),
+                 ("personnel", "Personnel",
+                  [("name","Name"),("role","Role"),("instruments","Instruments"),("kind","Kind")]),
+                 ("inputs", "Input list",
+                  [("channel","Ch"),("source","Source"),("performer","Performer"),
+                   ("mic_di","Mic / DI"),("stand","Stand"),("phantom","48V"),
+                   ("patch","Patch"),("stagebox","Stagebox"),("notes","Notes")]),
+                 ("outputs", "Monitor mixes",
+                  [("mix_name","Mix"),("performer","Performer"),("kind","Type"),
+                   ("tx_rx","TX / RX"),("output_patch","Out"),("talkback","Talkback"),
+                   ("safe_start","Safe start"),("notes","Notes")]),
+                 ("equipment", "Backline and equipment",
+                  [("item","Item"),("provided_by","Provided by"),
+                   ("substitutions","Substitutions"),("power","Power"),
+                   ("network","Network"),("notes","Notes")]),
+                 ("cues", "Show cues",
+                  [("song","Song"),("cue_no","Cue"),("cue_type","Type"),
+                   ("operator","Operator"),("trigger","Trigger"),
+                   ("fallback","Fallback"),("notes","Notes")])] -%}
+{#- Sections with no rows are not printed, so the numbering has to count what
+    is actually on the page. Skipping to "04" because two sections were empty
+    reads as a document with pages missing - and crew cite these numbers down
+    a phone. -#}
+{%- set n = namespace(i=0) -%}
+{%- macro section_no() -%}
+  {%- set n.i = n.i + 1 -%}{{ "%02d"|format(n.i) }}
+{%- endmacro -%}
+
+{{ sb.plate("/static/img/passport-wide", [900, 1300, 1672],
+            "Street Banker · Stage Control",
+            snapshot.identity.artist_name or "Show Passport",
+            "Version %d, frozen on publication." | format(version.number),
+            position="center 45%") }}
+
+<article class="sc-sheet">
+
+  <header class="sc-head">
+    <div>
+      <h2 class="sc-head-artist">{{ snapshot.identity.artist_name or "Untitled passport" }}</h2>
+      <p class="sc-head-production">
+        {{ snapshot.identity.production_name }}
+        {% if snapshot.identity.variant %} · {{ snapshot.identity.variant }}{% endif %}
+        {% if snapshot.identity.tour_name %} · {{ snapshot.identity.tour_name }}{% endif %}
+      </p>
+      <p class="sc-head-production sc-num">
+        Published {{ version.published_at[:10] }}
+        {% if version.published_by %} by {{ version.published_by }}{% endif %}
+        {% if snapshot.identity.last_verified %}
+          · verified {{ snapshot.identity.last_verified }}
+        {% endif %}
+      </p>
+    </div>
+    <span class="sc-stamp">
+      <span class="sc-stamp-no">v{{ version.number }}</span>
+      <span class="sc-stamp-state">{{ version.state }}</span>
+    </span>
+  </header>
+
+  <p class="sc-noprint" style="margin-top:var(--sb-s4);">
+    <a class="sc-btn" href="/passports/{{ passport.id }}/versions">Change log</a>
+    <a class="sc-btn" href="/passports/{{ passport.id }}">Draft</a>
+    <button class="sc-btn" type="button" onclick="window.print()">Print</button>
+  </p>
+
+  {% if version.change_note %}
+    <p class="sc-ready">{{ version.change_note }}</p>
+  {% endif %}
+
+  <section class="sc-section">
+    <div class="sc-section-head">
+      <span class="sc-section-no">{{ section_no() }}</span>
+      <h3 class="sc-section-title">Identity</h3>
+    </div>
+    <div class="sc-table-wrap">
+      <table class="sc-table">
+        <tbody>
+          {% for label, key in [("Artist","artist_name"), ("Production","production_name"),
+                                ("Tour","tour_name"), ("Format","variant"),
+                                ("Territories","territories"),
+                                ("Emergency contact","emergency_contact")] %}
+            {% if snapshot.identity.get(key) %}
+              <tr>
+                <th style="width:12rem;">{{ label }}</th>
+                <td>{{ snapshot.identity[key] }}</td>
+              </tr>
+            {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% set plot = snapshot.stage_plot or {} %}
+  {% if plot.width_m or plot.depth_m or plot.power_notes or plot.access_notes %}
+    <section class="sc-section">
+      <div class="sc-section-head">
+        <span class="sc-section-no">{{ section_no() }}</span>
+        <h3 class="sc-section-title">Stage plot</h3>
+      </div>
+      <div class="sc-table-wrap">
+        <table class="sc-table">
+          <tbody>
+            <tr><th style="width:12rem;">Stage</th>
+              <td class="sc-num">{{ plot.width_m or "—" }} × {{ plot.depth_m or "—" }} m</td></tr>
+            {% if plot.power_notes %}<tr><th>Power</th><td>{{ plot.power_notes }}</td></tr>{% endif %}
+            {% if plot.access_notes %}<tr><th>Access</th><td>{{ plot.access_notes }}</td></tr>{% endif %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  {% for key, title, columns in order %}
+    {% set rows = snapshot.get(key) or [] %}
+    {% if rows %}
+      <section class="sc-section">
+        <div class="sc-section-head">
+          <span class="sc-section-no">{{ section_no() }}</span>
+          <h3 class="sc-section-title">{{ title }}</h3>
+          <span class="sc-section-count">{{ rows|length }}</span>
+        </div>
+        <div class="sc-table-wrap">
+          <table class="sc-table">
+            <thead>
+              <tr>{% for c, label in columns %}<th>{{ label }}</th>{% endfor %}</tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+                <tr>
+                  {% for c, label in columns %}
+                    <td class="{{ 'sc-num' if c in ['channel','patch','output_patch','cue_no'] }}">
+                      {% if c in ["phantom", "stereo", "confirm_required", "required"] %}
+                        {% if row.get(c) %}<span class="sc-flag sc-flag--on">yes</span>{% else %}<span class="sc-muted">—</span>{% endif %}
+                      {% else %}
+                        {{ row.get(c) or "" }}
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+  {% endfor %}
+
+  {% set pb = snapshot.playback or {} %}
+  {% if pb.system or pb.tc_type or pb.primary_device %}
+    <section class="sc-section">
+      <div class="sc-section-head">
+        <span class="sc-section-no">{{ section_no() }}</span>
+        <h3 class="sc-section-title">Playback and timecode</h3>
+      </div>
+      <div class="sc-table-wrap">
+        <table class="sc-table">
+          <tbody>
+            {% for label, key in [("System","system"), ("Primary","primary_device"),
+                                  ("Redundant","redundant_device"), ("Format","out_format"),
+                                  ("Sample rate","sample_rate"), ("Bit depth","bit_depth"),
+                                  ("Channel map","channel_map"), ("Click","click"),
+                                  ("Cues","cues"), ("Timecode","tc_type"),
+                                  ("Frame rate","tc_fps"), ("MIDI / OSC","midi_osc"),
+                                  ("Redundancy","redundancy"), ("On failure","failure")] %}
+              {% if pb.get(key) %}
+                <tr><th style="width:12rem;">{{ label }}</th><td>{{ pb[key] }}</td></tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+</article>
+{% endblock %}

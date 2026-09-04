@@ -31,6 +31,7 @@ import studio
 import studio_store
 import audio_webhooks
 import partner_os
+import passport_os
 import partner_store
 # NB: signal_hub, not signal - a module named `signal` in the repo root would
 # shadow the standard library module that gunicorn and Werkzeug import.
@@ -9097,6 +9098,11 @@ def create_app():
     # Team-Up Board: renew and thread links go into emails, so they are
     # built from the canonical address too.
     board.init(app, base_url=lambda: PUBLIC_BASE_URL)
+    # Show Passport. Takes current_user and the dashboard context so a
+    # passport page wears the same shell as every other internal page rather
+    # than becoming a second-looking product inside the first.
+    passport_os.init(app, current_user=current_user,
+                     dashboard_context=build_dashboard_context)
 
     # Last, so it wraps everything above and gets the final say on the
     # headers Flask's session handling would otherwise leave in place.
