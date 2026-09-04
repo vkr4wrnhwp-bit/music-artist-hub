@@ -4,6 +4,10 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { parseStl } from "@/lib/scan/mesh";
 import { inspectMesh, type MeshUnits } from "@/lib/scan/inspect";
+import { sliceMesh } from "@/lib/scan/slice";
+import { fitChain } from "@/lib/geometry/fit";
+import { assembleLoops, splitProfile } from "@/lib/geometry/loop";
+import { recognizeGeometry } from "@/lib/geometry/recognize";
 import { isScanningInstrument } from "@/lib/domain/shop";
 import { emptyPartIntent, type PartIntent } from "@/lib/domain/part-intent";
 import { measured, unknown as unknownField, value } from "@/lib/provenance";
@@ -182,6 +186,60 @@ export async function POST(request: Request) {
       resolution: "PENDING",
     })),
   });
+
+  /*
+   * THE OUTSIDE PROFILE, FROM THE SCAN.
+   *
+   * A part a 3-axis mill makes is 2.5D, so its outline IS the cross-section of
+   * the mesh — and slicing one is exact arithmetic, not inference. This is the
+   * piece that was missing: reverse engineering produced an envelope and a list
+   * of things to go and measure, and the shape of the part came from nowhere.
+   *
+   * THE FIT TOLERANCE IS THE SCANNER'S OWN UNCERTAINTY.
+   *
+   * Fitting is deciding that points which are not on a line are close enough to
+   * be treated as though they were, and a fit TIGHTER than the measurement is a
+   * claim about the part the measurement cannot support — it would turn this
+   * instrument's noise into geometry. So the tolerance comes from the
+   * metrology record, and the proposal says which instrument set it.
+   *
+   * It is a proposal. A scan is one worn example measured on one day, and what
+   * the part is SUPPOSED to be is a human's call against the print.
+   */
+  const slice = sliceMesh(parsed.mesh, units);
+  const outer = splitProfile(assembleLoops(slice.segments).loops).profile;
+  if (outer) {
+    const fit = fitChain(outer.chain, { tolerance: Math.max(device.uncertainty, 1e-4) });
+    const rec = recognizeGeometry(
+      fit.chain.segments.map((seg, i) => {
+        const from = i === 0 ? fit.chain.start : fit.chain.segments[i - 1].to;
+        return seg.kind === "ARC"
+          ? { kind: "ARC" as const, a: from, b: seg.to, center: seg.center, cw: seg.cw }
+          : { kind: "LINE" as const, a: from, b: seg.to };
+      }),
+      { label: "Outside profile (scanned)" },
+    );
+    if (rec.profile) {
+      await db.aIRecommendation.create({
+        data: {
+          partRevisionId: revision.id,
+          kind: "FEATURE",
+          summary:
+            `Outside profile sliced from the scan at Z ${slice.z.toFixed(4)}": ` +
+            `${fit.from} chords fitted to ${fit.to} segments (${fit.lines} lines, ${fit.arcs} arcs) ` +
+            `within ${Math.max(device.uncertainty, 1e-4).toFixed(4)}" — the uncertainty of ${device.description}, ` +
+            `because a fit tighter than the measurement is a claim the measurement cannot support. ` +
+            `Worst deviation ${fit.maxDeviation.toFixed(5)}". ` +
+            `${slice.assumptions.join(" ")} ` +
+            `This is one worn example measured on one day: check every dimension against the print before accepting.`,
+          payloadJson: JSON.stringify([rec.profile]),
+          providerId: "scan-slice",
+          confidence: 1,
+          status: "PROPOSED",
+        },
+      });
+    }
+  }
 
   await audit({
     organizationId: user.organizationId,

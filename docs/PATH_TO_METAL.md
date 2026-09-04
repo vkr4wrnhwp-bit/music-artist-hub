@@ -1200,6 +1200,74 @@ part gained a feature it did not have. It stays PROPOSED and says why. And a
 deterministic parser's output was labelled "AI suggestion · 100% intake
 completeness"; a parser is not a model, and a confidence stored because the
 column is not nullable is not a measure of anything.
+
+**T11 — A scan becomes a profile. — BUILT**
+Reverse engineering stopped before geometry, by design and said so.
+`reconstruction.ts`: *"Photographs do not produce geometry. They produce a list
+of things somebody has to go and measure… CANVAS has no vision model wired
+up."* `scan/inspect.ts` derived **envelope, mesh integrity and planar faces**
+and marked *"NOT ATTEMPTED: bores, radii, threads, tolerances, datums."* Both
+honest. Between them the shape of the part came from nowhere, and a scan gave
+you a bounding box.
+
+A part a 3-axis mill makes is 2.5D, so its outline **is** the cross-section of
+the mesh at a Z — and slicing a triangle mesh with a plane is exact arithmetic,
+not inference: every triangle the plane crosses contributes one segment. What
+comes out is a bag of unordered chords, which is precisely what T10's
+`assembleLoops` already eats.
+
+The work is the other half: a slice is one chord per triangle, so a 4" edge
+arrives as forty segments and a fillet as a dozen. Cutting that is a program of
+hundreds of blocks and a wall you can feel. `geometry/fit.ts` recovers the lines
+and arcs somebody drew — greedy and longest-first, because fitting the shortest
+acceptable piece chops a straight edge into fragments, and an arc only wins when
+it covers MORE than the line, because a straight edge is also a very large
+circle and a tie handed to the arc puts a meaningless R400 where a machinist
+expects G1.
+
+**The tolerance is the whole argument, so it comes from the metrology record.**
+Fitting is deciding that points which are not on a line are close enough to be
+treated as though they were. A fit tighter than the measurement is a claim the
+measurement cannot support — it turns the instrument's noise into geometry — so
+the tolerance is the scanner's own uncertainty, and the proposal names the
+instrument that set it. Nothing is rounded to a nominal: a scan of a used part
+carries that part's wear, and R0.4986 is reported as R0.4986 because rounding it
+to R0.5 launders wear into design intent.
+
+Two things found by posting the result rather than by reading the code:
+
+- **The seam.** The walk starts wherever the chord list starts, which on a
+  scanned part is the middle of an edge — so a 4-sided plate fits to five
+  segments with a corner in the middle of one side. That corner is not in the
+  part, and the offset puts a pivot arc at it.
+- **Tangency, which the fit breaks and the part does not have.** A fillet meets
+  its edges tangentially by construction; line and arc are fitted independently,
+  so a greedy line eats into the tangent arc — where the arc is still within
+  tolerance of the line — and hands over a couple of hundredths late. The joint
+  reads very slightly concave and `offsetChain` refuses the whole profile as a
+  sharp inside corner. It is right to refuse a real one. This is 0.03° of
+  fitting noise. The joint is moved onto the exact tangent point — solved from
+  the line's fixed far end, not iterated toward, because taking the
+  perpendicular foot moves the joint which moves the foot — and only when the
+  line is genuinely tangent to that circle and the handover still lands on the
+  run the line covered. The move runs ALONG the line, so it changes neither the
+  line nor the arc, only which of the two covers the overlap. A real inside
+  corner is still refused, and there is a test that says so.
+
+A physical L-bracket, scanned: 46 triangles → 44 chords at Z0.2500 → 7 segments
+(6 lines, 1 arc, worst deviation 0.00119") → posted for the VF-2 with `G42 D2`
+on a straight lead-in, every corner of the L, the fillet as `G2 I0.0002 J0.4989`,
+and `G40` on the way out.
+
+**So: does this replace drawing it?** For the outside profile of a part you can
+put on a scanner, largely yes — and that is the better route, because it
+measures rather than asks. It does not replace it for a part that does not exist
+yet, for a drawing on paper, or for correcting what a scan of a worn part says
+the shape *is* into what it is supposed to BE. The scan is evidence; the
+proposal is where a human rules on it.
+
+`src/lib/scan/slice.ts`, `src/lib/geometry/fit.ts`, the profile proposal in the
+scan import route.
 - ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
   planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what

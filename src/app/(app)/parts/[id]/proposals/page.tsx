@@ -24,7 +24,7 @@ import { Button, EmptyState, Notice, Panel, SectionHeading, StatusChip } from "@
  * safe — but calling them AI would be a false provenance, and CANVAS types
  * the actor rather than inferring it.
  */
-const DETERMINISTIC_PROVIDERS = new Set(["step-recognizer", "dxf-import", "canvas-sketch"]);
+const DETERMINISTIC_PROVIDERS = new Set(["step-recognizer", "dxf-import", "canvas-sketch", "scan-slice"]);
 
 export default async function ProposalsPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
