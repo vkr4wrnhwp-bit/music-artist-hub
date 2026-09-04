@@ -310,3 +310,34 @@ test("an unmeasured figure is not treated as an impossible one", () => {
   assert.equal(anisotropyIsPossible(null, 3250), true);
   assert.equal(anisotropyIsPossible(null, null), true);
 });
+
+test("a partly-recorded envelope is a missing input, not a crash", () => {
+  /*
+   * `finishedEnvelope.value ?? null` in package.ts catches a NULL envelope
+   * and lets {x: 6, y: 4, z: undefined} straight through. Sorting that array
+   * puts undefined last, .toFixed(2) throws, and the whole part page 500s —
+   * on a part whose only fault is two dimensions recorded out of three. This
+   * was live on CANVAS Demo Shaft.
+   *
+   * The verdict must be the same as no envelope at all: unanswerable, and it
+   * names the axis. A build-volume verdict computed from a size nobody
+   * supplied would be worse than no verdict.
+   */
+  const cases: [Record<string, number>, string][] = [
+    [{ x: 6, y: 4 }, "z"],
+    [{ x: 6, z: 1 }, "y"],
+    [{ y: 4, z: 1 }, "x"],
+    [{ x: 6 }, "y or z"],
+    [{ x: 6, y: 4, z: Number.NaN }, "z"],
+  ];
+  for (const [envelope, axis] of cases) {
+    const r = assessAdditive(input({ envelope: envelope as never }));
+    const build = findingFor(r, "BUILD_VOLUME")!;
+    assert.equal(build.verdict, "INSUFFICIENT_DATA", `${JSON.stringify(envelope)} produced a verdict`);
+    assert.match(build.detail, new RegExp(`no ${axis} dimension`), build.detail);
+    assert.ok(!/NaN|undefined/.test(build.detail), build.detail);
+  }
+
+  // A complete envelope still answers, so the guard has not swallowed the case.
+  assert.equal(findingFor(assessAdditive(input()), "BUILD_VOLUME")!.verdict, "VIABLE");
+});

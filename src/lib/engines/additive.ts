@@ -176,11 +176,30 @@ function assessOne(printer: PrinterRecord, input: AdditiveInput, band: number | 
   const materials = input.printMaterials.filter((m) => m.technology === printer.technology);
 
   /* ---- Does it fit on the bed? ---- */
-  if (input.envelope === null) {
+  /*
+   * A PARTLY-FILLED ENVELOPE IS A MISSING INPUT, NOT A SIZE.
+   *
+   * The type says `{x, y, z} | null`, and the caller guards with `?? null` —
+   * which catches a null envelope and lets `{x: 6, y: 4, z: undefined}`
+   * straight through. Sorting that array puts undefined last and
+   * `.toFixed(2)` throws, so the whole part page 500s on a part whose only
+   * fault is that somebody recorded two dimensions out of three.
+   *
+   * Treated as unrecorded, and it names the axis: a partial number here would
+   * be a build-volume verdict computed from a size nobody gave.
+   */
+  const missingAxis = input.envelope
+    ? (["x", "y", "z"] as const).filter((a) => !Number.isFinite(input.envelope?.[a]))
+    : [];
+
+  if (input.envelope === null || missingAxis.length > 0) {
     findings.push({
       check: "BUILD_VOLUME",
       verdict: "INSUFFICIENT_DATA",
-      detail: "The finished envelope is not recorded, so whether the part fits the build volume cannot be answered.",
+      detail:
+        missingAxis.length > 0
+          ? `The finished envelope records no ${missingAxis.join(" or ")} dimension, so whether the part fits the build volume cannot be answered.`
+          : "The finished envelope is not recorded, so whether the part fits the build volume cannot be answered.",
     });
   } else {
     // Longest part dimension against longest build dimension, and so on: the
