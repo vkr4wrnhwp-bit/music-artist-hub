@@ -216,16 +216,49 @@ six of twelve features that no operation cuts.
 `coverage` item in `cam/preflight.ts`, and
 `parts/[id]/features/not-machined-actions.ts`.
 
-**A5 — The outside contour is a rectangle at the origin. (MEDIUM)**
-`contourToolpath` hard-codes `rectMoves(moves, 0, 0, w, l, cr, z, p.feed)`
-(`cam/engine.ts:1157`). An `OUTSIDE_CONTOUR` feature carries width, length and
-corner radius and nothing else — so every profiled part is a centred rectangle
-with equal corners.
+**A5 — The outside contour is a rectangle at the origin. — BUILT**
+`contourToolpath` hard-coded `rectMoves(moves, 0, 0, w, l, cr, …)`. An
+`OUTSIDE_CONTOUR` feature carried width, length and one corner radius and
+nothing else, so every profiled part in the system was a centred rectangle with
+four equal corners — and a part that is an L, or a D, or a plate with a flat
+across one corner was cut as a rectangle **with nothing saying so**.
 
-Build: a real chained boundary — an ordered list of lines and arcs with an
-inside/outside sense — as a feature parameter. This is the first piece of
-actual geometry the system needs, and it is worth doing before a kernel because
-2D chains cover most of what a job shop profiles.
+`cam/chain.ts` holds a closed boundary as an ordered loop of lines and arcs.
+The feature may carry one; absent, the rectangle its three numbers describe is
+built as a chain, so there is one code path and nothing about an existing part
+changes.
+
+The offset is for the CUTTER CENTRE only — the program carries the boundary and
+the control offsets it (A2) — and it turns out most of it is free: real profiles
+are tangent-continuous, which is what a fillet is *for*, and a tangent joint's
+offsets meet by themselves. Two cases need work. A sharp **convex** corner
+leaves a gap the tool pivots across, filled with an arc of the tool radius about
+the corner. A sharp **concave** corner is **refused**, and that is engineering
+rather than laziness: a round tool cannot produce a sharp inside corner, it
+leaves a radius, and the drawing has to say so. The message names the corner and
+the radius the tool would leave. An inside arc smaller than the cutter is
+refused the same way — the rule that already refused a pocket corner tighter
+than the tool, generalised to a chain.
+
+A profile that *starts* on an arc is refused too, because compensation cannot be
+brought on over one: a control either faults or ramps the offset through the cut.
+
+Two things fixed on the way. Material removed was computed from
+`2 × (width + length)` — the bounding box, not the profile — so two parts with
+the same envelope and different shapes removed identical material, and that
+figure feeds tool wear, cost and the cycle estimate. And the rework itself
+briefly carried the cutter offset through the `G40`, leaving the simulated tool
+a radius from where the machine actually parks it; the reconciler could not see
+it, because the reconciler reads the programmed path and the programmed path was
+right.
+
+**Still open:** nothing produces a chain yet. It comes from CAD, and the STEP
+recogniser is a 2.5D spike that names what it cannot read. What this removes is
+the silent assumption — the geometry can now be *stated*, and where it is, it is
+what gets cut.
+
+`src/lib/engines/cam/chain.ts`, `ContourFeature.chain` in `domain/features.ts`,
+`contourToolpath` in `cam/engine.ts`.
 
 **A6 — Finish passes are a parameter, not a pass. — BUILT**
 `stockToLeave` was the only thing separating a finish pass from a roughing one,
@@ -668,7 +701,7 @@ Saying no is part of the plan.
 6. ~~**A2** cutter compensation~~ — BUILT. The machinist has their offset back,
    and a corner gouge went with it.
 7. **B2 + E** origin declaration, proof-out state, the remaining gates.
-8. **A5** chained contours — ~~**A6** real finish passes~~ BUILT.
+8. ~~**A5 + A6** chained contours and real finish passes~~ — BUILT.
 9. **D1 + D2** one control commissioned properly, end to end, on real iron.
 10. **B3** the setup transform, and second-op work opens up.
 

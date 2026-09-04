@@ -127,6 +127,31 @@ test("compensation is cancelled on a move away from the part", () => {
   }
 });
 
+test("the cutter ends a cancelling move at the programmed point", () => {
+  /*
+   * That is what G40 means: the offset is gone by the end of the move. The
+   * chain rework briefly carried the offset through the cancel, which puts the
+   * simulated tool a radius from where the machine actually leaves it — and
+   * the reconciler cannot see it, because the reconciler reads the programmed
+   * path and the programmed path was right.
+   */
+  for (const m of path().filter((m) => m.program?.deactivate)) {
+    assert.ok(Math.abs(m.x - m.program!.x) < 1e-9, `centre X${m.x} against programmed X${m.program!.x}`);
+    assert.ok(Math.abs(m.y - m.program!.y) < 1e-9, `centre Y${m.y} against programmed Y${m.program!.y}`);
+  }
+});
+
+test("and it starts an activating move where it already is", () => {
+  // The other half of the same rule: the offset comes ON over the move, so the
+  // centre starts uncompensated and ends offset.
+  const moves = path();
+  const i = moves.findIndex((m) => m.program?.activate);
+  const prev = moves[i - 1];
+  assert.ok(Math.abs(prev.x - (prev.program?.x ?? prev.x)) < 1e-9, "the move before comp comes on is already offset");
+  const m = moves[i];
+  assert.ok(Math.hypot(m.x - m.program!.x, m.y - m.program!.y) > R - 1e-9, "the activating move does not end offset");
+});
+
 test("every pass that opens compensation closes it", () => {
   const moves = path();
   assert.equal(

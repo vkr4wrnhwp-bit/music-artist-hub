@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ChainSegment } from "@/lib/engines/cam/chain";
 
 /**
  * PHASE 1 GEOMETRY MODEL
@@ -168,6 +169,22 @@ export interface ContourFeature extends FeatureBase {
   length: number; // Y extent
   cornerRadius: number;
   depth: number; // full height cut
+  /**
+   * THE ACTUAL BOUNDARY, WHEN IT IS NOT A RECTANGLE.
+   *
+   * Width, length and one corner radius describe a centred rounded rectangle
+   * and nothing else — and the toolpath engine cut every profiled part as one.
+   * A part that is an L, or a D, or a plate with a flat on one side was cut as
+   * a rectangle with nothing saying so.
+   *
+   * A chain is an ordered closed loop of lines and arcs in part coordinates.
+   * Absent means the profile IS the rectangle those three numbers describe,
+   * which is what the overwhelming majority of plate work is; present, it is
+   * cut as given. See engines/cam/chain.ts.
+   */
+  chain?: ChainSegment[];
+  /** Where the chain starts. Required with `chain`, ignored without it. */
+  chainStart?: { x: number; y: number };
 }
 
 export interface EngravingFeature extends FeatureBase {

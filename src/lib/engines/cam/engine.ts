@@ -12,6 +12,7 @@ import type {
 } from "./types";
 import { IMPLEMENTED_OPERATIONS, PLACEHOLDER_OPERATIONS } from "./types";
 import { arcGeometry, arcMove, arcSegments } from "./arc";
+import { chainLength, chainMoves, offsetChain, rectangleChain, type Chain } from "./chain";
 
 /**
  * DETERMINISTIC TOOLPATH ENGINE — Phase 1
@@ -1326,23 +1327,63 @@ function contourToolpath(
     );
   }
 
-  // The boundary the program carries, and the centre path the cutter follows.
-  const W = feature.width;
-  const L = feature.length;
-  const CR = feature.cornerRadius;
-  const w = W + d;
-  const l = L + d;
-  const cr = CR + r;
+  /*
+   * THE BOUNDARY.
+   *
+   * A chain when the feature carries one, and otherwise the rounded rectangle
+   * its width, length and corner radius describe — which is what most plate
+   * work actually is, and what this engine used to assume of everything.
+   *
+   * The PROGRAM carries this boundary; the control offsets it. The offset
+   * computed here is the cutter centre, for the simulator and the collision
+   * checks. See chain.ts for what it refuses and why.
+   */
+  const boundary: Chain =
+    feature.chain && feature.chainStart
+      ? { start: feature.chainStart, segments: feature.chain }
+      : rectangleChain(feature.width, feature.length, feature.cornerRadius);
 
-  // Where the contour opens: the left end of the bottom edge, on both paths.
-  const startProgram = { x: -W / 2 + CR, y: -L / 2 };
-  const startCentre = { x: -w / 2 + cr, y: -l / 2 };
+  const centreChain = offsetChain(boundary, r);
+  if ("error" in centreChain) {
+    return { error: { reason: `${feature.label}: ${centreChain.error.reason}`, recommendations: centreChain.error.recommendations } };
+  }
+
+  // Where the contour opens, on both paths.
+  const startProgram = boundary.start;
+  const startCentre = centreChain.start;
   const lead = Math.max(2 * r, 0.2);
   const leadFeed = Math.round(p.feed * 0.6);
 
+  /*
+   * The lead comes in along the first segment's own direction, so compensation
+   * ramps on over a straight move that is already pointing where the cut goes.
+   * A lead that arrives from any other angle either gouges as the offset comes
+   * on or leaves a witness mark where it meets the wall.
+   */
+  const firstSeg = boundary.segments[0];
+  const dir =
+    firstSeg.kind === "LINE"
+      ? {
+          x: firstSeg.to.x - startProgram.x,
+          y: firstSeg.to.y - startProgram.y,
+        }
+      : { x: 0, y: 0 };
+  const dirMag = Math.hypot(dir.x, dir.y);
+  if (dirMag < 1e-9) {
+    return {
+      error: {
+        reason: `${feature.label} starts on an arc, and compensation cannot be brought on over one — a control either faults or ramps the offset through the cut.`,
+        recommendations: ["Start the profile on a straight segment", "Add a short straight lead-in to the geometry"],
+      },
+    };
+  }
+  const unit = { x: dir.x / dirMag, y: dir.y / dirMag };
+  const approach = { x: startProgram.x - unit.x * lead, y: startProgram.y - unit.y * lead };
+  // Away from the part, perpendicular to the first segment on the cutter side.
+  const away = { x: startProgram.x + unit.y * lead, y: startProgram.y - unit.x * lead };
+
   for (let pass = 1; pass <= passes; pass++) {
     const z = req.topZ - (totalDepth * pass) / passes;
-    const approach = { x: startProgram.x - lead, y: startProgram.y };
 
     // Comp is off for the approach and the plunge, so program and centre agree.
     moves.push({ type: "RAPID", x: approach.x, y: approach.y, z: req.clearanceZ, feed: null });
@@ -1359,45 +1400,59 @@ function contourToolpath(
       program: { x: startProgram.x, y: startProgram.y, side: "RIGHT", activate: true },
     });
 
-    // Both rectangles from one generator, zipped. Identical structure by
-    // construction — same corner count, same order — so a move in one has
-    // exactly one counterpart in the other.
-    const centre: Move[] = [];
-    rectMoves(centre, 0, 0, w, l, cr, z, p.feed);
-    const boundary: Move[] = [];
-    rectMoves(boundary, 0, 0, W, L, CR, z, p.feed);
-    if (centre.length !== boundary.length) {
-      return {
-        error: {
-          reason: `The compensated boundary and the cutter path came out different lengths for ${feature.label}, so the program and the simulation would describe different shapes.`,
-          recommendations: ["Report this — it is a CANVAS defect, not a setup problem"],
-        },
-      };
-    }
-    // The lead-in already lands on the contour's start point, so the first
-    // move of the loop is that same point again.
-    for (let k = 1; k < centre.length; k++) {
-      const b = boundary[k];
+    /*
+     * Both chains, zipped. The offset chain can carry MORE segments than the
+     * boundary — a sharp convex corner gains a pivot arc that has no
+     * counterpart in the boundary — so they are matched by walking the
+     * boundary and taking each offset segment that belongs to it. A pivot arc
+     * is programmed at the corner it pivots about, which is where the control
+     * puts the tool anyway with compensation on.
+     */
+    const centreMoves = chainMoves(centreChain, z, p.feed);
+    const boundaryMoves = chainMoves(boundary, z, p.feed);
+    let b = 0;
+    for (let k = 0; k < centreMoves.length; k++) {
+      // A pivot arc inserted by the offset has no boundary segment of its own;
+      // it is programmed at the vertex the boundary already arrived at.
+      const isPivot = centreMoves.length !== boundaryMoves.length && k > 0 && b >= boundaryMoves.length;
+      const bm = boundaryMoves[Math.min(b, boundaryMoves.length - 1)];
       moves.push({
-        ...centre[k],
-        program: { x: b.x, y: b.y, ...(b.i !== undefined ? { i: b.i, j: b.j } : {}), side: "RIGHT" },
+        ...centreMoves[k],
+        program: {
+          x: bm.x,
+          y: bm.y,
+          ...(bm.i !== undefined && !isPivot ? { i: bm.i, j: bm.j } : {}),
+          side: "RIGHT",
+        },
       });
+      b++;
     }
 
-    // Comp off on the way out, moving away from the part rather than back
-    // along the wall that was just cut.
+    /*
+     * Comp off on the way out, moving away from the part rather than back
+     * along the wall that was just cut.
+     *
+     * The cutter centre ends AT the programmed point, because that is what
+     * G40 means: the offset is gone by the end of the move. Carrying the
+     * offset through the cancel — which the chain rework briefly did — puts
+     * the simulated tool a radius from where the machine leaves it, and the
+     * reconciler cannot see it because the reconciler reads the programmed
+     * path, which was right.
+     */
     moves.push({
       type: "LEAD_OUT",
-      x: startCentre.x,
-      y: startProgram.y - lead,
+      x: away.x,
+      y: away.y,
       z,
       feed: leadFeed,
-      program: { x: startProgram.x, y: startProgram.y - lead, side: "RIGHT", deactivate: true },
+      program: { x: away.x, y: away.y, side: "RIGHT", deactivate: true },
     });
-    moves.push({ type: "RETRACT", x: startCentre.x, y: startProgram.y - lead, z: req.retractZ, feed: null });
+    moves.push({ type: "RETRACT", x: away.x, y: away.y, z: req.retractZ, feed: null });
   }
 
-  const perimeter = 2 * (feature.width + feature.length);
+  // Perimeter from the chain itself, arcs along the arc — not 2(w + l), which
+  // described the bounding box rather than the profile.
+  const perimeter = chainLength(boundary);
   return { moves, removed: perimeter * ctx.tool.diameter * totalDepth * 0.5, warnings };
 }
 
