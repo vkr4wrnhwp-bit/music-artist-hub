@@ -14,7 +14,9 @@ from functools import wraps
 
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 
+import advance_store
 import passport_store as ps
+import stage_store
 
 bp = Blueprint("passport", __name__, url_prefix="/passports")
 
@@ -221,4 +223,10 @@ def init(app, current_user=None, dashboard_context=None):
     _current_user = current_user
     _dashboard_context = dashboard_context
     ps.init_passports()
+    # Advancement's tables are created here rather than from their own init so
+    # there is one place that owns Stage Control's schema. The routes that use
+    # them land in phase 3; the tables existing first costs nothing and means a
+    # deploy is never half-migrated when they do.
+    advance_store.init_advance()
+    stage_store.init_stage()
     app.register_blueprint(bp)

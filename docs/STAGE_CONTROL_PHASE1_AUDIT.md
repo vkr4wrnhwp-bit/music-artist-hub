@@ -124,3 +124,75 @@ The real work of this build:
 `templates/_sb.html` macros — `plate()`, `btn()`, `badge()`, `field()`;
 `partner_os.require()` as the model for a server-side permission decorator;
 `tour_store` token helpers; `segno` (already a dependency) for QR rendering.
+
+## DECISION — consoles and the X32 (owner, 2026-09-04)
+
+The owner's answer to "which console do you actually tour with": **the X32/M32
+is the most common desk in the rooms they play.**
+
+That collides with a rule in the owner's own brief. The X32's remote protocol
+is **community-documented, not officially published** — the reference everyone
+builds on is titled *"Unofficial X32 OSC Remote Protocol"* — so implementing it
+is exactly the "no reverse-engineered console protocols" the brief forbids.
+Music Tribe has tolerated it for a decade and commercial products ship on it,
+but tolerated is not published.
+
+**Owner's decision: build the architecture and the simulator now, decide the
+X32 later.** Phases 4-6 are built in full — Request Mode, Stage Bridge, safety
+engine, and a clearly-labelled simulator adapter — with the adapter interface
+shaped so an X32 adapter can drop in without reopening the design. **Nothing
+claims X32 support.** No adapter for any real console ships until it has been
+tested on a specific model and firmware.
+
+Facts established while deciding, kept because they shape the safety work:
+
+* **The send is addressable.** `/ch/01/mix/07/level` is literally "more of me
+  in my ears", so the target capability is real, not hypothetical.
+* **The X32 can confirm a write** by answering a query, so the brief's hardest
+  rule — never present a change as applied until confirmed — is satisfiable on
+  this desk by reading the value back. That is not true of every console and it
+  should be a declared capability on the adapter contract, not an assumption.
+* **The X32 has NO authentication.** Anything on the network can drive it on
+  UDP 10023. The Stage Bridge would be *adding* the authorisation, bounds and
+  audit the console itself lacks — an argument for the bridge, not against it.
+* **Therefore every bound is ours.** The desk enforces no per-user limits, so
+  bounded delta, rate limits and lockout exist only in our code, and a bug
+  there has nothing downstream to catch it. This is why phase 6 is a separate
+  service with its own tests rather than checks scattered through handlers.
+* Behringer's sanctioned performer-monitoring path is **P16 / Ultranet**, which
+  has no network control surface, so it cannot be driven by software.
+* An X32 is usually the **house** console, so connected control needs the
+  venue's cooperation. Request Mode needs none — which is the main reason it
+  is the default and ships first.
+
+### AMENDMENT — the owner lifts the reverse-engineering rule (2026-09-04)
+
+Immediately after the decision above, the owner said: *"im fine with reverse
+engineering whatever we need."*
+
+**That overrides the brief's "no reverse-engineered console protocols" rule.**
+It is the owner's product and the owner's call, and it is a defensible one:
+X32 OSC interoperability is implemented by many shipping products and has been
+tolerated by the manufacturer for a decade.
+
+Recorded as an explicit override rather than quietly followed, because the
+brief in this same repo still carries the original prohibition and a future
+reader must not think the code drifted from it by accident.
+
+**The build order does not change**, for engineering reasons rather than
+policy ones: an X32 adapter needs the adapter contract, the Stage Bridge and
+the safety engine to exist before it has anywhere to plug in. So phases 4-6
+still come first, and the simulator is still what proves the safety mechanisms.
+
+**What the override does NOT change:**
+
+* **The testing gate stands.** No adapter may report a console as supported
+  until it has moved a fader on a specific model and firmware and read the
+  value back. That is not a rule from the brief — it is the difference between
+  knowing and guessing, and the honesty doctrine covers it either way.
+* **Every bound is still ours.** See the X32 facts above: the desk has no
+  authentication and no per-user limits, so a bug in our bounds has nothing
+  downstream to catch it.
+* **The adapter still declares its own limits.** `tested_model`,
+  `tested_firmware` and `known_limitations` are fields on the contract, and an
+  untested adapter is expected to say so rather than stay silent.
