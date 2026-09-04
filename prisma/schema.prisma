@@ -656,6 +656,24 @@ model Feature {
   notes          String?
   orderIndex     Int    @default(0)
 
+  // ONE STATEMENT ON A DRAWING, N FEATURES ON A PART.
+  //
+  // A bolt circle is expanded into the real features it describes, because
+  // everything downstream of the feature list is per feature: coverage asks
+  // whether each one is cut, inspection assigns each one a method, measurement
+  // records a reading against each one. A virtual pattern would have to be
+  // unfolded at every one of those points, and the first place it was not
+  // unfolded would be a hole nobody checked.
+  //
+  // The drawing's statement travels with the instances so the group stays
+  // visible and editable as a group: patternId is shared across it,
+  // patternIndex is which instance, and patternJson is the spec that produced
+  // them. Six coordinates are a consequence; "6 on a 3.000 bolt circle" is
+  // what the drawing actually says.
+  patternId    String?
+  patternIndex Int?
+  patternJson  String?
+
   partRevision PartRevision @relation(fields: [partRevisionId], references: [id], onDelete: Cascade)
   operations   Operation[]
   measurements Measurement[]

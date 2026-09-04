@@ -19,14 +19,17 @@ import { methodOptions, geometryPhrase } from "@/lib/engines/inspection-method";
 import { assignInspectionMethod } from "../inspection-method-actions";
 import { TopBar } from "@/components/nav";
 import { PartStatusChip } from "@/components/part-status";
-import { Button, DataRow, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
+import { Button, DataRow, Field, Notice, Panel, SectionHeading, StatusChip, inputClass } from "@/components/ui";
 import { comparableJobs } from "@/lib/disagreement";
 import { Disagree } from "@/components/disagree";
 import { MatingDesignationField } from "@/components/mating-designation";
 import { recordPartDisagreement } from "../../disagree-actions";
 import { recordFeatureResponsibility } from "../responsibility-actions";
 import { recordNotMachined } from "../not-machined-actions";
+import { patternFeature } from "../feature-actions";
+import { patternable, type PatternSpec } from "@/lib/domain/pattern";
 import { FeatureSpecimen } from "@/components/feature-specimen";
+import { PatternForm } from "@/components/pattern-form";
 import {
   SPECIMEN_TABS,
   SPECIMEN_TAB_LABEL,
@@ -75,6 +78,26 @@ export default async function FeatureDetailPage(props: {
   if (!row) notFound();
 
   const metrology = await getMetrology(user.organizationId);
+
+  /* ---- The pattern this feature belongs to, or could be placed as ---- */
+
+  const patternSiblings = row.patternId
+    ? await db.feature.findMany({
+        where: { partRevisionId: row.partRevisionId, patternId: row.patternId },
+        orderBy: { patternIndex: "asc" },
+      })
+    : [];
+  const patternSpec: PatternSpec | null = row.patternJson ? (JSON.parse(row.patternJson) as PatternSpec) : null;
+  const patternSentence =
+    patternSpec === null
+      ? ""
+      : patternSpec.kind === "BOLT_CIRCLE"
+        ? `${patternSiblings.length} on a ⌀${patternSpec.diameter.toFixed(4)} bolt circle about X${patternSpec.centerX.toFixed(4)} Y${patternSpec.centerY.toFixed(4)}, first at ${patternSpec.startAngle}°`
+        : patternSpec.kind === "GRID"
+          ? `${patternSpec.columns} × ${patternSpec.rows} grid at ${patternSpec.pitchX.toFixed(4)} × ${patternSpec.pitchY.toFixed(4)} from X${patternSpec.originX.toFixed(4)} Y${patternSpec.originY.toFixed(4)}`
+          : `${patternSpec.count} at ${patternSpec.pitch.toFixed(4)} centres along ${patternSpec.angle}° from X${patternSpec.originX.toFixed(4)} Y${patternSpec.originY.toFixed(4)}`;
+  const canPattern = patternable(feature);
+  const patternAction = patternFeature.bind(null, id);
 
   const diameter = "diameter" in feature ? feature.diameter : null;
   const band = feature.tolerance ? feature.tolerance.plus + feature.tolerance.minus : null;
@@ -841,6 +864,54 @@ export default async function FeatureDetailPage(props: {
                 entry form and the proposal path validate against — so this cannot show a dimension the feature does
                 not have, or miss one it does.
               </p>
+            </Panel>
+          )}
+
+
+          {/* ---------------- PATTERN ---------------- */}
+          {tab === "GEOMETRY" && (
+            <Panel title={row.patternId ? "This feature is one of a pattern" : "Place this feature as a pattern"}>
+              {row.patternId ? (
+                <>
+                  <p className="max-w-2xl text-[12px] leading-relaxed text-muted">
+                    Instance {row.patternIndex} of {patternSiblings.length}. The drawing&rsquo;s own statement is kept
+                    with every one of them, so the group stays a group even though each hole is a real feature with its
+                    own coverage, inspection method and measurement.
+                  </p>
+                  <p className="mt-2 font-mono text-[12.5px] text-platinum">{patternSentence}</p>
+                  <ul className="mt-3 grid gap-x-8 sm:grid-cols-2">
+                    {patternSiblings.map((sib) => (
+                      <li key={sib.id} className="border-b border-line/60 py-1.5 last:border-0">
+                        <Link
+                          href={`/parts/${id}/features/${sib.id}`}
+                          className={`font-mono text-[12px] ${sib.id === row.id ? "text-platinum" : "text-precision-dim hover:text-precision"}`}
+                        >
+                          {sib.label}
+                        </Link>
+                        <span className="tech-label ml-2">
+                          X{(JSON.parse(sib.parametersJson).centerX ?? 0).toFixed(4)} Y
+                          {(JSON.parse(sib.parametersJson).centerY ?? 0).toFixed(4)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : canPattern ? (
+                <>
+                  <p className="max-w-2xl text-[12px] leading-relaxed text-muted">
+                    A bolt circle is one line on a drawing and six features on a part. Placing it here works the
+                    coordinates out rather than asking you to: this feature becomes the first instance and the rest are
+                    created from it, carrying the tolerance and the fit you have already recorded. The inspection method
+                    is not carried across — that is a decision about one feature, signed by whoever made it.
+                  </p>
+                  <PatternForm featureId={row.id} action={patternAction} />
+                </>
+              ) : (
+                <p className="max-w-2xl text-[12px] leading-relaxed text-muted">
+                  A {feature.kind.replace(/_/g, " ").toLowerCase()} has no centre to place, so it cannot be patterned.
+                  Patterns place the features that carry one — holes, bores and pockets.
+                </p>
+              )}
             </Panel>
           )}
 

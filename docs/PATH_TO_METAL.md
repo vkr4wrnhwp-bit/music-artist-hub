@@ -740,9 +740,10 @@ first.
 Tier 0 gets one part cut. Tier 1 is the difference between a demonstration and
 a shop's Tuesday. Still no kernel required.
 
-- **Chained 2D geometry.** Open and closed chains, islands, multiple pockets,
-  radial and grid patterns, bolt circles. The natural extension of A5, and it
-  covers most job-shop profiling. ~~Slots as real slots~~ — BUILT.
+- **Chained 2D geometry.** Open and closed chains, islands, multiple pockets.
+  The natural extension of A5, and it covers most job-shop profiling. ~~Slots as
+  real slots~~ and ~~radial and grid patterns, bolt circles~~ — BUILT; see T1
+  and T4.
 - **Hole-making as a family.** Spot, drill, peck, chip-break, ream, back-spot.
   ~~Counterbore, countersink~~ and ~~the drill point angle in the depth
   arithmetic~~ — BUILT; see A9 and T1 below.
@@ -869,6 +870,48 @@ names the field.
 
 `tapDepth` in `cam/thread.ts`, the drill and tap branches of `machinist.ts`,
 `Tool.tapLeadThreads`.
+
+**T4 — A bolt circle is one line on a drawing and six features on a part. — BUILT**
+Every hole in a pattern had to be typed in by hand, one at a time, with its
+coordinates worked out off the machine. Six holes on a 3.000" circle is twelve
+numbers to compute and twelve to mistype, on the most common thing there is on a
+plate — and a hole entered at the wrong angle gets drilled in the wrong place
+and measures perfectly on its own diameter.
+
+**It expands rather than staying a pattern**, and that is the design decision
+worth stating. Everything downstream of the feature list is per feature:
+coverage asks whether each one is cut, inspection assigns each one a method,
+measurement records a reading against each one, and A7 made operations per
+feature for exactly that reason. A virtual pattern would have to be unfolded at
+every one of those points, and the first place it was not unfolded would be a
+hole nobody checked. So the drawing's statement is turned into the real features
+it describes, and travels with them as provenance so the group stays visible and
+editable as a group.
+
+Bolt circle, grid and line. The source feature **becomes** instance 1 rather
+than being copied beside it, so the tolerance, the fit and the mating component
+already recorded carry across — it is one feature the machinist described,
+placed the number of times the drawing says. The **inspection method does not**:
+that is a decision about how one feature gets verified, signed by whoever made
+it, and copying it would put a person's name on five decisions they did not
+make.
+
+A pattern whose centres land off the stock is refused **before any feature
+exists**, with the count and the first offender named — a bolt circle bigger
+than the plate is a transposed diameter or the wrong datum, and six features
+plus one hole in the middle of a rapid is a much more expensive way to find
+that out. The whole placement is one transaction, because half a bolt circle is
+worse than none: the coverage gate would pass on three holes where the drawing
+calls six.
+
+Verified through the UI on the journey plate: a ⌀9.000 circle refused with *"6
+of 6 would sit off the 4.250 × 3.250 stock — the first at X4.5000 Y0.0000"*, a
+⌀3.000 one placed as six features at exact coordinates, and the planner picking
+them up as six spots and six drills — which the post then merges into two
+cycles.
+
+`src/lib/domain/pattern.ts`, `patternFeature` in `features/feature-actions.ts`,
+`components/pattern-form.tsx`, `Feature.patternId/patternIndex/patternJson`.
 - ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
   planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what
