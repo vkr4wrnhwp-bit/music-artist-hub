@@ -63,6 +63,44 @@ function header(ctx: PostContext, lines: string[], comment: (s: string) => strin
 /* Fanuc-family (Haas NGC, Fanuc, PathPilot share this dialect)        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * TWO HOLE-MAKING OPERATIONS THE CONTROL CAN HOLD IN ONE MODAL CYCLE.
+ *
+ * Operations are per hole, because everything else in this system is per
+ * feature — coverage, inspection method, measurement, tolerance — and an
+ * operation that claimed six holes and drilled one is the defect that made it
+ * so.
+ *
+ * The PROGRAM does not have to be per hole. A control holds the cycle modal:
+ * `G81 X Y Z R F`, then a bare `X Y` for every hole after it, then one `G80`.
+ * That is what a real post writes, it is what a machinist expects to
+ * single-block through, and it is one line per hole instead of eleven. Merging
+ * happens in the post rather than in the planner so the two views stay
+ * independent.
+ *
+ * Merged only when everything the cycle asserts is identical: same tool, same
+ * cycle, same depth, same R plane, same peck, same feed, same speed, same
+ * coolant. A different depth is a different cycle — inheriting one hole's depth
+ * for the next is how a program drills through a table — and a different
+ * coolant state is a different cycle because the M8 belongs to the first hole.
+ */
+function sameCycle(a: Toolpath | undefined, b: Toolpath): boolean {
+  const x = a?.cannedCycle;
+  const y = b.cannedCycle;
+  if (!a || !x || !y || a.isPlaceholder || b.isPlaceholder) return false;
+  return (
+    a.toolNumber === b.toolNumber &&
+    x.code === y.code &&
+    Math.abs(x.z - y.z) < 1e-9 &&
+    Math.abs(x.r - y.r) < 1e-9 &&
+    (x.q ?? null) === (y.q ?? null) &&
+    Math.abs(x.feed - y.feed) < 1e-9 &&
+    x.rpm === y.rpm &&
+    a.parameters.coolant === b.parameters.coolant
+  );
+}
+
+
 function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
   return (toolpaths: Toolpath[], ctx: PostContext): string => {
     const lines: string[] = [];
@@ -79,11 +117,21 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
     let currentTool = -1;
     let currentFeed = -1;
 
-    for (const tp of toolpaths) {
+    for (let idx = 0; idx < toolpaths.length; idx++) {
+      const tp = toolpaths[idx];
       if (tp.isPlaceholder) {
         lines.push(c(`OPERATION ${tp.type} HAS NO TOOLPATH ENGINE — SKIPPED`));
         continue;
       }
+      /*
+       * Already emitted as a bare position under the previous operation's
+       * cycle. Checked here rather than inside the cycle block because a
+       * merged hole must not announce itself either — an operation heading
+       * with no motion under it is a program a machinist would stop and read
+       * twice.
+       */
+      if (sameCycle(toolpaths[idx - 1], tp)) continue;
+
       const entry = ctx.toolTable.find((t) => t.toolNumber === tp.toolNumber);
       lines.push("");
       lines.push(c(`${tp.type} — T${tp.toolNumber} ${entry?.description ?? ""}`));
@@ -109,11 +157,17 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
       if (tp.cannedCycle) {
         const cy = tp.cannedCycle;
         const tap = cy.code === "G84";
+
+        // Every following operation the control can hold under this same cycle.
+        const group: (typeof cy)[] = [cy];
+        for (let j = idx + 1; j < toolpaths.length && sameCycle(toolpaths[j - 1], toolpaths[j]); j++) {
+          group.push(toolpaths[j].cannedCycle!);
+        }
         lines.push(
           c(
             tap
               ? `RIGID TAP — F ${cy.feed.toFixed(2)} = ${cy.rpm} RPM x pitch`
-              : `${cy.code === "G83" ? "PECK DRILL" : "DRILL"} — Z${n(cy.z, 3)} R${n(cy.r, 3)}${cy.q ? ` Q${n(cy.q, 4)}` : ""}`,
+              : `${cy.code === "G83" ? "PECK DRILL" : "DRILL"} ${group.length} ${group.length === 1 ? "HOLE" : "HOLES"} — Z${n(cy.z, 3)} R${n(cy.r, 3)}${cy.q ? ` Q${n(cy.q, 4)}` : ""}`,
           ),
         );
         lines.push(`${ctx.workOffset} G0 X${n(cy.x)} Y${n(cy.y)}`);
@@ -123,6 +177,8 @@ function emitFanucFamily(dialect: "HAAS" | "FANUC" | "PATHPILOT") {
         lines.push(
           `G98 ${cy.code} X${n(cy.x)} Y${n(cy.y)} Z${n(cy.z, 3)} R${n(cy.r, 3)}${cy.q ? ` Q${n(cy.q, 4)}` : ""} F${cy.feed.toFixed(2)}`,
         );
+        // The cycle is modal: every hole after the first is a position.
+        for (const more of group.slice(1)) lines.push(`X${n(more.x)} Y${n(more.y)}`);
         lines.push("G80");
         lines.push("M9");
         lines.push("G53 G0 Z0.");
@@ -242,6 +298,8 @@ const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
   lines.push("G17 G90 G94");
   lines.push("G54");
 
+  let currentTool = -1;
+
   for (const tp of toolpaths) {
     if (tp.isPlaceholder) {
       lines.push(c(`OPERATION ${tp.type} HAS NO TOOLPATH ENGINE — SKIPPED`));
@@ -261,9 +319,19 @@ const emitGrbl = (toolpaths: Toolpath[], ctx: PostContext): string => {
     }
     lines.push("");
     lines.push(c(`${tp.type} — T${tp.toolNumber}`));
-    lines.push("M5");
-    lines.push(c("MANUAL TOOL CHANGE REQUIRED — GRBL HAS NO ATC"));
-    lines.push("M0");
+    /*
+     * Only when the tool actually changes. Operations are per feature, so a
+     * hole pattern is twenty operations on one drill — and twenty M0 pauses
+     * demanding a manual change for a tool already in the spindle is a program
+     * an operator learns to cycle-start through without reading. One of those
+     * pauses is a real tool change.
+     */
+    if (tp.toolNumber !== currentTool) {
+      lines.push("M5");
+      lines.push(c("MANUAL TOOL CHANGE REQUIRED — GRBL HAS NO ATC"));
+      lines.push("M0");
+      currentTool = tp.toolNumber;
+    }
     lines.push(`S${tp.parameters.rpm} M3`);
     // GRBL speaks the same G2/G3 with I/J, including helical.
     // GRBL supports G41/G42 with a D word in recent builds but not on every
@@ -298,6 +366,7 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
   lines.push(`; PART ${ctx.partName} REV ${ctx.revision}`);
   lines.push(`; ${PROGRAM_ORIGIN.sentence}`);
   let block = 1;
+  let currentCall = "";
   const push = (s: string) => lines.push(`${block++} ${s}`);
   for (const tp of toolpaths) {
     if (tp.isPlaceholder) continue;
@@ -318,7 +387,14 @@ const emitHeidenhain = (toolpaths: Toolpath[], ctx: PostContext): string => {
     if (tp.moves.some((m) => m.program)) {
       lines.push("; NO CUTTER COMPENSATION — PATH IS THE CUTTER CENTRE, SIZE NOT ADJUSTABLE AT THE MACHINE");
     }
-    push(`TOOL CALL ${tp.toolNumber} Z S${tp.parameters.rpm}`);
+    // TOOL CALL carries the speed as well as the tool, so it is re-issued when
+    // either changes and skipped when neither does — a hole pattern is one
+    // operation per hole and does not want one tool call per hole.
+    const call = `TOOL CALL ${tp.toolNumber} Z S${tp.parameters.rpm}`;
+    if (call !== currentCall) {
+      push(call);
+      currentCall = call;
+    }
     push(`L Z+${n(ctx.safeZ, 3)} R0 FMAX M3`);
     /*
      * A planar arc is CC (circle centre, absolute) followed by C (move to the
@@ -366,6 +442,7 @@ const emitSiemens = (toolpaths: Toolpath[], ctx: PostContext): string => {
   header(ctx, lines, c);
   lines.push(ctx.units === "IN" ? "G70" : "G71");
   lines.push("G17 G90 G54");
+  let currentTool = -1;
   for (const tp of toolpaths) {
     if (tp.isPlaceholder) continue;
     if (tp.type === "TAP") {
@@ -380,9 +457,15 @@ const emitSiemens = (toolpaths: Toolpath[], ctx: PostContext): string => {
     }
     lines.push("");
     lines.push(c(`${tp.type}`));
-    lines.push(`T="T${tp.toolNumber}" M6`);
+    // M6 only on an actual change, for the same reason as everywhere else: a
+    // hole pattern is one operation per hole, and a change macro per hole is
+    // both slower and less honest about where the tool changes are.
+    if (tp.toolNumber !== currentTool) {
+      lines.push(`T="T${tp.toolNumber}" M6`);
+      lines.push("D1");
+      currentTool = tp.toolNumber;
+    }
     lines.push(`S${tp.parameters.rpm} M3`);
-    lines.push("D1");
     /*
      * 840D takes G2/G3 with incremental I/J for a planar arc, which is the
      * same convention the engine stores. A helix needs TURN= and a full-turn

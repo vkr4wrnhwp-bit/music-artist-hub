@@ -309,8 +309,13 @@ test("no cycle leaves the spindle turning", () => {
   // spindle is back under normal control and stopping it is both safe and
   // what every other block here does.
   const post = strip(readFileSync("src/lib/engines/cam/post.ts", "utf8"));
-  const block = /if \(tp\.cannedCycle\) \{[\s\S]*?continue;/.exec(post);
+  // Matched to the block's own closing brace rather than to the first
+  // `continue;` in it — the cycle block grew an early exit when hole patterns
+  // started merging, and a window that stopped there no longer contained the
+  // end of the tool.
+  const block = /if \(tp\.cannedCycle\) \{[\s\S]*?\n      \}/.exec(post);
   assert.ok(block, "the canned-cycle block moved — this test cannot check it any more");
+  assert.ok(/lines\.push\("G80"\)/.test(block![0]), "the window does not reach the end of the cycle");
   assert.ok(/lines\.push\("M5"\);/.test(block![0]), "a canned cycle can end with the spindle running");
 });
 

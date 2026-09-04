@@ -296,6 +296,62 @@ want separate treatment and separate tools.
 `OperationRequest.pass` in `cam/types.ts`, `Operation.pass` in the schema,
 `contourToolpath` in `cam/engine.ts`, the profile branch of `machinist.ts`.
 
+**A7 — A hole pattern was one operation, and one hole. — BUILT**
+The planner grouped holes by diameter and emitted **one** operation for the
+group: `Drill 6 × Ø0.2010`, pointed at `holes[0].id`. The toolpath engine takes
+an operation's feature and drills it. Five holes were never produced. No error
+was raised, the operation reported real motion, and the pre-flight said every
+operation had produced a path — because it had, for one hole. An operator reads
+a label promising six holes, runs it, and takes a part with one out of the
+machine.
+
+The same shape appeared twice more: spotting counted the holes by running a
+regex over the drill operation's own label — the plan reading a number back out
+of a sentence it had just written — and `Chamfer top edges` pointed at
+`chamfers[0]`, so every other chamfer on the part went uncut.
+
+Found by an independent audit of the engine. No test here caught it, because
+every test asked whether the operation produced motion.
+
+Operations are now **one per feature**, which is what everything else in this
+system is built on: coverage, inspection method, measurement and tolerance are
+all per feature, and a plan that groups is a plan those cannot reason about.
+Depth and the peck decision became per-hole with it — the group's depth was
+`Math.max` over its members, so a 0.15″ hole beside a 1.2″ one was drilled to
+1.2″, through the bottom of the part and into whatever was holding it.
+
+**The program did not get longer.** A control holds a canned cycle modal, so the
+post merges consecutive operations that share tool, cycle, depth, R plane, peck,
+feed, speed and coolant into one `G98 G81 X Y Z R F` followed by a bare `X Y`
+per hole and one `G80` — which is what a real post writes and what a machinist
+expects to single-block through. Merging lives in the post rather than the
+planner so the two views stay independent, and anything the cycle asserts
+differing ends the group: a different depth is a different cycle, and inheriting
+one hole's depth for the next is how a program drills through a table.
+
+On the seeded bearing support the plan went from 2 hole operations to 10 (five
+spots, five drills), and the posted program is unchanged in shape — two cycles,
+two tool changes, ten holes. The reconciler replays the posted text against the
+planned path and agrees to 1e-16 on both drills, which is the check that says
+the merge is lossless rather than merely shorter.
+
+Three posts had a tool change per operation, invisible while a pattern was one
+operation and twenty the moment it was twenty. GRBL's was an `M0` — a program
+pause demanding a manual tool change for a tool already in the spindle, twenty
+times, which is a program an operator learns to cycle-start through without
+reading, and one of those pauses is a real tool change. All three now change on
+an actual change.
+
+`planApproach` in `machinist.ts`, `sameCycle` and all four emitters in
+`cam/post.ts`.
+
+**Still open — found while fixing this:** a through hole is drilled to exactly
+the stock thickness. `depthOf` returns `stock.z` for `through`, and a Ø0.201″
+drill has a 0.060″ point on it, so the hole is 0.060″ short of breaking through
+and the part comes off the machine with a cone of material in every through
+hole. Needs a breakthrough allowance from the drill's own point angle, and the
+same question applies to a contour cut through the stock.
+
 ### B. The machinist must know how to set the job up
 
 **B1 — The setup sheet. — BUILT**
@@ -728,7 +784,10 @@ Saying no is part of the plan.
    and a corner gouge went with it.
 7. **B2 + E** origin declaration, proof-out state, the remaining gates.
 8. ~~**A5 + A6** chained contours and real finish passes~~ — BUILT.
+8b. ~~**A7** one operation per hole~~ — BUILT. A six-hole bolt circle was one
+   hole, and the audit found it, not the tests.
 9. **D1 + D2** one control commissioned properly, end to end, on real iron.
+   ~~D1~~ BUILT; D2 needs real iron.
 10. **B3** the setup transform, and second-op work opens up.
 
 Items 1 through 7 are what stands between here and a machinist trusting the

@@ -447,7 +447,9 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
     // 0.201 hole and a 0.500 hole came back as one op: drill both with the
     // ⌀0.201, 0.900" deep. The 0.500 hole was never produced, the small one
     // was drilled through the bottom of the part, and nothing was flagged.
-    const drillOps: PlannedOperation[] = [];
+    // Paired with the hole each one makes, so the spot operation beside it can
+    // be built from the feature rather than by editing the drill's own label.
+    const drillOps: { op: PlannedOperation; hole: Feature }[] = [];
     const byDiameter = new Map<number, Feature[]>();
     for (const h of c.holes) {
       const dia = "diameter" in h && typeof h.diameter === "number" ? h.diameter : null;
@@ -480,23 +482,48 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
         continue;
       }
 
-      const ratio = d / match.diameter;
-      drillOps.push({
-        sequence: 0, // assigned below, once it is known whether a spot op precedes them
-        type: ratio > 4 ? "PECK_DRILL" : "DRILL",
-        label: `Drill ${holes.length} × ⌀${dia.toFixed(4)}`,
-        featureId: holes[0].id,
-        toolId: match.id,
-        toolNumber: match.toolNumber,
-        topZ: 0,
-        finalZ: -d,
-        stepover: 0,
-        stockToLeave: 0,
-        rationale:
-          ratio > 4
-            ? `${ratio.toFixed(1)}:1 depth to diameter — pecking to clear chips rather than packing the flutes.`
-            : `${ratio.toFixed(1)}:1 depth to diameter drills straight through without pecking.`,
-      });
+      /*
+       * ONE OPERATION PER HOLE.
+       *
+       * This used to emit a single operation labelled "Drill 6 × ⌀0.2010"
+       * pointed at `holes[0].id`, and the toolpath engine drilled that one
+       * hole. Five holes were never produced, no error was raised, the
+       * operation reported real motion, and the pre-flight said every
+       * operation had produced motion. The operator read a label promising six
+       * holes, ran it, and took a part with one out of the machine.
+       *
+       * Per hole is also what the rest of the system is built on: coverage,
+       * inspection method, measurement and tolerance are all per feature. The
+       * program does not get longer for it — the post merges consecutive
+       * cycles that share a tool and a depth into one G81 with a position
+       * under it, which is what a real post writes anyway.
+       */
+      for (const hole of holes) {
+        // Depth and the peck decision are the HOLE's, not the group's. The
+        // group's deepest hole set both, so a 0.1" hole beside a 1.0" one was
+        // drilled to 1.0" — through the bottom of the part and into the vise.
+        const holeDepth = depthOf(hole, stock) ?? d;
+        const ratio = holeDepth / match.diameter;
+        drillOps.push({
+          hole,
+          op: {
+            sequence: 0, // assigned below, once it is known whether spotting precedes them
+            type: ratio > 4 ? "PECK_DRILL" : "DRILL",
+            label: `Drill ${hole.label}`,
+            featureId: hole.id,
+            toolId: match.id,
+            toolNumber: match.toolNumber,
+            topZ: 0,
+            finalZ: -holeDepth,
+            stepover: 0,
+            stockToLeave: 0,
+            rationale:
+              ratio > 4
+                ? `${ratio.toFixed(1)}:1 depth to diameter — pecking to clear chips rather than packing the flutes.`
+                : `${ratio.toFixed(1)}:1 depth to diameter drills straight through without pecking.`,
+          },
+        });
+      }
     }
 
     // Spot only if something is actually going to be drilled.
@@ -508,23 +535,27 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
     // spot it. Centre-drilling holes nobody can then drill is a tool change
     // and a cycle spent on nothing, and it reads as though the holes are
     // handled.
-    const holesBeingDrilled = drillOps.reduce((sum, o) => sum + Number(/(\d+) ×/.exec(o.label)?.[1] ?? 0), 0);
+    // One spot per hole, for the same reason as the drills — and the count no
+    // longer comes from a regex over the drill operation's own label, which
+    // was reading a number back out of a sentence the planner had just written.
     if (spot && spotWorthIt && drillOps.length > 0) {
-      ops1.push({
-        sequence: seq++,
-        type: "DRILL",
-        label: `Spot ${holesBeingDrilled} holes`,
-        featureId: drillOps[0].featureId,
-        toolId: spot.id,
-        toolNumber: spot.toolNumber,
-        topZ: 0,
-        finalZ: -0.08,
-        stepover: 0,
-        stockToLeave: 0,
-        rationale: "Spotting first stops the drill walking on entry, which is where hole position is won or lost.",
-      });
+      for (const { hole } of drillOps) {
+        ops1.push({
+          sequence: seq++,
+          type: "DRILL",
+          label: `Spot ${hole.label}`,
+          featureId: hole.id,
+          toolId: spot.id,
+          toolNumber: spot.toolNumber,
+          topZ: 0,
+          finalZ: -0.08,
+          stepover: 0,
+          stockToLeave: 0,
+          rationale: "Spotting first stops the drill walking on entry, which is where hole position is won or lost.",
+        });
+      }
     }
-    for (const op of drillOps) ops1.push({ ...op, sequence: seq++ });
+    for (const { op } of drillOps) ops1.push({ ...op, sequence: seq++ });
   }
 
   // Bores — the feature most likely to carry a real tolerance.
@@ -605,21 +636,26 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
   }
 
   // Chamfer
+  // One per chamfer feature. "Chamfer top edges" pointed at `chamfers[0]` was
+  // the same defect as the drills: every other chamfer on the part went
+  // uncut, and the label did not say which one it meant.
   const chamfer = findTool(tools, "CHAMFER_MILL");
   if (c.chamfers.length > 0 && chamfer) {
-    ops1.push({
-      sequence: seq++,
-      type: "CHAMFER",
-      label: "Chamfer top edges",
-      featureId: c.chamfers[0].id,
-      toolId: chamfer.id,
-      toolNumber: chamfer.toolNumber,
-      topZ: 0,
-      finalZ: -0.03,
-      stepover: 0,
-      stockToLeave: 0,
-      rationale: "Breaking edges on the machine is cheaper than a deburring bench and far more consistent.",
-    });
+    for (const f of c.chamfers) {
+      ops1.push({
+        sequence: seq++,
+        type: "CHAMFER",
+        label: `Chamfer ${f.label}`,
+        featureId: f.id,
+        toolId: chamfer.id,
+        toolNumber: chamfer.toolNumber,
+        topZ: 0,
+        finalZ: -0.03,
+        stepover: 0,
+        stockToLeave: 0,
+        rationale: "Breaking edges on the machine is cheaper than a deburring bench and far more consistent.",
+      });
+    }
   }
 
   const setups: PlannedSetup[] = [
