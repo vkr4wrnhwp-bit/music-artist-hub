@@ -44,6 +44,7 @@ export interface ToolFormValues {
   stickout?: number;
   pointAngle?: number | null;
   tipDiameter?: number | null;
+  threadDesignation?: string | null;
   holderId?: string | null;
   maxRPM?: number;
   recommendedMaterials?: string;
@@ -119,6 +120,15 @@ export function toolSections(
           half: true,
           hint: "INCLUDED angle at the point — 90 for a 90° chamfer mill, 118 for a jobber drill. A chamfer's angle is the angle of the cone that cuts it, so without this a chamfer cannot be planned at all.",
           defaultValue: v.pointAngle ?? null,
+        },
+        {
+          name: "threadDesignation",
+          label: "Thread",
+          kind: "text",
+          half: true,
+          placeholder: "1/4-20 UNC",
+          hint: "For a tap or a thread mill. A 1/4-20 tap and a 1/4-28 tap are both ⌀0.250, so a match on diameter puts the wrong pitch in the hole — without this the tool is not offered for any thread.",
+          defaultValue: v.threadDesignation ?? null,
         },
         {
           name: "tipDiameter",

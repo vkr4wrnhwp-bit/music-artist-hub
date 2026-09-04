@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { generateToolpath, parseThreadPitch, parseThreadMajor } from "@/lib/engines/cam/engine";
+import { generateToolpath } from "@/lib/engines/cam/engine";
+import { parseThreadPitch, parseThreadMajor } from "@/lib/engines/cam/thread";
 import { getPost, verifyNc, preflightPassed, type PreflightItem } from "@/lib/engines/cam/post";
 import type { MachiningContext, OperationRequest } from "@/lib/engines/cam/types";
 import type { Feature, Stock } from "@/lib/domain/features";

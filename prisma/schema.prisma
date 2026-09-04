@@ -218,6 +218,15 @@ model Tool {
   pointAngle  Float?
   tipDiameter Float?
 
+  // WHAT THREAD THIS TOOL CUTS, for a tap or a thread mill.
+  //
+  // A 1/4-20 tap and a 1/4-28 tap are both ⌀0.250, so matching a tap to a hole
+  // by diameter puts a 28-pitch tap into a hole drilled for 20 and snaps it off
+  // in the part. The tool carries its own designation and the match is on the
+  // thread. Nullable: most of the crib does not cut threads, and a tap without
+  // one is refused rather than matched on its size.
+  threadDesignation String?
+
   holderId String?
   holder   ToolHolder? @relation(fields: [holderId], references: [id], onDelete: SetNull)
 

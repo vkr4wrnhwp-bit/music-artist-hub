@@ -790,9 +790,69 @@ raises a burr into the finished form.
 
 `slotToolpath` and `headToolpath` in `cam/engine.ts`, `classify` and the slot
 and head branches of `machinist.ts`, `FEATURE_STAGE`.
-- **Thread milling.** Today tapping is the only thread strategy. Thread milling
-  is how a shop makes one 3/4-10 in 17-4, how it saves a part with a broken tap,
-  and how it holds a class-3 fit. The helical arc machinery from A1 is most of it.
+
+**T2 — A tapped hole was never threaded. — BUILT**
+The planner had **no thread branch at all**. `tapToolpath` has existed since
+Phase 1, the `TAP` operation type has always existed, the seeded crib holds a
+1/4-20 spiral point tap — and nothing ever emitted the operation. Four "1/4-20
+mounting hole" features on the seeded part came out as four plain Ø0.201 holes,
+and the coverage gate passed them, because the feature HAS operations: it was
+spotted and it was drilled. A part with no threads in it, and a plan that reads
+complete.
+
+Found by reading the planner for something else. It is the worst of the family
+so far, because unlike the counterbore there was no gate that caught it: every
+check the system runs was satisfied by a hole.
+
+**The match is on the thread, not the diameter.** A 1/4-20 tap and a 1/4-28 tap
+are both Ø0.250, and picking one by size puts a 28-pitch tap into a hole drilled
+for 20 and snaps it off in the part — the most expensive thing that happens to a
+small hole. `Tool.threadDesignation` is a new nullable column and a tap without
+one is refused rather than matched on its size, the same rule as the chamfer
+mill's point angle. `sameThread` compares the numbers a designation parses to,
+so "1/4-20" and "1/4-20 UNC" are one tap and "M6x1.0" and "M6 x 1" are one tap.
+
+**Thread milling** is the other half, and it is the same helical arc machinery
+the bore already uses. A full-form mill carries the whole profile on its flutes,
+so one 360° turn rising a single pitch cuts the entire thread; the tool circles
+at (major − toolDiameter) / 2, because an internal thread's MAJOR diameter is
+its root. It runs bottom-up and counter-clockwise, which climb mills a
+right-hand thread, and enters and leaves on tangential half-turns of the same
+helix rather than diving at the wall radially. A single-point mill needs a pass
+per thread and this engine does not implement one — it says so rather than
+emitting one turn and calling it a thread. A mill whose form is shorter than the
+thread is refused: one turn would cut the top and leave the bottom uncut, which
+a plug gauge finds and a tapped hole never would.
+
+All five approaches tap where a tap exists, because that is what a shop does.
+`BEST_FINISH` mills it instead, because the size then comes off the D offset —
+which is how a class-3 fit is held and how a first article is corrected without
+buying a tool.
+
+**And the hole is checked against the thread.** The feature form asks for
+"Diameter" on a tapped hole and does not say which of the two diameters it
+means. `major − pitch` is the standard tap drill at about 77% engagement, so a
+hole recorded at the thread's own major diameter has 0% of the form left to cut
+and says so, and one drilled tight enough to put over 85% on the tap says that
+too — past about 80% the strength barely moves and tap life falls off a cliff.
+This checks a recorded hole; it never replaces one.
+
+Verified on the seeded part: four `G84` holes merged into one cycle at F34.40 =
+688 rpm × 0.0500 pitch, no `M3` before it because the cycle owns the spindle,
+`verifyNc` clean and the reconciler agreeing to 5e-17.
+
+`src/lib/engines/cam/thread.ts`, `threadMillToolpath` in `cam/engine.ts`,
+`Tool.threadDesignation`, the thread branch of `machinist.ts`.
+
+**Still open:** the tap's **lead chamfer** is not in the depth. A tap does not
+cut a full thread to the end of its travel — 3 to 5 threads on a plug tap are
+still forming when it stops. In a through hole that leaves the last threads
+incomplete at the far face; in a blind hole the full-thread depth is short by
+the lead, and driving deeper to compensate bottoms the tap and breaks it. Same
+family as A9's drill point, and the same answer: record the chamfer style on the
+tool rather than guess it.
+- ~~**Thread milling.**~~ — BUILT, along with the tapping that was never
+  planned at all. See T2.
 - **Rest machining.** Where the big tool could not reach. Needs a record of what
   the previous tool left, which is the first step toward an in-process stock model.
 - **Multiple work offsets and fixture offsets.** `G54.1 P`, multi-part fixtures,

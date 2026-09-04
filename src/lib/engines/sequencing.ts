@@ -105,7 +105,10 @@ export const FEATURE_STAGE: Record<OperationType, number> = {
   COUNTERBORE: 4,
   COUNTERSINK: 4,
   BORE: 4,
+  // A thread is cut at the same stage however it is cut: after the hole and
+  // the head, before the edges are broken.
   TAP: 5,
+  THREAD_MILL: 5,
   ENGRAVE: 6,
   CHAMFER: 7,
   CONTOUR_2D: 8,

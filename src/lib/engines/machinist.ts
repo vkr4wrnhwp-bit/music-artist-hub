@@ -4,6 +4,7 @@ import type { MachineProfile, Tool, WorkholdingDevice } from "@/lib/domain/shop"
 import { canReach, fitsInternalCorner } from "@/lib/domain/shop";
 import type { OperationType } from "./cam/types";
 import { chamferGeometry } from "./cam/chamfer";
+import { parseThread, sameThread, tapDrill, threadEngagement, threadMinor } from "./cam/thread";
 import { BREAKOUT_CLEARANCE, drillPoint } from "./cam/drill-point";
 
 /**
@@ -775,6 +776,113 @@ export function planApproach(pattern: ThoughtPattern, input: PlanInput): Machini
           ? `⌀${tool.diameter.toFixed(4)} is the finished size, so it plunges down the pilot and cuts the bore in one.`
           : `⌀${tool.diameter.toFixed(4)} interpolates the ⌀${head.toFixed(4)} bore, which holds the size at the control rather than at the tool crib.`,
     });
+  }
+
+  /*
+   * THREADS.
+   *
+   * There was no branch here at all. `tapToolpath` has existed since Phase 1,
+   * the TAP operation type has always existed, the seeded crib holds a 1/4-20
+   * tap — and nothing ever emitted the operation. Every TAPPED_HOLE was spotted
+   * and drilled and came out as a plain hole, and the coverage gate passed it
+   * because the feature HAS operations. A part with no threads in it, and a
+   * plan that reads complete.
+   *
+   * The match is on the THREAD, not the diameter. A 1/4-20 tap and a 1/4-28 tap
+   * are both ⌀0.250, and picking one by size puts a 28-pitch tap into a hole
+   * drilled for 20 and snaps it off in the part.
+   */
+  for (const f of c.holes) {
+    if (f.kind !== "TAPPED_HOLE") continue;
+    const thread = parseThread(f.thread);
+    if (!thread) {
+      concerns.push(
+        f.thread
+          ? `${f.label}: the thread "${f.thread}" cannot be read for a pitch and a major diameter, and both are needed to cut it.`
+          : `${f.label}: no thread designation recorded, so nothing here can say what thread to cut.`,
+      );
+      continue;
+    }
+
+    /*
+     * The hole has to have material left in it to thread. `major − pitch` is
+     * the standard tap drill and lands at about 77% engagement; a hole recorded
+     * at the thread's own major diameter has nothing to cut. This checks the
+     * recorded hole rather than replacing it — a drawing that calls a different
+     * drill is the drawing's business.
+     */
+    const engagement = threadEngagement(thread, f.diameter);
+    if (engagement < 40) {
+      concerns.push(
+        `${f.label} is recorded as a ⌀${f.diameter.toFixed(4)} hole for ${thread.designation}, which leaves ${engagement.toFixed(0)}% of the thread form. The tap drill is ⌀${tapDrill(thread).toFixed(4)} — check which diameter the drawing means.`,
+      );
+    } else if (engagement > 85) {
+      concerns.push(
+        `${f.label} at ⌀${f.diameter.toFixed(4)} puts ${engagement.toFixed(0)}% of the thread form on the tap. Past about 80% the strength barely moves and tap life falls off a cliff; ⌀${tapDrill(thread).toFixed(4)} is the usual drill.`,
+      );
+    }
+
+    /*
+     * The engagement check comes BEFORE the drilled check on purpose. A hole
+     * recorded at the thread's own major diameter usually has no drill in the
+     * crib either, and "its own hole is not being drilled" is the symptom
+     * while the recorded diameter is the cause.
+     */
+    if (!drilled.has(f.id)) {
+      concerns.push(`${f.label}: its own hole is not being drilled, so there is nothing to thread.`);
+      continue;
+    }
+
+    const tap = tools.find((t) => t.toolClass === "TAP" && sameThread(t.threadDesignation, f.thread));
+    const mill = tools.find(
+      (t) => t.toolClass === "THREAD_MILL" && sameThread(t.threadDesignation, f.thread) && t.diameter < threadMinor(thread),
+    );
+    const depth = depthOf(f, stock) ?? 0;
+    // A thread mill only cuts the whole thread in one turn where its form
+    // covers it, so a shallow-form mill is not a substitute for a tap here.
+    const millFits = mill && mill.fluteLength >= depth;
+
+    if (tap && !(pattern === "BEST_FINISH" && millFits)) {
+      ops1.push({
+        sequence: seq++,
+        type: "TAP",
+        label: `Tap ${f.label}`,
+        featureId: f.id,
+        toolId: tap.id,
+        toolNumber: tap.toolNumber,
+        topZ: 0,
+        finalZ: -depth,
+        stepover: 0,
+        stockToLeave: 0,
+        rationale: `${thread.designation} rigid tapped. The feed is the thread — ${thread.pitch.toFixed(4)}" per revolution — not a number anybody chose.`,
+      });
+      continue;
+    }
+    if (millFits && mill) {
+      ops1.push({
+        sequence: seq++,
+        type: "THREAD_MILL",
+        label: `Thread mill ${f.label}`,
+        featureId: f.id,
+        toolId: mill.id,
+        toolNumber: mill.toolNumber,
+        topZ: 0,
+        finalZ: -depth,
+        stepover: 0,
+        stockToLeave: 0,
+        rationale: tap
+          ? `${thread.designation} milled rather than tapped: the size comes off the D offset, which is how a class-3 fit is held and how the first article is corrected without a new tool.`
+          : `No ${thread.designation} tap in the crib. A full-form mill cuts it in one turn, and a broken mill comes out of the hole where a broken tap does not.`,
+      });
+      continue;
+    }
+
+    const nearMill = tools.find((t) => t.toolClass === "THREAD_MILL" && sameThread(t.threadDesignation, f.thread));
+    concerns.push(
+      nearMill
+        ? `${f.label}: ${nearMill.description} carries ${nearMill.fluteLength.toFixed(3)}" of form against a ${depth.toFixed(3)}" thread, so one turn would leave the bottom of it uncut, and there is no ${thread.designation} tap in the crib.`
+        : `${f.label}: nothing in the crib cuts ${thread.designation}. It needs a tap or a full-form thread mill of that pitch — the hole will be drilled and left unthreaded otherwise.`,
+    );
   }
 
   // Bores — the feature most likely to carry a real tolerance.

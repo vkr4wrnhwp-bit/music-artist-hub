@@ -51,6 +51,9 @@ function parse(formData: FormData) {
     // this form insisting on an angle for an end mill.
     pointAngle: f.optionalNumber("pointAngle", "Point angle", { min: 0, max: 180 }),
     tipDiameter: f.optionalNumber("tipDiameter", "Tip diameter", { min: 0 }),
+    // Stored as written and compared on the numbers it parses to, so
+    // "1/4-20" and "1/4-20 UNC" are one tap.
+    threadDesignation: f.optionalText("threadDesignation"),
     holderId: f.optionalText("holderId"),
 
     material: f.text("material", "Tool material"),

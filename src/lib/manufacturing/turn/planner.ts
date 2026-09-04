@@ -1,5 +1,5 @@
 import { intersectSfm } from "@/lib/engines/cam/engine";
-import { parseThreadPitch } from "@/lib/engines/cam/engine";
+import { parseThreadPitch } from "@/lib/engines/cam/thread";
 import type { ProfileSegment, RotationalProfile } from "./geometry";
 import type { TurnCutParams, TurnOperation, TurnOperationType } from "./operations";
 

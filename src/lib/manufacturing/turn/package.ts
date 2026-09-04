@@ -5,7 +5,7 @@ import { generateTurnToolpath, type TurnOperation, type TurnToolpathResult } fro
 import { assessChuckGrip, assessStickout, assessBoringBar, assessPartOff } from "./analysis";
 import { evaluateTurnReadiness } from "./readiness";
 import { emitLatheProgram } from "./post";
-import { parseThreadPitch } from "@/lib/engines/cam/engine";
+import { parseThreadPitch } from "@/lib/engines/cam/thread";
 import { criticalToleranceBand, cutoffDistanceFromChuck, inspectionCapableFor, materialFromIntent } from "./derive";
 
 /**

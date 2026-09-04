@@ -172,6 +172,13 @@ export interface Tool {
   pointAngle?: number;
   /** Flat ground on the end. Decides how far off the edge the centre runs. */
   tipDiameter?: number;
+  /**
+   * What thread this tool cuts, for a tap or a thread mill, as written.
+   *
+   * A 1/4-20 tap and a 1/4-28 tap are both ⌀0.250, so a match on diameter puts
+   * the wrong pitch in the hole and snaps the tap off in the part.
+   */
+  threadDesignation?: string;
   holder: string;
   /** Holder body diameter at the nose — used for holder clearance checks. */
   holderNoseDiameter: number;

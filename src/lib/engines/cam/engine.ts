@@ -14,6 +14,7 @@ import { IMPLEMENTED_OPERATIONS, PLACEHOLDER_OPERATIONS } from "./types";
 import { arcGeometry, arcMove, arcSegments } from "./arc";
 import { chainLength, chainMoves, offsetChain, rectangleChain, type Chain } from "./chain";
 import { chamferEdge, chamferGeometry } from "./chamfer";
+import { parseThread, parseThreadMajor, parseThreadPitch, sameThread, threadMinor } from "./thread";
 
 /**
  * DETERMINISTIC TOOLPATH ENGINE — Phase 1
@@ -326,6 +327,15 @@ export function generateToolpath(
     case "CONTOUR_2D": {
       if (!feature) return missingFeature(req);
       const r = contourToolpath(req, feature, ctx, params);
+      if ("error" in r) return { ok: false, error: { operationId: req.id, ...r.error } };
+      moves = r.moves;
+      removed = r.removed;
+      warnings.push(...r.warnings);
+      break;
+    }
+    case "THREAD_MILL": {
+      if (!feature) return missingFeature(req);
+      const r = threadMillToolpath(req, feature, ctx, params);
       if ("error" in r) return { ok: false, error: { operationId: req.id, ...r.error } };
       moves = r.moves;
       removed = r.removed;
@@ -1145,29 +1155,153 @@ function boreToolpath(
  * mm). Anything else returns null — a tap fed at an invented pitch breaks,
  * so no pitch is ever guessed. See CLAUDE.md principle 12.
  */
-export function parseThreadPitch(thread: string): number | null {
-  const metric = /M\s*\d+(?:\.\d+)?\s*[x×]\s*(\d+(?:\.\d+)?)/i.exec(thread);
-  if (metric) {
-    const mm = parseFloat(metric[1]);
-    return mm > 0 ? mm / 25.4 : null;
-  }
-  const imperial = /(?:\d+\/\d+|#?\d+)\s*-\s*(\d+(?:\.\d+)?)/.exec(thread);
-  if (imperial) {
-    const tpi = parseFloat(imperial[1]);
-    return tpi > 0 ? 1 / tpi : null;
-  }
-  return null;
-}
+/* ------------------------------------------------------------------ */
+/* THREAD MILL — one helical turn, cutting the form                    */
+/* ------------------------------------------------------------------ */
 
-/** Nominal major diameter in inches, where the designation states one. */
-export function parseThreadMajor(thread: string): number | null {
-  const metric = /M\s*(\d+(?:\.\d+)?)/i.exec(thread);
-  if (metric) return parseFloat(metric[1]) / 25.4;
-  const fraction = /^(\d+)\/(\d+)/.exec(thread.trim());
-  if (fraction) return parseInt(fraction[1], 10) / parseInt(fraction[2], 10);
-  const numbered = /^#(\d+)/.exec(thread.trim());
-  if (numbered) return 0.06 + 0.013 * parseInt(numbered[1], 10);
-  return null;
+/**
+ * THREAD MILLING.
+ *
+ * Tapping was the only thread strategy this system had, and the planner never
+ * even emitted one. Thread milling is how a shop makes a 3/4-10 in 17-4, how it
+ * saves a part with a broken tap still in the hole, and how it holds a class-3
+ * fit — and it is the same helical arc machinery the bore already uses.
+ *
+ * A FULL-FORM mill carries the whole thread profile on its flutes, so one
+ * 360° helical turn rising a single pitch cuts the entire thread. That is the
+ * cycle here. A SINGLE-POINT mill carries one tooth and needs a pass per
+ * thread; this engine does not implement that and refuses rather than emitting
+ * one turn and calling it a thread.
+ *
+ * The tool circles at (major − toolDiameter) / 2, because an internal thread's
+ * MAJOR diameter is its root — the deepest the cutter has to reach. It runs
+ * bottom-up and counter-clockwise, which climb mills a right-hand internal
+ * thread and puts the cutting pressure into the material rather than pulling
+ * the tool into the wall.
+ *
+ * Lead-in and lead-out are tangential arcs on the same helix, half a turn and
+ * half a pitch each, so the cutter enters and leaves the form on the thread
+ * rather than crashing into the wall radially and leaving a witness at the
+ * entry.
+ */
+function threadMillToolpath(
+  req: OperationRequest,
+  feature: Feature,
+  ctx: MachiningContext,
+  p: CuttingParameters,
+): { moves: Move[]; removed: number; warnings: string[] } | { error: { reason: string; recommendations: string[] } } {
+  if (feature.kind !== "TAPPED_HOLE") {
+    return {
+      error: {
+        reason: `${feature.label} is a ${feature.kind}; a thread mill operation requires a tapped hole feature.`,
+        recommendations: ["Select a tapped hole feature"],
+      },
+    };
+  }
+  if (ctx.tool.toolClass !== "THREAD_MILL") {
+    return {
+      error: {
+        reason: `${ctx.tool.description} is a ${ctx.tool.toolClass}, not a thread mill. The helix that cuts a thread is the tool's own form, and no other cutter carries it.`,
+        recommendations: ["Assign a thread mill", "Tap this hole instead"],
+      },
+    };
+  }
+  const thread = parseThread(feature.thread);
+  if (!thread) {
+    return {
+      error: {
+        reason: feature.thread
+          ? `Thread designation "${feature.thread}" could not be read for a pitch and a major diameter, and the helix is both of them. CANVAS will not invent either.`
+          : `${feature.label} has no thread designation, so there is no helix to cut. CANVAS will not invent one.`,
+        recommendations: ['Record the thread on the feature (e.g. "1/4-20 UNC" or "M6x1.0")'],
+      },
+    };
+  }
+  if (!sameThread(ctx.tool.threadDesignation, feature.thread)) {
+    return {
+      error: {
+        reason: ctx.tool.threadDesignation
+          ? `${ctx.tool.description} cuts ${ctx.tool.threadDesignation} and ${feature.label} is ${feature.thread}. A full-form mill carries one pitch on its flutes; run at another it cuts a thread of the wrong form.`
+          : `${ctx.tool.description} records no thread, and a full-form mill's pitch is ground into it. Matching on diameter alone puts a 28-pitch form in a hole cut for 20.`,
+        recommendations: [
+          `Record the thread on the tool, or assign a ${feature.thread} thread mill`,
+          "A single-point thread mill cuts any pitch, and this engine does not implement one",
+        ],
+      },
+    };
+  }
+
+  const minor = threadMinor(thread);
+  const d = ctx.tool.diameter;
+  if (d >= minor) {
+    return {
+      error: {
+        reason: `${ctx.tool.description} is ⌀${d.toFixed(4)} and ${feature.thread} has a ⌀${minor.toFixed(4)} minor diameter. The tool does not go in the hole.`,
+        recommendations: [`Use a thread mill under ⌀${minor.toFixed(4)}`, "Tap this hole instead"],
+      },
+    };
+  }
+
+  const depth = req.topZ - req.finalZ;
+  const warnings: string[] = [];
+  /*
+   * A full-form mill cuts the whole thread in one turn ONLY where its form
+   * covers the thread. Past the flute length the top of the thread is cut and
+   * the bottom is not, and the hole gauges as a partial thread — which a plug
+   * gauge finds and a tapped hole never would.
+   */
+  if (ctx.tool.fluteLength < depth - 1e-9) {
+    return {
+      error: {
+        reason: `${feature.label} is threaded ${depth.toFixed(3)}" deep and ${ctx.tool.description} carries ${ctx.tool.fluteLength.toFixed(3)}" of form. One turn would cut the top of the thread and leave the bottom of it uncut.`,
+        recommendations: [
+          `Use a thread mill with at least ${depth.toFixed(3)}" of form`,
+          "Reduce the threaded depth if the print allows it",
+          "Tap this hole instead",
+        ],
+      },
+    };
+  }
+
+  const moves: Move[] = [];
+  const r = (thread.major - d) / 2;
+  const cx = feature.centerX;
+  const cy = feature.centerY;
+  const feed = Math.round(p.feed * 0.6); // the form is a full-width cut
+  const bottom = req.finalZ;
+
+  moves.push({ type: "RAPID", x: cx, y: cy, z: req.clearanceZ, feed: null });
+  // Down the middle of a hole that already exists — the same case as a
+  // counterbore, and the reason the drill precedes this in the stage table.
+  moves.push({ type: "PLUNGE", x: cx, y: cy, z: bottom, feed: p.plungeFeed });
+
+  // Lead in: half a turn out to the thread radius, rising half a pitch, so the
+  // cutter arrives tangent to the helix rather than into the wall.
+  moves.push(
+    arcMove("LEAD_IN", { x: cx, y: cy }, cx + r / 2, cy, { x: cx + r, y: cy, z: bottom + thread.pitch / 2 }, false, feed),
+  );
+  // The thread: one full turn, rising one pitch, as two halves because a G2/G3
+  // with I/J and no end point means "full circle" on a Haas and means something
+  // else or nothing elsewhere.
+  moves.push(
+    arcMove("CUT", { x: cx + r, y: cy }, cx, cy, { x: cx - r, y: cy, z: bottom + thread.pitch }, false, feed),
+  );
+  moves.push(
+    arcMove("CUT", { x: cx - r, y: cy }, cx, cy, { x: cx + r, y: cy, z: bottom + 1.5 * thread.pitch }, false, feed),
+  );
+  // Lead out: back to the centre on the same helix, clear of the form.
+  moves.push(
+    arcMove("LEAD_OUT", { x: cx + r, y: cy }, cx + r / 2, cy, { x: cx, y: cy, z: bottom + 2 * thread.pitch }, false, feed),
+  );
+  moves.push({ type: "RETRACT", x: cx, y: cy, z: req.retractZ, feed: null });
+
+  warnings.push(
+    `Thread milled full form: one turn at ⌀${(2 * r).toFixed(4)} centre path cuts the whole ${thread.designation}. Check the class of fit on the first part — the size comes off the D offset, which is the point of milling it.`,
+  );
+
+  // The thread form removed from the wall of the hole, over its depth.
+  const removed = Math.PI * ((thread.major / 2) ** 2 - (minor / 2) ** 2) * depth * 0.5;
+  return { moves, removed: Math.max(0, removed), warnings };
 }
 
 function tapToolpath(
