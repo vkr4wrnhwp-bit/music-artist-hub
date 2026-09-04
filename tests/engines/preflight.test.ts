@@ -27,6 +27,10 @@ const pkg = (over: Record<string, unknown> = {}): ManufacturingPackage =>
     // complete package to look at. A fixture missing this reads as a part
     // whose only feature nothing cuts.
     setups: [{ id: "s1", operations: [{ id: "o1", label: "Bore f1", featureId: "f1" }] }],
+    // A post proven on this machine at this control version. Executable NC
+    // from an unproven post is a program nobody has watched run, so a fixture
+    // missing this is a package that cannot export.
+    postValidation: { state: "VALIDATED", detail: "Haas NGC validated on the VF-2 at 100.22.000.1130", record: null },
     workholdingBySetup: { s1: { level: "SAFE" } },
     assignedTools: [{ stickout: 1.5 }],
     toolpaths: [{ isPlaceholder: false }],
@@ -159,4 +163,30 @@ test("the list is deterministic and its ids are unique", () => {
   const a = buildPreflight(pkg(), POST);
   assert.deepEqual(a, buildPreflight(pkg(), POST));
   assert.equal(new Set(a.map((i) => i.id)).size, a.length);
+});
+
+test("a post nobody has proven on this machine stops the export", () => {
+  /*
+   * PostDefinition.certified is typed as the literal false and stays that way:
+   * certification is not a property of the code. It is a property of a post
+   * having been run on a named machine at a named control version by somebody
+   * who watched what happened — and until that record exists, the honest
+   * DEVELOPMENT label is exactly the label that stops meaning anything once a
+   * program leaves the building carrying it.
+   */
+  const none = itemFor(
+    pkg({ postValidation: { state: "NONE", detail: "Haas NGC has never been validated on the VF-2.", record: null } }),
+    "postvalidation",
+  );
+  assert.equal(none.status, "FAIL");
+  assert.equal(none.required, true);
+  assert.match(none.detail, /never been validated/);
+
+  // And a control software update supersedes rather than inherits.
+  const stale = itemFor(
+    pkg({ postValidation: { state: "SUPERSEDED", detail: "validated at control 100.21, now running 100.22", record: null } }),
+    "postvalidation",
+  );
+  assert.equal(stale.status, "FAIL");
+  assert.equal(passes(pkg({ postValidation: { state: "SUPERSEDED", detail: "x", record: null } })), false);
 });

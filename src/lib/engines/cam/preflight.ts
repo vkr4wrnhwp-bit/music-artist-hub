@@ -33,6 +33,30 @@ export function buildPreflight(
   return [
     item("machine", "Machine selected", Boolean(machine), machine ? `${machine.manufacturer} ${machine.model}` : "No machine on this setup", true),
     item("post", "Post processor selected", Boolean(post), post ? post.name : "None", true),
+    /*
+     * THE POST HAS TO HAVE BEEN PROVEN ON THIS MACHINE.
+     *
+     * `PostDefinition.certified` is typed as the literal `false` and stays
+     * that way — certification is not a property of the code. It is a property
+     * of a post having been run on a named machine at a named control version
+     * by somebody who watched what happened, and that record is what this
+     * reads.
+     *
+     * Required, like everything else on this list. Executable NC from a post
+     * nobody has proven is a program nobody has watched run, and the honest
+     * DEVELOPMENT label on it is exactly the label that stops meaning anything
+     * once a program leaves the building carrying it.
+     */
+    item(
+      "postvalidation",
+      "Post proven on this machine",
+      // A program CANVAS did not write passes this item by abstention, not by
+      // approval: the check is about a CANVAS post's dialect and there is no
+      // CANVAS post in play. Everything else on this list still applies to it.
+      pkg.postValidation.state === "VALIDATED" || pkg.postValidation.foreign === true,
+      pkg.postValidation.detail,
+      true,
+    ),
     item("units", "Units confirmed", pkg.revision.units === "IN" || pkg.revision.units === "MM", `Program in ${pkg.revision.units === "IN" ? "inches (G20)" : "millimetres (G21)"}`, true),
     item("stock", "Stock verified", Boolean(pkg.revision.stock), pkg.revision.stock ? `${pkg.revision.stock.x} × ${pkg.revision.stock.y} × ${pkg.revision.stock.z}` : "Stock not defined", true),
     item(

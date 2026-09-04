@@ -46,6 +46,7 @@ export interface MachineFormValues {
   fourthAxis?: boolean;
   fifthAxis?: boolean;
   supportedPostProcessor?: string;
+  controlVersion?: string | null;
   notes?: string | null;
 }
 
@@ -94,6 +95,15 @@ export function machineSections(v: MachineFormValues): ShopSection[] {
           options: POSTS.map((p) => ({ value: p.id, label: p.name })),
           hint: "Every post in the registry is a development post — none is certified against a machine. Blank picks the default for the controller.",
           defaultValue: v.supportedPostProcessor ?? null,
+        },
+        {
+          name: "controlVersion",
+          label: "Control software version",
+          kind: "text",
+          half: true,
+          placeholder: "100.22.000.1130",
+          hint: "As it reads on the machine. A post validation is scoped to it, because a control update can change how a canned cycle retracts or how look-ahead handles short blocks. Blank means nobody has recorded it, and a proof cannot be matched against a version nobody wrote down.",
+          defaultValue: v.controlVersion ?? null,
         },
       ],
     },

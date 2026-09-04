@@ -429,17 +429,43 @@ record, rapid-through-material as a blocking finding rather than a note.
 
 ### D. The post must be trustworthy for a specific machine
 
-**D1 — Every post is `certified: false`, permanently. (LARGE)**
-`PostDefinition.certified` is typed as the literal `false` (`post.ts:32`) — the
-same trick as `clearableByConfirmation`, and correct. But there is no path to a
-certified post: no record of a post having been validated, against which
-machine and control version, by whom, with what evidence.
+**D1 — Every post is `certified: false`, permanently. — BUILT**
+`PostDefinition.certified` is typed as the literal `false` — the same trick as
+`clearableByConfirmation`, and correct. But there was no path *out*: no record
+of a post having been validated, against which machine and which control
+software, by whom, with what evidence. Every post was permanently DEVELOPMENT,
+which is honest right up until it becomes the label nobody reads.
 
-Build: a post-validation record and gate — cut-air proof, dry run, first
-article, signed by a named person against a named machine and control version.
-Until that exists the honest label is the only answer, and the honest label
-means the program cannot be trusted, which means CANVAS cannot yet do the thing
-it exists to do.
+`certified` stays a literal `false` and always will, because **certification is
+not a property of the code**. It is a property of a post having been run on a
+specific machine, at a specific control software version, by a named person who
+watched what happened. So it lives in a `PostValidation` record beside the
+machine, and both the readiness gate and the export pre-flight read that record.
+Blocking, on both.
+
+Scoped, and superseded rather than inherited. A post proven on the VF-2 says
+nothing about the VF-4 next to it. And a control software update can change how
+a canned cycle retracts or how look-ahead handles short blocks — which is
+exactly what a post validation is *about* — so the control version is part of
+the identity of what was proven, taken from the machine record rather than typed
+on the form. A version nobody recorded cannot match a version nobody recorded:
+"unknown equals unknown" is the reading that lets a stale proof stand.
+
+Evidence is required and it is prose. "Cut air above the part, single blocked
+the whole program, first article to print" is what the next person needs, and
+this is the one gate in the system where a click would be least defensible.
+Withdrawing a validation revokes it rather than deleting it — a program exported
+last month under a proof later withdrawn is something a shop needs to find.
+
+One distinction the build surfaced: **a program CANVAS did not write abstains
+rather than failing.** An uploaded program came out of somebody else's CAM, and
+proving CANVAS's Haas post says nothing whatever about a file Mastercam wrote. A
+gate that claimed otherwise would be asking for evidence about the wrong
+artifact — the kind that gets cleared to make it go away.
+
+`src/lib/engines/post-validation.ts`, the `PostValidation` model,
+`Machine.controlVersion`, the panel on `/machines`, the `postvalidation`
+pre-flight item and the `post-validation` gate.
 
 **D2 — Control-specific reality. (MEDIUM per control)**
 What the current posts do not handle: safe-start block conventions, tool change

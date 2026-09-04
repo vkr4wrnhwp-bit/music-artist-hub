@@ -57,6 +57,7 @@ export async function getMachines(organizationId: string): Promise<MachineProfil
     fourthAxis: m.fourthAxis,
     fifthAxis: m.fifthAxis,
     supportedPostProcessor: m.supportedPostProcessor,
+    controlVersion: m.controlVersion ?? null,
     isReferenceProfile: m.isReferenceProfile,
     notes: m.notes ?? undefined,
   }));

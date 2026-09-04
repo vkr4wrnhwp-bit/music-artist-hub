@@ -162,6 +162,16 @@ model Machine {
   fifthAxis             Boolean @default(false)
 
   supportedPostProcessor String
+  /**
+   * Control software version, as it reads on the machine.
+   *
+   * Part of the identity of what a post validation proved: a control update can
+   * change how a canned cycle retracts or how look-ahead handles short blocks,
+   * which is exactly what a post validation is about. Null means nobody has
+   * recorded it, and a proof cannot be matched against a version nobody wrote
+   * down — see engines/post-validation.ts.
+   */
+  controlVersion         String?
   // Reference profiles are seeded example data, never presented as verified.
   isReferenceProfile     Boolean @default(false)
   notes                  String?
@@ -173,6 +183,7 @@ model Machine {
   shopKnowledge ShopKnowledge[]
   /** What is loaded in this machine's tool changer. */
   loadedTools  Tool[]
+  postValidations PostValidation[]
 
   @@index([organizationId])
 }
@@ -904,6 +915,45 @@ model Simulation {
   setup Setup @relation(fields: [setupId], references: [id], onDelete: Cascade)
 
   @@index([setupId])
+}
+
+/**
+ * A POST, PROVEN ON A NAMED MACHINE.
+ *
+ * `PostDefinition.certified` is typed as the literal `false` and stays that
+ * way: certification is not a property of the code. It is a property of a post
+ * having been run on a specific machine, against a specific control software
+ * version, by a named person who watched what happened.
+ *
+ * Scoped tightly on purpose. A post proven on the VF-2 says nothing about the
+ * VF-4 next to it, and a control software update can change how a canned cycle
+ * or a look-ahead setting behaves — so `controlVersion` is part of the identity
+ * of the thing that was proven, and a different one supersedes the record
+ * rather than inheriting it.
+ *
+ * `evidence` is prose and required. "Cut air above the part, single blocked the
+ * whole program, first article to print" is what the next person needs; a
+ * checkbox is a click, and this is the gate that decides whether executable NC
+ * leaves the building.
+ */
+model PostValidation {
+  id             String @id @default(cuid())
+  organizationId String
+  postId         String
+  machineId      String
+  /** Control software version as it reads on the machine. */
+  controlVersion String
+  validatedByName String
+  validatedAt    DateTime @default(now())
+  /** What was actually proven, in the validator's own words. */
+  evidence       String
+  /** Withdrawn rather than deleted: the trail is the point. */
+  revokedAt      DateTime?
+  revokedReason  String?
+
+  machine Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, postId, machineId])
 }
 
 model NCProgram {

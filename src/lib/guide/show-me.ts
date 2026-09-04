@@ -43,6 +43,8 @@ export function showMeHrefFor(partId: string, gateId: string, gateLabel: string)
      * half of that pair and lands on the evidence rather than on the remedy.
      */
     coverage: `/parts/${partId}/setups`,
+    // A post validation is recorded against the machine, not the part.
+    "post-validation": `/machines`,
     responsibility: `/parts/${partId}/responsibility`,
   };
   const g = gateId.toLowerCase();

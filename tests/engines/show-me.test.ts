@@ -29,6 +29,7 @@ const GATE_LABEL: Record<string, string> = {
   inspection: "Inspection plan",
   simulation: "Simulation",
   nc: "NC post",
+  "post-validation": "Post proven on this machine",
   proof: "Proven on the machine",
   approval: "Operator approval",
 };

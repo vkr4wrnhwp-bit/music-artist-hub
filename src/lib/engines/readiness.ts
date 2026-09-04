@@ -56,6 +56,7 @@ export const READINESS_GATE_IDS = [
   "inspection",
   "simulation",
   "nc",
+  "post-validation",
   "proof",
   "approval",
 ] as const;
@@ -123,6 +124,12 @@ export interface ReadinessInput {
   instruments?: Instrument[];
   simulationRun: boolean;
   ncGenerated: boolean;
+  /**
+   * Whether the post bound to this machine has ever been proven on it. See
+   * engines/post-validation.ts. Undefined when the caller has no post to ask
+   * about.
+   */
+  postValidation?: { state: "VALIDATED" | "SUPERSEDED" | "NONE"; detail: string; foreign?: boolean };
   /**
    * Whether the stored program has ever cut a good part, and whether it is
    * still the program that did. Undefined when there is no program to ask
@@ -520,6 +527,30 @@ export function evaluateReadiness(input: ReadinessInput): ReadinessReport {
     input.ncGenerated
       ? gate("nc", "NC post", "REVIEW", "Development post output generated. Not certified for production.", false, ["Review the program line by line"])
       : gate("nc", "NC post", "NOT_ATTEMPTED", "No NC program has been generated.", false, []),
+  );
+
+  /* ---- Post validation ----
+   *
+   * Blocking. The pre-flight refuses the export on this too, and both read the
+   * same record — a post nobody has proven on this machine emits NC nobody has
+   * watched run, and the DEVELOPMENT label on it is the label that stops
+   * meaning anything the moment a program leaves the building carrying it.
+   */
+  gates.push(
+    !input.postValidation
+      ? gate("post-validation", "Post proven on this machine", "NOT_ATTEMPTED", "No post or machine to check.", true, [])
+      : input.postValidation.foreign
+        ? gate("post-validation", "Post proven on this machine", "NOT_ATTEMPTED", input.postValidation.detail, false, [])
+        : input.postValidation.state === "VALIDATED"
+          ? gate("post-validation", "Post proven on this machine", "PASS", input.postValidation.detail, true, [])
+          : gate(
+              "post-validation",
+              "Post proven on this machine",
+              input.postValidation.state === "SUPERSEDED" ? "REVIEW" : "MISSING",
+              input.postValidation.detail,
+              true,
+              ["Prove the post on this machine and record what you saw"],
+            ),
   );
 
   /* ---- Proof-out ----

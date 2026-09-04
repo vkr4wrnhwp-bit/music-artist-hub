@@ -9,17 +9,21 @@ import { TELEMETRY_SOURCES } from "@/lib/telemetry";
 import { TopBar } from "@/components/nav";
 import { MachineEnvelope } from "@/components/machine-envelope";
 import { Button, EmptyState, inputClass, LinkButton, Panel, SectionHeading, StatusChip } from "@/components/ui";
+import { defaultPostForController, getPost } from "@/lib/engines/cam/post";
+import { postValidationState } from "@/lib/engines/post-validation";
+import { recordPostValidation, revokePostValidation } from "./validation-actions";
 import { revalidatePath } from "next/cache";
 
 export default async function MachinesPage() {
   const user = await requireUser();
   const machines = await getMachines(user.organizationId);
-  const [calRecords, referenceCuts, tools, pocketCounts] = await Promise.all([
+  const [calRecords, referenceCuts, tools, validations, pocketCounts] = await Promise.all([
     db.machineCalibrationRecord.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" } }),
     db.referenceCut.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" }, take: 20 }),
     db.tool.findMany({ where: { organizationId: user.organizationId }, orderBy: { toolNumber: "asc" } }),
     // Carousel occupancy per machine. Counted, not inferred — a tool is in a
     // pocket because somebody recorded putting it there.
+    db.postValidation.findMany({ where: { organizationId: user.organizationId }, orderBy: { validatedAt: "desc" } }),
     db.tool.groupBy({
       by: ["machineId"],
       where: { organizationId: user.organizationId, machineId: { not: null }, pocket: { not: null } },
@@ -106,6 +110,12 @@ export default async function MachinesPage() {
             {machines.map((m) => {
               const recs = calRecords.filter((r) => r.machineId === m.id);
               const summary = summarizeCalibration(recs);
+              const post = getPost(m.supportedPostProcessor) ?? defaultPostForController(m.controller);
+              const live = validations.filter((v) => v.machineId === m.id && !v.revokedAt);
+              const validation = postValidationState(live, post.id, m.id, m.controlVersion, {
+                post: post.name,
+                machine: `${m.manufacturer} ${m.model}`,
+              });
               return (
               <Panel
                 key={m.id}
@@ -115,6 +125,9 @@ export default async function MachinesPage() {
                     <StatusChip tone="neutral">{m.machineType.replace(/_/g, " ")}</StatusChip>
                     <StatusChip tone="neutral">{m.controller.replace(/_/g, " ")}</StatusChip>
                     {m.isReferenceProfile && <StatusChip tone="review">Reference profile</StatusChip>}
+                    <StatusChip tone={validation.state === "VALIDATED" ? "pass" : validation.state === "SUPERSEDED" ? "risk" : "review"}>
+                      {validation.state === "VALIDATED" ? "POST PROVEN" : validation.state === "SUPERSEDED" ? "POST SUPERSEDED" : "POST UNPROVEN"}
+                    </StatusChip>
                     <Link
                       href={`/machines/${m.id}/carousel`}
                       className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted hover:text-precision"
@@ -208,6 +221,80 @@ export default async function MachinesPage() {
                 {m.notes && (
                   <p className="border-t border-line px-4 py-3 text-[12px] leading-relaxed text-muted">{m.notes}</p>
                 )}
+
+                {/* THE POST, PROVEN ON THIS MACHINE.
+                    Certification is not a property of the code — it is a
+                    property of a post having been run here, at this control
+                    version, by somebody who watched what happened. The export
+                    gate reads this record, so it lives on the machine. */}
+                <div className="border-t border-line px-4 py-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <span className="tech-label">Post validation</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                      {post.name}
+                      {m.controlVersion ? ` · control ${m.controlVersion}` : " · control version not recorded"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[12px] leading-relaxed text-platinum-dim">{validation.detail}</p>
+
+                  {!m.controlVersion ? (
+                    <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+                      Record the control software version on this machine first. A proof cannot be matched against a
+                      version nobody wrote down, and a control update can change how a canned cycle retracts or how
+                      look-ahead handles short blocks — which is what a post validation is about.{" "}
+                      <Link href={`/machines/${m.id}/edit`} className="text-precision-dim hover:text-precision">
+                        Edit the machine
+                      </Link>
+                    </p>
+                  ) : (
+                    <form action={recordPostValidation.bind(null, m.id)} className="mt-3 flex flex-wrap items-end gap-2">
+                      <input type="hidden" name="postId" value={post.id} />
+                      <label className="min-w-[280px] flex-1">
+                        <span className="tech-label mb-1 block">What was proven, and how</span>
+                        <input
+                          name="evidence"
+                          maxLength={400}
+                          required
+                          placeholder="Cut air above the part, single blocked the whole program, first article to print"
+                          className={inputClass}
+                        />
+                      </label>
+                      <Button type="submit" size="sm">
+                        Record
+                      </Button>
+                    </form>
+                  )}
+
+                  {live.length > 0 && (
+                    <ul className="mt-3 border-t border-line pt-2">
+                      {live.slice(0, 4).map((v) => (
+                        <li key={v.id} className="flex flex-wrap items-baseline gap-3 py-1 text-[11.5px]">
+                          <span className="font-mono text-muted tabular-nums">
+                            {v.validatedAt.toISOString().slice(0, 10)}
+                          </span>
+                          <span className="font-mono text-muted">control {v.controlVersion}</span>
+                          <span className="min-w-0 flex-1 text-platinum-dim">{v.evidence}</span>
+                          <span className="text-muted">{v.validatedByName}</span>
+                          <form action={revokePostValidation.bind(null, m.id)} className="flex items-center gap-1">
+                            <input type="hidden" name="validationId" value={v.id} />
+                            <input
+                              name="reason"
+                              required
+                              placeholder="why"
+                              className="w-24 border border-line bg-surface px-1 py-0.5 text-[11px] text-platinum"
+                            />
+                            <button
+                              type="submit"
+                              className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted hover:text-risk"
+                            >
+                              Withdraw
+                            </button>
+                          </form>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
 
                 {/* Timing truth — recorded cycles and the record form,
                     on the machine they belong to. */}

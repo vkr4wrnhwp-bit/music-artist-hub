@@ -15,6 +15,8 @@ import { selectPrimaryMachine, selectMaterial } from "./package-selectors";
 import { analyzeProcesses, type ProcessAnalysis } from "./engines/process-advisor";
 import type { MachineProfile, Tool, WorkholdingDevice } from "./domain/shop";
 import { proofState } from "./nc/proof";
+import { foreignProgram, postValidationState, type PostValidationVerdict } from "./engines/post-validation";
+import { defaultPostForController, getPost } from "./engines/cam/post";
 
 /**
  * Assembles the complete manufacturing package for a revision.
@@ -48,6 +50,12 @@ export interface ManufacturingPackage {
   /** Additive judged against the shop's own printers. See engines/additive.ts. */
   additive: AdditiveResult;
   hasInspectionPlan: boolean;
+  /**
+   * Whether the post bound to this part's machine has ever been proven on it.
+   * The export pre-flight reads this: executable NC from an unvalidated post is
+   * a program nobody has watched run. See engines/post-validation.ts.
+   */
+  postValidation: PostValidationVerdict;
   approved: boolean;
   ncGenerated: boolean;
   simulationRun: boolean;
@@ -61,7 +69,7 @@ export async function buildPackage(
   const revision = await loadRevision(organizationId, partId, revisionLabel);
   if (!revision) return null;
 
-  const [setups, machines, tools, workholdingDevices, materials, metrology, shop, plan, approval, nc, sim, printers, printMaterials] = await Promise.all([
+  const [setups, machines, tools, workholdingDevices, materials, metrology, shop, plan, approval, nc, sim, printers, printMaterials, postValidations] = await Promise.all([
     getSetups(revision.revisionId),
     getMachines(organizationId),
     getTools(organizationId),
@@ -75,6 +83,7 @@ export async function buildPackage(
     db.simulation.findFirst({ where: { setup: { partRevisionId: revision.revisionId } } }),
     db.printer.findMany({ where: { organizationId }, orderBy: { model: "asc" } }),
     db.printMaterial.findMany({ where: { organizationId }, orderBy: { name: "asc" } }),
+    db.postValidation.findMany({ where: { organizationId } }),
   ]);
 
   /*
@@ -272,6 +281,29 @@ export async function buildPackage(
     };
   });
 
+  // Computed before readiness so the gate and the package's own field are the
+  // same verdict rather than two calls that could drift.
+  const machineLabel = primaryMachine ? `${primaryMachine.manufacturer} ${primaryMachine.model}` : null;
+  /*
+   * Which post is this program's dialect?
+   *
+   * The program's own `postId` when it names a real post. An OPTIMIZED program
+   * carries the optimizer's id rather than a post's, and it is the same dialect
+   * as whatever wrote it, so it falls back to the machine's post. An UPLOADED
+   * program came from somebody else's CAM entirely and the check abstains —
+   * proving CANVAS's Haas post says nothing about a file Mastercam wrote.
+   */
+  const boundPost = primaryMachine ? defaultPostForController(primaryMachine.controller) : null;
+  const namedPost = nc ? getPost(nc.postId) ?? null : null;
+  const dialectPost = namedPost ?? boundPost;
+  const postValidation =
+    nc?.origin === "UPLOADED"
+      ? foreignProgram({ machine: machineLabel })
+      : postValidationState(postValidations, dialectPost?.id ?? null, primaryMachine?.id ?? null, primaryMachine?.controlVersion ?? null, {
+          post: dialectPost?.name ?? null,
+          machine: machineLabel,
+        });
+
   const readiness = evaluateReadiness({
     intent: revision.intent,
     stock: revision.stock,
@@ -291,6 +323,7 @@ export async function buildPackage(
     instruments,
     simulationRun: Boolean(sim),
     ncGenerated: Boolean(nc),
+    postValidation,
     // The proof is about the bytes, so it is computed from the stored code
     // rather than read as a flag. A re-post moves it to STALE by itself.
     proof: nc
@@ -399,6 +432,7 @@ export async function buildPackage(
     breaks,
     process,
     hasInspectionPlan: Boolean(plan),
+    postValidation,
     approved: Boolean(approval),
     ncGenerated: Boolean(nc),
     simulationRun: Boolean(sim),

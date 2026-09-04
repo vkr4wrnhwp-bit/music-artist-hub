@@ -47,6 +47,7 @@ function parse(formData: FormData) {
     fifthAxis: f.boolean("fifthAxis"),
     supportedPostProcessor:
       chosenPost && POSTS.some((p) => p.id === chosenPost) ? chosenPost : defaultPostForController(controller).id,
+    controlVersion: f.optionalText("controlVersion"),
     notes: f.optionalText("notes"),
   };
 

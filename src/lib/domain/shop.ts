@@ -75,6 +75,12 @@ export interface MachineProfile {
   fourthAxis: boolean;
   fifthAxis: boolean;
   supportedPostProcessor: string;
+  /**
+   * Control software version as it reads on the machine. Null when nobody has
+   * recorded it — and a post validation cannot be matched against a version
+   * nobody wrote down. See engines/post-validation.ts.
+   */
+  controlVersion: string | null;
   /** Marks demo/reference profiles so the UI never presents them as verified. */
   isReferenceProfile: boolean;
   notes?: string;

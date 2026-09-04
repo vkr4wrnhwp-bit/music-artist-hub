@@ -61,6 +61,9 @@ const RESOLUTION_ORDER: ReadinessGateId[] = [
   "inspection",
   "simulation",
   "nc",
+  // A post nobody has proven on this machine blocks the export, and it is
+  // resolved on the machine record rather than on the part.
+  "post-validation",
   // Proof-out sits beside the program itself: it is a fact about the bytes,
   // and it is resolved at the machine rather than on a screen.
   "proof",
@@ -87,6 +90,7 @@ const GATE_ROUTE: Record<ReadinessGateId, { href: (id: string) => string; label:
   inspection: { href: (id) => `/parts/${id}/inspection`, label: "Inspection" },
   simulation: { href: (id) => `/parts/${id}/nc`, label: "NC output" },
   nc: { href: (id) => `/parts/${id}/nc`, label: "NC output" },
+  "post-validation": { href: () => `/machines`, label: "Machines" },
   proof: { href: (id) => `/parts/${id}/nc`, label: "NC output" },
   approval: { href: (id) => `/parts/${id}/readiness`, label: "Readiness" },
 };
