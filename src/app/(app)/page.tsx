@@ -73,7 +73,7 @@ export default async function HomePage() {
 
       <main className="flex-1 overflow-y-auto">
         {/* ---------------- What are we making ---------------- */}
-        <section className="precision-grid relative border-b border-line px-5 py-10 sm:px-8 sm:py-14">
+        <section className="relative border-b border-line px-5 py-10 sm:px-8 sm:py-14">
           <AxisTriad className="absolute right-8 top-8 opacity-50" />
           <div className="mx-auto max-w-3xl">
             <h1 className="mb-1 text-[26px] font-light tracking-[0.14em] text-white">WHAT ARE WE MAKING?</h1>

@@ -10,7 +10,7 @@ export default function NewPartPage() {
         <span className="tech-label">New part</span>
       </TopBar>
       <main className="flex-1 overflow-y-auto">
-        <section className="precision-grid relative border-b border-line px-5 py-10 sm:px-8 sm:py-12">
+        <section className="relative border-b border-line px-5 py-10 sm:px-8 sm:py-12">
           <AxisTriad className="absolute right-8 top-8 opacity-50" />
           <div className="mx-auto max-w-3xl">
             <SectionHeading sub="Describe the component the way you would to a machinist. CANVAS reduces it to a structured part intent model — every extracted field carries its source and confidence, and nothing becomes geometry until you confirm it.">

@@ -144,8 +144,22 @@ part is 84% complete". No emoji in manufacturing UI.
 
 ## Visual language
 
-Near-black and graphite, white, platinum, restrained precision blue. Blue means
-active state, selected geometry, datum, measurement, toolpath, coordinate
-origin — used sparingly. Aerospace metrology and precision instrumentation, not
-generic SaaS: no oversized rounded cards, no gradients, no gaming aesthetics, no
-AI robot icons. The interface should read as a manufacturing instrument.
+**Studio White**, approved 2026-09-04. Warm white workspace, graphite type,
+restrained precision blue. The instrument is paper; the part is the brightest
+thing on it and the main interface. Blue means active state, selected geometry,
+datum, measurement, toolpath, coordinate origin — used sparingly.
+
+Four steps of one warm neutral, in this order by luminance: chrome, page,
+panel, card. `contrast.test.ts` enforces both the ordering and the WCAG floors
+by reading the tokens straight out of `globals.css` — change a hex and CI
+measures it.
+
+No grid background. No sketch-style placeholder UI: where a part has geometry,
+render it. Aerospace metrology and precision instrumentation, not generic SaaS:
+no oversized rounded cards, no gradients, no gaming aesthetics, no AI robot
+icons. Clean separators and considered spacing do the work that borders and
+shadows do elsewhere.
+
+This section is style, not one of the locked principles above — but the flip
+away from the previous dark-canvas direction was an explicit instruction, so do
+not revert it on the strength of an older screenshot.

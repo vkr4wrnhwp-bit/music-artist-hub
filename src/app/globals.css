@@ -5,25 +5,28 @@
    Precision Manufacturing Intelligence
    ============================================================
 
-   Two environments, one vocabulary.
+   STUDIO WHITE, approved 2026-09-04, replacing the dark-canvas
+   direction of 2026-08-11.
 
-   THE SHELL AND THE WORK SURFACE are dark — the dark-canvas direction,
-   approved 2026-08-11. Panels, cards, runway and chrome all sit on the
-   same near-black blue-tinted family at three elevations, so the one
-   bright region on screen is the 3D WORK WINDOW itself: it defaults to
-   the warm-white Studio environment because machined metal, dimensional
-   annotation and blue selection read best on a light ground, and it
-   stays user-tunable through the view-environment presets (including
-   Dark Machine Bay for those who want the whole screen dark). The
-   instrument is dark; the part is lit.
+   The instrument is now paper-white and the part is the brightest
+   thing on it. A shop floor is lit; a machinist reads this on a
+   tablet under fluorescent light, next to a printed setup sheet, and
+   the screen should not be the one dark object on the bench. Chrome
+   recedes as a slightly cooler grey, the page sits above it, panels
+   above that, and a card is plain white — four steps of one warm
+   neutral rather than four blacks.
 
-   HOW THE TWO SHARE ONE VOCABULARY
+   The region hierarchy is unchanged and still enforced by
+   contrast.test.ts: shell < page < panel < card by luminance. What
+   flipped is which end of the scale "recessed" lives at.
+
+   HOW THE SHELL AND THE WORK SURFACE SHARE ONE VOCABULARY
    Every Tailwind colour utility in this app compiles to a raw custom
    property (`@theme inline`), e.g. `.text-platinum { color: var(--c-platinum) }`.
-   So `.canvas-shell` re-declares the `--c-*` group with dark-shell values and
+   So `.canvas-shell` re-declares the `--c-*` group with chrome values and
    every existing utility, custom class and inline `var(--c-blue)` inside the
-   shell re-resolves automatically. No component needs a dark variant, and no
-   page had to be edited to become legible on the dark chrome.
+   shell re-resolves automatically. No component needs a variant, and no
+   page had to be edited when the palette flipped.
    ============================================================ */
 
 :root {
@@ -32,67 +35,62 @@
      The named surfaces of the layout. These do NOT change between the
      shell and the work surface — they identify a region, not a state.
      ------------------------------------------------------------------ */
-  --canvas-bg-shell: #06111c;
-  --canvas-bg-shell-2: #071a2a;
-  --canvas-bg-header: #06111c;
-  /* The one deliberately light region: the 3D work window's DEFAULT
-     environment. Owned by the view-environment presets, not the theme —
-     users retune it per material and per light. */
+  --canvas-bg-shell: #eceeec;
+  --canvas-bg-shell-2: #f0f1ef;
+  --canvas-bg-header: #eceeec;
+  /* The 3D work window's DEFAULT environment. Owned by the
+     view-environment presets, not the theme — users retune it per
+     material and per light. Now barely distinguishable from the page,
+     which is the point: the viewport is part of the sheet, not a hole
+     cut in it. */
   --canvas-work-window: #fafaf8;
-  /* Page ground for every route — one step above the shell, below the
+  /* Page ground for every route — one step above the chrome, below the
      panels, so nav / page / card read as three depths of one instrument. */
-  --canvas-page-bg: #081522;
-  /* Dark work surfaces — three elevations of the same blue-black family.
-     Panel < footer < card, card-quiet between footer and card, so the
-     region hierarchy survives the flip. */
-  --canvas-panel-bg: #0a1826;
-  --canvas-footer-bg: #081420;
-  --canvas-card-bg: #0c1c2c;
-  --canvas-card-quiet: #0a1a29;
-  --canvas-border: #15293a;
-  --canvas-border-strong: #22415a;
-  --canvas-text: #f2f6fa;
-  /* Precision blue lifted for the dark ground: #0B72FF measures 3.69–4.40:1
-     across these surfaces, #4D97FF measures 5.44–6.51:1 in the same hue
-     family. */
-  --canvas-blue: #4d97ff;
+  --canvas-page-bg: #f5f6f4;
+  /* Work surfaces — three elevations of the same warm neutral.
+     Panel < card, footer and card-quiet between, so the region
+     hierarchy survives the flip in both directions. */
+  --canvas-panel-bg: #fafbf9;
+  --canvas-footer-bg: #f1f2f0;
+  --canvas-card-bg: #ffffff;
+  --canvas-card-quiet: #fdfdfc;
+  --canvas-border: #dfe1de;
+  --canvas-border-strong: #b9bdb9;
+  --canvas-text: #14181c;
+  /* Precision blue for a light ground. #4D97FF measures 1.7:1 here and is
+     unreadable; this is 5.06:1 in the same hue family. */
+  --canvas-blue: #0b5fd0;
 
-  /* Status and muted on the DARK surfaces, read at 8.5–11px under shop
-     fluorescents, often on a tablet at arm's length.
+  /* Status and muted, read at 8.5–11px under shop fluorescents, often on
+     a tablet at arm's length.
 
-     Measured against the LIGHTEST dark ground, which is #0B2436
-     (shell-raised) and not #0C1C2C as this comment used to claim: muted
-     7.17:1, green 7.21:1, orange 7.23:1 — all clear the 7:1 AAA floor for
-     normal-size text. Red is 4.62:1 and CANNOT reach 7:1 against any ground
-     at all: its relative luminance puts its ceiling at 6.10:1 on pure black.
-     Lifting it means giving up the saturation that makes red read as red, so
-     it stays and contrast.test.ts carries it as a stated exception rather
-     than hiding it. */
-  --canvas-muted: #a0b0bf;
-  --canvas-green: #37c589;
-  --canvas-orange: #e2a33c;
-  --canvas-red: #f0554a;
+     Measured against the DARKEST ground, which on a light palette is the
+     worst case: #ECEEEC (shell chrome). Muted 7.36:1, green 7.83:1,
+     orange 7.27:1 — all clear the 7:1 AAA floor for normal-size text.
+     Red reaches 5.66:1 and blue 5.06:1; neither can reach 7:1 on a white
+     palette at all (their ceilings against pure white are 6.60:1 and
+     5.90:1), so both stay and contrast.test.ts carries them as stated
+     exceptions rather than hiding them. */
+  --canvas-muted: #454d55;
+  --canvas-green: #0a5334;
+  --canvas-orange: #6b4503;
+  --canvas-red: #b3241a;
 
-  /* Type ON the dark shell. Deliberately high contrast — machine chrome
-     that you cannot read is worse than no chrome. Against #06111C these
-     are roughly 17:1, 10.6:1 and 6.8:1. */
-  --canvas-shell-fg: #f2f6fa;
-  --canvas-shell-fg-dim: #b7c4d2;
-  --canvas-shell-muted: #a0b0bf;
-  --canvas-shell-line: #15293a;
-  --canvas-shell-line-strong: #22415a;
-  --canvas-shell-raised: #0b2436;
-  /* Precision blue lifted for the dark ground: #0B72FF is 4.40:1 on #06111C,
-     this is 6.51:1 and still the same hue family. */
-  --canvas-shell-blue: #4d97ff;
-  --canvas-shell-green: #37c589;
-  --canvas-shell-orange: #e2a33c;
-  --canvas-shell-red: #f0554a;
-
-  /* Hairline used by the precision grid. Tokenised so it survives on both
-     grounds — light lines on the dark surfaces. */
-  --canvas-grid-line: rgba(210, 230, 255, 0.05);
-  --canvas-grid-line-fine: rgba(210, 230, 255, 0.035);
+  /* Type ON the chrome. Deliberately high contrast — machine chrome that
+     you cannot read is worse than no chrome. Against #ECEEEC these are
+     roughly 15.3:1, 8.8:1 and 7.4:1. */
+  --canvas-shell-fg: #14181c;
+  --canvas-shell-fg-dim: #3a424a;
+  --canvas-shell-muted: #454d55;
+  --canvas-shell-line: #dfe1de;
+  --canvas-shell-line-strong: #b9bdb9;
+  /* Raised chrome — a selected rail item, an open drawer row. Lighter than
+     the chrome it sits on, because on paper "raised" means catching light. */
+  --canvas-shell-raised: #f4f5f3;
+  --canvas-shell-blue: #0b5fd0;
+  --canvas-shell-green: #0a5334;
+  --canvas-shell-orange: #6b4503;
+  --canvas-shell-red: #b3241a;
 
   /* ------------------------------------------------------------------
      WORK-SURFACE PALETTE  (the `--c-*` group)
@@ -103,8 +101,7 @@
      graphite. Do not invert on the strength of the name.
      ------------------------------------------------------------------ */
 
-  /* Ground and surfaces. `--c-void` is the page ground — dark. The light
-     `--canvas-work-window` now belongs to the 3D viewport alone. */
+  /* Ground and surfaces. */
   --c-void: var(--canvas-page-bg);
   --c-surface: var(--canvas-card-bg);
   --c-raised: var(--canvas-panel-bg);
@@ -113,24 +110,22 @@
 
   /* Type */
   --c-platinum: var(--canvas-text);
-  --c-platinum-dim: #b7c4d2;
+  --c-platinum-dim: #3a424a;
   --c-muted: var(--canvas-muted);
   /* `--c-white` is the emphasis reading colour, one step above platinum.
      It is wired to `--color-white` below so the 20-odd `text-white` uses
-     across the app resolve to a token instead of literal #fff. */
-  --c-white: var(--canvas-text);
+     across the app resolve to a token instead of literal #fff — which on
+     this palette would be invisible. */
+  --c-white: #000308;
 
   /* Precision blue — active state, selected geometry, datum, measurement,
      toolpath, coordinate origin. Used sparingly. */
   --c-blue: var(--canvas-blue);
-  /* The same token, not a second blue.
-     `.canvas-shell` already remapped this to --canvas-blue, so the app's
-     standard blue ink was 6.51:1 inside the nav shell and 3.69–4.40:1 on
-     every page — below the 4.5:1 AA floor the contrast test claimed to
-     enforce, across 65 call sites at 9–12px. The test never saw it because
-     it read only --canvas-* names and this was a raw literal. */
+  /* The same token, not a second blue. A second literal here once meant the
+     app's standard blue ink measured one ratio in the nav and another on
+     every page, at 65 call sites, at 9–12px, with no test able to see it. */
   --c-blue-dim: var(--canvas-blue);
-  --c-blue-wash: color-mix(in srgb, var(--canvas-blue) 8%, transparent);
+  --c-blue-wash: color-mix(in srgb, var(--canvas-blue) 7%, transparent);
 
   /* Status. Colour communicates state, never decoration:
      green = verified/pass · orange = review/next step · red = fail/blocking. */
@@ -143,12 +138,12 @@
 }
 
 /* ------------------------------------------------------------------
-   THE DARK SHELL
+   THE CHROME
    ------------------------------------------------------------------
    Applied to the icon rail, the project drawer and the job command bar.
-   It re-points the role tokens at dark-shell values, so everything a page
+   It re-points the role tokens at chrome values, so everything a page
    already renders into the command bar — breadcrumbs, `.tech-label`,
-   StatusChip, PartStatusChip, DevLabel, provenance badges — becomes
+   StatusChip, PartStatusChip, DevLabel, provenance badges — stays
    legible without touching a single page.
    ------------------------------------------------------------------ */
 .canvas-shell {
@@ -170,9 +165,6 @@
   --c-review: var(--canvas-shell-orange);
   --c-risk: var(--canvas-shell-red);
   --c-unknown: var(--canvas-shell-muted);
-
-  --canvas-grid-line: rgba(210, 230, 255, 0.05);
-  --canvas-grid-line-fine: rgba(210, 230, 255, 0.035);
 
   color: var(--canvas-shell-fg);
 }
@@ -223,8 +215,8 @@
 
 html,
 body {
-  /* The shell is the ground: no white flash behind the rail, and overscroll
-     at the edges of the viewport reads as chrome rather than as paper. */
+  /* The chrome is the ground: overscroll at the edges of the viewport reads
+     as the instrument frame rather than as another sheet of paper. */
   background: var(--canvas-bg-shell);
   color: var(--canvas-text);
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -297,21 +289,6 @@ body {
   }
 }
 
-/* ---- Precision grid: used sparingly behind viewports and hero areas ---- */
-.precision-grid {
-  background-image:
-    linear-gradient(to right, var(--canvas-grid-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--canvas-grid-line) 1px, transparent 1px);
-  background-size: 32px 32px;
-}
-
-.precision-grid-fine {
-  background-image:
-    linear-gradient(to right, var(--canvas-grid-line-fine) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--canvas-grid-line-fine) 1px, transparent 1px);
-  background-size: 8px 8px;
-}
-
 /* ---- Framing corners: the machinist bracket motif from the brand mark ---- */
 .datum-frame {
   position: relative;
@@ -382,7 +359,7 @@ body {
 
 ::selection {
   background: var(--c-blue);
-  color: var(--canvas-card-bg);
+  color: #ffffff;
 }
 
 input,

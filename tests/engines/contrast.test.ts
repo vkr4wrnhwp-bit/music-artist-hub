@@ -6,11 +6,18 @@ import { SEMANTIC_COLORS, contrastRatio } from "@/lib/view-environment";
 /**
  * THE CONTRAST AUDIT, MADE PERMANENT
  *
- * The dark-canvas flip was done against measured WCAG ratios; this test is
- * the audit that keeps them measured. It reads the actual tokens out of
- * globals.css — not a copy of them — so a palette edit that drops muted
- * type below 4.5:1 on the card ground fails CI instead of shipping as
- * unreadable 10px labels under fluorescent light.
+ * Both palette flips — dark-canvas in August, Studio White in September —
+ * were done against measured WCAG ratios; this test is the audit that keeps
+ * them measured. It reads the actual tokens out of globals.css — not a copy
+ * of them — so a palette edit that drops muted type below 4.5:1 on any real
+ * ground fails CI instead of shipping as unreadable 10px labels under
+ * fluorescent light.
+ *
+ * Nothing here assumes which way round the palette is. The grounds are read
+ * by name, the worst case is found by measurement rather than asserted in a
+ * comment, and `contrastRatio` is symmetric. That is deliberate: the last
+ * version of this file named the lightest dark ground in prose, and the prose
+ * was wrong.
  */
 
 const css = readFileSync("src/app/globals.css", "utf8");
@@ -36,12 +43,11 @@ function ratio(a: string, b: string): number {
 }
 
 /**
- * Every dark ground that carries text, not a sample of them.
+ * Every ground that carries text, not a sample of them.
  *
- * The comment here used to say card was the lightest and therefore the worst
- * case. It is not: `--canvas-shell-raised` #0b2436 is lighter, and two others
- * were missing entirely, so a token could fail on a real surface while the
- * audit reported green.
+ * Which of these is the worst case depends on the palette — the darkest one
+ * on Studio White, the lightest one on dark-canvas — so no ground is left
+ * out and none is singled out in prose. `worstAcrossGrounds` measures it.
  */
 const grounds = {
   shell: token("--canvas-bg-shell"),
@@ -66,23 +72,24 @@ const AAA = 7;
  * silent allowlist, would be a green AAA report over a palette that is not
  * AAA — the same lie as a button that appears to do something.
  *
- * Red is not a tuning choice: at its relative luminance its ceiling is
- * 6.10:1 against PURE BLACK, so no ground can get it there. Reaching 7:1
- * means giving up the saturation that makes red read as red, which is a
- * change to the locked colour vocabulary and not one to make silently.
+ * Red is not a tuning choice: at its relative luminance its ceiling against
+ * pure white is 6.60:1, so no ground on this palette can get it to 7:1.
+ * Reaching AAA means giving up the saturation that makes red read as red,
+ * which is a change to the locked colour vocabulary and not one to make
+ * silently.
  */
 const AA_ONLY: Record<string, { worst: number; why: string }> = {
   "--canvas-red": {
-    worst: 4.62,
-    why: "cannot reach 7:1 against any ground — ceiling is 6.10:1 on pure black. Lifting it costs the saturation that makes red read as blocking.",
+    worst: 5.66,
+    why: "cannot reach 7:1 against any ground on a white palette — its ceiling is 6.60:1 against pure white. Darkening it costs the saturation that makes red read as blocking.",
   },
   "--canvas-blue": {
-    worst: 5.44,
-    why: "would need a ground below #020407 to clear 7:1. Lifting it further moves it out of the restrained precision blue the vocabulary locks.",
+    worst: 5.06,
+    why: "ceiling is 5.90:1 against pure white, so no ground here gets it to 7:1. Darkening it further moves it out of the restrained precision blue the vocabulary locks.",
   },
 };
 
-test("primary and dim reading colours clear AAA on every dark ground", () => {
+test("primary and dim reading colours clear AAA on every ground", () => {
   const textColors = { text: token("--canvas-text"), dim: token("--canvas-shell-fg-dim") };
   for (const [gName, g] of Object.entries(grounds)) {
     for (const [tName, t] of Object.entries(textColors)) {
@@ -152,9 +159,10 @@ test("the app's standard blue ink is one token, not two", () => {
 });
 
 test("the viewport's locked semantic colours stay legible on the default work window", () => {
-  // The 3D work window is the one light region; semanticConflicts() enforces
-  // 2.5:1 for coloured indicators against a custom background. The DEFAULT
-  // background must itself pass the same floor for all four locked colours.
+  // semanticConflicts() enforces 2.5:1 for coloured indicators against a
+  // user-chosen viewport background. The DEFAULT one must itself pass the
+  // same floor for all four locked colours — a preset that ships failing the
+  // rule it enforces on everyone else is not a default, it is an exemption.
   const workWindow = token("--canvas-work-window");
   for (const [name, color] of Object.entries(SEMANTIC_COLORS)) {
     const r = contrastRatio(workWindow, color);
@@ -162,9 +170,14 @@ test("the viewport's locked semantic colours stay legible on the default work wi
   }
 });
 
-test("the region hierarchy survives: shell darker than page, page darker than panel, panel darker than card", () => {
+test("the region hierarchy survives: chrome, then page, then panel, then card", () => {
+  // Four steps of one neutral, in a fixed order. On Studio White that reads
+  // as chrome recessed and a card being plain paper; under the dark palette
+  // the same ordering read as chrome being the deepest black. Either way the
+  // ordering is what makes nav / page / card legible as three depths, so it
+  // is asserted rather than left to whoever edits the hexes next.
   const l = (h: string) => luminance(h);
-  assert.ok(l(grounds.shell) < l(grounds.page), "shell must sit below the page ground");
-  assert.ok(l(grounds.page) < l(grounds.panel), "page must sit below the panel");
-  assert.ok(l(grounds.panel) < l(grounds.card), "panel must sit below the card");
+  assert.ok(l(grounds.shell) < l(grounds.page), "the chrome must sit one step from the page ground");
+  assert.ok(l(grounds.page) < l(grounds.panel), "the page must sit one step from the panel");
+  assert.ok(l(grounds.panel) < l(grounds.card), "the panel must sit one step from the card");
 });

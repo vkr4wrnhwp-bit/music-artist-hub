@@ -88,7 +88,7 @@ export default async function ReverseEngineerPage() {
       </TopBar>
 
       <main className="flex-1 overflow-y-auto">
-        <section className="precision-grid relative border-b border-line px-5 py-10 sm:px-8 sm:py-12">
+        <section className="relative border-b border-line px-5 py-10 sm:px-8 sm:py-12">
           <AxisTriad className="absolute right-8 top-8 opacity-50" />
           <div className="mx-auto max-w-3xl">
             <h1 className="mb-2 text-[24px] font-light tracking-[0.1em] text-white">HAVE THE PART. NEED ANOTHER ONE?</h1>

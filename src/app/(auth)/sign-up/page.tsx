@@ -32,7 +32,7 @@ export default async function SignUpPage(props: { searchParams: Promise<{ error?
   }
 
   return (
-    <main className="precision-grid flex min-h-screen items-center justify-center bg-void px-6 py-12">
+    <main className="flex min-h-screen items-center justify-center bg-void px-6 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-10 flex flex-col items-center gap-4">
           <DatumMark size={44} className="text-platinum-dim" />

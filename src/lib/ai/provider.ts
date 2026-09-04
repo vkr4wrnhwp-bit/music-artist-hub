@@ -144,13 +144,53 @@ export interface BearingStampReading {
 
 let cached: AiProvider | null = null;
 
+/**
+ * A KEY THAT IS SET AND IGNORED IS THE WORST OF THE THREE STATES.
+ *
+ * This used to require BOTH `CANVAS_AI_PROVIDER=anthropic` and a key. An
+ * operator who set only the key got the deterministic provider, and every
+ * surface that depends on a model said "not connected" — correctly, and with
+ * no way of telling them the reason was one unset variable rather than a bad
+ * key or a missing feature.
+ *
+ * So a key on its own is now enough. `CANVAS_AI_PROVIDER` still wins when it
+ * is set, because an operator who deliberately pins the deterministic
+ * provider while a key sits in the environment means it — but that case is
+ * announced on the way past, rather than silently doing the opposite of what
+ * the key looks like it asks for.
+ */
 export async function getAiProvider(): Promise<AiProvider> {
   if (cached) return cached;
-  const configured = process.env.CANVAS_AI_PROVIDER ?? "deterministic";
+  const key = process.env.ANTHROPIC_API_KEY;
+  const raw = process.env.CANVAS_AI_PROVIDER?.trim().toLowerCase();
 
-  if (configured === "anthropic" && process.env.ANTHROPIC_API_KEY) {
+  /*
+   * Only "deterministic" pins the deterministic provider. Anything else with
+   * a key present resolves to anthropic, because the alternative is that a
+   * typo — a trailing space, "Anthropic", "anthropic-2", an empty value left
+   * behind by a deploy — silently produces a shop-wide "not connected" that
+   * looks identical to the feature not existing.
+   */
+  const configured = raw === "deterministic" ? "deterministic" : key ? "anthropic" : "deterministic";
+
+  if (raw && raw !== "anthropic" && raw !== "deterministic") {
+    console.warn(
+      `[canvas] CANVAS_AI_PROVIDER=${raw} is not a provider name. The recognised values are "anthropic" and "deterministic"; ` +
+        (key ? "the key is being used." : "no key is set, so nothing is connected."),
+    );
+  }
+  if (raw === "deterministic" && key) {
+    console.warn(
+      "[canvas] ANTHROPIC_API_KEY is set but CANVAS_AI_PROVIDER=deterministic, so no model is connected. Unset CANVAS_AI_PROVIDER to use the key.",
+    );
+  }
+  if (configured === "anthropic" && !key) {
+    console.warn("[canvas] No ANTHROPIC_API_KEY — falling back to the deterministic provider.");
+  }
+
+  if (configured === "anthropic" && key) {
     const { AnthropicProvider } = await import("./anthropic");
-    cached = new AnthropicProvider(process.env.ANTHROPIC_API_KEY, process.env.CANVAS_AI_MODEL);
+    cached = new AnthropicProvider(key, process.env.CANVAS_AI_MODEL);
   } else {
     const { DeterministicProvider } = await import("./deterministic");
     cached = new DeterministicProvider();

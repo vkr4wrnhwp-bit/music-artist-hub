@@ -42,7 +42,14 @@ const stampReadingSchema = z.object({
  */
 
 const API_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_MODEL = "claude-sonnet-4-5";
+/*
+ * Sonnet 5 rather than 4.5: this provider now does vision — reading a stamp
+ * off a bearing and picking machined features out of a photograph of a part —
+ * and the newer model is materially better at both. Overridable per
+ * deployment with CANVAS_AI_MODEL, because a shop that wants to pin a version
+ * should be able to.
+ */
+const DEFAULT_MODEL = "claude-sonnet-5";
 
 const SYSTEM_PROMPT = `You are the reasoning layer inside CANVAS, a precision manufacturing platform.
 
