@@ -85,12 +85,31 @@ export default async function NcPage(props: {
     ? proofState(existing, existing.code, machine ? `${machine.manufacturer} ${machine.model}` : null)
     : { state: "NEVER_RUN" as const, detail: "", provenAt: null, provenByName: null, provenNote: null };
   const proofAction = recordProofOut.bind(null, id);
-  const canExport =
-    preflightPassed(preflight) &&
-    Boolean(selectedPost) &&
-    Boolean(machine) &&
-    verifyBlockers.length === 0 &&
-    Boolean(reconciled?.verified);
+  /*
+   * TWO GATES, NOT ONE — AND THEY WERE ONE.
+   *
+   * `canExport` grew a `reconciled?.verified` clause when the reconciler was
+   * added, and it also drives the Generate button. `reconciled` is null when
+   * there is no program, and generating is the ONLY thing in this repository
+   * that writes an NCProgram row. So: no program, therefore null, therefore
+   * the button that would have written one is disabled. NC output was
+   * unreachable for every part that had never been posted, which is every new
+   * part.
+   *
+   * Writing a program and releasing its bytes are different acts and want
+   * different evidence:
+   *
+   *   canGenerate — every required pre-flight item passes, a post is chosen,
+   *     a machine is known. That is what it takes to be allowed to WRITE
+   *     motion, and it is the full readiness chain: nothing here is relaxed.
+   *
+   *   canExport   — all of that, plus this specific program verified clean by
+   *     the NC verifier AND reconciled against the toolpath it claims to cut.
+   *     That is what it takes to let the bytes leave the building, and it can
+   *     only be asked once the bytes exist.
+   */
+  const canGenerate = preflightPassed(preflight) && Boolean(selectedPost) && Boolean(machine);
+  const canExport = canGenerate && verifyBlockers.length === 0 && Boolean(reconciled?.verified);
 
   /* ---------------- Generate ---------------- */
 
@@ -332,17 +351,17 @@ export default async function NcPage(props: {
                   </p>
                 </Field>
               </div>
-              <Button type="submit" variant="primary" disabled={!canExport}>
+              <Button type="submit" variant="primary" disabled={!canGenerate}>
                 Generate program
               </Button>
             </form>
-            {!canExport && (
+            {!canGenerate && (
               <p className="mt-3 text-[12px] text-review">
-                {verifyBlockers.length > 0
-                  ? `Export is disabled: NC verification reports ${verifyBlockers.length} error${
-                      verifyBlockers.length === 1 ? "" : "s"
-                    } in this program. Fix the program and generate again — there is no acknowledgement that clears this.`
-                  : "Export is disabled until every required pre-flight item passes. This is deliberate."}
+                {!Boolean(machine)
+                  ? "No machine is assigned to this part, so there is nothing to post for. Assign one on the part overview."
+                  : !Boolean(selectedPost)
+                    ? "No post processor is selected for this control."
+                    : "Generating is disabled until every required pre-flight item passes. This is deliberate."}
               </p>
             )}
           </Panel>
