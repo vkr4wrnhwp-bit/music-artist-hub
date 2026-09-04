@@ -63,12 +63,46 @@ export function CommandBar() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <UploadButton label="Upload photo" mode="photo" active={uploadMode} setActive={setUploadMode} setFiles={setFiles} />
-        <UploadButton label="Upload drawing" mode="drawing" active={uploadMode} setActive={setUploadMode} setFiles={setFiles} />
-        <UploadButton label="Import CAD" mode="cad" active={uploadMode} setActive={setUploadMode} setFiles={setFiles} />
-        <a href="/reverse-engineer" className={buttonClass("default", "sm")}>
-          Reverse engineer
+      {/*
+        FOUR WAYS IN, EACH SAYING WHAT IT ACTUALLY DOES.
+
+        These were four identical small outline buttons. A shop with a part
+        in one hand and no drawing could not tell from "Import CAD" that
+        nothing reads the model, or from "Upload photo" that the photograph
+        becomes an order of work rather than a set of dimensions. The second
+        line on each card is the honest one, and it is the reason they are
+        cards: a label alone has nowhere to put it.
+      */}
+      <div className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+        <UploadCard
+          label="Upload photo"
+          note="CANVAS marks up what to measure, in order. It reads no dimensions from a photograph."
+          mode="photo"
+          active={uploadMode}
+          setActive={setUploadMode}
+          setFiles={setFiles}
+        />
+        <UploadCard
+          label="Upload drawing"
+          note="Stored against the revision. Nothing is read off the sheet until you enter it."
+          mode="drawing"
+          active={uploadMode}
+          setActive={setUploadMode}
+          setFiles={setFiles}
+        />
+        <UploadCard
+          label="Import CAD"
+          note="STEP and STL are stored and versioned. A DXF profile can be imported as geometry."
+          mode="cad"
+          active={uploadMode}
+          setActive={setUploadMode}
+          setFiles={setFiles}
+        />
+        <a href="/reverse-engineer" className={actionCardClass}>
+          <span className="text-[13px] text-platinum group-hover:text-white">Reverse engineer</span>
+          <span className="mt-1.5 block text-[11.5px] leading-relaxed text-muted">
+            You have the part and no drawing. Measure it into a model, one instrument at a time.
+          </span>
         </a>
       </div>
 
@@ -81,21 +115,29 @@ export function CommandBar() {
   );
 }
 
-function UploadButton({
+/* One card, four times. Square edges and a hairline separator, not a raised
+   tile — this is an instrument panel, not a marketing page. */
+const actionCardClass =
+  "group block bg-surface px-4 py-3.5 text-left transition-colors hover:bg-raised focus-visible:outline focus-visible:outline-1 focus-visible:outline-precision";
+
+function UploadCard({
   label,
+  note,
   mode,
   setActive,
   setFiles,
 }: {
   label: string;
+  note: string;
   mode: string;
   active: string | null;
   setActive: (m: string | null) => void;
   setFiles: (f: File[]) => void;
 }) {
   return (
-    <label className={`${buttonClass("default", "sm")} cursor-pointer`}>
-      {label}
+    <label className={`${actionCardClass} cursor-pointer`}>
+      <span className="text-[13px] text-platinum group-hover:text-white">{label}</span>
+      <span className="mt-1.5 block text-[11.5px] leading-relaxed text-muted">{note}</span>
       <input
         type="file"
         multiple

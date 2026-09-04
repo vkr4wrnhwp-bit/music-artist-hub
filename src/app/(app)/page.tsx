@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getMachines, getMaterials, getMetrology, getParts, getTools, getWorkholding } from "@/lib/data";
+import { getMachines, getMaterials, getMetrology, getParts, getTools, getWorkholding, loadRevision } from "@/lib/data";
+import { MillPartThumb, TurnPartThumb } from "@/components/part-thumb";
+import type { RotationalProfile } from "@/lib/manufacturing/turn/geometry";
 import { GuideCard } from "@/components/guide/guide-card";
 import type { GuideContext } from "@/lib/guide/engine";
 import { TopBar } from "@/components/nav";
@@ -30,6 +32,30 @@ export default async function HomePage() {
   ]);
 
   const shopReady = machines.length > 0 && tools.length > 0 && workholding.length > 0;
+
+  /*
+   * Geometry for the six tiles only — not for every part in the library.
+   *
+   * The turned parts have to be looked up separately or they are drawn by
+   * the mill thumbnail, which knows nothing about a revolved profile and
+   * renders "no geometry yet" over a part that has a measured one. The
+   * library already made that distinction; the home screen did not.
+   */
+  const recent = await Promise.all(
+    parts.slice(0, 6).map(async (p) => {
+      const rev = p.revisions[0];
+      const rot = rev
+        ? await db.rotationalPart.findFirst({ where: { partRevisionId: rev.id, organizationId: user.organizationId } })
+        : null;
+      return {
+        p,
+        rev,
+        hydrated: await loadRevision(user.organizationId, p.id),
+        profile: rot ? (JSON.parse(rot.profileJson) as RotationalProfile) : null,
+        isTurned: rot !== null,
+      };
+    }),
+  );
 
   /*
    * The shop-setup walkthrough. Every other guide flow assumes a shop that
@@ -111,26 +137,44 @@ export default async function HomePage() {
                 action={{ label: "Try the demo part", href: "/parts" }}
               />
             ) : (
-              <ul className="divide-y divide-line/60">
-                {parts.slice(0, 6).map((p) => {
-                  const rev = p.revisions[0];
-                  return (
-                    <li key={p.id}>
-                      <Link href={`/parts/${p.id}`} className="group flex items-center justify-between gap-4 py-2.5">
-                        <span className="min-w-0">
-                          <span className="block truncate text-[13px] text-platinum group-hover:text-white">
-                            {p.name}
-                          </span>
-                          <span className="tech-label">
-                            {p.partNumber ?? "no part number"} · rev {rev?.revision ?? "—"} ·{" "}
-                            {rev?._count.features ?? 0} features · {rev?._count.setups ?? 0} setups
-                          </span>
+              /*
+               * Tiles, not rows. A machinist coming back to a job recognises
+               * the part before they recognise "AUDIT-verify-step" — the
+               * library already knew that and the home screen did not, so the
+               * one screen people land on was the one place parts had no
+               * shape. The drawing is the part's own features; a part with no
+               * geometry yet says so in the tile rather than being given a
+               * generic icon that implies there is something to look at.
+               */
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {recent.map(({ p, rev, hydrated, profile, isTurned }) => (
+                  <li key={p.id}>
+                    <Link
+                      href={isTurned ? `/lathe/${p.id}` : `/parts/${p.id}`}
+                      className="group block border border-line bg-surface transition-colors hover:border-line-strong"
+                    >
+                      <div className="h-[92px] border-b border-line">
+                        {isTurned && profile ? (
+                          <TurnPartThumb profile={profile} />
+                        ) : (
+                          <MillPartThumb features={hydrated?.features ?? []} stock={hydrated?.stock ?? null} />
+                        )}
+                      </div>
+                      <div className="px-3 py-2">
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-[12.5px] text-platinum group-hover:text-white">{p.name}</span>
+                          {p.isDemo && <StatusChip tone="precision">Demo</StatusChip>}
                         </span>
-                        {p.isDemo && <StatusChip tone="precision">Demo</StatusChip>}
-                      </Link>
-                    </li>
-                  );
-                })}
+                        <span className="tech-label mt-0.5 block truncate">
+                          {/* Setup count dropped: at this tile width it truncated to
+                              an ellipsis, and a number cut in half is worse than
+                              one that was never offered. */}
+                          Rev {rev?.revision ?? "—"} · {rev?._count.features ?? 0} features
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
               </ul>
             )}
           </Panel>
