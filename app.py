@@ -3065,6 +3065,15 @@ def create_app():
         if user is None:
             return login_required_redirect()
         plan = request.form.get("plan") or ""
+        # An artist seated at a partner does not hold their own tier. The
+        # partner grants it (/partner/roster/<id>/plan) and carries the cost,
+        # so self-serve here would let a reseller's artist unlock paid
+        # features nobody agreed to pay for. current_user() returns the
+        # ARTIST while a partner seat is acting on their behalf, so this one
+        # check covers the artist doing it and staff doing it through
+        # act-on-behalf.
+        if user.get("partner_id"):
+            return redirect(request.referrer or "/billing")
         # With Stripe live, paid tiers go through real checkout — the demo
         # accounts keep instant switching so the tier demos still work.
         if (stripe_billing.configured() and plan in stripe_billing.PRICES

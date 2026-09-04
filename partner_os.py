@@ -20,8 +20,14 @@ from flask import Blueprint, abort, g, redirect, render_template, request, sessi
 
 import db as store
 import partner_store as pstore
+import plans
 
 bp = Blueprint("partner", __name__, url_prefix="/partner")
+
+# The tiers a partner may grant. "fan" is included because taking a seat back
+# down to the free tier is how a reseller stops paying for an artist who has
+# gone quiet, and a grant screen that can only go up is a billing trap.
+PARTNER_TIERS = ("fan", "artist", "pro", "label")
 
 
 def _me():
@@ -100,8 +106,41 @@ def roster(partner, member):
     return render_template("partner/roster.html",
                            partner=partner, member=member,
                            roster=pstore.roster_detail(partner["id"]),
+                           seats_used=pstore.seats_used(partner["id"]),
+                           seats_left=pstore.seats_left(partner["id"]),
+                           seat_limit=pstore.seat_limit(partner["id"]),
+                           tiers=PARTNER_TIERS,
+                           plan_names=plans.PLAN_NAMES,
                            can=lambda p: pstore.can(member, p),
                            role_label=pstore.ROLE_LABELS.get(member["role"], member["role"]))
+
+
+@bp.route("/roster/<user_id>/plan", methods=["POST"])
+@require("entitlement_grant")
+def set_artist_plan(partner, member, user_id):
+    """The partner sets an artist's tier.
+
+    A reseller's artist cannot buy their own plan - /plan/switch refuses them
+    - so this is the only way their tier moves, and the partner carries the
+    cost of what it unlocks. Written to the audit trail with the old and new
+    tier, because "who upgraded this account" is exactly the question a
+    disputed invoice asks.
+    """
+    artist = owned_user_or_404(partner, user_id)
+    plan = (request.form.get("plan") or "").strip()
+    if plan not in PARTNER_TIERS:
+        abort(400)
+    was = artist.get("plan") or "fan"
+    if pstore.grant_plan(partner["id"], user_id, plan) is None:
+        abort(400)
+    if plan != was:
+        pstore.audit(partner["id"], "entitlement.grant", actor=member,
+                     subject_user_id=user_id,
+                     detail="%s: %s to %s" % (
+                         artist.get("name") or artist["email"],
+                         plans.PLAN_NAMES.get(was, was),
+                         plans.PLAN_NAMES.get(plan, plan)))
+    return redirect(url_for("partner.roster"))
 
 
 @bp.route("/audit")

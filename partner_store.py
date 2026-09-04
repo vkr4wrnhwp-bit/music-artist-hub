@@ -37,6 +37,7 @@ grants nothing at all, so switching one off is one column write.
 import sqlite3
 import uuid
 
+import plans
 from db import get_db, _now
 
 # --- vocabulary -------------------------------------------------------------
@@ -63,10 +64,18 @@ PERMS = {
     "act_as_artist":   {"owner", "admin", "support"},
     "branding_edit":   {"owner", "admin"},
     "billing_view":    {"owner", "admin"},
+    # Setting an artist's tier. A reseller's artist cannot buy their own
+    # plan, so somebody at the partner has to hold this, and it is the
+    # partner who carries the cost of what it unlocks.
+    "entitlement_grant": {"owner", "admin"},
     "manage_members":  {"owner"},
 }
 
 STATUSES = ("active", "suspended")
+
+# A seat_limit of 0 means "no cap". It is the default so that adding seats to
+# an existing deployment changes nothing until somebody sets a number.
+SEAT_UNLIMITED = 0
 
 
 def _uid():
@@ -155,6 +164,15 @@ def init_partners():
             CREATE INDEX IF NOT EXISTS idx_paudit_subject
                 ON partner_audit(subject_user_id, created_at);
         """)
+        # How many artists this partner may seat. 0 is unlimited, and every
+        # partner that existed before seats did keeps that - a cap arriving
+        # in a migration must not retroactively lock somebody out of their
+        # own roster.
+        try:
+            db.execute("ALTER TABLE partners ADD COLUMN seat_limit INTEGER "
+                       "NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         # The spine. NULL for every account that exists today, which is
         # exactly right: they are direct Street Banker accounts.
         try:
@@ -324,10 +342,57 @@ def can(member, permission):
 
 # --- the roster: accounts a partner owns -------------------------------------
 
+def seat_limit(partner_id):
+    """How many artists this partner may seat. 0 means no cap."""
+    with get_db() as db:
+        row = db.execute("SELECT seat_limit FROM partners WHERE id = ?",
+                         (partner_id,)).fetchone()
+    if row is None:
+        return SEAT_UNLIMITED
+    return int(row["seat_limit"] or SEAT_UNLIMITED)
+
+
+def set_seat_limit(partner_id, limit):
+    """Set the cap. A limit below the seats already taken is allowed and is
+    not retroactive: nobody is evicted, but no more can be added until the
+    roster comes back under the number. Evicting an artist to satisfy a
+    billing change is not a decision this function gets to make."""
+    try:
+        limit = max(0, int(limit))
+    except (TypeError, ValueError):
+        return False
+    with get_db() as db:
+        cur = db.execute("UPDATE partners SET seat_limit = ? WHERE id = ?",
+                         (limit, partner_id))
+    return cur.rowcount > 0
+
+
+def seats_used(partner_id):
+    with get_db() as db:
+        row = db.execute("SELECT COUNT(*) AS n FROM users WHERE partner_id = ?",
+                         (partner_id,)).fetchone()
+    return row["n"] if row else 0
+
+
+def seats_left(partner_id):
+    """Seats still available, or None when the partner is uncapped. None
+    rather than a big number, so a caller has to decide what "no cap" means
+    on screen instead of printing a fake ceiling."""
+    limit = seat_limit(partner_id)
+    if limit == SEAT_UNLIMITED:
+        return None
+    return max(0, limit - seats_used(partner_id))
+
+
 def attach_user(partner_id, user_id):
     """Put an account under a partner. Refuses to move an account that
     already belongs to a different one - that is a transfer, and a transfer
-    should be a deliberate two-step, not a side effect of an invite."""
+    should be a deliberate two-step, not a side effect of an invite.
+
+    Also refuses once the seat cap is full. The count and the write happen
+    inside one connection so two invites racing cannot both read the last
+    free seat and both take it.
+    """
     with get_db() as db:
         row = db.execute("SELECT partner_id FROM users WHERE id = ?", (user_id,)).fetchone()
         if row is None:
@@ -335,8 +400,38 @@ def attach_user(partner_id, user_id):
         current = row["partner_id"] if "partner_id" in row.keys() else None
         if current and current != partner_id:
             return False
+        if current != partner_id:
+            # Only a NEW seat consumes one; re-attaching an artist the partner
+            # already owns must stay idempotent even at a full cap.
+            prow = db.execute("SELECT seat_limit FROM partners WHERE id = ?",
+                              (partner_id,)).fetchone()
+            limit = int((prow["seat_limit"] if prow else 0) or SEAT_UNLIMITED)
+            if limit != SEAT_UNLIMITED:
+                taken = db.execute(
+                    "SELECT COUNT(*) AS n FROM users WHERE partner_id = ?",
+                    (partner_id,)).fetchone()["n"]
+                if taken >= limit:
+                    return False
         db.execute("UPDATE users SET partner_id = ? WHERE id = ?", (partner_id, user_id))
     return True
+
+
+def grant_plan(partner_id, user_id, plan):
+    """Set an artist's tier on behalf of the partner that owns them.
+
+    Ownership is asked of the database here as well as at the route, because
+    this is the function that writes, and a store function that trusts its
+    caller to have checked is one refactor away from not being checked at
+    all. Returns the plan actually written, or None if refused.
+    """
+    if not owns_user(partner_id, user_id):
+        return None
+    if plan not in plans.TIER_RANK:
+        return None
+    with get_db() as db:
+        db.execute("UPDATE users SET plan = ? WHERE id = ? AND partner_id = ?",
+                   (plan, user_id, partner_id))
+    return plan
 
 
 def detach_user(partner_id, user_id):

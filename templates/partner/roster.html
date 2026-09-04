@@ -3,12 +3,29 @@
 <section class="rounded-xl border border-sb-line bg-sb-surface-1 p-5">
   <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
     <h2 class="font-mono text-xs uppercase tracking-[0.16em] text-sb-gold">Roster</h2>
-    {% if roster %}
+    {# Seats, not just a count. A reseller needs to know how close they are to
+       the cap BEFORE an invite fails, so the ceiling is shown next to the
+       number. seats_left is None when the partner is uncapped - printing a
+       fake ceiling there would be worse than printing none. #}
+    {% if roster or seat_limit %}
       <span class="font-mono text-xs text-sb-ink-3">
-        {{ roster|length }} artist{{ "" if roster|length == 1 else "s" }}
+        {% if seats_left is none %}
+          {{ seats_used }} artist{{ "" if seats_used == 1 else "s" }}
+        {% else %}
+          <span class="{{ 'text-sb-gold' if seats_left == 0 else '' }}">
+            {{ seats_used }} of {{ seat_limit }} seats
+          </span>
+        {% endif %}
       </span>
     {% endif %}
   </div>
+
+  {% if seats_left == 0 %}
+    <p class="mb-3 text-xs text-sb-ink-2">
+      Every seat is taken. Nobody has been removed — new artists cannot be
+      added until a seat frees up or the limit is raised.
+    </p>
+  {% endif %}
 
   {% if roster %}
     <ul class="space-y-2">
@@ -17,7 +34,30 @@
           <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span class="text-sm font-semibold text-sb-ink">{{ a.name }}</span>
             <span class="font-mono text-xs text-sb-ink-3">{{ a.email }}</span>
-            <span class="ml-auto font-mono text-xs text-sb-ink-2">{{ a.plan }}</span>
+            {# The tier is the partner's decision, so where they hold the
+               permission it is a control, not a label. The artist cannot
+               change it themselves - /plan/switch refuses a seated account. #}
+            {% if can('entitlement_grant') %}
+              <form method="post" action="/partner/roster/{{ a.id }}/plan"
+                    class="ml-auto flex items-center gap-2">
+                <label class="font-mono text-xs text-sb-ink-3"
+                       for="plan-{{ a.id }}">Tier</label>
+                <select id="plan-{{ a.id }}" name="plan"
+                        class="rounded border border-sb-line bg-black/20 px-2 py-1 font-mono text-xs text-sb-ink">
+                  {% for tier in tiers %}
+                    <option value="{{ tier }}" {{ "selected" if a.plan == tier }}>
+                      {{ plan_names.get(tier, tier) }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <button type="submit"
+                        class="rounded border border-sb-line px-2 py-1 font-mono text-xs text-sb-ink-2 hover:text-sb-ink">
+                  Set
+                </button>
+              </form>
+            {% else %}
+              <span class="ml-auto font-mono text-xs text-sb-ink-2">{{ a.plan }}</span>
+            {% endif %}
           </div>
 
           {# What a partner decides against: has this account been used, and
