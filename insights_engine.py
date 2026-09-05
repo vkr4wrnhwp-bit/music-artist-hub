@@ -90,7 +90,7 @@ def build_insights(user_id):
                                 "From %s to %s, tracked live. Popularity is %d/100 "
                                 "as of the latest snapshot."
                                 % (first["day"], last["day"], last["popularity"]),
-                                "/stats", "Growth history"))
+                                "/pulse", "Growth history"))
 
     # --- Catalog hygiene ----------------------------------------------------------
     tracks = store.get_catalog_tracks(user_id)

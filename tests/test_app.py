@@ -809,7 +809,7 @@ def test_publishing_page_real_classification():
 def test_tier2_pages_render_and_are_in_nav():
     client = _demo()
     nav = client.get("/overview").get_data(as_text=True)
-    for href in ("/documents", "/identifiers", "/conflicts", "/releases", "/registration"):
+    for href in ("/documents", "/conflicts", "/releases", "/registration"):
         assert 'href="%s"' % href in nav
         assert client.get(href).status_code == 200
     # Ecosystem Hub model: five collapsible hubs plus Account, on every page.
@@ -821,7 +821,8 @@ def test_tier2_pages_render_and_are_in_nav():
 
 
 def test_identifiers_page_content():
-    body = _demo().get("/identifiers").get_data(as_text=True)
+    # /identifiers is folded into the catalog; the codes sit by their records.
+    body = _demo().get("/catalog").get_data(as_text=True)
     assert "Identifiers" in body
     assert "ISRC" in body and "ISWC" in body and "UPC" in body
 
@@ -1029,7 +1030,7 @@ def test_disputes_real_tracker():
 def test_tier3_pages_render_and_nav():
     client = _demo()
     nav = client.get("/links").get_data(as_text=True)
-    for href in ("/audience", "/playlists", "/stats"):
+    for href in ("/audience", "/playlists"):
         assert 'href="%s"' % href in nav
         assert client.get(href).status_code == 200
 
@@ -2999,7 +3000,7 @@ def test_identifiers_page_uses_real_catalog(monkeypatch):
     monkeypatch.setattr(music_apis.time, "sleep", lambda s: None)
     client = _ml_login(create_app())
     client.post("/catalog/add", json={"title": "ID Song", "artist": "A"})
-    body = client.get("/identifiers").get_data(as_text=True)
+    body = client.get("/catalog").get_data(as_text=True)
     assert "Your Identifiers" in body
     assert "USTEST2500001" in body and "123456789012" in body   # real pulled IDs
     assert "auto-pulled from your catalog" in body
@@ -3007,7 +3008,7 @@ def test_identifiers_page_uses_real_catalog(monkeypatch):
     monkeypatch.setattr(music_apis, "_fetch_json",
                         lambda url: {"data": [], "results": []})
     client.post("/catalog/add", json={"title": "No Meta Song", "artist": "B"})
-    body = client.get("/identifiers").get_data(as_text=True)
+    body = client.get("/catalog").get_data(as_text=True)
     assert "MISSING" in body and "Create action" in body
 
 

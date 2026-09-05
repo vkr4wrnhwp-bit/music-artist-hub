@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 {% import "landing/_cards.html" as logos %}
 
 {% block title %}Catalog - Royalty Sweep{% endblock %}
@@ -89,6 +90,58 @@
     <div class="mt-4 rounded-xl border border-dashed border-sb-gold/25 py-6 text-center text-xs text-gray-300">
       Nothing saved yet — <a href="/discover" class="font-semibold text-sb-gold-bright hover:underline">search Discover</a> and hit “+ Catalog” on any track.
     </div>
+    {% endif %}
+  </section>
+
+  {#- IDENTIFIERS - folded in from /identifiers, which rendered these same
+      records on a page of their own. The codes are how societies match
+      plays to money; a missing ISRC is a royalty that cannot find you.
+      Real records only. Nothing this app reads pulls an ISWC, so that
+      meter says so instead of reading as empty. -#}
+  <section class="rounded-2xl border border-sb-gold/30 bg-sb-surface-2 p-5" id="identifiers">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h2 class="sb-label text-sb-gold-bright">Your Identifiers</h2>
+        <p class="mt-1 text-xs text-gray-300 font-medium">ISRC, UPC and ISWC are how societies match plays to money — auto-pulled from your catalog records. Missing codes mean uncollected royalties.</p>
+      </div>
+      {% if ids_missing_isrc %}
+      <form method="post" action="/actions/from-alert">
+        <input type="hidden" name="title" value="Resolve {{ ids_missing_isrc }} missing ISRC(s) in catalog">
+        <input type="hidden" name="description" value="Tracks without ISRCs cannot be matched to royalties. Check with the distributor or re-run metadata lookup.">
+        <input type="hidden" name="category" value="metadata">
+        <button class="sb-btn sb-btn-secondary sb-btn-sm">Create action</button>
+      </form>
+      {% endif %}
+    </div>
+    {% set ids_n = my_tracks | length %}
+    <div class="mt-4 grid gap-4 sm:grid-cols-3">
+      {{ sb.meter("ISRC (recordings)", ids_with_isrc, ids_n, shown=ids_with_isrc ~ "/" ~ ids_n,
+                  tone=("good" if ids_n and ids_with_isrc == ids_n else ""), absent="No tracks") }}
+      {{ sb.meter("UPC (releases)", ids_with_upc, ids_n, shown=ids_with_upc ~ "/" ~ ids_n,
+                  tone=("good" if ids_n and ids_with_upc == ids_n else ""), absent="No tracks") }}
+      {{ sb.meter("ISWC (works)", none, absent="Not pulled") }}
+    </div>
+    {% if my_tracks %}
+    <div class="mt-4 overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead><tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-300 font-medium">
+          <th class="py-2 pr-4 font-medium">Track</th><th class="py-2 pr-4 font-medium">ISRC</th>
+          <th class="py-2 pr-4 font-medium">UPC</th><th class="py-2 pr-4 font-medium">Label</th>
+          <th class="py-2 font-medium">Release</th></tr></thead>
+        <tbody>
+          {% for r in ids_rows %}
+          <tr class="border-b border-white/5 last:border-0">
+            <td class="py-2 pr-4 font-semibold text-gray-100">{{ r.title }}<span class="ml-1 text-gray-300">{{ r.artist }}</span></td>
+            <td class="py-2 pr-4 tabular-nums text-gray-200">{% if r.isrc %}{{ r.isrc }}{% else %}{{ sb.lamp("MISSING", "crit") }}{% endif %}</td>
+            <td class="py-2 pr-4 tabular-nums text-gray-200">{{ r.upc or '—' }}</td>
+            <td class="py-2 pr-4 text-gray-300">{{ r.label or '—' }}</td>
+            <td class="py-2 sb-num text-gray-300">{{ r.release_date or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-3 text-xs text-gray-300 font-medium">ISRC identifies a recording, ISWC a composition, UPC a release. Registrations use these to route royalties to you; the ISWC comes from your PRO once the work is registered.</p>
     {% endif %}
   </section>
   {% endif %}

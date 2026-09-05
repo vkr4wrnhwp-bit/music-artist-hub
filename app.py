@@ -1864,6 +1864,20 @@ def create_app():
         user = current_user()
         ctx["catalog_user"] = user
         ctx["my_tracks"] = store.get_catalog_tracks(user["id"]) if user else []
+        # Identifiers, folded in from /identifiers: the same records, read
+        # for their codes. Nothing this app reads ever pulls an ISWC, and
+        # the page says so rather than showing an empty column.
+        ids_rows = []
+        for t in ctx["my_tracks"]:
+            m = t.get("meta") or {}
+            ids_rows.append({"title": t["title"], "artist": t["artist"],
+                             "isrc": m.get("isrc") or "", "upc": m.get("upc") or "",
+                             "label": m.get("label") or "",
+                             "release_date": m.get("release_date") or ""})
+        ctx["ids_rows"] = ids_rows
+        ctx["ids_with_isrc"] = sum(1 for r in ids_rows if r["isrc"])
+        ctx["ids_with_upc"] = sum(1 for r in ids_rows if r["upc"])
+        ctx["ids_missing_isrc"] = len(ids_rows) - ctx["ids_with_isrc"]
         # Group saved tracks into real releases keyed by UPC (or album title).
         releases = {}
         for t in ctx["my_tracks"]:
@@ -6455,11 +6469,23 @@ def create_app():
                 if start < level <= pulse["followers"]:
                     milestone = level
                     break
+        # Owned engagement, folded in from /stats: counts from the artist's
+        # own tracked smart links. First-party, so it shows whether or not
+        # Spotify is configured.
+        clicks = pageviews = presaves = 0
+        for c in mls.list_campaigns(user["id"]):
+            n = mls.event_counts(c["id"])
+            pageviews += n.get("pageview", 0)
+            clicks += n.get("click", 0)
+            ps = store.count_spotify_presaves(c["id"])
+            presaves += ps.get("pending", 0) + ps.get("completed", 0)
         return render_template("pulse.html", active_page="pulse",
                                pulse_configured=spotify.pulse_configured(),
                                profile=profile, pulse=pulse, deezer=deezer,
                                snaps=snaps, peers=peers, my_delta7=my_delta7,
                                milestone=milestone,
+                               link_stats={"pageviews": pageviews, "clicks": clicks,
+                                           "presaves": presaves},
                                **build_dashboard_context())
 
     @app.route("/pulse/peer/add", methods=["POST"])
@@ -7516,34 +7542,14 @@ def create_app():
 
     @app.route("/stats")
     def stats():
+        """Folded into Artist Pulse. Every number here was already on the
+        Pulse page - the same followers, popularity, Deezer fans and
+        snapshot history - except the owned link engagement, which moved
+        there too."""
         user = current_user()
         if user is None:
             return login_required_redirect()
-        profile = store.get_pulse_profile(user["id"])
-        pulse, deezer = None, None
-        if profile and spotify.pulse_configured():
-            pulse = spotify.artist_pulse(profile["artist_id"])
-            if pulse:
-                deezer = music_apis.deezer_artist_fans(pulse["name"])
-                store.record_pulse_snapshot(user["id"], pulse["followers"],
-                                            pulse["popularity"],
-                                            (deezer or {}).get("fans", 0))
-        snapshots = store.list_pulse_snapshots(user["id"])
-        # Real engagement from tracked smart links.
-        clicks = pageviews = presaves = 0
-        for c in mls.list_campaigns(user["id"]):
-            n = mls.event_counts(c["id"])
-            pageviews += n.get("pageview", 0)
-            clicks += n.get("click", 0)
-            presaves += store.count_spotify_presaves(c["id"]).get("pending", 0) + \
-                store.count_spotify_presaves(c["id"]).get("completed", 0)
-        return render_template("stats.html", active_page="stats",
-                               pulse_configured=spotify.pulse_configured(),
-                               profile=profile, pulse=pulse, deezer=deezer,
-                               snapshots=snapshots,
-                               link_stats={"pageviews": pageviews, "clicks": clicks,
-                                           "presaves": presaves},
-                               **build_dashboard_context())
+        return redirect("/pulse#engagement")
 
     @app.route("/funding")
     def funding():
@@ -7629,21 +7635,10 @@ def create_app():
 
     @app.route("/identifiers")
     def identifiers():
-        ctx = build_dashboard_context()
-        user = current_user()
-        ctx["ids_user"] = user
-        tracks = store.get_catalog_tracks(user["id"]) if user else []
-        rows = []
-        for t in tracks:
-            m = t.get("meta") or {}
-            rows.append({"title": t["title"], "artist": t["artist"],
-                         "isrc": m.get("isrc") or "", "upc": m.get("upc") or "",
-                         "label": m.get("label") or "",
-                         "release_date": m.get("release_date") or ""})
-        ctx["real_ids"] = rows
-        ctx["ids_with_isrc"] = sum(1 for r in rows if r["isrc"])
-        ctx["ids_with_upc"] = sum(1 for r in rows if r["upc"])
-        return render_template("identifiers.html", active_page="identifiers", **ctx)
+        """Folded into the catalog. This page rendered the catalog's own
+        records a second time, read for their codes; the codes now sit on
+        the catalog beside the records they belong to."""
+        return redirect("/catalog#identifiers")
 
     @app.route("/conflicts")
     def conflicts():

@@ -24,8 +24,7 @@ HUBS = [
         ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Asset Vault", "Stems, bounces, and press assets in one place."),
         ("beats", "/beats", "M5 14a3 3 0 106 0 3 3 0 00-6 0z|M11 14V4l5 2v8|M14 12a2 2 0 104 0 2 2 0 00-4 0z", "Beats", "Beat registry, licences, cleared list, usage cases."),
         ("tracks", "/tracks", "M4 3h12v14H4z|M7 7h6|M7 10h6|M7 13h4", "Track Passports", "Per-track rights, metadata, and lockbox sign-offs."),
-        ("catalog", "/catalog", "M7 4v10a2 2 0 11-2-2h2M7 4l9-1v9a2 2 0 11-2-2h2", "Catalog", "Every song you own, with its status."),
-        ("identifiers", "/identifiers", "M4 6h12M4 10h12M4 14h7|", "Identifiers", "ISRCs, UPCs, and codes in one registry."),
+        ("catalog", "/catalog", "M7 4v10a2 2 0 11-2-2h2M7 4l9-1v9a2 2 0 11-2-2h2", "Catalog", "Every song you own, with its status and its identifiers."),
         ("documents", "/documents", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 11h5M8 14h3", "Documents", "Contracts and licenses, uploaded and filed."),
         ("profile", "/artist-profile", "M10 4a3 3 0 100 6 3 3 0 000-6z|M4 17c0-3 2.5-5 6-5s6 2 6 5", "Artist Profile", "The profile powering your public pages."),
     ]),
@@ -38,9 +37,8 @@ HUBS = [
         ("epk", "/epk", "M5 3h7l3 3v11a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z|M7 9h6M7 12h6M7 15h3", "Press Kit", "Your public EPK, always current."),
         ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press Desk", "Media list, announcements, and who opened which pitch."),
         ("playlists", "/playlists", "M4 5h9M4 9h9M4 13h5|M15 11v5a2 2 0 11-2-2", "Playlists", "Pitch tracking for curator outreach."),
-        ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Daily follower and popularity snapshots."),
+        ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Daily follower and popularity snapshots, growth over time, and your link engagement."),
         ("audience", "/audience", "M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4", "Audience", "Who's listening, and where."),
-        ("stats", "/stats", "M4 16V10M9 16V4M14 16v-4|M3 16h14", "Streaming Stats", "Growth curves from your Pulse history."),
     ]),
     ("stage", "Live Stage Suite", "Everything between the booking and the encore — shows, plots, lights, and the rider.", [
         ("tours", "/tours", "M3 4h14v12H3z|M3 8h14|M6 12h3|M12 12h2|M7 2v4|M13 2v4", "TOUR", "The whole run: My Day, Show Command, advance, travel, rooms, guests, money."),
@@ -130,13 +128,13 @@ HUB_ICONS = {
 # hub-desk footnote and the command palette all went on calling a live page
 # "example data, not yours" - four surfaces wrong from one stale list entry.
 # Flag-gated keys are appended by live_keys() instead.
-_BASE_LIVE = ["apparel", "beats", "statements", "notifications", "documents", "identifiers", "cases",
+_BASE_LIVE = ["apparel", "beats", "statements", "notifications", "documents", "cases",
              "deal-room", "sync-packs", "deal-simulator", "artist-twin",
              "revenue-os", "trust-score", "overview", "royalties", "recovery",
              "valuation", "links", "rollout", "artwork", "services", "submit",
              "inbox", "settings", "epk", "discover", "catalog", "command-center",
              "actions", "autopilot", "qualification", "profile",
-             "vault", "review", "pulse", "team", "stats", "tax", "connections",
+             "vault", "review", "pulse", "team", "tax", "connections",
              "releases", "publishing", "mechanicals", "neighboring",
              "territories", "insights", "disputes", "fan-club-admin", "portal",
              "tours", "stage-plot", "passports", "tour-board", "rack", "roster", "referrals",
