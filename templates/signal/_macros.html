@@ -6,7 +6,7 @@
      title="How this score was built">
     <span>
       <span class="sg-score-v">{{ value }}</span>
-      <span class="sg-bar{{ ' is-hot' if tone == 'hot' else (' is-ok' if tone == 'ok' else '') }}"><i style="width:{{ value }}%"></i></span>
+      <span class="sb-meter{{ ' sb-meter--crit' if tone == 'hot' else (' sb-meter--good' if tone == 'ok' else '') }}" role="img" aria-label="{{ value }} of 100"><span class="sb-meter-fill" style="--sb-meter-fill: {{ value }}%;"></span></span>
     </span>
   </a>
 {% endmacro %}

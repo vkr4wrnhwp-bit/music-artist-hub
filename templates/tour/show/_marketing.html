@@ -3,7 +3,7 @@
 <div class="to-panel is-warm" style="margin-bottom:12px">
   <div class="to-eyebrow">Tickets</div>
   <div><b style="font-size:22px">{{ ticket_progress['sold'] }}</b> <span class="to-muted">of {{ ticket_progress['cap'] }} · {{ ticket_progress['pct'] }}%</span></div>
-  <div class="to-meter" style="margin-top:6px"><i style="width:{{ ticket_progress['pct'] }}%"></i></div>
+  <span class="sb-meter" style="margin-top:6px" role="img" aria-label="Tickets sold: {{ ticket_progress['pct'] }}%"><span class="sb-meter-fill" style="--sb-meter-fill: {{ ticket_progress['pct'] }}%;"></span></span>
   <p class="to-muted" style="margin-top:6px">Counts are what you typed in — no ticketing platform is connected.</p>
 </div>
 {% endif %}

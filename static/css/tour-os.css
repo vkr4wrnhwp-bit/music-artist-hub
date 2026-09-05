@@ -231,8 +231,7 @@
 .to-ready { display: inline-flex; align-items: baseline; gap: 6px; }
 .to-ready b { font-size: 20px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .to-ready.lo b { color: var(--to-warn); } .to-ready.mid b { color: var(--to-amber); } .to-ready.hi b { color: var(--to-ok); }
-.to-meter { height: 6px; border-radius: var(--sb-r-pill); background: rgb(255 255 255 / 0.08); overflow: hidden; }
-.to-meter > i { display: block; height: 100%; background: linear-gradient(90deg, var(--sb-gold-deep), var(--to-amber)); }
+/* The progress meter is the shared .sb-meter from app-chrome.css now. */
 .to-check { list-style: none; margin: 0; padding: 0; }
 .to-check li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--to-rule); font-size: 13px; }
 .to-check li:last-child { border-bottom: 0; }

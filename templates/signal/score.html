@@ -19,7 +19,7 @@
           <tr>
             <td>{{ name|replace('_', ' ')|capitalize }}</td>
             <td>{{ c['value'] }}</td><td>{{ (c['weight'] * 100)|round|int }}%</td><td>{{ c['points'] }}</td>
-            <td><span class="sg-meter"><i style="width:{{ c['value'] }}%"></i></span></td>
+            <td><span class="sb-meter sb-meter--sm" role="img" aria-label="{{ c['value'] }} of 100"><span class="sb-meter-fill" style="--sb-meter-fill: {{ c['value'] }}%;"></span></span></td>
           </tr>
         {% endfor %}
         </tbody>

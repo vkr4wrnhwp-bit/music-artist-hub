@@ -100,10 +100,9 @@
 .sg-score { display: inline-flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; text-decoration: none; color: inherit; }
 .sg-score-v { font-weight: 700; font-size: 14px; }
 .sg-score a { color: inherit; }
-.sg-bar { display: block; height: 3px; width: 46px; background: var(--sg-rule-soft); border-radius: var(--sb-r-control); margin-top: 3px; overflow: hidden; }
-.sg-bar i { display: block; height: 100%; background: var(--sg-amber); }
-.sg-bar.is-hot i { background: var(--sg-hot); }
-.sg-bar.is-ok i { background: var(--sg-ok); }
+/* The score bar is the shared .sb-meter (app-chrome.css, on paper); this
+   only sizes it for the cell it sits in. */
+.sg-score .sb-meter { width: 46px; height: 4px; margin-top: 3px; }
 .sg-delta { font-variant-numeric: tabular-nums; font-weight: 600; }
 .sg-delta.up { color: var(--sg-ok); }
 .sg-delta.down { color: var(--sg-hot); }
@@ -175,8 +174,7 @@
 .sg-contrib { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
 .sg-contrib th { text-align: left; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sg-faint); padding: 5px 6px; border-bottom: 1px solid var(--sg-rule); }
 .sg-contrib td { padding: 5px 6px; border-bottom: 1px solid var(--sg-rule-soft); font-variant-numeric: tabular-nums; }
-.sg-meter { display: block; height: 6px; background: var(--sg-rule-soft); border-radius: var(--sb-r-control); overflow: hidden; min-width: 70px; }
-.sg-meter i { display: block; height: 100%; background: var(--sg-gold); }
+.sg-contrib .sb-meter { min-width: 70px; }
 
 /* --- empty ----------------------------------------------------------------- */
 .sg-empty { border: 1px dashed var(--sg-rule); border-radius: var(--sb-r-control); padding: 26px; text-align: center; color: var(--sg-muted); font-size: 13px; line-height: 1.6; background: var(--sg-panel); }

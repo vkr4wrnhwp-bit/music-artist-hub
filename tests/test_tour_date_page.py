@@ -254,6 +254,7 @@ def test_the_assets_moved_on_with_the_page():
     got = int(re.search(r'VERSION = "sb-v(\d+)"', sw).group(1))
     assert got >= 169, "the service worker must be bumped on a static change"
     shell = open(os.path.join(HERE, "templates", "tour", "_shell.html"), encoding="utf-8").read()
-    assert "tour-os.css?v=6" in shell
+    # Same rule as the worker: a minimum, so later sheet bumps do not fail it.
+    assert int(re.search(r"tour-os\.css\?v=(\d+)", shell).group(1)) >= 6
     css = open(os.path.join(HERE, "static", "css", "tour-os.css"), encoding="utf-8").read()
     assert "@media print" in css and ".to, .to *" in css and ".to-chip-btn" in css

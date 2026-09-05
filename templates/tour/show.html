@@ -64,7 +64,7 @@
     <span class="to-muted">{{ readiness['done'] }} of {{ readiness['total'] }} applicable</span>
   </div>
   <div class="to-strip-main">
-    <div class="to-meter"><i style="width:{{ readiness['pct'] }}%"></i></div>
+    <span class="sb-meter" role="img" aria-label="Readiness: {{ readiness['pct'] }}%"><span class="sb-meter-fill" style="--sb-meter-fill: {{ readiness['pct'] }}%;"></span></span>
     <p class="to-strip-gaps">
       {% if readiness['missing'] %}<b>Next:</b> {% for c in readiness['missing'][:3] %}{{ c['label'] }}{{ ' · ' if not loop.last }}{% endfor %}{% if readiness['missing']|length > 3 %} <span class="to-muted">+{{ readiness['missing']|length - 3 }} more</span>{% endif %}
       {% elif readiness['waiting'] %}<b>Waiting on:</b> {% for c in readiness['waiting'][:3] %}{{ c['label'] }}{{ ' · ' if not loop.last }}{% endfor %}

@@ -4,7 +4,7 @@
     is the wall the date page exists to take down. Field names are exactly
     what /advance-bulk reads: status__<key> and value__<key>. -#}
 <div class="to-bar" style="margin-top:0">
-  <div class="to-meter" style="flex:1;min-width:160px"><i style="width:{{ advance_progress['pct'] }}%"></i></div>
+  <span class="sb-meter" style="flex:1;min-width:160px" role="img" aria-label="Advance: {{ advance_progress['pct'] }}%"><span class="sb-meter-fill" style="--sb-meter-fill: {{ advance_progress['pct'] }}%;"></span></span>
   <span class="to-muted">{{ advance_progress['done'] }} of {{ advance_progress['total'] }} complete · {{ advance_progress['waiting'] }} waiting</span>
   {% if can('advance') %}<a class="to-btn to-btn--ghost to-btn--small" href="?tab=inbox" data-reveal="inbox">Paste an advance email</a>{% endif %}
 </div>

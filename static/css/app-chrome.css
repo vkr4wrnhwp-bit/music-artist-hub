@@ -462,6 +462,7 @@ details.asx-open[open] .asx-when-closed { display: none; }
  * progress bar - discrete, like a meter on a desk. */
 
 .sb-meter {
+  display: block;
   position: relative;
   height: 10px;
   border-radius: var(--sb-r-pill);
@@ -742,3 +743,25 @@ details.asx-open[open] .asx-when-closed { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .sb-meter-fill, .sb-switch { transition: none; }
 }
+
+/* --- meters on paper ----------------------------------------------------------
+ * Signal and the passport sheets are ivory. Under .sb-on-paper the well, the
+ * LED gaps and the readout take the paper tokens; a fill keeps its state
+ * colour, and the plain fill is the paper gold. Folded in from Signal's
+ * sg-bar / sg-meter, which were this meter drawn a third time. */
+
+.sb-on-paper .sb-meter {
+  background: var(--sb-paper-line-soft);
+  border-color: var(--sb-paper-line);
+}
+
+.sb-on-paper .sb-meter::after {
+  background: repeating-linear-gradient(
+    to right, transparent 0 5px, var(--sb-paper) 5px 8px);
+}
+
+.sb-on-paper .sb-meter-fill { background: var(--sb-paper-gold); }
+.sb-on-paper .sb-meter--good .sb-meter-fill { background: var(--sb-good); }
+.sb-on-paper .sb-meter--warn .sb-meter-fill { background: var(--sb-warn); }
+.sb-on-paper .sb-meter--crit .sb-meter-fill { background: var(--sb-crit); }
+.sb-on-paper .sb-meter-val { color: var(--sb-paper-ink-2); }
