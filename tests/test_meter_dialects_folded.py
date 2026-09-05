@@ -56,6 +56,14 @@ def test_the_shared_meter_can_sit_on_paper():
     assert re.search(r"\.sb-meter \{\s*display: block;", css)
 
 
+def test_the_fill_is_block_level_or_every_ladder_reads_empty():
+    """Found on Signal: the fill is a <span>, and an inline span ignores
+    its width, so a meter at 72 drew as a meter at zero. The well and
+    the readout said one thing and the ladder said another."""
+    css = _read("static/css/app-chrome.css")
+    assert re.search(r"\.sb-meter-fill \{\s*display: block;", css)
+
+
 def test_signal_loads_the_chrome_sheet_and_declares_paper():
     shell = _read("templates/signal/_shell.html")
     assert "/static/css/app-chrome.css?v=" in shell

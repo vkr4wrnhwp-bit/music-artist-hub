@@ -472,6 +472,7 @@ details.asx-open[open] .asx-when-closed { display: none; }
 }
 
 .sb-meter-fill {
+  display: block;   /* a span: inline, its width is ignored and the fill vanishes */
   height: 100%;
   width: var(--sb-meter-fill, 0%);
   background: var(--sb-gold);
