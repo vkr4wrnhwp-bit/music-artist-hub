@@ -1,4 +1,5 @@
 {% extends "signal/_shell.html" %}
+{% import "_sb.html" as sb %}
 {% block title %}Alerts{% endblock %}
 {% block main %}
   <p class="sg-eyebrow">{{ org['name'] }}</p>
@@ -51,7 +52,7 @@
             <td>{{ al['created_at'][:16]|replace('T', ' ') }}</td>
             <td>{% if al['artist_id'] %}<a href="/signal/artist/{{ al['artist_id'] }}">{{ al['title'] }}</a>{% else %}{{ al['title'] }}{% endif %}
               {% if al['body'] %}<span class="sg-artist-meta">{{ al['body'] }}</span>{% endif %}</td>
-            <td><span class="sg-pill{{ ' is-warn' if al['severity'] == 'high' else '' }}">{{ al['severity'] }}</span></td>
+            <td>{{ sb.lamp(al['severity'], 'warn' if al['severity'] == 'high' else '') }}</td>
           </tr>
         {% endfor %}
       </tbody>

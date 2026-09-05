@@ -1,4 +1,5 @@
 {% extends "signal/_shell.html" %}
+{% import "_sb.html" as sb %}
 {% from "signal/_macros.html" import score_cell, delta, dist_pill %}
 {% block title %}{{ a['canonical_name'] }}{% endblock %}
 {% block main %}
@@ -23,7 +24,7 @@
       {% if desk_link and has_desk_seat %}
         <a class="sg-btn sg-btn--ghost sg-btn--small" href="/operator-desk/leads/{{ desk_link['lead_id'] }}">Open on the desk →</a>
       {% elif desk_link %}
-        <span class="sg-pill is-ok" title="Added {{ desk_link['added_at'][:10] }} by {{ desk_link['added_by'] }}">On the desk</span>
+        <span title="Added {{ desk_link['added_at'][:10] }} by {{ desk_link['added_by'] }}">{{ sb.lamp("On the desk", "on") }}</span>
         <span class="sg-artist-meta">You do not hold an Operator Desk seat, so the lead is not open to you here.</span>
       {% elif sg_can('push_to_desk') %}
         <form method="post" action="/signal/artist/{{ a['id'] }}/operator-desk">
@@ -35,7 +36,7 @@
           <input type="hidden" name="next" value="/signal/artist/{{ a['id'] }}">
           <button class="sg-btn sg-btn--ghost sg-btn--small" type="submit">Watch</button>
         </form>
-      {% elif watched %}<span class="sg-pill is-gold">Watching</span>{% endif %}
+      {% elif watched %}{{ sb.lamp("Watching", "on") }}{% endif %}
     </div>
   </div>
 
@@ -47,7 +48,7 @@
         <div class="sg-stat">{{ (s['value'])|round|int if s else '—' }}</div>
         {% if s %}
           <p><a href="/signal/artist/{{ a['id'] }}/score/{{ key }}">How this was built →</a>
-            {% if s['data_quality'] != 'ok' %}<br><span class="sg-pill is-warn">{{ s['data_quality'] }} data</span>{% endif %}
+            {% if s['data_quality'] != 'ok' %}<br>{{ sb.lamp(s['data_quality'] ~ " data", "warn") }}{% endif %}
           </p>
         {% endif %}
       </div>
@@ -99,7 +100,7 @@
         </tbody>
       </table>
       {% if momentum_expl['anomaly_penalty'] %}
-        <p style="margin-top:10px"><span class="sg-pill is-warn">Anomaly penalty −{{ momentum_expl['anomaly_penalty'] }}</span></p>
+        <p style="margin-top:10px">{{ sb.lamp("Anomaly penalty −" ~ momentum_expl['anomaly_penalty'], "warn") }}</p>
         <ul class="sg-list">{% for r in momentum_expl['anomaly_reasons'] %}<li>{{ r }}</li>{% endfor %}</ul>
         <p class="sg-note">Risk indicators, not an accusation. Each one names the metric that triggered it.</p>
       {% endif %}
@@ -155,9 +156,9 @@
         <div class="sg-ev-head">
           <span class="sg-ev-claim">{{ e['claim_value'] }}{% if e['claim_key'] %} — {{ e['claim_key'] }}{% endif %}</span>
           <span class="sg-inline">
-            <span class="sg-pill">{{ e['status_label'] }}</span>
+            {{ sb.lamp(e['status_label'], "") }}
             <span class="sg-pill">{{ (e['confidence'] * 100)|round|int }}%</span>
-            {% if e['is_stale'] %}<span class="sg-pill is-warn">stale</span>{% endif %}
+            {% if e['is_stale'] %}{{ sb.lamp("stale", "warn") }}{% endif %}
           </span>
         </div>
         {% if e['excerpt'] %}<p class="sg-ev-quote">{{ e['excerpt'] }}</p>{% endif %}
@@ -172,9 +173,9 @@
           <div class="sg-ev-head">
             <span class="sg-ev-claim">{{ e['claim_key'] }} — {{ e['claim_value'] }}</span>
             <span class="sg-inline">
-              <span class="sg-pill">{{ e['status_label'] }}</span>
+              {{ sb.lamp(e['status_label'], "") }}
               <span class="sg-pill">{{ (e['confidence'] * 100)|round|int }}%</span>
-              {% if e['is_stale'] %}<span class="sg-pill is-warn">stale</span>{% endif %}
+              {% if e['is_stale'] %}{{ sb.lamp("stale", "warn") }}{% endif %}
             </span>
           </div>
           {% if e['detail']['company'] %}<div class="sg-ev-src">{{ e['detail']['company'] }}{% if e['detail']['person'] %} · {{ e['detail']['person'] }}{% endif %}</div>{% endif %}
@@ -198,7 +199,7 @@
         {% if rh['explanation']['findings'] %}
           <ul class="sg-list">
             {% for f in rh['explanation']['findings'] %}
-              <li><b>{{ f['area'] }}:</b> {{ f['detail'] }} <span class="sg-pill is-warn">{{ f['status']|replace('_',' ') }}</span></li>
+              <li><b>{{ f['area'] }}:</b> {{ f['detail'] }} {{ sb.lamp(f['status']|replace('_',' '), "warn") }}</li>
             {% endfor %}
           </ul>
         {% endif %}
@@ -213,7 +214,7 @@
       <div class="sg-ev">
         <div class="sg-ev-head">
           <span class="sg-ev-claim">{{ e['claim_key'] or 'Catalogue' }}</span>
-          <span class="sg-pill{{ ' is-warn' if e['status'] == 'potential_gap' else '' }}">{{ e['status_label'] }}</span>
+          {{ sb.lamp(e['status_label'], 'warn' if e['status'] == 'potential_gap' else '') }}
         </div>
         <div class="sg-ev-src">{{ e['source_label'] }} · last checked {{ e['last_verified_at'][:10] }}</div>
       </div>

@@ -1,3 +1,4 @@
+{% import "_sb.html" as sb %}
 {# Shared pieces. Every score is a link to its own explanation - a number
    with no way to see how it was built is not shippable here. #}
 
@@ -67,12 +68,12 @@
             <td class="sg-num">{{ score_cell(r['artist']['id'], 'rights_health', r['rights'], 'hot' if r['rights'] < 60 else 'ok') }}</td>
             <td>{{ dist_pill(r['distribution']) }}</td>
             <td>
-              <span class="sg-pill{{ ' is-warn' if r['anomaly'] != 'Low risk' else '' }}">{{ r['anomaly'] }}</span>
+              {{ sb.lamp(r['anomaly'], 'warn' if r['anomaly'] != 'Low risk' else '') }}
             </td>
             <td>
               <span class="sg-inline">
                 {% if r['on_desk'] %}
-                  <span class="sg-pill is-ok">On desk</span>
+                  {{ sb.lamp("On desk", "on") }}
                 {% elif sg_can('push_to_desk') %}
                   <form method="post" action="/signal/artist/{{ r['artist']['id'] }}/operator-desk">
                     <button class="sg-btn sg-btn--small" type="submit">→ Desk</button>
@@ -84,7 +85,7 @@
                     <button class="sg-btn sg-btn--ghost sg-btn--small" type="submit">Watch</button>
                   </form>
                 {% elif r['watched'] %}
-                  <span class="sg-pill is-gold">Watching</span>
+                  {{ sb.lamp("Watching", "on") }}
                 {% endif %}
               </span>
             </td>

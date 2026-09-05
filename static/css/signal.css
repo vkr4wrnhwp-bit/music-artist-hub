@@ -114,10 +114,11 @@
   font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--sg-muted); background: transparent; white-space: nowrap;
 }
+/* A pill is a LABEL - a distributor class, a shape, a role, a lane. A
+   STATE (on desk, watching, stale, fresh, a severity) is the shared lamp
+   from app-chrome.css, on paper. The gold pill marks the distributor
+   classes an artist controls; it is a label with emphasis, not a state. */
 .sg-pill.is-gold { border-color: rgb(180 131 27 / 0.5); color: var(--sg-gold); background: rgb(180 131 27 / 0.08); }
-.sg-pill.is-warn { border-color: var(--sg-warn-edge); color: var(--sg-warn-edge); background: var(--sg-warn-bg); }
-.sg-pill.is-ok { border-color: rgb(63 108 69 / 0.45); color: var(--sg-ok); background: rgb(63 108 69 / 0.08); }
-.sg-pill.is-hot { border-color: rgb(140 47 29 / 0.45); color: var(--sg-hot); background: rgb(140 47 29 / 0.07); }
 
 /* --- cards / grid ---------------------------------------------------------- */
 .sg-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); }

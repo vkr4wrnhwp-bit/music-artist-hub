@@ -1,4 +1,5 @@
 {% extends "signal/_shell.html" %}
+{% import "_sb.html" as sb %}
 {% block title %}Data sources{% endblock %}
 {% block main %}
   <div class="sg-head">
@@ -37,7 +38,7 @@
         <tr>
           <td><b>{{ h['provider'] }}</b></td>
           <td>
-            <span class="sg-pill{{ ' is-ok' if h['configured'] else '' }}">{{ 'configured' if h['configured'] else 'not configured' }}</span>
+            {{ sb.lamp('configured' if h['configured'] else 'not configured', 'on' if h['configured'] else '') }}
             <span class="sg-artist-meta">{{ h['detail'] }}</span>
           </td>
           <td><span class="sg-artist-meta">{{ h['capabilities']|join(', ') }}</span></td>
@@ -82,7 +83,7 @@
           <td>{{ f['label'] }}</td>
           <td class="sg-num">{{ '{:,}'.format(f['rows']) }}</td>
           <td>{{ f['last'][:16]|replace('T', ' ') if f['last'] else 'never' }}</td>
-          <td><span class="sg-pill{{ ' is-warn' if f['stale'] else ' is-ok' }}">{{ 'stale' if f['stale'] else 'fresh' }}</span></td>
+          <td>{{ sb.lamp('stale' if f['stale'] else 'fresh', 'warn' if f['stale'] else 'on') }}</td>
         </tr>
       {% endfor %}
     </tbody>

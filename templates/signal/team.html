@@ -1,4 +1,5 @@
 {% extends "signal/_shell.html" %}
+{% import "_sb.html" as sb %}
 {% block title %}Team{% endblock %}
 {% block main %}
   <p class="sg-eyebrow">{{ org['name'] }}</p>
@@ -34,7 +35,7 @@
           <td><span class="sg-artist-meta">{{ m['source'] }}</span></td>
           <td>{{ m['last_seen'][:10] if m['last_seen'] else '—' }}</td>
           <td>
-            {% if m['status'] != 'active' %}<span class="sg-pill is-warn">removed</span>
+            {% if m['status'] != 'active' %}{{ sb.lamp("removed", "warn") }}
             {% elif sg_can('manage_members') %}
               <form method="post">
                 <input type="hidden" name="action" value="remove">

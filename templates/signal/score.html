@@ -1,4 +1,5 @@
 {% extends "signal/_shell.html" %}
+{% import "_sb.html" as sb %}
 {% block title %}{{ label }} · {{ a['canonical_name'] }}{% endblock %}
 {% block main %}
   <p class="sg-eyebrow"><a href="/signal/artist/{{ a['id'] }}">{{ a['canonical_name'] }}</a> · score detail</p>
@@ -35,7 +36,7 @@
       </table>
     {% endif %}
 
-    {% if e['status'] %}<p style="margin-top:10px"><span class="sg-pill is-gold">{{ e['status'] }}</span> {{ e['detail'] or '' }}</p>{% endif %}
+    {% if e['status'] %}<p style="margin-top:10px">{{ sb.lamp(e['status'], "on") }} {{ e['detail'] or '' }}</p>{% endif %}
     {% if e['reading'] %}<p style="margin-top:10px">{{ e['reading'] }}</p>{% endif %}
     {% if e['caution'] %}<p class="sg-note">{{ e['caution'] }}</p>{% endif %}
     {% if e['missing'] %}

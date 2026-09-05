@@ -1,4 +1,5 @@
 {% extends "signal/_shell.html" %}
+{% import "_sb.html" as sb %}
 {% from "signal/_macros.html" import artist_cell, score_cell, dist_pill %}
 {% block title %}{{ mandate['name'] }}{% endblock %}
 {% block main %}
@@ -20,7 +21,7 @@
             <td>{{ dist_pill(r['distribution']) }}</td>
             <td><ul class="sg-list">{% for why in r['match_reasons'] %}<li>{{ why }}</li>{% endfor %}</ul></td>
             <td>
-              {% if r['on_desk'] %}<span class="sg-pill is-ok">On desk</span>
+              {% if r['on_desk'] %}{{ sb.lamp("On desk", "on") }}
               {% elif sg_can('push_to_desk') %}
                 <form method="post" action="/signal/artist/{{ r['artist']['id'] }}/operator-desk">
                   <button class="sg-btn sg-btn--small" type="submit">→ Desk</button>
