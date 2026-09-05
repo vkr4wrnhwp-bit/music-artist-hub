@@ -328,7 +328,7 @@ def test_bulk_advancing_sends_to_every_ticked_venue_with_an_address(flask_app, l
     # The page the redirect lands on says what happened; the list shows the
     # two as sent and offers only what is left.
     page = client.get(r.headers["Location"]).get_data(as_text=True)
-    assert page.count("to-chip--ok") >= 2 and "2 advances sent" in page
+    assert page.count("sb-lamp--on") >= 2 and "2 advances sent" in page
     assert 'value="%s"' % s1 not in page and "Every show with an address has been advanced" in page
     assert "Room Three" in page          # still listed under "No address yet"
 

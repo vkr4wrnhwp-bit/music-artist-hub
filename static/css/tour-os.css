@@ -235,8 +235,10 @@
 .to-check { list-style: none; margin: 0; padding: 0; }
 .to-check li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--to-rule); font-size: 13px; }
 .to-check li:last-child { border-bottom: 0; }
-.to-check .mark { flex: none; width: 18px; font-weight: 900; }
-.to-check .ok .mark { color: var(--to-ok); } .to-check .warn .mark { color: var(--to-amber); } .to-check .no .mark { color: var(--to-warn); } .to-check .na { opacity: 0.55; }
+/* The state is the shared lamp (app-chrome.css); this only lines the words
+   up as a column so the labels start together. */
+.to-check .sb-lamp { flex: none; min-width: 5.5rem; padding-top: 2px; }
+.to-check .na { opacity: 0.55; }
 .to-check small { display: block; color: var(--to-soft); font-size: 12px; }
 
 /* --- forms --------------------------------------------------------------- */

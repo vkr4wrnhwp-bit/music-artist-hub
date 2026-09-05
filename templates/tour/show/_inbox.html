@@ -1,3 +1,4 @@
+{% import "_sb.html" as sb %}
 {% import "tour/_macros.html" as m %}
 <div class="to-note"><strong>Paste, review, then apply.</strong> The extractor reads the text with patterns — call times, hotel, Wi-Fi, parking, promoter, contacts — and proposes entries with the line each one came from. Nothing is written until you tick it. <span class="to-muted">Rule-based; there is no language model on this deployment, and a PDF must be pasted as text.</span></div>
 
@@ -18,7 +19,7 @@
         <input type="hidden" name="kind_{{ loop.index0 }}" value="{{ p['kind'] }}"><input type="hidden" name="key_{{ loop.index0 }}" value="{{ p['key'] }}"><input type="hidden" name="source_{{ loop.index0 }}" value="{{ p['source'] }}"></td>
       <td><b>{{ p['label'] }}</b><div class="to-muted">{{ p['kind'] }}</div></td>
       <td><input class="to-input" style="min-height:32px;padding:4px 8px" name="value_{{ loop.index0 }}" value="{{ p['value'] }}"></td>
-      <td>{% if p['confidence'] == 'high' %}<span class="to-chip to-chip--ok">high</span>{% else %}<span class="to-chip to-chip--gold">review</span>{% endif %}</td>
+      <td>{% if p['confidence'] == 'high' %}{{ sb.lamp("high", "on") }}{% else %}{{ sb.lamp("review", "warn") }}{% endif %}</td>
       <td class="to-muted">L{{ p['line'] }}: {{ p['source'][:90] }}</td>
     </tr>
     {% endfor %}

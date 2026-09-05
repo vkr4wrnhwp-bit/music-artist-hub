@@ -1,4 +1,5 @@
 {% extends "tour/_shell.html" %}
+{% import "_sb.html" as sb %}
 {% block title %}Shows - {{ tour['name'] }} - Street Banker{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
@@ -30,7 +31,7 @@
     </form>{% else %}{{ m.chip(s['status']) }}{% endif %}</td>
     <td data-k="Ready">{{ m.ready(readiness[s['id']]['pct']) }}</td>
     <td data-k="Missing" class="to-muted">{% for i in readiness[s['id']]['missing'][:4] %}{{ i['label']|lower }}{{ ', ' if not loop.last }}{% endfor %}{% if readiness[s['id']]['missing']|length > 4 %} +{{ readiness[s['id']]['missing']|length - 4 }}{% endif %}</td>
-    <td data-k="Advance">{% if sends.get(s['id']) %}<a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send"><span class="to-chip to-chip--ok">sent {{ sends[s['id']]['created'][:10] }}</span></a>{% elif can_send and advance_to.get(s['id']) %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">ready · {{ advance_to[s['id']][0] }}</a>{% elif can_send %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=advance">no address</a>{% else %}<span class="to-muted">—</span>{% endif %}</td>
+    <td data-k="Advance">{% if sends.get(s['id']) %}<a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">{{ sb.lamp("sent " ~ sends[s['id']]['created'][:10], "on") }}</a>{% elif can_send and advance_to.get(s['id']) %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">ready · {{ advance_to[s['id']][0] }}</a>{% elif can_send %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=advance">no address</a>{% else %}<span class="to-muted">—</span>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>

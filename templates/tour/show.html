@@ -1,4 +1,5 @@
 {% extends "tour/_shell.html" %}
+{% import "_sb.html" as sb %}
 {% block title %}{{ show['venue'] }} · {{ show['date'] }} - {{ tour['name'] }} - Street Banker{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
@@ -75,8 +76,9 @@
       <summary>Full checklist</summary>
       <ul class="to-check">
         {% for c in readiness['checks'] %}
-        <li class="{{ 'ok' if c['state'] is sameas true else ('warn' if c['state'] == 'waiting' else ('na' if c['state'] is none else 'no')) }}">
-          <span class="mark">{{ '✓' if c['state'] is sameas true else ('…' if c['state'] == 'waiting' else ('–' if c['state'] is none else '×')) }}</span>
+        <li class="{{ 'na' if c['state'] is none }}">
+          {{ sb.lamp("done" if c['state'] is sameas true else ("waiting" if c['state'] == 'waiting' else ("n/a" if c['state'] is none else "missing")),
+                     "on" if c['state'] is sameas true else ("warn" if c['state'] == 'waiting' else ("" if c['state'] is none else "crit"))) }}
           <span>{{ c['label'] }}<small>{{ c['detail'] }}</small></span>
         </li>
         {% endfor %}

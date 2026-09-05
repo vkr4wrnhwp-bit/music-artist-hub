@@ -1,4 +1,5 @@
 {% extends "tour/_shell.html" %}
+{% import "_sb.html" as sb %}
 {% block title %}{{ tour['name'] }} - TOUR - Street Banker{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
@@ -70,7 +71,7 @@
     {% if attention %}
     <ul class="to-check">
       {% for a in attention %}
-      <li class="no"><span class="mark">!</span><span><a href="/tours/{{ tour['id'] }}/shows/{{ a['show']['id'] }}">{{ a['text'] }}</a><small>{{ fmt_day(a['show']['date']) }}</small></span></li>
+      <li>{{ sb.lamp("attention", "crit") }}<span><a href="/tours/{{ tour['id'] }}/shows/{{ a['show']['id'] }}">{{ a['text'] }}</a><small>{{ fmt_day(a['show']['date']) }}</small></span></li>
       {% endfor %}
     </ul>
     {% elif shows %}
