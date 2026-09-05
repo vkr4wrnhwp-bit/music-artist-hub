@@ -1,3 +1,4 @@
+{% import "_sb.html" as sb %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,8 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Executive Report — {{ user.name }} | Street Banker</title>
   <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
+  <link rel="stylesheet" href="/static/css/app-chrome.css?v=4">
   {% include "_fonts.html" %}
   <style>
+    /* The sheet is white, not ivory: the meter's LED gaps take the page. A
+       printer drops backgrounds unless told otherwise, and a meter with no
+       fill on paper is a meter reading zero. */
+    .sb-on-paper .sb-meter::after { background: repeating-linear-gradient(to right, transparent 0 5px, #fff 5px 8px); }
+    .sb-meter, .sb-meter-fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     @media print { .no-print { display: none !important; } body { background: #fff !important; } }
   </style>
 </head>
@@ -17,7 +24,7 @@
     <button onclick="window.print()" class="border border-sb-surface-2/25 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em] hover:bg-sb-surface-2 hover:text-white">Print / Save PDF</button>
   </div>
 
-  <main class="mx-auto mb-12 max-w-[900px] bg-white p-10 shadow-[0_20px_60px_rgba(20,18,16,0.15)] sm:p-14">
+  <main class="sb-on-paper mx-auto mb-12 max-w-[900px] bg-white p-10 shadow-[0_20px_60px_rgba(20,18,16,0.15)] sm:p-14">
     <!-- Masthead -->
     <div class="h-[3px] w-full bg-gradient-to-r from-sb-gold-deep via-sb-gold-bright to-sb-gold-deep"></div>
     <div class="flex items-baseline justify-between pt-6">
@@ -49,11 +56,7 @@
       </div>
       <div class="mt-4 grid gap-x-8 gap-y-2 sm:grid-cols-2">
         {% for name, pts, note in q.categories %}
-        <div class="flex items-center gap-3">
-          <span class="w-44 shrink-0 text-xs font-semibold">{{ name }}</span>
-          <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-sb-surface-2/10"><span class="block h-full rounded-full {{ 'bg-green-600' if pts >= 7 else '#' and 'bg-sb-gold-deep' }}" style="width: {{ pts * 10 }}%;"></span></span>
-          <span class="w-8 shrink-0 text-right text-xs font-bold sb-num">{{ pts }}/10</span>
-        </div>
+        {{ sb.meter(name, pts, 10, shown=pts ~ "/10", tone=("good" if pts >= 7 else "")) }}
         {% endfor %}
       </div>
     </section>
