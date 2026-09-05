@@ -168,10 +168,10 @@
 
     {% if summary.next_release %}
       {{ sb.kpi("Release readiness", value=summary.next_release.score, scale="/ 100",
-                href="/releases/clean-release", delta=summary.next_release.title,
+                href="/releases/autopilot#clean", delta=summary.next_release.title,
                 value_tone="good" if summary.next_release.score >= 70 else none) }}
     {% else %}
-      {{ sb.kpi("Release readiness", href="/releases/clean-release",
+      {{ sb.kpi("Release readiness", href="/releases/autopilot#clean",
                 first="Set a release date to start", first_href="/links/new") }}
     {% endif %}
 

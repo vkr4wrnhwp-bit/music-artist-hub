@@ -1,0 +1,406 @@
+/* Release Autopilot - the release desk.
+ *
+ * Two pages used to render the same twelve checks against the same
+ * campaign: Release Autopilot (the arc, the plan, the kit) and Clean
+ * Release (the checks grouped, the passport pulls, the per-track score).
+ * This sheet is both, once, as a control surface: a readout or a meter
+ * wherever the value is real, words wherever it is not.
+ *
+ * Every class is rd-*; the Tailwind build is frozen and compiles no new
+ * utilities. The instruments (sb-meter, sb-lcd, sb-lamp, sb-seg,
+ * sb-stages) come from app-chrome.css, which loads on every page. Every
+ * colour is a token; translucents are rgb(r g b / a) over a triplet.
+ */
+
+.rd {
+  max-width: 1160px;
+  margin: 0 auto;
+  display: grid;
+  gap: var(--sb-s5);
+}
+
+/* --- the strip -------------------------------------------------------------
+ * Which release, and the three numbers that matter about it. The picker is
+ * the one knob on the desk: everything below is read from what it selects. */
+
+.rd-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sb-s4) var(--sb-s6);
+  padding: var(--sb-s4) var(--sb-s5);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1);
+  box-shadow: var(--sb-e1);
+}
+
+.rd-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sb-s3);
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.rd-pick-label {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sb-gold);
+}
+
+.rd-select {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: var(--sb-s2) var(--sb-s4);
+  font: inherit;
+  font-size: 14px;
+  color: var(--sb-ink);
+  background: var(--sb-surface-3);
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+  color-scheme: dark;
+}
+
+.rd-select:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+
+.rd-link {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  color: var(--sb-gold-bright);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgb(201 162 74 / .5);
+}
+
+.rd-link:hover { text-decoration-color: currentColor; }
+
+.rd-readouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-s3);
+  margin-left: auto;
+}
+
+/* --- in-page jumps ---------------------------------------------------------
+ * Five panels is a long desk. The jumps stay pinned under the app header so
+ * the section you want is one press away from anywhere on the page. */
+
+.rd-jump {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-s1);
+  padding: var(--sb-s2);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+  background: rgb(11 10 8 / .92);
+}
+
+.rd-jump a {
+  padding: var(--sb-s2) var(--sb-s4);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sb-ink-2);
+  border-radius: var(--sb-r-pill);
+  text-decoration: none;
+}
+
+.rd-jump a:hover { color: var(--sb-ink); background: var(--sb-surface-2); }
+.rd-jump a:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+
+/* --- panels ----------------------------------------------------------------- */
+
+.rd-panel {
+  padding: var(--sb-s5);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1);
+  scroll-margin-top: 72px;
+}
+
+.rd-panel--lit { border-color: var(--sb-gold-line); background: var(--sb-surface-2); }
+
+.rd-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sb-s3) var(--sb-s4);
+  margin-bottom: var(--sb-s4);
+}
+
+.rd-title {
+  margin: 0;
+  font-family: var(--sb-display);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--sb-ink);
+}
+
+.rd-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sb-ink-2);
+  max-width: 68ch;
+}
+
+.rd-head .rd-note { flex-basis: 100%; }
+.rd-head-end { margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--sb-s2); align-items: center; }
+
+/* --- readiness -------------------------------------------------------------
+ * Left: one meter per group of the release path, counted from the checks.
+ * Right: only what is still open, each with its way out. What passed is
+ * counted, not listed - it folds away under the meters. */
+
+.rd-ready {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--sb-s5);
+}
+
+.rd-cats { display: grid; gap: var(--sb-s3); align-content: start; }
+
+.rd-done { margin-top: var(--sb-s2); }
+
+.rd-done > summary {
+  cursor: pointer;
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+}
+
+.rd-done > summary:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+.rd-done-list { display: flex; flex-wrap: wrap; gap: var(--sb-s2) var(--sb-s4); margin-top: var(--sb-s3); }
+
+.rd-checks { display: grid; gap: var(--sb-s2); align-content: start; }
+
+.rd-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sb-s2) var(--sb-s3);
+  padding: var(--sb-s3) var(--sb-s4);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2);
+}
+
+.rd-check-body { min-width: 0; }
+.rd-check-name { display: block; font-size: 14px; font-weight: 600; color: var(--sb-ink); }
+.rd-check-rec { display: block; margin-top: 2px; font-size: 12.5px; color: var(--sb-ink-2); }
+
+.rd-tag {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+}
+
+.rd-check-acts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-s2);
+}
+
+.rd-check-acts form { display: contents; }
+
+.rd-clear {
+  padding: var(--sb-s4);
+  border: 1px solid var(--sb-good-line);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-good-wash);
+  font-size: 14px;
+  color: var(--sb-ink);
+}
+
+/* --- the arc --------------------------------------------------------------- */
+
+.rd-arc-foot {
+  margin: var(--sb-s3) 0 0;
+  font-size: 12.5px;
+  color: var(--sb-ink-3);
+}
+
+/* --- the plan ---------------------------------------------------------------
+ * A plan is words; the instrument here is the length switch. Windows the
+ * calendar has already closed are marked, not hidden - a passed window is
+ * something to compress, and pretending it never existed is how a release
+ * ships with the pitch never sent. */
+
+.rd-windows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sb-s2);
+}
+
+.rd-window {
+  padding: var(--sb-s3) var(--sb-s4);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2);
+}
+
+.rd-window--passed { border-color: var(--sb-crit-line); background: var(--sb-crit-wash); }
+
+.rd-window-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sb-s2) var(--sb-s3); }
+
+.rd-window-label {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sb-gold-bright);
+}
+
+.rd-window--passed .rd-window-label { color: var(--sb-crit); text-decoration: line-through; }
+.rd-window-sub { font-size: 13px; font-weight: 600; color: var(--sb-ink); }
+.rd-window-head .sb-lamp { margin-left: auto; }
+
+.rd-tasks {
+  margin: var(--sb-s2) 0 0;
+  padding-left: 1.1em;
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--sb-ink-2);
+}
+
+.rd-window--passed .rd-tasks { color: var(--sb-ink-3); }
+
+/* --- cards (brief, ads, kit) ----------------------------------------------- */
+
+.rd-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--sb-s3);
+}
+
+.rd-card {
+  display: grid;
+  gap: var(--sb-s2);
+  align-content: start;
+  padding: var(--sb-s4);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2);
+}
+
+.rd-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sb-s3); }
+
+.rd-card-title {
+  margin: 0;
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sb-ink-2);
+}
+
+.rd-card p, .rd-card pre, .rd-card ul {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sb-ink);
+}
+
+.rd-card pre { font-family: inherit; white-space: pre-wrap; }
+.rd-card ul { padding-left: 1.1em; display: grid; gap: 2px; }
+.rd-card p + p { margin-top: var(--sb-s2); }
+.rd-card-foot { font-size: 12.5px; color: var(--sb-ink-3); }
+
+/* --- clean (per track) -------------------------------------------------------
+ * The 17-point Clean Release score per Track Passport. The number is a
+ * weighted count of what is confirmed; red on a critical item blocks. */
+
+.rd-pulls { display: grid; gap: var(--sb-s2); }
+
+.rd-pull {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sb-s2) var(--sb-s3);
+  padding: var(--sb-s3) var(--sb-s4);
+  border: 1px solid var(--sb-gold-line);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2);
+}
+
+.rd-pull-title { font-size: 14px; font-weight: 600; color: var(--sb-ink); }
+
+.rd-chip {
+  padding: 2px var(--sb-s2);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  color: var(--sb-ink);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-3);
+}
+
+.rd-chip span { color: var(--sb-ink-3); }
+.rd-pull form { margin-left: auto; }
+
+.rd-tracks { display: grid; gap: var(--sb-s2); }
+
+.rd-track {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sb-s3);
+  padding: var(--sb-s3) var(--sb-s4);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2);
+}
+
+.rd-track-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sb-s2); }
+
+/* --- around this release ----------------------------------------------------- */
+
+.rd-around { display: flex; flex-wrap: wrap; gap: var(--sb-s2); }
+
+/* --- empty ------------------------------------------------------------------- */
+
+.rd-empty {
+  padding: var(--sb-s7) var(--sb-s5);
+  text-align: center;
+  border: 1px dashed var(--sb-gold-line);
+  border-radius: var(--sb-r-panel);
+}
+
+.rd-empty-title { margin: 0; font-size: 15px; font-weight: 700; color: var(--sb-ink); }
+.rd-empty p { margin: var(--sb-s2) auto 0; max-width: 46ch; font-size: 13px; color: var(--sb-ink-2); }
+.rd-empty .sb-btn { margin-top: var(--sb-s4); }
+
+/* --- responsive --------------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .rd-ready { grid-template-columns: minmax(0, 1fr); }
+  .rd-readouts { margin-left: 0; }
+}
+
+@media (max-width: 640px) {
+  .rd-panel { padding: var(--sb-s4); }
+  .rd-track { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (pointer: coarse) {
+  .rd-jump a { min-height: 44px; display: inline-flex; align-items: center; }
+  .rd-select { min-height: 44px; }
+}

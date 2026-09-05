@@ -2867,7 +2867,7 @@ def create_app():
             desk = {"next_release": drops[0] if drops else None,
                     "reds": summary["reds"], "alerts": alerts[:4],
                     "flow": [("Track Passport", "/tracks"),
-                             ("Clean Release", "/releases/clean-release"),
+                             ("Clean Release", "/releases/autopilot#clean"),
                              ("Schedule", "/releases"),
                              ("Smart Link", "/links"),
                              ("Rollout", "/rollout-studio"),
@@ -3386,8 +3386,30 @@ def create_app():
     def _campaign_picker(user):
         return [c for c in mls.list_campaigns(user["id"]) if not c.get("archived_at")]
 
+    # The checklist grouped into the real release path. Two categories share
+    # one meter on purpose: fan capture and consent are one conversation.
+    _CHECK_GROUPS = ((("release",), "Release assets"),
+                     (("metadata",), "Metadata"),
+                     (("smart_link",), "Distribution"),
+                     (("fan_growth", "rights"), "Fans & rights"),
+                     (("rollout",), "Rollout"))
+    _CHECK_LABELS = {k: label for keys, label in _CHECK_GROUPS for k in keys}
+
+    def _check_groups(checks):
+        """One meter per group, counted from the checks themselves."""
+        out = []
+        for keys, label in _CHECK_GROUPS:
+            in_cat = [ck for ck in checks if ck[4] in keys]
+            out.append({"label": label, "total": len(in_cat),
+                        "done": sum(1 for ck in in_cat if ck[1])})
+        return out
+
     @app.route("/releases/autopilot")
     def release_autopilot():
+        """The release desk. This page absorbed Clean Release: both rendered
+        the same twelve checks against the same campaign, so the checks live
+        here once, with the arc, plan and kit around them and the per-track
+        Clean Release score below."""
         user = current_user()
         if user is None:
             return login_required_redirect()
@@ -3423,11 +3445,46 @@ def create_app():
                       days_left < int(lbl.split(" ")[0])) or
                      (lbl == "Release day" and days_left < 0))}
                 for lbl, sub, tasks in plan["windows"]]
+        # --- the Clean Release half: per Track Passport, not per campaign ---
+        osctx = _os_ctx(user["id"])
+        os_rows = [{"t": t, "clean": artist_os.clean_release(t, osctx)}
+                   for t in store.list_os_tracks(user["id"])]
+        # Passport pull: fields a matching Track Passport could fill in the
+        # catalog record — shown side-by-side, applied only on click.
+        resolves = _passport_resolves(user["id"])
+        # In-app ping: a dated track inside 14 days with open items gets one
+        # notification (deduped by exact title, so it fires once per date).
+        today_d = datetime.now(timezone.utc).date()
+        known = {n["title"] for n in store.list_notifications(user["id"], 200)}
+        for r in os_rows:
+            rd = r["t"].get("release_date") or ""
+            try:
+                delta = (date.fromisoformat(rd[:10]) - today_d).days
+            except ValueError:
+                continue
+            if 0 <= delta <= 14 and (r["clean"]["blocked"]
+                                     or r["clean"]["score"] < 100):
+                title = "Release risk: %s drops %s" % (r["t"]["title"], rd)
+                if title not in known:
+                    store.notify(user["id"], "release_risk", title,
+                                 "Clean Release is at %d with %s open. "
+                                 "Computed when the checklist ran — clear it "
+                                 "before submission." % (
+                                     r["clean"]["score"],
+                                     "blockers" if r["clean"]["blocked"]
+                                     else "open items"),
+                                 "/releases/autopilot#clean")
         return render_template("release_autopilot.html", active_page="autopilot",
                                campaigns=campaigns, c=campaign, checks=checks,
+                               open_checks=[ck for ck in checks if not ck[1]],
+                               done_checks=[ck for ck in checks if ck[1]],
+                               cat_nodes=_check_groups(checks) if campaign else [],
+                               cat_labels=_CHECK_LABELS,
                                score=score, stage=stage, stages=artist_os.STAGES,
+                               stage_pairs=[(s, s) for s in artist_os.STAGES],
                                kit=kit, plan=plan, plan_days=plan_days,
-                               days_left=days_left,
+                               days_left=days_left, os_rows=os_rows,
+                               resolves=resolves,
                                **build_dashboard_context())
 
     @app.route("/releases/autopilot/kit.txt")
@@ -3470,57 +3527,18 @@ def create_app():
 
     @app.route("/releases/clean-release")
     def clean_release():
+        """Folded into Release Autopilot. The same twelve checks were
+        rendered here and there against the same campaign; now there is one
+        desk. The URL stays because the inbox, the certificate and old
+        bookmarks point at it - it forwards, campaign kept."""
         user = current_user()
         if user is None:
             return login_required_redirect()
-        campaigns = _campaign_picker(user)
-        selected = request.args.get("campaign") or (campaigns[0]["id"] if campaigns else None)
-        campaign = mls.get_campaign(selected, user["id"]) if selected else None
-        checks, score = _release_checks(user, campaign) if campaign else ([], 0)
-        osctx = _os_ctx(user["id"])
-        os_rows = [{"t": t, "clean": artist_os.clean_release(t, osctx)}
-                   for t in store.list_os_tracks(user["id"])]
-        # Category nodes: the checklist grouped into the real release path.
-        cat_nodes = []
-        for keys, label in (( ("release",), "Release assets"),
-                            (("metadata",), "Metadata"),
-                            (("smart_link",), "Distribution"),
-                            (("fan_growth", "rights"), "Fans & rights"),
-                            (("rollout",), "Rollout")):
-            in_cat = [ck for ck in checks if ck[4] in keys]
-            cat_nodes.append({"cat_keys": " ".join(keys), "label": label,
-                              "total": len(in_cat),
-                              "done": sum(1 for ck in in_cat if ck[1])})
-        # Passport pull: fields a matching Track Passport could fill in the
-        # catalog record — shown side-by-side, applied only on click.
-        resolves = _passport_resolves(user["id"])
-        # In-app ping: a dated track inside 14 days with open items gets one
-        # notification (deduped by exact title, so it fires once per date).
-        today = datetime.now(timezone.utc).date()
-        known = {n["title"] for n in store.list_notifications(user["id"], 200)}
-        for r in os_rows:
-            rd = r["t"].get("release_date") or ""
-            try:
-                delta = (date.fromisoformat(rd[:10]) - today).days
-            except ValueError:
-                continue
-            if 0 <= delta <= 14 and (r["clean"]["blocked"]
-                                     or r["clean"]["score"] < 100):
-                title = "Release risk: %s drops %s" % (r["t"]["title"], rd)
-                if title not in known:
-                    store.notify(user["id"], "release_risk", title,
-                                 "Clean Release is at %d with %s open. "
-                                 "Computed when the checklist ran — clear it "
-                                 "before submission." % (
-                                     r["clean"]["score"],
-                                     "blockers" if r["clean"]["blocked"]
-                                     else "open items"),
-                                 "/releases/clean-release")
-        return render_template("clean_release.html", active_page="clean-release",
-                               campaigns=campaigns, c=campaign, checks=checks,
-                               score=score, os_rows=os_rows,
-                               cat_nodes=cat_nodes, resolves=resolves,
-                               **build_dashboard_context())
+        target = "/releases/autopilot"
+        if request.args.get("campaign"):
+            target += "?" + urllib.parse.urlencode(
+                {"campaign": request.args["campaign"]})
+        return redirect(target + "#clean")
 
     _RESOLVE_MAP = [("isrc", "isrc", "ISRC"), ("upc", "upc", "UPC"),
                     ("label", "label", "Label"),
@@ -3570,7 +3588,7 @@ def create_app():
                     meta[mk] = passport[pk]
             store.set_catalog_track_meta(user["id"], ct["id"], meta)
             break
-        return redirect("/releases/clean-release")
+        return redirect("/releases/autopilot#clean")
 
     @app.route("/tracks/<track_id>/certificate")
     def clean_release_certificate(track_id):
@@ -3586,7 +3604,7 @@ def create_app():
         ctx = _os_ctx(user["id"])
         clean = artist_os.clean_release(track, ctx)
         if clean["blocked"] or clean["score"] < 100:
-            return redirect("/releases/clean-release")
+            return redirect("/releases/autopilot#clean")
         box = artist_os.lockbox_report(track)
         passport = track.get("passport") or {}
         return render_template("clean_certificate.html", user=user, t=track,

@@ -1,126 +1,277 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Release Autopilot - Street Banker{% endblock %}
 
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/release-desk.css?v=1">
+{% endblock %}
+
 {% block content %}
-<div class="mx-auto max-w-[1000px] space-y-5">
-  <div class="flex flex-wrap items-end justify-between gap-4">
-    <div>
-      <div class="sb-label text-sb-gold">Street Banker · Release Autopilot</div>
-      <h1 class="sb-h1 mt-1">Release Autopilot</h1>
-      <p class="mt-1 max-w-2xl text-sm text-gray-300">Pick a release and Autopilot shows the full operating plan — what's built, what's missing, and the one-click path to each piece.</p>
-    </div>
-    <a href="/command-center" class="sb-btn sb-btn-secondary">← Command Center</a>
-  </div>
+{#- One release in; the whole desk reads from it. This page absorbed Clean
+    Release: both rendered the same twelve checks against the same campaign,
+    so the checks live here once, the arc / plan / kit around them, and the
+    per-track Clean Release score below. -#}
+{{ sb.plate("/static/img/distro-wide", [760, 1180, 1402],
+            "Street Banker · Launch Engine", "Release Autopilot",
+            "Pick a release. The desk reads what is built and what is not from the campaign, the catalog, the rollout and the press kit, then walks the eight stages from intake to catalog follow-up.",
+            position="center 55%") }}
 
-  {% include "_release_checks.html" %}
+<div class="rd">
 
-  {% if c %}
-  <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
-    <h2 class="sb-label text-gray-300">The Plan Around This Release</h2>
-    <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-      {% for label, href in [('Smart Link page', '/links/' ~ c.id ~ '/edit'), ('Rollout Engine', '/rollout-studio/new'),
-                              ('Promo variants', '/links/' ~ c.id ~ '/variants'), ('QR code', '/links/' ~ c.id ~ '/qr.svg'),
-                              ('Analytics', '/links/' ~ c.id ~ '/analytics'), ('Press kit', '/epk'),
-                              ('Fan CRM', '/links/fans'), ('Catalog metadata', '/catalog')] %}
-      <a href="{{ label == 'QR code' and href or href }}" {% if label == 'QR code' %}target="_blank"{% endif %} class="sb-btn sb-btn-secondary sb-btn-sm">{{ label }} →</a>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-</div>
-
-<div class="mx-auto mt-5 max-w-[1100px] space-y-5">
-  <section class="rounded-2xl border border-sb-gold/30 bg-sb-surface-2 p-5">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="sb-label text-sb-gold-bright">Autopilot Timeline</h2>
-      {% if days_left is not none %}
-      <span class="text-xs text-gray-300 font-medium">{% if days_left > 0 %}<span class="font-black sb-num text-sb-ink">{{ days_left }}</span> day{{ '' if days_left == 1 else 's' }} to release{% elif days_left == 0 %}<span class="font-black text-sb-gold-bright">Release day</span>{% else %}<span class="font-black sb-num text-sb-ink">{{ -days_left }}</span> day{{ '' if days_left == -1 else 's' }} since release{% endif %}</span>
+  {#- THE STRIP: the one knob (which release) and the numbers that matter. -#}
+  <section class="rd-strip" aria-label="Release">
+    <form method="get" class="rd-pick">
+      <label class="rd-pick-label" for="rd-campaign">Release</label>
+      <select class="rd-select" id="rd-campaign" name="campaign" onchange="this.form.submit()">
+        {% for camp in campaigns %}
+          <option value="{{ camp.id }}" {{ 'selected' if c and camp.id == c.id }}>{{ camp.title }}{% if camp.release_date %} ({{ camp.release_date }}){% endif %}</option>
+        {% endfor %}
+        {% if not campaigns %}<option value="">No releases yet</option>{% endif %}
+      </select>
+      {% if c %}
+        <a class="rd-link" href="/l/{{ c.slug }}" target="_blank" rel="noopener">/l/{{ c.slug }}</a>
       {% endif %}
-    </div>
-    {% set idx = stages.index(stage) %}
-    <div class="mt-4 flex items-start overflow-x-auto pb-1">
-      {% for st in stages %}
-      <div class="flex min-w-0 flex-1 flex-col items-center gap-1.5" style="min-width:74px">
-        <div class="flex w-full items-center">
-          <div class="h-px flex-1 {{ 'bg-sb-gold' if loop.index0 <= idx and not loop.first else 'bg-white/10' }}"></div>
-          <span class="ap-node grid h-5 w-5 shrink-0 place-items-center rounded-full border text-xs font-black
-            {{ 'border-sb-gold bg-sb-gold text-sb-on-gold' if loop.index0 < idx
-               else ('ap-live border-amber-400 bg-amber-400/20 text-amber-300' if loop.index0 == idx
-               else 'border-white/15 bg-black/40 text-gray-300') }}">{{ '✓' if loop.index0 < idx else loop.index }}</span>
-          <div class="h-px flex-1 {{ 'bg-sb-gold' if loop.index0 < idx and not loop.last else 'bg-white/10' }}"></div>
-        </div>
-        <span class="px-1 text-center text-xs font-bold uppercase leading-tight tracking-wide {{ 'text-sb-gold-bright' if loop.index0 == idx else ('text-gray-300' if loop.index0 < idx else 'text-gray-300') }}">{{ st }}</span>
+    </form>
+    {% if c %}
+      <div class="rd-readouts">
+        {% if days_left is none %}
+          {{ sb.lcd(none, "days to release") }}
+        {% elif days_left > 0 %}
+          {{ sb.lcd(days_left, "day to release" if days_left == 1 else "days to release") }}
+        {% elif days_left == 0 %}
+          {{ sb.lcd("Today", "release day") }}
+        {% else %}
+          {{ sb.lcd(-days_left, "day since release" if days_left == -1 else "days since release") }}
+        {% endif %}
+        {{ sb.lcd(score ~ "%", "ready") }}
+        {{ sb.lcd(open_checks|length, "open item" if open_checks|length == 1 else "open items") }}
       </div>
-      {% endfor %}
-    </div>
-    <style>
-      @keyframes ap-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(251,191,36,.45); } 50% { box-shadow: 0 0 0 6px rgba(251,191,36,0); } }
-      .ap-live { animation: ap-pulse 2s ease-out infinite; }
-      @media (prefers-reduced-motion: reduce) { .ap-live { animation: none; } }
-    </style>
-    <script>
-      // The 8-stage rail is 592px minimum and scrolls on a phone. Centre the live
-      // stage so "where am I" is never off the right edge with no affordance.
-      (function () {
-        var live = document.querySelector(".ap-live");
-        if (!live) return;
-        var rail = live.closest(".overflow-x-auto");
-        if (!rail || rail.scrollWidth <= rail.clientWidth) return;
-        var cell = live.closest("div.flex-col") || live;
-        var r = rail.getBoundingClientRect(), c = cell.getBoundingClientRect();
-        rail.scrollLeft += (c.left - r.left) - (r.width - c.width) / 2;
-      })();
-    </script>
-    <p class="mt-2 text-xs text-gray-300 font-medium">Stage is computed from the release date — set one on the campaign and Autopilot walks the whole arc. Gold = behind you, amber = where you are now.</p>
+    {% endif %}
   </section>
-  {% if c %}
 
-  <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="sb-label text-sb-gold">Campaign Plan</h2>
-      <div class="flex gap-1.5">
-        {% for d in [14, 30, 60] %}
-        <a href="?campaign={{ c.id }}&days={{ d }}" class="rounded-lg border px-3 py-1.5 text-xs font-bold {{ 'border-sb-gold/50 bg-sb-gold/15 text-sb-gold-bright' if plan_days == d else 'border-white/10 text-gray-300 hover:bg-white/5' }}">{{ d }}-day</a>
+  {% if not campaigns %}
+    <div class="rd-empty">
+      <p class="rd-empty-title">No releases yet</p>
+      <p>Releases live as Smart Link campaigns. Create one and the checklist, the arc, the plan and the kit all switch on.</p>
+      {{ sb.btn("Create a release campaign", href="/links/new") }}
+    </div>
+  {% endif %}
+
+  <nav class="rd-jump" aria-label="On this page">
+    {% if c %}
+      <a href="#ready">Readiness</a>
+      <a href="#arc">Timeline</a>
+      <a href="#plan">Plan</a>
+      <a href="#kit">Kit</a>
+    {% endif %}
+    <a href="#clean">Clean Release</a>
+    {% if c %}<a href="#around">Around it</a>{% endif %}
+  </nav>
+
+  {% if c %}
+  {#- READINESS: the twelve derived checks. One meter per group of the
+      release path; only what is open is listed, with its way out. -#}
+  <section class="rd-panel rd-panel--lit" id="ready" aria-labelledby="rd-ready-title">
+    <div class="rd-head">
+      <h2 class="rd-title" id="rd-ready-title">Readiness</h2>
+      <span class="rd-tag">{{ c.title }}{% if c.release_date %} · drops {{ c.release_date }}{% endif %}</span>
+      <p class="rd-note">Derived live from this campaign, your catalog, the rollout and the EPK. Nothing here is typed in; fix the source and the meter moves.</p>
+    </div>
+    <div class="rd-ready">
+      <div class="rd-cats">
+        {% for n in cat_nodes %}
+          {{ sb.meter(n.label, n.done, n.total, shown=n.done ~ "/" ~ n.total,
+                      tone=("good" if n.total and n.done == n.total else "")) }}
+        {% endfor %}
+        {% if done_checks %}
+          <details class="rd-done">
+            <summary>{{ done_checks|length }} done</summary>
+            <div class="rd-done-list">
+              {% for label, ok, rec, link, category in done_checks %}
+                {{ sb.lamp(label, "on") }}
+              {% endfor %}
+            </div>
+          </details>
+        {% endif %}
+      </div>
+      <div class="rd-checks">
+        {% for label, ok, rec, link, category in open_checks %}
+          <div class="rd-check">
+            {{ sb.lamp("Open", "warn") }}
+            <div class="rd-check-body">
+              <span class="rd-check-name">{{ label }}</span>
+              <span class="rd-check-rec">{{ rec }}</span>
+            </div>
+            <span class="rd-tag">{{ cat_labels.get(category, category) }}</span>
+            <div class="rd-check-acts">
+              {{ sb.btn("Fix →", href=link, size="sm") }}
+              <form method="post" action="/actions/from-alert">
+                <input type="hidden" name="title" value="{{ c.title }}: {{ label }}">
+                <input type="hidden" name="description" value="{{ rec }}">
+                <input type="hidden" name="category" value="{{ category }}">
+                {{ sb.btn("Create action", type="submit", size="sm") }}
+              </form>
+            </div>
+          </div>
+        {% else %}
+          <p class="rd-clear">Every check is clear. The release is as ready as this desk can tell.</p>
         {% endfor %}
       </div>
     </div>
-    <div class="mt-3 space-y-2.5">
-      {% for w in plan.windows %}
-      <div class="rounded-xl border {{ 'border-red-500/30 bg-red-500/[0.04]' if w.passed else 'border-white/10 bg-black/30' }} p-3.5">
-        <div class="flex flex-wrap items-baseline gap-2">
-          <span class="text-xs font-black {{ 'text-red-400 line-through' if w.passed else 'text-sb-gold-bright' }}">{{ w.label }}</span>
-          <span class="text-xs uppercase tracking-wide text-gray-300 font-medium">{{ w.sub }}</span>
-          {% if w.passed %}<span class="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-xs font-bold uppercase text-red-400">Window passed — compress or push the date</span>{% endif %}
-        </div>
-        <ul class="mt-1.5 space-y-0.5">{% for task in w.tasks %}<li class="text-xs {{ 'text-gray-300' if w.passed else 'text-gray-200' }}">• {{ task }}</li>{% endfor %}</ul>
-      </div>
-      {% endfor %}
+  </section>
+
+  {#- THE ARC: eight stages, from date math alone. -#}
+  <section class="rd-panel" id="arc" aria-labelledby="rd-arc-title">
+    <div class="rd-head">
+      <h2 class="rd-title" id="rd-arc-title">Autopilot Timeline</h2>
+      <span class="rd-tag">now: {{ stage }}</span>
     </div>
-    <div class="mt-4 grid gap-3 sm:grid-cols-2">
-      <div class="rounded-xl border border-white/10 bg-black/30 p-3.5">
-        <div class="flex items-center justify-between gap-2"><div class="text-xs font-bold uppercase tracking-wide text-gray-300">Creator brief</div><button type="button" class="kit-copy sb-btn sb-btn-secondary sb-btn-sm sm:px-2 sm:py-0.5 sm:text-xs">Copy</button></div>
-        <p class="kit-text mt-1 text-xs leading-relaxed text-gray-200">{{ plan.brief }}</p>
-        <a href="/network" class="mt-2 inline-block text-xs font-bold text-sb-gold-bright hover:underline">Send it to contacts in your Outreach Pipeline →</a>
+    {% set idx = stages.index(stage) %}
+    {{ sb.stages(stage_pairs, current=stage, done=stages[:idx]) }}
+    <p class="rd-arc-foot">The stage is computed from the release date - set one on the campaign and Autopilot walks the whole arc. Green is behind you; gold is where you are now.</p>
+  </section>
+
+  {#- THE PLAN: the length is the switch; the windows are words. -#}
+  <section class="rd-panel" id="plan" aria-labelledby="rd-plan-title">
+    <div class="rd-head">
+      <h2 class="rd-title" id="rd-plan-title">Campaign Plan</h2>
+      <form method="get" class="rd-head-end" id="rd-plan-form">
+        <input type="hidden" name="campaign" value="{{ c.id }}">
+        {{ sb.seg("days", [("14", "14-day"), ("30", "30-day"), ("60", "60-day")],
+                  current=plan_days|string, id_prefix="rd") }}
+        <noscript>{{ sb.btn("Set", type="submit", size="sm") }}</noscript>
+      </form>
+    </div>
+    <ol class="rd-windows">
+      {% for w in plan.windows %}
+        <li class="rd-window {{ 'rd-window--passed' if w.passed }}">
+          <div class="rd-window-head">
+            <span class="rd-window-label">{{ w.label }}</span>
+            <span class="rd-window-sub">{{ w.sub }}</span>
+            {% if w.passed %}{{ sb.lamp("Window passed", "crit") }}{% endif %}
+          </div>
+          <ul class="rd-tasks">{% for task in w.tasks %}<li>{{ task }}</li>{% endfor %}</ul>
+        </li>
+      {% endfor %}
+    </ol>
+    {% if plan.windows | selectattr("passed") | list %}
+      <p class="rd-arc-foot">A struck window is one the calendar has already closed: compress what is left, or move the date.</p>
+    {% endif %}
+    <div class="rd-cards" style="margin-top: var(--sb-s4);">
+      <div class="rd-card">
+        <div class="rd-card-head">
+          <h3 class="rd-card-title">Creator brief</h3>
+          <button type="button" class="sb-btn sb-btn-secondary sb-btn-sm kit-copy">Copy</button>
+        </div>
+        <p class="kit-text">{{ plan.brief }}</p>
+        <a class="rd-link" href="/network">Send it to contacts in your Outreach Pipeline →</a>
       </div>
-      <div class="rounded-xl border border-white/10 bg-black/30 p-3.5">
-        <div class="flex items-center justify-between gap-2"><div class="text-xs font-bold uppercase tracking-wide text-gray-300">Ad test concepts</div><button type="button" class="kit-copy sb-btn sb-btn-secondary sb-btn-sm sm:px-2 sm:py-0.5 sm:text-xs">Copy</button></div>
-        <ul class="kit-text mt-1 space-y-0.5">{% for a in plan.ads %}<li class="text-xs text-gray-200">• {{ a }}</li>{% endfor %}</ul>
+      <div class="rd-card">
+        <div class="rd-card-head">
+          <h3 class="rd-card-title">Ad test concepts</h3>
+          <button type="button" class="sb-btn sb-btn-secondary sb-btn-sm kit-copy">Copy</button>
+        </div>
+        <ul class="kit-text">{% for a in plan.ads %}<li>{{ a }}</li>{% endfor %}</ul>
       </div>
     </div>
   </section>
 
-  <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="sb-label text-sb-gold">Release Kit</h2>
-      <a href="/releases/autopilot/kit.txt?campaign={{ c.id }}&days={{ plan_days }}" class="sb-btn sb-btn-secondary sb-btn-sm">Export full kit (.txt)</a>
+  {#- THE KIT: drafts to edit, never to send as-is. -#}
+  <section class="rd-panel" id="kit" aria-labelledby="rd-kit-title">
+    <div class="rd-head">
+      <h2 class="rd-title" id="rd-kit-title">Release Kit</h2>
+      <div class="rd-head-end">
+        {{ sb.btn("Export full kit (.txt)", href="/releases/autopilot/kit.txt?campaign=" ~ c.id ~ "&days=" ~ plan_days, size="sm") }}
+      </div>
+      <p class="rd-note">Rule-built from this campaign's real title, date and smart link - a generator, not a chatbot. [Brackets] mark what only you know; edit before sending.</p>
     </div>
-    <p class="mt-1 text-xs text-gray-300 font-medium">Rule-built from this campaign's real title, date, and smart link — a generator, not a chatbot. [Brackets] mark what only you know; edit before sending.</p>
-    <div class="mt-3 grid gap-3 sm:grid-cols-2">
-      <div class="rounded-xl border border-white/10 bg-black/30 p-3.5"><div class="flex items-center justify-between gap-2"><div class="text-xs font-bold uppercase tracking-wide text-gray-300">Captions</div><button type="button" class="kit-copy sb-btn sb-btn-secondary sb-btn-sm sm:px-2 sm:py-0.5 sm:text-xs">Copy</button></div><div class="kit-text">{% for cap in kit.captions %}<p class="mt-1.5 text-xs text-gray-200">{{ cap }}</p>{% endfor %}</div></div>
-      <div class="rounded-xl border border-white/10 bg-black/30 p-3.5"><div class="flex items-center justify-between gap-2"><div class="text-xs font-bold uppercase tracking-wide text-gray-300">Short-form ideas</div><button type="button" class="kit-copy sb-btn sb-btn-secondary sb-btn-sm sm:px-2 sm:py-0.5 sm:text-xs">Copy</button></div><div class="kit-text">{% for sh in kit.shorts %}<p class="mt-1.5 text-xs text-gray-200">{{ sh }}</p>{% endfor %}</div></div>
-      <div class="rounded-xl border border-white/10 bg-black/30 p-3.5"><div class="flex items-center justify-between gap-2"><div class="text-xs font-bold uppercase tracking-wide text-gray-300">Email — {{ kit.email.subject }}</div><button type="button" class="kit-copy sb-btn sb-btn-secondary sb-btn-sm sm:px-2 sm:py-0.5 sm:text-xs">Copy</button></div><pre class="kit-text mt-1.5 whitespace-pre-wrap font-sans text-xs text-gray-200">{{ kit.email.body }}</pre></div>
-      <div class="rounded-xl border border-white/10 bg-black/30 p-3.5"><div class="flex items-center justify-between gap-2"><div class="text-xs font-bold uppercase tracking-wide text-gray-300">SMS + playlist pitch</div><button type="button" class="kit-copy sb-btn sb-btn-secondary sb-btn-sm sm:px-2 sm:py-0.5 sm:text-xs">Copy</button></div><div class="kit-text"><p class="mt-1.5 text-xs text-gray-200">{{ kit.sms }}</p><p class="mt-2 border-t border-white/5 pt-2 text-xs text-gray-200">{{ kit.pitch }}</p></div></div>
+    <div class="rd-cards">
+      <div class="rd-card">
+        <div class="rd-card-head"><h3 class="rd-card-title">Captions</h3><button type="button" class="sb-btn sb-btn-secondary sb-btn-sm kit-copy">Copy</button></div>
+        <div class="kit-text">{% for cap in kit.captions %}<p>{{ cap }}</p>{% endfor %}</div>
+      </div>
+      <div class="rd-card">
+        <div class="rd-card-head"><h3 class="rd-card-title">Short-form ideas</h3><button type="button" class="sb-btn sb-btn-secondary sb-btn-sm kit-copy">Copy</button></div>
+        <div class="kit-text">{% for sh in kit.shorts %}<p>{{ sh }}</p>{% endfor %}</div>
+      </div>
+      <div class="rd-card">
+        <div class="rd-card-head"><h3 class="rd-card-title">Email - {{ kit.email.subject }}</h3><button type="button" class="sb-btn sb-btn-secondary sb-btn-sm kit-copy">Copy</button></div>
+        <pre class="kit-text">{{ kit.email.body }}</pre>
+      </div>
+      <div class="rd-card">
+        <div class="rd-card-head"><h3 class="rd-card-title">SMS + playlist pitch</h3><button type="button" class="sb-btn sb-btn-secondary sb-btn-sm kit-copy">Copy</button></div>
+        <div class="kit-text"><p>{{ kit.sms }}</p><p>{{ kit.pitch }}</p></div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {#- CLEAN RELEASE: per Track Passport, not per campaign - so it is here
+      even when no campaign exists yet. The passport pulls are real values
+      already stored, copied to the catalog record only on click. -#}
+  <section class="rd-panel" id="clean" aria-labelledby="rd-clean-title">
+    <div class="rd-head">
+      <h2 class="rd-title" id="rd-clean-title">Track Passports · Clean Release</h2>
+      <div class="rd-head-end">{{ sb.btn("Open Track Passports", href="/tracks", size="sm") }}</div>
+      <p class="rd-note">Seventeen checks per track - rights, metadata, promo, royalty - weighted into one score. A red on a critical item blocks submission whatever the number says. A certificate unlocks at a clean 100: a timestamped record of what these checks verified, not a legal document.</p>
+    </div>
+
+    {% if resolves %}
+      <div class="rd-pulls" style="margin-bottom: var(--sb-s4);">
+        <h3 class="rd-card-title">Resolve from Track Passport</h3>
+        <p class="rd-note">These fields already live in a matching Track Passport but are blank on the catalog record the checklist reads. One click copies them over - the values shown are exactly what will be written.</p>
+        {% for r in resolves %}
+          <div class="rd-pull">
+            <span class="rd-pull-title">{{ r.title }}</span>
+            {% for f in r.fields %}
+              <span class="rd-chip"><span>{{ f.label }}</span> {{ f.value }}</span>
+            {% endfor %}
+            <form method="post" action="/clean-release/resolve">
+              <input type="hidden" name="catalog_id" value="{{ r.catalog_id }}">
+              {{ sb.btn("Pull into catalog", type="submit", size="sm") }}
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if os_rows %}
+      <div class="rd-tracks">
+        {% for r in os_rows %}
+          <div class="rd-track">
+            {{ sb.meter(r.t.title, r.clean.score, 100, shown=r.clean.score ~ "/100",
+                        tone=("crit" if r.clean.blocked else ("good" if r.clean.score == 100 else ""))) }}
+            <div class="rd-track-acts">
+              {% if r.clean.blocked %}{{ sb.lamp("Blocked", "crit") }}{% endif %}
+              {{ sb.btn("Open", href="/tracks/" ~ r.t.id, size="sm") }}
+              {% if not r.clean.blocked and r.clean.score == 100 %}
+                {{ sb.btn("Certificate →", href="/tracks/" ~ r.t.id ~ "/certificate", size="sm") }}
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="rd-note">No tracks in the OS spine yet - add one in Track Passports and its Clean Release score computes from the passport and lockbox.</p>
+    {% endif %}
+    <p class="rd-arc-foot">Split confirmations, PRO/MLC registration and Content ID checks arrive with the Deal Room and Metadata Passport modules.</p>
+  </section>
+
+  {% if c %}
+  <section class="rd-panel" id="around" aria-labelledby="rd-around-title">
+    <div class="rd-head">
+      <h2 class="rd-title" id="rd-around-title">Around this release</h2>
+    </div>
+    <div class="rd-around">
+      {{ sb.btn("Smart Link page", href="/links/" ~ c.id ~ "/edit", size="sm") }}
+      {{ sb.btn("Rollout Engine", href="/rollout-studio/new", size="sm") }}
+      {{ sb.btn("Promo variants", href="/links/" ~ c.id ~ "/variants", size="sm") }}
+      <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/links/{{ c.id }}/qr.svg" target="_blank" rel="noopener">QR code</a>
+      {{ sb.btn("Analytics", href="/links/" ~ c.id ~ "/analytics", size="sm") }}
+      {{ sb.btn("Press kit", href="/epk", size="sm") }}
+      {{ sb.btn("Fan CRM", href="/links/fans", size="sm") }}
+      {{ sb.btn("Catalog metadata", href="/catalog", size="sm") }}
     </div>
   </section>
   {% endif %}
@@ -129,15 +280,25 @@
 
 {% block scripts %}
 <script>
-  document.querySelectorAll(".kit-copy").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const card = btn.closest("div.rounded-xl");
-      const text = card.querySelector(".kit-text");
-      navigator.clipboard.writeText(text.innerText.trim()).then(() => {
+  // Copy buttons: the card's text, trimmed. The button confirms in place.
+  document.querySelectorAll(".kit-copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var card = btn.closest(".rd-card");
+      var text = card && card.querySelector(".kit-text");
+      if (!text) return;
+      navigator.clipboard.writeText(text.innerText.trim()).then(function () {
         btn.textContent = "Copied";
-        setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+        setTimeout(function () { btn.textContent = "Copy"; }, 1500);
       });
     });
   });
+  // The plan-length switch submits itself; without scripting the Set
+  // button inside <noscript> does the same.
+  var planForm = document.getElementById("rd-plan-form");
+  if (planForm) {
+    planForm.querySelectorAll('input[name="days"]').forEach(function (radio) {
+      radio.addEventListener("change", function () { planForm.submit(); });
+    });
+  }
 </script>
 {% endblock %}

@@ -30,8 +30,7 @@ HUBS = [
         ("profile", "/artist-profile", "M10 4a3 3 0 100 6 3 3 0 000-6z|M4 17c0-3 2.5-5 6-5s6 2 6 5", "Artist Profile", "The profile powering your public pages."),
     ]),
     ("launch", "Launch Engine", "From finished master to the world — prepare, release, promote, and measure.", [
-        ("autopilot", "/releases/autopilot", "M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6", "Release Autopilot", "Eight stages from intake to catalog follow-up."),
-        ("clean-release", "/releases/clean-release", "M10 3l6 3v5c0 3-2.5 5-6 6-3.5-1-6-3-6-6V6z|M7.5 10l2 2 3.5-4", "Clean Release", "17-point score; red rights issues block submission."),
+        ("autopilot", "/releases/autopilot", "M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6", "Release Autopilot", "Readiness, the eight-stage arc, the plan, the kit, and the rights checks before it ships."),
         ("releases", "/releases", "M5 4h10a1 1 0 011 1v11a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z|M4 8h12M8 3v3M12 3v3", "Release Scheduler", "Your calendar of what drops when."),
         ("registration", "/registration", "M4 10l4 4 8-9|M3 6h6", "Registration", "Step-by-step society and platform registrations."),
         ("links", "/links", "M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1", "Smart Links", "One link per release with real click analytics."),
@@ -136,7 +135,7 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "documents", "i
              "revenue-os", "trust-score", "overview", "royalties", "recovery",
              "valuation", "links", "rollout", "artwork", "services", "submit",
              "inbox", "settings", "epk", "discover", "catalog", "command-center",
-             "actions", "autopilot", "clean-release", "qualification", "profile",
+             "actions", "autopilot", "qualification", "profile",
              "vault", "review", "pulse", "team", "stats", "tax", "connections",
              "releases", "publishing", "mechanicals", "neighboring",
              "territories", "insights", "disputes", "fan-club-admin", "portal",

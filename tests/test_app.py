@@ -2311,13 +2311,16 @@ def test_release_autopilot_and_clean_release():
     r = client.post("/links/new", data={"title": "Checklist Drop",
                                         "dest_spotify": "https://open.spotify.com/track/x"})
     cid = r.headers["Location"].split("/")[2]
-    for route in ("/releases/autopilot", "/releases/clean-release"):
-        body = client.get("%s?campaign=%s" % (route, cid)).get_data(as_text=True)
-        assert "Checklist Drop" in body
-        assert "Spotify destination" in body          # passing check listed
-        assert "Apple Music destination" in body      # failing check listed
-        assert "Create action" in body                # failed checks are actionable
-        assert "ready" in body                        # score badge
+    # Clean Release folded into Autopilot: the old URL forwards, campaign kept.
+    r = client.get("/releases/clean-release?campaign=%s" % cid)
+    assert r.status_code == 302 and r.headers["Location"].endswith(
+        "/releases/autopilot?campaign=%s#clean" % cid)
+    body = client.get("/releases/autopilot?campaign=%s" % cid).get_data(as_text=True)
+    assert "Checklist Drop" in body
+    assert "Spotify destination" in body          # passing check, counted as done
+    assert "Apple Music destination" in body      # failing check listed as open
+    assert "Create action" in body                # open checks are actionable
+    assert "ready" in body                        # the readiness readout
 
 
 def test_capital_score_and_spend_optimizer_real():
@@ -4414,7 +4417,7 @@ def test_os_wiring_on_existing_pages():
     app_obj = create_app()
     artist = _demo(app_obj)
     artist.post("/tracks/add", data={"title": "Wired Song"})
-    clean = artist.get("/releases/clean-release").get_data(as_text=True)
+    clean = artist.get("/releases/autopilot").get_data(as_text=True)
     assert "Track Passports · Clean Release" in clean and "Wired Song" in clean
     passport = artist.get("/metadata-passport").get_data(as_text=True)
     assert "Per-Track Passports (Artist OS)" in passport and "Wired Song" in passport
@@ -4861,13 +4864,13 @@ def test_autopilot_timeline_flags_and_kit_export():
                                    "release_date": soon})
     page = client.get("/releases/autopilot?campaign=%s&days=14"
                       % cid).get_data(as_text=True)
-    # Timeline with a pulsing current stage + days-left readout.
-    assert "Autopilot Timeline" in page and "ap-live" in page
+    # Timeline on the shared stage rail + days-left readout.
+    assert "Autopilot Timeline" in page and "sb-stages-i--now" in page
     assert "days to release" in page
     # 5 days out: the 14/10/7-day windows are flagged as already closed.
     assert page.count("Window passed") == 3
     # Segmented dial + copy buttons + export.
-    assert 'class="kit-copy' in page and "Export full kit" in page
+    assert "kit-copy" in page and "Export full kit" in page
     resp = client.get("/releases/autopilot/kit.txt?campaign=%s&days=14" % cid)
     assert resp.status_code == 200
     assert "attachment" in resp.headers["Content-Disposition"]
@@ -4898,13 +4901,13 @@ def test_clean_release_nodes_resolve_ping_and_certificate():
     store_mod.update_os_track_passport(uid, tid, {"isrc": "USSB12600009"})
     ctid = store_mod.add_catalog_track(uid, {"title": "Neon Nights",
                                              "artist": "Cert Artist"})
-    page = client.get("/releases/clean-release?campaign=%s"
+    page = client.get("/releases/autopilot?campaign=%s"
                       % cid).get_data(as_text=True)
-    # Category nodes + hover JS + passport-pull card with the real value.
-    assert 'class="cat-node' in page and "Release assets" in page
+    # Group meters + passport-pull card with the real value.
+    assert "Release assets" in page and "sb-meter" in page
     assert "Resolve from Track Passport" in page and "USSB12600009" in page
     # A dated at-risk track pings the inbox exactly once.
-    client.get("/releases/clean-release?campaign=%s" % cid)
+    client.get("/releases/autopilot?campaign=%s" % cid)
     pings = [n for n in store_mod.list_notifications(uid)
              if n["kind"] == "release_risk"]
     assert len(pings) == 1 and "Neon Nights" in pings[0]["title"]
