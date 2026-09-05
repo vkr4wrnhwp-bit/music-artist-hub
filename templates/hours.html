@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Hours Desk - Street Banker{% endblock %}
 
@@ -149,7 +150,7 @@
           <span class="sb-num text-gray-300">{{ hrs(inv.hours) }}</span>
           <span class="font-black sb-num text-sb-ink">{{ money(inv.total) }}</span>
           {% if inv.status == 'paid' %}
-            <span class="rounded bg-green-500/15 px-1.5 py-0.5 text-xs font-bold uppercase text-green-400">Paid</span>
+            {{ sb.lamp("Paid", "on") }}
           {% else %}
             <form method="post" action="{{ url_for('hours_invoice_paid', invoice_id=inv.id) }}">
               <button class="rounded border border-green-500/40 px-2 py-1 text-xs font-bold text-green-400 hover:bg-green-500/10">Mark paid</button>
@@ -245,7 +246,7 @@
             <form method="post" action="{{ url_for('hours_booking_status', booking_id=b.id, status='confirmed') }}"><button class="rounded border border-green-500/40 px-3 py-2 text-xs font-bold text-green-400 hover:bg-green-500/10 sm:px-2 sm:py-0.5 sm:text-xs">Confirm</button></form>
             <form method="post" action="{{ url_for('hours_booking_status', booking_id=b.id, status='declined') }}"><button class="sb-btn sb-btn-secondary sb-btn-sm sm:px-2 sm:py-0.5 sm:text-xs">Decline</button></form>
           {% else %}
-            <span class="rounded px-1.5 py-0.5 text-xs font-bold uppercase {{ {'confirmed':'bg-green-500/15 text-green-400','declined':'bg-white/5 text-gray-300','done':'bg-white/10 text-gray-300'}[b.status] }}">{{ b.status }}</span>
+            {{ sb.lamp(b.status, {'confirmed': 'on', 'declined': '', 'done': 'info'}[b.status]) }}
           {% endif %}
         </div>
       {% endfor %}
@@ -296,7 +297,7 @@
               <button class="sb-btn sb-btn-secondary sb-btn-sm sm:px-2 sm:py-0.5 sm:text-xs">Reject</button>
             </form>
           {% else %}
-            <span class="rounded px-1.5 py-0.5 text-xs font-bold uppercase {{ 'bg-green-500/15 text-green-400' if s.status == 'approved' else 'bg-red-500/10 text-red-400' }}">{{ s.status }}</span>
+            {{ sb.lamp(s.status, 'on' if s.status == 'approved' else 'crit') }}
           {% endif %}
         </div>
         {% if s.status == 'rejected' and s.reason %}<div class="mt-1 text-xs text-gray-300 font-medium">Rejected: {{ s.reason }}</div>{% endif %}

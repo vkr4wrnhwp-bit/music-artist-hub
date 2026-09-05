@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Performance · {{ c.title }} - Rollout Engine{% endblock %}
 
@@ -17,12 +18,12 @@
   <div class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-sm text-amber-300">This rollout has no Street Banker Link campaign connected, so post attribution can't be tracked. Connect one when creating your next rollout.</div>
   {% endif %}
 
-  <div class="grid grid-cols-3 gap-3">
+  {#- Three readouts, counted from the connected link campaign's own
+      events. With no campaign connected there is nothing to count, and
+      the LCD says so rather than showing a zero that looks measured. -#}
+  <div class="flex flex-wrap gap-3">
     {% for label, value in [("Link visits", totals.visits), ("Service clicks", totals.clicks), ("Fans captured", totals.fans)] %}
-    <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-4 text-center">
-      <div class="text-2xl font-bold tabular-nums {{ 'text-sb-gold-bright' if loop.last }}">{{ value }}</div>
-      <div class="sb-label mt-1 text-gray-300">{{ label }}</div>
-    </div>
+      {{ sb.lcd(value if c.ml_campaign_id else none, label, absent="Not tracked") }}
     {% endfor %}
   </div>
 
