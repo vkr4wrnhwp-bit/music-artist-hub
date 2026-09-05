@@ -173,21 +173,7 @@
 
 /* --- flags ---------------------------------------------------------------- */
 
-.sc-flag {
-  display: inline-block;
-  padding: 1px var(--sb-s2);
-  border-radius: var(--sb-r-pill);
-  font-family: var(--sb-mono);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  border: 1px solid var(--sb-paper-line);
-  color: var(--sb-paper-ink-2);
-}
-
-.sc-flag--on {
-  border-color: var(--sb-paper-gold);
-  color: var(--sb-paper-gold);
-}
+/* State words are the shared lamp (app-chrome.css, on paper). */
 
 /* --- what is missing ------------------------------------------------------ */
 /* Facts, not a score. A passport that is "80% complete" is not 80% useful -
@@ -423,17 +409,9 @@ select.sc-in {
   font-size: 13px;
 }
 
-.sc-diff-tag {
-  font-family: var(--sb-mono);
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  min-width: 5.5rem;
-}
-
-.sc-diff-tag--add { color: rgb(80 119 76); }   /* 4.56:1 on paper */
-.sc-diff-tag--rm { color: rgb(184 75 61); }    /* 4.53:1 on paper */
-.sc-diff-tag--ch { color: rgb(162 92 44); }    /* 4.54:1 on paper */
+/* The added / removed / changed tags are the shared lamp; this keeps the
+   column aligned. */
+.sc-diff-line .sb-lamp { min-width: 5.5rem; }
 
 .sc-was {
   color: var(--sb-paper-ink-3);

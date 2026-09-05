@@ -4,7 +4,7 @@
 {% block title %}v{{ version.number }} - {{ passport.artist_name or "Passport" }}{% endblock %}
 
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/stage-control.css?v=4">
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=5">
 {% endblock %}
 
 {% block content %}
@@ -49,7 +49,7 @@
             "Version %d, frozen on publication." | format(version.number),
             position="center 45%") }}
 
-<article class="sc-sheet">
+<article class="sc-sheet sb-on-paper">
 
   <header class="sc-head">
     <div>
@@ -147,7 +147,7 @@
                   {% for c, label in columns %}
                     <td class="{{ 'sc-num' if c in ['channel','patch','output_patch','cue_no'] }}">
                       {% if c in ["phantom", "stereo", "confirm_required", "required"] %}
-                        {% if row.get(c) %}<span class="sc-flag sc-flag--on">yes</span>{% else %}<span class="sc-muted">—</span>{% endif %}
+                        {% if row.get(c) %}{{ sb.lamp("yes", "on") }}{% else %}<span class="sc-muted">—</span>{% endif %}
                       {% else %}
                         {{ row.get(c) or "" }}
                       {% endif %}

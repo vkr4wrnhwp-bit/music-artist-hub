@@ -4,7 +4,7 @@
 {% block title %}Change log - {{ passport.artist_name or "Passport" }}{% endblock %}
 
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/stage-control.css?v=4">
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=5">
 {% endblock %}
 
 {% block content %}
@@ -13,7 +13,7 @@
             "Every published version, and what moved between them. A show keeps the version it was advanced against, so this is the record of what a crew was actually handed.",
             position="center 45%") }}
 
-<article class="sc-sheet">
+<article class="sc-sheet sb-on-paper">
   <header class="sc-head">
     <div>
       <h2 class="sc-head-artist">{{ passport.artist_name or "Untitled passport" }}</h2>
@@ -38,7 +38,7 @@
       {% for v in versions %}
         <div class="sc-vrow">
           <span class="sc-vno">v{{ v.number }}</span>
-          <span class="sc-flag {{ 'sc-flag--on' if v.state == 'published' }}">{{ v.state }}</span>
+          {{ sb.lamp(v.state, "on" if v.state == "published" else "") }}
           <span class="sc-num sc-muted">{{ v.published_at[:16]|replace("T", " ") }}</span>
           {% if v.published_by %}<span class="sc-muted">{{ v.published_by }}</span>{% endif %}
           <span>{{ v.change_note or "" }}</span>
@@ -88,7 +88,7 @@
               </h4>
               {% for row in change.added %}
                 <div class="sc-diff-line">
-                  <span class="sc-diff-tag sc-diff-tag--add">added</span>
+                  {{ sb.lamp("added", "good") }}
                   <span class="sc-now">
                     {{ row.get("source") or row.get("mix_name") or row.get("name")
                        or row.get("item") or row.get("song") or "row" }}
@@ -97,7 +97,7 @@
               {% endfor %}
               {% for row in change.removed %}
                 <div class="sc-diff-line">
-                  <span class="sc-diff-tag sc-diff-tag--rm">removed</span>
+                  {{ sb.lamp("removed", "crit") }}
                   <span class="sc-was">
                     {{ row.get("source") or row.get("mix_name") or row.get("name")
                        or row.get("item") or row.get("song") or "row" }}
@@ -110,7 +110,7 @@
               {% for ch in change.changed %}
                 {% for field in ch.fields %}
                   <div class="sc-diff-line">
-                    <span class="sc-diff-tag sc-diff-tag--ch">changed</span>
+                    {{ sb.lamp("changed", "warn") }}
                     <span class="sc-num">{{ ch.key }}</span>
                     <span class="sc-muted">{{ field|replace("_", " ") }}</span>
                     <span class="sc-was">{{ ch.before.get(field) or "—" }}</span>

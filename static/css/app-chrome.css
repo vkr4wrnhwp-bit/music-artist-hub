@@ -766,3 +766,16 @@ details.asx-open[open] .asx-when-closed { display: none; }
 .sb-on-paper .sb-meter--warn .sb-meter-fill { background: var(--sb-warn); }
 .sb-on-paper .sb-meter--crit .sb-meter-fill { background: var(--sb-crit); }
 .sb-on-paper .sb-meter-val { color: var(--sb-paper-ink-2); }
+
+/* --- lamps on paper -----------------------------------------------------------
+ * The dark lamp's inks are too light for ivory. Under .sb-on-paper the word
+ * takes the paper ink and the state tones are the ones stage-control.css
+ * already proved at 4.5:1 on paper. Folded in from the passport sheet's
+ * .sc-flag and .sc-diff-tag, which were this lamp drawn twice more. */
+
+.sb-on-paper .sb-lamp { color: var(--sb-paper-ink-2); }
+.sb-on-paper .sb-lamp--on { color: var(--sb-paper-gold); }
+.sb-on-paper .sb-lamp--good { color: rgb(80 119 76); }   /* 4.56:1 on paper */
+.sb-on-paper .sb-lamp--warn { color: rgb(162 92 44); }   /* 4.54:1 on paper */
+.sb-on-paper .sb-lamp--crit { color: rgb(184 75 61); }   /* 4.53:1 on paper */
+.sb-on-paper .sb-lamp--info { color: var(--sb-paper-ink); }
