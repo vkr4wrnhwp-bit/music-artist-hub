@@ -31,14 +31,11 @@ HUBS = [
     ("launch", "Launch Engine", "From finished master to the world — prepare, release, promote, and measure.", [
         ("autopilot", "/releases/autopilot", "M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6", "Release Autopilot", "Readiness, the eight-stage arc, the plan, the kit, and the rights checks before it ships."),
         ("releases", "/releases", "M5 4h10a1 1 0 011 1v11a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z|M4 8h12M8 3v3M12 3v3", "Release Scheduler", "Your calendar of what drops when."),
-        ("registration", "/registration", "M4 10l4 4 8-9|M3 6h6", "Registration", "Step-by-step society and platform registrations."),
         ("links", "/links", "M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1", "Smart Links", "One link per release with real click analytics."),
         ("rollout", "/rollout-studio", "M4 4h12v9H4z|M4 13l3 4M16 13l-3 4M7 8l2 2 4-4", "Rollout Engine", "Generated captions, briefs, and rollout plans."),
         ("epk", "/epk", "M5 3h7l3 3v11a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z|M7 9h6M7 12h6M7 15h3", "Press Kit", "Your public EPK, always current."),
         ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press Desk", "Media list, announcements, and who opened which pitch."),
-        ("playlists", "/playlists", "M4 5h9M4 9h9M4 13h5|M15 11v5a2 2 0 11-2-2", "Playlists", "Pitch tracking for curator outreach."),
         ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Daily follower and popularity snapshots, growth over time, and your link engagement."),
-        ("audience", "/audience", "M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4", "Audience", "Who's listening, and where."),
     ]),
     ("stage", "Live Stage Suite", "Everything between the booking and the encore — shows, plots, lights, and the rider.", [
         ("tours", "/tours", "M3 4h14v12H3z|M3 8h14|M6 12h3|M12 12h2|M7 2v4|M13 2v4", "TOUR", "The whole run: My Day, Show Command, advance, travel, rooms, guests, money."),
@@ -66,7 +63,6 @@ HUBS = [
         ("revenue-os", "/revenue-os", "M4 16V4h12v12z|M7 13V9M10 13V7M13 13v-3", "Revenue OS", "Income structure across your whole operation."),
         ("funding", "/funding", "M3 6h14v8H3z|M10 8a2 2 0 100 4 2 2 0 000-4zM6 6v0M14 14v0", "Funding", "Advance eligibility from your Capital Score."),
         ("capital", "/capital", "M10 3v14M6 7h6a2 2 0 010 4H8a2 2 0 000 4h6", "Capital", "Monetization hub for what you own."),
-        ("sync", "/sync", "M4 6h9l-2-2M16 14H7l2 2|M4 6v0M16 14v0", "Sync / Licensing", "Pitches and placements for film, TV, and games."),
         ("sync-packs", "/sync/clearance-packs", "M4 4h12v9H4z|M8 7v4l3-2zM4 16h12", "Sync Packs", "Cleared-and-ready pitch bundles."),
         ("deal-simulator", "/sync/deal-simulator", "M4 10h5M11 10h5|M10 3v14M6 6l-2 4h4zM14 12l-2 4h4z", "Deal Simulator", "Run a deal's numbers before signing."),
         ("deal-room", "/deal-room", "M7 9l3-3 3 3M10 6v8|M4 16h12M4 4h4M12 4h4", "Deal Room", "Your export-ready story for partners."),

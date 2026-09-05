@@ -162,11 +162,8 @@ from reports_config import get_reports_data
 from epk_config import get_epk_data, normalize_epk_overrides
 from artwork_config import get_artwork_data, suggest_from_prompt
 from links_config import get_links_data, create_smart_link
-from sync_config import get_sync_data
 from funding_config import get_funding_data
 from disputes_config import get_disputes_data, advance_dispute
-from audience_config import get_audience_data
-from playlists_config import get_playlists_data
 from notifications_config import (
     get_notifications_data,
     mark_notification_read,
@@ -223,7 +220,6 @@ from royalty_data import (
     add_split,
     advance_claim,
     assess_advance_eligibility,
-    complete_registration_step,
     estimate_catalog_value,
     get_action_center,
     get_overview_health,
@@ -244,7 +240,6 @@ from royalty_data import (
     get_platform_balances,
     get_platform_catalog,
     get_recent_payouts,
-    get_registration_wizard,
     get_rights_conflicts,
     get_royalty_forecast,
     get_royalty_goal,
@@ -256,8 +251,6 @@ from royalty_data import (
     get_top_royalty_leaks,
     get_payout_calendar,
     get_upcoming_releases,
-    WIZARD_TARGETS,
-    WIZARD_TARGET_LABELS,
     live_song,
     metadata_completion_score,
     money_left_on_table,
@@ -447,9 +440,6 @@ def build_dashboard_context():
         ),
         "logo_key": platform_logo_key,
         "conflicts": get_rights_conflicts(songs),
-        "registration_wizards": [get_registration_wizard(s) for s in songs],
-        "wizard_targets": WIZARD_TARGETS,
-        "wizard_target_labels": WIZARD_TARGET_LABELS,
         "alerts": alerts,
         "smart_recommendations": smart_recommendations,
         "total": total,
@@ -7148,9 +7138,10 @@ def create_app():
 
     @app.route("/sync")
     def sync():
-        ctx = build_dashboard_context()
-        ctx["sync"] = get_sync_data()
-        return render_template("sync.html", active_page="sync", **ctx)
+        """Deleted (owner decision, 2026-09-05): the page was illustrative
+        placements, requests and fees. The sync tooling that is real lives
+        under /sync/clearance-packs and /sync/deal-simulator."""
+        return redirect("/sync/clearance-packs")
 
     @app.route("/territories")
     def territories():
@@ -7530,15 +7521,16 @@ def create_app():
 
     @app.route("/audience")
     def audience():
-        ctx = build_dashboard_context()
-        ctx["audience"] = get_audience_data()
-        return render_template("audience.html", active_page="audience", **ctx)
+        """Deleted: listener, follower, age and country splits were invented.
+        The live numbers the app does have are on Artist Pulse."""
+        return redirect("/pulse")
 
     @app.route("/playlists")
     def playlists():
-        ctx = build_dashboard_context()
-        ctx["playlists"] = get_playlists_data()
-        return render_template("playlists.html", active_page="playlists", **ctx)
+        """Deleted: playlists, curators and follower counts were invented.
+        Pitch tracking that is real - who was sent what, who opened it -
+        is the Press Desk."""
+        return redirect("/press-desk")
 
     @app.route("/stats")
     def stats():
@@ -7783,7 +7775,10 @@ def create_app():
 
     @app.route("/registration")
     def registration():
-        return render_template("registration.html", active_page="registration", **build_dashboard_context())
+        """Deleted: the wizard only ever ran over the demo songs, so a real
+        account saw an empty page. PRO, MLC, SoundExchange and Content ID
+        status live on each Track Passport."""
+        return redirect("/tracks")
 
     @app.route("/search")
     def search_route():
@@ -8976,20 +8971,6 @@ def create_app():
         if result is None:
             return jsonify({"ok": False}), 400
         return jsonify({"ok": True, "status": result})
-
-    @app.route("/songs/<song_id>/registration-wizard")
-    def registration_wizard(song_id):
-        song = get_song(song_id)
-        if song is None:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "wizard": get_registration_wizard(song)})
-
-    @app.route("/songs/<song_id>/registration-wizard/<target>/complete", methods=["POST"])
-    def complete_registration_wizard_step(song_id, target):
-        wizard = complete_registration_step(song_id, target)
-        if wizard is None:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "wizard": wizard})
 
     @app.route("/reports/<report_id>/generate", methods=["POST"])
     def generate_report_route(report_id):

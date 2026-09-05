@@ -809,7 +809,7 @@ def test_publishing_page_real_classification():
 def test_tier2_pages_render_and_are_in_nav():
     client = _demo()
     nav = client.get("/overview").get_data(as_text=True)
-    for href in ("/documents", "/conflicts", "/releases", "/registration"):
+    for href in ("/documents", "/conflicts", "/releases"):
         assert 'href="%s"' % href in nav
         assert client.get(href).status_code == 200
     # Ecosystem Hub model: five collapsible hubs plus Account, on every page.
@@ -846,15 +846,18 @@ def test_releases_real_calendar():
     assert "Readiness Checklist" not in body               # old mock gone
 
 
-def test_registration_page_and_complete_step():
+def test_the_deleted_sample_pages_forward_to_real_ones():
+    """Owner decision, 2026-09-05: the four SAMPLE pages were hardcoded demo
+    data with no real counterpart, so they went. Bookmarks land somewhere
+    true: the page that holds the real version of what they showed."""
     client = _demo()
-    body = client.get("/registration").get_data(as_text=True)
-    assert "Registration Wizard" in body
-    # The completion endpoint the page posts to should advance a missing target.
-    resp = client.post("/songs/neon-dreams/registration-wizard/mlc/complete")
-    assert resp.status_code == 200
-    data = resp.get_json()
-    assert data["ok"] and data["wizard"]["status"]["mlc"] is True
+    for old, new in (("/registration", "/tracks"), ("/sync", "/sync/clearance-packs"),
+                     ("/audience", "/pulse"), ("/playlists", "/press-desk")):
+        r = client.get(old)
+        assert r.status_code == 302 and r.headers["Location"].endswith(new), old
+    nav = client.get("/links").get_data(as_text=True)
+    for old in ("/registration", "/sync", "/audience", "/playlists"):
+        assert 'href="%s"' % old not in nav, old
 
 
 def test_neighboring_rights_page_real():
@@ -862,28 +865,6 @@ def test_neighboring_rights_page_real():
     body = client.get("/neighboring-rights").get_data(as_text=True)
     assert "Neighboring Rights" in body
     assert "SoundExchange" in body and "$60.00" in body
-
-
-def test_sync_page_content():
-    client = _demo()
-    body = client.get("/sync").get_data(as_text=True)
-    assert "Sync / Licensing" in body
-    assert "Placements" in body
-    assert "Incoming Requests" in body
-    assert 'href="/sync"' in body
-
-
-def test_sync_data_config_shapes():
-    from sync_config import get_sync_data
-    from royalty_data import get_songs
-    data = get_sync_data()
-    assert data["placements"] and data["requests"] and data["opportunities"]
-    # Placements reference real catalog song titles.
-    titles = {s.title for s in get_songs()}
-    assert all(p["song"] in titles for p in data["placements"])
-    # Sync income counts only live placements.
-    live = round(sum(p["fee"] for p in data["placements"] if p["status"] == "Live"), 2)
-    assert data["summary"]["sync_income"] == live
 
 
 def test_territories_page_real():
@@ -1025,32 +1006,6 @@ def test_disputes_real_tracker():
                            json={"status": "bogus"}).get_json()["ok"]
     assert any("Dispute resolved" in n["title"]
                for n in store_mod.list_notifications(uid))
-
-
-def test_tier3_pages_render_and_nav():
-    client = _demo()
-    nav = client.get("/links").get_data(as_text=True)
-    for href in ("/audience", "/playlists"):
-        assert 'href="%s"' % href in nav
-        assert client.get(href).status_code == 200
-
-
-def test_audience_data_config_shapes():
-    from audience_config import get_audience_data
-    data = get_audience_data()
-    assert data["trend"] and data["top_tracks"]
-    assert sum(a["pct"] for a in data["age_brackets"]) == 100
-    # Top tracks are ranked by streams.
-    streams = [t["streams"] for t in data["top_tracks"]]
-    assert streams == sorted(streams, reverse=True)
-
-
-def test_playlists_data_config_shapes():
-    from playlists_config import get_playlists_data, reset_playlists_state
-    reset_playlists_state()
-    data = get_playlists_data()
-    assert data["summary"]["total_pitches"] == len(data["pitches"])
-    assert data["summary"]["placements"] == sum(1 for p in data["pitches"] if p["stage"] == "Added")
 
 
 def test_notifications_page_and_mark_read():

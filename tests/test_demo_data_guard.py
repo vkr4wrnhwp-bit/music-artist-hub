@@ -152,10 +152,14 @@ DELETED_MODULES = [
     "connections_config", "neighboring_rights_config", "tax_config",
     "stats_config", "publishing_config", "mechanicals_config",
     "territories_config",
+    # 2026-09-05, owner decision: the four SAMPLE pages went. Playlists,
+    # curators, listener splits, sync placements and fees were invented.
+    "playlists_config", "audience_config", "sync_config",
 ]
 
 DELETED_TEMPLATES = [
     "neighboring_rights.html", "mechanicals.html", "publishing.html",
+    "playlists.html", "audience.html", "registration.html", "sync.html",
 ]
 
 
