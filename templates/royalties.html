@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 {% block head_scripts %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endblock %}
 {% import "landing/_cards.html" as logos %}
 
@@ -120,10 +121,11 @@
               <td class="py-2.5 text-right text-xs font-semibold {{ 'text-green-400' if row.change_pct >= 0 else 'text-red-400' }} tabular-nums">{{ '↑' if row.change_pct >= 0 else '↓' }} {{ "%.1f"|format(row.change_pct|abs) }}%</td>
               <td class="py-2.5 pl-6">
                 <div class="flex items-center gap-2">
-                  <span class="hidden h-1.5 flex-1 overflow-hidden rounded-full bg-white/5 sm:block">
-                    <span class="block h-full rounded-full bg-green-500" style="width: {{ row.pct_of_total }}%;"></span>
-                  </span>
-                  <span class="w-8 shrink-0 text-right text-xs font-semibold text-gray-300">{{ row.pct_of_total }}%</span>
+                  {#- The primitive rather than the macro: a table cell has its own
+                      label column, so the row grid would only add a blank one. -#}
+                  <span class="sb-meter sb-meter--sm hidden flex-1 sm:block" role="img"
+                        aria-label="{{ row.name }}: {{ row.pct_of_total }}% of total"><span class="sb-meter-fill" style="--sb-meter-fill: {{ row.pct_of_total }}%;"></span></span>
+                  <span class="sb-meter-val w-8 shrink-0">{{ row.pct_of_total }}%</span>
                 </div>
               </td>
             </tr>

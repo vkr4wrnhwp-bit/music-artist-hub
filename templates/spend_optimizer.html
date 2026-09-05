@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Spend Optimizer - Street Banker{% endblock %}
 
@@ -34,11 +35,7 @@
     <div class="mt-4 space-y-4">
       {% for it in plan.allocations %}
       <div>
-        <div class="flex items-baseline justify-between gap-3">
-          <span class="text-sm font-bold">{{ it.channel }}</span>
-          <span class="shrink-0 text-sm font-black sb-num text-sb-ink">${{ "{:,.2f}".format(it.amount) }} <span class="text-xs text-gray-300 font-medium">({{ it.pct }}%)</span></span>
-        </div>
-        <div class="mt-1 h-2.5 overflow-hidden rounded-full bg-white/10"><div class="h-full rounded-full bg-sb-gold/80" style="width: {{ it.pct }}%;"></div></div>
+        {{ sb.meter(it.channel, it.pct, 100, shown="$" ~ "{:,.2f}".format(it.amount) ~ " · " ~ it.pct ~ "%") }}
         <p class="mt-1 text-xs leading-snug text-gray-300">{{ it.reason }}</p>
       </div>
       {% endfor %}

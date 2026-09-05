@@ -4,7 +4,6 @@ from royalty_data import (
     reset_claim_state,
     reset_connection_state,
     reset_fix_status_state,
-    reset_registration_wizard_state,
     reset_split_state,
 )
 
@@ -3353,38 +3352,6 @@ def test_update_fix_status_invalid_status_returns_400():
     assert response.status_code == 400
 
 
-def test_registration_wizard_route():
-    client = _demo()
-    response = client.get("/songs/midnight-drive/registration-wizard")
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["ok"] is True
-    assert data["wizard"]["song_id"] == "midnight-drive"
-
-
-def test_registration_wizard_unknown_song_returns_404():
-    client = _demo()
-    response = client.get("/songs/not-a-real-song/registration-wizard")
-    assert response.status_code == 404
-
-
-def test_complete_registration_wizard_step_route():
-    client = _demo()
-    try:
-        response = client.post("/songs/midnight-drive/registration-wizard/publishing_admin/complete")
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data["wizard"]["status"]["publishing_admin"] is True
-    finally:
-        reset_registration_wizard_state()
-
-
-def test_complete_registration_wizard_step_unknown_song_returns_404():
-    client = _demo()
-    response = client.post("/songs/not-a-real-song/registration-wizard/pro/complete")
-    assert response.status_code == 404
-
-
 def test_generate_report_route():
     """The invariant, not the state: a filename is only ever returned
     when there are bytes behind it. This used to assert ok:True while the
@@ -3483,10 +3450,12 @@ def test_legal_pages_public():
 
 
 def test_stats_page_real_only(monkeypatch):
+    """/stats folded into Artist Pulse; the honesty it held still holds there."""
     monkeypatch.delenv("SPOTIFY_CLIENT_ID", raising=False)
     monkeypatch.delenv("SPOTIFY_CLIENT_SECRET", raising=False)
     client = _demo()
-    body = client.get("/stats").get_data(as_text=True)
+    assert client.get("/stats").headers["Location"].endswith("/pulse#engagement")
+    body = client.get("/pulse").get_data(as_text=True)
     # Honest: no platform numbers without credentials, no fake stream counts.
     assert "Not Connected" in body
     assert "Cross-platform performance" not in body

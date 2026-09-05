@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Recovery - Royalty Sweep{% endblock %}
 
@@ -108,15 +109,7 @@
       <p class="mt-1 text-sm text-gray-200">Unattributed money is filed under the source that paid it; a gap under the source that is silent.</p>
       <div class="mt-3 space-y-2">
         {% for s in rv.by_source %}
-        <div>
-          <div class="flex items-center justify-between text-xs">
-            <span class="truncate font-semibold text-gray-100">{{ s.source }}</span>
-            <span class="ml-2 shrink-0 font-bold sb-num text-sb-ink">${{ "{:,.2f}".format(s.amount) }}</span>
-          </div>
-          <div class="mt-1 h-1.5 rounded-full bg-white/5">
-            <div class="h-1.5 rounded-full bg-sb-gold" style="width: {{ (100 * s.amount / rv.by_source[0].amount) | round }}%;"></div>
-          </div>
-        </div>
+        {{ sb.meter(s.source, s.amount, rv.by_source[0].amount, shown="$" ~ "{:,.2f}".format(s.amount)) }}
         {% endfor %}
       </div>
     </section>
@@ -128,11 +121,7 @@
       {% set peak = rv.unattributed_by_period | map(attribute='amount') | max %}
       <div class="mt-3 space-y-1.5">
         {% for p in rv.unattributed_by_period %}
-        <div class="flex items-center gap-3 text-xs">
-          <span class="w-20 shrink-0 font-semibold text-gray-100">{{ p.period }}</span>
-          <span class="h-2 flex-1 overflow-hidden rounded-full bg-white/5"><span class="block h-full rounded-full bg-red-500/70" style="width: {{ (100 * p.amount / (peak or 1)) | round }}%;"></span></span>
-          <span class="w-20 shrink-0 text-right font-bold sb-num text-gray-100">${{ "{:,.2f}".format(p.amount) }}</span>
-        </div>
+        {{ sb.meter(p.period, p.amount, peak or 1, shown="$" ~ "{:,.2f}".format(p.amount), tone="crit") }}
         {% endfor %}
       </div>
       {% else %}
