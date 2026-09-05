@@ -205,6 +205,17 @@ def compose_brief(plan, choices, track_name=""):
     if energy:
         out.append(("Where the energy is", energy, "measured"))
 
+    # The real provider describes the record in styles rather than a tempo.
+    # That is a reading of THIS track, so it is measured - but it is what
+    # the provider heard, and the line says so.
+    styles = [s for s in (plan.get("global_styles") or []) if s]
+    if styles:
+        avoid = [s for s in (plan.get("avoid_styles") or []) if s]
+        body = "The provider hears this record as %s." % ", ".join(styles[:8])
+        if avoid:
+            body += " It marks %s as foreign to it." % ", ".join(avoid[:5])
+        out.append(("What the provider heard", body, "measured"))
+
     if convention.get("arrangement"):
         out.append(("Arrangement",
                     "For a %s, that usually means %s."

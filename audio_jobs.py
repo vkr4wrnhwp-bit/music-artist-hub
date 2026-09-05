@@ -126,7 +126,7 @@ def _dispatch(job, adapter, request, partner_id):
         # retried three times and then blamed on the vendor.
         astore.set_job_status(
             partner_id, jid, "failed", error_code="adapter_error",
-            error_message="%s: %s" % (type(e).__name__, e))
+            error_message=describe_error(e))
         _log_unexpected(jid, e)
         return astore.get_job(partner_id, jid)
 
@@ -353,6 +353,26 @@ def run_pending(partner_id=None, limit=25):
             advanced.append({"id": job["id"], "from": before,
                              "to": after.get("status")})
     return advanced
+
+
+def describe_error(exc):
+    """What went wrong, reason first.
+
+    A vendor SDK error prints its response headers before its body, and the
+    stored message is cut at 800 characters - which put the cut exactly
+    where the vendor's reason began. The item page showed fourteen headers
+    and no reason. Status and body first; the headers are not the story.
+    """
+    status = getattr(exc, "status_code", None)
+    body = getattr(exc, "body", None)
+    if status is not None or body is not None:
+        try:
+            text = json.dumps(body, default=str) if not isinstance(body, str) else body
+        except (TypeError, ValueError):
+            text = str(body)
+        head = type(exc).__name__ + ("" if status is None else " %s" % status)
+        return "%s: %s" % (head, text)
+    return "%s: %s" % (type(exc).__name__, exc)
 
 
 def _log_unexpected(job_id, exc):

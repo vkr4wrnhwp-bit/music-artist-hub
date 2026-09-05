@@ -72,6 +72,30 @@ LANES = [
 
 LANE_BY_KEY = {lane[0]: lane for lane in LANES}
 
+# The languages the dubbing provider accepts, by code and by the name a
+# person types. "french" was sent to the vendor exactly as typed and came
+# back as a 400 - after the file had been uploaded. Unknown ones are
+# refused here, before anything is spent, naming what is accepted.
+_DUBBING = (
+    ("en", "english"), ("es", "spanish"), ("fr", "french"), ("de", "german"),
+    ("it", "italian"), ("pt", "portuguese"), ("pl", "polish"), ("hi", "hindi"),
+    ("ja", "japanese"), ("zh", "chinese"), ("ko", "korean"), ("ar", "arabic"),
+    ("ru", "russian"), ("tr", "turkish"), ("nl", "dutch"), ("sv", "swedish"),
+    ("id", "indonesian"), ("fil", "filipino"), ("uk", "ukrainian"), ("el", "greek"),
+    ("cs", "czech"), ("fi", "finnish"), ("ro", "romanian"), ("da", "danish"),
+    ("bg", "bulgarian"), ("ms", "malay"), ("sk", "slovak"), ("hr", "croatian"),
+    ("ta", "tamil"), ("vi", "vietnamese"), ("hu", "hungarian"), ("no", "norwegian"),
+)
+DUBBING_LANGUAGES = {}
+for _code, _name in _DUBBING:
+    DUBBING_LANGUAGES[_code] = _code
+    DUBBING_LANGUAGES[_name] = _code
+DUBBING_CODES = tuple(code for code, _n in _DUBBING)
+
+
+def unknown_languages(codes):
+    return [c for c in codes if c not in DUBBING_CODES]
+
 # The two separations on offer, as (option value, what the artist reads).
 # The values are the provider's own variation ids; the adapter validates
 # them again before anything is sent.
@@ -360,6 +384,13 @@ def studio_new():
     # sharing the same source, each with its own status, files and reason.
     option_sets = [_options(kind)]
     if kind == "dubbing":
+        unknown = unknown_languages(option_sets[0]["languages"])
+        if unknown:
+            return _refuse(
+                "%s is not a language the dubbing provider offers. Use a "
+                "code or a name from this list: %s."
+                % (", ".join(unknown), ", ".join(
+                    "%s (%s)" % (n, c) for c, n in _DUBBING)))
         option_sets = [{"languages": [lang]}
                        for lang in option_sets[0]["languages"]]
     base_title = request.form.get("title") or title
@@ -558,13 +589,14 @@ def _options(kind):
             seconds = 3.0
         return {"duration_seconds": max(0.5, min(22.0, seconds))}
     if kind == "dubbing":
-        langs = [x.strip().lower()[:8] for x in
+        langs = [x.strip().lower()[:24] for x in
                  (request.form.get("languages") or "").split(",") if x.strip()]
         seen, ordered = set(), []
         for lang in langs:
-            if lang not in seen:
-                seen.add(lang)
-                ordered.append(lang)
+            code = DUBBING_LANGUAGES.get(lang, lang)
+            if code not in seen:
+                seen.add(code)
+                ordered.append(code)
         return {"languages": ordered[:8] or ["es"]}
     if kind == "stem_separation":
         wanted = (request.form.get("stems") or "").strip()

@@ -569,8 +569,44 @@ class ElevenLabsMusic(_Base, ap.MusicProvider):
             raise ap.ProviderRefusal(
                 "The provider returned no composition plan for that audio.",
                 "no_plan")
-        return {"plan": plan, "provider_song_id": out.get("provider_song_id"),
+        return {"plan": normalise_plan(plan),
+                "provider_song_id": out.get("provider_song_id"),
                 "is_mock": False}
+
+
+def _field(obj, name, default=None):
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+def normalise_plan(plan):
+    """The vendor's plan, in the shape remix_lab_engine reads.
+
+    What comes back from music.upload(extract_composition_plan=True) is a
+    MusicPrompt: global styles to lean into and avoid, and sections that
+    each carry a name, a duration and their own styles. The engine was
+    written against the mock, which reports tempo_bpm and start_ms. The
+    real plan has no tempo - so none is invented; tempo stays "not
+    measured" - and the section starts are the running sum of durations.
+    """
+    sections_in = _field(plan, "sections") or []
+    sections, at = [], 0
+    for s in sections_in:
+        duration = int(_field(s, "duration_ms") or 0)
+        sections.append({
+            "name": (_field(s, "section_name") or _field(s, "name") or "section"),
+            "start_ms": at, "end_ms": at + duration,
+            "styles": list(_field(s, "positive_local_styles") or []),
+            "avoid": list(_field(s, "negative_local_styles") or []),
+        })
+        at += duration
+    return {
+        "sections": sections,
+        "global_styles": list(_field(plan, "positive_global_styles") or []),
+        "avoid_styles": list(_field(plan, "negative_global_styles") or []),
+        "duration_ms": at,
+    }
 
     def inpaint(self, request):
         """Inpainting needs the source held by the vendor, which only happens

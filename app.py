@@ -8538,7 +8538,13 @@ def create_app():
         plan, error = {}, None
         try:
             _item, result = works.submit_work(item["id"])
-            plan = result or {}
+            result = result or {}
+            # The real adapter returns the plan under "plan"; the offline
+            # adapter returns it flat. Reading the wrapper as the plan is how
+            # a real reading came back as "nothing measured".
+            plan = result.get("plan") if isinstance(result.get("plan"), dict) else result
+            if result.get("is_mock") and isinstance(plan, dict):
+                plan = dict(plan, is_mock=True)
         except works.WorkRefusal as refusal:
             # The item carries the reason; the page shows it rather than a
             # stack trace, and the brief still composes from the choices with
