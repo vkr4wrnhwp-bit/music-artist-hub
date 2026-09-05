@@ -315,8 +315,8 @@
               <td class="py-3 pr-4 text-center text-gray-300">{{ r.track_count }}</td>
               <td class="py-3 pr-4">
                 <div class="flex items-center gap-2">
-                  <span class="h-1.5 w-20 overflow-hidden rounded-full bg-white/5"><span class="block h-full rounded-full {{ 'bg-green-500' if r.registration_rate >= 80 else 'bg-amber-500' }}" style="width: {{ r.registration_rate }}%;"></span></span>
-                  <span class="text-xs font-semibold text-gray-300">{{ r.registration_rate }}%</span>
+                  <span class="sb-meter sb-meter--sm w-20 {{ 'sb-meter--good' if r.registration_rate >= 80 else 'sb-meter--warn' }}" role="img" aria-label="Registration: {{ r.registration_rate }}%"><span class="sb-meter-fill" style="--sb-meter-fill: {{ r.registration_rate }}%;"></span></span>
+                  <span class="sb-meter-val">{{ r.registration_rate }}%</span>
                 </div>
               </td>
               <td class="py-3 pr-4 text-right font-semibold sb-num">${{ "{:,.2f}".format(r.earnings_ytd) }}</td>
@@ -451,11 +451,8 @@
           </div>
           <div class="min-w-0 flex-1 space-y-1.5">
             {% for bar in h.bars %}
-            <div class="flex items-center gap-2 text-xs font-medium">
-              <span class="w-20 shrink-0 text-gray-300">{{ bar.label }}</span>
-              <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5"><span class="block h-full rounded-full {{ 'bg-green-500' if bar.pct >= 75 else ('bg-amber-500' if bar.pct >= 50 else 'bg-red-500') }}" style="width: {{ bar.pct }}%;"></span></span>
-              <span class="w-8 shrink-0 text-right font-semibold text-gray-200">{{ bar.pct }}%</span>
-            </div>
+            {{ sb.meter(bar.label, bar.pct, 100, shown=bar.pct ~ "%",
+                        tone=("good" if bar.pct >= 75 else ("warn" if bar.pct >= 50 else "crit"))) }}
             {% endfor %}
           </div>
         </div>

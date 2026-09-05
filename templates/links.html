@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 {% import "landing/_cards.html" as logos %}
 
 {% block title %}Smart Links - Royalty Sweep{% endblock %}
@@ -48,8 +49,8 @@
           <div class="truncate text-xs text-gray-300 font-medium">{{ c.artist_name }} · {{ c.release_type }}{% if c.release_date %} · {{ c.release_date }}{% endif %}</div>
           <div class="mt-1.5 flex items-center gap-2">
             <span class="text-xs font-bold uppercase tracking-wide text-gray-300">SB Score</span>
-            <span class="h-1.5 w-16 overflow-hidden rounded-full bg-white/10"><span class="block h-full rounded-full {{ 'bg-green-500' if c.score >= 70 else ('bg-sb-gold-bright' if c.score >= 40 else 'bg-red-500/70') }}" style="width: {{ c.score }}%;"></span></span>
-            <span class="text-xs font-bold tabular-nums {{ 'text-green-400' if c.score >= 70 else 'text-sb-gold-bright' }}">{{ c.score }}</span>
+            <span class="sb-meter sb-meter--sm w-16 {{ 'sb-meter--good' if c.score >= 70 else ('' if c.score >= 40 else 'sb-meter--crit') }}" role="img" aria-label="SB Score: {{ c.score }}"><span class="sb-meter-fill" style="--sb-meter-fill: {{ c.score }}%;"></span></span>
+            <span class="sb-meter-val">{{ c.score }}</span>
           </div>
           <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sb-num text-gray-300 font-medium">
             <span>{{ c.visits }} visits</span><span>{{ c.clicks }} clicks</span><span>{{ c.ctr }}% CTR</span><span>{{ c.presaves + c.captures }} fans</span>

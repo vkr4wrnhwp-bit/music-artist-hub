@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Variants · {{ c.title }} - Street Banker Links{% endblock %}
 
@@ -49,9 +50,7 @@
       {% for r in rows %}
       <div class="flex items-center gap-3">
         <span class="w-36 shrink-0 truncate text-xs font-bold {{ 'text-green-400' if enough and r.name == best.name and r.ctr else 'text-gray-200' }}">{{ r.name }}</span>
-        <div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-black/40">
-          <span class="block h-full rounded-full {{ 'bg-green-500' if enough and r.name == best.name and r.ctr else 'bg-sb-gold-bright' }}" style="width: {{ (r.ctr / peak * 100) | round(1) if peak else 0 }}%;"></span>
-        </div>
+        <span class="sb-meter min-w-0 flex-1 {{ 'sb-meter--good' if enough and r.name == best.name and r.ctr else '' }}" role="img" aria-label="{{ r.name }} click-through: {{ r.ctr }}%"><span class="sb-meter-fill" style="--sb-meter-fill: {{ (r.ctr / peak * 100) | round(1) if peak else 0 }}%;"></span></span>
         <span class="w-28 shrink-0 text-right text-xs sb-num text-gray-300 font-medium">{{ r.ctr | round(1) }}% · {{ r.visits }} visits</span>
       </div>
       {% endfor %}

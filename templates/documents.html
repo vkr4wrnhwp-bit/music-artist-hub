@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Documents Vault - Royalty Sweep{% endblock %}
 
@@ -61,7 +62,7 @@
       <div class="mt-1 text-xs font-medium text-gray-200">No recordings named yet</div>
       {% else %}
       <div class="mt-2 text-2xl font-bold tabular-nums text-sb-ink">{{ dv.coverage_pct }}%</div>
-      <div class="mt-2 h-1.5 rounded-full bg-white/5"><div class="h-1.5 rounded-full bg-sb-gold" style="width: {{ dv.coverage_pct }}%;"></div></div>
+      <div class="mt-2">{{ sb.meter("Coverage", dv.covered_slots, dv.total_slots, shown=dv.coverage_pct ~ "%") }}</div>
       <div class="mt-1 text-xs font-medium text-gray-200">{{ dv.covered_slots }} of {{ dv.total_slots }} asked for</div>
       {% endif %}
     </div>

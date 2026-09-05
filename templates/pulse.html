@@ -64,7 +64,7 @@
       <div class="rounded-xl border border-white/10 bg-black/40 p-4">
         <div class="sb-label text-gray-300">Popularity Score</div>
         <div class="mt-1 flex items-baseline gap-1.5"><span class="text-3xl font-black tabular-nums">{{ pulse.popularity }}</span><span class="text-sm text-gray-300">/100</span></div>
-        <div class="mt-2 h-2 overflow-hidden rounded-full bg-white/10"><div class="h-full rounded-full bg-sb-gold" style="width: {{ pulse.popularity }}%;"></div></div>
+        <div class="mt-2">{{ sb.meter("Popularity", pulse.popularity, 100, shown=pulse.popularity ~ "/100") }}</div>
       </div>
       <div class="rounded-xl border border-white/10 bg-black/40 p-4">
         <div class="sb-label text-gray-300">Deezer Fans</div>
@@ -91,8 +91,8 @@
           <div class="truncate text-xs text-gray-300 font-medium">{{ t.album }}</div>
         </div>
         <div class="flex w-32 shrink-0 items-center gap-2">
-          <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10"><div class="h-full rounded-full bg-sb-gold" style="width: {{ t.popularity }}%;"></div></div>
-          <span class="w-6 text-right text-xs font-bold sb-num text-gray-300">{{ t.popularity }}</span>
+          <span class="sb-meter sb-meter--sm flex-1" role="img" aria-label="{{ t.name }} popularity: {{ t.popularity }}/100"><span class="sb-meter-fill" style="--sb-meter-fill: {{ t.popularity }}%;"></span></span>
+          <span class="sb-meter-val w-6">{{ t.popularity }}</span>
         </div>
       </div>
       {% endfor %}

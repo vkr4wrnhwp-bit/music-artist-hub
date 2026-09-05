@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}{{ track.title }} - Track Passport - Street Banker{% endblock %}
 
@@ -53,9 +54,7 @@
           <h2 class="sb-label text-sb-gold">Clean Release</h2>
           <span class="text-xl font-black tabular-nums {{ 'text-red-400' if clean.blocked else 'text-sb-gold-bright' }}">{{ clean.score }}</span>
         </div>
-        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-          <div class="h-full rounded-full {{ 'bg-red-500' if clean.blocked else 'bg-gradient-to-r from-sb-gold-deep to-sb-gold-bright' }}" style="width: {{ clean.score }}%"></div>
-        </div>
+        <div class="mt-2">{{ sb.meter("Clean Release", clean.score, 100, shown=clean.score ~ "/100", tone=("crit" if clean.blocked else ("good" if clean.score == 100 else ""))) }}</div>
         {% if clean.blocked %}
         <p class="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400 font-medium">Release blocked — a rights-critical item is red. Fix it in the passport or lockbox before this track ships.</p>
         {% endif %}
