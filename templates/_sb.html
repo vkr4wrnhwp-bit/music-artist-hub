@@ -309,3 +309,109 @@
     {% if caller %}<div class="sb-plate-actions">{{ caller() }}</div>{% endif %}
   </section>
 {%- endmacro %}
+
+
+{# --- instruments -------------------------------------------------
+   The shared control set (styles in static/css/app-chrome.css). These exist
+   because the same components were hand-drawn 39 times across eight
+   stylesheets - five bar dialects, four lamp dialects, three segmented
+   controls, three faders - and none of them lived here.
+
+   THE HONESTY RULE IS ENFORCED IN THE MACRO, NOT LEFT TO THE CALLER.
+   meter() with value=None draws "not measured" rather than an empty ladder,
+   because an empty ladder reads as zero and not-measured is not zero. Passing
+   a made-up number to make a page look instrumented is the one thing these
+   are not for. #}
+
+{# A measured value against a ceiling. `value` and `ceiling` must both be
+   real; pass value=none when there is nothing measured and say why in
+   `absent`. #}
+{% macro meter(label, value, ceiling=none, tone="", shown=none, absent="Not measured") -%}
+  {%- set known = value is not none and ceiling is not none and ceiling > 0 -%}
+  <div class="sb-meter-row">
+    <span class="sb-meter-val" style="text-align:left;">{{ label }}</span>
+    {%- if known %}
+      {%- set pct = ((100 * value / ceiling) | round | int) -%}
+      <span class="sb-meter {{ 'sb-meter--' ~ tone if tone }}"
+            role="img" aria-label="{{ label }}: {{ shown if shown is not none else value }}">
+        <span class="sb-meter-fill" style="--sb-meter-fill: {{ [pct, 100] | min }}%;"></span>
+      </span>
+      <span class="sb-meter-val">{{ shown if shown is not none else value }}</span>
+    {%- else %}
+      <span class="sb-meter sb-meter--none" role="img" aria-label="{{ label }}: {{ absent }}"></span>
+      <span class="sb-meter-val">{{ absent }}</span>
+    {%- endif %}
+  </div>
+{%- endmacro %}
+
+{# One number that matters, in a recessed window. #}
+{% macro lcd(value, caption, absent="—") -%}
+  <span class="sb-lcd {{ 'sb-lcd--none' if value is none }}">
+    <span class="sb-lcd-v">{{ absent if value is none else value }}</span>
+    <span class="sb-lcd-cap">{{ caption }}</span>
+  </span>
+{%- endmacro %}
+
+{# A state, as a word with a dot. The word carries the meaning - a dot alone
+   would make colour the only carrier, which fails for anybody who cannot
+   distinguish them. #}
+{% macro lamp(text, tone="") -%}
+  <span class="sb-lamp {{ 'sb-lamp--' ~ tone if tone }}">{{ text }}</span>
+{%- endmacro %}
+
+{# A switch. `on` is the current state; omit `name` for a display-only switch
+   driven by aria-pressed, or pass one to submit a checkbox. `disabled` is for
+   a state the viewer genuinely cannot change - a lane behind a server flag,
+   say - and it must LOOK unavailable rather than silently ignore the click. #}
+{% macro switch(label, on=false, name=none, value="1", disabled=false, title=none) -%}
+  {%- if name %}
+    <label class="sb-switch" {% if title %}title="{{ title }}"{% endif %}>
+      <input type="checkbox" name="{{ name }}" value="{{ value }}"
+             {{ "checked" if on }} {{ "disabled" if disabled }}>
+      {{ label }}
+    </label>
+  {%- else %}
+    <button type="button" class="sb-switch" aria-pressed="{{ 'true' if on else 'false' }}"
+            {{ "disabled" if disabled }} {% if title %}title="{{ title }}"{% endif %}>{{ label }}</button>
+  {%- endif %}
+{%- endmacro %}
+
+{# A small set of choices as one pill. Real radios stay in the DOM so keyboard
+   and screen readers work; the labels are the visible caps. #}
+{% macro seg(name, options, current=none, id_prefix="seg") -%}
+  <span class="sb-seg" role="radiogroup" aria-label="{{ name }}">
+    {%- for value, text in options %}
+      <input type="radio" id="{{ id_prefix }}-{{ name }}-{{ loop.index }}" name="{{ name }}"
+             value="{{ value }}" {{ "checked" if value == current }}>
+      <label for="{{ id_prefix }}-{{ name }}-{{ loop.index }}">{{ text }}</label>
+    {%- endfor %}
+  </span>
+{%- endmacro %}
+
+{# A fader with its legend and readout, so a stack of them lines up. Only for
+   a value the viewer can actually move. #}
+{% macro fader(legend, name, value, min=0, max=100, step=1, readout=none, disabled=false) -%}
+  <label class="sb-fader-row">
+    <span class="sb-meter-val" style="text-align:left;">{{ legend }}</span>
+    <input class="sb-fader" type="range" name="{{ name }}" value="{{ value }}"
+           min="{{ min }}" max="{{ max }}" step="{{ step }}"
+           aria-label="{{ legend }}" {{ "disabled" if disabled }}>
+    <span class="sb-meter-val">{{ readout if readout is not none else value }}</span>
+  </label>
+{%- endmacro %}
+
+{# Where something is in a sequence. ONLY for a stage that is stored - a rail
+   showing a stage nobody set is the invention this file exists to refuse.
+   `stages` is a list of (key, label); `current` is the stored one. #}
+{% macro stages(stages, current, done=none) -%}
+  {%- set finished = done if done is not none else [] -%}
+  <div class="sb-stages" role="list" aria-label="Progress">
+    {%- for key, text in stages %}
+      <span class="sb-stages-i
+                   {{ 'sb-stages-i--now' if key == current }}
+                   {{ 'sb-stages-i--done' if key in finished and key != current }}"
+            role="listitem"
+            {% if key == current %}aria-current="step"{% endif %}>{{ text }}</span>
+    {%- endfor %}
+  </div>
+{%- endmacro %}

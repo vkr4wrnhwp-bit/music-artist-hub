@@ -432,3 +432,313 @@ details.asx-open[open] .asx-when-closed { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .asx-lane, .asx-lane::before, .asx-lane-ico { transition: none; }
 }
+
+/* ==========================================================================
+   INSTRUMENTS - the shared control set.
+   ==========================================================================
+
+   An audit of this codebase found 39 hardware-style components across eight
+   stylesheets, and NOT ONE of them in shared chrome. The same thing was drawn
+   over and over: five progress-bar dialects (.rk-seg, .rk-lvl, .hmeter,
+   .sbrc-track, plus inline width percentages), four lamp dialects (.lamp,
+   .lx-chip, .sr-state, .sbeq-lamp), three segmented controls (.rk-segsw,
+   .lx-seg, .sbrl-seg) and three faders.
+
+   These are those components, promoted once. Nothing here is new: every one
+   is lifted from a working implementation, with the source named so the
+   original can be retired against it rather than left to drift.
+
+   THE RULE THAT GOVERNS ALL OF THEM. An instrument shows a value. If the
+   value is not real - not measured, not stored, not changing - it does not
+   get an instrument. A meter fed by a constant and a switch that switches
+   nothing are the fabrication this product refuses everywhere else, and
+   putting them in shared chrome would only make the lie reusable. Where
+   there is no value, say so in words.
+   -------------------------------------------------------------------------- */
+
+/* --- segment meter --------------------------------------------------------
+ * From rack.css .rk-seg. An inset well, a fill sized by --sb-meter-fill, and
+ * a mask that cuts the fill into LEDs so it reads as a ladder rather than a
+ * progress bar - discrete, like a meter on a desk. */
+
+.sb-meter {
+  position: relative;
+  height: 10px;
+  border-radius: var(--sb-r-pill);
+  background: var(--sb-surface-3);
+  border: 1px solid var(--sb-line);
+  overflow: hidden;
+}
+
+.sb-meter-fill {
+  height: 100%;
+  width: var(--sb-meter-fill, 0%);
+  background: var(--sb-gold);
+  transition: width var(--sb-slow) var(--sb-ease);
+}
+
+.sb-meter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to right, transparent 0 5px, var(--sb-ground) 5px 8px);
+  pointer-events: none;
+}
+
+.sb-meter--good .sb-meter-fill { background: var(--sb-good); }
+.sb-meter--warn .sb-meter-fill { background: var(--sb-warn); }
+.sb-meter--crit .sb-meter-fill { background: var(--sb-crit); }
+.sb-meter--sm { height: 6px; }
+
+/* A meter with nothing behind it is not drawn empty - an empty ladder reads
+ * as zero, and "not measured" is not zero. */
+.sb-meter--none { border-style: dashed; }
+.sb-meter--none .sb-meter-fill { display: none; }
+
+.sb-meter-row {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) minmax(0, 2fr) auto;
+  align-items: center;
+  gap: var(--sb-s3);
+}
+
+.sb-meter-val {
+  font-family: var(--sb-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--sb-ink-2);
+  text-align: right;
+}
+
+/* --- LCD readout ----------------------------------------------------------
+ * From rack.css .rk-lcd. A recessed window for ONE number that matters, with
+ * an engraved caption under it. */
+
+.sb-lcd {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--sb-s2) var(--sb-s4);
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-3);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / .5);
+}
+
+.sb-lcd-v {
+  font-family: var(--sb-mono);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  color: var(--sb-gold);
+  text-shadow: 0 0 10px rgb(201 162 74 / .35);
+}
+
+.sb-lcd-cap {
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+}
+
+.sb-lcd--none .sb-lcd-v { color: var(--sb-ink-3); text-shadow: none; }
+
+/* --- lamp -----------------------------------------------------------------
+ * Consolidates .lamp / .lx-chip / .sr-state / .sbeq-lamp. A word with a dot,
+ * because a dot alone makes colour the only carrier of meaning. */
+
+.sb-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sb-s2);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+}
+
+.sb-lamp::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sb-lamp--on { color: var(--sb-good); }
+.sb-lamp--on::before { box-shadow: 0 0 8px currentColor; }
+.sb-lamp--warn { color: var(--sb-warn); }
+.sb-lamp--crit { color: var(--sb-crit); }
+.sb-lamp--info { color: var(--sb-info); }
+
+/* --- switch ---------------------------------------------------------------
+ * From rack.css .sw plus the OFF/ON legend of .rk-cab-pwr. Skins a button
+ * with aria-pressed, or a label wrapping a checkbox. */
+
+.sb-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5rem;
+  padding: var(--sb-s2) var(--sb-s3);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+  background: var(--sb-surface-3);
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+  cursor: pointer;
+  transition: color var(--sb-fast) var(--sb-ease),
+              border-color var(--sb-fast) var(--sb-ease);
+}
+
+.sb-switch[aria-pressed="true"],
+.sb-switch:has(> input:checked) {
+  color: var(--sb-gold);
+  border-color: var(--sb-gold);
+  background: var(--sb-gold-wash);
+}
+
+.sb-switch:focus-visible,
+.sb-switch:has(> input:focus-visible) {
+  outline: none;
+  box-shadow: var(--sb-focus);
+}
+
+.sb-switch > input { position: absolute; opacity: 0; pointer-events: none; }
+
+/* A switch nobody is allowed to throw must LOOK unavailable, not merely
+ * ignore the click. */
+.sb-switch[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+/* --- segmented control ----------------------------------------------------
+ * Consolidates .rk-segsw / .lx-seg / .sbrl-seg. Real radios stay in the DOM
+ * so keyboard and screen readers work; the labels are the visible caps. */
+
+.sb-seg {
+  display: inline-flex;
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+  overflow: hidden;
+}
+
+.sb-seg > label,
+.sb-seg > button {
+  padding: var(--sb-s2) var(--sb-s4);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+  background: var(--sb-surface-3);
+  border: 0;
+  border-right: 1px solid var(--sb-line);
+  cursor: pointer;
+}
+
+.sb-seg > :last-child { border-right: 0; }
+.sb-seg > input { position: absolute; opacity: 0; pointer-events: none; }
+
+.sb-seg > input:checked + label,
+.sb-seg > button[aria-pressed="true"] {
+  color: var(--sb-gold);
+  background: var(--sb-gold-wash);
+}
+
+.sb-seg > input:focus-visible + label,
+.sb-seg > button:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+
+/* --- fader ----------------------------------------------------------------
+ * From rack.css .fader. A native range, restyled - so keys, touch and
+ * assistive tech keep working. */
+
+.sb-fader {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: var(--sb-r-pill);
+  background: var(--sb-surface-3);
+  border: 1px solid var(--sb-line);
+}
+
+.sb-fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 18px;
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-1);
+  border: 1px solid var(--sb-line-strong);
+  box-shadow: inset 0 0 0 1px var(--sb-gold);
+  cursor: pointer;
+}
+
+.sb-fader::-moz-range-thumb {
+  width: 10px;
+  height: 18px;
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-1);
+  border: 1px solid var(--sb-gold);
+  cursor: pointer;
+}
+
+.sb-fader:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+.sb-fader[disabled] { opacity: 0.45; }
+
+/* Legend, fader, readout - the three-column grid from light-studio.css .lx-mix
+ * so a stack of faders lines up down the page. */
+.sb-fader-row {
+  display: grid;
+  grid-template-columns: 1.6em minmax(0, 1fr) 3.6em;
+  align-items: center;
+  gap: var(--sb-s3);
+}
+
+/* --- lifecycle rail -------------------------------------------------------
+ * From studio-room.css .sr-rail. Only for a stage that is STORED. A rail
+ * showing a stage nobody set is exactly the invention this file forbids.
+ *
+ * Called .sb-stages, NOT .sb-rail: tailwind.css already compiles a .sb-rail
+ * for the vertical desk navigation, and this sheet loads after it, so the
+ * name would have silently taken the desk nav's border-right off. */
+
+.sb-stages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sb-s2);
+  padding: var(--sb-s3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2);
+}
+
+.sb-stages-i {
+  padding: var(--sb-s1) var(--sb-s3);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-pill);
+}
+
+.sb-stages-i--done { color: var(--sb-good); border-color: var(--sb-good-line); }
+.sb-stages-i--now {
+  color: var(--sb-gold);
+  border-color: var(--sb-gold);
+  background: var(--sb-gold-wash);
+}
+
+@media (pointer: coarse) {
+  .sb-switch, .sb-seg > label, .sb-seg > button { min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-meter-fill, .sb-switch { transition: none; }
+}

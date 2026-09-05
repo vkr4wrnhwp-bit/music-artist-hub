@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Growth Score - Street Banker{% endblock %}
 
@@ -48,15 +49,11 @@
     <div class="mt-6 grid gap-x-8 gap-y-3 sm:grid-cols-2">
       {% for name, pts, note in q.categories %}
       <div>
-        <div class="flex items-baseline justify-between">
-          <span class="text-xs font-bold uppercase tracking-wide text-gray-200">{{ name }}</span>
-          <span class="text-xs font-black tabular-nums {{ 'text-green-400' if pts >= 7 else ('text-sb-gold-bright' if pts >= 4 else 'text-red-400/80') }}">{{ pts }}/10</span>
-        </div>
-        <div class="mt-1 flex gap-[3px]">
-          {% for i in range(10) %}
-          <span class="h-2.5 flex-1 rounded {{ ('bg-green-500' if pts >= 7 else ('bg-sb-gold-bright' if pts >= 4 else 'bg-red-500/70')) if i < pts else 'bg-white/10' }}"></span>
-          {% endfor %}
-        </div>
+        {#- The shared segment meter. This was a hand-rolled ten-span ladder,
+            byte-identical to the one on the other scorecard page apart from one
+            threshold - two of the five bar dialects the instrument set replaces. -#}
+        {{ sb.meter(name, pts, 10, shown="%d/10"|format(pts),
+                    tone=("good" if pts >= 7 else ("" if pts >= 4 else "crit"))) }}
       </div>
       {% endfor %}
     </div>
