@@ -131,6 +131,7 @@ TOUR_TABS = [
     ("map", "Route", "map"), ("import", "Import", "import"),
     ("exports", "Exports", "exports"), ("share", "Share links", "share"),
     ("team", "Team", "team"), ("settings", "Settings", "settings"),
+    ("stage-plot", "Stage plot", "stage-plot"),
 ]
 TOUR_TAB_SCOPE = {"money": "financials", "merch": "merch", "guests": "guests",
                   "vip": "vip",
@@ -145,7 +146,7 @@ PRIMARY_TABS = ("home", "shows", "people", "travel", "money", "files")
 BAR_LABELS = {"home": "Home", "shows": "Dates", "people": "Crew", "travel": "Travel & hotels"}
 # Pages that live under one primary entry, shown as a sub-row beneath it.
 BAR_GROUPS = {"travel": (("travel", "Travel"), ("hotels", "Hotels"), ("map", "Route"))}
-MORE_ORDER = ("my-day", "calendar", "schedule", "venues", "setlists", "guests", "vip", "merch",
+MORE_ORDER = ("my-day", "calendar", "schedule", "venues", "setlists", "stage-plot", "guests", "vip", "merch",
               "marketing", "content", "tasks", "changes", "ask", "import", "exports", "share",
               "team", "settings")
 
@@ -2567,6 +2568,21 @@ def file_delete(user, tour, viewer, tour_id, file_id):
 
 
 # --- what changed -----------------------------------------------------------
+
+@bp.route("/tours/<tour_id>/stage-plot")
+@require_tour("view")
+def stage_plot(user, tour, viewer, tour_id):
+    """The owner's stage plot inside the tour frame. The plot is the act's,
+    not the tour's - one per account, drawn at /stage-plot - so it is read
+    from the tour owner and only the owner may change it; crew see the
+    drawing and the input list it derives, which is what they need."""
+    import json as _json
+    plot = store.get_stage_plot(tour["user_id"])
+    return render_template("tour/stage_plot.html", **_ctx(
+        user, tour, viewer, "stage-plot",
+        saved_plot=_json.dumps(plot) if plot else "null",
+        editable=bool(viewer.get("is_owner"))))
+
 
 @bp.route("/tours/<tour_id>/changes")
 @require_tour("view")

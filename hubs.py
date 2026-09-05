@@ -38,8 +38,7 @@ HUBS = [
         ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Daily follower and popularity snapshots, growth over time, and your link engagement."),
     ]),
     ("stage", "Live Stage Suite", "Everything between the booking and the encore — shows, plots, lights, and the rider.", [
-        ("tours", "/tours", "M3 4h14v12H3z|M3 8h14|M6 12h3|M12 12h2|M7 2v4|M13 2v4", "TOUR", "The whole run: My Day, Show Command, advance, travel, rooms, guests, money."),
-        ("stage-plot", "/stage-plot", "M4 4h12v8H4z|M2 16h16|M7 12v4|M13 12v4", "Stage Plot", "Drag-and-drop plot with an auto input list."),
+        ("tours", "/tours", "M3 4h14v12H3z|M3 8h14|M6 12h3|M12 12h2|M7 2v4|M13 2v4", "TOUR", "The whole run: My Day, Show Command, advance, stage plot, travel, rooms, guests, money."),
         ("passports", "/passports", "M5 3h10a1 1 0 011 1v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z|M7 7h6M7 10h6M7 13h4",
          "Show Passport", "The technical record, versioned — a show keeps the version it was advanced against."),
         ("lights", "/lights", "M10 2v4|M4 6l2 2|M16 6l-2 2|M6 12a4 4 0 118 0v4H6z", "Light Studio", "Cue programming with real DMX output."),
@@ -133,7 +132,7 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "documents", "c
              "vault", "review", "pulse", "team", "tax", "connections",
              "releases", "publishing", "mechanicals", "neighboring",
              "territories", "insights", "disputes", "fan-club-admin", "portal",
-             "tours", "stage-plot", "passports", "tour-board", "rack", "roster", "referrals",
+             "tours", "passports", "tour-board", "rack", "roster", "referrals",
              "lights", "tracks", "royalty-lanes", "money-queue", "certified",
              "press-desk",
              "hours"]

@@ -1,0 +1,14 @@
+{% extends "tour/_shell.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}Stage plot - {{ tour['name'] }} - Street Banker{% endblock %}
+{% block tour_body %}
+<div class="to-panel" style="margin-bottom:12px">
+  <div class="to-eyebrow">Stage plot</div>
+  {% if editable %}
+  <p class="to-muted">Your plot and input list, in the tour. It is the one drawing an act has - the same one as <a href="/stage-plot">Stage Plot</a> - and every advance sent from this tour attaches it.</p>
+  {% else %}
+  <p class="to-muted">The act's plot and input list, as the owner drew them. Only the tour owner changes it; the advance email carries the rendered PNG.</p>
+  {% endif %}
+</div>
+{% include "_stage_plot_designer.html" %}
+{% endblock %}
