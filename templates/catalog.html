@@ -114,7 +114,7 @@
       {% endif %}
     </div>
     {% set ids_n = my_tracks | length %}
-    <div class="mt-4 grid gap-4 sm:grid-cols-3">
+    <div class="mt-4 grid gap-2">
       {{ sb.meter("ISRC (recordings)", ids_with_isrc, ids_n, shown=ids_with_isrc ~ "/" ~ ids_n,
                   tone=("good" if ids_n and ids_with_isrc == ids_n else ""), absent="No tracks") }}
       {{ sb.meter("UPC (releases)", ids_with_upc, ids_n, shown=ids_with_upc ~ "/" ~ ids_n,
@@ -163,7 +163,7 @@
         <div class="mt-2 text-2xl font-bold tabular-nums">{{ "{:,}".format(sm.registered_tracks) }}</div>
         <div class="mt-1 text-xs text-gray-300 font-medium">{{ c.registered_pct }}% registered</div>
       </div>
-      {{ ring(82, '#79B473') }}
+      {{ ring(c.registered_pct, '#79B473') }}
     </button>
     <button type="button" class="metric-card flex items-center justify-between rounded-2xl border border-white/5 bg-sb-surface-1 p-4 text-left transition-colors hover:border-amber-500/25" data-goto-tab="Tracks" data-set-status="Unregistered">
       <div>
@@ -171,7 +171,7 @@
         <div class="mt-2 text-2xl font-bold tabular-nums">{{ sm.unregistered_tracks }}</div>
         <div class="mt-1 text-xs text-gray-300 font-medium">{{ c.unregistered_pct }}% need registration</div>
       </div>
-      {{ ring(17, '#E8B950') }}
+      {{ ring(c.unregistered_pct, '#E8B950') }}
     </button>
     <button type="button" class="metric-card flex items-center justify-between rounded-2xl border border-white/5 bg-sb-surface-1 p-4 text-left transition-colors hover:border-amber-500/25" data-goto-tab="Tracks" data-set-status="Missing ISRC">
       <div>

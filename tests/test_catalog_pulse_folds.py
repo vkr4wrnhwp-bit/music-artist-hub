@@ -115,6 +115,16 @@ def test_a_missing_isrc_is_a_word_and_an_action(artist):
     assert 'value="Resolve 1 missing ISRC(s) in catalog"' in body
 
 
+def test_the_registration_rings_read_the_real_percentage(artist):
+    """Found while folding: the Registered / Unregistered rings were drawn
+    at 82% and 17% for every account - constants, beside the real count.
+    One track of two carries an ISRC, so the rings are 50 and 50."""
+    body = artist["client"].get("/catalog").get_data(as_text=True)
+    rings = body.split('id="identifiers"')[1]
+    assert rings.count(">50%</div>") == 2
+    assert "82%" not in body and "17%" not in body
+
+
 def test_an_empty_catalog_does_not_pretend_to_measure(application):
     import db as store
 
