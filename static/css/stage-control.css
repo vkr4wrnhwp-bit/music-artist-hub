@@ -691,3 +691,13 @@ select.sc-in {
 }
 
 .sc-stale[data-stale="yes"] { color: var(--sb-warn); }
+
+/* --- connected control ------------------------------------------------------
+ * The mode banner in Connected Control carries the gold rule so the state
+ * change is visible at a glance across the room; the wording does the rest. */
+.sc-mode--connected { border-left: 3px solid var(--sb-gold); }
+.sc-inline-form { display: inline; }
+.sc-kv { display: grid; grid-template-columns: minmax(8rem, 12rem) 1fr; gap: var(--sb-s2) var(--sb-s4); font-size: 13px; }
+.sc-kv dt { color: var(--sb-ink-3); font-family: var(--sb-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.sc-kv dd { margin: 0; }
+.sc-token { font-family: var(--sb-mono); font-size: 13px; word-break: break-all; padding: var(--sb-s3); border: 1px dashed var(--sb-gold); border-radius: var(--sb-r-control); background: var(--sb-gold-wash); }

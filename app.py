@@ -2897,6 +2897,10 @@ def create_app():
 
     _PUBLIC_PREFIXES = ("/static/", "/uploads/", "/l/", "/s/", "/epk/",
                         "/stem-src/",
+                        # A Stage Bridge is a machine on a venue network; it
+                        # holds a device token, not a session, and every
+                        # route under here answers 401 without one.
+                        "/bridge/",
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
                         "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/", "/@",

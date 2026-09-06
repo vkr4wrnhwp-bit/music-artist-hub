@@ -25,9 +25,16 @@ from flask import (Blueprint, abort, jsonify, redirect, render_template,
 
 import passport_store as ps
 import advance_store as adv
+import stage_adapters as adapters
+import stage_bridge as sb
+import stage_safety as safety
 import stage_store as st
 
 bp = Blueprint("stage", __name__, url_prefix="/stage")
+
+# The device's own door. Token-authenticated, never session-authenticated: a
+# Stage Bridge is a machine on a venue network, not a person with a login.
+dev_bp = Blueprint("bridge", __name__, url_prefix="/bridge")
 
 _current_user = None
 _dashboard_context = None
@@ -93,9 +100,12 @@ def _performer_mixes(snap, performer):
 @require_show
 def desk(show_id, user):
     mixes, sources, snap = _mixes_and_sources(show_id, user["id"])
+    sb.expire_stale(show_id, user["id"])
     return render_template(
         "stage/desk.html", active_page="stage",
         show_id=show_id, snapshot=snap,
+        mode=sb.mode(show_id, user["id"]),
+        commands=sb.commands_for_show(show_id, user["id"], limit=12),
         requests=st.for_show(show_id, user["id"], open_only=True),
         history=st.for_show(show_id, user["id"])[:40],
         summary=st.summary(show_id, user["id"]),
@@ -118,10 +128,15 @@ def events(show_id, user):
         since = int(since)
     except (TypeError, ValueError):
         since = 0
+    # A dead command must not sit at "sent" forever; the poll is the clock.
+    sb.expire_stale(show_id, user["id"])
+    m = sb.mode(show_id, user["id"])
     return jsonify({
         "cursor": st.cursor(show_id),
         "events": st.events_since(show_id, since),
         "summary": st.summary(show_id, user["id"]),
+        "mode": {"mode": m["mode"], "code": m["code"], "reason": m["reason"],
+                 "simulated": m["simulated"]},
     })
 
 
@@ -155,11 +170,173 @@ def act(show_id, user, request_id, action):
     elif action == "reject":
         st.reject(request_id, user["id"], actor=actor,
                   reason=request.form.get("reason") or "")
+    elif action == "send":
+        # Connected control. The safety engine decides; a refusal is written
+        # to the log with its code and the desk shows it in words.
+        _cmd, decision = sb.issue(request_id, user["id"], actor=actor)
+        if not decision:
+            return redirect(url_for("stage.desk", show_id=show_id, refused=decision.reason))
+        _drive_if_simulated(show_id, user["id"])
     elif action == "revert":
-        st.revert(request_id, user["id"], actor=actor)
+        if req["state"] == "applied":
+            # Applied on the console: the revert is a console command too.
+            _cmd, decision = sb.issue(request_id, user["id"], actor=actor, is_revert=True)
+            if not decision:
+                return redirect(url_for("stage.desk", show_id=show_id, refused=decision.reason))
+            _drive_if_simulated(show_id, user["id"])
+        else:
+            st.revert(request_id, user["id"], actor=actor)
     else:
         abort(404)
     return redirect(url_for("stage.desk", show_id=show_id))
+
+
+def _drive_if_simulated(show_id, user_id):
+    """The simulator has no bridge of its own, so the web process is it for
+    one cycle. A real adapter is never driven from here - run_local refuses."""
+    dev = sb.device_for_show(show_id, user_id)
+    spec = adapters.spec(dev["adapter_key"]) if dev else None
+    if spec and spec["simulated"]:
+        sb.run_local(dev["id"], user_id)
+
+
+# --- the bridge page -----------------------------------------------------------
+
+@bp.route("/<show_id>/bridge")
+@require_show
+def bridge(show_id, user):
+    m = sb.mode(show_id, user["id"])
+    dev = m["device"]
+    inst = adapters.instance_for(dev["id"], dev["adapter_key"]) if dev and m["simulated"] else None
+    return render_template(
+        "stage/bridge.html", active_page="stage",
+        show_id=show_id, mode=m, device=dev, spec=m["spec"],
+        policy=safety.policy(show_id), bounds=safety.POLICY_BOUNDS,
+        adapters=[adapters.spec(k) for k in adapters.ADAPTERS],
+        commands=sb.commands_for_show(show_id, user["id"], limit=30),
+        heartbeat_age=safety.age_seconds(dev["last_heartbeat"]) if dev else None,
+        sim=inst, never=adapters.NEVER,
+        token=request.args.get("token") or "",
+        refused=request.args.get("refused") or "",
+        **_ctx())
+
+
+@bp.route("/<show_id>/bridge/<action>", methods=["POST"])
+@require_show
+def bridge_act(show_id, user, action):
+    actor = user.get("name") or user.get("email") or ""
+    dev = sb.device_for_show(show_id, user["id"])
+    if action == "register":
+        if dev is not None:
+            return redirect(url_for("stage.bridge", show_id=show_id,
+                                    refused="Revoke the current Stage Bridge before registering another."))
+        try:
+            new, token = sb.register(user["id"], show_id, request.form.get("name") or "",
+                                     adapter_key=request.form.get("adapter") or "simulator")
+        except ValueError as e:
+            return redirect(url_for("stage.bridge", show_id=show_id, refused=str(e)))
+        return redirect(url_for("stage.bridge", show_id=show_id, token=token))
+    if action == "policy":
+        _pol, refused = safety.set_policy(show_id, user["id"], **{
+            k: request.form.get(k) for k in safety.POLICY_BOUNDS if request.form.get(k)})
+        if refused:
+            return redirect(url_for("stage.bridge", show_id=show_id,
+                                    refused="Out of bounds, not saved: " + ", ".join(refused)))
+        return redirect(url_for("stage.bridge", show_id=show_id))
+    if dev is None:
+        abort(404)
+    if action == "arm":
+        if sb.arm(dev["id"], user["id"], actor=actor) is None:
+            return redirect(url_for("stage.bridge", show_id=show_id,
+                                    refused="Release the lockout before arming."))
+    elif action == "disarm":
+        sb.disarm(dev["id"], user["id"], actor=actor)
+    elif action == "lockout":
+        sb.lockout(dev["id"], user["id"], actor=actor, reason=request.form.get("reason") or "")
+    elif action == "release":
+        sb.release_lockout(dev["id"], user["id"], actor=actor)
+    elif action == "rotate":
+        _dev, token = sb.rotate(dev["id"], user["id"], actor=actor)
+        return redirect(url_for("stage.bridge", show_id=show_id, token=token))
+    elif action == "revoke":
+        sb.revoke(dev["id"], user["id"], actor=actor)
+    elif action == "heartbeat":
+        # The simulator's bridge lives in this process; this is its pulse.
+        spec = adapters.spec(dev["adapter_key"])
+        if not spec or not spec["simulated"]:
+            abort(404)
+        sb.run_local(dev["id"], user["id"])
+    elif action == "simulate":
+        # Rehearse failure on the desk: take the simulated console offline,
+        # or make its next write fail. Only the simulator has these switches.
+        spec = adapters.spec(dev["adapter_key"])
+        if not spec or not spec["simulated"]:
+            abort(404)
+        inst = adapters.instance_for(dev["id"], dev["adapter_key"])
+        what = request.form.get("what") or ""
+        if what == "offline":
+            inst.offline = True
+        elif what == "online":
+            inst.offline = False
+        elif what == "fail_next":
+            inst.fail_next = "Simulated: the console refused this write."
+        elif what == "no_readback":
+            inst.confirms = False
+        elif what == "readback":
+            inst.confirms = True
+        sb.heartbeat(sb.get_device(dev["id"]), inst.health())
+    else:
+        abort(404)
+    return redirect(url_for("stage.bridge", show_id=show_id))
+
+
+# --- the device's door ---------------------------------------------------------
+
+def _device_from_request():
+    auth = request.headers.get("Authorization") or ""
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    return sb.authenticate(token)
+
+
+@dev_bp.route("/heartbeat", methods=["POST"])
+def device_heartbeat():
+    dev = _device_from_request()
+    if dev is None:
+        return jsonify({"ok": False, "error": "unauthorised"}), 401
+    body = request.get_json(silent=True) or {}
+    dev = sb.heartbeat(dev, body.get("health") or {"ok": True},
+                       software_version=body.get("software_version") or "")
+    return jsonify({"ok": True, "device_id": dev["id"], "armed": bool(dev["armed"]),
+                    "lockout": bool(dev["lockout"]), "revoked": bool(dev["revoked_at"])})
+
+
+@dev_bp.route("/pull", methods=["POST"])
+def device_pull():
+    dev = _device_from_request()
+    if dev is None:
+        return jsonify({"ok": False, "error": "unauthorised"}), 401
+    return jsonify({"ok": True, "commands": sb.pull(dev),
+                    "armed": bool(dev["armed"]), "lockout": bool(dev["lockout"])})
+
+
+@dev_bp.route("/ack", methods=["POST"])
+def device_ack():
+    dev = _device_from_request()
+    if dev is None:
+        return jsonify({"ok": False, "error": "unauthorised"}), 401
+    body = request.get_json(silent=True) or {}
+    _cmd, decision = sb.acknowledge(dev, body.get("command_id") or "", body.get("nonce") or "",
+                                    body.get("result") or {})
+    return jsonify({"ok": decision.allowed, "code": decision.code, "reason": decision.reason})
+
+
+@dev_bp.route("/reconcile", methods=["POST"])
+def device_reconcile():
+    dev = _device_from_request()
+    if dev is None:
+        return jsonify({"ok": False, "error": "unauthorised"}), 401
+    body = request.get_json(silent=True) or {}
+    return jsonify({"ok": True, "outcomes": sb.reconcile(dev, body.get("entries") or [])})
 
 
 @bp.route("/<show_id>/lock", methods=["POST"])
@@ -247,4 +424,6 @@ def init(app, current_user=None, dashboard_context=None):
     _current_user = current_user
     _dashboard_context = dashboard_context
     st.init_stage()
+    sb.init_bridge()
     app.register_blueprint(bp)
+    app.register_blueprint(dev_bp)

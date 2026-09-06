@@ -4,7 +4,7 @@
 {% block title %}Engineer Desk - Stage Control{% endblock %}
 
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/stage-control.css?v=5">
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=6">
 {% endblock %}
 
 {% block content %}
@@ -16,13 +16,34 @@
 {#- The mode banner is permanent, not a toast. The brief: the active mode must
     always be visible, and the product must never move from Request Mode into
     Connected Control silently. -#}
-<p class="sc-mode">
-  <span class="sc-mode-what">Request Mode</span>
+{% if mode.mode == "connected" %}
+<p class="sc-mode sc-mode--connected" data-mode="connected">
+  <span class="sc-mode-what">Connected Control{% if mode.simulated %} · SIMULATED{% endif %}</span>
   <span class="sc-mode-note">
-    No console is connected. You apply changes on the desk and record what you
-    did; nothing here can move a fader.
+    {{ mode.device.name }} is armed and answering. An approved request can be
+    sent to the {{ mode.spec.key }} adapter{% if mode.simulated %}, which is a
+    simulation: it moves no audio{% endif %}. A change reads as done only when
+    the console confirms it.
+    <a href="/stage/{{ show_id }}/bridge">Stage Bridge →</a>
   </span>
 </p>
+{% else %}
+<p class="sc-mode" data-mode="request">
+  <span class="sc-mode-what">Request Mode</span>
+  <span class="sc-mode-note">
+    {% if mode.code == "no_device" %}No console is connected. You apply changes
+    on the desk and record what you did; nothing here can move a fader.
+    {% else %}{{ mode.reason }} Nothing can be sent until that changes.{% endif %}
+    <a href="/stage/{{ show_id }}/bridge">Stage Bridge →</a>
+  </span>
+</p>
+{% endif %}
+{% if request.args.get("refused") %}
+  <p class="sc-mode" role="alert">
+    <span class="sc-mode-what">Refused</span>
+    <span class="sc-mode-note">{{ request.args.get("refused") }}</span>
+  </p>
+{% endif %}
 
 {% if not snapshot %}
   <section class="sb-panel">
@@ -98,7 +119,21 @@
                 {% endfor %}
               {% endif %}
 
-              {% if r.state in open_states and r.state not in ["queued_for_device", "sent"] %}
+              {#- Connected control: only an APPROVED request, only when the
+                  mode says a device is ready. The button is the mode's, not
+                  the request's - it disappears with the device. -#}
+              {% if r.state == "approved" and mode.mode == "connected" %}
+                <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/send">
+                  <button class="sc-act sc-act--go" type="submit">Send to the console{% if mode.simulated %} (simulated){% endif %}</button>
+                </form>
+              {% endif %}
+              {% if r.state in ["pending", "acknowledged", "modified"] and mode.mode == "connected" %}
+                <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/approve">
+                  <button class="sc-act" type="submit">Approve for the console</button>
+                </form>
+              {% endif %}
+
+              {% if r.state in open_states and r.state not in ["queued_for_device", "sent", "device_acknowledged"] %}
                 <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/applied">
                   <button class="sc-act sc-act--go" type="submit">Done on the desk</button>
                 </form>
@@ -151,6 +186,11 @@
               {{ labels.get(r.kind, r.kind) }}{% if r.source %} {{ r.source }}{% endif %}
             </span>
             {% if r.engineer %}<span class="sc-muted">{{ r.engineer }}</span>{% endif %}
+            {% if r.state in ["applied", "applied_manually"] %}
+              <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/revert" class="sc-inline-form">
+                <button class="sc-act" type="submit">{{ "Revert on the console" if r.state == "applied" else "Put back" }}</button>
+              </form>
+            {% endif %}
           </li>
         {% endfor %}
       </ul>

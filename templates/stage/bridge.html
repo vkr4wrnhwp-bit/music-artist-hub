@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Stage Bridge - Stage Control{% endblock %}
+
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=6">
+{% endblock %}
+
+{% block content %}
+{{ sb.plate("/static/img/eq-room", [900, 1200, 1600],
+            "Street Banker · Stage Control", "Stage Bridge",
+            "The device that holds the only connection to a console. Register it, arm the show, and the desk can send an approved request as a bounded, signed command. Everything here is computed from what the device last said — never from a flag somebody set.",
+            position="center 42%") }}
+
+{#- The mode, permanently. Same computation as the desk's banner. -#}
+{% if mode.mode == "connected" %}
+<p class="sc-mode sc-mode--connected" data-mode="connected">
+  <span class="sc-mode-what">Connected Control{% if mode.simulated %} · SIMULATED{% endif %}</span>
+  <span class="sc-mode-note">Armed, answering, adapter healthy. <a href="/stage/{{ show_id }}">Back to the desk →</a></span>
+</p>
+{% else %}
+<p class="sc-mode" data-mode="request">
+  <span class="sc-mode-what">Request Mode</span>
+  <span class="sc-mode-note">{{ mode.reason }} <a href="/stage/{{ show_id }}">Back to the desk →</a></span>
+</p>
+{% endif %}
+
+{% if refused %}
+  <p class="sc-mode" role="alert">
+    <span class="sc-mode-what">Refused</span>
+    <span class="sc-mode-note">{{ refused }}</span>
+  </p>
+{% endif %}
+
+{% if token %}
+  <section class="sb-panel">
+    <h2 class="sb-label sb-label-gold">Device credentials — shown once</h2>
+    <p class="sb-note">
+      Put this token on the Stage Bridge. It is stored here only as a hash;
+      close this page and it cannot be shown again — rotate to get a new one.
+    </p>
+    <p class="sc-token">{{ token }}</p>
+    <p class="sb-note">
+      Signing key: <span class="sc-token" style="display:inline;padding:2px 6px;">{{ device.signing_key }}</span><br>
+      The bridge verifies every command's signature with it. Rotating replaces both.
+    </p>
+  </section>
+{% endif %}
+
+{% if not device %}
+  <section class="sb-panel">
+    <h2 class="sb-label sb-label-gold">No Stage Bridge yet</h2>
+    <p class="sb-note">
+      Request Mode is the whole product without one. Register a device only
+      when there is a machine on the venue's production network to run it —
+      or the simulator, to rehearse the desk.
+    </p>
+    <form method="post" action="/stage/{{ show_id }}/bridge/register" class="sb-row sb-row--wrap">
+      <input class="sc-in" name="name" aria-label="Device name" placeholder="Name (Rack A, FOH laptop)" style="max-width:16rem;">
+      <select class="sc-in" name="adapter" aria-label="Console adapter" style="max-width:16rem;">
+        {% for a in adapters %}
+          <option value="{{ a.key }}">{{ a.manufacturer }} {{ a.product_family }}{% if a.simulated %} (simulated){% endif %}</option>
+        {% endfor %}
+      </select>
+      <button class="sc-act sc-act--go" type="submit">Register</button>
+    </form>
+  </section>
+{% else %}
+
+  <section class="sb-panel">
+    <h2 class="sb-label sb-label-gold">{{ device.name }}</h2>
+    <div class="sb-row sb-row--wrap" style="gap:var(--sb-s4);margin:var(--sb-s3) 0;">
+      {{ sb.lamp("Revoked" if device.revoked_at else ("Lockout" if device.lockout else ("Armed" if device.armed else "Disarmed")),
+                 "crit" if (device.revoked_at or device.lockout) else ("on" if device.armed else "")) }}
+      {% if heartbeat_age is none %}
+        {{ sb.lamp("No heartbeat yet", "warn") }}
+      {% elif heartbeat_age > policy.heartbeat_stale_s %}
+        {{ sb.lamp("Heartbeat stale · " ~ (heartbeat_age|int) ~ " s", "crit") }}
+      {% else %}
+        {{ sb.lamp("Heartbeat · " ~ (heartbeat_age|int) ~ " s ago", "on") }}
+      {% endif %}
+      {% if spec.simulated %}{{ sb.lamp("Simulated", "warn") }}{% endif %}
+    </div>
+    <dl class="sc-kv">
+      <dt>Adapter</dt><dd>{{ spec.manufacturer }} {{ spec.product_family }} · v{{ spec.version }} · {{ spec.protocol }}</dd>
+      <dt>Tested on</dt><dd>{{ spec.tested_model }} · firmware {{ spec.tested_firmware }}</dd>
+      <dt>Can do</dt><dd>{{ spec.writes|join(", ")|replace("_", " ") }}; reads {{ spec.reads|join(", ")|replace("_", " ") }}</dd>
+      <dt>Confirms writes</dt><dd>{{ "Yes — reads the value back" if spec.acknowledges else "No — a send is all it knows" }}</dd>
+      <dt>Can revert</dt><dd>{{ "Yes" if spec.can_revert else "No" }}</dd>
+      <dt>Limits</dt><dd>{{ spec.limits.max_step_db }} dB per step · {{ spec.limits.min_level_db }} to {{ spec.limits.max_level_db }} dB</dd>
+      <dt>Connection</dt><dd>{{ spec.connection }}</dd>
+      <dt>Known limits</dt><dd>{% for k in spec.known_limitations %}{{ k }}{{ " " if not loop.last }}{% endfor %}</dd>
+      <dt>Software</dt><dd>{{ device.software_version or "—" }}</dd>
+      {% if device.lockout %}<dt>Lockout reason</dt><dd>{{ device.lockout_reason }}</dd>{% endif %}
+    </dl>
+
+    <div class="sc-req-acts" style="margin-top:var(--sb-s4);">
+      {% if not device.revoked_at %}
+        {% if device.lockout %}
+          <form method="post" action="/stage/{{ show_id }}/bridge/release"><button class="sc-act" type="submit">Release lockout</button></form>
+        {% elif device.armed %}
+          <form method="post" action="/stage/{{ show_id }}/bridge/disarm"><button class="sc-act" type="submit">Disarm — back to Request Mode</button></form>
+        {% else %}
+          <form method="post" action="/stage/{{ show_id }}/bridge/arm"><button class="sc-act sc-act--go" type="submit">Arm the show</button></form>
+        {% endif %}
+        <form method="post" action="/stage/{{ show_id }}/bridge/lockout">
+          <input class="sc-in" name="reason" aria-label="Reason" placeholder="Reason (optional)" style="max-width:14rem;">
+          <button class="sc-act sc-act--no" type="submit">EMERGENCY LOCKOUT</button>
+        </form>
+        <form method="post" action="/stage/{{ show_id }}/bridge/rotate"><button class="sc-act" type="submit">Rotate credentials</button></form>
+        <form method="post" action="/stage/{{ show_id }}/bridge/revoke"><button class="sc-act sc-act--no" type="submit">Revoke device</button></form>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if spec.simulated and not device.revoked_at %}
+  <section class="sb-panel">
+    <h2 class="sb-label sb-label-gold">The simulator</h2>
+    <p class="sb-note">
+      There is no real bridge for a simulated console, so this page is it.
+      Pulse sends a heartbeat and works the queue once; the switches rehearse
+      the failures the desk has to survive. Levels live in this process's
+      memory and move no audio.
+    </p>
+    <div class="sc-req-acts">
+      <form method="post" action="/stage/{{ show_id }}/bridge/heartbeat"><button class="sc-act sc-act--go" type="submit">Pulse (heartbeat + work the queue)</button></form>
+      <form method="post" action="/stage/{{ show_id }}/bridge/simulate"><input type="hidden" name="what" value="{{ 'online' if sim and sim.offline else 'offline' }}"><button class="sc-act" type="submit">{{ "Bring the console back" if sim and sim.offline else "Take the console offline" }}</button></form>
+      <form method="post" action="/stage/{{ show_id }}/bridge/simulate"><input type="hidden" name="what" value="fail_next"><button class="sc-act" type="submit">Refuse the next write</button></form>
+      <form method="post" action="/stage/{{ show_id }}/bridge/simulate"><input type="hidden" name="what" value="{{ 'readback' if sim and not sim.confirms else 'no_readback' }}"><button class="sc-act" type="submit">{{ "Confirm writes again" if sim and not sim.confirms else "Stop confirming writes" }}</button></form>
+    </div>
+    {% if sim %}
+      <dl class="sc-kv" style="margin-top:var(--sb-s4);">
+        <dt>Console</dt><dd>{{ sb.lamp("Offline", "crit") if sim.offline else sb.lamp("Answering", "on") }}</dd>
+        <dt>Read-back</dt><dd>{{ sb.lamp("Confirms", "on") if sim.confirms else sb.lamp("Send only", "warn") }}</dd>
+        <dt>Writes so far</dt><dd class="sc-num">{{ sim.writes }}</dd>
+        {% for key, level in sim.levels.items() %}
+          <dt>{{ key[0] }} · {{ key[1] }}</dt>
+          <dd>{{ sb.meter(key[0] ~ " " ~ key[1], level - sim.MIN_DB, sim.MAX_DB - sim.MIN_DB, shown="%.1f dB"|format(level)) }}</dd>
+        {% endfor %}
+      </dl>
+    {% endif %}
+  </section>
+  {% endif %}
+
+{% endif %}
+
+<section class="sb-panel">
+  <h2 class="sb-label sb-label-gold">Safety policy</h2>
+  <p class="sb-note">
+    Every bound is ours: the console enforces none. Values can be tightened,
+    never widened past the vocabulary — three decibels a step is the ceiling.
+  </p>
+  <form method="post" action="/stage/{{ show_id }}/bridge/policy" class="sb-row sb-row--wrap">
+    {% for key, label in [("max_step_db", "Max dB per step"), ("per_performer_per_min", "Per performer / min"),
+                          ("per_mix_per_min", "Per mix / min"), ("per_source_per_min", "Per source / min"),
+                          ("command_ttl_s", "Command lifetime (s)"), ("heartbeat_stale_s", "Heartbeat stale after (s)")] %}
+      <label class="sc-count-label" style="display:flex;flex-direction:column;gap:4px;">
+        {{ label }} <span class="sc-muted">{{ bounds[key][0] }}–{{ bounds[key][1] }}</span>
+        <input class="sc-in" type="number" name="{{ key }}" value="{{ policy[key] }}" min="{{ bounds[key][0] }}" max="{{ bounds[key][1] }}" style="max-width:8rem;">
+      </label>
+    {% endfor %}
+    <button class="sc-act" type="submit">Save policy</button>
+  </form>
+  <p class="sb-note" style="margin-top:var(--sb-s3);">
+    Never a command: {% for n in never %}{{ n|replace("_", " ") }}{{ ", " if not loop.last }}{% endfor %}.
+    These have no name in the vocabulary, so nothing can ask for them.
+  </p>
+</section>
+
+{% if commands %}
+<section class="sb-panel">
+  <h2 class="sb-label sb-label-gold">Commands</h2>
+  <ul class="sc-mine">
+    {% for c in commands %}
+      <li>
+        {{ sb.lamp(c.state, "on" if c.state == "applied" else ("warn" if c.state in ["queued", "sent", "acked"] else ("crit" if c.state in ["failed", "rejected", "expired"] else ""))) }}
+        <span>{{ c.mix }}{% if c.source %} · {{ c.source }}{% endif %}</span>
+        <span class="sc-muted">{{ c.command|replace("_", " ") }}{% if c.command == "send_level_delta" %} {{ "%+d"|format(c.step_db) }} dB{% elif c.muted is not none %} {{ "mute" if c.muted else "unmute" }}{% endif %}{% if c.revert_of %} · revert{% endif %}</span>
+        <span class="sc-muted sc-num">{{ c.issued[11:19] }}</span>
+        {% if c.failure %}<span class="sc-muted">{{ c.failure }}</span>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}
