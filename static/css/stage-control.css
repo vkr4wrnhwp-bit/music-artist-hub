@@ -701,3 +701,14 @@ select.sc-in {
 .sc-kv dt { color: var(--sb-ink-3); font-family: var(--sb-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
 .sc-kv dd { margin: 0; }
 .sc-token { font-family: var(--sb-mono); font-size: 13px; word-break: break-all; padding: var(--sb-s3); border: 1px dashed var(--sb-gold); border-radius: var(--sb-r-control); background: var(--sb-gold-wash); }
+
+/* .sc-in was drawn for the ivory sheet: its ink is paper ink, which is
+ * invisible on the dark rooms - the desk's "Why not" box took typing nobody
+ * could see. Inside a dark panel the control takes the room's ink. */
+.sb-panel .sc-in { color: var(--sb-ink); border-bottom-color: var(--sb-line-strong); }
+.sb-panel .sc-in::placeholder { color: var(--sb-ink-3); }
+
+/* The policy form: six small numbers, as a grid rather than a column. */
+.sc-policy { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: var(--sb-s3) var(--sb-s4); align-items: end; margin-top: var(--sb-s3); }
+.sc-policy label { display: flex; flex-direction: column; gap: 4px; }
+.sc-policy .sc-in { max-width: 8rem; font-family: var(--sb-mono); font-variant-numeric: tabular-nums; }
