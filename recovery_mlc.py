@@ -78,6 +78,16 @@ def _case_for(row):
     return ("", "")
 
 
+def attach_earnings(view, top_tracks):
+    """Mark each sweep row with what its title earns in a stream, by title.
+    A title match is a hint for the eye, not an identity claim, so it only
+    decorates rows the registry already answered about."""
+    earning = {(title or "").strip().lower(): amt for title, amt in (top_tracks or [])}
+    for row in ((view or {}).get("latest") or {}).get("rows") or []:
+        row["earning"] = earning.get((row.get("title") or "").strip().lower())
+    return view
+
+
 def state(user_id):
     """What the Recovery page may say: connected or not, what a sweep would
     ask, the latest sweep with a case offered on every gap."""

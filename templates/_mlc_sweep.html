@@ -1,0 +1,45 @@
+{# The latest MLC sweep, shared by Recovery and Mechanicals. Expects `mlc`
+   from recovery_mlc.state() and the sb macros in context. A row carries
+   `earning` when the page crossed it with an income stream. #}
+{% if mlc.latest %}
+      <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-200">
+        <span>Checked {{ mlc.latest.summary.checked }} · {{ mlc.latest.created[:16] }}</span>
+        {{ sb.lamp(mlc.latest.summary.matched ~ ' fully claimed', 'good') }}
+        {{ sb.lamp(mlc.latest.summary.partial ~ ' partly claimed', 'warn') }}
+        {{ sb.lamp(mlc.latest.summary.unmatched ~ ' no work linked', 'crit') }}
+        {% if mlc.latest.summary.errors %}{{ sb.lamp(mlc.latest.summary.errors ~ ' error' ~ ('' if mlc.latest.summary.errors == 1 else 's'), 'crit') }}{% endif %}
+        {% if mlc.latest.summary.skipped %}<span>{{ mlc.latest.summary.skipped }} more not checked this run (cap {{ mlc.per_sweep }} a run)</span>{% endif %}
+      </div>
+      <div class="mt-3 space-y-1.5">
+        {% for r in mlc.latest.rows %}
+        <div class="rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs">
+          <div class="flex flex-wrap items-center gap-2">
+            {% if r.result == 'match' %}{{ sb.lamp((r.share_total|round(1)) ~ '% claimed', 'good' if r.share_total >= 99.5 else 'warn') }}{% elif r.result == 'none' %}{{ sb.lamp('no work linked', 'crit') }}{% else %}{{ sb.lamp('error', 'crit') }}{% endif %}
+            <a href="/tracks/{{ r.track_id }}#mlc" class="min-w-0 flex-1 truncate font-semibold text-gray-100 hover:text-sb-gold-bright">{{ r.title }}</a>
+            <span class="shrink-0 font-mono text-gray-200">{{ r.isrc }}</span>
+            {% if r.song_code %}<span class="shrink-0 text-gray-200">song code {{ r.song_code }}</span>{% endif %}
+            {% if r.earning is defined and r.earning is not none %}<span class="shrink-0 font-bold sb-num text-sb-ink">earning ${{ "{:,.2f}".format(r.earning) }} here</span>{% endif %}
+          </div>
+          {% if r.message %}<p class="mt-1 text-gray-200">{{ r.message }}</p>{% endif %}
+          {% if r.gap %}
+          <div class="mt-2 flex flex-wrap gap-2">
+            {% if r.has_case %}
+            <a href="/royalty-recovery/cases" class="rounded-md border border-green-500/30 bg-green-500/10 px-3 py-1.5 text-xs font-bold text-green-400">Case open →</a>
+            {% else %}
+            <form method="post" action="/royalty-recovery/cases/from-finding">
+              <input type="hidden" name="title" value="{{ r.case_title }}">
+              <input type="hidden" name="category" value="mechanical">
+              <input type="hidden" name="amount" value="0">
+              <input type="hidden" name="notes" value="{{ r.case_note }}">
+              <button class="rounded-md bg-sb-surface-2 px-3 py-1.5 text-xs font-bold text-sb-gold-bright ring-1 ring-sb-gold/50 hover:bg-black">Open case</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="mt-3 text-xs text-gray-200">No check run yet.</p>
+      {% endif %}
+      {% if mlc.missing %}<p class="mt-3 text-xs text-gray-200">{{ mlc.missing|length }} passport{{ '' if mlc.missing|length == 1 else 's' }} carr{{ 'ies' if mlc.missing|length == 1 else 'y' }} no ISRC and cannot be checked: {% for m in mlc.missing[:5] %}<a href="/tracks/{{ m.track_id }}" class="text-sb-gold-bright hover:underline">{{ m.title }}</a>{{ ', ' if not loop.last }}{% endfor %}{% if mlc.missing|length > 5 %} and {{ mlc.missing|length - 5 }} more{% endif %}.</p>{% endif %}

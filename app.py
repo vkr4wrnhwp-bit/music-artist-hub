@@ -2056,12 +2056,13 @@ def create_app():
         if user is None:
             return login_required_redirect()
         import signal_providers as sp
+        back = "/mechanicals" if request.form.get("next") == "/mechanicals" else "/recovery"
         if not sp.mlc_adapter().configured():
-            return redirect("/recovery?mlc=off#mlc")
+            return redirect(back + "?mlc=off#mlc")
         if not recovery_mlc.candidates(user["id"])[0]:
-            return redirect("/recovery?mlc=none#mlc")
+            return redirect(back + "?mlc=none#mlc")
         recovery_mlc.sweep(user["id"])
-        return redirect("/recovery#mlc")
+        return redirect(back + "#mlc")
 
     @app.route("/valuation")
     def valuation():
@@ -7306,8 +7307,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        return render_template("royalty_type.html", active_page=active,
-                               rt=royalty_types.type_report(user["id"], bucket),
+        rt = royalty_types.type_report(user["id"], bucket)
+        mlc = None
+        if bucket == "mechanical":
+            mlc = recovery_mlc.attach_earnings(recovery_mlc.state(user["id"]), rt.get("top_tracks"))
+        return render_template("royalty_type.html", active_page=active, rt=rt, mlc=mlc,
+                               mlc_note={"off": "The MLC is not connected on this service.",
+                                         "none": "No Track Passport carries an ISRC yet, so there is nothing to ask about."
+                                         }.get(request.args.get("mlc") or "", ""),
                                **build_dashboard_context())
 
     @app.route("/publishing")

@@ -12,6 +12,30 @@
     <p class="mt-1 max-w-2xl text-sm text-gray-300">Your actual {{ rt.label|lower }} income, classified from the statements you've uploaded — {{ rt.rows }} matching line{{ 's' if rt.rows != 1 }}.</p>
   </div>
 
+  {# Mechanicals only: the registry beside the income. The only registration
+     status on this page is what The MLC's own database said when asked. #}
+  {% if mlc %}
+  <section id="mlc" class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="sb-label text-sb-gold">Registration at The MLC</h2>
+        <p class="mt-1 text-sm text-gray-300">{% if mlc.on %}What The MLC's own database says about each ISRC on your Track Passports, when you ask it. Fully claimed means the work is registered and its collection shares total 100. Partly claimed means somebody collects part of it. No work linked, on a released recording, is mechanical money nobody is collecting. A title that also earns in this stream shows what it earned.{% else %}Not connected. With The MLC's Public Search API login set, this asks the registry about every ISRC on your Track Passports. Until then nothing on this page is a registration status; the MLC registration field on each Track Passport is yours to fill.{% endif %}</p>
+      </div>
+      {% if mlc.on %}
+      <form method="post" action="/recovery/mlc">
+        <input type="hidden" name="next" value="/mechanicals">
+        <button class="sb-btn sb-btn-secondary sb-btn-sm"{% if not mlc.ready %} disabled title="No ISRC on any Track Passport yet"{% endif %}>Check {{ mlc.ready|length }} ISRC{{ '' if mlc.ready|length == 1 else 's' }} at The MLC</button>
+      </form>
+      {% endif %}
+    </div>
+    {% if mlc_note %}<p class="mt-2 text-xs text-amber-300">{{ mlc_note }}</p>{% endif %}
+    {% if mlc.on %}
+      {% include "_mlc_sweep.html" %}
+      <p class="mt-3 text-xs text-gray-300"><a href="/recovery#mlc" class="text-sb-gold-bright hover:underline">The same sweep on Recovery →</a></p>
+    {% endif %}
+  </section>
+  {% endif %}
+
   {% if rt.rows == 0 %}
   <section class="rounded-2xl border border-amber-500/25 bg-sb-surface-2 p-6">
     <div class="sb-label text-sb-gold-bright">Nothing collected — that's the finding</div>
