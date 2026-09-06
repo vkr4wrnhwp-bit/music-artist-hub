@@ -458,6 +458,16 @@ def init_db():
                 lockbox TEXT NOT NULL DEFAULT '{}',
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS track_mlc_checks (
+                id TEXT PRIMARY KEY,
+                track_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                asked TEXT NOT NULL DEFAULT '',
+                result TEXT NOT NULL DEFAULT 'none',
+                message TEXT NOT NULL DEFAULT '',
+                works TEXT NOT NULL DEFAULT '[]',
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -2727,7 +2737,47 @@ def delete_os_track(user_id, track_id):
     with get_db() as db:
         cur = db.execute("DELETE FROM os_tracks WHERE id = ? AND user_id = ?",
                          (track_id, user_id))
+        if cur.rowcount:
+            db.execute("DELETE FROM track_mlc_checks WHERE track_id = ?", (track_id,))
     return cur.rowcount > 0
+
+
+# --- The MLC, asked about one track: every run kept, answer and error alike --
+
+def add_track_mlc_check(user_id, track_id, asked, result, message, works):
+    check_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO track_mlc_checks (id, track_id, user_id, asked, result, message, works, created)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            (check_id, track_id, user_id, (asked or "")[:200],
+             result if result in ("match", "none", "error") else "error",
+             (message or "")[:500], json.dumps(works or [])[:60000], _now()))
+    return check_id
+
+
+def _mlc_check_dict(row):
+    d = dict(row)
+    try:
+        d["works"] = json.loads(d.get("works") or "[]")
+    except ValueError:
+        d["works"] = []
+    return d
+
+
+def list_track_mlc_checks(user_id, track_id, limit=5):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM track_mlc_checks WHERE user_id = ? AND track_id = ?"
+            " ORDER BY created DESC, rowid DESC LIMIT ?", (user_id, track_id, int(limit))).fetchall()
+    return [_mlc_check_dict(r) for r in rows]
+
+
+def get_track_mlc_check(user_id, check_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM track_mlc_checks WHERE id = ? AND user_id = ?",
+                         (check_id, user_id)).fetchone()
+    return _mlc_check_dict(row) if row else None
 
 
 def add_roster_invite(label_id, email):

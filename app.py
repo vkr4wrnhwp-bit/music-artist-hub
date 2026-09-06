@@ -4184,12 +4184,85 @@ def create_app():
         ctx = _os_ctx(user["id"])
         return render_template("os_track_detail.html", active_page="catalog",
                                track=track,
+                               mlc=_track_mlc_state(user["id"], track),
                                passport=artist_os.passport_report(track),
                                clean=artist_os.clean_release(track, ctx),
                                lanes=artist_os.lane_grid(track, ctx),
                                lockbox=artist_os.lockbox_report(track),
                                fields=artist_os.PASSPORT_FIELDS,
                                **build_dashboard_context())
+
+    def _track_mlc_state(user_id, track):
+        """What the passport page may say about The MLC: whether the
+        registry is connected, what a check would ask, and the checks so
+        far. Nothing here is a registration status - that stays the
+        field the artist fills, until a check by ISRC matches."""
+        import signal_providers as sp
+        passport = track.get("passport") or {}
+        return {
+            "on": sp.mlc_adapter().configured(),
+            "isrc": (passport.get("isrc") or "").strip().upper(),
+            "artist": (passport.get("artist_name") or "").strip(),
+            "checks": store.list_track_mlc_checks(user_id, track["id"]),
+            "note": {
+                "off": "The MLC is not connected on this service.",
+                "need": "Add an ISRC, or at least an artist name, to the passport first.",
+            }.get(request.args.get("mlc") or "", ""),
+        }
+
+    @app.route("/tracks/<track_id>/mlc", methods=["POST"])
+    def os_track_mlc(track_id):
+        """Ask The MLC about this track, on the artist's say-so, and keep
+        the answer. 'fill' copies names from a stored match into passport
+        fields that are still empty - a name they typed is a decision, a
+        name the registry holds is evidence, and evidence never overwrites
+        a decision."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        track = store.get_os_track(user["id"], track_id)
+        if track is None:
+            abort(404)
+        import signal_providers as sp
+        adapter = sp.mlc_adapter()
+        if not adapter.configured():
+            return redirect("/tracks/%s?mlc=off#mlc" % track_id)
+        passport = track.get("passport") or {}
+        if request.form.get("action") == "fill" and request.form.get("check_id"):
+            check = store.get_track_mlc_check(user["id"], request.form["check_id"])
+            if check and check["track_id"] == track_id and check["works"]:
+                work = check["works"][0]
+                fills = {}
+                writers = ", ".join(w.get("name") for w in work.get("writers") or [] if w.get("name"))
+                pubs = ", ".join(x.get("name") for x in work.get("publishers") or [] if x.get("name"))
+                if writers and not (passport.get("songwriters") or "").strip():
+                    fills["songwriters"] = writers[:200]
+                if pubs and not (passport.get("publishers") or "").strip():
+                    fills["publishers"] = pubs[:200]
+                # Only a match by ISRC says THIS recording is registered;
+                # a title match says a work of that name exists.
+                if check["asked"].startswith("ISRC ") and not (passport.get("mlc_status") or "").strip():
+                    fills["mlc_status"] = ("registered - matched at The MLC, song code %s, %g%% claimed"
+                                           % (work.get("song_code") or "?", work.get("share_total") or 0))[:200]
+                if fills:
+                    passport.update(fills)
+                    store.update_os_track_passport(user["id"], track_id, passport)
+            return redirect("/tracks/%s#mlc" % track_id)
+        isrc = (passport.get("isrc") or "").strip().upper()
+        artist = (passport.get("artist_name") or "").strip()
+        if isrc:
+            asked, args = "ISRC " + isrc, {"isrc": isrc}
+        elif artist:
+            asked, args = "%s by %s" % (track["title"], artist), {"title": track["title"], "artist": artist}
+        else:
+            return redirect("/tracks/%s?mlc=need#mlc" % track_id)
+        try:
+            works = adapter.lookup(**args)["works"]
+            result, message = ("match" if works else "none"), ""
+        except sp.ProviderError as e:
+            works, result, message = [], "error", str(e)
+        store.add_track_mlc_check(user["id"], track_id, asked, result, message, works)
+        return redirect("/tracks/%s#mlc" % track_id)
 
     @app.route("/tracks/<track_id>/passport", methods=["POST"])
     def os_track_passport(track_id):

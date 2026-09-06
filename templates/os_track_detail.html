@@ -47,6 +47,60 @@
       </form>
     </section>
 
+    {# The MLC, asked on request. A match names the work, its writers, its
+       publishers and how much of it is claimed; "no work linked" for a
+       released ISRC is the unmatched money this product exists for. #}
+    <section id="mlc" class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 class="sb-label text-sb-gold">The MLC</h2>
+          <p class="mt-1 text-xs text-gray-300">{% if mlc.on %}Asks The MLC's public database which work this recording is linked to, who wrote it, who publishes it and how much of it is claimed. It runs when you press the button; nothing is registered or changed on your behalf.{% else %}Not connected. The MLC's Public Search API needs the login they issue after registration; until it is set, this page says nothing about your registration rather than guessing. The MLC registration field above is yours to fill.{% endif %}</p>
+        </div>
+        {% if mlc.on %}
+        <form method="post" action="/tracks/{{ track.id }}/mlc">
+          <input type="hidden" name="action" value="check">
+          <button class="sb-btn sb-btn-secondary sb-btn-sm"{% if not mlc.isrc and not mlc.artist %} disabled title="Add an ISRC, or an artist name, to the passport first"{% endif %}>{% if mlc.isrc %}Check ISRC {{ mlc.isrc }}{% else %}Check by title and artist{% endif %}</button>
+        </form>
+        {% endif %}
+      </div>
+      {% if mlc.note %}<p class="mt-2 text-xs text-amber-300">{{ mlc.note }}</p>{% endif %}
+      {% if mlc.on %}
+      <div class="mt-3 space-y-2">
+        {% for c in mlc.checks %}
+        <div class="rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-xs">
+          <div class="flex flex-wrap items-center gap-2">
+            {{ sb.lamp('matched' if c.result == 'match' else ('no work linked' if c.result == 'none' else 'error'), 'good' if c.result == 'match' else ('warn' if c.result == 'none' else 'crit')) }}
+            <span class="min-w-0 flex-1 truncate text-gray-100">{{ c.asked }}</span>
+            <span class="shrink-0 text-gray-300">{{ c.created[:16] }}</span>
+          </div>
+          {% if c.message %}<p class="mt-1 text-gray-300">{{ c.message }}</p>{% endif %}
+          {% if c.result == 'none' %}<p class="mt-1 text-gray-300">The MLC has no work linked to this. If the song is yours and it is out, that is mechanical money nobody is collecting: register the work, then check again.</p>{% endif %}
+          {% for w in c.works %}
+          <div class="mt-2 border-t border-white/5 pt-2">
+            <div class="flex flex-wrap items-center gap-2 text-gray-100">
+              <b>{{ w.title }}</b>
+              <span class="text-gray-300">song code {{ w.song_code }}{% if w.iswc %} · ISWC {{ w.iswc }}{% endif %}</span>
+              {{ sb.lamp(((w.share_total|round(1)) ~ '% claimed') if w.publishers else 'no publisher listed', 'good' if w.share_total >= 99.5 else 'warn') }}
+            </div>
+            <div class="mt-1 text-gray-300">Writers: {% for x in w.writers %}{{ x.name }} ({{ 'IPI ' ~ x.ipi if x.ipi else 'no IPI' }}){{ ', ' if not loop.last }}{% else %}none listed{% endfor %}</div>
+            <div class="mt-0.5 text-gray-300">Publishers: {% for x in w.publishers %}{{ x.name }} {{ x.share|round(1) }}%{% if x.administrators %} via {{ x.administrators|join(', ') }}{% endif %}{{ '; ' if not loop.last }}{% else %}none listed{% endfor %}</div>
+          </div>
+          {% endfor %}
+          {% if c.works and loop.first %}
+          <form method="post" action="/tracks/{{ track.id }}/mlc" class="mt-2">
+            <input type="hidden" name="action" value="fill">
+            <input type="hidden" name="check_id" value="{{ c.id }}">
+            <button class="sb-btn sb-btn-secondary sb-btn-sm">Fill empty passport fields from this</button>
+          </form>
+          {% endif %}
+        </div>
+        {% else %}
+        <p class="text-xs text-gray-300">No check run yet.</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+
     <!-- Right rail -->
     <div class="space-y-5">
       <!-- Clean Release -->

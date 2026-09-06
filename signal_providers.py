@@ -1225,6 +1225,18 @@ class ProviderRegistry(object):
         return [p.health_check() for p in self.all_providers()]
 
 
+_mlc = None
+
+
+def mlc_adapter():
+    """One MLC adapter for the process, so its token is exchanged once and
+    reused by every page that asks. Tests swap the function."""
+    global _mlc
+    if _mlc is None:
+        _mlc = MLCAdapter()
+    return _mlc
+
+
 _registry = None
 
 
