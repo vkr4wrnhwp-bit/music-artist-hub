@@ -24,7 +24,11 @@ Feature flags (all default off; see .env.example):
     PRIVATE_AUDIO_ENABLED, AUDIO_INTELLIGENCE_ENABLED
 """
 import hashlib
+import json
 import os
+import time
+import urllib.parse
+import urllib.request
 import random
 from datetime import date, datetime, timedelta, timezone
 
@@ -181,11 +185,148 @@ class ChartmetricAdapter(_EnvProvider):
 
 
 class MusicBrainzAdapter(_EnvProvider):
+    """The open MusicBrainz database, over its JSON web service.
+
+    Free, no account: their policy asks for a User-Agent that names a
+    contact, which is the one thing the environment has to carry, and one
+    request per second, which the adapter keeps to itself. What it answers
+    is identity and catalogue - who an artist is, where they are from, what
+    they have released and on which label. What it does NOT answer is
+    listeners, followers, cities or playlists: MusicBrainz measures nothing,
+    so those stay "not measured" rather than borrowing the demo's numbers
+    (see ProviderRegistry.for_capability).
+
+    Every method returns the same shapes the mock does, so the rest of
+    Signal cannot tell which one answered - except that these are true.
+    """
     key = "musicbrainz"
     label = "MusicBrainz"
     env_flag = "MUSICBRAINZ_ENABLED"
     env_keys = ("MUSICBRAINZ_CONTACT",)      # their policy requires a UA contact
     capabilities = (CAP_ARTIST, CAP_RELEASES, CAP_LABEL)
+    base_url = "https://musicbrainz.org/ws/2"
+    min_interval = 1.05                       # seconds between requests, their limit
+    release_groups_per_artist = 8             # one extra request each, so bounded
+
+    def __init__(self, fetch=None, sleep=None):
+        self._fetch = fetch
+        self._sleep = sleep if sleep is not None else time.sleep
+        self._last = 0.0
+
+    # -- transport --
+    def _get(self, path, **params):
+        params.setdefault("fmt", "json")
+        url = "%s/%s?%s" % (self.base_url, path.lstrip("/"), urllib.parse.urlencode(params))
+        wait = self.min_interval - (time.time() - self._last)
+        if wait > 0:
+            self._sleep(wait)
+        self._last = time.time()
+        if self._fetch is not None:
+            return self._fetch(url)
+        contact = (os.environ.get("MUSICBRAINZ_CONTACT") or "").strip()
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "StreetBanker/1.0 ( %s )" % contact, "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            raise ProviderError("MusicBrainz: %s" % e)
+
+    # -- shapes --
+    @staticmethod
+    def _artist_fields(a):
+        tags = sorted(a.get("tags") or [], key=lambda t: -(t.get("count") or 0))
+        area = a.get("area") or {}
+        begin = a.get("begin-area") or {}
+        socials = {"instagram": "", "tiktok": "", "youtube": ""}
+        website = ""
+        for rel in a.get("relations") or []:
+            url = (rel.get("url") or {}).get("resource") or ""
+            kind = rel.get("type") or ""
+            if kind == "official homepage" and not website:
+                website = url
+            for name in socials:
+                if name in url and not socials[name]:
+                    socials[name] = url
+        return {
+            "provider_artist_id": a.get("id") or "",
+            "name": a.get("name") or "",
+            "genre": (tags[0].get("name") or "").title() if tags else "",
+            "country": a.get("country") or "",
+            "city": begin.get("name") or "",
+            "state": "",
+            "region": area.get("name") or "",
+            # Not measured here. Left empty on purpose - never a guess.
+            "career_stage": "",
+            "monthly_listeners": None,
+            "image_url": "",
+            "website": website,
+            "socials": socials,
+            "disambiguation": a.get("disambiguation") or "",
+        }
+
+    def search_artists(self, query, limit=20):
+        q = (query or "").strip()
+        if not q:
+            # A blank search is how the demo universe is seeded; there is no
+            # honest way to pick "some artists" out of a million real ones.
+            return []
+        data = self._get("artist/", query=q, limit=max(1, min(int(limit or 20), 50)))
+        return [self._artist_fields(a) for a in data.get("artists") or []]
+
+    def get_artist(self, provider_artist_id):
+        data = self._get("artist/%s" % provider_artist_id, inc="tags+url-rels")
+        if not data or not data.get("id"):
+            return None
+        return self._artist_fields(data)
+
+    def get_artist_releases(self, provider_artist_id):
+        data = self._get("release-group/", artist=provider_artist_id,
+                         limit=self.release_groups_per_artist)
+        out = []
+        for rg in data.get("release-groups") or []:
+            item = {
+                "provider_release_id": rg.get("id") or "",
+                "title": rg.get("title") or "",
+                "release_type": (rg.get("primary-type") or "Single"),
+                "release_date": rg.get("first-release-date") or "",
+                "upc": "", "label_text": "", "distributor_name": "",
+                "distributor_class": "Unknown", "copyright_line": "", "track_count": 0,
+                "provider": self.key,
+            }
+            # One release per group for its label and barcode; the group
+            # alone carries neither.
+            try:
+                rel = self._get("release/", **{"release-group": rg.get("id") or "",
+                                              "inc": "labels+media", "limit": 1})
+            except ProviderError:
+                rel = {}
+            releases = rel.get("releases") or []
+            if releases:
+                r0 = releases[0]
+                labels = [li.get("label") or {} for li in r0.get("label-info") or []]
+                item["label_text"] = ", ".join(l.get("name") for l in labels if l.get("name"))
+                item["upc"] = r0.get("barcode") or ""
+                item["track_count"] = sum(int(m.get("track-count") or 0) for m in r0.get("media") or [])
+            out.append(item)
+        out.sort(key=lambda x: x["release_date"], reverse=True)
+        return out
+
+    def get_label_evidence(self, provider_release_id):
+        data = self._get("release/", **{"release-group": provider_release_id,
+                                        "inc": "labels", "limit": 1})
+        releases = data.get("releases") or []
+        if not releases:
+            return []
+        out = []
+        for li in releases[0].get("label-info") or []:
+            label = li.get("label") or {}
+            if label.get("name"):
+                out.append({"label_name": label["name"], "catalog_number": li.get("catalog-number") or "",
+                            "source_type": "release_metadata", "source_label": "MusicBrainz release",
+                            "source_url": "https://musicbrainz.org/release/%s" % (releases[0].get("id") or ""),
+                            "confidence": 0.8})
+        return out
 
 
 class MLCAdapter(_EnvProvider):
@@ -548,11 +689,20 @@ class ProviderRegistry(object):
         return [p for p in self.all_providers() if p.configured()]
 
     def for_capability(self, capability):
-        """Preferred provider for a capability, falling back to the mock."""
+        """Preferred provider for a capability.
+
+        The mock answers only while NOTHING real is configured. The moment a
+        real provider exists, a capability nobody real covers returns None,
+        and the caller shows "not measured" - because a real artist with
+        invented listener numbers beside their real name is the fabrication
+        this product refuses everywhere else. Demo mode is all-or-nothing.
+        """
         for p in self.adapters:
             if p.supports(capability) and p.configured():
                 return p
-        return self.mock if self.mock.supports(capability) else None
+        if self.is_demo():
+            return self.mock if self.mock.supports(capability) else None
+        return None
 
     def is_demo(self):
         """True when nothing real is configured - the UI must say so."""

@@ -160,8 +160,10 @@ def test_a_configured_adapter_is_preferred_over_the_mock(monkeypatch):
     reg = providers.ProviderRegistry(adapters=[providers.SoundchartsAdapter()])
     assert reg.is_demo() is False
     assert reg.for_capability(providers.CAP_METRICS).key == "soundcharts"
-    # a capability it does not claim still falls back rather than failing
-    assert reg.for_capability(providers.CAP_RIGHTS).key == "mock"
+    # A capability nobody real claims is NOT measured, never the mock's:
+    # a real artist with invented numbers beside their name is the
+    # fabrication the product refuses. Demo mode is all-or-nothing.
+    assert reg.for_capability(providers.CAP_RIGHTS) is None
 
 
 def test_a_failing_provider_degrades_and_is_recorded(flask_app):
