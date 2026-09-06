@@ -10,7 +10,7 @@
 {% block content %}
 {{ sb.plate("/static/img/eq-room", [900, 1200, 1600],
             "Street Banker · Stage Control", "Engineer Desk",
-            "What the stage is asking for, oldest first — except the things happening to the audience too, which come first. Nothing here touches a console.",
+            "What the stage is asking for, oldest first — except the things happening to the audience too, which come first. Nothing here touches a console unless the mode banner says so.",
             position="center 42%") }}
 
 {#- The mode banner is permanent, not a toast. The brief: the active mode must
@@ -127,7 +127,10 @@
                   <button class="sc-act sc-act--go" type="submit">Send to the console{% if mode.simulated %} (simulated){% endif %}</button>
                 </form>
               {% endif %}
-              {% if r.state in ["pending", "acknowledged", "modified"] and mode.mode == "connected" %}
+              {#- Only an ADJUSTMENT can be approved for the console. A report
+                  is a person telling you something; it never becomes a command,
+                  so it never gets the button. -#}
+              {% if r.state in ["pending", "acknowledged", "modified"] and mode.mode == "connected" and r.kind in ["more", "less", "mute", "unmute"] %}
                 <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/approve">
                   <button class="sc-act" type="submit">Approve for the console</button>
                 </form>

@@ -109,6 +109,16 @@ def test_the_send_button_appears_only_on_an_approved_request(show):
     assert "Send to the console" in desk
 
 
+def test_a_report_never_gets_the_console_button(show):
+    """A report is a person telling you something; it never becomes a
+    command, so the desk never offers to approve one for the console."""
+    _register_and_arm(show)
+    show["client"].post("/stage/%s/ask" % show["show"], data={
+        "performer": "Leafar", "mix": "Mix 1", "kind": "feedback"})
+    desk = show["client"].get("/stage/%s" % show["show"]).get_data(as_text=True)
+    assert "Approve for the console" not in desk and "Feedback" in desk
+
+
 def test_sending_drives_the_simulator_to_applied(show):
     _register_and_arm(show)
     rid = _ask(show)
