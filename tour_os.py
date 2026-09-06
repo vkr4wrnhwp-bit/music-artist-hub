@@ -149,6 +149,14 @@ BAR_GROUPS = {"travel": (("travel", "Travel"), ("hotels", "Hotels"), ("map", "Ro
 MORE_ORDER = ("my-day", "calendar", "schedule", "venues", "setlists", "stage-plot", "guests", "vip", "merch",
               "marketing", "content", "tasks", "changes", "ask", "import", "exports", "share",
               "team", "settings")
+# The same nineteen, read as four questions instead of one list. Order
+# inside a group is MORE_ORDER's; a key in no group lands under Tools.
+MORE_GROUPS = (
+    ("Show day", ("my-day", "calendar", "schedule", "setlists", "stage-plot")),
+    ("People", ("guests", "vip", "team")),
+    ("Sell & tell", ("merch", "marketing", "content")),
+    ("Tools", ("venues", "tasks", "changes", "ask", "import", "exports", "share", "settings")),
+)
 
 
 # --- identity & access ------------------------------------------------------
@@ -406,7 +414,17 @@ def _tour_bar(viewer, nav):
         label, path = allowed[key]
         more.append({"key": key, "label": label, "path": path, "on": nav == key})
     active_more = next((m for m in more if m["on"]), None)
-    return {"primary": primary, "more": more, "sub": sub, "active_more": active_more}
+    by_key = {m["key"]: m for m in more}
+    groups, placed = [], set()
+    for label, keys in MORE_GROUPS:
+        items = [by_key[k] for k in keys if k in by_key]
+        placed.update(k for k in keys if k in by_key)
+        if items:
+            groups.append({"label": label, "items": items})
+    rest = [m for m in more if m["key"] not in placed]
+    if rest:
+        groups.append({"label": "Tools", "items": rest})
+    return {"primary": primary, "more": more, "more_groups": groups, "sub": sub, "active_more": active_more}
 
 
 def _show_url(tour, show, tab=None):
@@ -896,6 +914,42 @@ def _plural(n, word, plural=None):
     return "%d %s" % (n, word if n == 1 else (plural or word + "s"))
 
 
+def _core_filled(key, d, show):
+    """Whether a core section holds anything yet - the tile's lamp, and
+    whether the section opens on its own."""
+    if key == "times":
+        return bool(d.get("schedule") or d.get("lineup"))
+    if key == "advance":
+        p = d.get("advance_progress") or {}
+        return bool(p.get("done") or p.get("waiting"))
+    if key == "venue":
+        return bool(d.get("venue") or d.get("show_people"))
+    if key == "deal":
+        m = d.get("money")
+        return bool(m and m.get("has_numbers"))
+    if key == "notes":
+        return bool((show.get("notes") or "").strip())
+    if key == "activity":
+        return bool(d.get("changes"))
+    return False
+
+
+def _glance(sections, chips):
+    """One tile per section, in page order, then a + tile per chip. The
+    tile carries the section's own status line; the lamp is the only
+    judgement, and it is 'set' or 'empty', never a score."""
+    tiles = []
+    for s in sections:
+        tiles.append({"key": s["key"], "label": s["label"], "icon": s["icon"],
+                      "lamp": "set" if s.get("filled") else "empty",
+                      "tone": "on" if s.get("filled") else "",
+                      "status": s.get("status") or "", "add": False})
+    for c in chips:
+        tiles.append({"key": c["key"], "label": c["label"], "icon": c["icon"],
+                      "lamp": "", "tone": "", "status": c.get("add_label") or "Add", "add": True})
+    return tiles
+
+
 def _section_status(key, d, show, tour):
     """The one line in a section head. Counts from rows, never a guess;
     money says 'no numbers entered' rather than zero."""
@@ -1146,13 +1200,21 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         need = SECTION_VIEW_SCOPE.get(key)
         if need and not can(viewer, need):
             continue
+        filled = _core_filled(key, d, show)
+        target = tab == key or TAB_SECTION.get(tab) == key
         core.append({"key": key, "label": label, "icon": icon, "optional": False, "opted": True,
-                     "has_data": True, "target": tab == key or TAB_SECTION.get(tab) == key,
-                     "open": key != "activity" or tab == "activity", "removable": False,
-                     "status": _section_status(key, d, show, tour)})
+                     "has_data": True, "filled": filled, "target": target,
+                     # Folded until it holds something or is asked for: a date
+                     # opens as a row of states, not a column of forms.
+                     "open": (filled or target) and key != "activity" or (key == "activity" and tab == "activity"),
+                     "removable": False, "status": _section_status(key, d, show, tour)})
+    for sec in shown:
+        sec["filled"] = sec["has_data"]
+        sec["open"] = sec["has_data"] or sec["target"]
     d["sections"] = [c for c in core if c["key"] != "activity"] + shown
     d["tail_sections"] = [c for c in core if c["key"] == "activity"]
     d["chips"] = chips
+    d["glance"] = _glance(d["sections"], chips)
     d.update(extra)
     return render_template("tour/show.html", **_ctx(user, tour, viewer, "shows", shows=shows, tab=tab, **d))
 

@@ -83,7 +83,7 @@
         </li>
         {% endfor %}
       </ul>
-      <p class="to-muted" style="margin:8px 0 0">The core items always count. Hotel, travel, guests, VIP, settlement, marketing and content count once they are added to this date or have rows.</p>
+      <p class="to-muted" style="margin:8px 0 0">Core items always count; added sections count once they are on the date.</p>
     </details>
   </div>
   {% if can('edit') %}
@@ -92,6 +92,28 @@
     <button class="to-btn to-btn--ghost to-btn--small" type="submit">Update</button>
   </form>
   {% endif %}
+</div>
+
+{#- The date at a glance: one tile per section with its state, and a +
+    tile for anything not on the date yet. A tile opens its section; the
+    forms wait below, folded until they hold something. -#}
+<div class="to-glance" id="glance" aria-label="This date at a glance">
+  {% for g in glance %}
+    {% if g['add'] %}
+    <form method="post" action="{{ show_url }}/sections" class="to-tile to-tile--add">
+      <input type="hidden" name="key" value="{{ g['key'] }}"><input type="hidden" name="action" value="add">
+      <button class="to-tile-btn" type="submit" title="{{ g['status'] }}">
+        <span class="to-tile-l">{{ disc(g['icon']) }}<span class="plus" aria-hidden="true">+</span> {{ g['label'] }}</span>
+        <span class="to-tile-s">Not on this date</span>
+      </button>
+    </form>
+    {% else %}
+    <a class="to-tile" href="#{{ g['key'] }}" data-open="{{ g['key'] }}">
+      <span class="to-tile-l">{{ disc(g['icon']) }}{{ g['label'] }}</span>
+      <span class="to-tile-row">{{ sb.lamp(g['lamp'], g['tone']) }}<span class="to-tile-s">{{ g['status'] }}</span></span>
+    </a>
+    {% endif %}
+  {% endfor %}
 </div>
 
 {% for s in sections %}
@@ -132,9 +154,21 @@
     </form>
     {% endfor %}
   </div>
-  <p class="to-muted">Only what this date needs. Anything added here counts toward readiness; anything that already has rows is on the page above.</p>
 </div>
 {% endif %}
+
+<script>
+(function () {
+  /* A tile is a link to its section; it also unfolds it, so the tap lands on the form. */
+  document.querySelectorAll(".to-tile[data-open]").forEach(function (a) {
+    a.addEventListener("click", function () {
+      var sec = document.getElementById(a.getAttribute("data-open"));
+      var d = sec && sec.querySelector("details.to-sec-d");
+      if (d) { d.open = true; }
+    });
+  });
+})();
+</script>
 
 {% for s in tail_sections %}
 {% call sec(s) %}

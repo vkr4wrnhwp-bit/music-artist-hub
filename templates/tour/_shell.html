@@ -3,7 +3,7 @@
    see, and the offline strip. Pages extend this and fill `tour_body`. #}
 {% extends "base.html" %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/tour-os.css?v=8">
+  <link rel="stylesheet" href="/static/css/tour-os.css?v=9">
 {% endblock %}
 {% block content %}
 {% import "tour/_macros.html" as m %}
@@ -39,8 +39,13 @@
     <details class="to-more" id="to-more">
       <summary class="to-tab {{ 'is-on' if tour_bar.active_more }}" aria-label="More tour sections">{{ tour_bar.active_more.label if tour_bar.active_more else 'More' }} <span class="to-more-caret" aria-hidden="true">&#9662;</span></summary>
       <div class="to-more-menu">
-        {% for t in tour_bar.more %}
+        {% for g in tour_bar.more_groups %}
+        <div class="to-more-group">
+          <div class="to-more-head">{{ g.label }}</div>
+          {% for t in g["items"] %}
           <a class="to-more-item {{ 'is-on' if t.on }}" href="/tours/{{ tour['id'] }}{% if t.path %}/{{ t.path }}{% endif %}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}</a>
+          {% endfor %}
+        </div>
         {% endfor %}
       </div>
     </details>

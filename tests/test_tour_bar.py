@@ -49,9 +49,14 @@ def test_the_bar_is_seven_entries_for_an_owner(flask_app):
     # Home is lit; nothing in More is.
     assert 'aria-current="page">Home<' in bar
     items = re.findall(r'class="to-more-item[^"]*"[^>]*>([^<]+)<', bar)
-    assert items == ["My Day", "Calendar", "Schedule", "Venues", "Set lists", "Stage plot", "Guests", "VIP", "Merch",
-                     "Marketing", "Content", "Tasks", "What changed", "Ask Tour", "Import", "Exports",
-                     "Share links", "Team", "Settings"]
+    # The same nineteen, read as four questions (2026-09-06: "simplify the
+    # top navigation"): the day, the people, the selling, the tools.
+    assert items == ["My Day", "Calendar", "Schedule", "Set lists", "Stage plot",
+                     "Guests", "VIP", "Team",
+                     "Merch", "Marketing", "Content",
+                     "Venues", "Tasks", "What changed", "Ask Tour", "Import", "Exports", "Share links", "Settings"]
+    heads = re.findall(r'class="to-more-head">([^<]+)<', bar)
+    assert heads == ["Show day", "People", "Sell &amp; tell", "Tools"]
     # The old 24-link bar is gone: no tab for Hotels or Route in the top row.
     assert "Hotels</a>" not in bar and "Route</a>" not in bar
 
