@@ -3,6 +3,8 @@
 {% block title %}Fan Club - Street Banker{% endblock %}
 
 {% block content %}
+{% import "_sb.html" as sb %}
+{{ sb.subnav([("/fans", "Dashboard"), ("/links/fans", "Fan CRM"), ("/fan-club", "Fan Club")], request.path) }}
 <div class="mx-auto max-w-[1000px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Fan Club</div>

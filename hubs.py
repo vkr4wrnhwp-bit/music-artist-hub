@@ -65,11 +65,11 @@ COMMUNITY_GROUP = ("Community", [
     ("discover", "/discover", "M10 3a7 7 0 100 14 7 7 0 000-14z|M13 7l-2 4-4 2 2-4z", "Discover (Fans)", "Find artists to follow and support."),
     ("marketplace", "/marketplace", "M4 7h12l-1 8H5zM4 7l-1-3|M8 11h4", "Collab Marketplace", "Post or answer real collaboration requests."),
     ("network", "/network", "M10 4a2 2 0 100 4 2 2 0 000-4zM5 13a2 2 0 100 4 2 2 0 000-4zM15 13a2 2 0 100 4 2 2 0 000-4z|M10 8l-4 5M10 8l4 5", "Network", "The artist directory."),
-    ("fan-label", "/fan-label", "M10 3l2 4 4 .5-3 3 .8 4.5L10 13l-3.8 2 .8-4.5-3-3 4-.5z", "Fan Label", "Back the artists you believe in."),
-    ("fans", "/fans", "M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4", "Fan Dashboard", "Your fan-side home."),
+    # Fan Label is parked (docs/PARKED_PAGES.md): an invented fund, votes and
+    # backers. Fans is one front: Dashboard · Fan CRM · Fan Club on a strip.
+    ("fans", "/fans", "M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4", "Fans", "Your fans, your CRM, your club."),
 ])
 ACCOUNT_GROUP = ("Account", [
-    ("fan-club-admin", "/fan-club", "M10 3l2 4 4 .5-3 3 .8 4.5L10 13l-3.8 2 .8-4.5-3-3 4-.5z|M10 8v2", "Fan Club", "Your paid membership club and drops."),
     ("inbox", "/inbox", "M3 12l3-8h8l3 8v4a1 1 0 01-1 1H4a1 1 0 01-1-1z|M3 12h4l1.5 2h3L13 12h4", "Inbox", "Messages and submissions."),
     ("notifications", "/notifications", "M10 3a4 4 0 00-4 4c0 4-2 5-2 5h12s-2-1-2-5a4 4 0 00-4-4z|M8.5 16a1.5 1.5 0 003 0", "Notifications", "Everything that happened while you were away."),
     ("team", "/team", "M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4", "Team", "Invite your manager, accountant, attorney."),
@@ -111,7 +111,7 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "inbox", "settings", "discover", "catalog", "command-center",
              "actions", "autopilot", "scores",
              "vault", "review", "pulse", "team", "tax",
-             "income", "disputes", "fan-club-admin", "portal",
+             "income", "disputes", "fans", "portal",
              "tours", "passports", "tour-board", "rack", "roster", "referrals",
              "lights", "royalty-lanes", "certified",
              "press-desk", "deals",

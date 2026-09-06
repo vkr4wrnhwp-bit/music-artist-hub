@@ -1164,9 +1164,11 @@ def test_tier5_and_community_pages_render_and_nav():
     for href in ("/insights", "/benchmark"):
         assert client.get(href).status_code == 200
     assert 'href="/qualification"' in promote_nav
-    for href in ("/marketplace", "/network", "/fan-label", "/fans"):
+    for href in ("/marketplace", "/network", "/fans"):
         assert 'href="%s"' % href in fan_nav
         assert client.get(href).status_code == 200
+    # Fan Label is parked: it answers, it is not a sidebar entry.
+    assert 'href="/fan-label"' not in fan_nav and client.get("/fan-label").status_code == 200
     assert 'data-hub="command"' in promote_nav  # Intelligence lives in the Command hub now
     assert ">Community<" in fan_nav
 

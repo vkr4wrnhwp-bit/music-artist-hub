@@ -5,6 +5,8 @@
 {% set fd = fans %}
 
 {% block content %}
+{% import "_sb.html" as sb %}
+{{ sb.subnav([("/fans", "Dashboard"), ("/links/fans", "Fan CRM"), ("/fan-club", "Fan Club")], request.path) }}
 <div class="mx-auto max-w-[1200px] space-y-5">
   <div>
     <h1 class="sb-h1">Fan Dashboard</h1>

@@ -13,6 +13,7 @@ correctly get APIs to utilize them."*
 | `/capital` — Capital | `capital_config.py`: "every one of these is a SIMULATED DEMO" — Fan Royalty Passes, crowdfunding, a futures marketplace, staking, a dice game. No money moves. | A real financing or fan-investment provider, with the product's own terms, and the honesty doctrine's measured/not-measured labelling. |
 | `/benchmark` — Benchmark | Your numbers are real; the peer averages are illustrative. A meter against an invented peer lends the invented half the real half's credibility. | A data source for peer catalogs at a similar stage, with the sample size shown. |
 | `/funding` — Funding | The eligibility range is computed from your statements (`capital_engine.advance_eligibility`); the offers, terms and providers around it are illustrative and "request" records interest only. | A lender integration whose offers are the lender's own. The eligibility figure already shows on `/valuation`. |
+| `/fan-label` — Fan Label | `community_config.py`: the fund, the backer count and the demo votes are placeholders; no money has been raised and no fan has backed anything. | A real fan-funding provider with the product's own terms. The real fan work is Fans (`/fans`), the Fan CRM and the Fan Club. |
 | `/conflicts` — Conflicts | A static illustration of a rights-conflict centre. The real thing is **Disputes** (`/disputes`), which logs and tracks your own conflicts. | Probably never: fold anything worth keeping into Disputes instead. |
 
 ## How to un-park one
@@ -37,5 +38,6 @@ correctly get APIs to utilize them."*
 | Releases (`/releases/autopilot`) | Autopilot · Calendar (`/releases`) |
 | Vault | Files · Contracts & licences (`/documents`) |
 | Catalog | Catalog · Track Passports (`/tracks`) — two song tables still; unifying the data is a separate job |
+| Fans (`/fans`) | Dashboard · Fan CRM (`/links/fans`) · Fan Club (`/fan-club`) — 2026-09-06 |
 
 Every folded URL is unchanged.

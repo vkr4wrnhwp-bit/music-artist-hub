@@ -18,7 +18,8 @@ import hubs
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 PARKED = {"/capital": "Simulated demo", "/benchmark": "illustrative",
-          "/funding": "illustrative", "/conflicts": "Disputes"}
+          "/funding": "illustrative", "/conflicts": "Disputes",
+          "/fan-label": "placeholders"}
 FOLDED = {
     "/publishing": "income", "/mechanicals": "income", "/neighboring-rights": "income",
     "/territories": "income",
@@ -28,6 +29,8 @@ FOLDED = {
     "/epk": "press-desk", "/artist-profile": "press-desk",
     # Tier C, folded the same day.
     "/releases": "autopilot", "/documents": "vault", "/tracks": "catalog",
+    # Fans, one front (2026-09-06).
+    "/fans": "fans", "/links/fans": "fans", "/fan-club": "fans",
 }
 
 
@@ -36,29 +39,35 @@ def _entries():
 
 
 def test_the_sidebar_is_thirty_four_entries():
+    # HUBS only; the Community and Account groups are counted by hubs.py's
+    # own group walk. Fans lost two entries there (Fan Label parked, Fan
+    # Club folded into the Fans front) without touching this number.
     assert len(_entries()) == 34
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():
     hrefs = {it[1] for it in _entries()}
-    for href in list(PARKED) + [h for h in FOLDED if h not in ("/publishing", "/qualification", "/deal-room")]:
+    for href in list(PARKED) + [h for h in FOLDED if h not in ("/publishing", "/qualification", "/deal-room", "/fans")]:
         if href in ("/releases",):
             continue          # /releases is the calendar's URL; the front is /releases/autopilot
         assert href not in hrefs, href
     keys = {it[0] for it in _entries()}
     for key in ("capital", "benchmark", "funding", "conflicts", "epk", "profile", "mechanicals",
                 "neighboring", "territories", "money-queue", "trust-score", "insights",
-                "connections", "deal-simulator", "sync-packs", "releases", "documents", "tracks"):
+                "connections", "deal-simulator", "sync-packs", "releases", "documents", "tracks",
+                "fan-label", "fan-club-admin"):
         assert key not in keys, key
     for key in ("income", "scores", "deals", "royalty-lanes", "press-desk", "reports"):
         assert key in keys, key
+    community = {it[0] for it in hubs.COMMUNITY_GROUP[1]} | {it[0] for it in hubs.ACCOUNT_GROUP[1]}
+    assert "fans" in community and "fan-label" not in community and "fan-club-admin" not in community
 
 
 def test_the_fronts_are_live_and_reports_is_no_longer_a_sample():
     live = set(hubs.live_keys())
-    for key in ("income", "scores", "deals", "royalty-lanes", "press-desk", "reports"):
+    for key in ("income", "scores", "deals", "royalty-lanes", "press-desk", "reports", "fans"):
         assert key in live, key
-    for gone in ("capital", "benchmark", "funding", "conflicts"):
+    for gone in ("capital", "benchmark", "funding", "conflicts", "fan-label", "fan-club-admin"):
         assert gone not in live
 
 
