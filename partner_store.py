@@ -69,6 +69,16 @@ PERMS = {
     # partner who carries the cost of what it unlocks.
     "entitlement_grant": {"owner", "admin"},
     "manage_members":  {"owner"},
+    # Stage Control, for a seat at the partner that owns the show's account.
+    # Review is reading the desk and deciding on requests; operate is sending
+    # an approved request to a console; configure is the Stage Bridge itself
+    # (register, arm, rotate, revoke, policy, patch map); lockout is the
+    # emergency stop, which anybody with a seat on the desk must be able to
+    # press. The owner of the account holds all four without a seat.
+    "stage_review":    {"owner", "admin", "manager", "support"},
+    "stage_operate":   {"owner", "admin", "manager"},
+    "stage_configure": {"owner", "admin"},
+    "stage_lockout":   {"owner", "admin", "manager", "support", "viewer"},
 }
 
 STATUSES = ("active", "suspended")

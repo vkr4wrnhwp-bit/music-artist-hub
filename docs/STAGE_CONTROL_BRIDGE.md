@@ -15,7 +15,8 @@ authentication of its own, so **every bound is ours**.
 | A simulator adapter, labelled simulated everywhere it speaks | A Stage Rack appliance |
 | The server side of the Stage Bridge protocol (`stage_bridge.py`) and the daemon (`tools/stage_bridge_daemon.py`) | — |
 | An X32 adapter (`stage_x32.py`) as a **bench adapter**: UNTESTED, behind `STAGE_BENCH_ADAPTERS=1`, never in the default registry | The bench test that would let it graduate (`tools/x32_bench.py` — a person runs it) |
-| The safety engine (`stage_safety.py`) with a per-show policy | Partner-tenant roles for stage permissions (single-owner for now) |
+| The safety engine (`stage_safety.py`) with a per-show policy | — |
+| Partner roles for the stage rooms (`stage_review` / `stage_operate` / `stage_configure` / `stage_lockout`) | — |
 | The bridge page, the desk in Connected Control, the device endpoints | — |
 | QR / guest performer access, as a TOUR share link with scope `stage` | — |
 
@@ -212,6 +213,24 @@ every screen that names it, and it graduates only when:
 The patch map (mix bus and channel per passport name, plus the desk's IP)
 is set on the bridge page and stored on the device; the daemon reads it
 from the same JSON.
+
+## Who may do what
+
+The account that owns the show's passport attachment holds everything. A
+seat at the partner that owns that account (see `partner_store.PERMS`)
+opens the rooms with the permission its role carries, and every non-GET
+act by a seat is written to `partner_audit` as `stage.<permission>`:
+
+| Permission | Roles | Opens |
+| --- | --- | --- |
+| `stage_review` | owner, admin, manager, support | the desk, the performer page, acknowledge / modify / approve / done-on-the-desk / reject, locks |
+| `stage_operate` | owner, admin, manager | send an approved request to the console, revert a console change |
+| `stage_configure` | owner, admin | the Stage Bridge page and every action on it except lockout |
+| `stage_lockout` | every role | EMERGENCY LOCKOUT, from the desk or the bridge page |
+
+Anybody without a seat at the owning partner is a 404. A seat without the
+permission is a 403. Guest performers use share links (below), which carry
+no account at all.
 
 ## The TOUR date
 

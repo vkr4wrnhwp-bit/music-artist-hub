@@ -24,9 +24,16 @@
     sent to the {{ mode.spec.key }} adapter{% if mode.simulated %}, which is a
     simulation: it moves no audio{% endif %}. A change reads as done only when
     the console confirms it.
-    <a href="/stage/{{ show_id }}/bridge">Stage Bridge →</a>
+    {% if may.configure %}<a href="/stage/{{ show_id }}/bridge">Stage Bridge →</a>{% endif %}
   </span>
 </p>
+{% if may.lockout and mode.device %}
+  {#- The emergency stop, on the desk, for every seat: the one bridge action
+      that must not be behind the configure permission or a second page. -#}
+  <form method="post" action="/stage/{{ show_id }}/bridge/lockout" class="sc-req-acts">
+    <button class="sc-act sc-act--no" type="submit">EMERGENCY LOCKOUT</button>
+  </form>
+{% endif %}
 {% else %}
 <p class="sc-mode" data-mode="request">
   <span class="sc-mode-what">Request Mode</span>
@@ -34,7 +41,7 @@
     {% if mode.code == "no_device" %}No console is connected. You apply changes
     on the desk and record what you did; nothing here can move a fader.
     {% else %}{{ mode.reason }} Nothing can be sent until that changes.{% endif %}
-    <a href="/stage/{{ show_id }}/bridge">Stage Bridge →</a>
+    {% if may.configure %}<a href="/stage/{{ show_id }}/bridge">Stage Bridge →</a>{% endif %}
   </span>
 </p>
 {% endif %}
@@ -122,7 +129,7 @@
               {#- Connected control: only an APPROVED request, only when the
                   mode says a device is ready. The button is the mode's, not
                   the request's - it disappears with the device. -#}
-              {% if r.state == "approved" and mode.mode == "connected" %}
+              {% if r.state == "approved" and mode.mode == "connected" and may.operate %}
                 <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/send">
                   <button class="sc-act sc-act--go" type="submit">Send to the console{% if mode.simulated %} (simulated){% endif %}</button>
                 </form>
@@ -211,7 +218,7 @@
               {{ labels.get(r.kind, r.kind) }}{% if r.source %} {{ r.source }}{% endif %}
             </span>
             {% if r.engineer %}<span class="sc-muted">{{ r.engineer }}</span>{% endif %}
-            {% if r.state in ["applied", "applied_manually"] %}
+            {% if r.state == "applied_manually" or (r.state == "applied" and may.operate) %}
               <form method="post" action="/stage/{{ show_id }}/request/{{ r.id }}/revert" class="sc-inline-form">
                 <button class="sc-act" type="submit">{{ "Revert on the console" if r.state == "applied" else "Put back" }}</button>
               </form>

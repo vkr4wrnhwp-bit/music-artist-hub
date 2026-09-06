@@ -44,19 +44,68 @@ def _signed_in():
     return _current_user() if _current_user else None
 
 
-def require_show(fn):
-    """Resolve the signed-in owner of this show's stage.
+def _resolve(show_id, me, permission):
+    """Who is acting on this show, and as whom.
 
-    Ownership is the account that owns the passport attachment, which is what
-    scopes every stage_store query. A show nobody has advanced has no stage.
+    The show's OWNER is the account that owns the passport attachment; every
+    stage_store query is scoped to it. The owner holds every permission. A
+    seat at the partner that owns the owner's account acts with the
+    permission its role carries (partner_store.PERMS), and every such act is
+    written to partner_audit. Anybody else is a 404, not a 403: a stranger
+    must not learn a show exists from the shape of the refusal.
+
+    Returns (user, member): `user` is the owner's record with the actor's
+    name and email on it, so routes keep scoping on user["id"] and naming
+    the person who pressed the button.
     """
-    @wraps(fn)
-    def guarded(show_id, *args, **kwargs):
-        user = _signed_in()
-        if user is None:
-            return redirect(url_for("login", next=request.path))
-        return fn(show_id, user, *args, **kwargs)
-    return guarded
+    import db as store
+    import partner_store as pstore
+    link = adv.get_attachment(show_id)
+    owner_id = link["user_id"] if link else me["id"]
+    if owner_id == me["id"]:
+        return dict(me, stage_perms=None), None
+    member = pstore.member_for_user(me["id"])
+    if member is None or not pstore.owns_user(member["partner_id"], owner_id):
+        abort(404)
+    if not pstore.can(member, permission):
+        abort(403)
+    owner = store.get_user(owner_id)
+    if owner is None:
+        abort(404)
+    if request.method != "GET":
+        pstore.audit(member["partner_id"], "stage." + permission, actor=me,
+                     subject_user_id=owner_id, detail=request.path)
+    acting = dict(owner)
+    acting["name"] = me.get("name") or me.get("email") or ""
+    acting["email"] = me.get("email") or ""
+    acting["stage_perms"] = {perm for perm in pstore.PERMS if perm.startswith("stage_")
+                             and pstore.can(member, perm)}
+    return acting, member
+
+
+def allowed(user, permission):
+    """True for the owner; for a partner seat, only if its role carries it."""
+    perms = user.get("stage_perms")
+    return perms is None or permission in perms
+
+
+def require_show(permission="stage_review"):
+    """Resolve the actor for this show's stage, with a permission.
+
+    A show nobody has advanced has no stage; the signed-in account is then
+    treated as its owner, which is what the desk needs to say "attach a
+    passport first".
+    """
+    def wrap(fn):
+        @wraps(fn)
+        def guarded(show_id, *args, **kwargs):
+            me = _signed_in()
+            if me is None:
+                return redirect(url_for("login", next=request.path))
+            user, _member = _resolve(show_id, me, permission)
+            return fn(show_id, user, *args, **kwargs)
+        return guarded
+    return wrap
 
 
 def _ctx(**extra):
@@ -97,7 +146,7 @@ def _performer_mixes(snap, performer):
 # --- the desk ----------------------------------------------------------------
 
 @bp.route("/<show_id>")
-@require_show
+@require_show("stage_review")
 def desk(show_id, user):
     mixes, sources, snap = _mixes_and_sources(show_id, user["id"])
     sb.expire_stale(show_id, user["id"])
@@ -110,6 +159,9 @@ def desk(show_id, user):
         date_url=("/tours/%s/shows/%s?tab=advance#stage" % (tour_id, show_id)) if tour_id else "",
         mode=sb.mode(show_id, user["id"]),
         commands=sb.commands_for_show(show_id, user["id"], limit=12),
+        may={"operate": allowed(user, "stage_operate"),
+             "configure": allowed(user, "stage_configure"),
+             "lockout": allowed(user, "stage_lockout")},
         requests=st.for_show(show_id, user["id"], open_only=True),
         history=st.for_show(show_id, user["id"])[:40],
         summary=st.summary(show_id, user["id"]),
@@ -123,7 +175,7 @@ def desk(show_id, user):
 
 
 @bp.route("/<show_id>/events")
-@require_show
+@require_show("stage_review")
 def events(show_id, user):
     """The poll. Returns only what the client has not seen, plus the summary
     it needs to redraw its counters without a second request."""
@@ -145,7 +197,7 @@ def events(show_id, user):
 
 
 @bp.route("/<show_id>/request/<request_id>/<action>", methods=["POST"])
-@require_show
+@require_show("stage_review")
 def act(show_id, user, request_id, action):
     """The desk's buttons. One route, because they are one act - an engineer
     deciding - and splitting them would put the transition rules in five
@@ -177,6 +229,8 @@ def act(show_id, user, request_id, action):
     elif action == "send":
         # Connected control. The safety engine decides; a refusal is written
         # to the log with its code and the desk shows it in words.
+        if not allowed(user, "stage_operate"):
+            abort(403)
         _cmd, decision = sb.issue(request_id, user["id"], actor=actor)
         if not decision:
             return redirect(url_for("stage.desk", show_id=show_id, refused=decision.reason))
@@ -184,6 +238,8 @@ def act(show_id, user, request_id, action):
     elif action == "revert":
         if req["state"] == "applied":
             # Applied on the console: the revert is a console command too.
+            if not allowed(user, "stage_operate"):
+                abort(403)
             _cmd, decision = sb.issue(request_id, user["id"], actor=actor, is_revert=True)
             if not decision:
                 return redirect(url_for("stage.desk", show_id=show_id, refused=decision.reason))
@@ -207,7 +263,7 @@ def _drive_if_simulated(show_id, user_id):
 # --- the bridge page -----------------------------------------------------------
 
 @bp.route("/<show_id>/bridge")
-@require_show
+@require_show("stage_configure")
 def bridge(show_id, user):
     m = sb.mode(show_id, user["id"])
     dev = m["device"]
@@ -230,9 +286,13 @@ def bridge(show_id, user):
 
 
 @bp.route("/<show_id>/bridge/<action>", methods=["POST"])
-@require_show
+@require_show("stage_lockout")
 def bridge_act(show_id, user, action):
     actor = user.get("name") or user.get("email") or ""
+    # The emergency stop is the one thing every seat may press. Everything
+    # else on the bridge is configuration.
+    if action != "lockout" and not allowed(user, "stage_configure"):
+        abort(403)
     dev = sb.device_for_show(show_id, user["id"])
     if action == "register":
         if dev is not None:
@@ -357,7 +417,7 @@ def device_reconcile():
 
 
 @bp.route("/<show_id>/lock", methods=["POST"])
-@require_show
+@require_show("stage_review")
 def lock(show_id, user):
     scope = (request.form.get("scope") or "").strip()
     target = (request.form.get("target") or "").strip()
@@ -432,7 +492,7 @@ def _cancel(show_id, owner_id, request_id, page_url):
 
 
 @bp.route("/<show_id>/me")
-@require_show
+@require_show("stage_review")
 def performer(show_id, user):
     """The performer's page, in the owner's own session. A performer without
     an account opens the same page through a TOUR share link - see
@@ -441,13 +501,13 @@ def performer(show_id, user):
 
 
 @bp.route("/<show_id>/ask", methods=["POST"])
-@require_show
+@require_show("stage_review")
 def ask(show_id, user):
     return _ask(show_id, user["id"], "/stage/%s/me" % show_id)
 
 
 @bp.route("/<show_id>/cancel/<request_id>", methods=["POST"])
-@require_show
+@require_show("stage_review")
 def cancel(show_id, user, request_id):
     return _cancel(show_id, user["id"], request_id, "/stage/%s/me" % show_id)
 
