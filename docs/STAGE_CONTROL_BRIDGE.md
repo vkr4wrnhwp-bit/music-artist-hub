@@ -16,7 +16,8 @@ authentication of its own, so **every bound is ours**.
 | The server side of the Stage Bridge protocol (`stage_bridge.py`) and the daemon (`tools/stage_bridge_daemon.py`) | — |
 | An X32 adapter (`stage_x32.py`) as a **bench adapter**: UNTESTED, behind `STAGE_BENCH_ADAPTERS=1`, never in the default registry | The bench test that would let it graduate (`tools/x32_bench.py` — a person runs it) |
 | The safety engine (`stage_safety.py`) with a per-show policy | Partner-tenant roles for stage permissions (single-owner for now) |
-| The bridge page, the desk in Connected Control, the device endpoints | QR / guest performer access (belongs with `tour_share_links`) |
+| The bridge page, the desk in Connected Control, the device endpoints | — |
+| QR / guest performer access, as a TOUR share link with scope `stage` | — |
 
 **Nothing claims X32 support.** The owner has lifted the brief's rule against
 reverse-engineered protocols (audit amendment, 2026-09-04), so an X32
@@ -211,6 +212,26 @@ every screen that names it, and it graduates only when:
 The patch map (mix bus and channel per passport name, plus the desk's IP)
 is set on the bridge page and stored on the device; the daemon reads it
 from the same JSON.
+
+## Performer access by QR
+
+A performer opens their page from a phone with no account. The link is a
+**TOUR share link** with scope `stage` — `tour_share_links` already had
+opaque, revocable, expiring, show-scoped, optionally passworded tokens, so
+there is no second token table and no second admin page. On the tour's
+Share page: *What* → Stage Control, pick the date, optional password and
+expiry, Create. Every live link shows its QR there
+(`/tours/<tour>/share/<link>/qr.svg`); print it for the green room.
+
+The phone opens `/tour-share/<token>` (TOUR's password form first, if
+set) and lands on the performer page at `/stage/guest/<token>`, which
+posts to `/stage/guest/<token>/ask` and polls `/stage/guest/<token>/events`.
+The token is checked on every call: scope, revoked, expired against the
+tour's home time zone, password session. Requests are scoped to the tour
+owner's account, exactly as they are from the owner's own session.
+
+The desk's *Performer access* panel points at the tour's Share page when
+the show is a TOUR date, and says so when it is not.
 
 ## Running the bridge daemon
 

@@ -135,7 +135,10 @@ CHANGE_SOURCES = ["manual", "import", "extract", "api"]
 # without the money, the room list or anyone's phone number.
 SHARE_SCOPES = ["day_sheet", "photographer", "guest_checkin", "venue_guest_list",
                 "driver", "setlist", "production", "vip_checkin", "rooming",
-                "band"]
+                "band",
+                # Stage Control: a performer's phone, for one show. The stage
+                # module renders it; the link is made and revoked here.
+                "stage"]
 TOUR_WIDE_SCOPES = ("band",)
 
 # Permission scopes. `admin` implies everything; owner always has admin.
@@ -923,6 +926,17 @@ def list_days(tour_id):
         rows = db.execute("SELECT * FROM tour_days WHERE tour_id = ? ORDER BY date, created",
                           (tour_id,)).fetchall()
     return [dict(r) for r in rows]
+
+
+def tour_id_for_show(show_id):
+    """Which tour a day belongs to, from the day alone. Stage Control keys
+    on the day id and needs the tour to reach its share links."""
+    with get_db() as db:
+        row = db.execute("SELECT tour_id FROM tour_shows WHERE id=? AND tour_id IS NOT NULL",
+                         (show_id,)).fetchone()
+        if row is None:
+            row = db.execute("SELECT tour_id FROM tour_days WHERE id=?", (show_id,)).fetchone()
+    return row["tour_id"] if row else None
 
 
 def get_day(tour_id, day_id):

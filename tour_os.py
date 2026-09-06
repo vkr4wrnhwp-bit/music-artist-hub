@@ -3076,6 +3076,7 @@ SHARE_SCOPE_LABELS = {
     "vip_checkin": "VIP check-in",
     "rooming": "Rooming list (names and rooms, for the front desk)",
     "band": "Band itinerary (the WHOLE run — dates, times, hotels; no money, no rooms, no phone numbers)",
+    "stage": "Stage Control (performers ask the monitor engineer from their phones — one show)",
 }
 
 
@@ -3085,7 +3086,7 @@ def share_new(user, tour, viewer, tour_id):
     scope = request.form.get("scope") or ""
     show_id = request.form.get("show_id") or None
     if scope in ("day_sheet", "photographer", "guest_checkin", "venue_guest_list", "driver", "setlist",
-                 "production", "vip_checkin") and (not show_id or ts.get_show(tour_id, show_id) is None):
+                 "production", "vip_checkin", "stage") and (not show_id or ts.get_show(tour_id, show_id) is None):
         return redirect("/tours/%s/share" % tour_id)
     if scope == "rooming":
         show_id = request.form.get("lodging_id") or None
@@ -3106,6 +3107,24 @@ def share_new(user, tour, viewer, tour_id):
 def share_revoke(user, tour, viewer, tour_id, link_id):
     ts.revoke_share_link(tour_id, link_id)
     return redirect("/tours/%s/share" % tour_id)
+
+
+@bp.route("/tours/<tour_id>/share/<link_id>/qr.svg")
+@require_tour("admin")
+def share_qr(user, tour, viewer, tour_id, link_id):
+    """The link as a QR code, for a green-room wall or a day sheet. Only for
+    a link that is live: a code for a revoked link would be a code to a 404."""
+    import io as _io
+    import segno
+    link = next((l for l in ts.list_share_links(tour_id) if l["id"] == link_id), None)
+    if link is None or link["revoked"]:
+        abort(404)
+    if link["expires"] and link["expires"] < eng.today_in(tour["home_tz"]):
+        abort(410)
+    buf = _io.BytesIO()
+    segno.make("%s/tour-share/%s" % (_base_url(), link["token"]), error="m").save(
+        buf, kind="svg", scale=5, dark="#1A1714", light=None)
+    return Response(buf.getvalue(), mimetype="image/svg+xml")
 
 
 def _share_link_or_404(token):
@@ -3136,6 +3155,11 @@ def shared(token):
     scope = link["scope"]
     base = {"tour": tour, "token": token, "scope": scope, "fmt_time": eng.fmt_time,
             "fmt_day": eng.fmt_day_long, "today": eng.today_in(tour["home_tz"])}
+    if scope == "stage":
+        # The performer's phone. Stage Control renders it; the link, its
+        # password, its expiry and its count all live here.
+        import stage_os
+        return stage_os.guest_page(token, link, tour)
     if scope == "rooming":
         l = ts.get_lodging(tour["id"], link["show_id"])
         if l is None:

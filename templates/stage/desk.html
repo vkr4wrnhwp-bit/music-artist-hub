@@ -4,7 +4,7 @@
 {% block title %}Engineer Desk - Stage Control{% endblock %}
 
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/stage-control.css?v=8">
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=9">
 {% endblock %}
 
 {% block content %}
@@ -150,6 +150,24 @@
           </li>
         {% endfor %}
       </ul>
+    {% endif %}
+  </section>
+
+  <section class="sb-panel">
+    <h2 class="sb-label sb-label-gold">Performer access</h2>
+    {% if tour_id %}
+      <p class="sb-note">
+        Performers open their page from a QR code, no account needed. The code
+        is a TOUR share link for this date — made, passworded, expired and
+        revoked where every other share link is.
+        <a href="/tours/{{ tour_id }}/share">Make a Stage Control link →</a>
+      </p>
+    {% else %}
+      <p class="sb-note">
+        Performers open their page from a QR code once this show is a TOUR
+        date: the code is a TOUR share link, so the date has to exist there.
+        Until then a performer uses <a href="/stage/{{ show_id }}/me">the page in your session</a>.
+      </p>
     {% endif %}
   </section>
 

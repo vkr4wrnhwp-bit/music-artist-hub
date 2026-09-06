@@ -1,0 +1,23 @@
+{#- The performer's phone, for a guest who opened a TOUR share link. No
+    account, so no app chrome: base.html assumes a signed-in dashboard
+    context. Same block names as base.html so stage/performer.html renders
+    under either shell unchanged. -#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}Your mix - Stage Control{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
+  <link rel="stylesheet" href="/static/css/app-chrome.css?v=4">
+  {% include "_fonts.html" %}
+  {% block head_scripts %}{% endblock %}
+</head>
+<body class="min-h-screen bg-sb-ground text-sb-ink antialiased">
+<main id="main" class="sc-guest">
+{% block content %}{% endblock %}
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

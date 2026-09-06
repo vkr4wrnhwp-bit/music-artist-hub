@@ -2901,6 +2901,9 @@ def create_app():
                         # holds a device token, not a session, and every
                         # route under here answers 401 without one.
                         "/bridge/",
+                        # A performer's phone, through a TOUR share link: the
+                        # token is the authorisation, checked on every call.
+                        "/stage/guest/",
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
                         "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/", "/@",

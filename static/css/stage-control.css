@@ -712,3 +712,6 @@ select.sc-in {
 .sc-policy { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: var(--sb-s3) var(--sb-s4); align-items: end; margin-top: var(--sb-s3); }
 .sc-policy label { display: flex; flex-direction: column; gap: 4px; }
 .sc-policy .sc-in { max-width: 8rem; font-family: var(--sb-mono); font-variant-numeric: tabular-nums; }
+
+/* The guest shell: a performer's phone with no app chrome around it. */
+.sc-guest { max-width: 720px; margin: 0 auto; padding: var(--sb-s4); }

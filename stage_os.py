@@ -21,7 +21,7 @@ has to be complete without one.
 from functools import wraps
 
 from flask import (Blueprint, abort, jsonify, redirect, render_template,
-                   request, url_for)
+                   request, session, url_for)
 
 import passport_store as ps
 import advance_store as adv
@@ -101,9 +101,11 @@ def _performer_mixes(snap, performer):
 def desk(show_id, user):
     mixes, sources, snap = _mixes_and_sources(show_id, user["id"])
     sb.expire_stale(show_id, user["id"])
+    import tour_store as ts
     return render_template(
         "stage/desk.html", active_page="stage",
         show_id=show_id, snapshot=snap,
+        tour_id=ts.tour_id_for_show(show_id),
         mode=sb.mode(show_id, user["id"]),
         commands=sb.commands_for_show(show_id, user["id"], limit=12),
         requests=st.for_show(show_id, user["id"], open_only=True),
@@ -368,44 +370,42 @@ def lock(show_id, user):
 
 # --- the phone ---------------------------------------------------------------
 
-@bp.route("/<show_id>/me")
-@require_show
-def performer(show_id, user):
-    """The performer's page.
-
-    Signed-in only for now. The brief's QR and guest tokens belong with the
-    share links TOUR already owns (tour_share_links: opaque, revocable,
-    expiring, scoped to one show) and wiring them is its own piece of work -
-    so this says who it is for rather than pretending anybody can open it.
-    """
-    mixes, sources, snap = _mixes_and_sources(show_id, user["id"])
+def _performer_page(show_id, owner_id, page_url, act_base, guest=False):
+    """The performer's page, for the owner's own session or for a guest who
+    opened a TOUR share link. Both read the same frozen version and the same
+    queue; only the URLs the page posts to differ."""
+    mixes, sources, snap = _mixes_and_sources(show_id, owner_id)
     who = (request.args.get("as") or "").strip()
     people = sorted({(o.get("performer") or "").strip()
                      for o in (snap or {}).get("outputs") or []
                      if (o.get("performer") or "").strip()})
     mine = _performer_mixes(snap, who) if who else []
     mix = (request.args.get("mix") or (mine[0] if mine else "")).strip()
+    # A guest has no account, so no dashboard context and no app chrome: the
+    # page renders under its own small shell instead of base.html.
+    extra = _ctx() if not guest else {}
     return render_template(
         "stage/performer.html", active_page="stage",
+        layout="stage/_guest_shell.html" if guest else "base.html",
         show_id=show_id, snapshot=snap, people=people, who=who,
         my_mixes=mine, mix=mix, sources=sources,
+        page_url=page_url, act_base=act_base, guest=guest,
         steps=st.STEPS_DB, step_labels=st.STEP_LABELS,
         reports=st.REPORTS, labels=st.KIND_LABELS,
         wording=st.PERFORMER_WORDING,
         mine_open=st.for_performer(show_id, who)[:12] if who else [],
         locked=st.locked_reason(show_id, performer=who, mix=mix),
         cursor=st.cursor(show_id),
-        **_ctx())
+        **extra)
 
 
-@bp.route("/<show_id>/ask", methods=["POST"])
-@require_show
-def ask(show_id, user):
+def _ask(show_id, owner_id, page_url):
     who = (request.form.get("performer") or "").strip()
     mix = (request.form.get("mix") or "").strip()
-    _mixes, sources, snap = _mixes_and_sources(show_id, user["id"])
+    _mixes, sources, snap = _mixes_and_sources(show_id, owner_id)
+    args = {"as": who, "mix": mix}
     try:
-        st.submit(show_id, user["id"], who, mix,
+        st.submit(show_id, owner_id, who, mix,
                   (request.form.get("kind") or "").strip(),
                   source=(request.form.get("source") or "").strip(),
                   step_db=request.form.get("step_db") or 0,
@@ -415,21 +415,111 @@ def ask(show_id, user):
                   allowed_mixes=_performer_mixes(snap, who),
                   allowed_sources=sources)
     except st.Refused as refused:
-        return redirect(url_for("stage.performer", show_id=show_id, **{
-            "as": who, "mix": mix, "refused": str(refused)}))
-    return redirect(url_for("stage.performer", show_id=show_id,
-                            **{"as": who, "mix": mix}))
+        args["refused"] = str(refused)
+    from urllib.parse import urlencode
+    return redirect(page_url + "?" + urlencode(args))
+
+
+def _cancel(show_id, owner_id, request_id, page_url):
+    req = st.get(request_id, owner_id)
+    if req is None or req["show_id"] != show_id:
+        abort(404)
+    st.cancel(request_id, owner_id, actor=req["performer"])
+    from urllib.parse import urlencode
+    return redirect(page_url + "?" + urlencode({"as": req["performer"], "mix": req["mix"]}))
+
+
+@bp.route("/<show_id>/me")
+@require_show
+def performer(show_id, user):
+    """The performer's page, in the owner's own session. A performer without
+    an account opens the same page through a TOUR share link - see
+    guest_page - which is where the brief's QR access lives."""
+    return _performer_page(show_id, user["id"], "/stage/%s/me" % show_id, "/stage/%s" % show_id)
+
+
+@bp.route("/<show_id>/ask", methods=["POST"])
+@require_show
+def ask(show_id, user):
+    return _ask(show_id, user["id"], "/stage/%s/me" % show_id)
 
 
 @bp.route("/<show_id>/cancel/<request_id>", methods=["POST"])
 @require_show
 def cancel(show_id, user, request_id):
-    req = st.get(request_id, user["id"])
-    if req is None or req["show_id"] != show_id:
+    return _cancel(show_id, user["id"], request_id, "/stage/%s/me" % show_id)
+
+
+# --- guests: a performer's phone, through a TOUR share link -----------------
+
+def _guest_link(token):
+    """The link, checked the way TOUR checks it, plus the one thing that is
+    ours: the scope must be "stage". A password-protected link sends the
+    phone to TOUR's password form first; the session key it sets is the
+    same one TOUR reads."""
+    import tour_os
+    import tour_store as ts
+    link = ts.get_share_link(token)
+    if link is None or link["revoked"] or link["scope"] != "stage" or not link.get("show_id"):
         abort(404)
-    st.cancel(request_id, user["id"], actor=req["performer"])
-    return redirect(url_for("stage.performer", show_id=show_id,
-                            **{"as": req["performer"], "mix": req["mix"]}))
+    tour = ts.get_tour(link["tour_id"])
+    if tour is None:
+        abort(404)
+    if link["expires"] and link["expires"] < tour_os.eng.today_in(tour["home_tz"]):
+        abort(410)
+    if link["password_hash"] and not session.get("tsl:" + token):
+        return None, redirect("/tour-share/%s" % token)
+    return link, None
+
+
+def guest_page(token, link, tour):
+    """Called by TOUR's /tour-share/<token> for scope "stage", after the
+    password check and the access count."""
+    base = "/stage/guest/%s" % token
+    return _performer_page(link["show_id"], link["user_id"], base, base, guest=True)
+
+
+@bp.route("/guest/<token>")
+def guest(token):
+    link, bounce = _guest_link(token)
+    if bounce is not None:
+        return bounce
+    import tour_store as ts
+    ts.touch_share_link(token)
+    base = "/stage/guest/%s" % token
+    return _performer_page(link["show_id"], link["user_id"], base, base, guest=True)
+
+
+@bp.route("/guest/<token>/ask", methods=["POST"])
+def guest_ask(token):
+    link, bounce = _guest_link(token)
+    if bounce is not None:
+        return bounce
+    return _ask(link["show_id"], link["user_id"], "/stage/guest/%s" % token)
+
+
+@bp.route("/guest/<token>/cancel/<request_id>", methods=["POST"])
+def guest_cancel(token, request_id):
+    link, bounce = _guest_link(token)
+    if bounce is not None:
+        return bounce
+    return _cancel(link["show_id"], link["user_id"], request_id, "/stage/guest/%s" % token)
+
+
+@bp.route("/guest/<token>/events")
+def guest_events(token):
+    link, bounce = _guest_link(token)
+    if bounce is not None:
+        return jsonify({"ok": False, "error": "password"}), 401
+    since = request.args.get("since", 0)
+    try:
+        since = int(since)
+    except (TypeError, ValueError):
+        since = 0
+    show_id = link["show_id"]
+    return jsonify({"cursor": st.cursor(show_id),
+                    "events": st.events_since(show_id, since),
+                    "summary": {"open": st.summary(show_id, link["user_id"])["open"]}})
 
 
 def init(app, current_user=None, dashboard_context=None):
