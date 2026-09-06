@@ -208,11 +208,15 @@ def bridge(show_id, user):
     m = sb.mode(show_id, user["id"])
     dev = m["device"]
     inst = adapters.instance_for(dev["id"], dev["adapter_key"]) if dev and m["simulated"] else None
+    mixes, sources, _snap = _mixes_and_sources(show_id, user["id"])
     return render_template(
         "stage/bridge.html", active_page="stage",
         show_id=show_id, mode=m, device=dev, spec=m["spec"],
+        config=sb.config(dev) if dev else {},
+        mixes=mixes, sources=sources,
         policy=safety.policy(show_id), bounds=safety.POLICY_BOUNDS,
-        adapters=[adapters.spec(k) for k in adapters.ADAPTERS],
+        adapters=[adapters.spec(k) for k in adapters.available()],
+        bench=adapters.bench_enabled(),
         commands=sb.commands_for_show(show_id, user["id"], limit=30),
         heartbeat_age=safety.age_seconds(dev["last_heartbeat"]) if dev else None,
         sim=inst, never=adapters.NEVER,
@@ -245,6 +249,15 @@ def bridge_act(show_id, user, action):
         return redirect(url_for("stage.bridge", show_id=show_id))
     if dev is None:
         abort(404)
+    if action == "patch":
+        mixes = {k[4:]: v for k, v in request.form.items() if k.startswith("mix_") and v.strip()}
+        sources = {k[4:]: v for k, v in request.form.items() if k.startswith("src_") and v.strip()}
+        _cfg, refused = sb.set_config(dev["id"], user["id"], host=request.form.get("host") or "",
+                                      mixes=mixes, sources=sources)
+        if refused:
+            return redirect(url_for("stage.bridge", show_id=show_id,
+                                    refused="Not patched (bus 1-16, channel 1-32): " + ", ".join(refused)))
+        return redirect(url_for("stage.bridge", show_id=show_id))
     if action == "arm":
         if sb.arm(dev["id"], user["id"], actor=actor) is None:
             return redirect(url_for("stage.bridge", show_id=show_id,

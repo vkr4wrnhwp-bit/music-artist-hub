@@ -11,18 +11,20 @@ authentication of its own, so **every bound is ours**.
 
 | Ships | Does not ship |
 | --- | --- |
-| The adapter contract (`stage_adapters.py`) | Any adapter for a real console |
+| The adapter contract (`stage_adapters.py`) | A *verified* adapter for any real console |
 | A simulator adapter, labelled simulated everywhere it speaks | A Stage Rack appliance |
-| The server side of the Stage Bridge protocol (`stage_bridge.py`) | The bridge daemon itself (see *Writing a bridge*) |
+| The server side of the Stage Bridge protocol (`stage_bridge.py`) and the daemon (`tools/stage_bridge_daemon.py`) | — |
+| An X32 adapter (`stage_x32.py`) as a **bench adapter**: UNTESTED, behind `STAGE_BENCH_ADAPTERS=1`, never in the default registry | The bench test that would let it graduate (`tools/x32_bench.py` — a person runs it) |
 | The safety engine (`stage_safety.py`) with a per-show policy | Partner-tenant roles for stage permissions (single-owner for now) |
 | The bridge page, the desk in Connected Control, the device endpoints | QR / guest performer access (belongs with `tour_share_links`) |
 
 **Nothing claims X32 support.** The owner has lifted the brief's rule against
 reverse-engineered protocols (audit amendment, 2026-09-04), so an X32
-adapter may be written; it may not report a console as supported until it
-has moved a fader on a named model and firmware and read the value back.
-`tested_model` and `tested_firmware` are fields on the contract for exactly
-that reason.
+adapter has been written — see *The X32 adapter* below — but it may not
+report the console as supported until it has moved a fader on a named model
+and firmware and read the value back. `tested_model`, `tested_firmware` and
+`verified` are fields on the contract for exactly that reason, and every
+screen that names the adapter says UNTESTED until they are filled in.
 
 ## Architecture
 
@@ -188,6 +190,43 @@ cycle whenever the desk sends or the page's **Pulse** button is pressed
 not `simulated` — a real console is driven from a real bridge on the venue
 network, never from the web process. Levels live in one worker's memory;
 the acknowledgements in `stage_commands` are the durable record.
+
+## The X32 adapter — UNTESTED, bench only
+
+`stage_x32.py` speaks the community-documented OSC remote protocol (UDP
+10023): `/ch/NN/mix/MM/level` in the desk's own fader law and
+`/ch/NN/mix/MM/on`, nothing else. It reads every write back, which is what
+lets a change be *confirmed* on this desk. It is **not** in
+`stage_adapters.ADAPTERS`. It is a bench adapter: reachable only with
+`STAGE_BENCH_ADAPTERS=1` on the machine running it, labelled UNTESTED on
+every screen that names it, and it graduates only when:
+
+1. `STAGE_BENCH_ADAPTERS=1 python tools/x32_bench.py --host <desk ip>
+   --channel 32 --bus 16` prints **ALL PASSED** on a spare channel and bus;
+2. a person writes the model and firmware it printed into
+   `X32Adapter.SPEC.tested_model` / `tested_firmware`, sets `verified` to
+   True, and moves the class into `ADAPTERS` — in a commit that says who ran
+   the bench and when.
+
+The patch map (mix bus and channel per passport name, plus the desk's IP)
+is set on the bridge page and stored on the device; the daemon reads it
+from the same JSON.
+
+## Running the bridge daemon
+
+```
+python tools/stage_bridge_daemon.py --server https://street-banker.onrender.com \
+    --token <device token> --key <signing key> --adapter simulator
+
+STAGE_BENCH_ADAPTERS=1 python tools/stage_bridge_daemon.py ... \
+    --adapter x32 --host 192.168.1.10 --patch patch.json
+```
+
+Standard library only. Heartbeat → reconcile what is owed → pull → verify
+(signature, expiry, nonce) → apply → ack, every `--interval` seconds.
+Acknowledgements it cannot deliver wait in `instance/stage-bridge-queue.json`
+and go out through `/bridge/reconcile` when the link returns. A `revoked`
+answer stops it; a `lockout` answer applies nothing.
 
 ## Writing a bridge (for a real console, later)
 

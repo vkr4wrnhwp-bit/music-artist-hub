@@ -4,7 +4,7 @@
 {% block title %}Stage Bridge - Stage Control{% endblock %}
 
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/stage-control.css?v=7">
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=8">
 {% endblock %}
 
 {% block content %}
@@ -16,7 +16,7 @@
 {#- The mode, permanently. Same computation as the desk's banner. -#}
 {% if mode.mode == "connected" %}
 <p class="sc-mode sc-mode--connected" data-mode="connected">
-  <span class="sc-mode-what">Connected Control{% if mode.simulated %} · SIMULATED{% endif %}</span>
+  <span class="sc-mode-what">Connected Control{% if mode.simulated %} · SIMULATED{% elif not mode.verified %} · UNTESTED ADAPTER{% endif %}</span>
   <span class="sc-mode-note">Armed, answering, adapter healthy. <a href="/stage/{{ show_id }}">Back to the desk →</a></span>
 </p>
 {% else %}
@@ -60,7 +60,7 @@
       <input class="sc-in" name="name" aria-label="Device name" placeholder="Name (Rack A, FOH laptop)" style="max-width:16rem;">
       <select class="sc-in" name="adapter" aria-label="Console adapter" style="max-width:16rem;">
         {% for a in adapters %}
-          <option value="{{ a.key }}">{{ a.manufacturer }} {{ a.product_family }}{% if a.simulated %} (simulated){% endif %}</option>
+          <option value="{{ a.key }}">{{ a.manufacturer }} {{ a.product_family }}{% if a.simulated %} (simulated){% elif not a.verified %} (UNTESTED — bench only){% endif %}</option>
         {% endfor %}
       </select>
       <button class="sc-act sc-act--go" type="submit">Register</button>
@@ -80,7 +80,8 @@
       {% else %}
         {{ sb.lamp("Heartbeat · " ~ (heartbeat_age|int) ~ " s ago", "on") }}
       {% endif %}
-      {% if spec.simulated %}{{ sb.lamp("Simulated", "warn") }}{% endif %}
+      {% if spec.simulated %}{{ sb.lamp("Simulated", "warn") }}
+      {% elif not spec.verified %}{{ sb.lamp("UNTESTED — bench only", "crit") }}{% endif %}
     </div>
     <dl class="sc-kv">
       <dt>Adapter</dt><dd>{{ spec.manufacturer }} {{ spec.product_family }} · v{{ spec.version }} · {{ spec.protocol }}</dd>
@@ -113,6 +114,31 @@
       {% endif %}
     </div>
   </section>
+
+  {% if not spec.simulated and not device.revoked_at %}
+  <section class="sb-panel">
+    <h2 class="sb-label sb-label-gold">Patch map</h2>
+    <p class="sb-note">
+      Which mix bus and which channel each name on the attached version is on
+      this desk. A name with no number is refused, never guessed — the wrong
+      bus is somebody else's ears. The bridge daemon reads the same map.
+      {% if not spec.verified %}<strong>This adapter is UNTESTED.</strong>
+      Run <code>tools/x32_bench.py</code> on a spare bus before a show.{% endif %}
+    </p>
+    <form method="post" action="/stage/{{ show_id }}/bridge/patch" class="sc-policy">
+      <label class="sc-count-label">Console host <input class="sc-in" name="host" value="{{ config.host or '' }}" placeholder="192.168.1.10"></label>
+      {% for m in mixes %}
+        <label class="sc-count-label">{{ m }} <span class="sc-muted">bus 1–16</span>
+          <input class="sc-in" type="number" min="1" max="16" name="mix_{{ m }}" value="{{ (config.patch.mixes if config.patch else {}).get(m, '') }}"></label>
+      {% endfor %}
+      {% for s in sources %}
+        <label class="sc-count-label">{{ s }} <span class="sc-muted">ch 1–32</span>
+          <input class="sc-in" type="number" min="1" max="32" name="src_{{ s }}" value="{{ (config.patch.sources if config.patch else {}).get(s, '') }}"></label>
+      {% endfor %}
+      <div><button class="sc-act" type="submit">Save patch map</button></div>
+    </form>
+  </section>
+  {% endif %}
 
   {% if spec.simulated and not device.revoked_at %}
   <section class="sb-panel">

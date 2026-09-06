@@ -111,6 +111,11 @@ def init_bridge():
             CREATE INDEX IF NOT EXISTS idx_scmd_device ON stage_commands(device_id, state, created);
             CREATE INDEX IF NOT EXISTS idx_scmd_show ON stage_commands(show_id, created);
         """)
+        # The patch map for a real desk: which mix bus and channel each name on
+        # the passport version is. Added after the first schema shipped.
+        cols = {r["name"] for r in db.execute("PRAGMA table_info(stage_devices)").fetchall()}
+        if "config" not in cols:
+            db.execute("ALTER TABLE stage_devices ADD COLUMN config TEXT NOT NULL DEFAULT '{}'")
 
 
 # --- devices -----------------------------------------------------------------
@@ -176,6 +181,49 @@ def _set(device_id, **fields):
     with get_db() as db:
         db.execute("UPDATE stage_devices SET %s WHERE id = ?" % cols,
                    list(fields.values()) + [device_id])
+
+
+def config(device):
+    try:
+        return json.loads((device or {}).get("config") or "{}")
+    except ValueError:
+        return {}
+
+
+def set_config(device_id, user_id, host="", mixes=None, sources=None):
+    """The patch map, validated: bus 1-16, channel 1-32, names non-empty.
+    Returns (config, refused_names). A name that fails is dropped, never
+    guessed - the wrong bus is somebody else's ears."""
+    dev = get_device(device_id, user_id)
+    if dev is None:
+        return None, []
+    refused = []
+    clean = {"host": (host or "").strip()[:80], "patch": {"mixes": {}, "sources": {}}}
+    for name, n in (mixes or {}).items():
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            refused.append(name); continue
+        if name.strip() and 1 <= n <= 16:
+            clean["patch"]["mixes"][name.strip()] = n
+        else:
+            refused.append(name)
+    for name, n in (sources or {}).items():
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            refused.append(name); continue
+        if name.strip() and 1 <= n <= 32:
+            clean["patch"]["sources"][name.strip()] = n
+        else:
+            refused.append(name)
+    _set(device_id, config=json.dumps(clean))
+    adapters.forget(device_id)
+    st.emit(dev["show_id"], user_id, "bridge.patched", actor="owner",
+            detail="Patch map saved: %d mixes, %d sources"
+            % (len(clean["patch"]["mixes"]), len(clean["patch"]["sources"])),
+            payload={"device_id": device_id})
+    return clean, refused
 
 
 def rotate(device_id, user_id, actor=""):
@@ -273,6 +321,7 @@ def mode(show_id, user_id, now=None):
         "code": ready.code, "reason": ready.reason,
         "device": dev, "spec": spec,
         "simulated": bool(spec and spec["simulated"]),
+        "verified": bool(spec and spec.get("verified")),
     }
 
 

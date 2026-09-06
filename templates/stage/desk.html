@@ -4,7 +4,7 @@
 {% block title %}Engineer Desk - Stage Control{% endblock %}
 
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/stage-control.css?v=7">
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=8">
 {% endblock %}
 
 {% block content %}
@@ -18,7 +18,7 @@
     Connected Control silently. -#}
 {% if mode.mode == "connected" %}
 <p class="sc-mode sc-mode--connected" data-mode="connected">
-  <span class="sc-mode-what">Connected Control{% if mode.simulated %} · SIMULATED{% endif %}</span>
+  <span class="sc-mode-what">Connected Control{% if mode.simulated %} · SIMULATED{% elif not mode.verified %} · UNTESTED ADAPTER{% endif %}</span>
   <span class="sc-mode-note">
     {{ mode.device.name }} is armed and answering. An approved request can be
     sent to the {{ mode.spec.key }} adapter{% if mode.simulated %}, which is a

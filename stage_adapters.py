@@ -63,6 +63,10 @@ class ConsoleAdapter:
         "version": "", "commands": (), "acknowledges": False,
         "can_revert": False, "connection": "", "limits": {},
         "known_limitations": (), "simulated": False,
+        # True only for an adapter that has moved a fader on the model and
+        # firmware named in tested_model / tested_firmware. The simulator is
+        # verified against itself; a bench adapter is not verified at all.
+        "verified": False,
     }
 
     @classmethod
@@ -132,6 +136,7 @@ class SimulatorAdapter(ConsoleAdapter):
             "Levels live in this process's memory; a second web worker has its own.",
         ),
         "simulated": True,
+        "verified": True,
     }
 
     def __init__(self):
@@ -200,12 +205,37 @@ class SimulatorAdapter(ConsoleAdapter):
 # the tested_model and tested_firmware it was proved on.
 ADAPTERS = {"simulator": SimulatorAdapter}
 
+# Adapters that exist but have not passed a bench test. Reachable only when
+# the operator sets STAGE_BENCH_ADAPTERS=1, and every screen that names one
+# says UNTESTED. The X32 lives here until tools/x32_bench.py has passed on a
+# real desk and a person has written the model and firmware into its spec.
+def _bench_adapters():
+    try:
+        import stage_x32
+    except ImportError:
+        return {}
+    return {"x32": stage_x32.X32Adapter}
+
+
+def bench_enabled():
+    import os
+    return (os.environ.get("STAGE_BENCH_ADAPTERS") or "").strip() == "1"
+
+
+def available():
+    """Every adapter a device may be registered with, right now."""
+    out = dict(ADAPTERS)
+    if bench_enabled():
+        out.update(_bench_adapters())
+    return out
+
+
 _instances = {}
 _instances_lock = threading.Lock()
 
 
 def adapter_class(key):
-    return ADAPTERS.get(key)
+    return available().get(key)
 
 
 def spec(key):
@@ -213,17 +243,22 @@ def spec(key):
     return cls.spec() if cls else None
 
 
-def instance_for(device_id, key):
+def instance_for(device_id, key, config=None):
     """One adapter object per registered device, for the life of the process.
     The simulator's levels have to persist between requests or a desk page
-    could never show a change it just made."""
+    could never show a change it just made. A bench adapter takes the
+    device's config (its host and patch map); the simulator needs none."""
     with _instances_lock:
         inst = _instances.get(device_id)
         if inst is None or inst.spec()["key"] != key:
             cls = adapter_class(key)
             if cls is None:
                 return None
-            inst = cls()
+            if cls.spec()["simulated"]:
+                inst = cls()
+            else:
+                config = config or {}
+                inst = cls(host=config.get("host") or "", patch=config.get("patch"))
             _instances[device_id] = inst
         return inst
 
