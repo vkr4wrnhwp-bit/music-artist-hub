@@ -382,6 +382,36 @@ def init_db():
                 created TEXT NOT NULL,
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS beat_fingerprint_checks (
+                id TEXT PRIMARY KEY,
+                beat_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'beat',
+                clip_name TEXT NOT NULL DEFAULT '',
+                sample_bytes INTEGER NOT NULL DEFAULT 0,
+                result TEXT NOT NULL DEFAULT 'none',
+                message TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS beat_fingerprint_matches (
+                id TEXT PRIMARY KEY,
+                check_id TEXT NOT NULL,
+                beat_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'music',
+                acrid TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL DEFAULT '',
+                artists TEXT NOT NULL DEFAULT '',
+                album TEXT NOT NULL DEFAULT '',
+                label TEXT NOT NULL DEFAULT '',
+                release_date TEXT NOT NULL DEFAULT '',
+                isrc TEXT NOT NULL DEFAULT '',
+                url TEXT NOT NULL DEFAULT '',
+                platform TEXT NOT NULL DEFAULT '',
+                score INTEGER NOT NULL DEFAULT 0,
+                play_offset_ms INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS score_history (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -2263,6 +2293,8 @@ def delete_beat(user_id, beat_id):
             db.execute("DELETE FROM beat_licences WHERE beat_id = ?", (beat_id,))
             db.execute("DELETE FROM beat_clearances WHERE beat_id = ?", (beat_id,))
             db.execute("DELETE FROM beat_uses WHERE beat_id = ?", (beat_id,))
+            db.execute("DELETE FROM beat_fingerprint_checks WHERE beat_id = ?", (beat_id,))
+            db.execute("DELETE FROM beat_fingerprint_matches WHERE beat_id = ?", (beat_id,))
             # A live link to a deleted beat would still play it.
             db.execute("DELETE FROM beat_audio WHERE beat_id = ?", (beat_id,))
             db.execute("DELETE FROM beat_shares WHERE beat_id = ?", (beat_id,))
@@ -2527,6 +2559,66 @@ def add_beat_use(beat_id, user_id, fields):
              fields.get("status") or "open",
              (fields.get("notes") or "")[:1000], now, now))
     return use_id
+
+
+# --- Fingerprint checks: what ACRCloud was asked, and what it answered --------
+# Every run is kept, including "no match" and the vendor's errors, so the
+# page can say when the beat was last checked and a usage case logged
+# from a match can point at the row that justified it.
+
+def add_beat_fingerprint_check(beat_id, user_id, source, clip_name, result,
+                               message, matches, sample_bytes=0):
+    check_id = uuid.uuid4().hex
+    now = _now()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO beat_fingerprint_checks (id, beat_id, user_id, source,"
+            " clip_name, sample_bytes, result, message, created)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
+            (check_id, beat_id, user_id, source if source in ("beat", "clip") else "beat",
+             (clip_name or "")[:200], int(sample_bytes or 0),
+             result if result in ("match", "none", "error") else "error",
+             (message or "")[:500], now))
+        for m in matches or []:
+            db.execute(
+                "INSERT INTO beat_fingerprint_matches (id, check_id, beat_id, user_id,"
+                " kind, acrid, title, artists, album, label, release_date, isrc, url,"
+                " platform, score, play_offset_ms, created)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (uuid.uuid4().hex, check_id, beat_id, user_id,
+                 (m.get("kind") or "music")[:20], (m.get("acrid") or "")[:80],
+                 (m.get("title") or "")[:300], (m.get("artists") or "")[:300],
+                 (m.get("album") or "")[:300], (m.get("label") or "")[:200],
+                 (m.get("release_date") or "")[:20], (m.get("isrc") or "")[:20],
+                 (m.get("url") or "")[:400], (m.get("platform") or "")[:40],
+                 int(m.get("score") or 0), int(m.get("play_offset_ms") or 0), now))
+    return check_id
+
+
+def list_beat_fingerprint_checks(user_id, beat_id, limit=8):
+    with get_db() as db:
+        checks = [dict(r) for r in db.execute(
+            "SELECT * FROM beat_fingerprint_checks WHERE user_id = ? AND beat_id = ?"
+            " ORDER BY created DESC, rowid DESC LIMIT ?", (user_id, beat_id, int(limit))).fetchall()]
+        if not checks:
+            return []
+        ids = [c["id"] for c in checks]
+        rows = db.execute(
+            "SELECT * FROM beat_fingerprint_matches WHERE check_id IN (%s)"
+            " ORDER BY score DESC" % ",".join("?" * len(ids)), ids).fetchall()
+    by_check = {}
+    for r in rows:
+        by_check.setdefault(r["check_id"], []).append(dict(r))
+    for c in checks:
+        c["matches"] = by_check.get(c["id"], [])
+    return checks
+
+
+def get_beat_fingerprint_match(user_id, match_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM beat_fingerprint_matches WHERE id = ? AND user_id = ?",
+                         (match_id, user_id)).fetchone()
+    return dict(row) if row else None
 
 
 def list_beat_uses(user_id, beat_id=None):

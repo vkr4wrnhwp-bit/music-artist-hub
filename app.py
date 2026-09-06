@@ -5720,6 +5720,22 @@ def create_app():
                     "url": request.form.get("url"),
                     "platform": request.form.get("platform"),
                     "notes": request.form.get("notes")})
+            elif action == "use_from_match" and request.form.get("match_id"):
+                # found_via='fingerprint' comes from a stored match row, so
+                # the badge can only appear beside something ACRCloud said.
+                m = store.get_beat_fingerprint_match(user["id"], request.form["match_id"])
+                if m and m["beat_id"] == beat_id:
+                    note = "ACRCloud match: %s" % m["title"]
+                    if m["artists"]:
+                        note += " - " + m["artists"]
+                    if m["album"]:
+                        note += " (" + m["album"] + ")"
+                    if m["isrc"]:
+                        note += " ISRC " + m["isrc"]
+                    note += ", score %d. Confirm by ear." % m["score"]
+                    store.add_beat_use(beat_id, user["id"], {
+                        "url": m["url"], "platform": m["platform"],
+                        "found_via": "fingerprint", "notes": note})
             elif action == "use_status" and request.form.get("use_id"):
                 fields = {"status": request.form.get("status")
                           if request.form.get("status") in producers.USE_STATUSES
@@ -5743,6 +5759,13 @@ def create_app():
             "clearance_kinds": producers.CLEARANCE_KINDS,
             "use_statuses": producers.USE_STATUSES,
             "monitoring": acr_provider.status(),
+            "fingerprint_checks": store.list_beat_fingerprint_checks(user["id"], beat_id),
+            "fp_note": {
+                "noaudio": "Attach audio to this beat first.",
+                "noclip": "Choose a file to identify.",
+                "big": "Clips are capped at %d MB. Fifteen seconds is plenty."
+                       % (acr_provider.MAX_CLIP_BYTES // (1024 * 1024)),
+            }.get(request.args.get("fp") or "", ""),
             "public_base": request.host_url.rstrip("/"),
             "audio": _beat_audio_public(store.get_beat_audio(beat_id)),
             "shares": store.list_beat_shares(user["id"], beat_id),
@@ -5872,6 +5895,66 @@ def create_app():
         return send_from_directory(UPLOADS_DIR, path[len("/uploads/"):],
                                    mimetype=audio["mime"] or "audio/mpeg",
                                    conditional=True)
+
+    def _beat_audio_bytes(audio):
+        """The stored file, read back for a fingerprint sample. Returns
+        None when the object cannot be reached; the check records that."""
+        path = audio["path"]
+        if blob_store.is_remote(path):
+            return blob_store.fetch(path)
+        try:
+            with open(blob_store.safe_local_path(path, UPLOADS_DIR), "rb") as f:
+                return f.read()
+        except (OSError, ValueError):
+            return None
+
+    @app.route("/beats/<beat_id>/identify", methods=["POST"])
+    def beat_identify(beat_id):
+        """Send one sample to ACRCloud, on the producer's say-so.
+
+        This is the one place a beat leaves the building for analysis,
+        and it happens only when the button is pressed. The answer, or
+        the vendor's error, is stored as a check so the page can show
+        when it last ran and what it said.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        beat = store.get_beat(beat_id, user["id"])
+        if beat is None:
+            abort(404)
+        if not acr_provider.configured():
+            return redirect("/beats/" + beat_id)
+        source = request.form.get("source") or "beat"
+        if source == "clip":
+            clip = request.files.get("clip")
+            if clip is None or not clip.filename:
+                return redirect("/beats/%s?fp=noclip#fingerprint" % beat_id)
+            data = clip.read(acr_provider.MAX_CLIP_BYTES + 1)
+            if len(data) > acr_provider.MAX_CLIP_BYTES:
+                return redirect("/beats/%s?fp=big#fingerprint" % beat_id)
+            mime, clip_name = clip.mimetype or "", clip.filename
+        else:
+            source = "beat"
+            audio = store.get_beat_audio(beat_id)
+            if audio is None or not audio["path"]:
+                return redirect("/beats/%s?fp=noaudio#fingerprint" % beat_id)
+            data = _beat_audio_bytes(audio)
+            mime, clip_name = audio["mime"] or "", audio["filename"] or ""
+            if data is None:
+                store.add_beat_fingerprint_check(
+                    beat_id, user["id"], source, clip_name, "error",
+                    "The stored audio could not be read back.", [])
+                return redirect("/beats/%s#fingerprint" % beat_id)
+        sample = acr_provider.slice_sample(data, mime)
+        try:
+            matches = acr_provider.identify(sample)
+            result, message = ("match" if matches else "none"), ""
+        except acr_provider.AcrError as e:
+            matches, result, message = [], "error", str(e)
+        store.add_beat_fingerprint_check(beat_id, user["id"], source, clip_name,
+                                         result, message, matches, sample_bytes=len(sample))
+        return redirect("/beats/%s#fingerprint" % beat_id)
 
     @app.route("/beats/<beat_id>/stream")
     def beat_stream(beat_id):

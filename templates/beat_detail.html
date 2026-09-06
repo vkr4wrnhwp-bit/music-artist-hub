@@ -150,6 +150,57 @@
     </section>
   </div>
 
+  {% if monitoring.on %}
+  {# ACRCloud, and only when a button is pressed. A match names a released
+     recording; it becomes a usage case only when the producer says so,
+     and then the badge derives from the stored match, not the form. #}
+  <section id="fingerprint" class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+    <h2 class="sb-label text-gray-200">Fingerprint check</h2>
+    <p class="mt-1 text-sm text-gray-200">ACRCloud compares a short sample with its index of released recordings. It runs only when you press a button here, and it names a recording, not a culprit: whether that recording really carries your beat is your ear's call before you log it.</p>
+    <div class="mt-3 flex flex-wrap items-center gap-3">
+      <form method="post" action="/beats/{{ beat.id }}/identify">
+        <input type="hidden" name="source" value="beat">
+        <button class="sb-btn sb-btn-secondary sb-btn-sm"{% if not audio %} disabled title="Attach audio first"{% endif %}>Check this beat against released music</button>
+      </form>
+      <form method="post" action="/beats/{{ beat.id }}/identify" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2">
+        <input type="hidden" name="source" value="clip">
+        <input type="file" name="clip" accept="audio/*,video/*" class="text-xs text-gray-200">
+        <button class="sb-btn sb-btn-secondary sb-btn-sm">Identify a clip you found</button>
+      </form>
+    </div>
+    <p class="mt-2 text-xs text-gray-200">The beat check sends a twelve-second slice from the middle of the file. A clip can be anything up to 10 MB; fifteen seconds is plenty.</p>
+    {% if fp_note %}<p class="mt-2 text-xs text-amber-300">{{ fp_note }}</p>{% endif %}
+
+    <div class="mt-4 space-y-2">
+      {% for c in fingerprint_checks %}
+      <div class="rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 text-xs">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="shrink-0 rounded-full border border-white/15 px-2 py-0.5 text-xs font-bold uppercase text-gray-200">{{ 'match' if c.result == 'match' else ('no match' if c.result == 'none' else 'error') }}</span>
+          <span class="min-w-0 flex-1 truncate text-gray-100">{{ 'This beat' if c.source == 'beat' else c.clip_name }}</span>
+          <span class="shrink-0 text-gray-200">{{ c.created[:16] }}</span>
+        </div>
+        {% if c.message %}<p class="mt-1 text-gray-200">{{ c.message }}</p>{% endif %}
+        {% if c.result == 'none' %}<p class="mt-1 text-gray-200">Nothing in ACRCloud's index matched this sample. That is one index on one day, not a clean bill.</p>{% endif %}
+        {% for m in c.matches %}
+        <div class="mt-2 flex flex-wrap items-center gap-2 border-t border-white/5 pt-2">
+          <span class="min-w-0 flex-1 text-gray-100"><b>{{ m.title }}</b>{% if m.artists %} — {{ m.artists }}{% endif %}{% if m.album %} · {{ m.album }}{% endif %}{% if m.label %} · {{ m.label }}{% endif %}{% if m.release_date %} · {{ m.release_date }}{% endif %}{% if m.isrc %} · ISRC {{ m.isrc }}{% endif %} · score {{ m.score }}</span>
+          {% if m.url %}<a href="{{ m.url }}" target="_blank" rel="noopener" class="shrink-0 text-sb-gold-bright hover:underline">{{ m.platform }} ↗</a>{% endif %}
+          <form method="post">
+            <input type="hidden" name="action" value="use_from_match">
+            <input type="hidden" name="match_id" value="{{ m.id }}">
+            <button class="sb-btn sb-btn-secondary sb-btn-sm">Log as usage case</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+      {% if not fingerprint_checks %}
+      <p class="text-xs text-gray-200">No checks run yet.</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
   <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>

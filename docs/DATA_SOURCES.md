@@ -19,6 +19,7 @@ adapter with a key would light a "configured" badge and answer nothing.
 | MusicBrainz (keyless) | — | Catalog: songwriter and publisher credits by ISRC (`music_apis.musicbrainz_credits`) |
 | Google News RSS (keyless) | — | Press finder on the EPK |
 | **MusicBrainz for Signal** | `MUSICBRAINZ_ENABLED=1`, `MUSICBRAINZ_CONTACT=<email>` | Signal: artist identity, releases, labels — free, no account. Measures nothing (no listeners, cities or distributor), and says so. |
+| **ACRCloud** | `ACRCLOUD_HOST`, `ACRCLOUD_ACCESS_KEY`, `ACRCLOUD_ACCESS_SECRET` | Beats: a fingerprint *check* the producer runs (`POST /beats/<id>/identify`) — a slice of the beat, or a clip they found, against ACRCloud's index of released recordings. Every run is stored; a match becomes a usage case marked `fingerprint` only when they press the button. Not monitoring: nothing crawls or listens on its own. Free tier covers it. |
 
 ## Declared only — a key does nothing until the adapter is written
 
@@ -26,7 +27,6 @@ adapter with a key would light a "configured" badge and answer nothing.
 | --- | --- | --- | --- |
 | Soundcharts | `SOUNDCHARTS_ENABLED`, `SOUNDCHARTS_APP_ID`, `SOUNDCHARTS_API_KEY` | Signal metrics, cities, playlists; Territories and Benchmark across platforms | **Stub.** Do not buy the plan before the adapter exists. |
 | Chartmetric | `CHARTMETRIC_ENABLED`, `CHARTMETRIC_REFRESH_TOKEN` | Same family | **Stub.** |
-| ACRCloud | `ACRCLOUD_HOST`, `ACRCLOUD_ACCESS_KEY`, `ACRCLOUD_ACCESS_SECRET` | Fingerprinting: prove a recording is yours; Beats usage | **Stub** (`acr_provider.py` reports configured/not, calls nothing). Free tier exists; sign up when the adapter lands. |
 | The MLC | `MLC_ENABLED`, `MLC_API_KEY` | Mechanicals, Clean Release, Recovery | **Stub.** The member API needs a publisher account and a request to The MLC. |
 | SoundExchange | `SOUNDEXCHANGE_ENABLED`, `SOUNDEXCHANGE_API_KEY` | Neighboring rights, Recovery | **Stub**, and no public API exists today. |
 | Spotify metadata for Signal | `SPOTIFY_METADATA_ENABLED` | Signal identity and releases from Spotify | **Stub** (the Pulse integration is separate and real). |
@@ -44,7 +44,8 @@ refuses everywhere else, so demo mode is all-or-nothing.
 1. `MUSICBRAINZ_ENABLED=1` + `MUSICBRAINZ_CONTACT` — free, immediate, real.
 2. `BANDSINTOWN_APP_ID` — when Bandsintown answers the application.
 3. Soundcharts — after its adapter is implemented against their API docs.
-4. ACRCloud free tier — after its adapter is implemented.
+4. ACRCloud — the three keys from the console's project page (host is the
+   region host, e.g. `identify-us-west-2.acrcloud.com`).
 5. The MLC member API — apply as a publisher; adapter after access.
 
 ## What no API exists for
