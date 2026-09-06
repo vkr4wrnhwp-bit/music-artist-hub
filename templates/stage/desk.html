@@ -153,6 +153,10 @@
     {% endif %}
   </section>
 
+  {% if date_url %}
+    <p class="sb-note"><a href="{{ date_url }}">← This date in TOUR</a></p>
+  {% endif %}
+
   <section class="sb-panel">
     <h2 class="sb-label sb-label-gold">Performer access</h2>
     {% if tour_id %}

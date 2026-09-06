@@ -213,6 +213,15 @@ The patch map (mix bus and channel per passport name, plus the desk's IP)
 is set on the bridge page and stored on the device; the daemon reads it
 from the same JSON.
 
+## The TOUR date
+
+A show is a TOUR date. Its page has a **Stage Control** fold inside
+Advance: attach a published Show Passport (the version in force at that
+moment, stored by id), see when a newer version exists (a notice — the
+date keeps what the crew was handed until you attach again on purpose),
+detach while the advance is still open, and open the Engineer Desk, the
+Stage Bridge and the performer QR from there. The desk links back.
+
 ## Performer access by QR
 
 A performer opens their page from a phone with no account. The link is a

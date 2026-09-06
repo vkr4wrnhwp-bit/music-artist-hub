@@ -1,0 +1,60 @@
+{% import "_sb.html" as sb %}
+{#- Stage Control on the date: which passport version this show was advanced
+    against, whether the passport has moved on since (a notice, never a
+    re-attach), the desk's mode, and the doors to the desk, the bridge and
+    the performer QR. Attaching stores the version id, so the crew's
+    document does not change under them when the passport is edited. -#}
+<details class="to-fold" id="stage"{% if tab == 'stage' or request.args.get('stage') %} open{% endif %}>
+  <summary><span class="to-fold-title">Stage Control</span><span class="to-fold-note">{% if stage.attached %}passport v{{ stage.attached.version.number }} attached{% if stage.open_requests %} · {{ stage.open_requests }} open request{{ '' if stage.open_requests == 1 else 's' }}{% endif %}{% else %}no passport attached{% endif %}</span></summary>
+  <div class="to-fold-body">
+    {% if request.args.get('stage') == 'refused' %}
+      <p class="to-sub" role="alert">That passport has nothing published yet. Publish a version first; a draft cannot be advanced against.</p>
+    {% endif %}
+    {% if stage.attached %}
+      <div class="to-bar" style="margin-top:0;gap:10px;flex-wrap:wrap">
+        {{ sb.lamp("v" ~ stage.attached.version.number ~ " · " ~ stage.attached.state|replace('_', ' '), "on") }}
+        {% if stage.mode %}
+          {{ sb.lamp("Connected Control" ~ (" · simulated" if stage.mode.simulated else ""), "on") if stage.mode.mode == "connected" else sb.lamp("Request Mode", "") }}
+        {% endif %}
+        {% if stage.newer %}{{ sb.lamp("v" ~ stage.newer.available ~ " published since", "warn") }}{% endif %}
+      </div>
+      <p class="to-sub">
+        <b>{{ stage.attached.passport.artist_name or "Passport" }}</b>{% if stage.attached.passport.production_name %} · {{ stage.attached.passport.production_name }}{% endif %}
+        — the crew was handed version {{ stage.attached.version.number }}, and that is what the desk reads.
+        {% if stage.newer %}Version {{ stage.newer.available }} exists now; this date keeps v{{ stage.newer.attached }} until you attach again on purpose.{% endif %}
+      </p>
+      <div class="to-bar" style="flex-wrap:wrap;gap:8px">
+        <a class="to-btn to-btn--small" href="/stage/{{ show['id'] }}">Engineer Desk</a>
+        <a class="to-btn to-btn--ghost to-btn--small" href="/stage/{{ show['id'] }}/bridge">Stage Bridge</a>
+        <a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/share">Performer QR (share link)</a>
+        <a class="to-btn to-btn--ghost to-btn--small" href="/passports/{{ stage.attached.passport.id }}/versions">Change log</a>
+        {% if can('production') and stage.attached.open %}
+          <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/stage" style="display:inline">
+            <input type="hidden" name="action" value="{{ 'attach' if stage.newer else 'detach' }}">
+            {% if stage.newer %}<input type="hidden" name="passport_id" value="{{ stage.attached.passport.id }}">{% endif %}
+            <button class="to-btn to-btn--ghost to-btn--small{{ '' if stage.newer else ' to-btn--danger' }}" type="submit">{{ 'Attach v' ~ stage.newer.available if stage.newer else 'Detach' }}</button>
+          </form>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="to-sub">
+        Nothing is attached, so the desk has no mixes to take requests against.
+        Advance this date against a published Show Passport; the version in
+        force right now is what the crew gets, by id.
+      </p>
+      {% if can('production') %}
+        {% if stage.choices %}
+          <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/stage" class="to-bar" style="flex-wrap:wrap;gap:8px">
+            <input type="hidden" name="action" value="attach">
+            <select class="to-input" name="passport_id" aria-label="Show Passport" style="min-height:36px">
+              {% for p in stage.choices %}<option value="{{ p['id'] }}">{{ p['artist_name'] or 'Untitled' }}{% if p['production_name'] %} · {{ p['production_name'] }}{% endif %}</option>{% endfor %}
+            </select>
+            <button class="to-btn to-btn--small" type="submit">Attach</button>
+          </form>
+        {% else %}
+          <p class="to-sub">No passport has a published version yet. <a href="/passports">Show Passports →</a></p>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+  </div>
+</details>

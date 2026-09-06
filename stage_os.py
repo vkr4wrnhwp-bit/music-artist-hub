@@ -102,10 +102,12 @@ def desk(show_id, user):
     mixes, sources, snap = _mixes_and_sources(show_id, user["id"])
     sb.expire_stale(show_id, user["id"])
     import tour_store as ts
+    tour_id = ts.tour_id_for_show(show_id)
     return render_template(
         "stage/desk.html", active_page="stage",
         show_id=show_id, snapshot=snap,
-        tour_id=ts.tour_id_for_show(show_id),
+        tour_id=tour_id,
+        date_url=("/tours/%s/shows/%s?tab=advance#stage" % (tour_id, show_id)) if tour_id else "",
         mode=sb.mode(show_id, user["id"]),
         commands=sb.commands_for_show(show_id, user["id"], limit=12),
         requests=st.for_show(show_id, user["id"], open_only=True),

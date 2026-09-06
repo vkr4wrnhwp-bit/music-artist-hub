@@ -22,3 +22,5 @@
   <summary><span class="to-fold-title">Production pack &amp; files</span><span class="to-fold-note">{% if prod_n %}{{ prod_n }} file{{ '' if prod_n == 1 else 's' }}{% else %}no files attached{% endif %}</span></summary>
   <div class="to-fold-body">{% with files=prod_files, tour_files=prod_tour_files %}{% include "tour/show/_production.html" %}{% endwith %}</div>
 </details>
+
+{% include "tour/date/_stage.html" %}

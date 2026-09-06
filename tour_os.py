@@ -988,6 +988,57 @@ def _section_status(key, d, show, tour):
     return ""
 
 
+def _stage_ctx(tour, show):
+    """What the date knows about Stage Control: the passport version it was
+    advanced against (if any), whether the passport has moved on since, the
+    mode the desk is in, and which passports could be attached. Everything
+    is read from the stores; nothing here is a flag."""
+    import advance_store as adv
+    import passport_store as ps
+    import stage_bridge as sb
+    import stage_store as st
+    owner = tour["user_id"]
+    link = adv.get_attachment(show["id"], owner)
+    attached = None
+    if link:
+        head = ps.get_passport(link["passport_id"], owner)
+        version = ps.get_version(link["version_id"], owner)
+        attached = {"passport": head, "version": version, "state": link["state"],
+                    "at": link.get("attached_at") or link.get("created") or "",
+                    "open": link["state"] in adv.OPEN_STATES}
+    choices = [p for p in ps.list_passports(owner) if p.get("current_version_id")]
+    mode = sb.mode(show["id"], owner) if link else None
+    return {"attached": attached,
+            "newer": adv.newer_version_available(show["id"], owner) if link else None,
+            "mode": mode,
+            "open_requests": st.summary(show["id"], owner)["open"] if link else 0,
+            "choices": choices}
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/stage", methods=["POST"])
+@require_tour("edit", "production")
+def show_stage(user, tour, viewer, tour_id, show_id):
+    """Attach a published passport version to this date, or detach it while
+    the advance is still open. The passport's version in force at this
+    moment is what gets attached, by id - publishing later leaves the date
+    where it was."""
+    import advance_store as adv
+    show = _show_or_404(tour, show_id)
+    action = request.form.get("action") or ""
+    if action == "attach":
+        ok = adv.attach(show_id, tour["user_id"], request.form.get("passport_id") or "",
+                        attached_by=_actor(viewer)["name"])
+        if ok is None:
+            return redirect("/tours/%s/shows/%s?tab=advance&stage=refused#stage" % (tour_id, show_id))
+        ts.log_change(tour_id, tour["user_id"], _actor(viewer), "stage", show_id,
+                      "Show Passport", "attached", "", "", "info")
+    elif action == "detach":
+        adv.detach(show_id, tour["user_id"])
+        ts.log_change(tour_id, tour["user_id"], _actor(viewer), "stage", show_id,
+                      "Show Passport", "detached", "", "", "info")
+    return redirect("/tours/%s/shows/%s?tab=advance#stage" % (tour_id, show_id))
+
+
 def _date_page(user, tour, viewer, show, tab, **extra):
     """Render one date as one page: every core section, the optional
     sections that are on (opted, have rows, or deep-linked), and a `+`
@@ -1018,6 +1069,7 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         "lineup": ts.seed_lineup_from_support(tid, show),
         # advance, with the production pack and the mail behind disclosures
         "advance": ts.list_advance(tid, sid), "advance_progress": ts.advance_progress(tid, sid),
+        "stage": _stage_ctx(tour, show),
         "prod_files": _files_for(viewer, [f for f in rows["files"] if f["category"] in PRODUCTION_FILE_CATEGORIES]),
         "prod_tour_files": _files_for(viewer, [f for f in ts.list_files(tid, entity_type="tour")
                                                if f["category"] in ("stage_plot", "tech_pack", "rider", "production")]),
