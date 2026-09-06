@@ -812,9 +812,11 @@ def test_publishing_page_real_classification():
 def test_tier2_pages_render_and_are_in_nav():
     client = _demo()
     nav = client.get("/overview").get_data(as_text=True)
+    # Documents is a tab of Vault and the calendar a tab of Releases now;
+    # both answer, and their fronts are in the nav.
     for href in ("/documents", "/releases"):
-        assert 'href="%s"' % href in nav
         assert client.get(href).status_code == 200
+    assert 'href="/vault"' in nav and 'href="/releases/autopilot"' in nav
     # Conflicts is parked off the sidebar (docs/PARKED_PAGES.md); it answers.
     assert client.get("/conflicts").status_code == 200
     # Ecosystem Hub model: five collapsible hubs plus Account, on every page.

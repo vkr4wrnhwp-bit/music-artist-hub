@@ -26,6 +26,8 @@ FOLDED = {
     "/trust-score": "scores", "/insights": "scores", "/qualification": "scores",
     "/sync/deal-simulator": "deals", "/sync/clearance-packs": "deals", "/deal-room": "deals",
     "/epk": "press-desk", "/artist-profile": "press-desk",
+    # Tier C, folded the same day.
+    "/releases": "autopilot", "/documents": "vault", "/tracks": "catalog",
 }
 
 
@@ -33,18 +35,20 @@ def _entries():
     return [it for _k, _l, _d, items in hubs.HUBS for it in items]
 
 
-def test_the_sidebar_is_thirty_seven_entries():
-    assert len(_entries()) == 37
+def test_the_sidebar_is_thirty_four_entries():
+    assert len(_entries()) == 34
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():
     hrefs = {it[1] for it in _entries()}
     for href in list(PARKED) + [h for h in FOLDED if h not in ("/publishing", "/qualification", "/deal-room")]:
+        if href in ("/releases",):
+            continue          # /releases is the calendar's URL; the front is /releases/autopilot
         assert href not in hrefs, href
     keys = {it[0] for it in _entries()}
     for key in ("capital", "benchmark", "funding", "conflicts", "epk", "profile", "mechanicals",
                 "neighboring", "territories", "money-queue", "trust-score", "insights",
-                "connections", "deal-simulator", "sync-packs"):
+                "connections", "deal-simulator", "sync-packs", "releases", "documents", "tracks"):
         assert key not in keys, key
     for key in ("income", "scores", "deals", "royalty-lanes", "press-desk", "reports"):
         assert key in keys, key

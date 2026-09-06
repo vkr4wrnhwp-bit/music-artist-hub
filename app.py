@@ -4113,7 +4113,7 @@ def create_app():
                                    if not r["clean"]["blocked"]
                                    and r["clean"]["score"] >= 80])),
         ]
-        return render_template("os_tracks.html", active_page="tracks",
+        return render_template("os_tracks.html", active_page="catalog",
                                rows=rows, pipeline=pipeline,
                                cert=artist_os.certification(summary),
                                summary=summary,
@@ -4182,7 +4182,7 @@ def create_app():
         if track is None:
             abort(404)
         ctx = _os_ctx(user["id"])
-        return render_template("os_track_detail.html", active_page="tracks",
+        return render_template("os_track_detail.html", active_page="catalog",
                                track=track,
                                passport=artist_os.passport_report(track),
                                clean=artist_os.clean_release(track, ctx),
@@ -7614,7 +7614,7 @@ def create_app():
         ctx["doc_types"] = _DOC_TYPES
         ctx["doc_error"] = error
         return render_template(
-            "documents.html", active_page="documents",
+            "documents.html", active_page="vault",
             documents_view=documents_engine.build(user["id"]) if user else None,
             documents_per_track_types=documents_engine.PER_TRACK_TYPES,
             documents_catalog_types=documents_engine.CATALOG_TYPES, **ctx)
@@ -7745,7 +7745,7 @@ def create_app():
             if not months or months[-1]["month"] != label:
                 months.append({"month": label, "events": []})
             months[-1]["events"].append(e)
-        return render_template("releases.html", active_page="releases",
+        return render_template("releases.html", active_page="autopilot",
                                months=months, past=past, lanes=lanes,
                                warnings=warnings, preset=preset,
                                presets=_SCHED_PRESETS,

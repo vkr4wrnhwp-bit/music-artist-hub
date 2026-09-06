@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Asset Vault - Street Banker{% endblock %}
 
 {% block content %}
+{{ sb.subnav([("/vault", "Files"), ("/documents", "Contracts & licences")], "/vault") }}
 <div class="mx-auto max-w-[1100px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>

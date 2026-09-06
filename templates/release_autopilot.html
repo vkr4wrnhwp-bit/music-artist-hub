@@ -8,6 +8,7 @@
 {% endblock %}
 
 {% block content %}
+{{ sb.subnav([("/releases/autopilot", "Autopilot"), ("/releases", "Calendar")], "/releases/autopilot") }}
 {#- One release in; the whole desk reads from it. This page absorbed Clean
     Release: both rendered the same twelve checks against the same campaign,
     so the checks live here once, the arc / plan / kit around them, and the

@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Release Scheduler - Street Banker{% endblock %}
 
 {% block content %}
+{{ sb.subnav([("/releases/autopilot", "Autopilot"), ("/releases", "Calendar")], "/releases") }}
 <div class="mx-auto max-w-[1000px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>

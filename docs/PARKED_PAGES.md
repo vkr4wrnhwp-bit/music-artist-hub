@@ -34,5 +34,8 @@ correctly get APIs to utilize them."*
 | Deals (`/deal-room`) | Deal Room · Simulator · Sync packs |
 | Press (`/press-desk`) | Desk · Media list · Announcements · Coverage · Press kit (`/epk`) · One-sheet (`/artist-profile`) |
 | Settings | Data & Connections (`/connections`) — it was never money |
+| Releases (`/releases/autopilot`) | Autopilot · Calendar (`/releases`) |
+| Vault | Files · Contracts & licences (`/documents`) |
+| Catalog | Catalog · Track Passports (`/tracks`) — two song tables still; unifying the data is a separate job |
 
 Every folded URL is unchanged.

@@ -18,15 +18,12 @@ HUBS = [
         ("remix-lab", "/remix-lab", "M15.5 6.5A6 6 0 004.9 8.2|M4.5 13.5A6 6 0 0015.1 11.8|M16 3v4h-4|M4 17v-4h4", "Remix Lab", "One master in, a measured remix brief back."),
         ("audio-studio", "/audio-studio", "M4 10h2v4H4z|M8 6h2v12H8z|M12 8h2v8h-2z|M16 11h2v2h-2z", "Audio Studio", "Dub a release, cut campaign audio, split stems, register a voice."),
         ("artwork", "/artwork", "M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z", "Cover Art", "Generate and manage release artwork."),
-        ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Asset Vault", "Stems, bounces, and press assets in one place."),
+        ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Vault", "Stems, bounces and press assets - and the contracts and licences beside them."),
         ("beats", "/beats", "M5 14a3 3 0 106 0 3 3 0 00-6 0z|M11 14V4l5 2v8|M14 12a2 2 0 104 0 2 2 0 00-4 0z", "Beats", "Beat registry, licences, cleared list, usage cases."),
-        ("tracks", "/tracks", "M4 3h12v14H4z|M7 7h6|M7 10h6|M7 13h4", "Track Passports", "Per-track rights, metadata, and lockbox sign-offs."),
-        ("catalog", "/catalog", "M7 4v10a2 2 0 11-2-2h2M7 4l9-1v9a2 2 0 11-2-2h2", "Catalog", "Every song you own, with its status and its identifiers."),
-        ("documents", "/documents", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 11h5M8 14h3", "Documents", "Contracts and licenses, uploaded and filed."),
+        ("catalog", "/catalog", "M7 4v10a2 2 0 11-2-2h2M7 4l9-1v9a2 2 0 11-2-2h2", "Catalog", "Every song you own, its identifiers, and its Track Passport."),
     ]),
     ("launch", "Launch Engine", "From finished master to the world — prepare, release, promote, and measure.", [
-        ("autopilot", "/releases/autopilot", "M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6", "Release Autopilot", "Readiness, the eight-stage arc, the plan, the kit, and the rights checks before it ships."),
-        ("releases", "/releases", "M5 4h10a1 1 0 011 1v11a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z|M4 8h12M8 3v3M12 3v3", "Release Scheduler", "Your calendar of what drops when."),
+        ("autopilot", "/releases/autopilot", "M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6", "Releases", "One release at a time - readiness, the arc, the plan, the kit - and the calendar of all of them."),
         ("links", "/links", "M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1", "Smart Links", "One link per release with real click analytics."),
         ("rollout", "/rollout-studio", "M4 4h12v9H4z|M4 13l3 4M16 13l-3 4M7 8l2 2 4-4", "Rollout Engine", "Generated captions, briefs, and rollout plans."),
         ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press", "Media list, pitches and coverage — with the press kit and one-sheet they send."),
@@ -107,16 +104,16 @@ HUB_ICONS = {
 # hub-desk footnote and the command palette all went on calling a live page
 # "example data, not yours" - four surfaces wrong from one stale list entry.
 # Flag-gated keys are appended by live_keys() instead.
-_BASE_LIVE = ["apparel", "beats", "statements", "notifications", "documents", "cases",
+_BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "artist-twin",
              "revenue-os", "overview", "royalties", "recovery",
              "valuation", "links", "rollout", "artwork", "services", "submit",
              "inbox", "settings", "discover", "catalog", "command-center",
              "actions", "autopilot", "scores",
              "vault", "review", "pulse", "team", "tax",
-             "releases", "income", "disputes", "fan-club-admin", "portal",
+             "income", "disputes", "fan-club-admin", "portal",
              "tours", "passports", "tour-board", "rack", "roster", "referrals",
-             "lights", "tracks", "royalty-lanes", "certified",
+             "lights", "royalty-lanes", "certified",
              "press-desk", "deals",
              # Reports has five real export routes; only the demo account's
              # scheduled-report list is illustrative. It was badged as a

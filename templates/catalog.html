@@ -30,6 +30,7 @@
 {% endmacro %}
 
 {% block content %}
+{{ sb.subnav([("/catalog", "Catalog"), ("/tracks", "Track Passports")], "/catalog") }}
 <style>
   /* The remove control is revealed by hover, which a touch screen cannot
      do - so on a device with no hover it is simply always there. Keeping
