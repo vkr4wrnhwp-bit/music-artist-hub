@@ -468,6 +468,13 @@ def init_db():
                 works TEXT NOT NULL DEFAULT '[]',
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS recovery_mlc_sweeps (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                summary TEXT NOT NULL DEFAULT '{}',
+                rows TEXT NOT NULL DEFAULT '[]',
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -2778,6 +2785,29 @@ def get_track_mlc_check(user_id, check_id):
         row = db.execute("SELECT * FROM track_mlc_checks WHERE id = ? AND user_id = ?",
                          (check_id, user_id)).fetchone()
     return _mlc_check_dict(row) if row else None
+
+
+def add_recovery_mlc_sweep(user_id, summary, rows):
+    sweep_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute("INSERT INTO recovery_mlc_sweeps (id, user_id, summary, rows, created) VALUES (?,?,?,?,?)",
+                   (sweep_id, user_id, json.dumps(summary or {}), json.dumps(rows or [])[:400000], _now()))
+    return sweep_id
+
+
+def latest_recovery_mlc_sweep(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM recovery_mlc_sweeps WHERE user_id = ?"
+                         " ORDER BY created DESC, rowid DESC LIMIT 1", (user_id,)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    try:
+        d["summary"] = json.loads(d.get("summary") or "{}")
+        d["rows"] = json.loads(d.get("rows") or "[]")
+    except ValueError:
+        d["summary"], d["rows"] = {}, []
+    return d
 
 
 def add_roster_invite(label_id, email):

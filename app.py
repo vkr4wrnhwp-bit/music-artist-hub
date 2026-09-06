@@ -41,6 +41,7 @@ import press_desk
 import tour_os
 import producers
 import recovery_engine
+import recovery_mlc
 import report_builder
 import sandbox
 import shopify_buy
@@ -2042,7 +2043,25 @@ def create_app():
         return render_template(
             "recovery.html", active_page="recovery",
             recovery_view=recovery_engine.build(user["id"]) if user else None,
+            mlc=recovery_mlc.state(user["id"]) if user else None,
+            mlc_note={"off": "The MLC is not connected on this service.",
+                      "none": "No Track Passport carries an ISRC yet, so there is nothing to ask about."
+                      }.get(request.args.get("mlc") or "", ""),
             **build_dashboard_context())
+
+    @app.route("/recovery/mlc", methods=["POST"])
+    def recovery_mlc_sweep():
+        """One sweep of every passport ISRC through The MLC, on request."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        import signal_providers as sp
+        if not sp.mlc_adapter().configured():
+            return redirect("/recovery?mlc=off#mlc")
+        if not recovery_mlc.candidates(user["id"])[0]:
+            return redirect("/recovery?mlc=none#mlc")
+        recovery_mlc.sweep(user["id"])
+        return redirect("/recovery#mlc")
 
     @app.route("/valuation")
     def valuation():
