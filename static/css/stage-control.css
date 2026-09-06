@@ -169,7 +169,11 @@
   white-space: nowrap;
 }
 
-.sc-muted { color: var(--sb-paper-ink-3); }
+/* Muted text is dark-room ink by default and paper ink only on the sheet.
+ * It was the other way round, and paper ink-3 on the desk's ground is
+ * 3.2:1 - the history list and the bridge's command log failed 4.5:1. */
+.sc-muted { color: var(--sb-ink-3); }
+.sc-sheet .sc-muted, .sc-card .sc-muted { color: var(--sb-paper-ink-3); }
 
 /* --- flags ---------------------------------------------------------------- */
 
@@ -315,7 +319,7 @@ select.sc-in {
  * and rack.css all carry this rule already - Stage Control is the module most
  * likely to be operated on a phone, so it is the last one that should skip it. */
 @media (pointer: coarse) {
-  .sc-btn, .sc-x { min-height: 44px; }
+  .sc-btn, .sc-x, .sc-act { min-height: 44px; }
   .sc-x { min-width: 44px; }
   .sc-in { min-height: 44px; }
   select.sc-in { min-height: 44px; }
