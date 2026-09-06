@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Insights - Street Banker{% endblock %}
 
 {% block content %}
+{{ sb.subnav([("/qualification", "Growth"), ("/trust-score", "Trust"), ("/insights", "Insights")], "/insights") }}
 <div class="mx-auto max-w-[900px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Insights</div>

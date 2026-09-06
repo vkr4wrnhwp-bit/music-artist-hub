@@ -2029,7 +2029,7 @@ def create_app():
             ("PRO / MLC registrations (ASCAP, BMI, MLC)",
              "Registration status requires society data access."),
         ]
-        return render_template("connections.html", active_page="connections",
+        return render_template("connections.html", active_page="settings",
                                integrations=integrations, unavailable=unavailable,
                                **build_dashboard_context())
 
@@ -2209,7 +2209,7 @@ def create_app():
                                   overrides=overrides, photo=photo, assets=assets,
                                   tour_dates=tour,
                                   demo=_is_demo_email(user["email"]))
-        return render_template("epk.html", active_page="epk", **ctx)
+        return render_template("epk.html", active_page="press-desk", **ctx)
 
     @app.route("/epk/press/search")
     def epk_press_search():
@@ -4251,7 +4251,7 @@ def create_app():
                 tour_income = round(
                     tour_income + touring.settlement_totals(st)["walk"], 2)
                 tour_settled += 1
-        return render_template("money_queue.html", active_page="money-queue",
+        return render_template("money_queue.html", active_page="royalty-lanes",
                                queue=queue, est_total=est_total,
                                criticals=criticals, ctx=ctx,
                                tour_income=tour_income,
@@ -6150,7 +6150,7 @@ def create_app():
             return redirect("/deal-room")
         deals = store.list_deals(user["id"])
         docs = {d["id"]: d for d in store.list_documents(user["id"])}
-        return render_template("deal_room.html", active_page="deal-room",
+        return render_template("deal_room.html", active_page="deals",
                                deals=deals, docs=docs, doc_list=list(docs.values()),
                                deal_types=_DEAL_TYPES, deal_statuses=_DEAL_STATUSES,
                                **build_dashboard_context())
@@ -6253,7 +6253,7 @@ def create_app():
                         "instrumental_url": _sync_audio_upload("instrumental_audio"),
                         "clean_url": _sync_audio_upload("clean_audio")})
                     return redirect("/sync/clearance-packs")
-        return render_template("sync_packs.html", active_page="sync-packs",
+        return render_template("sync_packs.html", active_page="deals",
                                packs=store.list_sync_packs(user["id"]), error=error,
                                **build_dashboard_context())
 
@@ -6302,7 +6302,7 @@ def create_app():
             except (TypeError, ValueError):
                 inp["fee"] = 0
             result = sync_simulator.simulate(inp)
-        return render_template("deal_simulator.html", active_page="deal-simulator",
+        return render_template("deal_simulator.html", active_page="deals",
                                result=result, inp=inp, sim=sync_simulator,
                                **build_dashboard_context())
 
@@ -6403,7 +6403,7 @@ def create_app():
         if user is None:
             return login_required_redirect()
         t = trust_score.calculate(user["id"])            # records itself
-        return render_template("trust_score.html", active_page="trust-score",
+        return render_template("trust_score.html", active_page="scores",
                                t=t,
                                trend=score_history.summarise(
                                    "trust",
@@ -6577,7 +6577,7 @@ def create_app():
         # calculate() records today's reading itself, so the trend below
         # always includes it.
         q = qualification.calculate(user["id"])
-        return render_template("qualification.html", active_page="qualification",
+        return render_template("qualification.html", active_page="scores",
                                q=q,
                                trend=score_history.summarise(
                                    "qualification",
@@ -6605,7 +6605,7 @@ def create_app():
                               "fans": counts.get("email_capture", 0)
                                       + counts.get("presave_notify", 0),
                               "eff_status": links_engine.effective_status(c)})
-        return render_template("artist_profile.html", active_page="profile",
+        return render_template("artist_profile.html", active_page="press-desk",
                                e=epk_data, q=qualification.calculate(user["id"]),
                                campaigns=campaigns,
                                fan_count=len(mls.list_fans(user["id"])),
@@ -7137,11 +7137,11 @@ def create_app():
 
     @app.route("/publishing")
     def publishing():
-        return _royalty_type_page("publishing", "publishing")
+        return _royalty_type_page("publishing", "income")
 
     @app.route("/neighboring-rights")
     def neighboring_rights():
-        return _royalty_type_page("neighboring", "neighboring")
+        return _royalty_type_page("neighboring", "income")
 
     @app.route("/sync")
     def sync():
@@ -7155,20 +7155,20 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        return render_template("territories.html", active_page="territories",
+        return render_template("territories.html", active_page="income",
                                tr=royalty_types.territory_report(user["id"]),
                                **build_dashboard_context())
 
     @app.route("/mechanicals")
     def mechanicals():
-        return _royalty_type_page("mechanical", "mechanicals")
+        return _royalty_type_page("mechanical", "income")
 
     @app.route("/insights")
     def insights():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        return render_template("insights.html", active_page="insights",
+        return render_template("insights.html", active_page="scores",
                                items=insights_engine.build_insights(user["id"]),
                                **build_dashboard_context())
 

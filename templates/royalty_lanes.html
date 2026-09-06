@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Royalty Lanes - Street Banker{% endblock %}
 
 {% block content %}
+{{ sb.subnav([("/royalty-lanes", "Lanes"), ("/money-queue", "Queue")], "/royalty-lanes") }}
 <div class="mx-auto max-w-[1100px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Royalty Sweep · Artist OS</div>

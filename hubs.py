@@ -10,10 +10,7 @@ HUBS = [
     ("command", "Command Center", "Your whole operation on one screen — scores, actions, and the strategist read.", [
         ("command-center", "/command-center", "M4 4h5v5H4zM11 4h5v3h-5zM11 9h5v7h-5zM4 11h5v5H4z", "Command Center", "Every module's live status on one board."),
         ("actions", "/actions", "M8 4h8M8 10h8M8 16h8|M4 4l1 1 2-2M4 10l1 1 2-2M4 16l1 1 2-2", "Actions", "The prioritized to-do list your data generates."),
-        ("qualification", "/qualification", "M4 16V9M9 16V5M14 16v-8|M3 16h14M14 4l1.5 1.5L18 3", "Growth Score", "Release readiness scored from real signals."),
-        ("trust-score", "/trust-score", "M10 3l6 3v5c0 3-2.5 5-6 6-3.5-1-6-3-6-6V6z|M10 8v3M10 13v.5", "Trust Score", "How complete and verifiable your record is."),
-        ("insights", "/insights", "M10 3a5 5 0 00-3 9v2h6v-2a5 5 0 00-3-9z|M8 16h4M9 18h2", "AI Insights", "Rule-based observations from your own numbers."),
-        ("benchmark", "/benchmark", "M4 16V9M9 16V5M14 16v-8|M3 16h14", "Benchmark", "Where you stand against comparable catalogs."),
+        ("scores", "/qualification", "M4 16V9M9 16V5M14 16v-8|M3 16h14M14 4l1.5 1.5L18 3", "Scores", "Growth, trust and insights — three reads, each from your own numbers."),
         ("artist-twin", "/artist-twin", "M10 3a4 4 0 100 8 4 4 0 000-8z|M4 17c0-3 2.5-5 6-5s6 2 6 5M14 4l1 1 2-2", "Artist Twin", "The strategist read on your next best moves."),
     ]),
     ("studio", "Studio & Assets", "Make the record and keep its paperwork straight — audio, art, files, and passports.", [
@@ -26,15 +23,13 @@ HUBS = [
         ("tracks", "/tracks", "M4 3h12v14H4z|M7 7h6|M7 10h6|M7 13h4", "Track Passports", "Per-track rights, metadata, and lockbox sign-offs."),
         ("catalog", "/catalog", "M7 4v10a2 2 0 11-2-2h2M7 4l9-1v9a2 2 0 11-2-2h2", "Catalog", "Every song you own, with its status and its identifiers."),
         ("documents", "/documents", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 11h5M8 14h3", "Documents", "Contracts and licenses, uploaded and filed."),
-        ("profile", "/artist-profile", "M10 4a3 3 0 100 6 3 3 0 000-6z|M4 17c0-3 2.5-5 6-5s6 2 6 5", "Artist Profile", "The profile powering your public pages."),
     ]),
     ("launch", "Launch Engine", "From finished master to the world — prepare, release, promote, and measure.", [
         ("autopilot", "/releases/autopilot", "M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6", "Release Autopilot", "Readiness, the eight-stage arc, the plan, the kit, and the rights checks before it ships."),
         ("releases", "/releases", "M5 4h10a1 1 0 011 1v11a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z|M4 8h12M8 3v3M12 3v3", "Release Scheduler", "Your calendar of what drops when."),
         ("links", "/links", "M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1", "Smart Links", "One link per release with real click analytics."),
         ("rollout", "/rollout-studio", "M4 4h12v9H4z|M4 13l3 4M16 13l-3 4M7 8l2 2 4-4", "Rollout Engine", "Generated captions, briefs, and rollout plans."),
-        ("epk", "/epk", "M5 3h7l3 3v11a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z|M7 9h6M7 12h6M7 15h3", "Press Kit", "Your public EPK, always current."),
-        ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press Desk", "Media list, announcements, and who opened which pitch."),
+        ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press", "Media list, pitches and coverage — with the press kit and one-sheet they send."),
         ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Daily follower and popularity snapshots, growth over time, and your link engagement."),
     ]),
     ("stage", "Live Stage Suite", "Everything between the booking and the encore — shows, plots, lights, and the rider.", [
@@ -49,23 +44,13 @@ HUBS = [
         ("royalties", "/royalties", "M4 7l6-3 6 3v6l-6 3-6-3z|M4 7l6 3 6-3M10 10v6", "Royalties", "Income by source from your statements."),
         ("statements", "/statements", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 9h5M8 12h5M8 15h3M10 3v4h4", "Statements", "Upload or email statements; rows become data."),
         ("recovery", "/recovery", "M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3l2 2", "Recovery", "Findings pulled from your own uploads."),
-        ("royalty-lanes", "/royalty-lanes", "M3 5h14|M3 9h14|M3 13h14|M3 17h9", "Royalty Lanes", "Nine income lanes per song, claimed or missing."),
-        ("money-queue", "/money-queue", "M4 4h12l-2 5 2 5H4z|M4 14v3", "Money Queue", "Missing-money actions, criticals first."),
+        ("royalty-lanes", "/royalty-lanes", "M3 5h14|M3 9h14|M3 13h14|M3 17h9", "Royalty Lanes", "Nine income lanes per song, and the queue of what to claim."),
         ("cases", "/royalty-recovery/cases", "M4 5h12v10H4z|M4 8h12M8 5V3h4v2M10 11v2", "Recovery Cases", "Tracked claims from open to paid."),
         ("disputes", "/disputes", "M10 3l7 4v5c0 3-3 5-7 5s-7-2-7-5V7z|M10 8v3M10 13v0", "Disputes", "Log and track conflicts on your catalog."),
-        ("publishing", "/publishing", "M5 4h7a2 2 0 012 2v10H7a2 2 0 00-2 2V4z|M14 6h1a1 1 0 011 1v11a2 2 0 00-2-2", "Publishing", "Composition-side income and registrations."),
-        ("mechanicals", "/mechanicals", "M10 6a4 4 0 100 8 4 4 0 000-8z|M10 2v2M10 16v2M2 10h2M16 10h2M4.5 4.5l1.5 1.5M14 14l1.5 1.5", "Mechanicals", "MLC-side collection status."),
-        ("neighboring", "/neighboring-rights", "M10 3a7 7 0 100 14 7 7 0 000-14z|M3 10h14M10 3c2 2 2 12 0 14M10 3c-2 2-2 12 0 14", "Neighboring Rights", "Performance royalties on the master side."),
-        ("territories", "/territories", "M10 3a7 7 0 100 14 7 7 0 000-14z|M3 10h14M10 3c2 2 2 12 0 14M10 3c-2 2-2 12 0 14M4 6h12M4 14h12", "Territories", "Where your income actually comes from."),
-        ("connections", "/connections", "M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1", "Connections", "What's wired up, honestly."),
+        ("income", "/publishing", "M5 4h7a2 2 0 012 2v10H7a2 2 0 00-2 2V4z|M14 6h1a1 1 0 011 1v11a2 2 0 00-2-2", "Income by type", "Publishing, mechanical, neighboring and by market — one view, four cuts."),
         ("valuation", "/valuation", "M10 3l6 4v6l-6 4-6-4V7z|M10 8v4", "Valuation", "Catalog value from your real history."),
         ("revenue-os", "/revenue-os", "M4 16V4h12v12z|M7 13V9M10 13V7M13 13v-3", "Revenue OS", "Income structure across your whole operation."),
-        ("funding", "/funding", "M3 6h14v8H3z|M10 8a2 2 0 100 4 2 2 0 000-4zM6 6v0M14 14v0", "Funding", "Advance eligibility from your Capital Score."),
-        ("capital", "/capital", "M10 3v14M6 7h6a2 2 0 010 4H8a2 2 0 000 4h6", "Capital", "Monetization hub for what you own."),
-        ("sync-packs", "/sync/clearance-packs", "M4 4h12v9H4z|M8 7v4l3-2zM4 16h12", "Sync Packs", "Cleared-and-ready pitch bundles."),
-        ("deal-simulator", "/sync/deal-simulator", "M4 10h5M11 10h5|M10 3v14M6 6l-2 4h4zM14 12l-2 4h4z", "Deal Simulator", "Run a deal's numbers before signing."),
-        ("deal-room", "/deal-room", "M7 9l3-3 3 3M10 6v8|M4 16h12M4 4h4M12 4h4", "Deal Room", "Your export-ready story for partners."),
-        ("conflicts", "/conflicts", "M10 3l7 13H3z|M10 8v3M10 13.5v.5", "Conflicts", "Rights conflicts that need attention."),
+        ("deals", "/deal-room", "M7 9l3-3 3 3M10 6v8|M4 16h12M4 4h4M12 4h4", "Deals", "The Deal Room, the simulator and your sync packs."),
         ("reports", "/reports", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 10h5M8 13h5", "Reports", "Exports and summaries of everything above."),
         ("hours", "/hours", "M10 3a7 7 0 100 14 7 7 0 000-14z|M10 6v4l3 2|M3 3l2 2M17 3l-2 2", "Hours Desk", "Bill your time, take bookings, approve collaborators."),
         ("tax", "/tax", "M6 3h8a1 1 0 011 1v13l-2-1.5L11 17l-2-1.5L7 17l-2-1.5V4a1 1 0 011-1z|M8 7h4M8 10h4", "Tax Center", "Income summarized for tax season."),
@@ -85,7 +70,6 @@ COMMUNITY_GROUP = ("Community", [
     ("network", "/network", "M10 4a2 2 0 100 4 2 2 0 000-4zM5 13a2 2 0 100 4 2 2 0 000-4zM15 13a2 2 0 100 4 2 2 0 000-4z|M10 8l-4 5M10 8l4 5", "Network", "The artist directory."),
     ("fan-label", "/fan-label", "M10 3l2 4 4 .5-3 3 .8 4.5L10 13l-3.8 2 .8-4.5-3-3 4-.5z", "Fan Label", "Back the artists you believe in."),
     ("fans", "/fans", "M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4", "Fan Dashboard", "Your fan-side home."),
-    ("capital", "/capital", "M10 3v14M6 7h6a2 2 0 010 4H8a2 2 0 000 4h6", "Capital", "Monetization hub."),
 ])
 ACCOUNT_GROUP = ("Account", [
     ("fan-club-admin", "/fan-club", "M10 3l2 4 4 .5-3 3 .8 4.5L10 13l-3.8 2 .8-4.5-3-3 4-.5z|M10 8v2", "Fan Club", "Your paid membership club and drops."),
@@ -124,17 +108,20 @@ HUB_ICONS = {
 # "example data, not yours" - four surfaces wrong from one stale list entry.
 # Flag-gated keys are appended by live_keys() instead.
 _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "documents", "cases",
-             "deal-room", "sync-packs", "deal-simulator", "artist-twin",
-             "revenue-os", "trust-score", "overview", "royalties", "recovery",
+             "artist-twin",
+             "revenue-os", "overview", "royalties", "recovery",
              "valuation", "links", "rollout", "artwork", "services", "submit",
-             "inbox", "settings", "epk", "discover", "catalog", "command-center",
-             "actions", "autopilot", "qualification", "profile",
-             "vault", "review", "pulse", "team", "tax", "connections",
-             "releases", "publishing", "mechanicals", "neighboring",
-             "territories", "insights", "disputes", "fan-club-admin", "portal",
+             "inbox", "settings", "discover", "catalog", "command-center",
+             "actions", "autopilot", "scores",
+             "vault", "review", "pulse", "team", "tax",
+             "releases", "income", "disputes", "fan-club-admin", "portal",
              "tours", "passports", "tour-board", "rack", "roster", "referrals",
-             "lights", "tracks", "royalty-lanes", "money-queue", "certified",
-             "press-desk",
+             "lights", "tracks", "royalty-lanes", "certified",
+             "press-desk", "deals",
+             # Reports has five real export routes; only the demo account's
+             # scheduled-report list is illustrative. It was badged as a
+             # sample for want of this entry.
+             "reports",
              "hours"]
 
 

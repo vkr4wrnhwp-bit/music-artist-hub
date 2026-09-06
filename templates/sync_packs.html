@@ -1,10 +1,12 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Sync Clearance Packs - Street Banker{% endblock %}
 
 {% set clear_tone = {'cleared': 'bg-green-500/15 text-green-400', 'pending': 'bg-amber-500/15 text-amber-400', 'unconfirmed': 'bg-white/10 text-gray-300'} %}
 
 {% block content %}
+{{ sb.subnav([("/deal-room", "Deal Room"), ("/sync/deal-simulator", "Simulator"), ("/sync/clearance-packs", "Sync packs")], "/sync/clearance-packs") }}
 <div class="mx-auto max-w-[1100px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Royalty Sweep · Sync Engine</div>

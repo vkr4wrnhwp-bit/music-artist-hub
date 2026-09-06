@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Artist Profile - Street Banker{% endblock %}
 
 {% block content %}
+{{ sb.subnav([("/press-desk", "Desk"), ("/press-desk/contacts", "Media list"), ("/press-desk/announcements", "Announcements"), ("/press-desk/coverage", "Coverage"), ("/epk", "Press kit"), ("/artist-profile", "One-sheet")], "/artist-profile", label="Press") }}
 <div class="mx-auto max-w-[900px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>

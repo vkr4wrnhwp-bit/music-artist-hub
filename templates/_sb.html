@@ -415,3 +415,17 @@
     {%- endfor %}
   </div>
 {%- endmacro %}
+
+
+{# A row of tabs that are pages. For a page that used to be a sidebar entry
+   of its own and is now one cut of a fold - the strip is how the other cuts
+   stay one tap away. `items` is a list of (href, label); `current` the href
+   of this page. Links, not buttons: each is a real URL a person can send. #}
+{% macro subnav(items, current, label="Sections") -%}
+  <nav class="sb-subnav" aria-label="{{ label }}">
+    {%- for href, text in items %}
+      <a class="sb-subnav-a {{ 'is-on' if href == current }}" href="{{ href }}"
+         {% if href == current %}aria-current="page"{% endif %}>{{ text }}</a>
+    {%- endfor %}
+  </nav>
+{%- endmacro %}

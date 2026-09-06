@@ -779,3 +779,31 @@ details.asx-open[open] .asx-when-closed { display: none; }
 .sb-on-paper .sb-lamp--warn { color: rgb(162 92 44); }   /* 4.54:1 on paper */
 .sb-on-paper .sb-lamp--crit { color: rgb(184 75 61); }   /* 4.53:1 on paper */
 .sb-on-paper .sb-lamp--info { color: var(--sb-paper-ink); }
+
+/* --- fold tabs ------------------------------------------------------------
+ * The sidebar audit folded fifteen entries into tabbed pages. This is the
+ * strip that keeps the other cuts one tap away: links styled as the
+ * segmented control, so a fold reads as one instrument with settings. */
+.sb-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-s2);
+  margin: 0 auto var(--sb-s4);
+  max-width: 1100px;
+}
+.sb-subnav-a {
+  padding: var(--sb-s2) var(--sb-s4);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-ink-3);
+  background: var(--sb-surface-2);
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+  text-decoration: none;
+}
+.sb-subnav-a:hover { color: var(--sb-ink); border-color: var(--sb-gold); }
+.sb-subnav-a.is-on { color: var(--sb-gold); background: var(--sb-gold-wash); border-color: var(--sb-gold); }
+.sb-subnav-a:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+@media (pointer: coarse) { .sb-subnav-a { min-height: 44px; display: inline-flex; align-items: center; } }

@@ -714,7 +714,11 @@ def test_epk_page_includes_press_kit():
 
 def test_epk_sidebar_and_export():
     client = _demo()
-    assert 'href="/epk"' in client.get("/links").get_data(as_text=True)
+    # The kit is a tab of Press now (docs/PARKED_PAGES.md): the sidebar
+    # carries Press, and the Press Desk's strip carries the kit.
+    nav = client.get("/links").get_data(as_text=True)
+    assert 'href="/press-desk"' in nav and 'href="/epk"' not in nav.split('id="main"')[0]
+    assert 'href="/epk"' in client.get("/press-desk").get_data(as_text=True)
     resp = client.post("/epk/export")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -808,9 +812,11 @@ def test_publishing_page_real_classification():
 def test_tier2_pages_render_and_are_in_nav():
     client = _demo()
     nav = client.get("/overview").get_data(as_text=True)
-    for href in ("/documents", "/conflicts", "/releases"):
+    for href in ("/documents", "/releases"):
         assert 'href="%s"' % href in nav
         assert client.get(href).status_code == 200
+    # Conflicts is parked off the sidebar (docs/PARKED_PAGES.md); it answers.
+    assert client.get("/conflicts").status_code == 200
     # Ecosystem Hub model: five collapsible hubs plus Account, on every page.
     for hub in ("command", "studio", "launch", "stage", "money", "account"):
         assert 'data-hub="%s"' % hub in nav
@@ -1151,9 +1157,11 @@ def test_tier5_and_community_pages_render_and_nav():
     client = _demo()
     promote_nav = client.get("/links").get_data(as_text=True)
     fan_nav = client.get("/discover").get_data(as_text=True)
+    # Insights is a tab of Scores and Benchmark is parked: both answer,
+    # neither is a sidebar entry of its own.
     for href in ("/insights", "/benchmark"):
-        assert 'href="%s"' % href in promote_nav
         assert client.get(href).status_code == 200
+    assert 'href="/qualification"' in promote_nav
     for href in ("/marketplace", "/network", "/fan-label", "/fans"):
         assert 'href="%s"' % href in fan_nav
         assert client.get(href).status_code == 200
@@ -1260,7 +1268,7 @@ def test_fan_dashboard_content():
 def test_capital_page_content_and_disclaimer():
     client = _demo()
     body = client.get("/capital").get_data(as_text=True)
-    assert 'href="/capital"' in body
+    assert "Parked." in body                       # off the sidebar, kept whole
     assert "Fan Royalty Passes" in body
     assert "Royalty Futures Marketplace" in body
     assert "Roll the Dice" in body
@@ -4552,7 +4560,8 @@ def test_ecosystem_hubs():
     assert "Light Studio" in desk and "real DMX" in desk.lower() or "DMX" in desk
     assert artist.get("/desk/nope").status_code == 404
     money = artist.get("/desk/money").get_data(as_text=True)
-    assert "Money Queue" in money and "Valuation" in money
+    # Money Queue is a tab of Royalty Lanes now; the desk shows the front.
+    assert "Royalty Lanes" in money and "Valuation" in money
     # Fan world keeps its simple nav — no hub machinery.
     fan = app_obj.test_client()
     fan.post("/login", data={"email": "demo-fan@streetbanker.io", "password": "sweep"})
@@ -6006,7 +6015,9 @@ def test_command_palette_index_cannot_drift_from_the_nav():
     import hubs
 
     idx = hubs.command_index()
-    assert len(idx) > 60
+    # 2026-09-06: the sidebar audit folded fifteen entries into tabbed
+    # fronts and parked four; the palette follows the nav down.
+    assert len(idx) > 50
     # Every nav destination appears exactly once.
     hrefs = [i["href"] for i in idx]
     assert len(set(hrefs)) == len(hrefs)

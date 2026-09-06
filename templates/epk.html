@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 {% import "landing/_cards.html" as logos %}
 
 {% block title %}Press Kit - Street Banker{% endblock %}
@@ -6,6 +7,7 @@
 {% set e = epk %}
 
 {% block content %}
+{{ sb.subnav([("/press-desk", "Desk"), ("/press-desk/contacts", "Media list"), ("/press-desk/announcements", "Announcements"), ("/press-desk/coverage", "Coverage"), ("/epk", "Press kit"), ("/artist-profile", "One-sheet")], "/epk", label="Press") }}
 <div id="press-office" class="mx-auto max-w-[1300px] overflow-hidden rounded-2xl bg-sb-ink text-sb-surface-2 shadow-[0_0_60px_rgba(201,162,74,0.1)]">
 
   <!-- ===== Press Office top bar ===== -->
