@@ -30,6 +30,7 @@ import time
 import urllib.parse
 import urllib.request
 import random
+import re
 from datetime import date, datetime, timedelta, timezone
 
 # --- capabilities -----------------------------------------------------------
@@ -166,13 +167,336 @@ class _EnvProvider(MusicIntelligenceProvider):
                 "capabilities": list(self.capabilities)}
 
 
+# Soundcharts' own career-stage words, on this product's three-step ladder.
+_SC_STAGES = {"superstar": "Established", "mainstream": "Established",
+              "mid_level": "Developing", "developing": "Developing",
+              "long_tail": "Emerging"}
+_SC_RELEASE_TYPES = {"single": "Single", "album": "Album", "ep": "EP",
+                     "compilation": "Compilation"}
+_SC_MAJORS = ("universal", "sony", "warner")
+# Distributor names as Soundcharts prints them, lower-cased, on the ladder
+# in signal_store.DISTRIBUTOR_CLASSES. A name not here is "Needs Research"
+# - that class exists precisely so nobody guesses.
+_SC_DISTRIBUTORS = {
+    "distrokid": "DIY / Self-Service", "tunecore": "DIY / Self-Service",
+    "cd baby": "DIY / Self-Service", "cdbaby": "DIY / Self-Service",
+    "amuse": "DIY / Self-Service", "ditto": "DIY / Self-Service",
+    "routenote": "DIY / Self-Service", "landr": "DIY / Self-Service",
+    "unitedmasters": "DIY / Self-Service", "soundrop": "DIY / Self-Service",
+    "symphonic": "Independent Distributor", "stem": "Independent Distributor",
+    "empire": "Independent Distributor", "vydia": "Independent Distributor",
+    "believe": "Enterprise Distribution", "kobalt": "Enterprise Distribution",
+    "fuga": "Enterprise Distribution", "idol": "Enterprise Distribution",
+    "awal": "Major-Affiliated Distribution", "the orchard": "Major-Affiliated Distribution",
+    "orchard": "Major-Affiliated Distribution", "ingrooves": "Major-Affiliated Distribution",
+    "virgin": "Major-Affiliated Distribution", "ada": "Major-Affiliated Distribution",
+    "caroline": "Major-Affiliated Distribution", "alternative distribution alliance": "Major-Affiliated Distribution",
+}
+
+
+def _sc_distributor_class(name):
+    n = (name or "").strip().lower()
+    if not n:
+        return "Unknown"
+    if any(m in n for m in _SC_MAJORS):
+        return "Major Label"
+    tokens = set(t for t in re.split(r"[^a-z0-9]+", n) if t)
+    for key, cls in _SC_DISTRIBUTORS.items():
+        if all(t in tokens for t in key.split()):
+            return cls
+    return "Needs Research"
+
+
 class SoundchartsAdapter(_EnvProvider):
+    """Soundcharts, over its customer API (v2).
+
+    Written and verified against their public sandbox - credentials
+    `soundcharts` / `soundcharts`, two artists, fixed date ranges - so the
+    shapes below are the sandbox's own, not a reading of the docs. A paid
+    plan is the same base URL with the account's app id and key; an
+    endpoint the plan does not include answers 403, which becomes a
+    ProviderError and an empty capability, never a guess.
+
+    What it measures: Spotify monthly listeners (their 28-day rolling
+    figure, with a weekly city breakdown), Spotify followers (daily),
+    current social counts, playlist positions, events, and per-album
+    label / UPC / distributor. Soundcharts marks its distributor field
+    beta, so that evidence carries a lower confidence here.
+    """
     key = "soundcharts"
     label = "Soundcharts"
     env_flag = "SOUNDCHARTS_ENABLED"
     env_keys = ("SOUNDCHARTS_APP_ID", "SOUNDCHARTS_API_KEY")
     capabilities = (CAP_ARTIST, CAP_METRICS, CAP_RELEASES, CAP_CITIES,
-                    CAP_PLAYLISTS, CAP_SOCIAL, CAP_EVENTS)
+                    CAP_PLAYLISTS, CAP_SOCIAL, CAP_EVENTS, CAP_DISTRIBUTOR, CAP_LABEL)
+    base_url = "https://customer.api.soundcharts.com"
+    albums_per_artist = 8        # one metadata call each, so bounded
+    max_pages = 4                # a paged list is followed this far, no further
+
+    def __init__(self, fetch=None):
+        self._fetch = fetch
+
+    # -- transport --
+    def _get(self, path, **params):
+        if not self.configured():
+            raise ProviderError("Soundcharts: not configured")
+        url = self.base_url + path
+        if params:
+            url += ("&" if "?" in path else "?") + urllib.parse.urlencode(params)
+        if self._fetch is not None:
+            return self._fetch(url)
+        req = urllib.request.Request(url, headers={
+            "x-app-id": (os.environ.get("SOUNDCHARTS_APP_ID") or "").strip(),
+            "x-api-key": (os.environ.get("SOUNDCHARTS_API_KEY") or "").strip(),
+            "Accept": "application/json", "User-Agent": "StreetBanker/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            msg = ""
+            try:
+                errs = json.loads(e.read().decode("utf-8")).get("errors") or []
+                msg = (errs[0].get("message") or "") if errs else ""
+            except Exception:
+                pass
+            raise ProviderError("Soundcharts %s: %s" % (e.code, msg or e.reason))
+        except Exception as e:
+            raise ProviderError("Soundcharts: %s" % e)
+
+    def _items(self, path, **params):
+        """Every item of a paged list, following page.next a bounded way.
+
+        The first page is the contract and its failure is raised. A later
+        page is best effort: their own next-link can carry parameters the
+        account cannot use (the sandbox does this), and losing page two
+        must not throw away page one.
+        """
+        out, pages = [], 0
+        data = self._get(path, **params)
+        while True:
+            out.extend(data.get("items") or [])
+            pages += 1
+            nxt = (data.get("page") or {}).get("next")
+            if not nxt or pages >= self.max_pages:
+                return out
+            try:
+                data = self._get(nxt)
+            except ProviderError:
+                return out
+
+    def _album(self, album_id):
+        return self._get("/api/v2.51/album/by-uuid/%s" % album_id).get("object") or {}
+
+    # -- shapes --
+    @staticmethod
+    def _artist_fields(a, listeners=None):
+        genres = a.get("genres") or []
+        genre = (genres[0].get("root") or "") if genres else ""
+        return {
+            "provider_artist_id": a.get("uuid") or "",
+            "name": a.get("name") or "",
+            "genre": genre.title(),
+            "country": a.get("countryCode") or "",
+            "city": a.get("cityName") or "",
+            "state": "",
+            "region": "",
+            "career_stage": _SC_STAGES.get(a.get("careerStage") or "", ""),
+            "monthly_listeners": listeners,
+            "image_url": a.get("imageUrl") or "",
+            "website": a.get("webUrl") or "",
+            # Their metadata carries no social links; blank beats a guess.
+            "socials": {"instagram": "", "tiktok": "", "youtube": ""},
+            "growth_level": a.get("growthLevel") or "",
+            "isni": a.get("isni") or "",
+            "ipi": a.get("ipi") or "",
+        }
+
+    def search_artists(self, query, limit=20):
+        q = (query or "").strip()
+        if not q:
+            # Their universe is millions of artists; there is no honest
+            # "some of them". The demo universe is the mock's job.
+            return []
+        data = self._get("/api/v2/artist/search/%s" % urllib.parse.quote(q),
+                         offset=0, limit=max(1, min(int(limit or 20), 100)))
+        return [self._artist_fields(a) for a in data.get("items") or []]
+
+    def get_artist(self, provider_artist_id):
+        obj = self._get("/api/v2.9/artist/%s" % provider_artist_id).get("object")
+        if not obj or not obj.get("uuid"):
+            return None
+        listeners = None
+        try:
+            stats = self._get("/api/v2/artist/%s/current/stats" % provider_artist_id)
+            for row in stats.get("streaming") or []:
+                if row.get("platform") == "spotify" and row.get("value") is not None:
+                    listeners = int(row["value"])
+        except ProviderError:
+            pass                     # identity without the number, not no identity
+        return self._artist_fields(obj, listeners)
+
+    def get_artist_metrics(self, provider_artist_id, start, end):
+        span = {"startDate": start.isoformat(), "endDate": end.isoformat()}
+        out, errors = [], []
+        try:
+            for it in self._items("/api/v2/artist/%s/streaming/spotify/listening"
+                                  % provider_artist_id, **span):
+                if it.get("value") is not None and it.get("date"):
+                    out.append({"date": it["date"][:10], "metric": "spotify_monthly_listeners",
+                                "value": int(it["value"])})
+        except ProviderError as e:
+            errors.append(e)
+        try:
+            for it in self._items("/api/v2/artist/%s/audience/spotify" % provider_artist_id, **span):
+                if it.get("followerCount") is not None and it.get("date"):
+                    out.append({"date": it["date"][:10], "metric": "spotify_followers",
+                                "value": int(it["followerCount"])})
+        except ProviderError as e:
+            errors.append(e)
+        if not out and errors:
+            raise errors[0]
+        out.sort(key=lambda x: (x["metric"], x["date"]))
+        return out
+
+    def get_artist_cities(self, provider_artist_id, start, end):
+        """Spotify's "where people listen", from the newest weekly breakdown
+        in the window; the change is against the breakdown nearest 28 days
+        earlier, or None when the window holds no such point."""
+        items = [it for it in self._items("/api/v2/artist/%s/streaming/spotify" % provider_artist_id,
+                                          startDate=start.isoformat(), endDate=end.isoformat())
+                 if it.get("cityPlots")]
+        if not items:
+            return []
+        items.sort(key=lambda it: it.get("date") or "")
+        latest = items[-1]
+        latest_day = date.fromisoformat(latest["date"][:10])
+        earlier = None
+        for it in items[:-1]:
+            day = date.fromisoformat(it["date"][:10])
+            if 21 <= (latest_day - day).days <= 35:
+                earlier = it
+        before = {}
+        for c in (earlier or {}).get("cityPlots") or []:
+            before[(c.get("cityName"), c.get("countryCode"))] = c.get("value")
+        out = []
+        for c in latest["cityPlots"]:
+            key = (c.get("cityName"), c.get("countryCode"))
+            change = None
+            if before.get(key) and c.get("value") is not None:
+                change = round((float(c["value"]) - before[key]) / before[key] * 100.0, 1)
+            out.append({"city": c.get("cityName") or "", "region": c.get("region") or "",
+                        "country": c.get("countryCode") or "", "country_name": c.get("countryName") or "",
+                        "listeners": int(c.get("value") or 0), "change_28d_pct": change,
+                        "as_of": latest["date"][:10]})
+        out.sort(key=lambda x: -x["listeners"])
+        return out
+
+    def get_artist_releases(self, provider_artist_id):
+        data = self._get("/api/v2.34/artist/%s/albums" % provider_artist_id,
+                         sortBy="releaseDate", sortOrder="desc", limit=self.albums_per_artist)
+        out = []
+        for a in (data.get("items") or [])[:self.albums_per_artist]:
+            item = {
+                "provider_release_id": a.get("uuid") or "",
+                "title": a.get("name") or "",
+                "release_type": _SC_RELEASE_TYPES.get((a.get("type") or "").lower(), "Unknown"),
+                "release_date": (a.get("releaseDate") or "")[:10],
+                "credit_name": a.get("creditName") or "",
+                "upc": "", "label_text": "", "distributor_name": "",
+                "distributor_class": "Unknown", "copyright_line": "", "track_count": 0,
+                "provider": self.key,
+            }
+            # The list carries no label, UPC or distributor; the album does.
+            try:
+                album = self._album(item["provider_release_id"]) if item["provider_release_id"] else {}
+            except ProviderError:
+                album = {}
+            if album:
+                labels = [l.get("name") for l in album.get("labels") or [] if l.get("name")]
+                item["label_text"] = ", ".join(labels)
+                item["upc"] = album.get("upc") or ""
+                item["distributor_name"] = album.get("distributor") or ""
+                item["distributor_class"] = _sc_distributor_class(item["distributor_name"])
+                item["copyright_line"] = album.get("copyright") or ""
+                item["track_count"] = int(album.get("totalTracks") or 0)
+                if album.get("type"):
+                    item["release_type"] = _SC_RELEASE_TYPES.get(album["type"].lower(), item["release_type"])
+            out.append(item)
+        out.sort(key=lambda x: x["release_date"], reverse=True)
+        return out
+
+    def get_distributor_evidence(self, provider_release_id):
+        album = self._album(provider_release_id)
+        name = album.get("distributor") or ""
+        if not name:
+            return []
+        return [{"distributor_name": name, "classification": _sc_distributor_class(name),
+                 "source_type": "release_metadata",
+                 "source_label": "Soundcharts album metadata (their distributor field is beta)",
+                 "source_url": "", "excerpt": album.get("copyright") or "",
+                 "confidence": 0.6,
+                 "observed_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}]
+
+    def get_label_evidence(self, provider_release_id):
+        album = self._album(provider_release_id)
+        out = []
+        for l in album.get("labels") or []:
+            if not l.get("name"):
+                continue
+            group = (l.get("type") or "").lower()
+            out.append({"label_name": l["name"],
+                        "classification": "Major Label" if any(m in group for m in _SC_MAJORS)
+                        else "Independent Label",
+                        "source_type": "release_metadata", "source_label": "Soundcharts album metadata",
+                        "source_url": "", "excerpt": album.get("copyright") or "",
+                        "confidence": 0.8,
+                        "observed_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+        return out
+
+    def get_playlist_activity(self, provider_artist_id, start, end):
+        data = self._get("/api/v2.20/artist/%s/playlist/current/spotify" % provider_artist_id,
+                         sortBy="position", limit=50)
+        out = []
+        for it in data.get("items") or []:
+            pl = it.get("playlist") or {}
+            out.append({"playlist_name": pl.get("name") or "",
+                        "curator_type": pl.get("type") or "",
+                        "editorial": (pl.get("type") or "").lower() == "editorial",
+                        "followers": int(pl.get("latestSubscriberCount") or 0),
+                        "added_on": (it.get("entryDate") or "")[:10],
+                        "position": it.get("position"), "peak_position": it.get("peakPosition"),
+                        "song": (it.get("song") or {}).get("name") or "",
+                        # Not measured by them; never estimated here.
+                        "estimated_streams": None})
+        return out
+
+    def get_social_activity(self, provider_artist_id, start, end):
+        stats = self._get("/api/v2/artist/%s/current/stats" % provider_artist_id)
+        out = []
+        for row in stats.get("social") or []:
+            if row.get("value") is None:
+                continue
+            out.append({"platform": row.get("platform") or "", "followers": int(row["value"]),
+                        # Their evolution is over 7 days; the 28-day field stays honest.
+                        "change_28d_pct": None, "change_7d_pct": row.get("percentEvolution"),
+                        "as_of": (row.get("date") or "")[:10]})
+        return out
+
+    def get_events(self, provider_artist_id):
+        today = date.today().isoformat()
+        out = []
+        for ev in self._items("/api/v2/artist/%s/events" % provider_artist_id, type="all", limit=100):
+            day = (ev.get("date") or ev.get("startedAt") or "")[:10]
+            if not day or day < today:
+                continue
+            venue = ev.get("venue") or {}
+            out.append({"date": day, "city": venue.get("cityName") or "",
+                        "region": venue.get("region") or "", "country": venue.get("countryCode") or "",
+                        "venue": venue.get("name") or "", "name": ev.get("name") or "",
+                        "kind": ev.get("type") or "",
+                        "festival": (ev.get("festival") or {}).get("name") if isinstance(ev.get("festival"), dict) else ""})
+        out.sort(key=lambda x: x["date"])
+        return out
 
 
 class ChartmetricAdapter(_EnvProvider):

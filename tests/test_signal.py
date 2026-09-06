@@ -142,7 +142,7 @@ def test_the_product_runs_with_no_credentials():
 
 def test_real_adapters_declare_themselves_but_stay_inert(monkeypatch):
     """An unconfigured adapter reports why, and never answers with a guess."""
-    for cls in (providers.SoundchartsAdapter, providers.ChartmetricAdapter,
+    for cls in (providers.ChartmetricAdapter,
                 providers.MLCAdapter, providers.SoundExchangeAdapter):
         p = cls()
         assert p.configured() is False
