@@ -35,6 +35,9 @@
       <div class="mt-4 flex flex-wrap gap-2">
         <a class="sb-btn sb-btn-primary" href="/links/new">Create a smart link</a>
         <a class="sb-btn sb-btn-secondary" href="/links">See your links</a>
+        {% if shopify_import and shopify_import.on %}
+        <form method="post" action="/links/fans/import/shopify"><button class="sb-btn sb-btn-secondary">Import subscribed Shopify customers</button></form>
+        {% endif %}
       </div>
     </section>
   {% else %}

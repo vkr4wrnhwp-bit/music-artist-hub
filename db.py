@@ -475,6 +475,15 @@ def init_db():
                 rows TEXT NOT NULL DEFAULT '[]',
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS fan_imports (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'shopify',
+                summary TEXT NOT NULL DEFAULT '{}',
+                error TEXT NOT NULL DEFAULT '',
+                cursor TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -2793,6 +2802,30 @@ def add_recovery_mlc_sweep(user_id, summary, rows):
         db.execute("INSERT INTO recovery_mlc_sweeps (id, user_id, summary, rows, created) VALUES (?,?,?,?,?)",
                    (sweep_id, user_id, json.dumps(summary or {}), json.dumps(rows or [])[:400000], _now()))
     return sweep_id
+
+
+def add_fan_import(user_id, source, summary, error="", cursor=""):
+    import_id = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute("INSERT INTO fan_imports (id, user_id, source, summary, error, cursor, created)"
+                   " VALUES (?,?,?,?,?,?,?)",
+                   (import_id, user_id, source, json.dumps(summary or {}), (error or "")[:400],
+                    cursor or "", _now()))
+    return import_id
+
+
+def latest_fan_import(user_id, source):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM fan_imports WHERE user_id = ? AND source = ?"
+                         " ORDER BY created DESC, rowid DESC LIMIT 1", (user_id, source)).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    try:
+        d["summary"] = json.loads(d.get("summary") or "{}")
+    except ValueError:
+        d["summary"] = {}
+    return d
 
 
 def latest_recovery_mlc_sweep(user_id):

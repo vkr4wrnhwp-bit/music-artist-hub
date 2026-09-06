@@ -227,6 +227,36 @@ def set_fan_intent(fan_id, score, level):
                    (score, level, fan_id))
 
 
+def fan_by_email(user_id, email):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM ml_fans WHERE user_id = ? AND email = ?",
+                         (user_id, (email or "").lower().strip())).fetchone()
+    return dict(row) if row else None
+
+
+def add_fan_tags(fan_id, tags):
+    """Merge tags onto a fan; the list stays unique and ordered."""
+    with get_db() as db:
+        row = db.execute("SELECT tags FROM ml_fans WHERE id = ?", (fan_id,)).fetchone()
+        if row is None:
+            return []
+        try:
+            have = json.loads(row["tags"] or "[]")
+        except ValueError:
+            have = []
+        merged = list(have) + [t for t in tags if t and t not in have]
+        db.execute("UPDATE ml_fans SET tags = ?, updated = ? WHERE id = ?",
+                   (json.dumps(merged), _now(), fan_id))
+    return merged
+
+
+def find_consent(fan_id, consent_type):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM ml_consents WHERE fan_id = ? AND consent_type = ? LIMIT 1",
+                         (fan_id, consent_type)).fetchone()
+    return dict(row) if row else None
+
+
 def get_fan(fan_id):
     with get_db() as db:
         row = db.execute("SELECT * FROM ml_fans WHERE id = ?", (fan_id,)).fetchone()

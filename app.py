@@ -45,6 +45,7 @@ import recovery_mlc
 import report_builder
 import sandbox
 import shopify_buy
+import shopify_customers
 import since_engine
 import tutor
 import valuation_engine
@@ -7265,7 +7266,32 @@ def create_app():
         return render_template("links_fans.html", active_page="links",
                                fans=fans, q=q, campaign_titles=campaigns,
                                intent_tones=links_engine.INTENT_TONES,
+                               shopify=shopify_customers.status(),
+                               last_import=store.latest_fan_import(user["id"], "shopify"),
+                               imp_note={"off": "Shopify is not connected on this service."}.get(
+                                   request.args.get("imp") or "", ""),
                                **build_dashboard_context())
+
+    @app.route("/links/fans/import/shopify", methods=["POST"])
+    def ml_fans_import_shopify():
+        """Read the store's customers and file the subscribed ones, on the
+        artist's say-so. Every run is kept, counts and the vendor's error
+        alike, so the page can say what it did."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if not shopify_customers.configured():
+            return redirect("/links/fans?imp=off#import")
+        last = store.latest_fan_import(user["id"], "shopify")
+        after = (last or {}).get("cursor") or None
+        try:
+            customers, cursor = shopify_customers.fetch_customers(after=after)
+        except shopify_customers.ShopifyError as e:
+            store.add_fan_import(user["id"], "shopify", {}, error=str(e))
+            return redirect("/links/fans#import")
+        summary = shopify_customers.import_fans(user["id"], customers)
+        store.add_fan_import(user["id"], "shopify", summary, cursor=cursor or "")
+        return redirect("/links/fans#import")
 
     @app.route("/links/fans/export.csv")
     def ml_fans_export():
@@ -7657,6 +7683,7 @@ def create_app():
             ctx["fans"]["is_real"] = False
         else:
             ctx["fans"] = fan_dashboard.fan_dashboard_for(user["id"])
+        ctx["shopify_import"] = shopify_customers.status()
         return render_template("fans.html", active_page="fans", **ctx)
 
     @app.route("/capital")
