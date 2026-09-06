@@ -125,6 +125,7 @@
       <!-- Tour dates (live from Bandsintown) -->
       <section data-section="tour" class="{{ '' if e.sections_on.tour else 'hidden' }} border-b border-sb-surface-2/10 py-7">
         <h3 class="sb-label text-sb-gold-deep">Tour Dates</h3>
+        {% if e.bandsintown_profile %}<p class="mt-1 text-xs text-sb-surface-2/55 font-medium">{{ "{:,}".format(e.bandsintown_profile.trackers) }} tracking on Bandsintown · {{ e.bandsintown_profile.upcoming }} upcoming</p>{% endif %}
         {% if e.tour_dates %}
         <div class="mt-4 divide-y divide-sb-surface-2/10">
           {% for ev in e.tour_dates %}

@@ -211,7 +211,8 @@ def real_stats(statement_rows, track_count):
 
 
 def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None,
-                 tour_dates=None, stats_override=None, demo=False):
+                 tour_dates=None, stats_override=None, demo=False,
+                 bandsintown_profile=None):
     """`demo` decides whose profile the kit starts from. Defaults to
     False so a caller that forgets it gets the safe, empty one rather
     than silently handing a real artist the invented identity."""
@@ -323,6 +324,7 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         "bg_color": o.get("bg_color") or "#141210",
         "bandsintown_artist": (o.get("bandsintown_artist") or "").strip(),
         "tour_dates": tour_dates,
+        "bandsintown_profile": bandsintown_profile,
         "store_url": (o.get("store_url") or "").strip(),
         "merch": o.get("merch") or [],
     }

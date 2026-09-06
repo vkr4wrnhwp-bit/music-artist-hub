@@ -2225,9 +2225,10 @@ def create_app():
                                if v["path"].rsplit(".", 1)[-1].lower()
                                in ("png", "jpg", "jpeg", "webp")]
         tour = bandsintown.upcoming_events((overrides or {}).get("bandsintown_artist"))
+        bit = bandsintown.artist_info((overrides or {}).get("bandsintown_artist"))
         ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"],
                                   overrides=overrides, photo=photo, assets=assets,
-                                  tour_dates=tour,
+                                  tour_dates=tour, bandsintown_profile=bit,
                                   demo=_is_demo_email(user["email"]))
         return render_template("epk.html", active_page="press-desk", **ctx)
 
@@ -2292,11 +2293,12 @@ def create_app():
         initials = "".join(w[0] for w in name.split()[:2]).upper() or "SB"
         assets = _labeled_assets(store.get_epk_assets(prof["user_id"], public_only=True))
         tour = bandsintown.upcoming_events(prof["data"].get("bandsintown_artist"))
+        bit = bandsintown.artist_info(prof["data"].get("bandsintown_artist"))
         real = _epk_real_stats(prof["user_id"])
         data = get_epk_data({"name": name, "initials": initials},
                             ctx["catalog_value"],
                             overrides=prof["data"], photo=prof["photo"],
-                            assets=assets, tour_dates=tour,
+                            assets=assets, tour_dates=tour, bandsintown_profile=bit,
                             # Whose kit this is decides whose defaults
                             # apply - a real artist's public EPK must
                             # never fall back to the showcase identity.
@@ -2374,11 +2376,13 @@ def create_app():
                                                       public_only=True))
         tour = bandsintown.upcoming_events(
             ((prof or {}).get("data") or {}).get("bandsintown_artist"))
+        bit = bandsintown.artist_info(
+            ((prof or {}).get("data") or {}).get("bandsintown_artist"))
         data = get_epk_data({"name": name, "initials": initials},
                             ctx["catalog_value"],
                             overrides=(prof or {}).get("data"),
                             photo=(prof or {}).get("photo"),
-                            assets=assets, tour_dates=tour,
+                            assets=assets, tour_dates=tour, bandsintown_profile=bit,
                             demo=_is_demo_email((owner or {}).get("email") or ""))
         viewer = current_user()
         if viewer is None or viewer["id"] != share["user_id"]:

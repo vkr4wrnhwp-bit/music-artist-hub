@@ -328,8 +328,10 @@ def artist(org, member, artist_id):
     rec = scoring.recommend(artist_id, features=features)
     tab = request.args.get("tab") or "overview"
     momentum_expl = (scores.get(scoring.MOMENTUM) or {}).get("explanation") or {}
+    events, events_provider = _live_events(artist_id) if tab == "events" else (None, "")
     return render_template("signal/artist.html", **_ctx(
         org, member, a=a, scores=scores, tab=tab, rec=rec,
+        events=events, events_provider=events_provider,
         releases=sstore.list_releases(artist_id),
         cities=sstore.list_city_metrics(artist_id),
         contacts=sstore.list_evidence("artist", artist_id, sstore.CLAIM_CONTACT),
@@ -345,6 +347,22 @@ def artist(org, member, artist_id):
         has_desk_seat=_has_desk_seat(member),
         watchlists=sstore.list_watchlists(org["id"]),
         brief=_brief(a, scores, rec, features)))
+
+
+def _live_events(artist_id):
+    """Upcoming dates from whichever provider serves live events, read live
+    rather than stored: a listing is today's. (None, "") when no provider
+    is connected - the tab then says not measured, not empty."""
+    reg = providers.registry()
+    p = reg.for_capability(providers.CAP_EVENTS)
+    if p is None:
+        return None, ""
+    ids = sstore.provider_ids(artist_id)
+    pid = ids[0]["provider_id"] if ids else artist_id
+    try:
+        return list(p.get_events(pid) or []), p.label
+    except providers.ProviderError:
+        return None, p.label
 
 
 def _brief(a, scores, rec, features):

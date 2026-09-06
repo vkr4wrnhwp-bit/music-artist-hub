@@ -15,7 +15,7 @@ adapter with a key would light a "configured" badge and answer nothing.
 | Resend | `RESEND_API_KEY`, `RESEND_INBOUND_DOMAIN`, `RESEND_WEBHOOK_SECRET`, `EMAIL_FROM` | Mail out, statements in by email |
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Billing |
 | Cloudflare R2 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Uploads, audio outputs |
-| Bandsintown | `BANDSINTOWN_APP_ID` (awaiting their approval) | EPK tour dates |
+| Bandsintown | `BANDSINTOWN_APP_ID` (awaiting their approval) | EPK tour dates and the artist record (people tracking, dates up); Signal "Live dates" tab via `BandsintownAdapter` (events only, keyed by the artist's name as Bandsintown spells it) |
 | MusicBrainz (keyless) | — | Catalog: songwriter and publisher credits by ISRC (`music_apis.musicbrainz_credits`) |
 | Google News RSS (keyless) | — | Press finder on the EPK |
 | **MusicBrainz for Signal** | `MUSICBRAINZ_ENABLED=1`, `MUSICBRAINZ_CONTACT=<email>` | Signal: artist identity, releases, labels — free, no account. Measures nothing (no listeners, cities or distributor), and says so. |

@@ -653,6 +653,49 @@ class MusicBrainzAdapter(_EnvProvider):
         return out
 
 
+class BandsintownAdapter(MusicIntelligenceProvider):
+    """Bandsintown's public events API, for live dates only.
+
+    Shares the EPK's provider (bandsintown_provider), so one app id and
+    one cache serve both. It is keyed by the artist's name as Bandsintown
+    spells it, which for Signal is the canonical name; a miss is an empty
+    list, never a guess, and the tab says whose listing it is.
+    """
+    key = "bandsintown"
+    label = "Bandsintown"
+    capabilities = (CAP_EVENTS,)
+
+    def __init__(self, events=None, resolve=None):
+        self._events = events            # name -> rows, injectable
+        self._resolve = resolve          # provider_artist_id -> name, injectable
+
+    def configured(self):
+        import bandsintown_provider
+        return bandsintown_provider.configured()
+
+    def health_check(self):
+        on = self.configured()
+        return {"provider": self.key, "configured": on, "ok": on,
+                "detail": "configured" if on else "disabled (BANDSINTOWN_APP_ID is not set)",
+                "capabilities": list(self.capabilities)}
+
+    def events_for_name(self, name):
+        if not self.configured():
+            raise ProviderError("Bandsintown: not configured")
+        import bandsintown_provider
+        return list((self._events or bandsintown_provider.event_rows)(name))
+
+    def get_events(self, provider_artist_id):
+        if self._resolve is not None:
+            name = self._resolve(provider_artist_id)
+        else:
+            import signal_store as sstore
+            name = sstore.artist_name_for_provider_id(provider_artist_id)
+        if not (name or "").strip():
+            return []
+        return self.events_for_name(name.strip())
+
+
 class MLCAdapter(_EnvProvider):
     """The MLC Public Search API (https://public-api.themlc.com/api/doc).
 
@@ -1177,7 +1220,7 @@ class MockMusicIntelligenceAdapter(MusicIntelligenceProvider):
 
 # --- registry ---------------------------------------------------------------
 
-_REAL_ADAPTERS = (SoundchartsAdapter, ChartmetricAdapter, MusicBrainzAdapter,
+_REAL_ADAPTERS = (BandsintownAdapter, SoundchartsAdapter, ChartmetricAdapter, MusicBrainzAdapter,
                   MLCAdapter, SoundExchangeAdapter, SpotifyMetadataAdapter,
                   PublicWebResearchAdapter, InternalStreetBankerAdapter)
 

@@ -530,6 +530,22 @@ def upsert_artist(provider, provider_artist_id, fields):
     return artist_id
 
 
+def provider_ids(artist_id):
+    """Every (provider, provider_id) a canonical artist is known by."""
+    with get_db() as db:
+        rows = db.execute("SELECT provider, provider_id FROM signal_artist_ids WHERE artist_id=? "
+                          "ORDER BY created_at", (artist_id,)).fetchall()
+    return [{"provider": r["provider"], "provider_id": r["provider_id"]} for r in rows]
+
+
+def artist_name_for_provider_id(provider_id):
+    with get_db() as db:
+        row = db.execute("SELECT a.canonical_name FROM signal_artist_ids i "
+                         "JOIN signal_artists a ON a.id = i.artist_id WHERE i.provider_id=? LIMIT 1",
+                         (provider_id,)).fetchone()
+    return row["canonical_name"] if row else ""
+
+
 def get_artist(artist_id):
     with get_db() as db:
         row = db.execute("SELECT * FROM signal_artists WHERE id=?", (artist_id,)).fetchone()

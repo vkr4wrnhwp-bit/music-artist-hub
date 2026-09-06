@@ -57,7 +57,7 @@
 
   <nav class="sg-tabs" aria-label="Artist detail">
     {% for key, label in [('overview','Why now'), ('momentum','Momentum'), ('releases','Releases'),
-                          ('cities','Cities'), ('distribution','Distribution'),
+                          ('cities','Cities'), ('events','Live dates'), ('distribution','Distribution'),
                           ('contacts','Team & contacts'), ('rights','Rights health'),
                           ('opportunity','Opportunity')] %}
       <a class="sg-tab{% if tab == key %} is-active{% endif %}" href="/signal/artist/{{ a['id'] }}?tab={{ key }}">{{ label }}</a>
@@ -165,6 +165,24 @@
         <div class="sg-ev-src">{{ e['source_label'] }} · first seen {{ e['first_observed_at'][:10] }} · last checked {{ e['last_verified_at'][:10] }}</div>
       </div>
     {% else %}<div class="sg-empty">No distributor evidence on file.</div>{% endfor %}
+
+  {% elif tab == 'events' %}
+    {% if events is none %}
+      <div class="sg-empty">Not measured — no live-events provider is connected{% if events_provider %} ({{ events_provider }} did not answer){% endif %}.</div>
+    {% elif events %}
+      {% for ev in events %}
+        <div class="sg-ev">
+          <div class="sg-ev-head">
+            <span class="sg-ev-claim">{{ ev['date'] }} — {{ ev['venue'] }}</span>
+            <span class="sg-inline">{% if ev.get('tickets') %}<a class="sg-pill is-gold" href="{{ ev['tickets'] }}" target="_blank" rel="noopener">Tickets ↗</a>{% endif %}</span>
+          </div>
+          <div class="sg-ev-src">{{ [ev['city'], ev['region'], ev['country']]|select|join(', ') }}</div>
+        </div>
+      {% endfor %}
+      <p class="sg-note">Upcoming dates as {{ events_provider }} lists them today. A listing is not a routing history and not evidence of draw.</p>
+    {% else %}
+      <div class="sg-empty">No upcoming dates listed on {{ events_provider }}. That is not evidence the artist is not touring.</div>
+    {% endif %}
 
   {% elif tab == 'contacts' %}
     {% if contacts %}
