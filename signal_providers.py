@@ -654,11 +654,200 @@ class MusicBrainzAdapter(_EnvProvider):
 
 
 class MLCAdapter(_EnvProvider):
+    """The MLC Public Search API (https://public-api.themlc.com/api/doc).
+
+    Access is a username and password The MLC issues after their Public
+    Search API registration; the adapter trades them for a bearer token
+    at /oauth/token, keeps it until it expires, and uses the refresh
+    token after that. The API answers four things: recordings by ISRC or
+    by title + artist (each carrying an MLC song code), works by title +
+    writers, and works by song code - the work is where the writers, the
+    publishers and their collection shares live.
+
+    What this turns into evidence: a recording whose ISRC The MLC links
+    to a work is "matched"; writers are "complete" when every one carries
+    an IPI; a publisher is "detected" when the work lists one; shares are
+    "complete" when the publishers' collection shares total 100. An ISRC
+    The MLC has no work for is a potential gap - that is the unmatched
+    money Royalty Sweep exists for. A title + artist with no recording is
+    NOT a gap: album titles are not works, so that answer is silence.
+    """
     key = "mlc"
     label = "The MLC"
     env_flag = "MLC_ENABLED"
-    env_keys = ("MLC_API_KEY",)
+    env_keys = ("MLC_USERNAME", "MLC_PASSWORD")
     capabilities = (CAP_RIGHTS,)
+    base_url = "https://public-api.themlc.com"
+    portal_search = "https://portal.themlc.com/search"
+    token_margin = 60             # seconds before expiry a token counts as spent
+
+    def __init__(self, transport=None, now=None):
+        self._transport = transport
+        self._now = now or time.time
+        self._access, self._refresh, self._expires_at = "", "", 0.0
+
+    # -- transport --
+    def _send(self, method, path, body=None, bearer=""):
+        """(status, json) for one call. Injectable for tests."""
+        headers = {"Content-Type": "application/json", "Accept": "application/json",
+                   "User-Agent": "StreetBanker/1.0"}
+        if bearer:
+            headers["Authorization"] = "Bearer " + bearer
+        url = self.base_url + path
+        if self._transport is not None:
+            return self._transport(method, url, headers, body)
+        data = json.dumps(body).encode("utf-8") if body is not None else None
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                raw = resp.read().decode("utf-8")
+                return resp.status, (json.loads(raw) if raw.strip() else None)
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode("utf-8", "replace")
+            try:
+                return e.code, json.loads(raw)
+            except ValueError:
+                return e.code, {"message": raw[:200]}
+        except Exception as e:
+            raise ProviderError("The MLC: %s" % e)
+
+    def _token(self):
+        if self._access and self._now() < self._expires_at - self.token_margin:
+            return self._access
+        if not self.configured():
+            raise ProviderError("The MLC: not configured")
+        attempts = []
+        if self._refresh:
+            attempts.append({"refreshToken": self._refresh})
+        attempts.append({"username": (os.environ.get("MLC_USERNAME") or "").strip(),
+                         "password": (os.environ.get("MLC_PASSWORD") or "").strip()})
+        last = "no answer"
+        for body in attempts:
+            status, answer = self._send("POST", "/oauth/token", body)
+            answer = answer or {}
+            if status == 200 and answer.get("accessToken"):
+                self._access = answer["accessToken"]
+                self._refresh = answer.get("refreshToken") or self._refresh
+                try:
+                    ttl = float(answer.get("expiresIn") or 3600)
+                except (TypeError, ValueError):
+                    ttl = 3600.0
+                self._expires_at = self._now() + ttl
+                return self._access
+            last = answer.get("errorDescription") or answer.get("error") or answer.get("message") or str(status)
+            self._refresh = ""            # a refresh that failed is spent
+        raise ProviderError("The MLC sign-in failed: %s" % last)
+
+    def _call(self, path, body):
+        status, answer = self._send("POST", path, body, bearer=self._token())
+        if status == 401:
+            # One retry with a fresh token; a second 401 is their answer.
+            self._access, self._expires_at = "", 0.0
+            status, answer = self._send("POST", path, body, bearer=self._token())
+        if status != 200:
+            msg = (answer or {}).get("message") if isinstance(answer, dict) else ""
+            raise ProviderError("The MLC %s: %s" % (status, msg or "request failed"))
+        return answer if isinstance(answer, list) else []
+
+    # -- lookups, in the API's own units --
+    def find_recordings(self, isrc=None, title=None, artist=None):
+        body = {}
+        if (isrc or "").strip():
+            body["isrc"] = isrc.strip().upper().replace("-", "")
+        else:
+            if (title or "").strip():
+                body["title"] = title.strip()
+            if (artist or "").strip():
+                body["artist"] = artist.strip()
+        if not body:
+            return []
+        return [{"recording_id": r.get("id") or "", "isrc": r.get("isrc") or "",
+                 "title": r.get("title") or "", "artist": r.get("artist") or "",
+                 "labels": r.get("labels") or "", "song_code": r.get("mlcsongCode") or ""}
+                for r in self._call("/search/recordings", body)]
+
+    def find_works_by_title(self, title, writers=()):
+        body = {"title": (title or "").strip(),
+                "writers": [{"writerFirstName": w.get("first") or "", "writerLastName": w.get("last") or "",
+                             "writerIPI": w.get("ipi") or ""} for w in writers]}
+        if not body["title"]:
+            return []
+        return [{"song_code": w.get("mlcSongCode") or "", "iswc": w.get("iswc") or "",
+                 "title": w.get("workTitle") or "",
+                 "writers": [self._writer(x) for x in w.get("writers") or []]}
+                for w in self._call("/search/songcode", body)]
+
+    def get_works(self, song_codes):
+        codes = [c for c in dict.fromkeys(song_codes) if c]
+        if not codes:
+            return []
+        return [self._work_fields(w) for w in self._call("/works", [{"mlcsongCode": c} for c in codes])]
+
+    @staticmethod
+    def _writer(w):
+        name = " ".join(x for x in (w.get("writerFirstName"), w.get("writerLastName")) if x)
+        return {"name": name, "ipi": w.get("writerIPI") or "", "role": w.get("writerRoleCode") or ""}
+
+    @classmethod
+    def _work_fields(cls, w):
+        publishers = []
+        for p in w.get("publishers") or []:
+            try:
+                share = float(p.get("collectionShare") or 0)
+            except (TypeError, ValueError):
+                share = 0.0
+            publishers.append({
+                "name": p.get("publisherName") or "", "ipi": p.get("publisherIpiNumber") or "",
+                "role": p.get("publisherRoleCode") or "", "share": share,
+                "mlc_number": p.get("mlcPublisherNumber") or "",
+                "administrators": [a.get("publisherName") for a in p.get("administrators") or []
+                                   if a.get("publisherName")]})
+        return {"song_code": w.get("mlcSongCode") or "", "iswc": w.get("iswc") or "",
+                "title": w.get("primaryTitle") or "", "artists": w.get("artists") or "",
+                "writers": [cls._writer(x) for x in w.get("writers") or []],
+                "publishers": publishers,
+                "share_total": round(sum(p["share"] for p in publishers), 2)}
+
+    # -- the capability --
+    def lookup(self, isrc=None, title=None, artist=None):
+        """Recordings and the works behind them, for a page to show."""
+        recordings = self.find_recordings(isrc=isrc, title=title, artist=artist)
+        works = self.get_works([r["song_code"] for r in recordings])
+        return {"recordings": recordings, "works": works}
+
+    def get_rights_evidence(self, isrc=None, title=None, artist=None):
+        isrc = (isrc or "").strip()
+        found = self.lookup(isrc=isrc, title=title, artist=artist)
+        if not found["works"]:
+            if not isrc:
+                return []              # a title alone is not a question The MLC answers
+            return [{"source_type": "work_registry", "source_label": "The MLC public search",
+                     "source_url": self.portal_search, "work_match": False,
+                     "writers_complete": False, "publisher_detected": False,
+                     "shares_complete": False, "recording_linked": False,
+                     "confidence": 0.8, "iswc": "", "song_code": "",
+                     "excerpt": "No work at The MLC is linked to ISRC %s" % isrc.upper()}]
+        out = []
+        for w in found["works"]:
+            writers = w["writers"]
+            out.append({
+                "source_type": "work_registry", "source_label": "The MLC public search",
+                "source_url": self.portal_search,
+                "work_match": True,
+                "recording_linked": bool(isrc),
+                "writers_complete": bool(writers) and all(x["ipi"] for x in writers),
+                "publisher_detected": bool(w["publishers"]),
+                "shares_complete": bool(w["publishers"]) and abs(w["share_total"] - 100.0) <= 0.5,
+                "confidence": 0.9 if isrc else 0.7,
+                "iswc": w["iswc"], "song_code": w["song_code"],
+                "writers": writers, "publishers": w["publishers"], "share_total": w["share_total"],
+                "excerpt": "MLC song code %s%s: %d writer%s, %d publisher%s, collection shares total %g%%" % (
+                    w["song_code"], (" (ISWC %s)" % w["iswc"]) if w["iswc"] else "",
+                    len(writers), "" if len(writers) == 1 else "s",
+                    len(w["publishers"]), "" if len(w["publishers"]) == 1 else "s",
+                    w["share_total"]),
+            })
+        return out
 
 
 class SoundExchangeAdapter(_EnvProvider):

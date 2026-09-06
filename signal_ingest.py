@@ -165,9 +165,10 @@ def _ingest_rights(artist_id, releases, reg):
     p = reg.for_capability(providers.CAP_RIGHTS)
     if p is None:
         return
+    artist_name = (sstore.get_artist(artist_id) or {}).get("canonical_name") or None
     for rel in (releases or [])[:6]:
         found = _timed(p, providers.CAP_RIGHTS, p.get_rights_evidence,
-                       None, rel.get("title"), None) or []
+                       None, rel.get("title"), artist_name) or []
         for r in found:
             sstore.add_evidence(
                 "artist", artist_id, sstore.CLAIM_RIGHTS,
@@ -185,7 +186,8 @@ def _ingest_rights(artist_id, releases, reg):
                         "writers_complete": bool(r.get("writers_complete")),
                         "publisher_detected": bool(r.get("publisher_detected")),
                         "shares_complete": bool(r.get("shares_complete")),
-                        "recording_linked": bool(r.get("recording_linked"))})
+                        "recording_linked": bool(r.get("recording_linked")),
+                        "iswc": r.get("iswc") or "", "song_code": r.get("song_code") or ""})
 
 
 def refresh_universe(max_artists=25, reg=None, force=False):
