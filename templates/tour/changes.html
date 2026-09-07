@@ -3,6 +3,9 @@
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
 <div class="to-head"><div><p class="to-eyebrow">What changed</p><h1 class="to-h1" style="font-size:20px">Who changed what, and whether it was seen</h1><p class="to-sub">Information, Important, Critical. Critical changes ask everyone to acknowledge; admins see who has.</p></div>
+{#- The acknowledgement prompt lives here since the home became the month (2026-09-07). -#}
+{% set ns = namespace(n=0) %}{% for c in rows if c['severity'] == 'critical' and acks[c['id']] != 'acknowledged' %}{% set ns.n = ns.n + 1 %}{% endfor %}
+{% if ns.n %}<div class="to-note to-note--warn" id="unack"><strong>{{ ns.n }} critical change{{ '' if ns.n == 1 else 's' }} waiting for your acknowledgement.</strong> Each one has an Acknowledge button below.</div>{% endif %}
   <div class="to-inline"><a class="to-tab {{ 'is-on' if level == 'important' }}" href="?level=important">Important+</a><a class="to-tab {{ 'is-on' if level == 'critical' }}" href="?level=critical">Critical</a><a class="to-tab {{ 'is-on' if level == 'all' }}" href="?level=all">Everything</a></div></div>
 {% if rows %}
 {% for c in rows %}

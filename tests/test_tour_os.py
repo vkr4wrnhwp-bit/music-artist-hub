@@ -509,11 +509,11 @@ def test_tasks_ride_on_command_center_and_changes_ack(flask_app):
     crit = [c for c in ts.list_changes(tid) if c["severity"] == "critical" and c["field"] == "property"]
     assert crit and crit[0]["before"] == "First Hotel" and crit[0]["after"] == "Moved Hotel"
     assert store.unread_notifications(member["id"]) >= 1
-    page = crew.get("/tours/%s" % tid)
+    page = crew.get("/tours/%s/changes" % tid)          # the home is the month; the prompt lives on What changed
     assert b"waiting for your acknowledgement" in page.data
     crew.post("/tours/%s/changes/%s/ack" % (tid, crit[0]["id"]))
     assert ts.ack_state(tid, [crit[0]["id"]], member["id"])[crit[0]["id"]] == "acknowledged"
-    assert b"waiting for your acknowledgement" not in crew.get("/tours/%s" % tid).data
+    assert b"waiting for your acknowledgement" not in crew.get("/tours/%s/changes" % tid).data
     roster = ts.ack_roster(tid, crit[0]["id"])
     assert any(a["viewer_id"] == member["id"] and a["state"] == "acknowledged" for a in roster)
 
