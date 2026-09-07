@@ -424,6 +424,14 @@ a.to-strip:hover, a.to-strip:focus-visible { border-color: var(--to-gold); outli
 .to-date-adv { font-size: 12px; min-width: 0; overflow-wrap: anywhere; }
 .to-date-adv a { color: inherit; text-decoration: none; }
 @media (max-width: 720px) { .to-date { grid-template-columns: minmax(0, 1fr) auto; } .to-date-adv { grid-column: 1 / -1; } }
+/* Money rows: the figures as small instruments, label over value. */
+.to-date--money { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; }
+.to-figs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-width: 0; }
+.to-fig { display: inline-flex; flex-direction: column; gap: 1px; }
+.to-fig > span { font-family: var(--sb-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--to-soft); }
+.to-fig > b { font-family: var(--sb-mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--to-copy); }
+.to-fig.is-net > b { color: var(--to-amber); }
+@media (max-width: 720px) { .to-date--money { grid-template-columns: minmax(0, 1fr) auto; } .to-date--money .to-figs { grid-column: 1 / -1; } }
 a.to-lcds:hover .sb-lcd, a.to-lcds:focus-visible .sb-lcd { border-color: var(--to-gold); }
 .to-adds { border: 1px dashed var(--to-line); border-radius: var(--sb-r-panel); padding: 14px 16px; margin-bottom: 12px; background: rgb(201 162 74 / 0.04); }
 .to-adds-label { font-size: 12px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--to-gold); margin-bottom: 10px; }
