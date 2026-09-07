@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}TOUR - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/tour-os.css?v=8">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/tour-os.css?v=22">{% endblock %}
 {% block content %}
 {% import "tour/_macros.html" as m %}
 <div class="to">
@@ -13,39 +13,40 @@
     </div>
   </div>
 
+  {#- A list of full tours and one-off shows; click one to go in. A tour
+      of one date reads as a one-off. -#}
   {% if mine %}
   <h2 class="to-h2">Your tours</h2>
-  <div class="to-table-wrap"><table class="to-table is-stack">
-    <thead><tr><th>Tour</th><th>Dates</th><th>Shows</th><th>Status</th><th></th></tr></thead>
-    <tbody>
+  <div class="to-dates" id="mine">
     {% for t in mine %}
-      <tr>
-        <td data-k="Tour"><a href="/tours/{{ t['id'] }}"><b>{{ t['name'] }}</b></a>{% if t['artist_name'] %}<div class="to-muted">{{ t['artist_name'] }}</div>{% endif %}</td>
-        <td data-k="Dates">{{ t['start_date'] or '—' }} → {{ t['end_date'] or '—' }}</td>
-        <td data-k="Shows">{{ t['show_count'] }}</td>
-        <td data-k="Status"><span class="to-chip to-chip--gold">{{ t['status_line'] }}</span></td>
-        <td><a class="to-btn to-btn--small" href="/tours/{{ t['id'] }}">Open</a></td>
-      </tr>
+    <div class="to-date to-date--tour">
+      <a class="to-date-when" href="/tours/{{ t['id'] }}">
+        <span class="to-tile-l">{{ 'One-off show' if t['show_count'] == 1 and t['start_date'] == t['end_date'] else 'Full tour' }}{% if t['status_line'] %} · {{ t['status_line'] }}{% endif %}</span>
+        <span class="to-tile-v">{{ t['name'] }}</span>
+        <span class="to-tile-s">{% if t['artist_name'] %}{{ t['artist_name'] }} · {% endif %}{{ t['start_date'] or '—' }} → {{ t['end_date'] or '—' }}</span>
+      </a>
+      <div class="to-date-state"><span class="to-chip to-chip--gold">{{ t['show_count'] }} date{{ '' if t['show_count'] == 1 else 's' }}</span></div>
+      <div><a class="to-btn to-btn--small" href="/tours/{{ t['id'] }}">Open</a></div>
+    </div>
     {% endfor %}
-    </tbody>
-  </table></div>
+  </div>
   {% endif %}
 
   {% if shared %}
   <h2 class="to-h2">Tours you're on</h2>
-  <div class="to-table-wrap"><table class="to-table is-stack">
-    <thead><tr><th>Tour</th><th>Your role</th><th>Status</th><th></th></tr></thead>
-    <tbody>
+  <div class="to-dates" id="shared">
     {% for t in shared %}
-      <tr>
-        <td data-k="Tour"><a href="/tours/{{ t['id'] }}"><b>{{ t['name'] }}</b></a>{% if t['artist_name'] %}<div class="to-muted">{{ t['artist_name'] }}</div>{% endif %}</td>
-        <td data-k="Role">{{ t['my_role']|replace('_',' ')|capitalize }}</td>
-        <td data-k="Status"><span class="to-chip to-chip--gold">{{ t['status_line'] }}</span></td>
-        <td><a class="to-btn to-btn--small" href="/tours/{{ t['id'] }}/my-day">My Day</a></td>
-      </tr>
+    <div class="to-date to-date--tour">
+      <a class="to-date-when" href="/tours/{{ t['id'] }}">
+        <span class="to-tile-l">{{ t['my_role']|replace('_',' ')|capitalize }}{% if t['status_line'] %} · {{ t['status_line'] }}{% endif %}</span>
+        <span class="to-tile-v">{{ t['name'] }}</span>
+        <span class="to-tile-s">{{ t['artist_name'] or '' }}</span>
+      </a>
+      <div class="to-date-state"></div>
+      <div><a class="to-btn to-btn--small" href="/tours/{{ t['id'] }}/my-day">My Day</a></div>
+    </div>
     {% endfor %}
-    </tbody>
-  </table></div>
+  </div>
   {% endif %}
 
   {% if not mine and not shared %}
@@ -53,7 +54,11 @@
   {% endif %}
 
   {% if can_own %}
-  <h2 class="to-h2">Start a tour</h2>
+  {#- Three ways in, each behind a plus; the first opens on its own only
+      while there is nothing to list. -#}
+  <details class="to-add" id="start-tour"{% if not mine and not shared %} open{% endif %}>
+  <summary><span class="plus" aria-hidden="true">+</span> Start a tour</summary>
+  <div class="to-add-body">
   <form method="post" action="/tours/new" class="to-form">
     <div class="to-grid">
       {{ m.field('name', 'Tour name', placeholder='Fall 2026', required=True) }}
@@ -63,6 +68,10 @@
       {{ m.field('home_tz', 'Home timezone', value=tz_guess, placeholder='America/New_York') }}
       {{ m.field('currency', 'Currency', value='USD') }}
     </div>
+    <div class="to-checks" style="margin-top:10px">
+      <label><input type="radio" name="first" value="days" checked> Add dates one at a time</label>
+      <label><input type="radio" name="first" value="import"> Upload a file of dates (CSV or a sheet) next</label>
+    </div>
     {% if unattached %}
     <div class="to-checks" style="margin-top:10px">
       {{ m.check('adopt', 'Bring my ' ~ unattached|length ~ ' existing show(s) not on a tour onto this tour', on=True) }}
@@ -70,6 +79,26 @@
     {% endif %}
     <div class="to-bar"><button class="to-btn" type="submit">Create tour</button></div>
   </form>
+  </div>
+  </details>
+  <details class="to-add" id="one-off"{% if request.args.get('one_off') %} open{% endif %}>
+  <summary><span class="plus" aria-hidden="true">+</span> Add a one-off show</summary>
+  <div class="to-add-body">
+  <form method="post" action="/tours/new" class="to-form">
+    <input type="hidden" name="one_off" value="1">
+    <div class="to-grid">
+      {{ m.field('venue', 'Venue', placeholder='The Basement East', required=True) }}
+      {{ m.field('city', 'City', placeholder='Nashville, TN') }}
+      {{ m.field('date', 'Date', type='date', required=True) }}
+      {{ m.field('artist_name', 'Artist', placeholder='As billed') }}
+      {{ m.field('home_tz', 'Timezone', value=tz_guess, placeholder='America/New_York') }}
+      {{ m.field('currency', 'Currency', value='USD') }}
+    </div>
+    {% if request.args.get('one_off') == 'date' %}<p class="to-muted">A one-off show needs its date.</p>{% endif %}
+    <div class="to-bar"><button class="to-btn" type="submit">Add the show</button></div>
+  </form>
+  </div>
+  </details>
   {% if is_demo and not mine %}
   <form method="post" action="/tours/seed-demo" class="to-bar"><button class="to-btn to-btn--ghost" type="submit">Load the example tour (demo account only)</button></form>
   {% endif %}

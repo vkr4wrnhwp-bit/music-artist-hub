@@ -640,10 +640,24 @@ def create():
     tz = request.form.get("home_tz") or "UTC"
     if not eng.valid_tz(tz):
         tz = "UTC"
-    tour_id = ts.create_tour(user["id"], {
-        "name": request.form.get("name"), "artist_name": request.form.get("artist_name") or user.get("name"),
-        "start_date": request.form.get("start_date"), "end_date": request.form.get("end_date"),
-        "home_tz": tz, "currency": request.form.get("currency") or "USD"})
+    f = request.form
+    one_off = bool(f.get("one_off"))
+    if one_off:
+        # A one-off show is a tour of one date, its single show made now.
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", f.get("date") or ""):
+            return redirect("/tours?one_off=date")
+        venue = (f.get("venue") or "").strip() or "TBA"
+        fields = {"name": "%s · %s" % (venue, f.get("date")), "artist_name": f.get("artist_name") or user.get("name"),
+                  "start_date": f.get("date"), "end_date": f.get("date"),
+                  "home_tz": tz, "currency": f.get("currency") or "USD"}
+    else:
+        fields = {"name": f.get("name"), "artist_name": f.get("artist_name") or user.get("name"),
+                  "start_date": f.get("start_date"), "end_date": f.get("end_date"),
+                  "home_tz": tz, "currency": f.get("currency") or "USD"}
+    tour_id = ts.create_tour(user["id"], fields)
+    if one_off:
+        show_id = store.add_tour_show(user["id"], f.get("date"), venue, f.get("city") or "", "")
+        ts.attach_show(tour_id, show_id, tz)
     # Bring any existing Tour Hub shows in the window onto the tour
     if request.form.get("adopt"):
         for s in store.list_tour_shows(user["id"]):
@@ -653,6 +667,10 @@ def create():
     tour = ts.get_tour(tour_id)
     ts.log_change(tour_id, user["id"], {"id": user["id"], "name": user.get("name")}, "tour",
                   tour_id, tour["name"], "created", "", tour["name"], "info")
+    if one_off:
+        return redirect("/tours/%s/shows/%s" % (tour_id, show_id))
+    if f.get("first") == "import":
+        return redirect("/tours/%s/import" % tour_id)
     return redirect("/tours/%s" % tour_id)
 
 
