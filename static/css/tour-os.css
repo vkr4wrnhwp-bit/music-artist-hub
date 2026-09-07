@@ -434,6 +434,13 @@ a.to-strip:hover, a.to-strip:focus-visible { border-color: var(--to-gold); outli
 @media (max-width: 720px) { .to-date--money { grid-template-columns: minmax(0, 1fr) auto; } .to-date--money .to-figs { grid-column: 1 / -1; } }
 /* People rows, and the counted category chips that filter them. */
 .to-date--person { grid-template-columns: minmax(0, 1.3fr) auto minmax(0, 1.3fr) auto auto; }
+/* Travel legs, and the small-print fold shared by legs and hotels. */
+.to-date--leg { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.6fr) auto auto; }
+.to-fold > summary { cursor: pointer; list-style: none; font-family: var(--sb-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--to-soft); min-height: 24px; display: inline-flex; align-items: center; }
+.to-fold > summary::-webkit-details-marker { display: none; }
+.to-fold[open] > summary { color: var(--to-amber); }
+.to-fold > div { margin-top: 4px; font-size: 12px; line-height: 1.5; }
+@media (max-width: 720px) { .to-date--leg { grid-template-columns: minmax(0, 1fr) auto; } .to-date--leg .to-figs { grid-column: 1 / -1; } }
 .to-date--person .to-date-adv { font-size: 12.5px; }
 .to-date--person .to-date-state { display: flex; flex-wrap: wrap; gap: 4px; }
 a.to-chip-btn { text-decoration: none; }

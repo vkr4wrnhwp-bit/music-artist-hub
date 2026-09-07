@@ -9,7 +9,12 @@
 {% endif %}
 {% include "tour/_hotel_list.html" %}
 {% if can('hotel') and not edit %}
-<h2 class="to-h2">Add a hotel</h2>
+{#- The hotel form behind a plus; open on its own only while there are no hotels. -#}
+<details class="to-add" id="add-hotel"{% if not rows %} open{% endif %}>
+<summary><span class="plus" aria-hidden="true">+</span> Add a hotel</summary>
+<div class="to-add-body">
 {% with edit=None %}{% include "tour/_hotel_form.html" %}{% endwith %}
+</div>
+</details>
 {% endif %}
 {% endblock %}
