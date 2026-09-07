@@ -136,8 +136,8 @@ def test_the_dates_page_carries_the_pipeline_and_the_legend_verbatim(flask_app):
     sid = _show(client, tid, "2030-05-02", "Pipeline Room")
     page = client.get("/tours/%s/shows" % tid).get_data(as_text=True)
     assert PIPELINE in page and LEGEND in page
-    # The legend sits beneath the table, the pipeline line above it.
-    assert page.index(PIPELINE) < page.index("<table") < page.index(LEGEND)
+    # The legend sits beneath the list, the pipeline line above it.
+    assert page.index(PIPELINE) < page.index('id="dates"') < page.index(LEGEND)
     form = re.search(r'<form method="post" action="/tours/%s/shows/%s/ext" class="to-status-form">(.*?)</form>'
                      % (tid, sid), page, re.S)
     assert form, "no status form on the row"

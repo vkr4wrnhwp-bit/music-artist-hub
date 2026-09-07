@@ -16,26 +16,29 @@
 {% endif %}
 
 {% if shows %}
-<div class="to-table-wrap"><table class="to-table is-stack">
-  <thead><tr><th>#</th><th>Date</th><th>City</th><th>Venue</th><th>Status</th><th>Ready</th><th>Missing</th><th>Advance</th></tr></thead>
-  <tbody>
+{#- One row per date. The venue is the line that matters; the missing
+    items sit behind a fold instead of a column of words; the advance
+    state is a lamp. The status select is the same form as before. -#}
+<div class="to-dates" id="dates">
   {% for s in shows %}
-  <tr>
-    <td data-k="#">{{ s['show_number'] }}</td>
-    <td data-k="Date"><a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">{{ fmt_day(s['date']) }}</a></td>
-    <td data-k="City">{{ s['city'] or '—' }}</td>
-    <td data-k="Venue"><a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}"><b>{{ s['venue'] }}</b></a></td>
-    <td data-k="Status">{% if can_status %}<form method="post" action="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}/ext" class="to-status-form">
+  {% set r = readiness[s['id']] %}
+  <div class="to-date">
+    <a class="to-date-when" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">
+      <span class="to-tile-l">{{ fmt_day(s['date']) }} <span class="to-muted">#{{ s['show_number'] }}</span></span>
+      <span class="to-tile-v">{{ s['venue'] }}</span>
+      <span class="to-tile-s">{{ s['city'] or '—' }}</span>
+    </a>
+    <div class="to-date-state">{% if can_status %}<form method="post" action="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}/ext" class="to-status-form">
       <select name="status" aria-label="Status for {{ s['venue'] }}">{% for st in vocab['show_statuses'] %}<option value="{{ st }}" {% if st == s['status'] %}selected{% endif %}>{{ st }}</option>{% endfor %}</select>
       <button class="to-btn to-btn--ghost to-btn--small" type="submit">Update</button>
-    </form>{% else %}{{ m.chip(s['status']) }}{% endif %}</td>
-    <td data-k="Ready">{{ m.ready(readiness[s['id']]['pct']) }}</td>
-    <td data-k="Missing" class="to-muted">{% for i in readiness[s['id']]['missing'][:4] %}{{ i['label']|lower }}{{ ', ' if not loop.last }}{% endfor %}{% if readiness[s['id']]['missing']|length > 4 %} +{{ readiness[s['id']]['missing']|length - 4 }}{% endif %}</td>
-    <td data-k="Advance">{% if sends.get(s['id']) %}<a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">{{ sb.lamp("sent " ~ sends[s['id']]['created'][:10], "on") }}</a>{% elif can_send and advance_to.get(s['id']) %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">ready · {{ advance_to[s['id']][0] }}</a>{% elif can_send %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=advance">no address</a>{% else %}<span class="to-muted">—</span>{% endif %}</td>
-  </tr>
+    </form>{% else %}{{ m.chip(s['status']) }}{% endif %}</div>
+    <div class="to-date-ready">{{ m.ready(r['pct']) }}
+      {% if r['missing'] %}<details class="to-date-missing"><summary>{{ r['missing']|length }} missing</summary><ul>{% for i in r['missing'] %}<li>{{ i['label'] }}</li>{% endfor %}</ul></details>{% endif %}
+    </div>
+    <div class="to-date-adv">{% if sends.get(s['id']) %}<a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">{{ sb.lamp("sent " ~ sends[s['id']]['created'][:10], "on") }}</a>{% elif can_send and advance_to.get(s['id']) %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">{{ sb.lamp("advance ready", "warn") }} {{ advance_to[s['id']][0] }}</a>{% elif can_send %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=advance">{{ sb.lamp("no address", "crit") }}</a>{% else %}<span class="to-muted">—</span>{% endif %}</div>
+  </div>
   {% endfor %}
-  </tbody>
-</table></div>
+</div>
 <p class="to-sub to-legend">Statuses, honestly: hold = penciled in, confirmed = date locked, advanced = venue has your plot and details, played = done, settled = you got paid.</p>
 {% else %}
   {{ m.empty("No shows on this tour", "Add a show day from the calendar, or import your dates.", "/tours/" ~ tour['id'] ~ "/calendar", "Calendar") }}
@@ -49,7 +52,7 @@
   <div>
     {% if unsent %}
     <form method="post" action="/tours/{{ tour['id'] }}/advance/send-all" class="to-form">
-      <p class="to-sub">One email per venue, composed from that show's own rows — its times, its bill, what its checklist has and still lacks — with the plot, the input list and the rider files attached, sent to the first address the show knows. Untick any you want to hold.</p>
+      <p class="to-sub">One email per venue, from that show's own rows, with the plot, input list and rider attached. Untick any to hold.</p>
       <div class="to-checks">
         {% for s in unsent %}
           {{ m.check('show', fmt_day(s['date']) ~ ' · ' ~ s['venue'] ~ ' → ' ~ advance_to[s['id']][0], on=True, value=s['id']) }}
@@ -70,13 +73,12 @@
     <div class="to-panel">
       <div class="to-eyebrow">No address yet</div>
       {% for s in no_address %}<p class="to-sub" style="margin-top:6px"><a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=advance">{{ fmt_day(s['date']) }} · {{ s['venue'] }}</a></p>{% endfor %}
-      <p class="to-muted">Put the venue contact's email in each show's advance, or add them under People as Venue.</p>
+      <p class="to-muted">A venue contact's email on the show's advance, or under People as Venue, makes it sendable.</p>
     </div>
     {% endif %}
-    <div class="to-panel">
-      <div class="to-eyebrow">What a venue gets</div>
-      <p class="to-sub">Exactly what the single Send advance tab sends, per show. Money never. Each send is recorded on its show, with the mail service's reason if it fails.</p>
-    </div>
+    <details class="to-add"><summary>What a venue gets</summary><div class="to-add-body">
+      <p class="to-sub">Exactly what the single Send advance tab sends, per show: its times, its bill, what its checklist has and still lacks, the plot, the input list and the rider files. Money never. Each send is recorded on its show, with the mail service's reason if it fails.</p>
+    </div></details>
   </aside>
 </div>
 {% endif %}
