@@ -93,6 +93,9 @@ def test_a_tour_date_draws_readiness_on_the_shared_meter(flask_app):
         "city": "Nashville, TN", "tz": "America/Chicago"})
     sid = r.headers["Location"].split("/shows/")[1].split("?")[0]
     body = client.get("/tours/%s/shows/%s" % (tid, sid)).get_data(as_text=True)
+    assert "sb-meter-fill" not in body, "a fresh show has nothing on it, so no meter (owner ruling 2026-09-07)"
+    client.post("/tours/%s/shows/%s/sections" % (tid, sid), data={"key": "advance", "action": "add"})
+    body = client.get("/tours/%s/shows/%s" % (tid, sid)).get_data(as_text=True)
     assert re.search(r'aria-label="Readiness: \d+%"', body)
     assert "sb-meter-fill" in body and "to-meter" not in body
 
