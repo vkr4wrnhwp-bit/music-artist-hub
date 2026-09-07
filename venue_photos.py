@@ -17,6 +17,7 @@ a venue without a photo keeps its monogram, which is honest.
 import json
 import os
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -53,6 +54,44 @@ def same_room(name, display):
 
 def _key():
     return (os.environ.get("GOOGLE_MAPS_API_KEY") or "").strip()
+
+
+# The last time Google refused the key outright, kept for the run that
+# asked so its report can say so. A room Google simply has no photo of
+# is not a refusal and never lands here.
+_REFUSAL = None
+
+
+def clear_refusal():
+    global _REFUSAL
+    _REFUSAL = None
+
+
+def last_refusal():
+    """{'status', 'message', 'http'} for the last 4xx Google answered
+    (PERMISSION_DENIED when Places API (New) is off for the project or
+    the key may not call it, REQUEST_DENIED for a key restricted to
+    websites, RESOURCE_EXHAUSTED past quota), or None."""
+    return dict(_REFUSAL) if _REFUSAL else None
+
+
+def _note(exc):
+    """Keep a refusal; let every other failure stay a quiet None. A 404
+    from the photo endpoint is a photo that is gone, not a refusal."""
+    global _REFUSAL
+    if not isinstance(exc, urllib.error.HTTPError) or not (400 <= exc.code < 500) or exc.code == 404:
+        return
+    status, message = "", ""
+    try:
+        doc = json.loads((exc.read() or b"").decode("utf-8", "replace"))
+        err = doc.get("error") if isinstance(doc, dict) else None
+        if isinstance(err, dict):
+            status = str(err.get("status") or "")[:40]
+            message = str(err.get("message") or "")[:300]
+    except Exception:
+        pass
+    _REFUSAL = {"status": status or ("HTTP %d" % exc.code), "message": message or str(exc.reason or "")[:300],
+                "http": exc.code}
 
 
 def configured():
@@ -93,7 +132,8 @@ def lookup(name, city):
         body, _ct = _http(SEARCH_URL, {"textQuery": query, "maxResultCount": 1},
                           {"X-Goog-Api-Key": _key(), "X-Goog-FieldMask": FIELD_MASK})
         doc = json.loads(body.decode("utf-8")) if body else {}
-    except Exception:
+    except Exception as e:
+        _note(e)
         return None
     places = doc.get("places") if isinstance(doc, dict) else None
     if not places or not isinstance(places[0], dict):
@@ -127,7 +167,8 @@ def fetch_photo(photo_name):
         return None
     try:
         body, ctype = _http(MEDIA_URL % (urllib.parse.quote(photo_name, safe="/"), urllib.parse.quote(_key())))
-    except Exception:
+    except Exception as e:
+        _note(e)
         return None
     if not body or len(body) > MAX_BYTES or not ctype.startswith("image/"):
         return None

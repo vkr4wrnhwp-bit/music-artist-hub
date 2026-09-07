@@ -436,3 +436,48 @@ def test_a_tba_date_never_asks_for_the_button(flask_app, monkeypatch):
     assert "Fetch venue photos" not in _home(client, tid)
     _show(client, tid, "2030-05-03", "Quiet Room")
     assert "Fetch venue photos" not in _home(client, tid), "found: nothing left to fetch"
+
+
+def test_a_key_google_refuses_is_reported_as_a_refusal_not_as_rooms_without_photos(flask_app, monkeypatch):
+    """The owner's first Fetch with a key answered '0 photos; 3 had none
+    on Google' when Google had in fact refused the key outright. A 4xx
+    from Google is kept as the run's refusal, with Google's own status
+    and message, and the report says that instead."""
+    import urllib.error
+    body = json.dumps({"error": {"code": 403, "status": "PERMISSION_DENIED",
+                                 "message": "Places API (New) has not been used in project 42 before or it is disabled."}}).encode("utf-8")
+    calls = []
+
+    def refused(url, payload=None, headers=None):
+        calls.append(url)
+        raise urllib.error.HTTPError(url, 403, "Forbidden", {}, io.BytesIO(body))
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "test-key")
+    monkeypatch.setattr(venue_photos, "_http", refused)
+    venue_photos.clear_refusal()
+    assert venue_photos.lookup("The Basement East", "Nashville, TN") is None
+    assert venue_photos.last_refusal() == {"status": "PERMISSION_DENIED", "http": 403,
+                                           "message": "Places API (New) has not been used in project 42 before or it is disabled."}
+    client, owner = _user(flask_app)
+    tid = _tour(client)
+    _show(client, tid, "2030-05-03", "The Basement East")
+    _show(client, tid, "2030-05-04", "Exit/In")
+    r = client.post("/tours/%s/venues/fetch-photos" % tid)
+    assert r.status_code == 302 and r.headers["Location"].endswith("/tours/%s?photos=0&missing=2&refused=1" % tid)
+    home = _home(client, tid, "?photos=0&missing=2&refused=1")
+    assert "Google refused the key (PERMISSION_DENIED): Places API (New) has not been used in project 42" in home
+    assert "2 venues were not answered" in home and "enable Places API (New)" in home
+    assert "had none on Google" not in home, "a refusal is not a fact about the rooms"
+    # A room Google has no photo of is still a plain miss, with no talk of refusal.
+    _google(monkeypatch, has_photo=lambda q: False)
+    r = client.post("/tours/%s/venues/fetch-photos" % tid)
+    assert r.headers["Location"].endswith("?photos=0&missing=2")
+    home = _home(client, tid, "?photos=0&missing=2")
+    assert "2 had none on Google" in home and "refused" not in home
+    # A photo that is gone (404 on the media endpoint) is not a refusal either.
+    venue_photos.clear_refusal()
+
+    def gone(url, payload=None, headers=None):
+        raise urllib.error.HTTPError(url, 404, "Not Found", {}, io.BytesIO(b""))
+    monkeypatch.setattr(venue_photos, "_http", gone)
+    assert venue_photos.fetch_photo("places/ChIJ123/photos/AB9") is None
+    assert venue_photos.last_refusal() is None

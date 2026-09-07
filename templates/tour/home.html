@@ -13,7 +13,8 @@
   {% if photos_ready %}
     {#- The numbers come from the run that just happened, kept server-side
         and said once; a typed ?photos= in the address bar says nothing. -#}
-    {% if photo_report %}<span class="to-muted">Photos found for {{ photo_report['photos'] }} venues; {{ photo_report['missing'] }} had none on Google{% if photo_report['unreached'] %}; {{ photo_report['unreached'] }} not reached in time — press Fetch again{% endif %}</span>{% endif %}
+    {% if photo_report and photo_report['refused'] %}<span class="to-muted">Google refused the key ({{ photo_report['refused_status'] }}): {{ photo_report['refused'] }} {{ photo_report['missing'] }} venues were not answered{% if photo_report['photos'] %}; photos found for {{ photo_report['photos'] }} before that{% endif %}. In Google Cloud, enable Places API (New) for the key's project and let the key make server calls (application restriction None or IP addresses), then press Fetch again.</span>
+    {% elif photo_report %}<span class="to-muted">Photos found for {{ photo_report['photos'] }} venues; {{ photo_report['missing'] }} had none on Google{% if photo_report['unreached'] %}; {{ photo_report['unreached'] }} not reached in time — press Fetch again{% endif %}</span>{% endif %}
     {% if photos_missing %}<form method="post" action="/tours/{{ tour['id'] }}/venues/fetch-photos" class="to-inline"><button class="to-btn to-btn--ghost to-btn--small" type="submit">Fetch venue photos</button></form>{% endif %}
   {% else %}<span class="to-muted">Venue photos: no Google Maps key on this deployment</span>{% endif %}
 </div>

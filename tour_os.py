@@ -2279,7 +2279,9 @@ def venue_fetch_photos(user, tour, viewer, tour_id):
     none, then back to the list with the two honest numbers: how many
     were found, how many venues Google had no photo for."""
     fetched, missed, unreached = 0, set(), 0
+    refusal = None
     if venue_photos.configured():
+        venue_photos.clear_refusal()
         deadline = _photo_deadline()
         for s in ts.list_shows(tour_id):
             try:
@@ -2290,10 +2292,15 @@ def venue_fetch_photos(user, tour, viewer, tour_id):
                 fetched += 1
             elif got == "deferred":
                 unreached += 1
-    report = {"photos": fetched, "missing": len(missed), "unreached": unreached}
+        # A key Google refused answers nothing about the rooms: the report
+        # says what Google said instead of calling every venue photo-less.
+        refusal = venue_photos.last_refusal()
+    report = {"photos": fetched, "missing": len(missed), "unreached": unreached,
+              "refused": (refusal or {}).get("message") or "", "refused_status": (refusal or {}).get("status") or ""}
     session[_photo_report_key(tour_id)] = report
-    return redirect("/tours/%s?photos=%d&missing=%d%s" % (
-        tour_id, fetched, len(missed), "&unreached=%d" % unreached if unreached else ""))
+    return redirect("/tours/%s?photos=%d&missing=%d%s%s" % (
+        tour_id, fetched, len(missed), "&unreached=%d" % unreached if unreached else "",
+        "&refused=1" if refusal else ""))
 
 
 @bp.route("/tours/<tour_id>/shows/<show_id>/venue/from-advance", methods=["POST"])
