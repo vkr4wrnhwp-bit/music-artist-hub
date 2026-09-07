@@ -8,32 +8,34 @@
 </div>
 
 {% if vip_rows %}
-<div class="to-table-wrap"><table class="to-table is-stack">
-  <thead><tr><th>Time</th><th>Package</th><th>Guest</th><th>Includes</th><th>Status</th><th></th></tr></thead>
-  <tbody>
+{#- One row per package: the time as the label, the package and who for,
+    what it includes as chips, the state, the buttons. -#}
+<div class="to-dates" id="vip-rows">
   {% for v in vip_rows %}
-  <tr>
-    <td data-k="Time">{{ fmt_time(v['schedule_time']) or '—' }}</td>
-    <td data-k="Package"><b>{{ v['package'] }}</b> × {{ v['quantity'] }}{% if v['credentials'] %}<div class="to-muted">{{ v['credentials'] }}</div>{% endif %}</td>
-    <td data-k="Guest">{{ v['guest'] or v['purchaser'] or '—' }}{% if v['purchaser'] and v['guest'] %}<div class="to-muted">bought by {{ v['purchaser'] }}</div>{% endif %}</td>
-    <td data-k="Includes">{% if v['meet_greet'] %}M&amp;G {% endif %}{% if v['early_entry'] %}early entry {% endif %}{% if v['merch'] %}merch{% if v['fulfilled'] %} ✓{% endif %} {% endif %}{% if v['photo'] %}photo{% endif %}</td>
-    <td data-k="Status">{{ m.chip(v['status']) }}</td>
-    <td><div class="to-inline">
+  <div class="to-date to-date--guest">
+    <div class="to-date-when">
+      <span class="to-tile-l">{{ fmt_time(v['schedule_time']) or 'no time' }}</span>
+      <span class="to-tile-v">{{ v['package'] }} × {{ v['quantity'] }}</span>
+      <span class="to-tile-s">{{ v['guest'] or v['purchaser'] or '—' }}{% if v['purchaser'] and v['guest'] %} · bought by {{ v['purchaser'] }}{% endif %}{% if v['credentials'] %} · {{ v['credentials'] }}{% endif %}</span>
+    </div>
+    <div class="to-date-state">{% if v['meet_greet'] %}<span class="to-chip">M&amp;G</span> {% endif %}{% if v['early_entry'] %}<span class="to-chip">early entry</span> {% endif %}{% if v['merch'] %}<span class="to-chip{% if v['fulfilled'] %} to-chip--ok{% endif %}">merch{% if v['fulfilled'] %} given{% endif %}</span> {% endif %}{% if v['photo'] %}<span class="to-chip">photo</span> {% endif %}{{ m.chip(v['status']) }}</div>
+    <div><div class="to-inline">
       <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/{{ v['id'] }}" class="to-inline">
         {% if v['status'] == 'sold' %}<button class="to-btn to-btn--small" type="submit" name="status" value="checked_in">Check in</button><button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="no_show">No show</button>{% else %}<button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="sold">Undo</button>{% endif %}
       </form>
       {# Its own form: the fulfilled inputs must not ride along with a check-in. #}
       {% if v['merch'] and not v['fulfilled'] %}<form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/{{ v['id'] }}" class="to-inline"><input type="hidden" name="fulfilled_flag" value="1"><input type="hidden" name="fulfilled" value="1"><button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="{{ v['status'] }}">Merch given</button></form>{% endif %}
-    </div></td>
-  </tr>
+    </div></div>
+  </div>
   {% endfor %}
-  </tbody>
-</table></div>
+</div>
 {% else %}
   {{ m.empty("No VIP packages for this show", "Add the packages sold, with times and what each includes; check people in on the night. Ticketing platforms are not connected — these are your records.") }}
 {% endif %}
 
-<h2 class="to-h2">Add a VIP package</h2>
+<details class="to-add" id="add-vip"{% if not vip_rows %} open{% endif %}>
+<summary><span class="plus" aria-hidden="true">+</span> Add a VIP package</summary>
+<div class="to-add-body">
 <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/add" class="to-form">
   <div class="to-grid">
     {{ m.field('package', 'Package', required=True, placeholder='Soundcheck party') }}
@@ -49,3 +51,5 @@
   </div>
   <div class="to-bar" style="margin-bottom:0"><button class="to-btn" type="submit">Add</button></div>
 </form>
+</div>
+</details>

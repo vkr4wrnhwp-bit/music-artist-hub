@@ -1,3 +1,4 @@
+{% import "_sb.html" as sb %}
 {% import "tour/_macros.html" as m %}
 <div class="to-cards" style="margin-bottom:12px">
   <div class="to-card is-warm"><b>{{ guests['used'] }}{% if guests['allocation'] is not none %}<span style="font-size:14px;color:var(--to-soft)"> / {{ guests['allocation'] }}</span>{% endif %}</b><span>Approved spots</span>{% if guests['over'] %}<small style="color:var(--to-warn)">Over allocation</small>{% elif guests['remaining'] is not none %}<small>{{ guests['remaining'] }} remaining</small>{% else %}<small>No allocation set</small>{% endif %}</div>
@@ -16,18 +17,18 @@
 {% endif %}
 
 {% if guest_rows %}
-<div class="to-table-wrap"><table class="to-table is-stack">
-  <thead><tr><th>Name</th><th>+</th><th>Category</th><th>Requested by</th><th>Access</th><th>Status</th><th></th></tr></thead>
-  <tbody>
+{#- One row per guest: name and who they are, the count and category as
+    instruments, access as chips, the state, the buttons. -#}
+<div class="to-dates" id="guest-rows">
   {% for g in guest_rows %}
-  <tr>
-    <td data-k="Name"><b>{{ g['name'] }}</b>{% if g['company'] or g['title'] %}<div class="to-muted">{{ g['title'] }}{% if g['title'] and g['company'] %} · {% endif %}{{ g['company'] }}</div>{% endif %}{% if g['notes'] %}<div class="to-muted">{{ g['notes'] }}</div>{% endif %}</td>
-    <td data-k="Count">{{ g['count'] }}</td>
-    <td data-k="Category">{{ g['category'] }}</td>
-    <td data-k="Requested by">{{ g['requested_by'] or '—' }}</td>
-    <td data-k="Access">{{ g['ticket_type'] or '' }}{% if g['credentials'] %} · {{ g['credentials'] }}{% endif %}{% if g['backstage'] %} · <span class="to-chip to-chip--gold">backstage</span>{% endif %}{% if g['meet_greet'] %} · M&amp;G{% endif %}{% if g['aftershow'] %} · aftershow{% endif %}</td>
-    <td data-k="Status">{{ m.chip(g['status']) }}</td>
-    <td>
+  <div class="to-date to-date--guest">
+    <div class="to-date-when">
+      <span class="to-tile-v">{{ g['name'] }}{% if g['count'] > 1 %} <span class="to-muted">+{{ g['count'] - 1 }}</span>{% endif %}</span>
+      <span class="to-tile-s">{{ g['category'] }}{% if g['title'] or g['company'] %} · {{ g['title'] }}{% if g['title'] and g['company'] %} · {% endif %}{{ g['company'] }}{% endif %}{% if g['requested_by'] %} · asked by {{ g['requested_by'] }}{% endif %}</span>
+      {% if g['notes'] %}<span class="to-tile-s">{{ g['notes'] }}</span>{% endif %}
+    </div>
+    <div class="to-date-state">{% if g['ticket_type'] %}<span class="to-chip">{{ g['ticket_type'] }}</span>{% endif %}{% if g['credentials'] %} <span class="to-chip">{{ g['credentials'] }}</span>{% endif %}{% if g['backstage'] %} <span class="to-chip to-chip--gold">backstage</span>{% endif %}{% if g['meet_greet'] %} <span class="to-chip">M&amp;G</span>{% endif %}{% if g['aftershow'] %} <span class="to-chip">aftershow</span>{% endif %} {{ m.chip(g['status']) }}</div>
+    <div>
       <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/guests/{{ g['id'] }}" class="to-inline">
         {% if g['status'] in ('pending','request') %}<button class="to-btn to-btn--small" type="submit" name="status" value="approved">Approve</button><button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="denied">Deny</button>
         {% elif g['status'] == 'approved' %}<button class="to-btn to-btn--small" type="submit" name="status" value="checked_in">Check in</button><button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="no_show">No show</button>
@@ -35,16 +36,17 @@
         {% else %}<button class="to-btn to-btn--ghost to-btn--small" type="submit" name="status" value="pending">Reopen</button>{% endif %}
         <button class="to-btn to-btn--ghost to-btn--small to-btn--danger" type="submit" name="action" value="delete">✕</button>
       </form>
-    </td>
-  </tr>
+    </div>
+  </div>
   {% endfor %}
-  </tbody>
-</table></div>
+</div>
 {% else %}
   {{ m.empty("Guest list is empty", "Requests land as pending; approving past the allocation is refused, not silently allowed.") }}
 {% endif %}
 
-<h2 class="to-h2">Add a guest</h2>
+<details class="to-add" id="add-guest"{% if not guest_rows %} open{% endif %}>
+<summary><span class="plus" aria-hidden="true">+</span> Add a guest</summary>
+<div class="to-add-body">
 <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/guests/add" class="to-form">
   <div class="to-grid">
     {{ m.field('name', 'Name', required=True) }}
@@ -63,3 +65,5 @@
   </div>
   <div class="to-bar" style="margin-bottom:0"><button class="to-btn" type="submit">Add</button></div>
 </form>
+</div>
+</details>

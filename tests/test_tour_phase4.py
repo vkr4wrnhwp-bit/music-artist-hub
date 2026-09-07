@@ -81,8 +81,7 @@ def test_vip_rolls_up_across_the_run_under_its_own_scope(flask_app):
     assert r.status_code == 302
     page = client.get("/tours/%s/vip" % tid).get_data(as_text=True)
     assert "Nashville, TN" in page and 'href="/tours/%s/shows/%s?tab=vip"' % (tid, sid) in page
-    row = page.split('data-k="Sold">')[1]
-    assert row.startswith("3<")
+    assert '<span class="to-fig"><span>sold</span><b>3</b></span>' in page
     assert "450.00" in page                       # the owner holds financials: gross shows
     # The two new pages are in the More menu for an owner.
     bar = client.get("/tours/%s" % tid).get_data(as_text=True).split('class="to-tabs to-bar"')[1].split("</nav>")[0]
