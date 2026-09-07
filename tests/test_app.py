@@ -3723,7 +3723,7 @@ def test_tour_hub():
     r = artist.get("/tour")
     assert r.status_code == 302 and r.headers["Location"].startswith("/tours")
     landing = artist.get(r.headers["Location"]).get_data(as_text=True)
-    assert "TOUR" in landing and "Tour Hub" not in landing
+    assert ">Tour<" in landing and "Tour Hub" not in landing
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     show = [s for s in store_mod.list_tour_shows(uid) if s["venue"] == "The Basement"][0]
     assert show["status"] == "hold"
@@ -4560,7 +4560,7 @@ def test_ecosystem_hubs():
     # Desk pages render module cards with honest Live/Preview chips.
     desk = artist.get("/desk/stage").get_data(as_text=True)
     # One tour product: TOUR is the only tour tile, the old hub is gone.
-    assert "Live Stage Suite" in desk and "TOUR" in desk and "Tour Hub" not in desk
+    assert "Live Stage Suite" in desk and "Tour" in desk and "Tour Hub" not in desk
     assert desk.count('href="/tours" data-live=') == 1 and 'href="/tour"' not in desk
     assert "Light Studio" in desk and "real DMX" in desk.lower() or "DMX" in desk
     assert artist.get("/desk/nope").status_code == 404
