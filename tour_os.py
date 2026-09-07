@@ -2038,9 +2038,17 @@ def people(user, tour, viewer, tour_id):
     rows = _redact_people(viewer, ts.list_people(tour_id, category=cat or None, search=q))
     members = ts.list_members(tour_id) if can(viewer, "admin") else []
     contacts = press_store.list_contacts(tour["user_id"])[:300] if viewer["is_owner"] else []
+    # The categories as counted chips, over everyone on the run - the
+    # filter reads as a row of numbers, not a select.
+    everyone = ts.list_people(tour_id)
+    counts = {}
+    for p in everyone:
+        counts[p.get("category") or "Other"] = counts.get(p.get("category") or "Other", 0) + 1
+    cat_counts = [(c, counts[c]) for c in ts.PEOPLE_CATEGORIES if c in counts]
+    cat_counts += [(c, n) for c, n in sorted(counts.items()) if c not in ts.PEOPLE_CATEGORIES]
     return render_template("tour/people.html", **_ctx(
         user, tour, viewer, "people", shows=shows, rows=rows, cat=cat, q=q, members=members,
-        contacts=contacts,
+        contacts=contacts, cat_counts=cat_counts, total_people=len(everyone),
         edit=ts.get_person(tour_id, request.args.get("edit") or "") if can(viewer, "people") else None))
 
 

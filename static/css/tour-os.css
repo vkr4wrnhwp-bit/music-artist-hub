@@ -432,6 +432,13 @@ a.to-strip:hover, a.to-strip:focus-visible { border-color: var(--to-gold); outli
 .to-fig > b { font-family: var(--sb-mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--to-copy); }
 .to-fig.is-net > b { color: var(--to-amber); }
 @media (max-width: 720px) { .to-date--money { grid-template-columns: minmax(0, 1fr) auto; } .to-date--money .to-figs { grid-column: 1 / -1; } }
+/* People rows, and the counted category chips that filter them. */
+.to-date--person { grid-template-columns: minmax(0, 1.3fr) auto minmax(0, 1.3fr) auto auto; }
+.to-date--person .to-date-adv { font-size: 12.5px; }
+.to-date--person .to-date-state { display: flex; flex-wrap: wrap; gap: 4px; }
+a.to-chip-btn { text-decoration: none; }
+.to-chip-btn.is-on { border-color: var(--to-gold); color: var(--to-amber); }
+@media (max-width: 720px) { .to-date--person { grid-template-columns: minmax(0, 1fr) auto; } .to-date--person .to-date-adv { grid-column: 1 / -1; } }
 a.to-lcds:hover .sb-lcd, a.to-lcds:focus-visible .sb-lcd { border-color: var(--to-gold); }
 .to-adds { border: 1px dashed var(--to-line); border-radius: var(--sb-r-panel); padding: 14px 16px; margin-bottom: 12px; background: rgb(201 162 74 / 0.04); }
 .to-adds-label { font-size: 12px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--to-gold); margin-bottom: 10px; }
