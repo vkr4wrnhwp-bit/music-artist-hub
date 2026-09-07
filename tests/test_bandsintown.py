@@ -72,7 +72,10 @@ def test_event_rows_carry_the_country_and_the_iso_date(on):
 
 
 def test_the_signal_adapter_follows_the_app_id_and_resolves_the_name(on, monkeypatch):
-    a = providers.BandsintownAdapter(resolve=lambda pid: "Art Is War" if pid == "mbid-1" else "")
+    # A name of its own: the events cache is keyed by name and shared with
+    # every other test that asked about "Art Is War" earlier in the run.
+    name = "Art Is War %s" % uuid.uuid4().hex[:6]
+    a = providers.BandsintownAdapter(resolve=lambda pid: name if pid == "mbid-1" else "")
     assert a.configured() is True and a.health_check()["ok"] is True
     ev = a.get_events("mbid-1")
     assert [e["venue"] for e in ev] == ["The Fillmore", "Cat's Cradle"]
@@ -80,7 +83,7 @@ def test_the_signal_adapter_follows_the_app_id_and_resolves_the_name(on, monkeyp
     monkeypatch.delenv("BANDSINTOWN_APP_ID")
     assert a.configured() is False and "BANDSINTOWN_APP_ID" in a.health_check()["detail"]
     with pytest.raises(providers.ProviderError):
-        a.events_for_name("Art Is War")
+        a.events_for_name(name)
 
 
 def test_the_registry_serves_events_from_it_and_nothing_else(on):
@@ -95,8 +98,9 @@ def test_the_registry_serves_events_from_it_and_nothing_else(on):
 def test_the_name_lookup_walks_the_provider_ids(on):
     sstore.init_signal()
     pid = "mb-%s" % uuid.uuid4().hex
-    artist_id = sstore.upsert_artist("musicbrainz", pid, {"name": "Art Is War"})
-    assert sstore.artist_name_for_provider_id(pid) == "Art Is War"
+    name = "Art Is War %s" % uuid.uuid4().hex[:6]
+    artist_id = sstore.upsert_artist("musicbrainz", pid, {"name": name})
+    assert sstore.artist_name_for_provider_id(pid) == name
     assert sstore.provider_ids(artist_id)[0] == {"provider": "musicbrainz", "provider_id": pid}
     a = providers.BandsintownAdapter()
     assert [e["date"] for e in a.get_events(pid)] == ["2026-11-01", "2026-11-03"]
@@ -115,7 +119,7 @@ def test_the_live_dates_tab_names_its_source_or_says_not_measured(on, monkeypatc
     org = sstore.default_org()
     sstore.upsert_member(org["id"], email, "Scout", "owner", user_id=user["id"])
     pid = "mb-%s" % uuid.uuid4().hex
-    artist_id = sstore.upsert_artist("musicbrainz", pid, {"name": "Art Is War"})
+    artist_id = sstore.upsert_artist("musicbrainz", pid, {"name": "Art Is War %s" % uuid.uuid4().hex[:6]})
 
     providers.reset_registry(providers.ProviderRegistry(adapters=[providers.BandsintownAdapter()]))
     try:
