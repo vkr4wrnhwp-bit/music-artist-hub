@@ -80,7 +80,7 @@ def test_the_tour_more_menu_is_three_named_groups(flask_app):
     items = re.findall(r'<a class="to-more-item[^"]*" href="/tours/[0-9a-f]+/([a-z-]+)"', html)
     assert len(items) == len(tour_os.MORE_ORDER) and set(items) == set(tour_os.MORE_ORDER), "nothing lost, nothing doubled"
     assert items.index("calendar") < items.index("exports") < items.index("settings")
-    for day_of in ("my-day", "schedule", "guests", "vip", "setlists", "stage-plot", "merch", "content", "tasks"):
+    for day_of in ("my-day", "schedule", "guests", "vip", "setlists", "merch", "content", "tasks"):
         assert day_of not in items, day_of
     bar = tour_os._tour_bar({"is_owner": True, "scopes": list(tour_os.ts.SCOPES)}, "home")
     assert [g["label"] for g in bar["more_groups"]] == ["Booking", "Close out", "Tools"]

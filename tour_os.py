@@ -153,12 +153,13 @@ BAR_GROUPS = {"travel": (("travel", "Travel"), ("hotels", "Hotels"), ("map", "Ro
 # set lists, the stage plot, merch counts, the content plan, tasks, My
 # Day - lives inside each show's own bar and is not in this menu. Their
 # run-wide roll-ups still answer at their URLs, reached from inside a show.
-MORE_ORDER = ("shows", "calendar", "marketing", "exports", "changes", "ask", "share",
+MORE_ORDER = ("shows", "calendar", "marketing", "stage-plot", "exports", "changes", "ask", "share",
               "team", "settings")
 # Read as three questions. Order inside a group is MORE_ORDER's; a key in
 # no group lands under Tools.
 MORE_GROUPS = (
-    ("Booking", ("shows", "calendar", "marketing")),
+    # The stage plot is booking: it rides on every advance that goes out.
+    ("Booking", ("shows", "calendar", "marketing", "stage-plot")),
     ("Close out", ("exports", "changes")),
     ("Tools", ("ask", "share", "team", "settings")),
 )

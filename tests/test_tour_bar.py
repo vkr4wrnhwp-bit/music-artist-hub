@@ -52,12 +52,12 @@ def test_the_bar_is_seven_entries_for_an_owner(flask_app):
     # The tour level is for booking the run, importing it and closing it
     # out (2026-09-07: "tour page has no header navigation for day of show
     # features"). Every day-of-show page lives inside a show's own bar.
-    assert items == ["Dates", "Calendar", "Marketing",
+    assert items == ["Dates", "Calendar", "Marketing", "Stage plot",
                      "Exports", "What changed",
                      "Ask Tour", "Share links", "Team", "Settings"]
     heads = re.findall(r'class="to-more-head">([^<]+)<', bar)
     assert heads == ["Booking", "Close out", "Tools"]
-    for day_of in ("My Day", "Schedule", "Guests", "VIP", "Set lists", "Stage plot", "Merch", "Content", "Tasks"):
+    for day_of in ("My Day", "Schedule", "Guests", "VIP", "Set lists", "Merch", "Content", "Tasks"):
         assert (">%s<" % day_of) not in bar, day_of
     # The old 24-link bar is gone: no tab for Hotels or Route in the top row.
     assert "Hotels</a>" not in bar and "Route</a>" not in bar
@@ -98,7 +98,7 @@ def test_the_bar_is_scope_filtered():
                   "marketing", "content", "vip"):
         assert gated not in keys, gated
     assert "calendar" in keys and "shows" in keys
-    for day_of in ("my-day", "schedule", "setlists", "stage-plot", "tasks"):
+    for day_of in ("my-day", "schedule", "setlists", "tasks"):
         assert day_of not in keys, day_of
 
 

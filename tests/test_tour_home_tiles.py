@@ -52,7 +52,7 @@ def test_the_bar_is_what_booking_needs(flask_app):
     labels = re.findall(r'class="to-tab[^"]*"[^>]*>([^<]+)<', bar)
     assert labels[:7] == ["Home", "Import", "Venues", "Crew", "Travel &amp; hotels", "Money", "Files"]
     items = re.findall(r'class="to-more-item[^"]*"[^>]*>([^<]+)<', bar)
-    assert items == ["Dates", "Calendar", "Marketing", "Exports", "What changed", "Ask Tour", "Share links", "Team", "Settings"]
+    assert items == ["Dates", "Calendar", "Marketing", "Stage plot", "Exports", "What changed", "Ask Tour", "Share links", "Team", "Settings"]
 
 
 def test_the_sheet_and_the_worker_moved_on():
