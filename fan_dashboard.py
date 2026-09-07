@@ -26,6 +26,8 @@ What replaces them is what the records actually hold: how many people have
 been captured, how engaged they are, whether they consented, and where they
 came from.
 """
+import json
+
 import links_store as mls
 
 # The intent bands the smart-link scorer writes into ml_fans.intent_level.
@@ -47,11 +49,39 @@ def _empty(reason):
         "is_real": True,
         "has_data": False,
         "reason": reason,
-        "summary": {"total_fans": 0, "consented": 0, "qr_scans": 0,
-                    "page_views": 0, "presaves": 0},
+        "summary": {"total_fans": 0, "consented": 0, "without_consent": 0,
+                    "qr_scans": 0, "page_views": 0, "presaves": 0},
         "segments": [],
+        "sources": [],
         "top_fans": [],
     }
+
+
+def _sources(fans, campaigns):
+    """Where each fan first came from: the smart link that captured the
+    email, or the Shopify import. Counted from first_campaign_id and the
+    tags the import writes - nothing inferred."""
+    titles = {c["id"]: (c.get("title") or "Untitled") for c in campaigns}
+    counts = {}
+    for f in fans:
+        cid = f.get("first_campaign_id")
+        try:
+            tags = json.loads(f.get("tags") or "[]")
+        except ValueError:
+            tags = []
+        if cid and cid in titles:
+            label = "Smart link · %s" % titles[cid]
+        elif cid:
+            label = "Smart link (since removed)"
+        elif "shopify" in tags:
+            label = "Shopify import"
+        else:
+            label = "Unknown"
+        counts[label] = counts.get(label, 0) + 1
+    total = len(fans) or 1
+    out = [{"source": k, "count": v, "share": round(100.0 * v / total, 1)} for k, v in counts.items()]
+    out.sort(key=lambda s: (-s["count"], s["source"]))
+    return out
 
 
 def fan_dashboard_for(user_id):
@@ -106,6 +136,10 @@ def fan_dashboard_for(user_id):
                 consented += 1
     except Exception:
         consented = 0
+    try:
+        campaigns = mls.list_campaigns(user_id) or []
+    except Exception:
+        campaigns = []
 
     return {
         "is_real": True,
@@ -114,6 +148,7 @@ def fan_dashboard_for(user_id):
         "summary": {
             "total_fans": total,
             "consented": consented,
+            "without_consent": max(0, total - consented),
             # Every QR scan is a real ml_events row written by /l/<slug> when
             # the link carried ?src=qr.
             "qr_scans": int(events.get("qr_scan") or 0),
@@ -121,6 +156,7 @@ def fan_dashboard_for(user_id):
             "presaves": int(events.get("presave") or 0),
         },
         "segments": segments,
+        "sources": _sources(fans, campaigns),
         # Ranked by the scorer's own number, which is what the CRM ranks by
         # too - so the two pages cannot disagree about who is most engaged.
         "top_fans": [{
