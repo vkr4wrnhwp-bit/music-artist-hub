@@ -88,3 +88,30 @@ def test_services_points_at_the_page(monkeypatch):
     _env(monkeypatch)
     body = _demo().get("/services").get_data(as_text=True)
     assert 'href="/apparel"' in body
+
+
+def test_the_public_epk_carries_the_same_embed_only_when_configured(monkeypatch):
+    """Where fans actually land. The same partial, gated the same way: no
+    credentials, no widget - the Merch section keeps its outbound links."""
+    import db as store_mod
+    from tests.test_app import _demo
+    for key in ("SHOPIFY_DOMAIN", "SHOPIFY_STOREFRONT_TOKEN", "SHOPIFY_COLLECTION_ID"):
+        monkeypatch.delenv(key, raising=False)
+    app_obj = create_app()
+    client = _demo(app_obj)
+    assert client.post("/epk/save", json={"store_url": "https://www.artiswarrecords.com"}).get_json()["ok"]
+    client.get("/epk")                       # the editor mints the public slug
+    demo_user = store_mod.get_user_by_email("demo@streetbanker.io")
+    with store_mod.get_db() as conn:
+        slug = conn.execute("SELECT slug FROM epk_profiles WHERE slug IS NOT NULL AND user_id = ?",
+                            (demo_user["id"],)).fetchone()["slug"]
+    anon = app_obj.test_client()
+    off = anon.get("/epk/" + slug).get_data(as_text=True)
+    assert "Full store" in off and 'id="shopify-collection"' not in off and "buy-button-storefront" not in off
+    monkeypatch.setenv("SHOPIFY_DOMAIN", "art-is-war.myshopify.com")
+    monkeypatch.setenv("SHOPIFY_STOREFRONT_TOKEN", "sf-public-token")
+    monkeypatch.setenv("SHOPIFY_COLLECTION_ID", "298812866663")
+    on = anon.get("/epk/" + slug).get_data(as_text=True)
+    assert 'id="shopify-collection"' in on and "buy-button-storefront.min.js" in on
+    assert '"sf-public-token"' in on and "298812866663" in on
+    assert "shpat_" not in on and "SHOPIFY_ADMIN_TOKEN" not in on, "the admin token never reaches a page"

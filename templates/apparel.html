@@ -24,7 +24,7 @@
       <a href="{{ lb.brand.store_url }}" target="_blank" rel="noopener noreferrer"
          class="text-xs font-semibold text-sb-gold-bright hover:underline">Open the full store ↗</a>
     </div>
-    <div id="shopify-collection" class="mt-4" style="min-height: 220px;"></div>
+    {% set store_url = lb.brand.store_url %}{% include "partials/shopify_buy_embed.html" %}
     <p class="mt-4 text-xs text-gray-200">
       Checkout is hosted by Shopify. Prices, stock and shipping come from
       the store, so this page cannot show something the store does not
@@ -52,63 +52,4 @@
   </section>
   {% endif %}
 </div>
-{% endblock %}
-
-{% block scripts %}
-{% if shopify.configured %}
-<script>
-  /* Shopify's own SDK, loaded only on the page that uses it. The token
-     below is a Storefront token: it can read published products and
-     start a checkout, and that is all it can do. */
-  (function () {
-    var SDK = "https://sdks.shopifycdn.com/buy-button/latest/buy-button-storefront.min.js";
-    function build() {
-      var client = ShopifyBuy.buildClient({
-        domain: {{ shopify.domain | tojson }},
-        storefrontAccessToken: {{ shopify.token | tojson }},
-      });
-      ShopifyBuy.UI.onReady(client).then(function (ui) {
-        ui.createComponent("collection", {
-          id: {{ shopify.collection_id | tojson }},
-          node: document.getElementById("shopify-collection"),
-          options: {
-            product: {
-              styles: {
-                title: {color: "#F2ECE0"},
-                price: {color: "#E8B950"},
-                button: {
-                  "background-color": "#C9A24A", color: "#14100A",
-                  "font-weight": "700",
-                  ":hover": {"background-color": "#E8B950"},
-                },
-              },
-              text: {button: "Add to cart"},
-            },
-            cart: {
-              styles: {button: {"background-color": "#C9A24A", color: "#14100A"}},
-              text: {total: "Subtotal", button: "Checkout"},
-            },
-          },
-        });
-      });
-    }
-    if (window.ShopifyBuy && window.ShopifyBuy.UI) { build(); return; }
-    var s = document.createElement("script");
-    s.async = true;
-    s.src = SDK;
-    s.onload = build;
-    s.onerror = function () {
-      /* The store is still open; say so rather than leaving a hole. */
-      var node = document.getElementById("shopify-collection");
-      if (node) {
-        node.innerHTML =
-          '<p class="text-xs text-gray-200">The store could not be loaded here. '
-          + '<a class="font-semibold text-sb-gold-bright underline" target="_blank" rel="noopener noreferrer" href="'
-          + {{ label.brand.store_url | tojson }} + '">Open it directly ↗</a></p>';
-      }
-    };
-    document.head.appendChild(s);
-  })();
-</script>
-{% endif %}
 {% endblock %}

@@ -48,7 +48,19 @@ def configured():
     return bool(domain() and token())
 
 
+def token_looks_right():
+    """Admin API access tokens begin with shpat_. The API key and the API
+    secret from the same screen do not, and both earn a 401 that says
+    nothing about which was pasted - so the page says it first."""
+    return token().startswith("shpat_")
+
+
 def status():
+    if configured() and not token_looks_right():
+        return {"on": True, "headline": "Shopify is connected, but the token does not look right",
+                "detail": "SHOPIFY_ADMIN_TOKEN should be the Admin API access token, which begins "
+                          "with shpat_. The API key and the API secret key from the same screen "
+                          "do not work here."}
     if configured():
         return {"on": True, "headline": "Shopify is connected",
                 "detail": "Imports the customers whose email-marketing consent Shopify records as "

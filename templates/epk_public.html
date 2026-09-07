@@ -238,13 +238,18 @@
       {% endif %}
 
       <!-- Merch (stitched to the artist's store) -->
-      {% if e.store_url or e.merch %}
+      {% set buy = shopify if shopify is defined and shopify and shopify.configured else none %}
+      {% if e.store_url or e.merch or buy %}
       <section class="py-9">
         <div class="flex items-center gap-5">
           <h2 class="shrink-0 text-xs font-bold uppercase tracking-[0.4em] text-sb-gold-deep">Merch</h2>
           <div class="rule w-full"></div>
           {% if e.store_url %}<a href="{{ e.store_url }}" target="_blank" rel="noopener" class="sb-label shrink-0 text-sb-gold-deep hover:underline">Full store ↗</a>{% endif %}
         </div>
+        {% if buy %}
+        {# The store itself, on the page a fan actually lands on. #}
+        {% set store_url = e.store_url or '' %}{% include "partials/shopify_buy_embed.html" %}
+        {% endif %}
         {% if e.merch %}
         <div class="mt-6 grid gap-3 sm:grid-cols-2">
           {% for item in e.merch %}

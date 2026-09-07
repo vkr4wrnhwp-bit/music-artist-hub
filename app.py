@@ -2312,7 +2312,7 @@ def create_app():
                             # stay, and the page says outright that they
                             # are samples.
                             stats_override=(real or None))
-        return render_template("epk_public.html", e=data, slug=slug)
+        return render_template("epk_public.html", e=data, slug=slug, shopify=shopify_buy.context())
 
     @app.route("/epk/share", methods=["POST"])
     def epk_share_save():
@@ -2394,7 +2394,7 @@ def create_app():
                              "Your pitch EPK was opened",
                              "First open today on the private link. "
                              "Play counts land on the EPK editor.", "/epk")
-        return render_template("epk_public.html", e=data, slug=slug,
+        return render_template("epk_public.html", e=data, slug=slug, shopify=shopify_buy.context(),
                                pitch_token=token,
                                pitch_audio=share["audio"])
 

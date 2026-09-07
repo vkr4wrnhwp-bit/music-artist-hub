@@ -1,0 +1,59 @@
+{# Shopify's Buy Button: the store's own checkout on the page. Expects
+   `shopify` (shopify_buy.context(), configured) and `store_url` for the
+   fallback link. The SDK talks to Shopify directly - no card detail,
+   order or address passes through this app. #}
+<div id="shopify-collection" class="mt-4" style="min-height: 220px;"></div>
+<script>
+  /* Shopify's own SDK, loaded only on the page that uses it. The token
+     below is a Storefront token: it can read published products and
+     start a checkout, and that is all it can do. */
+  (function () {
+    var SDK = "https://sdks.shopifycdn.com/buy-button/latest/buy-button-storefront.min.js";
+    function build() {
+      var client = ShopifyBuy.buildClient({
+        domain: {{ shopify.domain | tojson }},
+        storefrontAccessToken: {{ shopify.token | tojson }},
+      });
+      ShopifyBuy.UI.onReady(client).then(function (ui) {
+        ui.createComponent("collection", {
+          id: {{ shopify.collection_id | tojson }},
+          node: document.getElementById("shopify-collection"),
+          options: {
+            product: {
+              styles: {
+                title: {color: "#F2ECE0"},
+                price: {color: "#E8B950"},
+                button: {
+                  "background-color": "#C9A24A", color: "#14100A",
+                  "font-weight": "700",
+                  ":hover": {"background-color": "#E8B950"},
+                },
+              },
+              text: {button: "Add to cart"},
+            },
+            cart: {
+              styles: {button: {"background-color": "#C9A24A", color: "#14100A"}},
+              text: {total: "Subtotal", button: "Checkout"},
+            },
+          },
+        });
+      });
+    }
+    if (window.ShopifyBuy && window.ShopifyBuy.UI) { build(); return; }
+    var s = document.createElement("script");
+    s.async = true;
+    s.src = SDK;
+    s.onload = build;
+    s.onerror = function () {
+      /* The store is still open; say so rather than leaving a hole. */
+      var node = document.getElementById("shopify-collection");
+      if (node) {
+        node.innerHTML =
+          '<p class="text-xs text-gray-200">The store could not be loaded here. '
+          + '<a class="font-semibold text-sb-gold-bright underline" target="_blank" rel="noopener noreferrer" href="'
+          + {{ store_url | tojson }} + '">Open it directly ↗</a></p>';
+      }
+    };
+    document.head.appendChild(s);
+  })();
+</script>

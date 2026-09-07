@@ -56,7 +56,7 @@ class Fake(object):
 
 def _connect(monkeypatch, fake):
     monkeypatch.setenv("SHOPIFY_DOMAIN", "art-is-war.myshopify.com")
-    monkeypatch.setenv("SHOPIFY_ADMIN_TOKEN", "shpat-test")
+    monkeypatch.setenv("SHOPIFY_ADMIN_TOKEN", "shpat_test")
     monkeypatch.setattr(sc, "_post", fake)
 
 
@@ -76,6 +76,15 @@ def test_it_is_inert_without_the_admin_token(monkeypatch):
         sc.fetch_customers(post=lambda *a: pytest.fail("must not call out"))
 
 
+def test_a_token_that_is_not_an_access_token_is_named_before_it_fails(monkeypatch):
+    monkeypatch.setenv("SHOPIFY_DOMAIN", "art-is-war.myshopify.com")
+    monkeypatch.setenv("SHOPIFY_ADMIN_TOKEN", "0123456789abcdef0123456789abcdef")   # an API key, not a token
+    st = sc.status()
+    assert st["on"] is True and "does not look right" in st["headline"] and "shpat_" in st["detail"]
+    monkeypatch.setenv("SHOPIFY_ADMIN_TOKEN", "shpat_test")
+    assert sc.status()["headline"] == "Shopify is connected"
+
+
 def test_fetch_pages_the_store_with_the_documented_call(monkeypatch):
     fake = Fake()
     _connect(monkeypatch, fake)
@@ -83,7 +92,7 @@ def test_fetch_pages_the_store_with_the_documented_call(monkeypatch):
     assert len(customers) == 6 and cursor is None, "read to the end"
     url, headers, body = fake.calls[0]
     assert url == "https://art-is-war.myshopify.com/admin/api/%s/graphql.json" % sc.API_VERSION
-    assert headers["X-Shopify-Access-Token"] == "shpat-test"
+    assert headers["X-Shopify-Access-Token"] == "shpat_test"
     assert "customers(first: 250, after: $after)" in body["query"] and "defaultEmailAddress" in body["query"]
     assert fake.calls[1][2]["variables"] == {"after": "c1"}
     ava = customers[0]
