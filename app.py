@@ -3256,10 +3256,12 @@ def create_app():
                                     "Paid fan club membership via Stripe checkout.")
                     store.notify(artist_id, "fan", "New fan club member",
                                  "%s joined your fan club." % email, "/fan-club")
-        elif etype == "checkout.session.completed" and \
+        elif etype in ("checkout.session.completed", "checkout.session.async_payment_succeeded") and \
                 (obj.get("metadata") or {}).get("kind") == "tour_vip":
             # A VIP package for a tour date; claimed once, however many times
-            # Stripe replays it or the success redirect got there first.
+            # Stripe replays it or the success redirect got there first. A
+            # delayed payment method completes unpaid and settles later: the
+            # second event carries the same session, now paid.
             tour_os.claim_vip_session(obj)
         elif etype == "checkout.session.completed":
             user_id = obj.get("client_reference_id")

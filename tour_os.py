@@ -2260,11 +2260,11 @@ def vip_update(user, tour, viewer, tour_id, show_id, vip_id):
 
 def vip_fee_pct():
     """Street Banker's cut of an online VIP sale: VIP_PLATFORM_FEE_PCT in
-    the environment, 0 to 50, default 10."""
+    the environment, 0 to 50, default 15 (the owner: "15% net after our fees and services")."""
     try:
-        pct = float(os.environ.get("VIP_PLATFORM_FEE_PCT", "10"))
+        pct = float(os.environ.get("VIP_PLATFORM_FEE_PCT", "15"))
     except ValueError:
-        pct = 10.0
+        pct = 15.0
     return max(0.0, min(50.0, pct))
 
 
@@ -2369,6 +2369,13 @@ def claim_vip_session(sess, tour_id=None, show_id=None):
     show = ts.get_show(tour["id"], meta.get("show_id") or "") if tour else None
     offer = ts.get_vip_offer(tour["id"], meta.get("offer_id") or "") if tour else None
     if not (tour and show and offer) or offer["show_id"] != show["id"]:
+        # Money was taken and nothing here can hold it: the owner hears,
+        # with the session id, rather than the payment vanishing.
+        if tour and not ts.vip_sale_by_session(sess.get("id")):
+            store.notify(tour["user_id"], "tour", "A VIP payment could not be matched",
+                         "Stripe session %s was paid for a date or package that no longer exists. "
+                         "Find it in the Stripe dashboard and refund or record it by hand." % (sess.get("id") or "?"),
+                         "/tours/%s/vip" % tour["id"])
         return None
     details = sess.get("customer_details") or {}
     email = (meta.get("email") or sess.get("customer_email") or details.get("email") or "").strip().lower()
@@ -2377,11 +2384,17 @@ def claim_vip_session(sess, tour_id=None, show_id=None):
         qty = max(1, int(meta.get("quantity") or 1))
     except ValueError:
         qty = 1
+    over = bool(offer["capacity"]) and offer["sold"] + qty > offer["capacity"]
     sale, created = ts.record_vip_sale(tour["id"], tour["user_id"], show, offer, sess.get("id"), email, name,
                                        qty, vip_fee_pct(), currency=(sess.get("currency") or "usd"))
     if created:
-        store.notify(tour["user_id"], "tour", "VIP sold: %s" % offer["name"],
-                     "%s bought %d x %s for %s." % (name or email or "A fan", qty, offer["name"], show["venue"]),
+        # Capacity was checked when the checkout opened; two fans can race
+        # for the last spot and both pay. The money is real, so the sale is
+        # recorded, and the owner is told it went over.
+        store.notify(tour["user_id"], "tour",
+                     ("VIP sold over capacity: %s" if over else "VIP sold: %s") % offer["name"],
+                     "%s bought %d x %s for %s.%s" % (name or email or "A fan", qty, offer["name"], show["venue"],
+                                                       " This took the package past its capacity; refund or make room." if over else ""),
                      "/tours/%s/shows/%s?tab=vip" % (tour["id"], show["id"]))
         if sale["email"] and not sale["confirmation_sent"] and _send_vip_confirmation(tour, show, offer, sale):
             ts.mark_vip_sale(sale["id"], confirmation_sent=True)
@@ -2477,9 +2490,7 @@ def vip_offer_add(user, tour, viewer, tour_id, show_id):
 def vip_offer_update(user, tour, viewer, tour_id, show_id, offer_id):
     show = _show_or_404(tour, show_id)
     action = request.form.get("action") or ""
-    if action == "delete":
-        ts.delete_vip_offer(tour_id, offer_id)
-    elif action in ("pause", "resume"):
+    if action in ("pause", "resume"):
         ts.set_vip_offer_active(tour_id, offer_id, action == "resume")
     return _back(_show_url(tour, show, "vip"))
 

@@ -99,7 +99,7 @@ def test_a_fan_buys_and_the_sale_exists_once_stripe_says_paid(flask_app, monkeyp
     sales = ts.list_vip_sales(tid)
     assert len(sales) == 1
     sale = sales[0]
-    assert (sale["quantity"], sale["unit_cents"], sale["gross_cents"], sale["fee_pct"], sale["fee_cents"], sale["net_cents"]) == (2, 15000, 30000, 10.0, 3000, 27000)
+    assert (sale["quantity"], sale["unit_cents"], sale["gross_cents"], sale["fee_pct"], sale["fee_cents"], sale["net_cents"]) == (2, 15000, 30000, 15.0, 4500, 25500)
     assert sale["email"] == "fan@example.net" and sale["confirmation_sent"] == 1
     assert len(mails) == 1 and mails[0]["to"] == "fan@example.net" and mails[0]["reply_to"] == owner["email"]
     assert "Soundcheck party" in mails[0]["subject"] or "Your VIP package" in mails[0]["subject"]
@@ -109,10 +109,10 @@ def test_a_fan_buys_and_the_sale_exists_once_stripe_says_paid(flask_app, monkeyp
     assert len(door) == 1 and door[0]["status"] == "sold" and door[0]["guest"] == "Fan One" and door[0]["quantity"] == 2
     artist = client.get("/tours/%s/shows/%s?tab=vip" % (tid, sid)).get_data(as_text=True)
     assert '<span class="sb-lcd-v">2</span>' in artist and '<span class="sb-lcd-v">300.00</span>' in artist
-    assert '<span class="sb-lcd-v">30.00</span>' in artist and '<span class="sb-lcd-v">270.00</span>' in artist
-    assert "Street Banker keeps 10%" in artist and "payouts are not automatic" in artist
+    assert '<span class="sb-lcd-v">45.00</span>' in artist and '<span class="sb-lcd-v">255.00</span>' in artist
+    assert "Street Banker keeps 15%" in artist and "payouts are not automatic" in artist
     run = client.get("/tours/%s/vip" % tid).get_data(as_text=True)
-    assert 'id="vip-online"' in run and '<span class="sb-lcd-v">270.00</span>' in run
+    assert 'id="vip-online"' in run and '<span class="sb-lcd-v">255.00</span>' in run
     # Replays - the webhook after the redirect, the redirect twice - never record twice.
     payload = json.dumps({"type": "checkout.session.completed", "data": {"object": _paid_session("cs_vip_1", offer, tid, sid)}})
     assert anon.post("/webhooks/stripe", data=payload, headers={"Stripe-Signature": "t=1,v1=forged"},
@@ -120,8 +120,9 @@ def test_a_fan_buys_and_the_sale_exists_once_stripe_says_paid(flask_app, monkeyp
     anon.post("/webhooks/stripe", data=payload, headers=_stripe_sig(payload), content_type="application/json")
     anon.get("/vip/%s?paid=1&session_id=cs_vip_1" % token)
     assert len(ts.list_vip_sales(tid)) == 1 and len(ts.list_vip(tid, sid)) == 1 and len(mails) == 1
-    # A second buyer arrives by webhook first: recorded, confirmed, once.
-    p2 = json.dumps({"type": "checkout.session.completed",
+    assert fields["payment_method_types[0]"] == "card", "delayed methods would complete unpaid"
+    # A second buyer arrives by webhook first, as a delayed payment that just settled: recorded, confirmed, once.
+    p2 = json.dumps({"type": "checkout.session.async_payment_succeeded",
                      "data": {"object": _paid_session("cs_vip_2", offer, tid, sid, email="two@example.net", name="Fan Two", quantity=1)}})
     anon.post("/webhooks/stripe", data=p2, headers=_stripe_sig(p2), content_type="application/json")
     assert len(ts.list_vip_sales(tid)) == 2 and len(mails) == 2 and mails[1]["to"] == "two@example.net"
@@ -150,7 +151,22 @@ def test_capacity_is_refused_not_oversold_and_the_fan_is_told(flask_app, monkeyp
     assert "Photo only" in pub and pub.count("<span>left</span>") == 1
     artist = client.get("/tours/%s/shows/%s?tab=vip" % (tid, sid)).get_data(as_text=True)
     assert 'sb-lamp sb-lamp--info">sold out</span>' in artist
-    assert ('value="delete" aria-label="Remove %s"' % open_offer["name"]) in artist and 'aria-label="Remove Soundcheck party"' not in artist, "sold packages cannot be deleted"
+    assert 'value="delete"' not in artist, "an offer is never deleted: a fan may be mid-checkout on it"
+    # Two fans race for the last spot and both pay: the second sale is real,
+    # so it is recorded, and the owner is told it went over.
+    import db as store
+    monkeypatch.setattr(stripe_provider, "get_checkout_session", lambda s: _paid_session(s, offer, tid, sid, email="late@example.net", name="Late", quantity=1))
+    anon.get("/vip/%s?paid=1&session_id=cs_late" % token)
+    assert ts.get_vip_offer(tid, offer["id"])["sold"] == 3 and len(ts.list_vip_sales(tid, sid)) == 2
+    titles = [n["title"] for n in store.list_notifications(owner["id"])]
+    assert "VIP sold over capacity: Soundcheck party" in titles and "VIP sold: Soundcheck party" in titles
+    # A paid session for a package that no longer resolves is not dropped in silence.
+    ghost = _paid_session("cs_ghost", offer, tid, sid)
+    ghost["metadata"]["offer_id"] = "gone"
+    monkeypatch.setattr(stripe_provider, "get_checkout_session", lambda s: ghost)
+    anon.get("/vip/%s?paid=1&session_id=cs_ghost" % token)
+    assert len(ts.list_vip_sales(tid, sid)) == 2
+    assert any(n["title"] == "A VIP payment could not be matched" and "cs_ghost" in n["body"] for n in store.list_notifications(owner["id"]))
 
 
 def test_day_of_details_go_to_every_buyer_only_when_email_is_live(flask_app, monkeypatch):
@@ -187,13 +203,20 @@ def test_scopes_sandbox_and_the_fee_setting(flask_app, monkeypatch):
     assert viewer.post("/tours/%s/shows/%s/vip/offers/add" % (tid, sid), data={"name": "X", "price": "5"}).status_code == 403
     assert viewer.post("/tours/%s/shows/%s/vip/dayof" % (tid, sid)).status_code == 403
     assert client.post("/tours/%s/shows/%s/vip/offers/add" % (tid, sid), data={"name": "Free", "price": "0"}).headers["Location"].endswith("&offer=invalid")
+    for bad in ("inf", "nan", "1e30", "99999999"):
+        assert client.post("/tours/%s/shows/%s/vip/offers/add" % (tid, sid), data={"name": "Huge", "price": bad}).headers["Location"].endswith("&offer=invalid"), bad
+    # Crew with the vip scope but not financials see the count, not the money.
+    door, _d = _member_join(flask_app, client, tid, ["view", "vip"], label="Door")
+    page = door.get("/tours/%s/shows/%s?tab=vip" % (tid, sid)).get_data(as_text=True)
+    assert 'id="vip-online"' in page and "sold online" in page and "owed to you" not in page and "Street Banker keeps" not in page
+    assert "owed to you" not in door.get("/tours/%s/vip" % tid).get_data(as_text=True)
     # The fee is a setting, clamped, and written on each sale at the time.
     monkeypatch.setenv("VIP_PLATFORM_FEE_PCT", "12.5")
     assert tour_os.vip_fee_pct() == 12.5
     monkeypatch.setenv("VIP_PLATFORM_FEE_PCT", "500")
     assert tour_os.vip_fee_pct() == 50.0
     monkeypatch.setenv("VIP_PLATFORM_FEE_PCT", "junk")
-    assert tour_os.vip_fee_pct() == 10.0
+    assert tour_os.vip_fee_pct() == 15.0
     monkeypatch.setenv("VIP_PLATFORM_FEE_PCT", "15")
     monkeypatch.setattr(stripe_provider, "get_checkout_session", lambda s: _paid_session(s, offer, tid, sid, quantity=1))
     flask_app.test_client().get("/vip/%s?paid=1&session_id=cs_fee" % token)

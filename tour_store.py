@@ -2022,11 +2022,15 @@ def vip_summary(tour_id, show_id):
 VIP_OFFER_FLAGS = ("meet_greet", "early_entry", "merch", "photo")
 
 
+VIP_MAX_CENTS = 99999999      # Stripe's unit_amount ceiling is eight digits
+
+
 def _cents(value):
     try:
-        return int(round(float(str(value or "0").replace(",", "").replace("$", "")) * 100))
-    except ValueError:
+        cents = int(round(float(str(value or "0").replace(",", "").replace("$", "")) * 100))
+    except (ValueError, OverflowError):
         return 0
+    return cents if 0 < cents <= VIP_MAX_CENTS else 0
 
 
 def _positive_int(value):
@@ -2064,17 +2068,10 @@ def set_vip_offer_active(tour_id, offer_id, active):
 
 
 def delete_vip_offer(tour_id, offer_id):
-    """An offer nobody bought goes; one with sales is paused instead, so
-    the ledger keeps its name. True when it was deleted."""
-    with get_db() as db:
-        n = db.execute("SELECT COUNT(*) FROM tour_vip_sales WHERE offer_id=? AND tour_id=?",
-                       (offer_id, tour_id)).fetchone()[0]
-        if n:
-            db.execute("UPDATE tour_vip_offers SET active=0, updated=? WHERE id=? AND tour_id=?",
-                       (_now(), offer_id, tour_id))
-            return False
-        db.execute("DELETE FROM tour_vip_offers WHERE id=? AND tour_id=?", (offer_id, tour_id))
-    return True
+    """An offer is never deleted: a fan may be on Stripe's page for it right
+    now, and a paid session must find its offer. It is paused instead."""
+    set_vip_offer_active(tour_id, offer_id, False)
+    return False
 
 
 def _offers(rows):
@@ -2120,9 +2117,13 @@ def ensure_vip_link(tour_id, show_id):
         if row:
             return row["token"]
         token = _new_id() + _new_id()[:8]
-        db.execute("INSERT INTO tour_vip_links (token, tour_id, show_id, created) VALUES (?,?,?,?)",
+        # Two first opens at once: the second insert is ignored and both read
+        # back the one that landed.
+        db.execute("INSERT OR IGNORE INTO tour_vip_links (token, tour_id, show_id, created) VALUES (?,?,?,?)",
                    (token, tour_id, show_id, _now()))
-    return token
+        row = db.execute("SELECT token FROM tour_vip_links WHERE show_id=? AND tour_id=?",
+                         (show_id, tour_id)).fetchone()
+    return row["token"]
 
 
 def vip_link(token):

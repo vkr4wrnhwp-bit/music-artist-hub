@@ -19,11 +19,13 @@
 <h2 class="to-h2">Sold online</h2>
 <div class="to-lcds" id="vip-online" aria-label="Sold online across the run">
   {{ sb.lcd(online['quantity'], "package" if online['quantity'] == 1 else "packages") }}
+  {%- if can('financials') %}
   {{ sb.lcd('%.2f' % (online['gross_cents'] / 100), "gross") }}
   {{ sb.lcd('%.2f' % (online['fee_cents'] / 100), "Street Banker keeps " ~ ('%g' % fee_pct) ~ "%") }}
   {{ sb.lcd('%.2f' % (online['net_cents'] / 100), "owed to you") }}
+  {%- endif %}
 </div>
-<p class="to-muted">Settled with you by Street Banker outside the app; payouts are not automatic yet. Each date's purchase link is on its VIP section.</p>
+<p class="to-muted">{% if can('financials') %}Settled with you by Street Banker outside the app; payouts are not automatic yet. {% endif %}Each date's purchase link is on its VIP section.</p>
 {% endif %}
 {% if totals['sold'] %}
 <div class="to-dates" id="vip-shows">

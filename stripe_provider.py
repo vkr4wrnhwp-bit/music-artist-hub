@@ -34,6 +34,7 @@ def configured():
 
 
 WEBHOOK_EVENTS = ("checkout.session.completed",
+                  "checkout.session.async_payment_succeeded",
                   "customer.subscription.deleted",
                   "invoice.payment_failed")
 
@@ -200,6 +201,10 @@ def create_vip_checkout(tour_id, show_id, offer_id, offer_name, unit_cents, quan
         return None
     fields = {
         "mode": "payment",
+        # Cards settle at once. A delayed method (bank debit) would complete
+        # the session unpaid and settle days later; the app handles that
+        # event too, but the fan should not leave the page unsure.
+        "payment_method_types[0]": "card",
         "customer_email": email,
         "success_url": base_url + "/vip/" + token + "?paid=1&session_id={CHECKOUT_SESSION_ID}",
         "cancel_url": base_url + "/vip/" + token,

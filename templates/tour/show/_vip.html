@@ -19,11 +19,23 @@
   {% endif %}
   <div class="to-lcds" id="vip-online" style="margin-top:10px" aria-label="Online sales for this date">
     {{ sb.lcd(vip_ledger['quantity'] if vip_ledger['count'] else none, "sold online") }}
+    {%- if can('financials') %}
     {{ sb.lcd(('%.2f' % (vip_ledger['gross_cents'] / 100)) if vip_ledger['count'] else none, "gross") }}
     {{ sb.lcd(('%.2f' % (vip_ledger['fee_cents'] / 100)) if vip_ledger['count'] else none, "Street Banker keeps " ~ ('%g' % vip_fee_pct) ~ "%") }}
     {{ sb.lcd(('%.2f' % (vip_ledger['net_cents'] / 100)) if vip_ledger['count'] else none, "owed to you") }}
+    {%- endif %}
   </div>
-  <p class="to-muted">Fans pay Stripe through the link. Street Banker keeps {{ '%g' % vip_fee_pct }}% and settles the rest with you outside the app; payouts are not automatic yet.</p>
+  {% if can('financials') %}<p class="to-muted">Fans pay Stripe through the link. Street Banker keeps {{ '%g' % vip_fee_pct }}% and settles the rest with you outside the app; payouts are not automatic yet.</p>{% endif %}
+  <details class="to-fold"><summary>What this does and does not do</summary>
+    <ul class="to-muted" style="margin:6px 0 0 18px;padding:0">
+      <li>The charge goes to Street Banker's Stripe account and reads as Street Banker on the fan's statement{% if can('financials') %}; "owed to you" is a book entry, settled with you outside the app{% endif %}.</li>
+      <li>A refund made in Stripe is not seen here: mark the package refunded on the list below by hand.</li>
+      <li>Capacity is checked when a fan opens checkout, so two fans racing for the last spot can both pay; you are told when that happens.</li>
+      <li>A package cannot be edited once it is on sale: pause it and add a new one. Pausing never loses a sale.</li>
+      <li>The link is permanent for this date and works for anyone who has it.</li>
+      <li>Day-of details go to every online buyer each time you press the button. Confirmation emails carry your account email as the reply-to.</li>
+    </ul>
+  </details>
   {% if vip_offers %}
   <div class="to-dates" id="vip-offers" style="margin-top:8px">
     {% for o in vip_offers %}
@@ -36,7 +48,6 @@
       <div class="to-date-state">{% if not o['active'] %}{{ sb.lamp("paused", "warn") }}{% elif o['sold_out'] %}{{ sb.lamp("sold out", "info") }}{% endif %}</div>
       <div><form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/offers/{{ o['id'] }}" class="to-inline">
         {% if o['active'] %}<button class="to-btn to-btn--ghost to-btn--small" type="submit" name="action" value="pause">Pause</button>{% else %}<button class="to-btn to-btn--ghost to-btn--small" type="submit" name="action" value="resume">Resume</button>{% endif %}
-        {% if not o['sold'] %}<button class="to-btn to-btn--ghost to-btn--small to-btn--danger" type="submit" name="action" value="delete" aria-label="Remove {{ o['name'] }}">✕</button>{% endif %}
       </form></div>
     </div>
     {% endfor %}
