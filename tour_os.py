@@ -942,22 +942,6 @@ def _core_filled(key, d, show):
     return False
 
 
-def _glance(sections, chips):
-    """One tile per section, in page order, then a + tile per chip. The
-    tile carries the section's own status line; the lamp is the only
-    judgement, and it is 'set' or 'empty', never a score."""
-    tiles = []
-    for s in sections:
-        tiles.append({"key": s["key"], "label": s["label"], "icon": s["icon"],
-                      "lamp": "set" if s.get("filled") else "empty",
-                      "tone": "on" if s.get("filled") else "",
-                      "status": s.get("status") or "", "add": False})
-    for c in chips:
-        tiles.append({"key": c["key"], "label": c["label"], "icon": c["icon"],
-                      "lamp": "", "tone": "", "status": c.get("add_label") or "Add", "add": True})
-    return tiles
-
-
 def _section_status(key, d, show, tour):
     """The one line in a section head. Counts from rows, never a guess;
     money says 'no numbers entered' rather than zero."""
@@ -1212,17 +1196,16 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         target = tab == key or TAB_SECTION.get(tab) == key
         core.append({"key": key, "label": label, "icon": icon, "optional": False, "opted": True,
                      "has_data": True, "filled": filled, "target": target,
-                     # Folded until it holds something or is asked for: a date
-                     # opens as a row of states, not a column of forms.
-                     "open": (filled or target) and key != "activity" or (key == "activity" and tab == "activity"),
+                     # Folded unless the URL asks for it: a date opens as a grid
+                     # of states, and the head says what each holds.
+                     "open": target,
                      "removable": False, "status": _section_status(key, d, show, tour)})
     for sec in shown:
         sec["filled"] = sec["has_data"]
-        sec["open"] = sec["has_data"] or sec["target"]
+        sec["open"] = sec["target"]
     d["sections"] = [c for c in core if c["key"] != "activity"] + shown
     d["tail_sections"] = [c for c in core if c["key"] == "activity"]
     d["chips"] = chips
-    d["glance"] = _glance(d["sections"], chips)
     d.update(extra)
     return render_template("tour/show.html", **_ctx(user, tour, viewer, "shows", shows=shows, tab=tab, **d))
 

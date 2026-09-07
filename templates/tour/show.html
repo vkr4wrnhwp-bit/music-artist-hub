@@ -19,14 +19,15 @@
 <span class="sb-disc sb-disc--sm" aria-hidden="true"><svg class="sb-i" aria-hidden="true" focusable="false"><use href="#sb-i-{{ name }}"/></svg></span>
 {%- endmacro %}
 
+{#- A section is a tile until it opens: the head carries the icon, the
+    label, the lamp (set or empty, never a score) and the section's own
+    status line. Open, it takes the whole row of the grid. -#}
 {% macro sec(s) %}
-<section class="to-sec{% if s['target'] %} is-target{% endif %}{% if s['optional'] %} is-optional{% endif %}" id="{{ s['key'] }}" data-section="{{ s['key'] }}">
+<section class="to-sec{% if s['target'] %} is-target{% endif %}{% if s['optional'] %} is-optional{% endif %}{% if s['open'] %} is-open{% endif %}" id="{{ s['key'] }}" data-section="{{ s['key'] }}">
   <details class="to-sec-d"{% if s['open'] %} open{% endif %}>
     <summary class="to-sec-head">
-      {{ disc(s['icon']) }}
-      <span class="to-sec-title">{{ s['label'] }}</span>
-      <span class="to-sec-status">{{ s['status'] }}</span>
-      <svg class="sb-i to-sec-caret" aria-hidden="true" focusable="false"><use href="#sb-i-chevron-down"/></svg>
+      <span class="to-sec-top">{{ disc(s['icon']) }}<span class="to-sec-title">{{ s['label'] }}</span><svg class="sb-i to-sec-caret" aria-hidden="true" focusable="false"><use href="#sb-i-chevron-down"/></svg></span>
+      <span class="to-sec-row">{{ sb.lamp("set" if s['filled'] else "empty", "on" if s['filled'] else "") }}<span class="to-sec-status">{{ s['status'] }}</span></span>
     </summary>
     <div class="to-sec-body">
       {{ caller() }}
@@ -49,7 +50,6 @@
     <p class="to-sub">{{ fmt_day(show['date']) }}{% if show['city'] %} · {{ show['city'] }}{% endif %}{% if show['tz'] %} · <span class="to-muted">{{ show['tz'] }}</span>{% endif %} · {{ m.chip(show['status']) }}</p>
   </div>
   <div class="to-inline">
-    {{ m.ready(readiness['pct']) }}
     {% if prev_show %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/shows/{{ prev_show['id'] }}?tab={{ tab }}">‹ {{ prev_show['city'] or prev_show['venue'] }}</a>{% endif %}
     {% if next_show %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/shows/{{ next_show['id'] }}?tab={{ tab }}">{{ next_show['city'] or next_show['venue'] }} ›</a>{% endif %}
     <a class="to-btn to-btn--ghost to-btn--small" href="{{ show_url }}/day-sheet" target="_blank" rel="noopener">Day sheet</a>
@@ -94,28 +94,10 @@
   {% endif %}
 </div>
 
-{#- The date at a glance: one tile per section with its state, and a +
-    tile for anything not on the date yet. A tile opens its section; the
-    forms wait below, folded until they hold something. -#}
-<div class="to-glance" id="glance" aria-label="This date at a glance">
-  {% for g in glance %}
-    {% if g['add'] %}
-    <form method="post" action="{{ show_url }}/sections" class="to-tile to-tile--add">
-      <input type="hidden" name="key" value="{{ g['key'] }}"><input type="hidden" name="action" value="add">
-      <button class="to-tile-btn" type="submit" title="{{ g['status'] }}">
-        <span class="to-tile-l">{{ disc(g['icon']) }}<span class="plus" aria-hidden="true">+</span> {{ g['label'] }}</span>
-        <span class="to-tile-s">Not on this date</span>
-      </button>
-    </form>
-    {% else %}
-    <a class="to-tile" href="#{{ g['key'] }}" data-open="{{ g['key'] }}">
-      <span class="to-tile-l">{{ disc(g['icon']) }}{{ g['label'] }}</span>
-      <span class="to-tile-row">{{ sb.lamp(g['lamp'], g['tone']) }}<span class="to-tile-s">{{ g['status'] }}</span></span>
-    </a>
-    {% endif %}
-  {% endfor %}
-</div>
-
+{#- One grid. Every section on this date is a folded tile; the one + tile
+    unfolds the chips for what is not on the date yet; Activity is last.
+    Nothing is open on first look unless the URL asked for it. -#}
+<div class="to-secs">
 {% for s in sections %}
 {% call sec(s) %}
   {% if s['key'] == 'times' %}
@@ -144,37 +126,42 @@
 {% endfor %}
 
 {% if chips %}
-<div class="to-adds" id="add-to-date">
-  <div class="to-adds-label">Add to this date</div>
-  <div class="to-chips">
-    {% for c in chips %}
-    <form method="post" action="{{ show_url }}/sections" data-chip="{{ c['key'] }}">
-      <input type="hidden" name="key" value="{{ c['key'] }}"><input type="hidden" name="action" value="add">
-      <button class="to-chip-btn" type="submit"><span class="plus" aria-hidden="true">+</span> {{ c['label'] }}</button>
-    </form>
-    {% endfor %}
-  </div>
-</div>
+<section class="to-sec to-sec--add" id="add-to-date">
+  <details class="to-sec-d">
+    <summary class="to-sec-head">
+      <span class="to-sec-top"><span class="plus" aria-hidden="true">+</span><span class="to-sec-title">Add to this date</span><svg class="sb-i to-sec-caret" aria-hidden="true" focusable="false"><use href="#sb-i-chevron-down"/></svg></span>
+      <span class="to-sec-row"><span class="to-sec-status">{{ chips|length }} more you can add</span></span>
+    </summary>
+    <div class="to-sec-body">
+      <div class="to-chips">
+        {% for c in chips %}
+        <form method="post" action="{{ show_url }}/sections" data-chip="{{ c['key'] }}">
+          <input type="hidden" name="key" value="{{ c['key'] }}"><input type="hidden" name="action" value="add">
+          <button class="to-chip-btn" type="submit"><span class="plus" aria-hidden="true">+</span> {{ c['label'] }}</button>
+        </form>
+        {% endfor %}
+      </div>
+      <p class="to-muted">An added section counts toward readiness; while it is still empty it can be taken off again.</p>
+    </div>
+  </details>
+</section>
 {% endif %}
-
-<script>
-(function () {
-  /* A tile is a link to its section; it also unfolds it, so the tap lands on the form. */
-  document.querySelectorAll(".to-tile[data-open]").forEach(function (a) {
-    a.addEventListener("click", function () {
-      var sec = document.getElementById(a.getAttribute("data-open"));
-      var d = sec && sec.querySelector("details.to-sec-d");
-      if (d) { d.open = true; }
-    });
-  });
-})();
-</script>
 
 {% for s in tail_sections %}
 {% call sec(s) %}
   {% include "tour/show/_activity.html" %}
 {% endcall %}
 {% endfor %}
+</div>
+
+<script>
+(function () {
+  /* An open section takes the whole row of the grid; a closed one is a tile. */
+  document.querySelectorAll(".to-sec > details.to-sec-d").forEach(function (d) {
+    d.addEventListener("toggle", function () { d.parentElement.classList.toggle("is-open", d.open); });
+  });
+})();
+</script>
 
 <script>
 (function () {
