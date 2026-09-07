@@ -7714,6 +7714,10 @@ def create_app():
         ctx["shopify"] = shopify_buy.context()
         user = current_user()
         ctx["is_owner"] = bool(user and _is_owner_email(user.get("email")))
+        # The owner sees whether Shopify accepts the saved token and finds
+        # the collection - the same call the embed makes, cached, so a
+        # blank widget has a sentence beside it instead of a mystery.
+        ctx["shopify_check"] = shopify_buy.check() if ctx["is_owner"] else None
         return render_template("apparel.html", active_page="apparel", **ctx)
 
     @app.route("/services/<slug>")

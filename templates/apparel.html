@@ -3,6 +3,7 @@
 {% block title %}Apparel & Merch - Street Banker{% endblock %}
 
 {% block content %}
+{% import "_sb.html" as sb %}
 {% set lb = label %}
 <div class="mx-auto max-w-[1100px] space-y-5">
 
@@ -24,6 +25,11 @@
       <a href="{{ lb.brand.store_url }}" target="_blank" rel="noopener noreferrer"
          class="text-xs font-semibold text-sb-gold-bright hover:underline">Open the full store ↗</a>
     </div>
+    {% if shopify_check %}
+    <p class="mt-3 text-xs text-gray-200">{{ sb.lamp("storefront token accepted" if shopify_check.ok else "storefront check failed", "good" if shopify_check.ok else "crit") }}
+      {% if shopify_check.ok %}{{ shopify_check.shop }} · collection "{{ shopify_check.collection }}"{% if shopify_check.error %} · {{ shopify_check.error }}{% endif %}{% else %}{{ shopify_check.error }}{% endif %}
+      <span class="text-gray-300">(owner only)</span></p>
+    {% endif %}
     {% set store_url = lb.brand.store_url %}{% include "partials/shopify_buy_embed.html" %}
     <p class="mt-4 text-xs text-gray-200">
       Checkout is hosted by Shopify. Prices, stock and shipping come from

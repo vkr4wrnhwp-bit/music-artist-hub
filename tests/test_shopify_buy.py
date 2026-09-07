@@ -12,6 +12,8 @@ and not a "coming soon".
 
 import os
 
+import uuid
+
 import shopify_buy
 from app import create_app
 
@@ -115,3 +117,57 @@ def test_the_public_epk_carries_the_same_embed_only_when_configured(monkeypatch)
     assert 'id="shopify-collection"' in on and "buy-button-storefront.min.js" in on
     assert '"sf-public-token"' in on and "298812866663" in on
     assert "shpat_" not in on and "SHOPIFY_ADMIN_TOKEN" not in on, "the admin token never reaches a page"
+
+
+def _owner(app_obj, monkeypatch):
+    """The owner sees the check; nobody else does."""
+    import db as store_mod
+    email = "owner-%s@example.net" % uuid.uuid4().hex[:8]
+    monkeypatch.setenv("OWNER_EMAILS", email)
+    client = app_obj.test_client()
+    client.post("/signup", data={"name": "Owner", "email": email, "password": "owner-pass-123"})
+    client.post("/login", data={"email": email, "password": "owner-pass-123"})
+    return client
+
+
+def test_the_storefront_check_names_what_shopify_said(monkeypatch):
+    _env(monkeypatch, SHOPIFY_DOMAIN="art-is-war.myshopify.com", SHOPIFY_STOREFRONT_TOKEN="sf-1",
+         SHOPIFY_COLLECTION_ID="298812866663")
+    import db as store_mod
+    store_mod.init_db()
+    seen = []
+
+    def post(url, headers, body):
+        seen.append((url, headers, body))
+        return 200, {"data": {"shop": {"name": "Art Is War", "primaryDomain": {"host": "www.artiswarrecords.com"}},
+                              "collection": {"title": "Street Banker", "handle": "street-banker",
+                                             "products": {"edges": [{"node": {"title": "Tee"}}]}}}}
+    out = shopify_buy.check(post=post, fresh=True)
+    assert out["ok"] is True and out["shop"] == "Art Is War" and out["collection"] == "Street Banker"
+    assert out["has_products"] is True and out["error"] == ""
+    url, headers, body = seen[0]
+    assert url == "https://art-is-war.myshopify.com/api/%s/graphql.json" % shopify_buy.API_VERSION
+    assert headers["X-Shopify-Storefront-Access-Token"] == "sf-1"
+    assert body["variables"] == {"id": "gid://shopify/Collection/298812866663"}
+    # Cached on the values: the second read costs nothing, a changed token asks again.
+    assert shopify_buy.check(post=lambda *a: (0, {"network": "must not be called"})) == out
+    monkeypatch.setenv("SHOPIFY_STOREFRONT_TOKEN", "sf-2")
+    bad = shopify_buy.check(post=lambda *a: (401, {}), fresh=True)
+    assert bad["ok"] is False and "rejected the Storefront token" in bad["error"] and "not the Admin one" in bad["error"]
+    missing = shopify_buy.check(post=lambda *a: (200, {"data": {"shop": {"name": "Art Is War"}, "collection": None}}), fresh=True)
+    assert missing["ok"] is False and "no collection has the id 298812866663" in missing["error"]
+    empty = shopify_buy.check(post=lambda *a: (200, {"data": {"shop": {"name": "A"}, "collection": {"title": "T", "products": {"edges": []}}}}), fresh=True)
+    assert empty["ok"] is True and "empty" in empty["error"]
+    _env(monkeypatch)
+    assert shopify_buy.check() is None
+
+
+def test_only_the_owner_sees_the_check_on_the_page(monkeypatch):
+    _env(monkeypatch, SHOPIFY_DOMAIN="art-is-war.myshopify.com", SHOPIFY_STOREFRONT_TOKEN="sf-page",
+         SHOPIFY_COLLECTION_ID="298812866663")
+    monkeypatch.setattr(shopify_buy, "_post", lambda *a: (401, {}))
+    app_obj = create_app()
+    body = _demo(app_obj).get("/apparel").get_data(as_text=True)
+    assert "storefront check failed" not in body and "owner only" not in body
+    body = _owner(app_obj, monkeypatch).get("/apparel").get_data(as_text=True)
+    assert "storefront check failed" in body and "rejected the Storefront token" in body and "owner only" in body
