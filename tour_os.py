@@ -59,9 +59,10 @@ VENUE_PHOTO_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 MONEY_FILE_CATEGORIES = {"invoice", "tax", "settlement", "contract"}
 
 SHOW_TABS = [
-    ("overview", "Overview"), ("schedule", "Schedule"), ("advance", "Advance"),
+    ("overview", "Overview"), ("schedule", "Schedule"), ("lineup", "Openers & set times"),
+    ("advance", "Advance"),
     ("inbox", "Advance inbox"), ("send", "Send advance"), ("travel", "Travel"), ("hotel", "Hotel"),
-    ("venue", "Venue"), ("people", "People"), ("guests", "Guest list"),
+    ("venue", "Venue"), ("crew", "Crew on this show"), ("people", "People"), ("guests", "Guest list"),
     ("vip", "VIP"), ("production", "Production"), ("money", "Money"),
     ("merch", "Merch"), ("marketing", "Marketing"), ("content", "Content"),
     ("setlist", "Set list"), ("files", "Files"), ("tasks", "Tasks"),
@@ -85,9 +86,16 @@ TAB_SCOPE = {"money": "financials", "merch": "merch", "guests": "guests",
 # (key, label, icon, the readiness categories the feature owns)
 CORE_SECTIONS = [
     ("times", "Times", "clock", ()),
+    # The bill is its own row (the audit, 2026-09-07): openers and set
+    # times are one question, the day's schedule another. No category of
+    # its own - nothing in readiness measures the bill.
+    ("lineup", "Openers & set times", "stems", ()),
     ("advance", "Advance", "tick", ("advance", "production", "catering", "hospitality",
                                    "confirmation", "contract")),
     ("venue", "Venue & contacts", "compass", ("venue", "promoter")),
+    # Who is on this date, with a call time each. Venue & contacts keeps
+    # the room and the promoter; the crew list moved here (the audit).
+    ("crew", "Crew on this show", "people", ()),
     ("deal", "Deal", "card", ("deposit",)),
     ("notes", "Notes", "pencil", ()),
     ("activity", "Activity", "pulse", ()),
@@ -119,8 +127,8 @@ CORE_CATEGORIES = [c for k in CORE_KEYS for c in SECTION_CATEGORIES[k]]
 SECTION_VIEW_SCOPE = dict(TAB_SCOPE, deal="financials", settlement="financials")
 # Adding one needs `edit` or the scope that edits its rows; a core feature
 # needs `edit`.
-SECTION_ADD_SCOPE = {"times": "edit", "advance": "edit", "venue": "edit", "deal": "edit",
-                     "notes": "edit", "activity": "edit",
+SECTION_ADD_SCOPE = {"times": "edit", "lineup": "edit", "advance": "edit", "venue": "edit",
+                     "crew": "edit", "deal": "edit", "notes": "edit", "activity": "edit",
                      "hotel": "hotel", "travel": "travel", "guests": "guests", "vip": "vip",
                      "settlement": "financials", "merch": "merch", "marketing": "marketing",
                      "content": "content", "setlist": "production", "files": "files",
@@ -128,10 +136,19 @@ SECTION_ADD_SCOPE = {"times": "edit", "advance": "edit", "venue": "edit", "deal"
 # Old tab keys that land inside a section. The page scrolls to the tab's
 # own id; this says which section it lives in.
 TAB_SECTION = {"overview": None, "schedule": "times", "inbox": "advance", "send": "advance",
-               "production": "advance", "people": "venue", "money": "deal"}
+               "production": "advance", "people": "crew", "money": "deal"}
+# Each feature's tour-wide page (a TOUR_TABS key), for the "All N dates"
+# line that ends its body. A feature with no run-wide page has no line.
+SECTION_TOUR_PAGE = {"times": "schedule", "venue": "venues", "crew": "people", "deal": "money",
+                     "settlement": "money", "activity": "changes", "hotel": "hotels",
+                     "travel": "travel", "guests": "guests", "vip": "vip", "merch": "merch",
+                     "marketing": "marketing", "content": "content", "setlist": "setlists",
+                     "files": "files", "tasks": "tasks"}
 # The title on a `+` row - never printed as text beside it.
-ADD_LABELS = {"times": "Add the day's times and the bill", "advance": "Start the advance checklist",
-              "venue": "Link the venue and its contacts", "deal": "Enter the deal",
+ADD_LABELS = {"times": "Add the day's times", "lineup": "Set the bill and its set times",
+              "advance": "Start the advance checklist",
+              "venue": "Link the venue and its promoter", "crew": "Assign crew to this date",
+              "deal": "Enter the deal",
               "notes": "Add notes", "activity": "Show the change log",
               "hotel": "Add a hotel", "travel": "Add travel", "guests": "Set the allocation and add guests",
               "vip": "Add a VIP package", "settlement": "Enter the night-of numbers",
@@ -169,9 +186,13 @@ TOUR_TAB_SCOPE = {"money": "financials", "merch": "merch", "guests": "guests",
 # once-a-tour utilities and the roll-ups sit under More. Keys are TOUR_TABS
 # keys, so every route, scope and test path is unchanged - only the bar is.
 PRIMARY_TABS = ("home", "import", "venues", "people", "travel", "money", "files")
-BAR_LABELS = {"home": "Home", "shows": "Dates", "people": "Crew", "travel": "Travel & hotels", "import": "Import"}
+# Every entry names the run-wide view it opens (the audit, 2026-09-07):
+# the bar is "all dates", a show's own page is "one night".
+BAR_LABELS = {"home": "Home", "shows": "Show list", "people": "Crew directory",
+              "travel": "All travel & hotels", "import": "Import", "venues": "Venue book",
+              "money": "Tour money", "files": "All files", "marketing": "Marketing, all dates"}
 # Pages that live under one primary entry, shown as a sub-row beneath it.
-BAR_GROUPS = {"travel": (("travel", "Travel"), ("hotels", "Hotels"), ("map", "Route"))}
+BAR_GROUPS = {"travel": (("travel", "Flights & ground"), ("hotels", "Hotels & rooming"), ("map", "Route"))}
 # The tour level is for booking the run, importing its dates, and closing
 # it out (2026-09-07). Every day-of-show page - the schedule, guests, VIP,
 # set lists, the stage plot, merch counts, the content plan, tasks, My
@@ -636,6 +657,7 @@ def _date_rows(tour, show, full=False, people=None):
         "lineup": ts.list_lineup(tid, sid),
         "advance": ts.list_advance(tid, sid),
         "show_people": [p for p in people if p.get("shows") and sid in p["shows"]],
+        "calls": ts.list_show_calls(tid, sid),
     }
     if full:
         rows["counts"] = ts.list_merch_counts(tid, show_id=sid)
@@ -657,9 +679,12 @@ def _has_data(show, rows, viewer=None, tasks=None):
     if viewer is not None:
         files = _files_for(viewer, files)
     return {
-        "times": bool(rows.get("schedule")) or bool(rows.get("lineup")) or filled("support"),
+        "times": bool(rows.get("schedule")),
+        "lineup": bool(rows.get("lineup")) or filled("support"),
         "advance": any(r.get("status") in ("complete", "waiting") for r in rows.get("advance") or []),
-        "venue": bool(show.get("venue_id")) or filled("promoter") or bool(rows.get("show_people")),
+        "venue": bool(show.get("venue_id")) or filled("promoter"),
+        # somebody put on this date by name, or given a call time
+        "crew": bool(rows.get("show_people")) or bool(rows.get("calls")),
         "deal": filled("guarantee", "backend_pct", "bonus", "deposit_required", "deposit_received",
                        "deposit_date"),
         "notes": filled("notes"),
@@ -1161,16 +1186,17 @@ def _section_status(key, d, show, tour):
     """The one line in a section head. Counts from rows, never a guess;
     money says 'no numbers entered' rather than zero."""
     if key == "times":
-        sched, acts = d["schedule"], d["lineup"]
-        if not sched and not acts:
+        sched = d["schedule"]
+        if not sched:
             return "No times yet"
-        parts = []
-        if sched:
-            parts.append("%s · %d confirmed" % (_plural(len(sched), "item"),
-                                               sum(1 for r in sched if r.get("confirmed"))))
-        if acts:
-            parts.append(_plural(len(acts), "act") + " on the bill")
-        return " · ".join(parts)
+        return "%s · %d confirmed" % (_plural(len(sched), "item"),
+                                      sum(1 for r in sched if r.get("confirmed")))
+    if key == "lineup":
+        acts = d["lineup"]
+        return (_plural(len(acts), "act") + " on the bill") if acts else "No openers yet"
+    if key == "crew":
+        n = len(d.get("crew_here") or [])
+        return ("%d on this date" % n) if n else "Nobody assigned"
     if key == "advance":
         p = d["advance_progress"]
         out = "%d of %d" % (p["done"], p["total"])
@@ -1178,7 +1204,8 @@ def _section_status(key, d, show, tour):
     if key == "venue":
         v = d["venue"]
         head = (v["name"] + (", " + v["city"] if v.get("city") else "")) if v else "No venue record linked"
-        return "%s · %s" % (head, _plural(len(d["show_people"]), "contact"))
+        promoter = str(show.get("promoter") or "").strip()
+        return head + (" · " + promoter if promoter else "")
     if key == "deal":
         m = d.get("money")
         if not m or not m["has_numbers"]:
@@ -1340,11 +1367,16 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         "venue": ts.get_venue(tour["user_id"], show["venue_id"]) if show.get("venue_id") else None,
         "guests": ts.guest_summary(tid, sid, show.get("guest_allocation")) if can(viewer, "guests") else None,
         "day_row": next((dd for dd in ts.list_days(tid) if dd.get("show_id") == sid), None),
-        # from the import sheet: only what it holds, only what the viewer may read
+        # from the import sheet: only what it holds, only what the viewer may
+        # read - plain facts, nothing opens by itself
         "sheet": {"ticket_url": (show.get("ticket_url") or "").strip(),
                   "guarantee": str(shown.get("guarantee") or "").strip() if can(viewer, "financials") else "",
                   "currency": show.get("currency") or tour["currency"],
-                  "ticket_host": _link_host(show.get("ticket_url") or "")},
+                  "ticket_host": _link_host(show.get("ticket_url") or ""),
+                  "support": str(show.get("support") or "").strip(),
+                  "capacity": str(show.get("capacity") or "").strip(),
+                  "promoter": str(show.get("promoter") or "").strip()},
+        "show_page": True,
         # times
         "schedule": _visible(viewer, rows["schedule"]),
         "people_names": [p["name"] for p in people_all], "people": people_all,
@@ -1358,11 +1390,17 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         "sent": request.args.get("sent"), "fail": request.args.get("fail"),
         # venue & contacts
         "venues": ts.list_venues(tour["user_id"]),
-        "show_people": [p for p in people_all if not p.get("shows") or sid in p["shows"]],
+        # crew on this show: named on this date, or on every date
+        "crew_here": [p for p in people_all if not p.get("shows") or sid in p["shows"]],
+        "calls": rows["calls"],
         # activity
         "changes": _changes_for(viewer, tid, mine)[:100],
     }
     d["lineup_warnings"] = ts.lineup_warnings(d["lineup"], fmt_time=eng.fmt_time)
+    # Each feature's tour-wide page, for the viewers who may open it.
+    paths = {k: p for k, _l, p in TOUR_TABS}
+    d["wide"] = {key: "/tours/%s/%s" % (tid, paths[page]) for key, page in SECTION_TOUR_PAGE.items()
+                 if not TOUR_TAB_SCOPE.get(page) or can(viewer, TOUR_TAB_SCOPE[page])}
     if can(viewer, "advance"):
         d["imports"] = [i for i in ts.list_imports(tid) if i["summary"].get("show_id") == sid][:10]
         d.update(_send_context(tour, show, viewer, user))
@@ -1389,7 +1427,9 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         if key == "activity":
             filled = bool(d["changes"])
         elif key == "times":
-            filled = bool(d["schedule"]) or bool(d["lineup"])
+            filled = bool(d["schedule"])
+        elif key == "lineup":
+            filled = bool(d["lineup"])
         else:
             filled = has[key]
         sec = {"key": key, "label": label, "icon": icon, "optional": key not in CORE_KEYS,
@@ -1529,6 +1569,54 @@ def show_notes(user, tour, viewer, tour_id, show_id):
         db.execute("UPDATE tour_shows SET notes=? WHERE id=? AND user_id=?",
                    ((request.form.get("notes") or "")[:5000], show_id, tour["user_id"]))
     return redirect(_show_url(tour, show, "notes"))
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/crew", methods=["POST"])
+@require_tour("edit")
+def show_crew(user, tour, viewer, tour_id, show_id):
+    """Who is on this date, and their call times. A tick puts the person's
+    id on their tour_people.shows list; an untick takes it off. Someone on
+    no list is on every date - that is the list's meaning, so they are
+    not editable here, and an untick that would empty a list is left
+    alone rather than quietly turning one date into all of them. Call
+    times are per (show, person) and go to tour_show_calls."""
+    show = _show_or_404(tour, show_id)
+    ticked = set(request.form.getlist("assign"))
+    people = ts.list_people(tour_id)
+    before_names, after_names = [], []
+    for p in people:
+        shows = list(p.get("shows") or [])
+        here_before = not shows or show_id in shows
+        if here_before:
+            before_names.append(p["name"])
+        if not shows:                       # on every date: not this page's call
+            after_names.append(p["name"])
+            continue
+        if p["id"] in ticked and show_id not in shows:
+            shows.append(show_id)
+        elif p["id"] not in ticked and show_id in shows:
+            if len(shows) == 1:             # would mean 'every date': leave it
+                after_names.append(p["name"])
+                continue
+            shows.remove(show_id)
+        if shows != list(p.get("shows") or []):
+            ts.update_person(tour_id, p["id"], {"shows": shows})
+        if show_id in shows:
+            after_names.append(p["name"])
+    on_date = {p["id"] for p in people if not p.get("shows") or show_id in p["shows"] or p["id"] in ticked}
+    calls_before = ts.list_show_calls(tour_id, show_id)
+    calls = {pid: (request.form.get("call:" + pid) or "") for pid in on_date}
+    ts.set_show_calls(tour_id, show_id, calls)
+    calls_after = ts.list_show_calls(tour_id, show_id)
+    changed = {}
+    if before_names != after_names:
+        changed["crew"] = (", ".join(before_names) or "—", ", ".join(after_names) or "—")
+    if calls_before != calls_after:
+        names = {p["id"]: p["name"] for p in people}
+        fmt = lambda c: ", ".join("%s %s" % (names.get(k, "?"), v) for k, v in sorted(c.items(), key=lambda kv: names.get(kv[0], ""))) or "—"
+        changed["call times"] = (fmt(calls_before), fmt(calls_after))
+    _log(tour, viewer, "show", show_id, show["venue"], changed)
+    return redirect(_show_url(tour, show, "crew"))
 
 
 @bp.route("/tours/<tour_id>/shows/<show_id>/delete", methods=["POST"])

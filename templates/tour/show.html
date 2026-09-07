@@ -19,7 +19,19 @@
     6. Nothing twice: no separate list, no chip row, no status row.
 
     The bodies are the same partials under tour/show/ and tour/date/ the
-    tabs rendered (fields, names and hidden inputs untouched). -#}
+    tabs rendered (fields, names and hidden inputs untouched).
+
+    The audit (2026-09-07): the bill and the crew are rows of their own;
+    "From your sheet" states support, capacity and promoter too; a
+    calendar-day note shows above the show notes; every body ends with
+    one "All N dates" line to its run-wide page; a quiet Day sheet link
+    sits beside the one button. -#}
+
+{#- The one line that ends every feature body: this feature across the
+    whole run. Only for a viewer who may open that page. -#}
+{% macro alldates(key) -%}
+{% if wide.get(key) %}<p class="to-sec-all"><a href="{{ wide[key] }}">All {{ shows|length }} dates ›</a></p>{% endif %}
+{%- endmacro %}
 
 {% macro disc(name) -%}
 <span class="sb-disc sb-disc--sm" aria-hidden="true"><svg class="sb-i" aria-hidden="true" focusable="false"><use href="#sb-i-{{ name }}"/></svg></span>
@@ -36,6 +48,7 @@
     </summary>
     <div class="to-sec-body">
       {{ caller() }}
+      {{ alldates(s['key']) }}
       {% if s['removable'] %}
       <form method="post" action="{{ show_url }}/sections" class="to-sec-remove">
         <input type="hidden" name="key" value="{{ s['key'] }}"><input type="hidden" name="action" value="remove">
@@ -63,18 +76,25 @@
     {%- if thumb_credits.get(show['id']) %}<p class="to-muted" style="font-size:12px;margin:2px 0 0">Photo: {{ thumb_credits[show['id']] }} via Google</p>{% endif %}
     </div>
   </div>
-  {% if can('advance') %}<a class="to-btn to-btn--small" href="{{ show_url }}?tab=send" data-reveal="send">Send advance</a>{% endif %}
+  <div class="to-head-actions">
+    {% if can('advance') %}<a class="to-btn to-btn--small" href="{{ show_url }}?tab=send" data-reveal="send">Send advance</a>{% endif %}
+    <a class="to-quiet-link" href="{{ show_url }}/day-sheet">Day sheet</a>
+  </div>
 </div>
 
-{#- What the import sheet gave us, and nothing else: the ticket link and
-    the guarantee (the latter only to someone who may read money). Absent
-    when neither exists. -#}
-{% if sheet['ticket_url'] or sheet['guarantee'] %}
+{#- What the import sheet gave us, and nothing else: the ticket link, the
+    guarantee (only to someone who may read money), the support, the
+    capacity and the promoter - plain facts, each only when the sheet
+    holds it. Absent when none exists. Nothing here opens anything. -#}
+{% if sheet['ticket_url'] or sheet['guarantee'] or sheet['support'] or sheet['capacity'] or sheet['promoter'] %}
 <div class="to-sheet" id="sheet">
   <p class="to-eyebrow">From your sheet</p>
   <div class="to-figs">
     {% if sheet['ticket_url'] %}<span class="to-fig"><span>tickets</span><b><a class="to-chip" href="{{ sheet['ticket_url'] }}" target="_blank" rel="noopener">{{ sheet['ticket_host'] }}</a></b></span>{% endif %}
     {% if sheet['guarantee'] %}<span class="to-fig"><span>guarantee</span><b>{{ sheet['guarantee'] }} {{ sheet['currency'] }}</b></span>{% endif %}
+    {% if sheet['support'] %}<span class="to-fig"><span>support</span><b>{{ sheet['support'] }}</b></span>{% endif %}
+    {% if sheet['capacity'] %}<span class="to-fig"><span>capacity</span><b>{{ sheet['capacity'] }}</b></span>{% endif %}
+    {% if sheet['promoter'] %}<span class="to-fig"><span>promoter</span><b>{{ sheet['promoter'] }}</b></span>{% endif %}
   </div>
 </div>
 {% endif %}
@@ -128,10 +148,14 @@
 {% call sec(s) %}
   {% if s['key'] == 'times' %}
     <div id="schedule">{% include "tour/show/_schedule.html" %}</div>
+  {% elif s['key'] == 'lineup' %}
+    {% include "tour/show/_lineup.html" %}
   {% elif s['key'] == 'advance' %}
     {% include "tour/date/_advance.html" %}
   {% elif s['key'] == 'venue' %}
     {% include "tour/date/_venue.html" %}
+  {% elif s['key'] == 'crew' %}
+    <div id="people">{% include "tour/show/_crew.html" %}</div>
   {% elif s['key'] == 'deal' %}
     {% include "tour/show/_money.html" %}
   {% elif s['key'] == 'notes' %}

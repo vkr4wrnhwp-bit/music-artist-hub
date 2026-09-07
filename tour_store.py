@@ -755,6 +755,8 @@ def init_tour():
     # The bill and its per-act line checks. Called from here rather than
     # given its own init hook, so a tour database is never half-migrated.
     init_lineup()
+    # Call times per person per date, the same way.
+    init_show_calls()
 
 
 # --- tours ------------------------------------------------------------------
@@ -2800,6 +2802,50 @@ def seed_lineup_from_support(tour_id, show):
         return []
     names = [part.strip() for part in raw.split(",") if part.strip()]
     return set_lineup(tour_id, show["id"], names) if names else []
+
+
+# --- crew on a date ---------------------------------------------------------
+# Who is on a date is tour_people.shows (a JSON list of show ids; an empty
+# list means every date). What this table adds is the one thing that is
+# per person AND per date: the call time. One row per (show, person); a
+# blank call time is no row.
+
+def init_show_calls():
+    with get_db() as db:
+        db.executescript("""
+            CREATE TABLE IF NOT EXISTS tour_show_calls (
+                tour_id TEXT NOT NULL,
+                show_id TEXT NOT NULL,
+                person_id TEXT NOT NULL,
+                call_time TEXT NOT NULL DEFAULT '',
+                updated TEXT NOT NULL,
+                PRIMARY KEY (show_id, person_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_tour_show_calls_tour
+                ON tour_show_calls(tour_id, show_id);
+        """)
+
+
+def list_show_calls(tour_id, show_id):
+    """{person_id: call_time} for one date; only people with a time."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT person_id, call_time FROM tour_show_calls WHERE tour_id=? AND show_id=? "
+            "AND call_time != ''", (tour_id, show_id)).fetchall()
+    return {r["person_id"]: r["call_time"] for r in rows}
+
+
+def set_show_calls(tour_id, show_id, calls):
+    """Replace the date's call times with `calls` ({person_id: call_time});
+    a blank or missing time drops the row."""
+    now = _now()
+    with get_db() as db:
+        db.execute("DELETE FROM tour_show_calls WHERE tour_id=? AND show_id=?", (tour_id, show_id))
+        for pid, when in (calls or {}).items():
+            when = (when or "").strip()[:40]
+            if pid and when:
+                db.execute("INSERT INTO tour_show_calls (tour_id, show_id, person_id, call_time, updated) "
+                           "VALUES (?,?,?,?,?)", (tour_id, show_id, pid, when, now))
 
 
 def lineup_schedule_items(tour_id, user_id, show):

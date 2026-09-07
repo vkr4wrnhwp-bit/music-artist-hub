@@ -1,0 +1,32 @@
+{% import "tour/_macros.html" as m %}
+{#- Crew on this show: the tour's people, ticked when they are on this
+    date, with an optional call time each. A person on no list is on
+    every date (that is what an empty list means in the directory) - they
+    read "on every date" here and are not editable per show. A viewer
+    without edit reads the same rows with no controls. -#}
+{% if people %}
+{% if can('edit') %}<form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/crew" class="to-form">{% endif %}
+<div class="to-table-wrap"><table class="to-table is-stack to-crew">
+  <thead><tr><th>On this date</th><th>Name</th><th>Role</th><th>Call time</th><th>Contact</th></tr></thead>
+  <tbody>
+  {% for p in people %}
+  {% set every = not p['shows'] %}
+  {% set here = every or show['id'] in p['shows'] %}
+  <tr>
+    <td data-k="On this date">{% if every %}<span class="to-muted">on every date</span>{% elif can('edit') %}<input type="checkbox" name="assign" value="{{ p['id'] }}" {% if here %}checked{% endif %} aria-label="{{ p['name'] }} on this date">{% else %}{{ 'yes' if here else '—' }}{% endif %}</td>
+    <td data-k="Name"><b>{{ p['name'] }}</b>{% if p['company'] %}<div class="to-muted">{{ p['company'] }}</div>{% endif %}</td>
+    <td data-k="Role">{{ p['role'] or '—' }}<div class="to-muted">{{ p['category'] }}</div></td>
+    <td data-k="Call time">{% if can('edit') %}<input class="to-input to-crew-call" type="text" name="call:{{ p['id'] }}" value="{{ calls.get(p['id'], '') }}" placeholder="HH:MM" aria-label="Call time for {{ p['name'] }}">{% else %}{{ calls.get(p['id']) or '—' }}{% endif %}</td>
+    <td data-k="Contact">{% if p['phone'] %}<a href="tel:{{ p['phone'] }}">{{ p['phone'] }}</a>{% endif %}{% if p['email'] %}<div><a href="mailto:{{ p['email'] }}">{{ p['email'] }}</a></div>{% endif %}{% if not p['phone'] and not p['email'] %}<span class="to-muted">—</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% if can('edit') %}
+<div class="to-bar" style="margin-bottom:0"><button class="to-btn to-btn--small" type="submit">Save crew</button>
+  <span class="to-muted">Tick who is on this date; a call time is optional and saved for the ticked. Who is on every date is set in the Crew directory.</span></div>
+</form>
+{% endif %}
+{% else %}
+  {{ m.empty("Nobody on the tour directory yet", "Add people in the Crew directory, then tick who is on this date.", "/tours/" ~ tour['id'] ~ "/people", "Crew directory") }}
+{% endif %}

@@ -6,9 +6,15 @@ The event header (the room, "Show N of M · artist", the venue, the date
 advance; "From your sheet" only when the import gave us a ticket link or
 a guarantee; then ONE grid, "Add to this show", holding every feature in
 a fixed order - a + row until it is on the show, a folded row in the same
-place once it is. Nothing is pre-added: a fresh show is seventeen + rows
+place once it is. Nothing is pre-added: a fresh show is nineteen + rows
 and no meter, because nothing has been measured. The meter appears once
 a feature is on and counts only what the features on the show own.
+
+The audit (2026-09-07) added two rows - Openers & set times after Times,
+Crew on this show after Venue & contacts - a quiet Day sheet link beside
+the one button, the sheet's support, capacity and promoter, the calendar
+day's note above the show notes, and one "All N dates" line ending every
+body. The bar names the run-wide view each entry opens.
 """
 import os
 import re
@@ -19,7 +25,7 @@ from tests.test_tour_date_page import (_user, _tour, _show, _fresh, _page, _sect
                                        _member_join, flask_app)
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FEATURES = ["times", "advance", "venue", "deal", "notes", "hotel", "travel", "guests", "vip",
+FEATURES = ["times", "lineup", "advance", "venue", "crew", "deal", "notes", "hotel", "travel", "guests", "vip",
             "settlement", "merch", "marketing", "content", "setlist", "files", "tasks", "activity"]
 
 
@@ -57,7 +63,7 @@ def _readiness(tid, sid):
 
 # --- 1, 2, 4, 5: a fresh show ---------------------------------------------------
 
-def test_a_fresh_show_is_the_header_the_button_and_seventeen_plus_rows(flask_app):
+def test_a_fresh_show_is_the_header_the_button_and_nineteen_plus_rows(flask_app):
     client, owner, tid, sid = _fresh(flask_app)
     sid2 = _show(client, tid, "2030-05-03", "Room Two")
     html = _page(client, tid, sid)
@@ -73,7 +79,7 @@ def test_a_fresh_show_is_the_header_the_button_and_seventeen_plus_rows(flask_app
     assert 'aria-label="Readiness' not in html and "% ready" not in html and "applicable" not in html
     assert ">0%<" not in html and "not started" not in html
     assert "to-strip-status" not in html and html.count('class="to-status-form') == 1, "the status lives in the header only"
-    assert "/shows/%s" % sid2 not in html and ">Day sheet<" not in html
+    assert "/shows/%s" % sid2 not in html
     assert 'id="sheet"' not in html and "From your sheet" not in html
     # The header: thumb, eyebrow, venue, date · city · status, and one button.
     head = _header(html)
@@ -87,6 +93,9 @@ def test_a_fresh_show_is_the_header_the_button_and_seventeen_plus_rows(flask_app
     assert tuple(re.findall(r'<option value="([a-z]+)"', form.group(1))) == ts.SHOW_STATUSES
     assert head.count('class="to-btn to-btn--small"') == 1 and "Send advance" in head
     assert 'href="/tours/%s/shows/%s?tab=send" data-reveal="send"' % (tid, sid) in head
+    # Beside it, one quiet link to the day sheet - not a second button.
+    assert '<a class="to-quiet-link" href="/tours/%s/shows/%s/day-sheet">Day sheet</a>' % (tid, sid) in head
+    assert head.count("Day sheet") == 1
     assert ".to-head-status select" in html and "requestSubmit" in html
     # Readiness, honestly: nothing on, nothing measured.
     r = _readiness(tid, sid)
@@ -110,7 +119,8 @@ def test_adding_times_and_hotel_makes_them_rows_in_place_and_brings_the_meter(fl
     assert _open(html) == [], "nothing opens until the URL asks"
     head = _head_of(html, "times")
     assert re.search(r'class="sb-lamp\s*">empty</span>', head) and "No times yet" in head
-    assert 'name="acts"' in html, "the body is there, folded"
+    assert "Stamp standard show day" in html, "the body is there, folded"
+    assert 'name="acts"' not in html, "the bill is its own row, not on the show yet"
     assert "Remove from this show" in html
     # Times owns no readiness item: the strip is up, but nothing is measured yet.
     assert 'id="readiness"' in html and "not started" in html and "nothing counted yet" in html
@@ -122,9 +132,9 @@ def test_adding_times_and_hotel_makes_them_rows_in_place_and_brings_the_meter(fl
     assert ts.get_show(tid, sid)["readiness_config"] == ["times", "hotel"]
     html = _page(client, tid, sid)
     expect = ["+" + k for k in FEATURES]
-    expect[0], expect[5] = "times", "hotel"
-    assert _grid(html) == expect, "grid order kept; the other fifteen stay + rows"
-    assert sum(1 for c in _grid(html) if c.startswith("+")) == 15
+    expect[0], expect[7] = "times", "hotel"
+    assert _grid(html) == expect, "grid order kept; the other seventeen stay + rows"
+    assert sum(1 for c in _grid(html) if c.startswith("+")) == 17
     r = _readiness(tid, sid)
     assert r["total"] == 1 and [c["key"] for c in r["checks"]] == ["hotel"]
     assert "0 of 1 applicable" in html and 'class="to-ready lo"' in html and 'aria-label="Readiness: 0%"' in html
@@ -176,7 +186,15 @@ def test_the_sheet_shows_exactly_the_ticket_link_and_the_guarantee(flask_app):
     sheet = _sheet(html)
     assert sheet.count('<span class="to-fig">') == 2
     assert '<span class="to-fig"><span>guarantee</span><b>1500 USD</b></span>' in sheet
-    assert "capacity" not in sheet and "promoter" not in sheet, "nothing else from the import"
+    assert "capacity" not in sheet and "promoter" not in sheet, "nothing given, nothing stated"
+    # Support, capacity and promoter are stated as plain facts once the sheet holds them (the audit).
+    client.post("/tours/%s/shows/%s/ext" % (tid, sid), data={"promoter": "Local Promoter", "capacity": "500"})
+    client.post("/tours/%s/shows/%s/lineup" % (tid, sid), data={"acts": "Opener One\nHeadliner"})
+    sheet = _sheet(_page(client, tid, sid))
+    assert '<span class="to-fig"><span>support</span><b>Opener One, Headliner</b></span>' in sheet
+    assert '<span class="to-fig"><span>capacity</span><b>500</b></span>' in sheet
+    assert '<span class="to-fig"><span>promoter</span><b>Local Promoter</b></span>' in sheet
+    assert sheet.count('<span class="to-fig">') == 5 and "<form" not in sheet and "<details" not in sheet
     # The rows those came from are on the show now, because they hold data.
     assert "marketing" in _grid(html) and "deal" in _grid(html)
     # A viewer without financials sees the tickets and never the guarantee.
@@ -409,5 +427,183 @@ def test_the_sheet_and_the_worker_moved_on():
     assert int(re.search(r"tour-os\.css\?v=(\d+)", shell).group(1)) >= 25
     sw = open(os.path.join(HERE, "static", "js", "sw.js"), encoding="utf-8").read()
     assert int(re.search(r'VERSION = "sb-v(\d+)"', sw).group(1)) >= 211
+    assert int(re.search(r'VERSION = "sb-v(\d+)"', sw).group(1)) >= 212, "the audit bumped the worker"
+    assert int(re.search(r"tour-os\.css\?v=(\d+)", shell).group(1)) >= 26
+    assert ".to-sec-all" in css and ".to-bar-note" in css and ".to-quiet-link" in css
     page = open(os.path.join(HERE, "templates", "tour", "show.html"), encoding="utf-8").read()
-    assert "tail_sections" not in page and "chips" not in page and "prev_show" not in page and "day-sheet" not in page
+    assert "tail_sections" not in page and "chips" not in page and "prev_show" not in page
+    assert not os.path.exists(os.path.join(HERE, "templates", "tour", "show", "_people.html")), "the crew list is its own row now"
+
+
+# --- the audit (2026-09-07) -----------------------------------------------------------------------------
+
+def _body_of(html, key):
+    return html.split('id="%s" data-section="%s"' % (key, key))[1].split("</section>")[0]
+
+
+def _person(client, tid, name, shows=None, **extra):
+    data = {"name": name, "category": "Crew", "role": extra.pop("role", "FOH")}
+    data.update(extra)
+    if shows:
+        data["shows"] = shows
+    r = client.post("/tours/%s/people/save" % tid, data=data)
+    assert r.status_code == 302
+    return next(p["id"] for p in ts.list_people(tid) if p["name"] == name)
+
+
+def test_the_bill_is_its_own_row_after_times_with_its_own_status_line(flask_app):
+    client, owner, tid, sid = _fresh(flask_app)
+    assert FEATURES.index("lineup") == FEATURES.index("times") + 1
+    assert tour_os.SECTION_CATEGORIES["lineup"] == () and tour_os.SECTION_ADD_SCOPE["lineup"] == "edit"
+    r = _add(client, tid, sid, "lineup")
+    assert r.status_code == 302 and r.headers["Location"].endswith("?tab=lineup")
+    html = _page(client, tid, sid)
+    assert _grid(html)[:2] == ["+times", "lineup"], "the bill is on; times is not"
+    head = _head_of(html, "lineup")
+    assert ">Openers &amp; set times<" in head and "No openers yet" in head
+    assert re.search(r'class="sb-lamp\s*">empty</span>', head)
+    assert 'name="acts"' in _body_of(html, "lineup"), "the bill form lives here"
+    client.post("/tours/%s/shows/%s/lineup" % (tid, sid), data={"acts": "Opener One\nOpener Two\nHeadliner"})
+    html = _page(client, tid, sid)
+    head = _head_of(html, "lineup")
+    assert "3 acts on the bill" in head and 'sb-lamp sb-lamp--on">set</span>' in head
+    assert "+times" in _grid(html), "acts are not times"
+    # Times is the schedule alone: its line never mentions the bill.
+    client.post("/tours/%s/schedule/add" % tid, data={"show_id": sid, "title": "Doors", "start_time": "19:00"})
+    html = _page(client, tid, sid)
+    times = _head_of(html, "times")
+    assert "1 item · 0 confirmed" in times and "bill" not in times and "act" not in times
+    assert 'name="acts"' not in _body_of(html, "times")
+    # A viewer reads the bill and gets no form.
+    viewer, _v = _member_join(flask_app, client, tid, ["view"], label="Viewer")
+    theirs = _page(viewer, tid, sid)
+    assert "lineup" in _grid(theirs) and "Opener One" in theirs and 'name="acts"' not in theirs
+
+
+def test_the_crew_row_assigns_people_to_the_date_and_saves_call_times(flask_app):
+    client, owner, tid, sid = _fresh(flask_app)
+    sid2 = _show(client, tid, "2030-05-03", "Room Two")
+    assert FEATURES.index("crew") == FEATURES.index("venue") + 1
+    assert tour_os.SECTION_CATEGORIES["crew"] == () and tour_os.SECTION_ADD_SCOPE["crew"] == "edit"
+    assert tour_os.TAB_SECTION["people"] == "crew"
+    everyone = _person(client, tid, "Tour Manager", role="TM")           # on every date
+    foh = _person(client, tid, "Front Of House", shows=[sid2])           # on the other date only
+    html = _page(client, tid, sid)
+    assert "+crew" in _grid(html), "nobody named on this date yet"
+    html = _page(client, tid, sid, "crew")
+    body = _body_of(html, "crew")
+    assert 'action="/tours/%s/shows/%s/crew"' % (tid, sid) in body
+    assert 'name="assign" value="%s"' % foh in body and 'name="assign" value="%s" checked' % foh not in body
+    assert ">on every date<" in body and 'name="assign" value="%s"' % everyone not in body, "every-date people are not per-show"
+    assert 'name="call:%s"' % everyone in body and 'name="call:%s"' % foh in body
+    assert "Nobody assigned" not in _head_of(html, "crew") and "1 on this date" in _head_of(html, "crew")
+    r = client.post("/tours/%s/shows/%s/crew" % (tid, sid),
+                    data={"assign": [foh], "call:%s" % foh: "15:00", "call:%s" % everyone: "13:30"})
+    assert r.status_code == 302 and r.headers["Location"].endswith("?tab=crew")
+    assert sorted(ts.get_person(tid, foh)["shows"]) == sorted([sid2, sid])
+    assert ts.get_person(tid, everyone)["shows"] == []
+    assert ts.list_show_calls(tid, sid) == {foh: "15:00", everyone: "13:30"}
+    assert ts.list_show_calls(tid, sid2) == {}, "a call time is per date"
+    html = _page(client, tid, sid)
+    assert "crew" in _grid(html) and "+crew" not in _grid(html)
+    head = _head_of(html, "crew")
+    assert "2 on this date" in head and 'sb-lamp sb-lamp--on">set</span>' in head
+    body = _body_of(html, "crew")
+    assert 'name="assign" value="%s" checked' % foh in body and 'value="15:00"' in body and 'value="13:30"' in body
+    assert any(c["field"] == "crew" and "Front Of House" in c["after"] for c in ts.list_changes(tid))
+    assert any(c["field"] == "call times" for c in ts.list_changes(tid))
+    # A view-only member reads the same rows and cannot change them.
+    viewer, _v = _member_join(flask_app, client, tid, ["view"], label="Viewer")
+    theirs = _page(viewer, tid, sid)
+    assert "crew" in _grid(theirs)
+    body = _body_of(theirs, "crew")
+    assert "Front Of House" in body and "15:00" in body and "13:30" in body and ">on every date<" in body
+    assert 'name="assign"' not in body and 'name="call:' not in body and "Save crew" not in body
+    assert viewer.post("/tours/%s/shows/%s/crew" % (tid, sid), data={"assign": []}).status_code == 403
+    # Unticking takes them off this date; unticking their last date is refused, not turned into 'every date'.
+    client.post("/tours/%s/shows/%s/crew" % (tid, sid), data={})
+    assert ts.get_person(tid, foh)["shows"] == [sid2] and ts.list_show_calls(tid, sid) == {}
+    client.post("/tours/%s/shows/%s/crew" % (tid, sid2), data={})
+    assert ts.get_person(tid, foh)["shows"] == [sid2], "one date cannot become every date by an untick"
+
+
+def test_venue_and_contacts_no_longer_lists_the_crew(flask_app):
+    client, owner, tid, sid = _fresh(flask_app)
+    _person(client, tid, "Tour Manager", role="TM")
+    client.post("/tours/%s/shows/%s/ext" % (tid, sid), data={"promoter": "Local Promoter"})
+    html = _page(client, tid, sid, "venue")
+    body = _body_of(html, "venue")
+    assert "Tour Manager" not in body and "Contacts on this date" not in body and 'id="people"' not in body
+    assert "No venue record linked · Local Promoter" in _head_of(html, "venue"), "the room and the promoter"
+    # The old ?tab=people link lands on the crew row.
+    html = _page(client, tid, sid, "people")
+    assert _open(html) == ["crew"] and 'id="people"' in _body_of(html, "crew")
+
+
+def test_a_calendar_day_note_shows_above_the_show_notes(flask_app):
+    client, owner, tid, sid = _fresh(flask_app)
+    day = next(d for d in ts.list_days(tid) if d.get("show_id") == sid)
+    html = _page(client, tid, sid, "notes")
+    assert "From the calendar" not in html
+    r = client.post("/tours/%s/days/%s/edit" % (tid, day["id"]), data={"notes": "Bus call moved to 09:00."})
+    assert r.status_code == 302
+    html = _page(client, tid, sid, "notes")
+    body = _body_of(html, "notes")
+    note = body.split('id="day-note"')[1].split("</p>")[0]
+    assert "<strong>From the calendar:</strong> Bus call moved to 09:00." in note
+    assert 'href="/tours/%s/calendar"' % tid in note
+    assert note.index("From the calendar") < body.index('name="notes"'), "above the textarea"
+    assert "Bus call moved" not in body.split('name="notes"')[1], "read-only here; it is edited on the calendar"
+
+
+def test_the_day_sheet_link_is_in_the_header_for_everyone_who_may_open_it(flask_app):
+    client, owner, tid, sid = _fresh(flask_app)
+    link = '<a class="to-quiet-link" href="/tours/%s/shows/%s/day-sheet">Day sheet</a>' % (tid, sid)
+    assert link in _header(_page(client, tid, sid))
+    viewer, _v = _member_join(flask_app, client, tid, ["view"], label="Viewer")
+    theirs = _page(viewer, tid, sid)
+    assert link in _header(theirs) and "Send advance" not in _header(theirs)
+    assert viewer.get("/tours/%s/shows/%s/day-sheet" % (tid, sid)).status_code == 200
+
+
+def test_every_body_ends_with_one_all_dates_line_to_its_run_wide_page(flask_app):
+    client, owner, tid, sid = _fresh(flask_app)
+    _show(client, tid, "2030-05-03", "Room Two")
+    _show(client, tid, "2030-05-04", "Room Three")
+    for key, page in (("hotel", "hotels"), ("guests", "guests"), ("crew", "people"), ("times", "schedule"),
+                      ("deal", "money"), ("settlement", "money"), ("activity", "changes"), ("content", "content")):
+        body = _body_of(_page(client, tid, sid, key), key)
+        assert body.count("All 3 dates ›") == 1, key
+        assert '<p class="to-sec-all"><a href="/tours/%s/%s">All 3 dates ›</a></p>' % (tid, page) in body, key
+    assert "All shows" not in _page(client, tid, sid, "content"), "one wording"
+    assert "All 3 dates" not in _body_of(_page(client, tid, sid, "lineup"), "lineup"), "no run-wide page for the bill"
+    # The line goes only where the viewer may: a run-wide page is gated the
+    # same way its section is, so an editor without guests gets neither.
+    editor, _e = _member_join(flask_app, client, tid, ["view", "edit"], label="Editor")
+    body = _body_of(_page(editor, tid, sid, "hotel"), "hotel")
+    assert "All 3 dates ›" in body and "/tours/%s/hotels" % tid in body
+    theirs = _page(editor, tid, sid, "crew")
+    assert "/tours/%s/people" % tid in _body_of(theirs, "crew")
+    for gated in ("guests", "vip", "merch", "money", "marketing", "content", "files"):
+        assert "/tours/%s/%s" % (tid, gated) not in theirs, gated
+    guests, _g = _member_join(flask_app, client, tid, ["view", "guests"], label="Guests")
+    body = _body_of(_page(guests, tid, sid, "guests"), "guests")
+    assert '<p class="to-sec-all"><a href="/tours/%s/guests">All 3 dates ›</a></p>' % tid in body
+
+
+def test_the_bar_names_the_run_and_says_so_under_itself(flask_app):
+    client, owner, tid, sid = _fresh(flask_app)
+    line = '<p class="to-bar-note">Every date on this tour. Open a show to work one night.</p>'
+    venues = client.get("/tours/%s/venues" % tid).get_data(as_text=True)
+    bar = venues.split('class="to-tabs to-bar"')[1].split("</nav>")[0]
+    labels = re.findall(r'class="to-tab[^"]*"[^>]*>([^<]+)<', bar)
+    assert labels[:7] == ["Home", "Import", "Venue book", "Crew directory", "All travel &amp; hotels", "Tour money", "All files"]
+    assert line in venues and venues.count("to-bar-note") == 1
+    travel = client.get("/tours/%s/hotels" % tid).get_data(as_text=True)
+    sub = travel.split('class="to-subnav"')[1].split("</nav>")[0]
+    assert re.findall(r">([^<]+)</a>", sub) == ["Flights &amp; ground", "Hotels &amp; rooming", "Route"]
+    assert line in travel
+    show = _page(client, tid, sid)
+    assert "to-bar-note" not in show, "the plate already says the show"
+    home = client.get("/tours/%s" % tid).get_data(as_text=True)
+    assert "to-bar-note" not in home and 'class="to-tabs to-bar"' not in home, "the bare list carries neither"

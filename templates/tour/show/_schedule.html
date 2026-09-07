@@ -1,8 +1,5 @@
 {% import "tour/_macros.html" as m %}
-{# The bill leads the schedule tab: on a package tour the running
-   order is what every other time on the day hangs off. #}
-{% include "tour/show/_lineup.html" %}
-
+{# The day's schedule. The bill is its own row, Openers & set times. #}
 <div class="to-split">
   <div>
     {% if schedule %}

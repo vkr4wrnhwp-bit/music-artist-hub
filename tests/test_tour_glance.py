@@ -52,16 +52,16 @@ def test_a_fresh_show_is_one_grid_below_the_header_and_nothing_open(flask_app):
     assert 'id="glance"' not in html and "to-secs" not in html and 'id="showbar"' not in html and 'id="add-to-date"' not in html
     assert html.count('class="to-ready') == 0 and 'id="readiness"' not in html, "nothing on, nothing measured"
     assert "Not on this date" not in html and "9 more you can add" not in html
-    # The five core features, once added, are folded rows in their places whose heads say 'empty'.
-    for key in CORE[:5]:
+    # The seven core features, once added, are folded rows in their places whose heads say 'empty'.
+    for key in CORE[:-1]:
         assert _add(client, tid, sid, key).status_code == 302
     html = _page(client, tid, sid)
     rows = _rows(html)
-    assert rows[:5] == CORE[:5] and rows[-1] == "+activity", "the core rows in place, Activity still a + row"
+    assert rows[:7] == CORE[:-1] and rows[-1] == "+activity", "the core rows in place, Activity still a + row"
     assert [r[1:] for r in rows if r.startswith("+")] == OPTIONAL + ["activity"]
     assert _open_sections(html) == [], "nothing opens until the URL asks"
     heads = html.split('id="features"')[1].split("<script>")[0]
-    assert len(re.findall(r'class="sb-lamp\s*">empty</span>', heads)) == 5 and "sb-lamp--on" not in heads
+    assert len(re.findall(r'class="sb-lamp\s*">empty</span>', heads)) == 7 and "sb-lamp--on" not in heads
     assert html.count('class="to-ready') == 1, "readiness reads once, in the strip"
 
 

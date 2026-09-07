@@ -1,4 +1,9 @@
 {% import "tour/_macros.html" as m %}
+{#- The calendar day's own note, when it has one, read-only above the show
+    notes: it is edited on the calendar, so the way there is beside it. -#}
+{% if day_row and day_row['notes'] %}
+<p class="to-note" id="day-note"><strong>From the calendar:</strong> {{ day_row['notes'] }} <a class="to-quiet-link" href="/tours/{{ tour['id'] }}/calendar">Calendar ›</a></p>
+{% endif %}
 {% if can('edit') %}
 <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/notes" class="to-form">
   {{ m.textarea('notes', 'Show notes (everyone on the tour can read these)', show['notes'], rows=10) }}

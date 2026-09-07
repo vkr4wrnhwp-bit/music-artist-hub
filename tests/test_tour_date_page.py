@@ -24,11 +24,11 @@ import tour_os
 import tour_store as ts
 
 PASSWORD = "date-pass-123"
-CORE = ["times", "advance", "venue", "deal", "notes", "activity"]
+CORE = ["times", "lineup", "advance", "venue", "crew", "deal", "notes", "activity"]
 OPTIONAL = ["hotel", "travel", "guests", "vip", "settlement", "merch", "marketing",
             "content", "setlist", "files", "tasks"]
 # The grid order: the core features, the optional ones, Activity last.
-FEATURES = CORE[:5] + OPTIONAL + ["activity"]
+FEATURES = [k for k in CORE if k != "activity"] + OPTIONAL + ["activity"]
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -100,8 +100,10 @@ def _readiness(tid, sid):
 
 # --- the page -----------------------------------------------------------------
 
-def test_a_fresh_date_is_seventeen_plus_rows_and_nothing_else(flask_app):
+def test_a_fresh_date_is_nineteen_plus_rows_and_nothing_else(flask_app):
     client, owner, tid, sid = _fresh(flask_app)
+    assert tour_os.CORE_KEYS == CORE and tour_os.SECTION_KEYS == CORE + OPTIONAL
+    assert [k for k, *_ in tour_os.FEATURE_ORDER] == FEATURES and len(FEATURES) == 19
     html = _page(client, tid, sid)
     assert _sections(html) == []                    # nothing pre-added
     assert _chips(html) == set(FEATURES)            # a + row for every feature, the core ones too
@@ -137,7 +139,7 @@ def test_adding_a_section_puts_it_on_the_page_in_place_of_its_plus_row(flask_app
     assert ts.get_show(tid, sid)["readiness_config"] == ["hotel", "times"]
     html = _page(client, tid, sid)
     assert _sections(html) == ["times", "hotel"], "the grid order, not the order added"
-    assert 'name="acts"' in html
+    assert "Stamp standard show day" in html and 'name="acts"' not in html, "the bill is its own row"
 
 
 def test_a_deep_link_still_opens_a_section_nobody_added(flask_app):
@@ -250,7 +252,7 @@ def test_a_member_without_financials_sees_no_deal_and_no_settlement_plus_row(fla
 
 def test_every_old_tab_url_still_answers_and_lands_on_its_element(flask_app):
     client, owner, tid, sid = _fresh(flask_app)
-    assert len(tour_os.SHOW_TABS) == 21
+    assert len(tour_os.SHOW_TABS) == 23
     for tab, _label in tour_os.SHOW_TABS:
         r = client.get("/tours/%s/shows/%s?tab=%s" % (tid, sid, tab))
         assert r.status_code == 200, (tab, r.status_code)
