@@ -53,6 +53,29 @@
     {{ m.empty("No tours yet", "Create one below. If you have already been invited to someone else's tour, open the link in the invitation — it lands here.") }}
   {% endif %}
 
+  {% if all_dates %}
+  {#- Every date across every tour, one month at a time; a day opens its show. -#}
+  <div class="to-head" style="margin-top:18px">
+    <div><p class="to-eyebrow">Calendar</p><h2 class="to-h2" style="margin:0">{{ all_month_label }}</h2><p class="to-sub">{{ all_dates }} date{{ '' if all_dates == 1 else 's' }} across your tours. Open a day to work it.</p></div>
+    <div class="to-inline">
+      <a class="to-btn to-btn--ghost to-btn--small" href="?month={{ all_prev }}">‹</a>
+      <a class="to-btn to-btn--ghost to-btn--small" href="?month={{ this_month }}">This month</a>
+      <a class="to-btn to-btn--ghost to-btn--small" href="?month={{ all_next }}">›</a>
+    </div>
+  </div>
+  <div class="to-cal" role="grid" aria-label="{{ all_month_label }}" id="all-cal">
+    {% for d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}<div class="to-cal-dow">{{ d }}</div>{% endfor %}
+    {% for c in all_cells %}
+      {% set first = c['items'][0] if c['items'] else None %}
+      <a class="to-cal-day {{ 'is-out' if not c['in_month'] }} {{ 'is-today' if c['today'] }}" href="{{ first['href'] if first else '#' }}" aria-label="{{ c['date'] }}">
+        <span class="d">{{ c['day'] }}</span>
+        {% for it in c['items'][:2] %}<div class="ev {{ 'show' if it['show'] }}">{{ it['label'] }}</div>{% if it['tours_n'] > 1 %}<div class="pct">{{ it['tour'] }}</div>{% endif %}{% endfor %}
+        {% if c['items'] %}<span class="dot"></span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if can_own %}
   {#- Three ways in, each behind a plus; the first opens on its own only
       while there is nothing to list. -#}

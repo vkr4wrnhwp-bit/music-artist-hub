@@ -618,7 +618,44 @@ def index():
     return render_template("tour/index.html", active_page="tours", mine=mine, shared=shared,
                            unattached=unattached, can_own=_artist_tier(user),
                            is_demo=_is_demo(user), tz_guess=_tz_guess(),
-                           tour_statuses=ts.TOUR_STATUSES)
+                           tour_statuses=ts.TOUR_STATUSES,
+                           **_all_tours_month(mine + shared, request.args.get("month") or ""))
+
+
+def _all_tours_month(tours, month_arg):
+    """One month across every tour the person owns or is on: each day's
+    items carry their own link, since a cell can hold dates from two
+    tours. No readiness figure here - it is scored inside a tour."""
+    today = date.today().isoformat()
+    month = month_arg if re.match(r"^\d{4}-\d{2}$", month_arg or "") else ""
+    entries = []
+    for t in tours:
+        show_by_id = {s["id"]: s for s in ts.list_shows(t["id"])}
+        for d in ts.list_days(t["id"]):
+            s = show_by_id.get(d.get("show_id"))
+            entries.append({"date": d["date"], "tour": t["name"], "tours_n": len(tours),
+                            "label": (s["city"] or s["venue"]) if s else (d.get("title") or (d.get("kind") or "").replace("_", " ").capitalize()),
+                            "show": bool(s),
+                            "href": "/tours/%s/shows/%s" % (t["id"], s["id"]) if s else "/tours/%s/calendar?month=%s" % (t["id"], d["date"][:7])})
+    if not month:
+        upcoming = sorted(e["date"] for e in entries if e["date"] >= today)
+        month = (upcoming[0] if upcoming else today)[:7]
+    y, m = int(month[:4]), int(month[5:7])
+    first = date(y, m, 1)
+    start = first - timedelta(days=(first.weekday() + 1) % 7)
+    by_date = {}
+    for e in entries:
+        by_date.setdefault(e["date"], []).append(e)
+    cells = []
+    for i in range(42):
+        d = start + timedelta(days=i)
+        iso = d.isoformat()
+        cells.append({"date": iso, "day": d.day, "in_month": d.month == m, "today": iso == today,
+                      "items": sorted(by_date.get(iso, []), key=lambda e: (not e["show"], e["label"]))})
+    return {"all_cells": cells, "all_month": month, "all_month_label": first.strftime("%B %Y"),
+            "all_prev": (first - timedelta(days=1)).strftime("%Y-%m"),
+            "all_next": (first + timedelta(days=32)).replace(day=1).strftime("%Y-%m"),
+            "all_dates": len(entries), "this_month": today[:7]}
 
 
 def _tz_guess():

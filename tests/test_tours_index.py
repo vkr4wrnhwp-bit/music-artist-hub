@@ -25,6 +25,23 @@ def test_the_index_is_rows_and_three_pluses(flask_app):
     assert ts.ADOPTED_TOUR_NAME not in html
 
 
+def test_the_index_carries_a_month_across_every_tour(flask_app):
+    client, owner = _user(flask_app)
+    assert 'id="all-cal"' not in client.get("/tours").get_data(as_text=True), "no dates: no calendar"
+    tid = _tour(client)
+    s1 = _show(client, tid, "2030-05-02", "Room One")
+    r = client.post("/tours/new", data={"one_off": "1", "venue": "Turf Club", "city": "St. Paul, MN", "date": "2030-05-09"})
+    tid2 = r.headers["Location"].split("/tours/")[1].split("/")[0]
+    s2 = ts.list_shows(tid2)[0]["id"]
+    html = client.get("/tours").get_data(as_text=True)
+    assert 'aria-label="May 2030" id="all-cal"' in html, "the month of the first upcoming date"
+    grid = html.split('id="all-cal"')[1]
+    assert ('href="/tours/%s/shows/%s"' % (tid, s1)) in grid and ('href="/tours/%s/shows/%s"' % (tid2, s2)) in grid
+    assert "2 dates across your tours" in html and "% ready" not in grid, "no readiness figure off the tour"
+    assert 'href="?month=2030-06">' in html and 'href="?month=2030-04">' in html
+    assert 'aria-label="June 2030"' in client.get("/tours?month=2030-06").get_data(as_text=True)
+
+
 def test_a_one_off_show_is_a_tour_of_one_date_with_its_show_made(flask_app):
     client, owner = _user(flask_app)
     r = client.post("/tours/new", data={"one_off": "1", "venue": "Turf Club", "city": "St. Paul, MN",
