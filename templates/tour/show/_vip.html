@@ -33,9 +33,10 @@
   {{ m.empty("No VIP packages for this show", "Add the packages sold, with times and what each includes; check people in on the night. Ticketing platforms are not connected — these are your records.") }}
 {% endif %}
 
-<details class="to-add" id="add-vip"{% if not vip_rows %} open{% endif %}>
+{#- The page folds an empty tab behind its own plus; this fold appears once a package exists. -#}
+{% if vip_rows %}<details class="to-add" id="add-vip">
 <summary><span class="plus" aria-hidden="true">+</span> Add a VIP package</summary>
-<div class="to-add-body">
+<div class="to-add-body">{% endif %}
 <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/add" class="to-form">
   <div class="to-grid">
     {{ m.field('package', 'Package', required=True, placeholder='Soundcheck party') }}
@@ -51,5 +52,5 @@
   </div>
   <div class="to-bar" style="margin-bottom:0"><button class="to-btn" type="submit">Add</button></div>
 </form>
-</div>
-</details>
+{% if vip_rows %}</div>
+</details>{% endif %}

@@ -38,7 +38,8 @@ def test_a_dates_guest_list_is_rows_with_access_as_chips_and_a_folded_form(flask
     tid = _tour(client)
     sid = _show(client, tid)
     html = client.get("/tours/%s/shows/%s?tab=guests" % (tid, sid)).get_data(as_text=True)
-    assert '<details class="to-add" id="add-guest" open>' in html and "Guest list is empty" in html
+    assert "Guest list is empty" in html and 'id="add-guest"' not in html, "the page's own fold holds the empty tab; no second plus"
+    assert 'action="/tours/%s/shows/%s/guests/add"' % (tid, sid) in html
     client.post("/tours/%s/shows/%s/guests/add" % (tid, sid), data={
         "name": "Sam Press", "count": "2", "category": "Media", "company": "The Paper",
         "requested_by": "Mgmt", "backstage": "1", "meet_greet": "1", "status": "approved"})
@@ -58,7 +59,8 @@ def test_vip_is_windows_over_a_row_per_show_and_a_dates_list_is_rows(flask_app):
     html = client.get("/tours/%s/vip" % tid).get_data(as_text=True)
     assert 'id="vip-totals"' in html and '<span class="sb-lcd-v">0</span>' in html
     assert re.search(r'<span class="sb-lcd-v">—</span>\s*<span class="sb-lcd-cap">VIP gross', html), "nothing sold: gross is not a number"
-    assert '<details class="to-add" id="add-vip" open>' in client.get("/tours/%s/shows/%s?tab=vip" % (tid, sid)).get_data(as_text=True)
+    empty = client.get("/tours/%s/shows/%s?tab=vip" % (tid, sid)).get_data(as_text=True)
+    assert 'id="add-vip"' not in empty and 'action="/tours/%s/shows/%s/vip/add"' % (tid, sid) in empty
     client.post("/tours/%s/shows/%s/vip/add" % (tid, sid), data={
         "package": "Soundcheck party", "price": "150", "quantity": "3", "purchaser": "Taylor",
         "guest": "Taylor Example", "merch": "1", "schedule_time": "16:30"})

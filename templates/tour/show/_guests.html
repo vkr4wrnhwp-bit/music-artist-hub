@@ -44,9 +44,10 @@
   {{ m.empty("Guest list is empty", "Requests land as pending; approving past the allocation is refused, not silently allowed.") }}
 {% endif %}
 
-<details class="to-add" id="add-guest"{% if not guest_rows %} open{% endif %}>
+{#- The page folds an empty tab behind its own plus; this fold appears once the list holds someone. -#}
+{% if guest_rows %}<details class="to-add" id="add-guest">
 <summary><span class="plus" aria-hidden="true">+</span> Add a guest</summary>
-<div class="to-add-body">
+<div class="to-add-body">{% endif %}
 <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/guests/add" class="to-form">
   <div class="to-grid">
     {{ m.field('name', 'Name', required=True) }}
@@ -65,5 +66,5 @@
   </div>
   <div class="to-bar" style="margin-bottom:0"><button class="to-btn" type="submit">Add</button></div>
 </form>
-</div>
-</details>
+{% if guest_rows %}</div>
+</details>{% endif %}
