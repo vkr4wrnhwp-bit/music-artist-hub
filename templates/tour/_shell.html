@@ -3,7 +3,7 @@
    see, and the offline strip. Pages extend this and fill `tour_body`. #}
 {% extends "base.html" %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/tour-os.css?v=22">
+  <link rel="stylesheet" href="/static/css/tour-os.css?v=23">
 {% endblock %}
 {% block content %}
 {% import "tour/_macros.html" as m %}
@@ -12,8 +12,8 @@
 
   <div class="to-head">
     <div>
-      <p class="to-eyebrow"><a href="/tours" style="text-decoration:none">TOUR</a>{% if tour['artist_name'] %} · {{ tour['artist_name'] }}{% endif %}</p>
-      <h1 class="to-h1">{{ tour['name'] }}</h1>
+      <p class="to-eyebrow"><a href="/tours" style="text-decoration:none">‹ Home</a>{% if tour['artist_name'] %} · {{ tour['artist_name'] }}{% endif %}</p>
+      <h1 class="to-h1">{% if bare %}{{ tour['name'] }}{% else %}<a href="/tours/{{ tour['id'] }}" style="color:inherit;text-decoration:none">{{ tour['name'] }}</a>{% endif %}</h1>
     </div>
     <div class="to-inline">
       <span class="to-status">{{ status_line }}</span>
@@ -31,9 +31,10 @@
 
   {# Seven entries for the daily work; the rest under More. The active page
      lights its entry, or the More button with its own label. #}
+  {% if not bare %}
   <nav class="to-tabs to-bar" aria-label="Tour sections">
     {% for t in tour_bar.primary %}
-      <a class="to-tab {{ 'is-on' if t.on }}" href="/tours/{{ tour['id'] }}{% if t.path %}/{{ t.path }}{% endif %}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}</a>
+      <a class="to-tab {{ 'is-on' if t.on }}" href="{% if t.key == 'home' %}/tours{% else %}/tours/{{ tour['id'] }}{% if t.path %}/{{ t.path }}{% endif %}{% endif %}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}</a>
     {% endfor %}
     {% if tour_bar.more %}
     <details class="to-more" id="to-more">
@@ -55,6 +56,7 @@
   <nav class="to-subnav" aria-label="Travel and hotels">
     {% for t in tour_bar.sub %}<a class="to-sub-tab {{ 'is-on' if t.on }}" href="/tours/{{ tour['id'] }}/{{ t.path }}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}
   </nav>
+  {% endif %}
   {% endif %}
 
   {% block tour_body %}{% endblock %}

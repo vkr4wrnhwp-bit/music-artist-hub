@@ -3,23 +3,12 @@
 {% block title %}{{ tour['name'] }} - TOUR - Street Banker{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
-{#- The tour's home is the month. A day opens its show; the bar above
-    holds what booking needs; everything day-of lives inside the show.
-    The owner struck the dates list and the change banner off this page
-    by number on the mockup (2026-09-07). -#}
-<div class="to-head">
-  <div><p class="to-eyebrow">Calendar</p><h1 class="to-h1" style="font-size:20px">{{ month_label }}</h1><p class="to-sub">{{ shows|length }} date{{ '' if shows|length == 1 else 's' }} on the run. Open a day to work it.</p></div>
-  <div class="to-inline">
-    <a class="to-btn to-btn--ghost to-btn--small" href="?month={{ prev_m }}">‹</a>
-    <a class="to-btn to-btn--ghost to-btn--small" href="?month={{ today[:7] }}">This month</a>
-    <a class="to-btn to-btn--ghost to-btn--small" href="?month={{ next_m }}">›</a>
-    {% if can('edit') %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/import">Import dates</a><a class="to-btn to-btn--small" href="/tours/{{ tour['id'] }}/calendar?add=1"><span class="plus" aria-hidden="true">+</span> Add a day</a>{% endif %}
-  </div>
-</div>
-{% if shows or cells|selectattr('items')|list %}
-{% include "tour/_calendar_grid.html" %}
+{#- After Open, a tour is the list of its shows and nothing else: no bar,
+    no calendar. A show opens its own page, where the features are added.
+    The owner, 2026-09-07. -#}
+{% if shows %}
+{% include "tour/_dates_rows.html" %}
 {% else %}
   {{ m.empty("No dates yet", "Import a run of dates, or add one day at a time.", "/tours/" ~ tour['id'] ~ "/import", "Import") }}
 {% endif %}
-<p class="to-muted" style="margin-top:10px"><a href="/tours/{{ tour['id'] }}/shows">All dates as a list</a> · <a href="/tours/{{ tour['id'] }}/calendar?month={{ month }}">Full calendar</a></p>
 {% endblock %}

@@ -41,13 +41,13 @@ def _bar(page):
 
 def test_the_bar_is_seven_entries_for_an_owner(flask_app):
     client, tid = _owner(flask_app)
-    page = client.get("/tours/%s" % tid).get_data(as_text=True)
+    page = client.get("/tours/%s/people" % tid).get_data(as_text=True)
     bar = _bar(page)
     labels = re.findall(r'class="to-tab[^"]*"[^>]*>([^<]+)<', bar)
     assert labels[:7] == ["Home", "Import", "Venues", "Crew", "Travel &amp; hotels", "Money", "Files"]
     assert 'class="to-more"' in bar and ">More <" in bar
     # Home is lit; nothing in More is.
-    assert 'aria-current="page">Home<' in bar
+    assert 'aria-current="page">Crew<' in bar
     items = re.findall(r'class="to-more-item[^"]*"[^>]*>([^<]+)<', bar)
     # The tour level is for booking the run, importing it and closing it
     # out (2026-09-07: "tour page has no header navigation for day of show
@@ -82,7 +82,7 @@ def test_hotels_and_route_sit_under_travel_with_a_sub_row(flask_app):
         assert 'aria-current="page">%s<' % label in sub
         assert sub.count("to-sub-tab") == 3
     # Elsewhere there is no sub-row.
-    assert 'class="to-subnav"' not in client.get("/tours/%s" % tid).get_data(as_text=True)
+    assert 'class="to-subnav"' not in client.get("/tours/%s/shows" % tid).get_data(as_text=True)
 
 
 def test_the_bar_is_scope_filtered():
@@ -108,4 +108,5 @@ def test_every_tour_page_still_answers_with_the_new_bar(flask_app):
         url = "/tours/%s%s" % (tid, "/" + path if path else "")
         r = client.get(url)
         assert r.status_code == 200, (key, r.status_code)
-        assert 'class="to-tabs to-bar"' in r.get_data(as_text=True), key
+        # The tour's own page is the list of its shows and carries no bar (the owner, 2026-09-07).
+        assert ('class="to-tabs to-bar"' in r.get_data(as_text=True)) == (key != "home"), key

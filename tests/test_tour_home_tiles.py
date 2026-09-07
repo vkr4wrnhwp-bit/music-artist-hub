@@ -1,14 +1,13 @@
-"""TOUR home, less to read.
+"""A tour, opened, is the list of its shows.
 
-The owner, 2026-09-07: "tour home page should simply be a list ... then
-you click into those. the workflow is to much", then by number on the
-mockup: the dates list and the change banner come off the home too. So
-the home is the month, with the booking bar above it and Import / Add a
-day beside it; a day opens its show. Everything else is one click in.
+The owner, 2026-09-07: "this is supposed to be just a list of the shows
+like you had before and no header navigation or calendar. once you click
+into the specific show day that is when the options for adding features
+will be available." So /tours/<id> is the Dates rows and nothing else;
+the bar lives on the other tour pages and inside a show.
 """
 import re
 
-import tour_store as ts
 from tests.test_tour_date_page import _user, _tour, _show, flask_app  # noqa: F401
 
 
@@ -18,39 +17,42 @@ def _home(client, tid):
     return r.get_data(as_text=True)
 
 
-def test_the_home_is_the_month_and_a_day_opens_its_show(flask_app):
+def test_the_tour_page_is_the_list_of_its_shows_and_nothing_else(flask_app):
     client, owner = _user(flask_app)
     tid = _tour(client)
     s1 = _show(client, tid, "2030-05-02", "The Basement East")
     s2 = _show(client, tid, "2030-05-04", "Exit/In")
     html = _home(client, tid)
-    assert '<div class="to-cal" role="grid" aria-label="May 2030">' in html, "the month the run starts in"
-    grid = html.split('class="to-cal"')[1]
-    assert ('href="/tours/%s/shows/%s"' % (tid, s1)) in grid and ('href="/tours/%s/shows/%s"' % (tid, s2)) in grid
-    assert grid.count("Nashville, TN") == 2 and "% ready" in grid
-    assert 'href="?month=2030-06">' in html and 'href="?month=2030-04">' in html
-    assert ">Import dates</a>" in html and "Add a day</a>" in html and "All dates as a list</a>" in html
-    body = html.split("</nav>")[-1]                 # below the bar: the More menu still names What changed
-    for gone in ('id="dates"', 'id="upcoming"', 'id="tour-readiness"', "Needs attention", "What changed",
-                 "Today for you", 'class="to-card"', 'id="unack"', 'class="to-date-when"'):
-        assert gone not in body, gone
-    assert "2 dates on the run" in html
+    rows = html.split('id="dates"')[1]
+    assert re.findall(r'<a class="to-date-when" href="/tours/%s/shows/([0-9a-f]+)"' % tid, html) == [s1, s2]
+    assert "The Basement East" in rows and "Exit/In" in rows and "% ready" in rows or "ready" in rows
+    assert 'class="to-tabs to-bar"' not in html, "no header navigation on the tour's page"
+    assert 'class="to-cal"' not in html, "no calendar on the tour's page"
+    for gone in ('id="upcoming"', "Needs attention", "What changed", "Today for you", "to-legend", "Advance the run"):
+        assert gone not in html, gone
+    assert "Import dates" not in html and "Add a day" not in html, "the list and nothing else"
+    assert '<a href="/tours" style="text-decoration:none">‹ Home</a>' in html, "the way back to your tours and the calendar"
+    assert "to-date-adv" not in html and "no address" not in html, "no advance lamp on a row"
+    dates_page = client.get("/tours/%s/shows" % tid).get_data(as_text=True)
+    assert 'class="to-tabs to-bar"' in dates_page and 'id="dates"' in dates_page, "the Dates page keeps its bar and the same rows"
 
 
 def test_an_empty_run_says_where_to_start(flask_app):
     client, owner = _user(flask_app)
     tid = _tour(client)
     html = _home(client, tid)
-    assert "No dates yet" in html and "/import" in html
+    assert "No dates yet" in html and 'class="to-tabs to-bar"' not in html
 
 
-def test_the_bar_is_what_booking_needs(flask_app):
+def test_the_bar_on_the_other_pages_is_what_booking_needs(flask_app):
     client, owner = _user(flask_app)
     tid = _tour(client)
-    html = _home(client, tid)
+    html = client.get("/tours/%s/shows" % tid).get_data(as_text=True)
     bar = html.split('class="to-tabs to-bar"')[1].split("</nav>")[0]
     labels = re.findall(r'class="to-tab[^"]*"[^>]*>([^<]+)<', bar)
     assert labels[:7] == ["Home", "Import", "Venues", "Crew", "Travel &amp; hotels", "Money", "Files"]
+    assert '<a class="to-tab " href="/tours">Home</a>' in bar, "Home is your tours and the calendar"
+    assert ('href="/tours/%s" style="color:inherit;text-decoration:none">Test Run</a>' % tid) in html, "the tour's name is the way back to its list"
     items = re.findall(r'class="to-more-item[^"]*"[^>]*>([^<]+)<', bar)
     assert items == ["Dates", "Calendar", "Marketing", "Stage plot", "Exports", "What changed", "Ask Tour", "Share links", "Team", "Settings"]
 
@@ -60,7 +62,5 @@ def test_the_sheet_and_the_worker_moved_on():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     css = open(os.path.join(here, "static", "css", "tour-os.css"), encoding="utf-8").read()
     assert ".to-tile-v" in css and ".to-lcds" in css and ".to-cal" in css
-    shell = open(os.path.join(here, "templates", "tour", "_shell.html"), encoding="utf-8").read()
-    assert int(re.search(r"tour-os\.css\?v=(\d+)", shell).group(1)) >= 22
     sw = open(os.path.join(here, "static", "js", "sw.js"), encoding="utf-8").read()
-    assert int(re.search(r'VERSION = "sb-v(\d+)"', sw).group(1)) >= 206
+    assert int(re.search(r'VERSION = "sb-v(\d+)"', sw).group(1)) >= 209

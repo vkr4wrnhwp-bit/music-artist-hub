@@ -84,7 +84,7 @@ def test_vip_rolls_up_across_the_run_under_its_own_scope(flask_app):
     assert '<span class="to-fig"><span>sold</span><b>3</b></span>' in page
     assert "450.00" in page                       # the owner holds financials: gross shows
     # Day-of-show pages left the tour bar (2026-09-07): a date offers them.
-    bar = client.get("/tours/%s" % tid).get_data(as_text=True).split('class="to-tabs to-bar"')[1].split("</nav>")[0]
+    bar = client.get("/tours/%s/shows" % tid).get_data(as_text=True).split('class="to-tabs to-bar"')[1].split("</nav>")[0]
     assert ">Set lists<" not in bar and ">VIP<" not in bar
     date_page = client.get("/tours/%s/shows/%s" % (tid, sid)).get_data(as_text=True)
     assert 'data-chip="setlist"' in date_page and 'id="vip" data-section="vip"' in date_page

@@ -19,27 +19,7 @@
 {#- One row per date. The venue is the line that matters; the missing
     items sit behind a fold instead of a column of words; the advance
     state is a lamp. The status select is the same form as before. -#}
-<div class="to-dates" id="dates">
-  {% for s in shows %}
-  {% set r = readiness[s['id']] %}
-  <div class="to-date">
-    <a class="to-date-when" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">
-      {{ m.thumb(s['venue'], thumbs.get(s['id'])) }}
-      <span class="to-tile-l">{{ fmt_day(s['date']) }} <span class="to-muted">#{{ s['show_number'] }}</span></span>
-      <span class="to-tile-v">{{ s['venue'] }}</span>
-      <span class="to-tile-s">{{ s['city'] or '—' }}</span>
-    </a>
-    <div class="to-date-state">{% if can_status %}<form method="post" action="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}/ext" class="to-status-form">
-      <select name="status" aria-label="Status for {{ s['venue'] }}">{% for st in vocab['show_statuses'] %}<option value="{{ st }}" {% if st == s['status'] %}selected{% endif %}>{{ st }}</option>{% endfor %}</select>
-      <button class="to-btn to-btn--ghost to-btn--small" type="submit">Update</button>
-    </form>{% else %}{{ m.chip(s['status']) }}{% endif %}</div>
-    <div class="to-date-ready">{{ m.ready(r['pct']) }}
-      {% if r['missing'] %}<details class="to-date-missing"><summary>{{ r['missing']|length }} missing</summary><ul>{% for i in r['missing'] %}<li>{{ i['label'] }}</li>{% endfor %}</ul></details>{% endif %}
-    </div>
-    <div class="to-date-adv">{% if sends.get(s['id']) %}<a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">{{ sb.lamp("sent " ~ sends[s['id']]['created'][:10], "on") }}</a>{% elif can_send and advance_to.get(s['id']) %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=send">{{ sb.lamp("advance ready", "warn") }} {{ advance_to[s['id']][0] }}</a>{% elif can_send %}<a class="to-muted" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=advance">{{ sb.lamp("no address", "crit") }}</a>{% else %}<span class="to-muted">—</span>{% endif %}</div>
-  </div>
-  {% endfor %}
-</div>
+{% include "tour/_dates_rows.html" %}
 <p class="to-sub to-legend">Statuses, honestly: hold = penciled in, confirmed = date locked, advanced = venue has your plot and details, played = done, settled = you got paid.</p>
 {% else %}
   {{ m.empty("No shows on this tour", "Add a show day from the calendar, or import your dates.", "/tours/" ~ tour['id'] ~ "/calendar", "Calendar") }}

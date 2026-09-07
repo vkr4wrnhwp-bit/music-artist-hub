@@ -51,7 +51,7 @@ def test_the_owner_draws_the_plot_inside_the_tour(flask_app):
 
 def test_it_sits_under_more_for_the_owner_and_for_crew(flask_app):
     client, tid = _owner(flask_app)
-    bar = client.get("/tours/%s" % tid).get_data(as_text=True).split(
+    bar = client.get("/tours/%s/shows" % tid).get_data(as_text=True).split(
         'class="to-tabs to-bar"')[1].split("</nav>")[0]
     assert ">Stage plot<" in bar
     crew = {"is_owner": False, "scopes": ["view"]}

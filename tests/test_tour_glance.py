@@ -73,7 +73,7 @@ def test_a_filled_row_stays_folded_and_its_head_says_so(flask_app):
 
 def test_the_tour_more_menu_is_three_named_groups(flask_app):
     client, owner, tid, sid = _fresh(flask_app)
-    html = client.get("/tours/%s" % tid).get_data(as_text=True)
+    html = client.get("/tours/%s/shows" % tid).get_data(as_text=True)
     import html as _html
     heads = [_html.unescape(h) for h in re.findall(r'<div class="to-more-head">([^<]+)</div>', html)]
     assert heads == ["Booking", "Close out", "Tools"]

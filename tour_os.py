@@ -753,18 +753,16 @@ def join(token):
 @bp.route("/tours/<tour_id>")
 @require_tour("view")
 def home(user, tour, viewer, tour_id):
-    """The tour's home is the month. Everything else is one click in - the
-    owner, 2026-09-07: "the workflow is to much", then, by number on the
-    mockup, the dates list and the change banner came off the home too.
-    A critical change still waits on What changed."""
+    """After Open, a tour is the list of its shows and nothing else. The
+    owner, 2026-09-07: "just a list of the shows like you had before and
+    no header navigation or calendar." The rows are the Dates page's."""
     shows = ts.list_shows(tour_id)
-    cal = _calendar_month(tour, shows, ts.list_days(tour_id), request.args.get("month") or "", {})
-    cal["cal_pct"] = {s["id"]: _readiness_for(tour, s, viewer)["pct"] for s in shows if s["date"][:7] == cal["month"]}
-    scored = [d for d in ts.list_days(tour_id) if d["date"][:7] == cal["month"] and d.get("show_id") in cal["cal_pct"]]
-    cal["month_stats"]["ready"] = sum(1 for d in scored if cal["cal_pct"][d["show_id"]] >= 100)
-    cal["month_stats"]["scored"] = bool(cal["cal_pct"])
-    cal.pop("today")
-    return render_template("tour/home.html", **_ctx(user, tour, viewer, "home", shows=shows, **cal))
+    readiness = {s["id"]: _readiness_for(tour, s, viewer) for s in shows}
+    can_send = can(viewer, "advance") or can(viewer, "edit")
+    return render_template("tour/home.html", **_ctx(
+        user, tour, viewer, "home", shows=shows, readiness=readiness, bare=True,
+        can_status=can(viewer, "edit") or can(viewer, "advance"), sends=ts.advance_send_map(tour_id),
+        advance_to=_advance_to(tour, shows) if can_send else {}, can_send=can_send))
 
 
 @bp.route("/tours/<tour_id>/my-day")

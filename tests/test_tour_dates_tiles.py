@@ -53,8 +53,7 @@ def test_the_status_form_and_the_advance_lamps_still_work(flask_app):
         "status__venue_contact": "complete", "value__venue_contact": "Ana, one@venue.example"})
     html = _dates(client, tid)
     assert 'class="to-status-form"' in html and 'name="status"' in html
-    assert 'sb-lamp sb-lamp--warn">advance ready</span> one@venue.example' in html
-    assert 'sb-lamp sb-lamp--crit">no address</span>' in html
+    assert "to-date-adv" not in html, "the advance state left the rows; the block below carries it"
     assert "Send 1 advance<" in html
     # The explainer is behind a fold; the pinned strings are intact.
     assert "<summary>What a venue gets</summary>" in html
