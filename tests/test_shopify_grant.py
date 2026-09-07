@@ -116,3 +116,48 @@ def test_without_credentials_nothing_changes(monkeypatch):
     assert not sc.configured() and sc.token() == "" and not sc.uses_grant()
     assert "SHOPIFY_CLIENT_ID" in sc.status()["detail"]
     assert sb.token() == "" and not sb.configured()
+
+
+def test_a_token_that_predates_the_owners_approval_is_dropped_and_minted_again(monkeypatch):
+    _creds(monkeypatch)
+    monkeypatch.setenv("SHOPIFY_COLLECTION_ID", "298812866663")
+    grants = []
+    monkeypatch.setattr(sc, "_post_form", lambda url, fields: grants.append(1) or (200, {"access_token": "granted-%d" % len(grants), "scope": "read_customers" if len(grants) > 1 else "", "expires_in": 86399}))
+    mints = []
+
+    def mint(url, headers, body):
+        mints.append(headers["X-Shopify-Access-Token"])
+        if headers["X-Shopify-Access-Token"] == "granted-1":
+            return 200, {"errors": [{"message": "Access denied for storefrontAccessTokenCreate field."}]}
+        return 200, {"data": {"storefrontAccessTokenCreate": {"storefrontAccessToken": {"accessToken": "sf-2", "title": "x"}, "userErrors": []}}}
+    monkeypatch.setattr(sb, "_post", mint)
+    assert sb.token() == "sf-2"
+    assert mints == ["granted-1", "granted-2"] and len(grants) == 2, "denied once, minted afresh, then it worked"
+    assert "Shopify granted: read_customers" in sc.status()["detail"] and sc.status()["reconnect"]
+
+
+def test_the_owner_can_reconnect_and_the_import_heals_a_stale_token(monkeypatch):
+    import app as appmod
+    import uuid
+    _creds(monkeypatch)
+    grants = []
+    monkeypatch.setattr(sc, "_post_form", lambda url, fields: grants.append(1) or (200, {"access_token": "granted-%d" % len(grants), "scope": "read_customers", "expires_in": 86399}))
+    calls = []
+
+    def post(url, headers, body):
+        calls.append(headers["X-Shopify-Access-Token"])
+        if headers["X-Shopify-Access-Token"] == "granted-1":
+            raise sc.ShopifyError("Shopify 401: [API] Invalid API key or access token (unrecognized login or wrong password)")
+        return {"data": {"customers": {"edges": [], "pageInfo": {"hasNextPage": False, "endCursor": None}}}}
+    monkeypatch.setattr(sc, "_post", post)
+    app_obj = appmod.create_app()
+    client = app_obj.test_client()
+    email = "shop-%s@example.net" % uuid.uuid4().hex[:8]
+    client.post("/signup", data={"name": "Owner", "email": email, "password": "pass-1234"})
+    client.post("/login", data={"email": email, "password": "pass-1234"})
+    r = client.post("/links/fans/import/shopify")
+    assert r.status_code == 302 and calls == ["granted-1", "granted-2"], "the stale token was dropped and the import ran again"
+    page = client.get("/links/fans").get_data(as_text=True)
+    assert "Reconnect" in page and "Last run failed" not in page
+    r = client.post("/links/fans/shopify/reconnect")
+    assert r.status_code == 302 and len(grants) == 3, "Reconnect forgets the token and mints again"

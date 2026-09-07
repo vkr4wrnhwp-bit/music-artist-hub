@@ -7297,11 +7297,33 @@ def create_app():
         try:
             customers, cursor = shopify_customers.fetch_customers(after=after)
         except shopify_customers.ShopifyError as e:
-            store.add_fan_import(user["id"], "shopify", {}, error=str(e))
-            return redirect("/links/fans#import")
+            # A token minted before the owner approved new scopes is refused
+            # with 401 or access denied: drop it and try once with a fresh one.
+            if shopify_customers.uses_grant() and shopify_customers._denied(str(e)):
+                shopify_customers.forget_grant()
+                try:
+                    customers, cursor = shopify_customers.fetch_customers(after=after)
+                except shopify_customers.ShopifyError as e2:
+                    store.add_fan_import(user["id"], "shopify", {}, error=str(e2))
+                    return redirect("/links/fans#import")
+            else:
+                store.add_fan_import(user["id"], "shopify", {}, error=str(e))
+                return redirect("/links/fans#import")
         summary = shopify_customers.import_fans(user["id"], customers)
         store.add_fan_import(user["id"], "shopify", summary, cursor=cursor or "")
         return redirect("/links/fans#import")
+
+    @app.route("/links/fans/shopify/reconnect", methods=["POST"])
+    def ml_fans_shopify_reconnect():
+        """Owner: forget the cached Shopify tokens and mint afresh - the
+        button to press after approving new scopes on the store."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if shopify_customers.uses_grant():
+            shopify_customers.forget_grant()
+            shopify_customers.token()
+        return redirect("/links/fans?imp=reconnected#import")
 
     @app.route("/links/fans/export.csv")
     def ml_fans_export():

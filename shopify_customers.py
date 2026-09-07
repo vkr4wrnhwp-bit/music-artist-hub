@@ -120,6 +120,29 @@ def granted_token(post_form=None, now=None):
     return token_value
 
 
+def granted_scopes():
+    """The scopes Shopify said the current token carries ('' when unknown)."""
+    try:
+        return (json.loads(store.get_kv(GRANT_KEY) or "{}") or {}).get("scope") or ""
+    except ValueError:
+        return ""
+
+
+def forget_grant():
+    """Drop the cached Admin token (and the Storefront token minted with
+    it) so the next call mints afresh - after the store owner approves new
+    scopes, or from the owner's Reconnect button."""
+    store.set_kv(GRANT_KEY, "")
+    store.set_kv(GRANT_ERROR_KEY, "")
+    store.set_kv("shopify:storefront-token", "")
+    store.set_kv("shopify:storefront-token-error", "")
+
+
+def _denied(message):
+    m = (message or "").lower()
+    return "access denied" in m or "401" in m or "unrecognized login" in m or "invalid api key" in m
+
+
 def grant_error():
     try:
         return json.loads(store.get_kv(GRANT_ERROR_KEY) or "null") or None
@@ -131,31 +154,46 @@ def mint_storefront_token(mutation, title, post=None):
     """Ask the Admin API, with the granted token, to create a Storefront
     token for the Buy Buttons. (token, reason, http status); the token is
     '' when Shopify refuses - usually the unauthenticated_* scopes."""
-    admin = token()
-    if not (domain() and admin):
+    if not domain():
         return "", "no Admin token", 0
     url = "https://%s/admin/api/%s/graphql.json" % (domain(), API_VERSION)
-    headers = {"Content-Type": "application/json", "X-Shopify-Access-Token": admin,
-               "User-Agent": "StreetBanker/1.0"}
-    try:
-        answer = (post or _post)(url, headers, {"query": mutation, "variables": {"input": {"title": title}}})
-    except ShopifyError as e:
-        return "", str(e), 0
-    if isinstance(answer, tuple):            # a buy-side fake answers (status, body)
-        status, answer = answer
-    else:
-        status = 200
-    payload = ((answer or {}).get("data") or {}).get("storefrontAccessTokenCreate") or {} if isinstance(answer, dict) else {}
-    made = (payload.get("storefrontAccessToken") or {}).get("accessToken") or ""
-    if status == 200 and made:
-        return made, "", 200
-    why = ""
-    if isinstance(answer, dict):
-        errs = payload.get("userErrors") or answer.get("errors") or []
-        if errs:
-            why = (errs[0] or {}).get("message") or ""
-        why = why or answer.get("network") or ""
-    return "", why, status
+    last = ("", "no Admin token", 0)
+    # Once with the cached token; if Shopify says access denied (the token
+    # predates the owner's approval of new scopes), once more with a fresh one.
+    for attempt in (0, 1):
+        admin = token()
+        if not admin:
+            return last if attempt else ("", "no Admin token", 0)
+        headers = {"Content-Type": "application/json", "X-Shopify-Access-Token": admin,
+                   "User-Agent": "StreetBanker/1.0"}
+        try:
+            answer = (post or _post)(url, headers, {"query": mutation, "variables": {"input": {"title": title}}})
+        except ShopifyError as e:
+            last = ("", str(e), 0)
+            if attempt == 0 and uses_grant() and _denied(str(e)):
+                forget_grant()
+                continue
+            return last
+        if isinstance(answer, tuple):            # a buy-side fake answers (status, body)
+            status, answer = answer
+        else:
+            status = 200
+        payload = ((answer or {}).get("data") or {}).get("storefrontAccessTokenCreate") or {} if isinstance(answer, dict) else {}
+        made = (payload.get("storefrontAccessToken") or {}).get("accessToken") or ""
+        if status == 200 and made:
+            return made, "", 200
+        why = ""
+        if isinstance(answer, dict):
+            errs = payload.get("userErrors") or answer.get("errors") or []
+            if errs:
+                why = (errs[0] or {}).get("message") or ""
+            why = why or answer.get("network") or ""
+        last = ("", why, status)
+        if attempt == 0 and uses_grant() and (status == 401 or _denied(why)):
+            forget_grant()
+            continue
+        return last
+    return last
 
 
 def token():
@@ -190,11 +228,13 @@ def status():
                               "and the store sit in the same Shopify organization in the Dev Dashboard, "
                               "the app is installed on the store, and its released version carries "
                               "read_customers." % (err.get("status") or "nothing", (": " + err["why"]) if err.get("why") else "")}
+        scopes = granted_scopes()
         return {"on": True, "headline": "Shopify is connected",
-                "detail": "Through the app's Client ID and secret; a 24-hour token is minted as needed. "
+                "detail": "Through the app's Client ID and secret; a 24-hour token is minted as needed%s. "
                           "Imports the customers whose email-marketing consent Shopify records as "
                           "subscribed. A purchase alone is not permission to mail; those are skipped "
-                          "and counted."}
+                          "and counted." % ((" (Shopify granted: " + scopes + ")") if scopes else ""),
+                "reconnect": True}
     if configured():
         return {"on": True, "headline": "Shopify is connected",
                 "detail": "Imports the customers whose email-marketing consent Shopify records as "
