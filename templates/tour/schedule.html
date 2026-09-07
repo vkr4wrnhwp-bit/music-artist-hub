@@ -1,18 +1,21 @@
 {% extends "tour/_shell.html" %}
 {% block title %}Schedule - {{ tour['name'] }} - Street Banker{% endblock %}
 {% block tour_body %}
+{% import "_sb.html" as sb %}
 {% import "tour/_macros.html" as m %}
 <div class="to-head"><div><p class="to-eyebrow">Schedule</p><h1 class="to-h1" style="font-size:20px">Every timed item on the tour</h1><p class="to-sub">Grouped by day. Items you are not meant to see are not here. Edit on the show's Schedule tab.</p></div></div>
 
 {% if by_day %}
 {% for day, rows in by_day %}
-<h2 class="to-h2">{{ fmt_day(day) }}{% if day in show_by_date %} · <a href="/tours/{{ tour['id'] }}/shows/{{ show_by_date[day]['id'] }}?tab=schedule" style="color:var(--to-amber);text-decoration:none">{{ show_by_date[day]['city'] or show_by_date[day]['venue'] }}</a>{% endif %}</h2>
+{% set confirmed = rows|selectattr('confirmed')|list|length %}
+<h2 class="to-h2">{{ fmt_day(day) }}{% if day in show_by_date %} · <a href="/tours/{{ tour['id'] }}/shows/{{ show_by_date[day]['id'] }}?tab=schedule" style="color:var(--to-amber);text-decoration:none">{{ show_by_date[day]['city'] or show_by_date[day]['venue'] }}</a>{% endif %}
+  <span class="to-figs" style="display:inline-flex;margin-left:12px;vertical-align:middle"><span class="to-fig"><span>items</span><b>{{ rows|length }}</b></span><span class="to-fig"><span>confirmed</span><b>{{ confirmed }}</b></span></span></h2>
 <ul class="to-timeline">
   {% for r in rows %}
   <li class="to-tl-item">
     <div class="to-tl-time">{{ fmt_time(r['start_time']) or 'TBD' }}{% if r['precision'] == 'approx' %}<small>approx</small>{% endif %}</div>
     <div><div class="to-tl-title">{{ r['title'] }} <span class="to-chip">{{ r['category']|replace('_',' ') }}</span></div>{% if r['location'] %}<div class="to-tl-where">{{ r['location'] }}</div>{% endif %}{% if r['responsible'] %}<div class="to-tl-where">{{ r['responsible'] }}</div>{% endif %}</div>
-    <div class="to-tl-flags">{% if r['confirmed'] %}<span class="ok">confirmed</span>{% else %}<span class="warn">unconfirmed</span>{% endif %}</div>
+    <div class="to-tl-flags">{{ sb.lamp("confirmed", "on") if r['confirmed'] else sb.lamp("unconfirmed", "warn") }}</div>
   </li>
   {% endfor %}
 </ul>
@@ -22,7 +25,10 @@
 {% endif %}
 
 {% if can('schedule') or can('edit') %}
-<h2 class="to-h2">Add an item on any date</h2>
+{#- Eleven fields behind a plus; open on its own only while nothing is scheduled. -#}
+<details class="to-add" id="add-item"{% if not by_day %} open{% endif %}>
+<summary><span class="plus" aria-hidden="true">+</span> Add an item on any date</summary>
+<div class="to-add-body">
 <form method="post" action="/tours/{{ tour['id'] }}/schedule/add" class="to-form">
   <div class="to-grid">
     {{ m.field('day_date', 'Date', type='date', required=True) }}
@@ -39,5 +45,7 @@
   </div>
   <div class="to-bar" style="margin-bottom:0"><button class="to-btn" type="submit">Add</button></div>
 </form>
+</div>
+</details>
 {% endif %}
 {% endblock %}

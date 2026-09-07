@@ -2628,9 +2628,14 @@ def files(user, tour, viewer, tour_id):
     q = request.args.get("q") or ""
     cat = request.args.get("category") or ""
     rows = _files_for(viewer, ts.list_files(tour_id, category=cat or None, search=q))
+    everything = _files_for(viewer, ts.list_files(tour_id))
+    counts = {}
+    for f in everything:
+        counts[f.get("category") or "other"] = counts.get(f.get("category") or "other", 0) + 1
+    cat_counts = [(c, counts[c]) for c in ts.FILE_CATEGORIES if c in counts]
     return render_template("tour/files.html", **_ctx(
         user, tour, viewer, "files", shows=shows, rows=rows, q=q, cat=cat,
-        show_by_id={s["id"]: s for s in shows}))
+        show_by_id={s["id"]: s for s in shows}, cat_counts=cat_counts, total_files=len(everything)))
 
 
 @bp.route("/tours/<tour_id>/files/upload", methods=["POST"])

@@ -436,6 +436,8 @@ a.to-strip:hover, a.to-strip:focus-visible { border-color: var(--to-gold); outli
 .to-date--person { grid-template-columns: minmax(0, 1.3fr) auto minmax(0, 1.3fr) auto auto; }
 /* Travel legs, and the small-print fold shared by legs and hotels. */
 .to-date--leg { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.6fr) auto auto; }
+.to-date--file { grid-template-columns: minmax(0, 1.6fr) auto auto auto; }
+@media (max-width: 720px) { .to-date--file { grid-template-columns: minmax(0, 1fr) auto; } }
 .to-fold > summary { cursor: pointer; list-style: none; font-family: var(--sb-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--to-soft); min-height: 24px; display: inline-flex; align-items: center; }
 .to-fold > summary::-webkit-details-marker { display: none; }
 .to-fold[open] > summary { color: var(--to-amber); }
