@@ -6,7 +6,7 @@
   {% set r = readiness[s['id']] %}
   <div class="to-date">
     <a class="to-date-when" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">
-      {{ m.thumb(s['venue'], thumbs.get(s['id'])) }}
+      {{ m.thumb(s['venue'], thumbs.get(s['id']), credit=thumb_credits.get(s['id'], '')) }}
       <span class="to-tile-l">{{ fmt_day(s['date']) }} <span class="to-muted">#{{ s['show_number'] }}</span></span>
       <span class="to-tile-v">{{ s['venue'] }}</span>
       <span class="to-tile-s">{{ s['city'] or '—' }}</span>

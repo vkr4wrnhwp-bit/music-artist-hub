@@ -23,6 +23,7 @@ adapter with a key would light a "configured" badge and answer nothing.
 | **Soundcharts** | `SOUNDCHARTS_ENABLED=1`, `SOUNDCHARTS_APP_ID`, `SOUNDCHARTS_API_KEY` | Signal: identity, Spotify monthly listeners + followers series, city breakdown, playlists, social counts, events, album label/UPC/distributor. Adapter verified against their public sandbox (`tests/test_signal_soundcharts.py`, live test behind `SOUNDCHARTS_SANDBOX_LIVE=1`). |
 | **The MLC** | `MLC_ENABLED=1`, `MLC_USERNAME`, `MLC_PASSWORD` | Signal rights evidence (work match by ISRC or title + artist, writers with IPIs, publishers and whether collection shares total 100). Track Passports (`/tracks/<id>`) have a check button (`POST /tracks/<id>/mlc`) that runs `MLCAdapter.lookup()` on the ISRC, or the title + artist name, keeps every answer, and can fill EMPTY passport fields from a match; `MLC registration` is filled only from a match by ISRC. Recovery (`/recovery`) sweeps every passport ISRC (`POST /recovery/mlc`, `recovery_mlc.py`, table `recovery_mlc_sweeps`, 25 a run) and offers a case on every gap; Mechanicals (`/mechanicals`) shows the same sweep beside the income, each row crossed with what that title earned in the stream. Access: register for the Public Search API at the form linked from themlc.com/dataprograms (publicapi@themlc.com); OpenAPI at `https://public-api.themlc.com/api/doc`. |
 | **ACRCloud** | `ACRCLOUD_HOST`, `ACRCLOUD_ACCESS_KEY`, `ACRCLOUD_ACCESS_SECRET` | Beats: a fingerprint *check* the producer runs (`POST /beats/<id>/identify`) — a slice of the beat, or a clip they found, against ACRCloud's index of released recordings. Every run is stored; a match becomes a usage case marked `fingerprint` only when they press the button. Not monitoring: nothing crawls or listens on its own. Free tier covers it. |
+| **Google Places (New)** | `GOOGLE_MAPS_API_KEY` | TOUR: a venue's photo beside its date, looked up by venue name + city when a show is created or on Fetch venue photos; credit shown wherever the photo is, as Google requires (`venue_photos.py`; the top hit is kept only when its name shares a word with the venue's, and the matched name + address are shown beside the credit so the owner can check it is the room; a same-named venue in another city is its own record; an owner's upload is never replaced; each request spends at most `PHOTO_BUDGET_S` (30s) asking, and Fetch venue photos reports what it did not reach; without the key the page says so and draws the monogram). |
 
 ## Declared only — a key does nothing until the adapter is written
 
@@ -55,6 +56,8 @@ refuses everywhere else, so demo mode is all-or-nothing.
    region host, e.g. `identify-us-west-2.acrcloud.com`).
 5. The MLC — the adapter exists; it needs the Public Search API login
    The MLC issues after registration (the portal login is not it).
+6. `GOOGLE_MAPS_API_KEY` — a Google Cloud key with Places API (New)
+   enabled; TOUR then fetches a photo of each room as its dates are made.
 
 ## What no API exists for
 

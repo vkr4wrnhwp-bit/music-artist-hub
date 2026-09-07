@@ -6,6 +6,18 @@
 {#- After Open, a tour is the list of its shows and nothing else: no bar,
     no calendar. A show opens its own page, where the features are added.
     The owner, 2026-09-07. -#}
+{% if shows and can('edit') %}
+{#- One line for an editor, above the rows: fetch the room photos that are
+    missing, or say there is no key to fetch with. Nothing else is added. -#}
+<div class="to-photos-line">
+  {% if photos_ready %}
+    {#- The numbers come from the run that just happened, kept server-side
+        and said once; a typed ?photos= in the address bar says nothing. -#}
+    {% if photo_report %}<span class="to-muted">Photos found for {{ photo_report['photos'] }} venues; {{ photo_report['missing'] }} had none on Google{% if photo_report['unreached'] %}; {{ photo_report['unreached'] }} not reached in time — press Fetch again{% endif %}</span>{% endif %}
+    {% if photos_missing %}<form method="post" action="/tours/{{ tour['id'] }}/venues/fetch-photos" class="to-inline"><button class="to-btn to-btn--ghost to-btn--small" type="submit">Fetch venue photos</button></form>{% endif %}
+  {% else %}<span class="to-muted">Venue photos: no Google Maps key on this deployment</span>{% endif %}
+</div>
+{% endif %}
 {% if shows %}
 {% include "tour/_dates_rows.html" %}
 {% else %}

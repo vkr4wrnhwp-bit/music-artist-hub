@@ -10,7 +10,8 @@
 {% if edit %}{% set edit_url = ('/tours/' ~ tour['id'] ~ '/venues/' ~ edit['id'] ~ '/photo') if edit['photo'] else none %}
 {#- The photo of the room, on the record; every date at this venue carries it. -#}
 <div class="to-venue-photo">
-  {{ m.thumb(edit['name'], edit_url, 'lg') }}
+  {{ m.thumb(edit['name'], edit_url, 'lg', credit=edit['photo_credit'] if edit_url else '') }}
+  {% if edit_url and edit['photo_credit'] %}<span class="to-muted" style="font-size:12px">Photo: {{ edit['photo_credit'] }} via Google{% if edit['photo_source'] == 'google' and edit['place_name'] %} · matched on Google: {{ edit['place_name'] }}{% if edit['place_address'] %}, {{ edit['place_address'] }}{% endif %}{% endif %}</span>{% endif %}
   {% if can('edit') or can('advance') %}
   <form method="post" action="/tours/{{ tour['id'] }}/venues/{{ edit['id'] }}/photo" enctype="multipart/form-data" class="to-inline">
     <input type="hidden" name="back" value="/tours/{{ tour['id'] }}/venues?edit={{ edit['id'] }}">
@@ -32,9 +33,9 @@
   {% for v in rows %}{% set url = ('/tours/' ~ tour['id'] ~ '/venues/' ~ v['id'] ~ '/photo') if v['photo'] else none %}
   <div class="to-date to-date--venue">
     <div class="to-date-when">
-      {{ m.thumb(v['name'], url) }}
+      {{ m.thumb(v['name'], url, credit=v['photo_credit'] if url else '') }}
       <span class="to-tile-v">{{ v['name'] }}</span>
-      <span class="to-tile-s">{{ v['address'] or 'no address' }}</span>
+      <span class="to-tile-s">{{ v['address'] or 'no address' }}{% if url and v['photo_credit'] %} · Photo: {{ v['photo_credit'] }} via Google{% endif %}</span>
     </div>
     <div class="to-figs">
       <span class="to-fig"><span>city</span><b>{{ v['city'] or '—' }}{% if v['region'] %}, {{ v['region'] }}{% endif %}</b></span>

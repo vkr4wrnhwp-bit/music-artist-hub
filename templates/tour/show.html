@@ -44,11 +44,12 @@
 
 <div class="to-head">
   <div class="to-head-id">
-    {{ m.thumb(show['venue'], thumbs.get(show['id']), 'lg') }}
+    {{ m.thumb(show['venue'], thumbs.get(show['id']), 'lg', credit=thumb_credits.get(show['id'], '')) }}
     <div>
     <p class="to-eyebrow">Show Command · #{{ show['show_number'] }} of {{ shows|length }}</p>
     <h1 class="to-h1" style="font-size:22px">{{ show['venue'] }}</h1>
     <p class="to-sub">{{ fmt_day(show['date']) }}{% if show['city'] %} · {{ show['city'] }}{% endif %}{% if show['tz'] %} · <span class="to-muted">{{ show['tz'] }}</span>{% endif %} · {{ m.chip(show['status']) }}</p>
+    {%- if thumb_credits.get(show['id']) %}<p class="to-muted" style="font-size:12px;margin:2px 0 0">Photo: {{ thumb_credits[show['id']] }} via Google</p>{% endif %}
     </div>
   </div>
   <div class="to-inline">

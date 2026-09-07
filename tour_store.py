@@ -740,6 +740,16 @@ def init_tour():
             db.execute("ALTER TABLE tour_venues ADD COLUMN photo TEXT NOT NULL DEFAULT ''")
         except Exception:
             pass
+        # Where the photo came from ('upload' or 'google'), the credit Google
+        # requires beside its photos, and the Places record the lookup
+        # matched (id, name, address) so the owner can see what it was.
+        for col in ("photo_credit TEXT NOT NULL DEFAULT ''", "photo_source TEXT NOT NULL DEFAULT ''",
+                    "place_id TEXT NOT NULL DEFAULT ''", "place_name TEXT NOT NULL DEFAULT ''",
+                    "place_address TEXT NOT NULL DEFAULT ''"):
+            try:
+                db.execute("ALTER TABLE tour_venues ADD COLUMN %s" % col)
+            except Exception:
+                pass
         db.execute("CREATE INDEX IF NOT EXISTS idx_tour_shows_tour ON tour_shows(tour_id)")
 
     # The bill and its per-act line checks. Called from here rather than
@@ -1415,12 +1425,25 @@ def update_venue(user_id, venue_id, fields):
     return changed
 
 
-def set_venue_photo(user_id, venue_id, path):
+def set_venue_photo(user_id, venue_id, path, credit="", source="", place_id=None,
+                    place_name=None, place_address=None):
     """The venue's own photo: a path in the tour file store, or '' to take
-    it off. Not one of VENUE_FIELDS, so the record form never clears it."""
+    it off. Not one of VENUE_FIELDS, so the record form never clears it.
+    `credit` is the name Google attaches to a photo it supplied (shown on
+    the page, as their terms ask); `source` is 'upload' or 'google';
+    `place_id`, `place_name` and `place_address`, when given, are the
+    Places record the lookup matched, kept so the page can say what the
+    photo is of and the owner can check it is the room."""
+    sets = "photo=?, photo_credit=?, photo_source=?, updated=?"
+    params = [path or "", (credit or "").strip()[:120], (source or "").strip()[:20], _now()]
+    for col, val, cap in (("place_id", place_id, 200), ("place_name", place_name, 200),
+                          ("place_address", place_address, 300)):
+        if val is not None:
+            sets += ", %s=?" % col
+            params.append((val or "").strip()[:cap])
     with get_db() as db:
-        cur = db.execute("UPDATE tour_venues SET photo=?, updated=? WHERE id=? AND user_id=?",
-                         (path or "", _now(), venue_id, user_id))
+        cur = db.execute("UPDATE tour_venues SET %s WHERE id=? AND user_id=?" % sets,
+                         params + [venue_id, user_id])
         return cur.rowcount > 0
 
 
@@ -1458,6 +1481,36 @@ def find_venue_by_name(user_id, name, city=""):
         if v["name"].strip().lower() == name and (not city or (v["city"] or "").lower() == city.lower()):
             return v
     return None
+
+
+def venue_for_show(user_id, name, city=""):
+    """The venue record for a show's venue name: the existing one by exact
+    name (case-insensitive) in the show's city, else a new record with the
+    name and city. Returns its id, or None when the name is blank.
+
+    The city matters: The Basement in Nashville and The Basement in
+    Columbus are two rooms, and one record would put one room's photo
+    beside the other's date. A record with the same name and a different
+    city is therefore not a match. A record with no city at all (made
+    before cities were kept, or by hand) still matches on the name alone,
+    and takes the show's city so the next check is exact."""
+    name = (name or "").strip()
+    if not name:
+        return None
+    city = (city or "").strip()
+    hit = find_venue_by_name(user_id, name, city) if city else None
+    if hit is None:
+        for v in list_venues(user_id):
+            if v["name"].strip().lower() == name.lower() and not (v["city"] or "").strip():
+                hit = v
+                break
+        if hit is not None and city:
+            update_venue(user_id, hit["id"], {"city": city})
+    if hit is None and not city:
+        hit = find_venue_by_name(user_id, name)
+    if hit:
+        return hit["id"]
+    return add_venue(user_id, {"name": name, "city": city})
 
 
 # --- advance ----------------------------------------------------------------

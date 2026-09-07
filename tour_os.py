@@ -28,6 +28,7 @@ import hashlib
 import hmac
 import os
 import re
+import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -45,6 +46,7 @@ import stripe_provider
 import tour_advance_mail as tam
 import tour_engine as eng
 import tour_store as ts
+import venue_photos
 
 bp = Blueprint("tours", __name__)
 
@@ -351,15 +353,131 @@ def _status_line(tour, shows):
     return eng.show_status_line(tour, shows, eng.today_in(tour["home_tz"]))
 
 
-def _venue_thumbs(tour, shows):
+def _venue_art(tour, shows):
     """A show's venue photo, by show id, for every row and tile that draws
-    the room beside the date. Only venues with a photo appear; the
-    template draws the venue's monogram for the rest."""
+    the room beside the date, and the credit that must sit with it when
+    Google supplied it. Only venues with a photo appear; the template
+    draws the venue's monogram for the rest."""
     if not any(s.get("venue_id") for s in shows):
-        return {}
-    photos = {v["id"] for v in ts.list_venues(tour["user_id"]) if v.get("photo")}
-    return {s["id"]: "/tours/%s/venues/%s/photo" % (tour["id"], s["venue_id"])
-            for s in shows if s.get("venue_id") in photos}
+        return {}, {}
+    venues = {v["id"]: v for v in ts.list_venues(tour["user_id"]) if v.get("photo")}
+    thumbs, credits = {}, {}
+    for s in shows:
+        v = venues.get(s.get("venue_id"))
+        if v is None:
+            continue
+        thumbs[s["id"]] = "/tours/%s/venues/%s/photo" % (tour["id"], v["id"])
+        if v.get("photo_credit"):
+            credits[s["id"]] = v["photo_credit"]
+    return thumbs, credits
+
+
+def _venue_thumbs(tour, shows):
+    return _venue_art(tour, shows)[0]
+
+
+PHOTO_EXT_BY_TYPE = {"image/jpeg": ".jpg", "image/jpg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+
+
+def _store_photo_bytes(data, ext, mimetype):
+    """Put one venue photo where the tour's files live - the object store
+    when configured, else the private upload dir - and return the path
+    the venue record keeps."""
+    fname = "venue-%s%s" % (uuid.uuid4().hex, ext)
+    if blob_store.configured():
+        try:
+            if blob_store.put("tour/" + fname, data, mimetype):
+                return blob_store.PREFIX + "tour/" + fname
+        except Exception:
+            pass
+    with open(os.path.join(_tour_dir(), fname), "wb") as fh:
+        fh.write(data)
+    return TOUR_PREFIX + fname
+
+
+# How long one request may spend asking Google for photos, in seconds.
+# An import or a Fetch run walks every show; each can cost a search and
+# an image at up to _TIMEOUT each, and gunicorn kills the worker at 180s.
+# Past the budget the rest are left for the Fetch venue photos button,
+# which says how many it did not reach.
+PHOTO_BUDGET_S = 30
+_clock = time.monotonic
+
+
+def _photo_deadline():
+    return _clock() + PHOTO_BUDGET_S
+
+
+def _photo_wanted(show):
+    """Whether a show names a room Google could be asked about: 'TBA' and
+    a blank venue never get a photo, so they are not counted as missing."""
+    name = (show.get("venue") or "").strip()
+    return bool(name) and name.upper() != "TBA"
+
+
+def ensure_venue_photo(tour, show, missed=None, deadline=None):
+    """The room's photo from Google Places, on the show's venue record,
+    when there is a key and the record has none. Links the show to its
+    venue record first (by exact name in the show's city, or a new one).
+    A photo already on the record - the owner's upload above all - is
+    never touched. Returns 'off' (no provider), 'skipped' (nothing to
+    look up), 'present', 'fetched', 'missing' (Google had no photo, or
+    its best match was not this room) or 'deferred' (the request's
+    budget was spent before this show's turn; the record is linked but
+    nothing was asked). `missed`, when given, collects the venue ids
+    that had none so a run over a whole tour asks Google once per venue;
+    `deadline` is a _clock() value past which no call goes out."""
+    if not venue_photos.configured():
+        return "off"
+    uid = tour["user_id"]
+    name = (show.get("venue") or "").strip()
+    if not _photo_wanted(show):
+        return "skipped"
+    vid = show.get("venue_id") or ""
+    venue = ts.get_venue(uid, vid) if vid else None
+    if venue is None:
+        vid = ts.venue_for_show(uid, name, show.get("city") or "")
+        if not vid:
+            return "skipped"
+        ts.update_show_ext(tour["id"], show["id"], {"venue_id": vid})
+        venue = ts.get_venue(uid, vid)
+        if venue is None:
+            return "skipped"
+    if venue.get("photo"):
+        return "present"
+    if missed is not None and vid in missed:
+        return "missing"
+    if deadline is not None and _clock() > deadline:
+        return "deferred"
+    found = venue_photos.lookup(name, show.get("city") or "")
+    got = venue_photos.fetch_photo(found["photo_name"]) if found and found.get("photo_name") else None
+    ext = PHOTO_EXT_BY_TYPE.get(got[1]) if got else None
+    if got is None or ext is None:
+        if missed is not None:
+            missed.add(vid)
+        return "missing"
+    path = _store_photo_bytes(got[0], ext, got[1])
+    ts.set_venue_photo(uid, vid, path, credit=found.get("credit") or "", source="google",
+                       place_id=found.get("place_id") or "", place_name=found.get("name") or "",
+                       place_address=found.get("address") or "")
+    return "fetched"
+
+
+def _photo_quietly(tour, show_id, deadline=None):
+    """After a show is created: best effort, and a failure here never
+    breaks the request that made the show."""
+    if not venue_photos.configured():
+        return
+    try:
+        show = ts.get_show(tour["id"], show_id)
+        if show:
+            ensure_venue_photo(tour, show, deadline=deadline)
+    except Exception:
+        pass
+
+
+def _photo_report_key(tour_id):
+    return "tour_photos:%s" % tour_id
 
 
 def _ctx(user, tour, viewer, nav, **extra):
@@ -372,7 +490,6 @@ def _ctx(user, tour, viewer, nav, **extra):
     today = eng.today_in(tour["home_tz"])
     base = {
         "active_page": "tours", "tour": tour, "viewer": viewer, "nav": nav, "tab": tab,
-        "thumbs": _venue_thumbs(tour, shows),
         "can": lambda s: can(viewer, s), "shows": [_strip_money(viewer, s) for s in shows],
         "mode": eng.tour_mode(tour, shows, today), "status_line": _status_line(tour, shows),
         "today": today, "tour_tabs": _tour_tabs(viewer), "tour_bar": _tour_bar(viewer, nav),
@@ -392,6 +509,7 @@ def _ctx(user, tour, viewer, nav, **extra):
         },
         "fmt_time": eng.fmt_time, "fmt_day": eng.fmt_day_long,
     }
+    base["thumbs"], base["thumb_credits"] = _venue_art(tour, shows)
     base.update(extra)
     return base
 
@@ -696,6 +814,7 @@ def create():
     if one_off:
         show_id = store.add_tour_show(user["id"], f.get("date"), venue, f.get("city") or "", "")
         ts.attach_show(tour_id, show_id, tz)
+        _photo_quietly(ts.get_tour(tour_id), show_id)
     # Bring any existing Tour Hub shows in the window onto the tour
     if request.form.get("adopt"):
         for s in store.list_tour_shows(user["id"]):
@@ -759,10 +878,20 @@ def home(user, tour, viewer, tour_id):
     shows = ts.list_shows(tour_id)
     readiness = {s["id"]: _readiness_for(tour, s, viewer) for s in shows}
     can_send = can(viewer, "advance") or can(viewer, "edit")
-    return render_template("tour/home.html", **_ctx(
+    ctx = _ctx(
         user, tour, viewer, "home", shows=shows, readiness=readiness, bare=True,
         can_status=can(viewer, "edit") or can(viewer, "advance"), sends=ts.advance_send_map(tour_id),
-        advance_to=_advance_to(tour, shows) if can_send else {}, can_send=can_send))
+        advance_to=_advance_to(tour, shows) if can_send else {}, can_send=can_send)
+    # The one line above the rows, for an editor: fetch the venue photos
+    # that are missing, or say plainly that there is no key to fetch with.
+    # A show with no room named (TBA) can never get one, so it is not
+    # counted: the button appears only when a press can do something.
+    ctx["photos_ready"] = venue_photos.configured()
+    ctx["photos_missing"] = sum(1 for s in shows if s["id"] not in ctx["thumbs"] and _photo_wanted(s))
+    # What the last Fetch did, said once, from the run itself - never from
+    # the query string, which anyone can type.
+    ctx["photo_report"] = session.pop(_photo_report_key(tour_id), None) if can(viewer, "edit") else None
+    return render_template("tour/home.html", **ctx)
 
 
 @bp.route("/tours/<tour_id>/my-day")
@@ -863,6 +992,7 @@ def day_add(user, tour, viewer, tour_id):
         ts.attach_show(tour_id, show_id, f.get("tz") or tour["home_tz"])
         ts.log_change(tour_id, tour["user_id"], _actor(viewer), "show", show_id,
                       f.get("venue") or "TBA", "created", "", f.get("date"), "info")
+        _photo_quietly(tour, show_id)
         return redirect(_show_url(tour, {"id": show_id}))
     day_id = ts.add_day(tour_id, tour["user_id"], f.get("date"), kind, f.get("title"),
                         f.get("city"), f.get("tz"), None, f.get("notes"))
@@ -2059,7 +2189,7 @@ def venue_photo_save(user, tour, viewer, tour_id, venue_id):
     if not back.startswith("/tours/%s/" % tour_id):
         back = "/tours/%s/venues?edit=%s" % (tour_id, venue_id)
     if request.form.get("action") == "remove":
-        ts.set_venue_photo(tour["user_id"], venue_id, "")
+        ts.set_venue_photo(tour["user_id"], venue_id, "", credit="", source="")
         _log(tour, viewer, "venue", venue_id, venue.get("name") or "Venue", {"photo": ("photo", "")})
         return redirect(back)
     up = request.files.get("photo")
@@ -2073,21 +2203,35 @@ def venue_photo_save(user, tour, viewer, tour_id, venue_id):
         return redirect(back)
     if len(data) > MAX_UPLOAD:
         abort(413)
-    fname = "venue-%s%s" % (uuid.uuid4().hex, ext)
-    path = None
-    if blob_store.configured():
-        try:
-            if blob_store.put("tour/" + fname, data, up.mimetype):
-                path = blob_store.PREFIX + "tour/" + fname
-        except Exception:
-            path = None
-    if path is None:
-        with open(os.path.join(_tour_dir(), fname), "wb") as fh:
-            fh.write(data)
-        path = TOUR_PREFIX + fname
-    ts.set_venue_photo(tour["user_id"], venue_id, path)
+    path = _store_photo_bytes(data, ext, up.mimetype)
+    # The owner's own photo: no Google credit, and the fetch never replaces it.
+    ts.set_venue_photo(tour["user_id"], venue_id, path, credit="", source="upload")
     _log(tour, viewer, "venue", venue_id, venue.get("name") or "Venue", {"photo": ("", "photo")})
     return redirect(back)
+
+
+@bp.route("/tours/<tour_id>/venues/fetch-photos", methods=["POST"])
+@require_tour("edit", "advance")
+def venue_fetch_photos(user, tour, viewer, tour_id):
+    """Ask Google Places for a photo of every room on the tour that has
+    none, then back to the list with the two honest numbers: how many
+    were found, how many venues Google had no photo for."""
+    fetched, missed, unreached = 0, set(), 0
+    if venue_photos.configured():
+        deadline = _photo_deadline()
+        for s in ts.list_shows(tour_id):
+            try:
+                got = ensure_venue_photo(tour, s, missed, deadline=deadline)
+            except Exception:
+                continue
+            if got == "fetched":
+                fetched += 1
+            elif got == "deferred":
+                unreached += 1
+    report = {"photos": fetched, "missing": len(missed), "unreached": unreached}
+    session[_photo_report_key(tour_id)] = report
+    return redirect("/tours/%s?photos=%d&missing=%d%s" % (
+        tour_id, fetched, len(missed), "&unreached=%d" % unreached if unreached else ""))
 
 
 @bp.route("/tours/<tour_id>/shows/<show_id>/venue/from-advance", methods=["POST"])
@@ -3352,6 +3496,7 @@ def import_dates(user, tour, viewer, tour_id):
         picked = set(request.form.getlist("pick"))
         created = {"shows": 0, "days": 0, "skipped": 0, "updated": 0, "filled": 0}
         fill_existing = request.form.get("fill_existing") == "1"
+        photo_deadline = _photo_deadline()
         for i, r in enumerate(rows):
             if str(i) not in picked:
                 created["skipped"] += 1
@@ -3383,6 +3528,7 @@ def import_dates(user, tour, viewer, tour_id):
                 if status:
                     store.update_tour_show_status(tour["user_id"], sid, status)
                 created["shows"] += 1
+                _photo_quietly(tour, sid, deadline=photo_deadline)
             else:
                 ts.add_day(tour_id, tour["user_id"], r["date"], r["kind"], r["venue"] or r["kind"].title(),
                            r["city"], r["tz"] if eng.valid_tz(r["tz"]) else "", None, r["notes"])

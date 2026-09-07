@@ -6,7 +6,8 @@
       <div class="to-eyebrow">Saved venue record</div>
 {#- The photo of the room, on the record; every date at this venue carries it. -#}
 <div class="to-venue-photo">
-  {{ m.thumb(venue['name'], thumbs.get(show['id']), 'lg') }}
+  {{ m.thumb(venue['name'], thumbs.get(show['id']), 'lg', credit=venue['photo_credit'] if thumbs.get(show['id']) else '') }}
+  {% if thumbs.get(show['id']) and venue['photo_credit'] %}<span class="to-muted" style="font-size:12px">Photo: {{ venue['photo_credit'] }} via Google{% if venue['photo_source'] == 'google' and venue['place_name'] %} · Matched on Google: {{ venue['place_name'] }}{% if venue['place_address'] %}, {{ venue['place_address'] }}{% endif %} — not the room? Remove it or replace it with your own.{% endif %}</span>{% endif %}
   {% if can('edit') or can('advance') %}
   <form method="post" action="/tours/{{ tour['id'] }}/venues/{{ venue['id'] }}/photo" enctype="multipart/form-data" class="to-inline">
     <input type="hidden" name="back" value="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}?tab=venue">
