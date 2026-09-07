@@ -15,6 +15,7 @@
       <span><b>{{ stats['posts_30d'] }}</b> posted this month</span>
       <span><b>{{ stats['messages_30d'] }}</b> replies sent</span>
       {% if stats['matched'] %}<span><b>{{ stats['matched'] }}</b> matched on the board</span>{% endif %}
+      <a class="tb-btn tb-btn--ghost tb-btn--small" href="/tour-board/outreach">Outreach</a>
       <a class="tb-btn tb-btn--ghost tb-btn--small" href="/tour-board/inbox">Inbox{% if unread %} <span class="tb-unread">{{ unread }}</span>{% endif %}</a>
     </div>
   </div>

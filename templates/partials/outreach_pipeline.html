@@ -1,0 +1,46 @@
+{# The outreach pipeline: a private pitch tracker, real entries only. One
+   partial, shown on the Team-Up Board (its home) and on the parked Network
+   page (its old address). `back` tells the POST routes where to return. #}
+{% set outreach_back = outreach_back if outreach_back is defined else '/tour-board/outreach' %}
+    <section class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-ground p-5 lg:col-span-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="sb-label text-sb-gold-bright">Outreach Pipeline</h2>
+        <span class="text-xs text-gray-300 font-medium">Your private pitch tracker — real entries only, works for anyone on or off Street Banker.</span>
+      </div>
+      <form method="post" action="/network/outreach/add" class="mt-3 flex flex-wrap gap-2">
+        <input type="hidden" name="back" value="{{ outreach_back }}">
+        <input name="contact" required placeholder="Who? (curator, label, blog, A&R…)" class="w-56 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
+        <input name="role" placeholder="Role / outlet" class="w-36 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
+        <select name="stage" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white">
+          {% for st in outreach_stages %}<option value="{{ st }}">{{ st | capitalize }}</option>{% endfor %}
+        </select>
+        <input name="notes" placeholder="Notes (track pitched, link, next step…)" class="min-w-[200px] flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
+        <button class="sb-btn sb-btn-primary sb-btn-sm">Track it</button>
+      </form>
+      {% if outreach %}
+      <div class="mt-3 flex flex-wrap gap-2 text-xs font-bold uppercase tracking-wide text-gray-300">
+        {% for st in outreach_stages %}
+        {% set n = outreach | selectattr('stage', 'equalto', st) | list | length %}
+        {% if n %}<span class="rounded-full border {{ 'border-green-500/40 text-green-400' if st == 'accepted' else ('border-red-500/30 text-red-400' if st == 'passed' else 'border-white/10') }} px-2.5 py-1">{{ st }} · {{ n }}</span>{% endif %}
+        {% endfor %}
+      </div>
+      <div class="mt-3 space-y-2">
+        {% for o in outreach %}
+        <div class="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2">
+          <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ o.contact }}</span>
+          {% if o.role %}<span class="rounded-full border border-white/10 px-2 py-0.5 text-xs text-gray-300 font-medium">{{ o.role }}</span>{% endif %}
+          {% if o.notes %}<span class="min-w-0 max-w-[40%] truncate text-xs text-gray-300 font-medium" title="{{ o.notes }}">{{ o.notes }}</span>{% endif %}
+          <form method="post" action="/network/outreach/{{ o.id }}/stage">
+            <input type="hidden" name="back" value="{{ outreach_back }}">
+            <select name="stage" onchange="this.form.submit()" class="rounded-lg border {{ 'border-green-500/40 text-green-400' if o.stage == 'accepted' else ('border-red-500/30 text-red-400' if o.stage == 'passed' else 'border-white/15 text-gray-200') }} bg-black/40 px-2 py-1 text-xs font-medium">
+              {% for st in outreach_stages %}<option value="{{ st }}" {{ 'selected' if o.stage == st }}>{{ st | capitalize }}</option>{% endfor %}
+            </select>
+          </form>
+          <form method="post" action="/network/outreach/{{ o.id }}/delete"><input type="hidden" name="back" value="{{ outreach_back }}"><button class="text-sm text-gray-300 hover:text-red-400" title="Remove">×</button></form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="mt-3 text-xs text-gray-300 font-medium">Nothing tracked yet. Add every pitch you send — playlist, blog, label, sync — and move it through Saved → Pitched → Listened → Discussion → Accepted. This starts empty because it's yours.</p>
+      {% endif %}
+    </section>

@@ -19,7 +19,7 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 PARKED = {"/capital": "Simulated demo", "/benchmark": "illustrative",
           "/funding": "illustrative", "/conflicts": "Disputes",
-          "/fan-label": "placeholders"}
+          "/fan-label": "placeholders", "/network": "sample profiles"}
 FOLDED = {
     "/publishing": "income", "/mechanicals": "income", "/neighboring-rights": "income",
     "/territories": "income",
@@ -55,12 +55,13 @@ def test_nothing_parked_or_folded_is_a_sidebar_entry():
     for key in ("capital", "benchmark", "funding", "conflicts", "epk", "profile", "mechanicals",
                 "neighboring", "territories", "money-queue", "trust-score", "insights",
                 "connections", "deal-simulator", "sync-packs", "releases", "documents", "tracks",
-                "fan-label", "fan-club-admin"):
+                "fan-label", "fan-club-admin", "network"):
         assert key not in keys, key
     for key in ("income", "scores", "deals", "royalty-lanes", "press-desk", "reports"):
         assert key in keys, key
     community = {it[0] for it in hubs.COMMUNITY_GROUP[1]} | {it[0] for it in hubs.ACCOUNT_GROUP[1]}
     assert "fans" in community and "fan-label" not in community and "fan-club-admin" not in community
+    assert "network" not in community
 
 
 def test_the_fronts_are_live_and_reports_is_no_longer_a_sample():

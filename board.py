@@ -157,6 +157,17 @@ def inbox():
     return render_template("board/inbox.html", **_ctx(user, threads=bs.inbox(user["id"])))
 
 
+@bp.route("/tour-board/outreach")
+def outreach():
+    """The private pitch tracker, moved here from the parked Network page.
+    Same rows, same POST routes; only the address and the frame changed."""
+    user = _me()
+    if user is None:
+        return _login()
+    return render_template("board/outreach.html", **_ctx(
+        user, outreach=store.list_outreach(user["id"]), outreach_stages=store.OUTREACH_STAGES))
+
+
 @bp.route("/tour-board/api/regions")
 def api_regions():
     user = _me()

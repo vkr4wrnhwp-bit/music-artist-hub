@@ -7542,6 +7542,12 @@ def create_app():
         ctx["outreach_stages"] = store.OUTREACH_STAGES
         return render_template("network.html", active_page="network", **ctx)
 
+    def _outreach_back():
+        """The outreach forms live on the Team-Up Board and on the parked
+        Network page; each says where to return. Anything else goes home."""
+        back = request.form.get("back") or ""
+        return back if back in ("/tour-board/outreach", "/network?tab=my") else "/tour-board/outreach"
+
     @app.route("/network/outreach/add", methods=["POST"])
     def outreach_add():
         user = current_user()
@@ -7553,7 +7559,7 @@ def create_app():
                                (request.form.get("role") or "").strip(),
                                request.form.get("stage") or "saved",
                                (request.form.get("notes") or "").strip())
-        return redirect("/network?tab=my")
+        return redirect(_outreach_back())
 
     @app.route("/network/outreach/<item_id>/stage", methods=["POST"])
     def outreach_stage(item_id):
@@ -7562,7 +7568,7 @@ def create_app():
             return login_required_redirect()
         store.set_outreach_stage(user["id"], item_id,
                                  request.form.get("stage") or "")
-        return redirect("/network?tab=my")
+        return redirect(_outreach_back())
 
     @app.route("/network/outreach/<item_id>/delete", methods=["POST"])
     def outreach_delete(item_id):
@@ -7570,7 +7576,7 @@ def create_app():
         if user is None:
             return login_required_redirect()
         store.delete_outreach(user["id"], item_id)
-        return redirect("/network?tab=my")
+        return redirect(_outreach_back())
 
     @app.route("/network/playlist/<playlist_id>")
     def network_playlist(playlist_id):

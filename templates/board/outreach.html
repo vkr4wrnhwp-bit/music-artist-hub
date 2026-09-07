@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Outreach - Team-Up Board - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/board.css?v=2">{% endblock %}
+{% block content %}
+<div class="tb" style="max-width:1000px">
+  <p class="tb-eyebrow"><a href="/tour-board" style="text-decoration:none">Team-Up Board</a> · outreach</p>
+  <div class="tb-head"><div><h1 class="tb-h1">Outreach</h1><p class="tb-lede">Every pitch you send - playlist, blog, label, sync, promoter - and where it stands. Real entries only; it starts empty because it is yours.</p></div></div>
+  {% with outreach_back='/tour-board/outreach' %}{% include "partials/outreach_pipeline.html" %}{% endwith %}
+</div>
+{% endblock %}
