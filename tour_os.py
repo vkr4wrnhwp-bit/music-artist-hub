@@ -72,17 +72,25 @@ TAB_SCOPE = {"money": "financials", "merch": "merch", "guests": "guests",
              "inbox": "advance", "send": "advance", "files": "files"}
 
 # --- the date page ----------------------------------------------------------
-# One date, one page. The six CORE sections always render, in this order;
-# every other former tab is OPTIONAL: a `+` chip until it is added to the
-# date, has rows, or is reached by its old ?tab= deep link. The opted keys
-# live in tour_show_ext.readiness_config (section keys), and readiness
-# follows the same rule: core categories always, an optional section's
-# categories only once it is on the page. SHOW_TABS stays as the deep-link
-# vocabulary (the service worker caches by full URL, query included).
+# One date, one page: the event header, then one grid of every feature the
+# show can carry, in a fixed order. A feature is ON the show when it was
+# added (tour_show_ext.readiness_config holds section keys) or holds data;
+# otherwise it is a `+` row in the same grid position. Activity is the one
+# exception: it always has data, so it is on by opt-in only. Readiness
+# follows the same rule - a feature's categories count once it is on, and
+# nothing counts until something is. The owner, 2026-09-07, by numbered
+# mockup. SHOW_TABS stays as the deep-link vocabulary (the service worker
+# caches by full URL, query included); a targeted feature is treated as on
+# for that request.
+# (key, label, icon, the readiness categories the feature owns)
 CORE_SECTIONS = [
-    ("times", "Times", "clock"), ("advance", "Advance", "tick"),
-    ("venue", "Venue & contacts", "compass"), ("deal", "Deal", "card"),
-    ("notes", "Notes", "pencil"), ("activity", "Activity", "pulse"),
+    ("times", "Times", "clock", ()),
+    ("advance", "Advance", "tick", ("advance", "production", "catering", "hospitality",
+                                   "confirmation", "contract")),
+    ("venue", "Venue & contacts", "compass", ("venue", "promoter")),
+    ("deal", "Deal", "card", ("deposit",)),
+    ("notes", "Notes", "pencil", ()),
+    ("activity", "Activity", "pulse", ()),
 ]
 OPTIONAL_SECTIONS = [
     ("hotel", "Hotel", "bed", ("hotel",)),
@@ -97,23 +105,37 @@ OPTIONAL_SECTIONS = [
     ("files", "Files", "folder", ()),
     ("tasks", "Tasks", "list-check", ()),
 ]
-SECTION_KEYS = [k for k, _l, _i in CORE_SECTIONS] + [k for k, _l, _i, _c in OPTIONAL_SECTIONS]
-CORE_CATEGORIES = ["confirmation", "contract", "deposit", "venue", "promoter",
-                   "advance", "production", "catering", "hospitality"]
+CORE_KEYS = [k for k, _l, _i, _c in CORE_SECTIONS]
+SECTION_KEYS = CORE_KEYS + [k for k, _l, _i, _c in OPTIONAL_SECTIONS]
+# The grid order: the core features, the optional ones, Activity last.
+FEATURE_ORDER = [s for s in CORE_SECTIONS if s[0] != "activity"] + OPTIONAL_SECTIONS + \
+                [s for s in CORE_SECTIONS if s[0] == "activity"]
+SECTION_CATEGORIES = {k: owned for k, _l, _i, owned in CORE_SECTIONS + OPTIONAL_SECTIONS}
+# The categories the core features own between them (no longer counted
+# unconditionally - each counts once its feature is on the show).
+CORE_CATEGORIES = [c for k in CORE_KEYS for c in SECTION_CATEGORIES[k]]
 # Reading a section needs the scope its old tab needed; the deal and the
 # settlement are the money tab.
 SECTION_VIEW_SCOPE = dict(TAB_SCOPE, deal="financials", settlement="financials")
-# Adding one needs `edit` or the scope that edits its rows.
-SECTION_ADD_SCOPE = {"hotel": "hotel", "travel": "travel", "guests": "guests", "vip": "vip",
+# Adding one needs `edit` or the scope that edits its rows; a core feature
+# needs `edit`.
+SECTION_ADD_SCOPE = {"times": "edit", "advance": "edit", "venue": "edit", "deal": "edit",
+                     "notes": "edit", "activity": "edit",
+                     "hotel": "hotel", "travel": "travel", "guests": "guests", "vip": "vip",
                      "settlement": "financials", "merch": "merch", "marketing": "marketing",
                      "content": "content", "setlist": "production", "files": "files",
                      "tasks": "schedule"}
 # Old tab keys that land inside a section. The page scrolls to the tab's
 # own id; this says which section it lives in.
 TAB_SECTION = {"overview": None, "schedule": "times", "inbox": "advance", "send": "advance",
-               "production": "advance", "people": "venue", "money": "deal", "settlement": "deal"}
-ADD_LABELS = {"hotel": "Add a hotel", "travel": "Add travel", "guests": "Set the allocation and add guests",
-              "vip": "Add a VIP package", "merch": "Count merch for this date",
+               "production": "advance", "people": "venue", "money": "deal"}
+# The title on a `+` row - never printed as text beside it.
+ADD_LABELS = {"times": "Add the day's times and the bill", "advance": "Start the advance checklist",
+              "venue": "Link the venue and its contacts", "deal": "Enter the deal",
+              "notes": "Add notes", "activity": "Show the change log",
+              "hotel": "Add a hotel", "travel": "Add travel", "guests": "Set the allocation and add guests",
+              "vip": "Add a VIP package", "settlement": "Enter the night-of numbers",
+              "merch": "Count merch for this date",
               "marketing": "Enter tickets and the local push", "content": "Assign the content plan",
               "setlist": "Start a set list", "files": "Attach a file", "tasks": "Add a task"}
 SETTLEMENT_FIELDS = ["ticket_gross", "adjusted_gross", "vip_gross", "merch_gross", "venue_merch_cut",
@@ -569,6 +591,17 @@ def _show_url(tour, show, tab=None):
     return base + ("?tab=%s" % tab if tab else "")
 
 
+def _link_host(url):
+    """The host of a link, for a chip that opens it: 'tickets.example'
+    rather than the whole address."""
+    from urllib.parse import urlparse
+    try:
+        host = urlparse(url.strip()).netloc
+    except ValueError:
+        host = ""
+    return host or url.strip()
+
+
 def _back(default):
     ref = request.referrer or ""
     if ref and "/tours/" in ref and request.host in ref:
@@ -576,10 +609,18 @@ def _back(default):
     return redirect(default)
 
 
-def _date_rows(tour, show, full=False):
+def _date_rows(tour, show, full=False, people=None):
     """The rows that decide readiness and which optional sections have
-    data. `full` adds the sections that own no readiness category."""
+    data. `full` adds the sections that own no readiness category.
+    `people` is the tour's people list when the caller already holds it:
+    the tour-wide loops (home, the list, the calendar, Ask) pass one list
+    for every show rather than loading the table once per date."""
     tid, sid = tour["id"], show["id"]
+    if people is None:
+        people = ts.list_people(tid)
+    # Every advance row exists from the first look, so this one fetch
+    # serves readiness too.
+    ts.ensure_advance_items(tid, tour["user_id"], sid)
     rows = {
         "travel": ts.list_travel(tid, show_id=sid) +
                   [t for t in ts.list_travel(tid, day_date=show["date"]) if not t.get("show_id")],
@@ -590,6 +631,11 @@ def _date_rows(tour, show, full=False):
         "vip_offers": ts.list_vip_offers(tid, sid),
         "content": ts.list_content(tid, show_id=sid),
         "expenses": ts.list_expenses(tid, show_id=sid),
+        # the core features' own rows
+        "schedule": ts.list_schedule(tid, show_id=sid),
+        "lineup": ts.list_lineup(tid, sid),
+        "advance": ts.list_advance(tid, sid),
+        "show_people": [p for p in people if p.get("shows") and sid in p["shows"]],
     }
     if full:
         rows["counts"] = ts.list_merch_counts(tid, show_id=sid)
@@ -598,9 +644,10 @@ def _date_rows(tour, show, full=False):
 
 
 def _has_data(show, rows, viewer=None, tasks=None):
-    """Which optional sections have rows on this date. A section with
-    rows is on the page whether or not anybody added it, and its
-    readiness categories count."""
+    """Which features hold something on this date. A feature with rows
+    is on the page whether or not anybody added it, and its readiness
+    categories count. Activity is never 'data': it is on by opt-in only,
+    because every date has a change log."""
     mk = show.get("marketing") or {}
 
     def filled(*keys):
@@ -610,6 +657,13 @@ def _has_data(show, rows, viewer=None, tasks=None):
     if viewer is not None:
         files = _files_for(viewer, files)
     return {
+        "times": bool(rows.get("schedule")) or bool(rows.get("lineup")) or filled("support"),
+        "advance": any(r.get("status") in ("complete", "waiting") for r in rows.get("advance") or []),
+        "venue": bool(show.get("venue_id")) or filled("promoter") or bool(rows.get("show_people")),
+        "deal": filled("guarantee", "backend_pct", "bonus", "deposit_required", "deposit_received",
+                       "deposit_date"),
+        "notes": filled("notes"),
+        "activity": False,
         "hotel": bool(rows.get("lodging")),
         "travel": bool(rows.get("travel")),
         "guests": bool(rows.get("guest_rows")),
@@ -632,26 +686,30 @@ def _opted_sections(show):
     return [k for k in (show.get("readiness_config") or []) if k in SECTION_KEYS]
 
 
-def _effective_categories(show, has):
-    """Core categories always; an optional section's categories once it
-    is opted in or has rows. Nothing else counts against the score, so a
-    date with no hotel entered is not 'missing a hotel' until somebody
-    says the date needs one."""
-    cats = list(CORE_CATEGORIES)
+def _on_show(show, has):
+    """The features on this date: added, or holding data."""
     opted = set(_opted_sections(show))
-    for key, _label, _icon, owned in OPTIONAL_SECTIONS:
-        if owned and (key in opted or has.get(key)):
-            cats.extend(owned)
+    return [k for k in SECTION_KEYS if k in opted or has.get(k)]
+
+
+def _effective_categories(show, has):
+    """A feature's categories count once it is on the date - added, or
+    holding data. Nothing counts until something is on, so a fresh date
+    is not 'missing' anything and reads as not started rather than 0%."""
+    cats = []
+    for key in _on_show(show, has):
+        cats.extend(SECTION_CATEGORIES.get(key) or ())
     return cats
 
 
-def _readiness_for(tour, show, viewer=None, rows=None, has=None):
-    ts.ensure_advance_items(tour["id"], tour["user_id"], show["id"])
-    adv = ts.list_advance(tour["id"], show["id"])
-    rows = rows or _date_rows(tour, show)
+def _readiness_for(tour, show, viewer=None, rows=None, has=None, people=None):
+    """One date's readiness. `has` decides which features are on, so it
+    must be the show's own (unfiltered) `_has_data`: the meter measures
+    the show, not what one viewer may read."""
+    rows = rows or _date_rows(tour, show, people=people)
     has = has or _has_data(show, rows)
     guests = ts.guest_summary(tour["id"], show["id"], show.get("guest_allocation"))
-    return eng.show_readiness(show, adv, rows["travel"], rows["lodging"], rows["files"], guests,
+    return eng.show_readiness(show, rows["advance"], rows["travel"], rows["lodging"], rows["files"], guests,
                               rows["content"], len(rows["vip_rows"]), _effective_categories(show, has))
 
 
@@ -876,7 +934,8 @@ def home(user, tour, viewer, tour_id):
     owner, 2026-09-07: "just a list of the shows like you had before and
     no header navigation or calendar." The rows are the Dates page's."""
     shows = ts.list_shows(tour_id)
-    readiness = {s["id"]: _readiness_for(tour, s, viewer) for s in shows}
+    people = ts.list_people(tour_id)
+    readiness = {s["id"]: _readiness_for(tour, s, viewer, people=people) for s in shows}
     can_send = can(viewer, "advance") or can(viewer, "edit")
     ctx = _ctx(
         user, tour, viewer, "home", shows=shows, readiness=readiness, bare=True,
@@ -949,7 +1008,7 @@ def _calendar_month(tour, shows, days, month_arg, cal_pct):
     in_month = [d for d in days if d["date"][:7] == month]
     month_shows = [d for d in in_month if d.get("show_id") in show_by_id]
     month_stats = {"shows": len(month_shows), "other": len(in_month) - len(month_shows),
-                   "ready": sum(1 for d in month_shows if cal_pct.get(d["show_id"], 0) >= 100),
+                   "ready": sum(1 for d in month_shows if (cal_pct.get(d["show_id"]) or 0) >= 100),
                    "scored": bool(cal_pct)}
     return {"cells": cells, "month": month, "prev_m": (first - timedelta(days=1)).strftime("%Y-%m"),
             "next_m": (first + timedelta(days=32)).replace(day=1).strftime("%Y-%m"),
@@ -968,9 +1027,12 @@ def calendar(user, tour, viewer, tour_id):
         month = today[:7]
     readiness = {}
     if request.args.get("ready") != "0":
+        people = ts.list_people(tour_id)
         for s in shows:
             if s["date"][:7] == month:
-                readiness[s["id"]] = _readiness_for(tour, s, viewer)["pct"]
+                r = _readiness_for(tour, s, viewer, people=people)
+                # Nothing on the show: not measured, so no figure (never 0%).
+                readiness[s["id"]] = r["pct"] if r["total"] else None
     cal = _calendar_month(tour, shows, days, month, readiness)
     cal.pop("today")
     view = request.args.get("view") or "month"
@@ -1029,7 +1091,8 @@ def day_edit(user, tour, viewer, tour_id, day_id):
 @require_tour("view")
 def shows_list(user, tour, viewer, tour_id):
     shows = ts.list_shows(tour_id)
-    readiness = {s["id"]: _readiness_for(tour, s, viewer) for s in shows}
+    people = ts.list_people(tour_id)
+    readiness = {s["id"]: _readiness_for(tour, s, viewer, people=people) for s in shows}
     unattached = [s for s in store.list_tour_shows(tour["user_id"]) if not s.get("tour_id")] if viewer["is_owner"] else []
     venues = ts.list_venues(tour["user_id"])
     can_send = can(viewer, "advance") or can(viewer, "edit")
@@ -1094,26 +1157,6 @@ def _plural(n, word, plural=None):
     return "%d %s" % (n, word if n == 1 else (plural or word + "s"))
 
 
-def _core_filled(key, d, show):
-    """Whether a core section holds anything yet - the tile's lamp, and
-    whether the section opens on its own."""
-    if key == "times":
-        return bool(d.get("schedule") or d.get("lineup"))
-    if key == "advance":
-        p = d.get("advance_progress") or {}
-        return bool(p.get("done") or p.get("waiting"))
-    if key == "venue":
-        return bool(d.get("venue") or d.get("show_people"))
-    if key == "deal":
-        m = d.get("money")
-        return bool(m and m.get("has_numbers"))
-    if key == "notes":
-        return bool((show.get("notes") or "").strip())
-    if key == "activity":
-        return bool(d.get("changes"))
-    return False
-
-
 def _section_status(key, d, show, tour):
     """The one line in a section head. Counts from rows, never a guess;
     money says 'no numbers entered' rather than zero."""
@@ -1150,6 +1193,18 @@ def _section_status(key, d, show, tour):
     if key == "activity":
         n = len(d.get("changes") or [])
         return _plural(n, "change") if n else "No activity yet"
+    if key == "settlement":
+        n = len(d.get("expenses") or [])
+        status = (show.get("settlement_status") or "open").replace("_", " ")
+        amt = str(show.get("settlement_amount") or "").strip()
+        if not amt and not n and status == "open":
+            return "No night-of numbers yet"
+        out = status
+        if amt:
+            out += " · %s %s" % (amt, show.get("currency") or tour["currency"])
+        if n:
+            out += " · " + _plural(n, "expense")
+        return out
     if key == "hotel":
         rows = d.get("lodging") or []
         if not rows:
@@ -1258,35 +1313,44 @@ def show_stage(user, tour, viewer, tour_id, show_id):
 
 
 def _date_page(user, tour, viewer, show, tab, **extra):
-    """Render one date as one page: every core section, the optional
-    sections that are on (opted, have rows, or deep-linked), and a `+`
-    chip for the rest. `tab` is the old deep link: it names the element
-    the page opens and scrolls to."""
+    """Render one date as one page: the event header, what the import
+    sheet gave us, the readiness meter once anything is on, and one grid
+    of every feature - on the show as a folded row, otherwise a `+` row in
+    the same place. `tab` is the old deep link: it names the element the
+    page opens and scrolls to, and its feature is treated as on."""
     tid, sid = tour["id"], show["id"]
     shows = ts.list_shows(tid)
-    idx = next((i for i, s in enumerate(shows) if s["id"] == sid), 0)
-    rows = _date_rows(tour, show, full=True)
+    people = ts.list_people(tid)
+    rows = _date_rows(tour, show, full=True, people=people)
     tasks = _tour_tasks(tour, shows, show_id=sid)
+    # What the viewer may see decides the rows; what the show holds decides
+    # the meter, so the page and the tour list score the same date the
+    # same way for everyone.
     has = _has_data(show, rows, viewer, tasks)
-    readiness = _readiness_for(tour, show, viewer, rows=rows, has=has)
+    has_all = _has_data(show, rows, None, tasks)
+    readiness = _readiness_for(tour, show, viewer, rows=rows, has=has_all)
     opted = _opted_sections(show)
-    people_all = _redact_people(viewer, ts.list_people(tid))
-    sched_ids = {r["id"] for r in ts.list_schedule(tid, show_id=sid)}
+    people_all = _redact_people(viewer, people)
+    sched_ids = {r["id"] for r in rows["schedule"]}
     mine = [c for c in ts.list_changes(tid, limit=600) if c["entity_id"] == sid or c["entity_id"] in sched_ids]
+    shown = _strip_money(viewer, show)
     d = {
-        "show": _strip_money(viewer, show), "readiness": readiness,
+        "show": shown, "readiness": readiness,
         "open_target": None if tab == "overview" else tab, "show_url": _show_url(tour, show),
         "venue": ts.get_venue(tour["user_id"], show["venue_id"]) if show.get("venue_id") else None,
-        "prev_show": shows[idx - 1] if idx > 0 else None,
-        "next_show": shows[idx + 1] if idx + 1 < len(shows) else None,
         "guests": ts.guest_summary(tid, sid, show.get("guest_allocation")) if can(viewer, "guests") else None,
         "day_row": next((dd for dd in ts.list_days(tid) if dd.get("show_id") == sid), None),
+        # from the import sheet: only what it holds, only what the viewer may read
+        "sheet": {"ticket_url": (show.get("ticket_url") or "").strip(),
+                  "guarantee": str(shown.get("guarantee") or "").strip() if can(viewer, "financials") else "",
+                  "currency": show.get("currency") or tour["currency"],
+                  "ticket_host": _link_host(show.get("ticket_url") or "")},
         # times
-        "schedule": _visible(viewer, ts.list_schedule(tid, show_id=sid)),
+        "schedule": _visible(viewer, rows["schedule"]),
         "people_names": [p["name"] for p in people_all], "people": people_all,
         "lineup": ts.seed_lineup_from_support(tid, show),
         # advance, with the production pack and the mail behind disclosures
-        "advance": ts.list_advance(tid, sid), "advance_progress": ts.advance_progress(tid, sid),
+        "advance": rows["advance"], "advance_progress": ts.advance_progress(tid, sid),
         "stage": _stage_ctx(tour, show),
         "prod_files": _files_for(viewer, [f for f in rows["files"] if f["category"] in PRODUCTION_FILE_CATEGORIES]),
         "prod_tour_files": _files_for(viewer, [f for f in ts.list_files(tid, entity_type="tour")
@@ -1306,23 +1370,36 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         d["expenses"] = rows["expenses"]
         d["money"] = eng.show_money(show, rows["expenses"])
         d["receipts"] = ts.list_files(tid, entity_type="expense")
-        d["settlement_on"] = "settlement" in opted or has["settlement"] or tab == "settlement"
-        d["settlement_removable"] = "settlement" in opted and not has["settlement"]
-    # optional sections: shown, or offered as a chip
-    shown, chips = [], []
-    for key, label, icon, _owned in OPTIONAL_SECTIONS:
+    # One grid, fixed order. Each feature is a folded row (on the show) or
+    # a `+` row (not yet) in the same position; a viewer without the scope
+    # sees neither.
+    features = []
+    for key, label, icon, _owned in FEATURE_ORDER:
         need = SECTION_VIEW_SCOPE.get(key)
         if need and not can(viewer, need):
             continue
         can_add = can(viewer, "edit") or can(viewer, SECTION_ADD_SCOPE[key])
-        on = key in opted or has[key] or tab == key
-        sec = {"key": key, "label": label, "icon": icon, "optional": True, "opted": key in opted,
-               "has_data": has[key], "target": tab == key, "open": True,
+        target = tab == key or TAB_SECTION.get(tab) == key
+        on = key in opted or has[key] or target
+        # The lamp reads what the row shows this viewer, so it never
+        # disagrees with the status line beside it: Times counts only the
+        # visible schedule and bill; Activity's log is never 'data' for
+        # being-on purposes, but the lamp still says whether there is
+        # anything in it.
+        if key == "activity":
+            filled = bool(d["changes"])
+        elif key == "times":
+            filled = bool(d["schedule"]) or bool(d["lineup"])
+        else:
+            filled = has[key]
+        sec = {"key": key, "label": label, "icon": icon, "optional": key not in CORE_KEYS,
+               "opted": key in opted, "has_data": has[key], "filled": filled,
+               "target": target, "open": target, "on": on,
                "add_label": ADD_LABELS.get(key, "Add"),
                "removable": can_add and key in opted and not has[key]}
         if not on:
             if can_add:
-                chips.append(sec)
+                features.append(dict(sec, plus=True))
             continue
         if key == "hotel":
             d["lodging"] = _redact_lodging(viewer, rows["lodging"])
@@ -1357,28 +1434,13 @@ def _date_page(user, tour, viewer, show, tab, **extra):
             d["show_files"] = _files_for(viewer, rows["files"])
         elif key == "tasks":
             d["tasks"] = tasks
-        if key != "settlement":          # the settlement lives inside Deal
-            sec["status"] = _section_status(key, d, show, tour)
-            shown.append(sec)
-    core = []
-    for key, label, icon in CORE_SECTIONS:
-        need = SECTION_VIEW_SCOPE.get(key)
-        if need and not can(viewer, need):
-            continue
-        filled = _core_filled(key, d, show)
-        target = tab == key or TAB_SECTION.get(tab) == key
-        core.append({"key": key, "label": label, "icon": icon, "optional": False, "opted": True,
-                     "has_data": True, "filled": filled, "target": target,
-                     # Folded unless the URL asks for it: a date opens as a grid
-                     # of states, and the head says what each holds.
-                     "open": target,
-                     "removable": False, "status": _section_status(key, d, show, tour)})
-    for sec in shown:
-        sec["filled"] = sec["has_data"]
-        sec["open"] = sec["target"]
-    d["sections"] = [c for c in core if c["key"] != "activity"] + shown
-    d["tail_sections"] = [c for c in core if c["key"] == "activity"]
-    d["chips"] = chips
+        sec["status"] = _section_status(key, d, show, tour)
+        features.append(dict(sec, plus=False))
+    d["features"] = features
+    # The meter is up whenever the show is measured - a feature is on it -
+    # even when that feature's row is one this viewer may not read; a
+    # deep-linked feature counts as on for the request, as its row does.
+    d["any_on"] = bool(_on_show(show, has_all)) or any(f["target"] for f in features)
     d.update(extra)
     return render_template("tour/show.html", **_ctx(user, tour, viewer, "shows", shows=shows, tab=tab, **d))
 
@@ -1386,10 +1448,10 @@ def _date_page(user, tour, viewer, show, tab, **extra):
 @bp.route("/tours/<tour_id>/shows/<show_id>/sections", methods=["POST"])
 @require_tour("edit", *sorted(set(SECTION_ADD_SCOPE.values())))
 def show_sections(user, tour, viewer, tour_id, show_id):
-    """Add an optional section to this date, or take an empty one off.
-    The opted keys are stored on the show; a section with rows is refused
-    removal, because its rows would keep it on the page anyway and its
-    readiness categories would keep counting."""
+    """Add a feature to this date, or take an empty one off. The opted
+    keys are stored on the show; a feature with rows is refused removal,
+    because its rows would keep it on the page anyway and its readiness
+    categories would keep counting."""
     show = _show_or_404(tour, show_id)
     key = request.form.get("key") or ""
     action = request.form.get("action") or "add"
@@ -2707,7 +2769,9 @@ def show_money(user, tour, viewer, tour_id, show_id):
     fields = {k: request.form.get(k) for k in ts.MONEY_FIELDS if k in request.form}
     changed = ts.update_show_ext(tour_id, show_id, fields)
     _log(tour, viewer, "money", show_id, show["venue"], changed or {})
-    return redirect(_show_url(tour, show, "money"))
+    # The settlement form posts the night-of keys; land back on that feature.
+    back = "settlement" if any(k in fields for k in SETTLEMENT_FIELDS + ["settlement_status"]) else "money"
+    return redirect(_show_url(tour, show, back))
 
 
 @bp.route("/tours/<tour_id>/expenses/add", methods=["POST"])
@@ -2729,7 +2793,8 @@ def expense_add(user, tour, viewer, tour_id):
     ts.log_change(tour_id, tour["user_id"], _actor(viewer), "expense", eid,
                   fields.get("vendor") or fields.get("category") or "Expense", "created", "",
                   fields.get("amount"), "info")
-    dest = _show_url(tour, {"id": fields["show_id"]}, "money") if fields.get("show_id") else "/tours/%s/money" % tour_id
+    # The ledger is the Settlement feature; land on it, never on the Deal.
+    dest = _show_url(tour, {"id": fields["show_id"]}, "settlement") if fields.get("show_id") else "/tours/%s/money" % tour_id
     return redirect(dest)
 
 
@@ -3261,7 +3326,8 @@ def _ask_context(user, tour, viewer):
     schedule = _visible(viewer, ts.list_schedule(tour["id"]))
     travel = _redact_travel(viewer, ts.list_travel(tour["id"]))
     lodging = _redact_lodging(viewer, ts.list_lodging(tour["id"]))
-    readiness = {s["id"]: _readiness_for(tour, s, viewer) for s in shows}
+    people = ts.list_people(tour["id"])
+    readiness = {s["id"]: _readiness_for(tour, s, viewer, people=people) for s in shows}
     attention = eng.needs_attention(shows, readiness, today)
     guests = {}
     if can(viewer, "guests"):
@@ -3279,7 +3345,7 @@ def _ask_context(user, tour, viewer):
             "attention": attention, "changes": _changes_for(viewer, tour["id"], ts.list_changes(tour["id"], limit=100)),
             "guests": guests, "money_allowed": can(viewer, "financials"), "finance": finance,
             "advance": {s["id"]: ts.list_advance(tour["id"], s["id"]) for s in shows},
-            "people": _redact_people(viewer, ts.list_people(tour["id"]))}
+            "people": _redact_people(viewer, people)}
 
 
 @bp.route("/tours/<tour_id>/ask", methods=["GET", "POST"])

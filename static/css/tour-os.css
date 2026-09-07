@@ -355,12 +355,23 @@ main:has(> .to) { min-width: 0; }
 .to-strip-all > summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); margin-top: -3px; }
 .to-strip-all[open] > summary::after { transform: rotate(-135deg); margin-top: 3px; }
 .to-strip-all .to-check { margin-top: 6px; }
-.to-strip-status { display: flex; align-items: flex-end; gap: 8px; flex: none; }
-.to-strip-status .to-field { width: 150px; }
-.to-strip-status select { min-height: 36px; padding: 6px 10px; }
 
-/* Below the venue information: one row per feature. */
-.to-features { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+/* The event header's own line: date · city · status, the status a select
+   that posts itself (the Update button is the no-script fallback). */
+.to-head-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; max-width: none; }
+.to-head-status { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+/* Scoped under the line so it outranks the Dates-row .to-status-form
+   select rule (equal specificity would let the later one win). */
+.to-head-line .to-head-status select { min-height: 28px; padding: 2px 8px; font-size: 12px; width: auto; }
+/* From your sheet: the one or two windows the import gave us. */
+.to-sheet { margin-bottom: 14px; }
+.to-sheet .to-eyebrow { margin-bottom: 6px; }
+
+/* Add to this show: one grid, every feature in a fixed place. A row on the
+   show and a + row share a cell size; an open row spans the grid. */
+.to-feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px; }
+.to-feature-grid > .to-sec.is-open { grid-column: 1 / -1; }
+@media (max-width: 720px) { .to-feature-grid { grid-template-columns: minmax(0, 1fr); } }
 .to-strip-note { margin: 6px 0 0; font-size: 12px; }
 .to-sec { border: 1px solid var(--to-rule); border-radius: var(--sb-r-panel); background: var(--to-panel); min-width: 0; scroll-margin-top: 16px; }
 .to-sec.is-target { border-color: var(--to-gold); box-shadow: 0 0 0 1px rgb(201 162 74 / 0.35); }

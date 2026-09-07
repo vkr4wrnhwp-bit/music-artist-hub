@@ -15,7 +15,7 @@
       <select name="status" aria-label="Status for {{ s['venue'] }}">{% for st in vocab['show_statuses'] %}<option value="{{ st }}" {% if st == s['status'] %}selected{% endif %}>{{ st }}</option>{% endfor %}</select>
       <button class="to-btn to-btn--ghost to-btn--small" type="submit">Update</button>
     </form>{% else %}{{ m.chip(s['status']) }}{% endif %}</div>
-    <div class="to-date-ready">{{ m.ready(r['pct']) }}
+    <div class="to-date-ready">{{ m.ready(r['pct'], r['total']) }}
       {% if r['missing'] %}<details class="to-date-missing"><summary>{{ r['missing']|length }} missing</summary><ul>{% for i in r['missing'] %}<li>{{ i['label'] }}</li>{% endfor %}</ul></details>{% endif %}
     </div>
   </div>

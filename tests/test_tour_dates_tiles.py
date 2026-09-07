@@ -30,7 +30,13 @@ def test_each_date_is_a_row_with_its_missing_items_folded(flask_app):
     assert re.findall(r'<a class="to-date-when" href="/tours/%s/shows/([0-9a-f]+)"' % tid, html) == [s1, s2]
     assert "The Basement East" in rows and "Exit/In" in rows and "Nashville, TN" in rows
     assert "<table" not in html.split('id="dates"')[1].split(LEGEND)[0], "the dates table is gone"
-    # The missing items are one fold per date, not a column of words.
+    # Nothing on a fresh date, so nothing is measured: not started, never 0%, nothing to fold.
+    assert "to-date-missing" not in html and ">0%<" not in html and "0% ready" not in html
+    assert html.split('id="dates"')[1].split(LEGEND)[0].count("not started") == 2
+    # Put the advance on both dates: the missing items are one fold per date, not a column of words.
+    for sid in (s1, s2):
+        client.post("/tours/%s/shows/%s/sections" % (tid, sid), data={"key": "advance", "action": "add"})
+    html = _dates(client, tid)
     folds = re.findall(r'<details class="to-date-missing"><summary>(\d+) missing</summary><ul>(.*?)</ul></details>', html, re.S)
     assert len(folds) == 2 and all(int(n) >= 1 for n, _ in folds)
     assert "<li>Contract</li>" in folds[0][1]

@@ -226,7 +226,9 @@ def show_readiness(show, advance_rows, travel, lodging, files, guests_summary, c
     """Per-category state for one show, from real rows. Returns
     {pct, done, total, items:[{key,label,state,detail}]}. state is True,
     False, 'waiting' or None (not applicable, excluded from the score)."""
-    config = config or [k for k, _ in READINESS_CATEGORIES]
+    # No config scores everything; an EMPTY config scores nothing - a show
+    # with no feature on it has not been measured.
+    config = list(config) if config is not None else [k for k, _ in READINESS_CATEGORIES]
     labels = dict(READINESS_CATEGORIES)
     file_cats = {f["category"] for f in files}
     items = []
@@ -542,8 +544,13 @@ def ask(question, ctx):
         if show and show["id"] in ctx["readiness"]:
             r = ctx["readiness"][show["id"]]
             miss = ", ".join(i["label"].lower() for i in r["missing"]) or "nothing"
-            return {"answer": "%s is %d%% ready. Missing: %s." % (show.get("city") or show["venue"], r["pct"], miss),
-                    "sources": [src("readiness", show.get("city") or show["venue"])], "found": True}
+            where = show.get("city") or show["venue"]
+            if not r.get("total"):
+                # Nothing on the show yet: not measured, so not a percentage.
+                answer = "%s is not started: nothing is on the show yet, so there is no readiness to report." % where
+            else:
+                answer = "%s is %d%% ready. Missing: %s." % (where, r["pct"], miss)
+            return {"answer": answer, "sources": [src("readiness", where)], "found": True}
         att = ctx.get("attention") or []
         if att:
             return {"answer": "Needs attention: " + "; ".join(a["text"] for a in att[:8]) + ".",

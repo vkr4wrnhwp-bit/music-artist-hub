@@ -10,7 +10,7 @@
       {% for it in c['items'][:2] %}
         {% set s = show_by_id[it['show_id']] if it['show_id'] and it['show_id'] in show_by_id else None %}
         <div class="ev {{ 'show' if s }}">{% if s %}{{ s['city'] or s['venue'] }}{% else %}{{ it['title'] or it['kind']|replace('_',' ')|capitalize }}{% endif %}</div>
-        {% if s and s['id'] in cal_pct %}<div class="pct">{{ cal_pct[s['id']] }}% ready</div>{% endif %}
+        {% if s and s['id'] in cal_pct %}<div class="pct">{% if cal_pct[s['id']] is none %}not started{% else %}{{ cal_pct[s['id']] }}% ready{% endif %}</div>{% endif %}
       {% endfor %}
       {% if c['items'] %}<span class="dot"></span>{% endif %}
     </a>

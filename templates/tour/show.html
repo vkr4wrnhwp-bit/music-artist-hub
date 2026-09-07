@@ -3,27 +3,33 @@
 {% block title %}{{ show['venue'] }} · {{ show['date'] }} - {{ tour['name'] }} - Street Banker{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
-{#- One date, one page.
+{#- One date, one page. The owner's ruling, 2026-09-07, by numbered mockup:
 
-    Six core sections always render: Times, Advance, Venue & contacts, Deal,
-    Notes, Activity. Every other former tab is optional - a `+` chip in the
-    "Add to this date" row until it is added, has rows, or is reached by its
-    old ?tab= deep link. The link still works; it opens and scrolls to the
-    section instead of swapping the page, so a bookmarked or cached URL
-    lands where it always did. The bodies are the same partials under
-    tour/show/ the tabs rendered (fields, names and hidden inputs
-    untouched); tour/date/ holds the four bodies that compose more than one
-    of them. -#}
+    1. The event header: the room, "Show N of M · artist", the venue, then
+       the date, the city and the status - a select that posts itself.
+    2. One button: Send advance.
+    3. "From your sheet": the ticket link and the guarantee, only when the
+       import gave us them. Nothing else from the sheet.
+    4. "Add to this show": ONE grid of every feature in a fixed order. Not
+       on the show: a + row. On the show: a folded row in the same place
+       (icon, name, its set/empty lamp, one status line) that opens in
+       place. Nothing opens unless the URL asks.
+    5. The readiness meter only once something is on, counting only what
+       the features on the show own.
+    6. Nothing twice: no separate list, no chip row, no status row.
+
+    The bodies are the same partials under tour/show/ and tour/date/ the
+    tabs rendered (fields, names and hidden inputs untouched). -#}
 
 {% macro disc(name) -%}
 <span class="sb-disc sb-disc--sm" aria-hidden="true"><svg class="sb-i" aria-hidden="true" focusable="false"><use href="#sb-i-{{ name }}"/></svg></span>
 {%- endmacro %}
 
-{#- A feature on the date is one folded row: icon, label, the lamp (set
+{#- A feature on the show is one folded row: icon, label, the lamp (set
     or empty, never a score), the section's own status line. Only the one
-    the URL asked for opens. -#}
+    the URL asked for opens; an open row spans the grid. -#}
 {% macro sec(s) %}
-<section class="to-sec{% if s['target'] %} is-target{% endif %}{% if s['optional'] %} is-optional{% endif %}" id="{{ s['key'] }}" data-section="{{ s['key'] }}">
+<section class="to-sec{% if s['target'] %} is-target{% endif %}{% if s['open'] %} is-open{% endif %}{% if s['optional'] %} is-optional{% endif %}" id="{{ s['key'] }}" data-section="{{ s['key'] }}">
   <details class="to-sec-d"{% if s['open'] %} open{% endif %}>
     <summary class="to-sec-head">
       {{ disc(s['icon']) }}<span class="to-sec-title">{{ s['label'] }}</span>{{ sb.lamp("set" if s['filled'] else "empty", "on" if s['filled'] else "") }}<span class="to-sec-status">{{ s['status'] }}</span><svg class="sb-i to-sec-caret" aria-hidden="true" focusable="false"><use href="#sb-i-chevron-down"/></svg>
@@ -33,7 +39,7 @@
       {% if s['removable'] %}
       <form method="post" action="{{ show_url }}/sections" class="to-sec-remove">
         <input type="hidden" name="key" value="{{ s['key'] }}"><input type="hidden" name="action" value="remove">
-        <button class="to-btn to-btn--ghost to-btn--small" type="submit">Remove from this date</button>
+        <button class="to-btn to-btn--ghost to-btn--small" type="submit">Remove from this show</button>
         <span class="to-muted">Nothing entered yet, so this takes {{ s['label']|lower }} off the page and out of readiness.</span>
       </form>
       {% endif %}
@@ -42,33 +48,48 @@
 </section>
 {% endmacro %}
 
-<div class="to-head">
+<div class="to-head" id="event">
   <div class="to-head-id">
     {{ m.thumb(show['venue'], thumbs.get(show['id']), 'lg', credit=thumb_credits.get(show['id'], '')) }}
     <div>
-    <p class="to-eyebrow">Show Command · #{{ show['show_number'] }} of {{ shows|length }}</p>
+    <p class="to-eyebrow">Show {{ show['show_number'] }} of {{ shows|length }} · {{ tour['artist_name'] or tour['name'] }}</p>
     <h1 class="to-h1" style="font-size:22px">{{ show['venue'] }}</h1>
-    <p class="to-sub">{{ fmt_day(show['date']) }}{% if show['city'] %} · {{ show['city'] }}{% endif %}{% if show['tz'] %} · <span class="to-muted">{{ show['tz'] }}</span>{% endif %} · {{ m.chip(show['status']) }}</p>
+    <div class="to-sub to-head-line">{{ fmt_day(show['date']) }}{% if show['city'] %} · {{ show['city'] }}{% endif %} ·
+      {% if can('edit') or can('advance') %}<form method="post" action="{{ show_url }}/ext" class="to-status-form to-head-status">
+        <select name="status" aria-label="Status for {{ show['venue'] }}">{% for st in vocab['show_statuses'] %}<option value="{{ st }}" {% if st == show['status'] %}selected{% endif %}>{{ st }}</option>{% endfor %}</select>
+        <button class="to-btn to-btn--ghost to-btn--small" type="submit">Update</button>
+      </form>{% else %}{{ m.chip(show['status']) }}{% endif %}
+    </div>
     {%- if thumb_credits.get(show['id']) %}<p class="to-muted" style="font-size:12px;margin:2px 0 0">Photo: {{ thumb_credits[show['id']] }} via Google</p>{% endif %}
     </div>
   </div>
-  <div class="to-inline">
-    {% if prev_show %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/shows/{{ prev_show['id'] }}?tab={{ tab }}">‹ {{ prev_show['city'] or prev_show['venue'] }}</a>{% endif %}
-    {% if next_show %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/shows/{{ next_show['id'] }}?tab={{ tab }}">{{ next_show['city'] or next_show['venue'] }} ›</a>{% endif %}
-    <a class="to-btn to-btn--ghost to-btn--small" href="{{ show_url }}/day-sheet" target="_blank" rel="noopener">Day sheet</a>
-    {% if can('advance') %}<a class="to-btn to-btn--small" href="{{ show_url }}?tab=send" data-reveal="send">Send advance</a>{% endif %}
-  </div>
+  {% if can('advance') %}<a class="to-btn to-btn--small" href="{{ show_url }}?tab=send" data-reveal="send">Send advance</a>{% endif %}
 </div>
 
-{#- Readiness: the score, how many items it is out of, and the next three
-    gaps. The full list is one click away rather than a 17-row column. -#}
+{#- What the import sheet gave us, and nothing else: the ticket link and
+    the guarantee (the latter only to someone who may read money). Absent
+    when neither exists. -#}
+{% if sheet['ticket_url'] or sheet['guarantee'] %}
+<div class="to-sheet" id="sheet">
+  <p class="to-eyebrow">From your sheet</p>
+  <div class="to-figs">
+    {% if sheet['ticket_url'] %}<span class="to-fig"><span>tickets</span><b><a class="to-chip" href="{{ sheet['ticket_url'] }}" target="_blank" rel="noopener">{{ sheet['ticket_host'] }}</a></b></span>{% endif %}
+    {% if sheet['guarantee'] %}<span class="to-fig"><span>guarantee</span><b>{{ sheet['guarantee'] }} {{ sheet['currency'] }}</b></span>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{#- Readiness, only once a feature is on the show: the score out of what
+    the features on the show own, and the next three gaps. The full list
+    is one click away. -#}
+{% if any_on %}
 <div class="to-strip" id="readiness">
   <div class="to-strip-score">
-    {{ m.ready(readiness['pct']) }}
-    <span class="to-muted">{{ readiness['done'] }} of {{ readiness['total'] }} applicable</span>
+    {{ m.ready(readiness['pct'], readiness['total']) }}
+    <span class="to-muted">{% if readiness['total'] %}{{ readiness['done'] }} of {{ readiness['total'] }} applicable{% else %}nothing counted yet{% endif %}</span>
   </div>
   <div class="to-strip-main">
-    <span class="sb-meter" role="img" aria-label="Readiness: {{ readiness['pct'] }}%"><span class="sb-meter-fill" style="--sb-meter-fill: {{ readiness['pct'] }}%;"></span></span>
+    {% if readiness['total'] %}<span class="sb-meter" role="img" aria-label="Readiness: {{ readiness['pct'] }}%"><span class="sb-meter-fill" style="--sb-meter-fill: {{ readiness['pct'] }}%;"></span></span>{% endif %}
     <p class="to-strip-gaps">
       {% if readiness['missing'] %}<b>Next:</b> {% for c in readiness['missing'][:3] %}{{ c['label'] }}{{ ' · ' if not loop.last }}{% endfor %}{% if readiness['missing']|length > 3 %} <span class="to-muted">+{{ readiness['missing']|length - 3 }} more</span>{% endif %}
       {% elif readiness['waiting'] %}<b>Waiting on:</b> {% for c in readiness['waiting'][:3] %}{{ c['label'] }}{{ ' · ' if not loop.last }}{% endfor %}
@@ -86,24 +107,24 @@
         </li>
         {% endfor %}
       </ul>
-      <p class="to-muted" style="margin:8px 0 0">Core items always count; added sections count once they are on the date.</p>
+      <p class="to-muted" style="margin:8px 0 0">A feature's items count once it is on this show.</p>
     </details>
-    <p class="to-muted to-strip-note">* The meter grows as you use Street Banker's features to build out this show.</p>
+    <p class="to-muted to-strip-note">* The meter grows with the features you add to this show.</p>
   </div>
-  {% if can('edit') %}
-  <form method="post" action="{{ show_url }}/ext" class="to-strip-status">
-    <label class="to-field"><span>Status</span><select name="status">{% for st in vocab['show_statuses'] %}<option value="{{ st }}" {% if st == show['status'] %}selected{% endif %}>{{ st|capitalize }}</option>{% endfor %}</select></label>
-    <button class="to-btn to-btn--ghost to-btn--small" type="submit">Update</button>
-  </form>
-  {% endif %}
 </div>
+{% endif %}
 
-{#- Below the venue information: every feature this date can carry, one
-    row each, in one list. On the date: a folded row that says what it
-    holds. Not on the date: a + row; click it and the section populates.
-    Activity is last. Nothing opens unless the URL asked for it. -#}
-<div class="to-features" id="features">
-{% for s in sections %}
+{#- Add to this show: every feature, one grid, fixed order. A feature not
+    on the show is a + row; click it and it populates in the same place. -#}
+<h2 class="to-h2" id="add-to-show">Add to this show</h2>
+<div class="to-feature-grid" id="features">
+{% for s in features %}
+{% if s['plus'] %}
+<form method="post" action="{{ show_url }}/sections" class="to-feature-add" data-chip="{{ s['key'] }}">
+  <input type="hidden" name="key" value="{{ s['key'] }}"><input type="hidden" name="action" value="add">
+  <button class="to-feature-btn" type="submit" title="{{ s['add_label'] }}">{{ disc(s['icon']) }}<span class="plus" aria-hidden="true">+</span><span class="to-sec-title">{{ s['label'] }}</span></button>
+</form>
+{% else %}
 {% call sec(s) %}
   {% if s['key'] == 'times' %}
     <div id="schedule">{% include "tour/show/_schedule.html" %}</div>
@@ -130,17 +151,7 @@
     {% else %}<details class="to-add"{% if s['target'] %} open{% endif %}><summary>{{ s['add_label'] }}</summary><div class="to-add-body">{% include "tour/show/_" ~ s['key'] ~ ".html" %}</div></details>{% endif %}
   {% endif %}
 {% endcall %}
-{% endfor %}
-{% for c in chips %}
-<form method="post" action="{{ show_url }}/sections" class="to-feature-add" data-chip="{{ c['key'] }}">
-  <input type="hidden" name="key" value="{{ c['key'] }}"><input type="hidden" name="action" value="add">
-  <button class="to-feature-btn" type="submit" title="{{ c['add_label'] }}">{{ disc(c['icon']) }}<span class="plus" aria-hidden="true">+</span><span class="to-sec-title">{{ c['label'] }}</span><span class="to-sec-status">{{ c['add_label'] }}</span></button>
-</form>
-{% endfor %}
-{% for s in tail_sections %}
-{% call sec(s) %}
-  {% include "tour/show/_activity.html" %}
-{% endcall %}
+{% endif %}
 {% endfor %}
 </div>
 
@@ -149,8 +160,15 @@
   /* ?tab=<key> and the header's Send button open the disclosure they name
      and scroll to it. The server already marks the target open, so this
      only has to do the scrolling - and the in-page reveal when the button
-     is used without a reload. */
+     is used without a reload. An open row spans the grid. */
   var target = {{ open_target|tojson }};
+  var secs = document.querySelectorAll(".to-sec-d");
+  for (var j = 0; j < secs.length; j++) {
+    secs[j].addEventListener("toggle", function () {
+      var sec = this.parentElement;
+      if (sec) sec.classList.toggle("is-open", this.open);
+    });
+  }
   function reveal(id, scroll) {
     var el = id && document.getElementById(id);
     if (!el) return false;
@@ -166,6 +184,12 @@
   }
   if (target) reveal(target, true);
   else if (location.hash) reveal(location.hash.slice(1), true);
+  /* The status select in the header posts itself on change. The Update
+     button stays: it is the no-script fallback. */
+  var st = document.querySelector(".to-head-status select");
+  if (st) st.addEventListener("change", function () {
+    if (st.form.requestSubmit) { st.form.requestSubmit(); } else { st.form.submit(); }
+  });
 })();
 </script>
 {% endblock %}

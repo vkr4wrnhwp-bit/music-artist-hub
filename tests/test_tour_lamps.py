@@ -43,6 +43,8 @@ def _owner_with_show(flask_app):
 
 def test_the_checklist_states_are_words_not_glyphs(flask_app):
     client, tid, sid = _owner_with_show(flask_app)
+    # Nothing is measured until a feature is on the show (2026-09-07): put the advance on.
+    client.post("/tours/%s/shows/%s/sections" % (tid, sid), data={"key": "advance", "action": "add"})
     body = client.get("/tours/%s/shows/%s" % (tid, sid)).get_data(as_text=True)
     check = body.split('class="to-check"')[1].split("</ul>")[0]
     assert 'class="mark"' not in check
