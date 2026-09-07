@@ -19,15 +19,14 @@
 <span class="sb-disc sb-disc--sm" aria-hidden="true"><svg class="sb-i" aria-hidden="true" focusable="false"><use href="#sb-i-{{ name }}"/></svg></span>
 {%- endmacro %}
 
-{#- A section is a tile until it opens: the head carries the icon, the
-    label, the lamp (set or empty, never a score) and the section's own
-    status line. Open, it takes the whole row of the grid. -#}
+{#- A feature on the date is one folded row: icon, label, the lamp (set
+    or empty, never a score), the section's own status line. Only the one
+    the URL asked for opens. -#}
 {% macro sec(s) %}
-<section class="to-sec{% if s['target'] %} is-target{% endif %}{% if s['optional'] %} is-optional{% endif %}{% if s['open'] %} is-open{% endif %}" id="{{ s['key'] }}" data-section="{{ s['key'] }}">
+<section class="to-sec{% if s['target'] %} is-target{% endif %}{% if s['optional'] %} is-optional{% endif %}" id="{{ s['key'] }}" data-section="{{ s['key'] }}">
   <details class="to-sec-d"{% if s['open'] %} open{% endif %}>
     <summary class="to-sec-head">
-      <span class="to-sec-top">{{ disc(s['icon']) }}<span class="to-sec-title">{{ s['label'] }}</span><svg class="sb-i to-sec-caret" aria-hidden="true" focusable="false"><use href="#sb-i-chevron-down"/></svg></span>
-      <span class="to-sec-row">{{ sb.lamp("set" if s['filled'] else "empty", "on" if s['filled'] else "") }}<span class="to-sec-status">{{ s['status'] }}</span></span>
+      {{ disc(s['icon']) }}<span class="to-sec-title">{{ s['label'] }}</span>{{ sb.lamp("set" if s['filled'] else "empty", "on" if s['filled'] else "") }}<span class="to-sec-status">{{ s['status'] }}</span><svg class="sb-i to-sec-caret" aria-hidden="true" focusable="false"><use href="#sb-i-chevron-down"/></svg>
     </summary>
     <div class="to-sec-body">
       {{ caller() }}
@@ -88,6 +87,7 @@
       </ul>
       <p class="to-muted" style="margin:8px 0 0">Core items always count; added sections count once they are on the date.</p>
     </details>
+    <p class="to-muted to-strip-note">* The meter grows as you use Street Banker's features to build out this show.</p>
   </div>
   {% if can('edit') %}
   <form method="post" action="{{ show_url }}/ext" class="to-strip-status">
@@ -97,10 +97,11 @@
   {% endif %}
 </div>
 
-{#- One grid. Every section on this date is a folded tile; the one + tile
-    unfolds the chips for what is not on the date yet; Activity is last.
-    Nothing is open on first look unless the URL asked for it. -#}
-<div class="to-secs">
+{#- Below the venue information: every feature this date can carry, one
+    row each, in one list. On the date: a folded row that says what it
+    holds. Not on the date: a + row; click it and the section populates.
+    Activity is last. Nothing opens unless the URL asked for it. -#}
+<div class="to-features" id="features">
 {% for s in sections %}
 {% call sec(s) %}
   {% if s['key'] == 'times' %}
@@ -113,6 +114,8 @@
     {% include "tour/show/_money.html" %}
   {% elif s['key'] == 'notes' %}
     {% include "tour/show/_notes.html" %}
+  {% elif s['key'] == 'activity' %}
+    {% include "tour/show/_activity.html" %}
   {% elif s['key'] == 'hotel' %}
     {% include "tour/date/_hotel.html" %}
   {% elif s['key'] == 'travel' %}
@@ -127,44 +130,18 @@
   {% endif %}
 {% endcall %}
 {% endfor %}
-
-{% if chips %}
-<section class="to-sec to-sec--add" id="add-to-date">
-  <details class="to-sec-d">
-    <summary class="to-sec-head">
-      <span class="to-sec-top"><span class="plus" aria-hidden="true">+</span><span class="to-sec-title">Add to this date</span><svg class="sb-i to-sec-caret" aria-hidden="true" focusable="false"><use href="#sb-i-chevron-down"/></svg></span>
-      <span class="to-sec-row"><span class="to-sec-status">{{ chips|length }} more you can add</span></span>
-    </summary>
-    <div class="to-sec-body">
-      <div class="to-chips">
-        {% for c in chips %}
-        <form method="post" action="{{ show_url }}/sections" data-chip="{{ c['key'] }}">
-          <input type="hidden" name="key" value="{{ c['key'] }}"><input type="hidden" name="action" value="add">
-          <button class="to-chip-btn" type="submit"><span class="plus" aria-hidden="true">+</span> {{ c['label'] }}</button>
-        </form>
-        {% endfor %}
-      </div>
-      <p class="to-muted">An added section counts toward readiness; while it is still empty it can be taken off again.</p>
-    </div>
-  </details>
-</section>
-{% endif %}
-
+{% for c in chips %}
+<form method="post" action="{{ show_url }}/sections" class="to-feature-add" data-chip="{{ c['key'] }}">
+  <input type="hidden" name="key" value="{{ c['key'] }}"><input type="hidden" name="action" value="add">
+  <button class="to-feature-btn" type="submit" title="{{ c['add_label'] }}">{{ disc(c['icon']) }}<span class="plus" aria-hidden="true">+</span><span class="to-sec-title">{{ c['label'] }}</span><span class="to-sec-status">{{ c['add_label'] }}</span></button>
+</form>
+{% endfor %}
 {% for s in tail_sections %}
 {% call sec(s) %}
   {% include "tour/show/_activity.html" %}
 {% endcall %}
 {% endfor %}
 </div>
-
-<script>
-(function () {
-  /* An open section takes the whole row of the grid; a closed one is a tile. */
-  document.querySelectorAll(".to-sec > details.to-sec-d").forEach(function (d) {
-    d.addEventListener("toggle", function () { d.parentElement.classList.toggle("is-open", d.open); });
-  });
-})();
-</script>
 
 <script>
 (function () {

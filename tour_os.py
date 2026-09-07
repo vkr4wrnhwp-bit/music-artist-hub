@@ -109,7 +109,7 @@ SECTION_ADD_SCOPE = {"hotel": "hotel", "travel": "travel", "guests": "guests", "
 # Old tab keys that land inside a section. The page scrolls to the tab's
 # own id; this says which section it lives in.
 TAB_SECTION = {"overview": None, "schedule": "times", "inbox": "advance", "send": "advance",
-               "production": "advance", "people": "venue", "money": "deal"}
+               "production": "advance", "people": "venue", "money": "deal", "settlement": "deal"}
 ADD_LABELS = {"hotel": "Add a hotel", "travel": "Add travel", "guests": "Set the allocation and add guests",
               "vip": "Add a VIP package", "merch": "Count merch for this date",
               "marketing": "Enter tickets and the local push", "content": "Assign the content plan",
@@ -148,17 +148,21 @@ PRIMARY_TABS = ("home", "shows", "people", "travel", "money", "files")
 BAR_LABELS = {"home": "Home", "shows": "Dates", "people": "Crew", "travel": "Travel & hotels"}
 # Pages that live under one primary entry, shown as a sub-row beneath it.
 BAR_GROUPS = {"travel": (("travel", "Travel"), ("hotels", "Hotels"), ("map", "Route"))}
-MORE_ORDER = ("my-day", "calendar", "schedule", "venues", "setlists", "stage-plot", "guests", "vip", "merch",
-              "marketing", "content", "tasks", "changes", "ask", "import", "exports", "share",
+# The tour level is for booking the run, importing its dates, and closing
+# it out (2026-09-07). Every day-of-show page - the schedule, guests, VIP,
+# set lists, the stage plot, merch counts, the content plan, tasks, My
+# Day - lives inside each show's own bar and is not in this menu. Their
+# run-wide roll-ups still answer at their URLs, reached from inside a show.
+MORE_ORDER = ("calendar", "venues", "marketing", "import", "exports", "changes", "ask", "share",
               "team", "settings")
-# The same nineteen, read as four questions instead of one list. Order
-# inside a group is MORE_ORDER's; a key in no group lands under Tools.
+# Read as three questions. Order inside a group is MORE_ORDER's; a key in
+# no group lands under Tools.
 MORE_GROUPS = (
-    ("Show day", ("my-day", "calendar", "schedule", "setlists", "stage-plot")),
-    ("People", ("guests", "vip", "team")),
-    ("Sell & tell", ("merch", "marketing", "content")),
-    ("Tools", ("venues", "tasks", "changes", "ask", "import", "exports", "share", "settings")),
+    ("Booking", ("calendar", "venues", "marketing", "import")),
+    ("Close out", ("exports", "changes")),
+    ("Tools", ("ask", "share", "team", "settings")),
 )
+
 
 
 # --- identity & access ------------------------------------------------------

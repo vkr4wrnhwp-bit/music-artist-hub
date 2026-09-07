@@ -49,14 +49,16 @@ def test_the_bar_is_seven_entries_for_an_owner(flask_app):
     # Home is lit; nothing in More is.
     assert 'aria-current="page">Home<' in bar
     items = re.findall(r'class="to-more-item[^"]*"[^>]*>([^<]+)<', bar)
-    # The same nineteen, read as four questions (2026-09-06: "simplify the
-    # top navigation"): the day, the people, the selling, the tools.
-    assert items == ["My Day", "Calendar", "Schedule", "Set lists", "Stage plot",
-                     "Guests", "VIP", "Team",
-                     "Merch", "Marketing", "Content",
-                     "Venues", "Tasks", "What changed", "Ask Tour", "Import", "Exports", "Share links", "Settings"]
+    # The tour level is for booking the run, importing it and closing it
+    # out (2026-09-07: "tour page has no header navigation for day of show
+    # features"). Every day-of-show page lives inside a show's own bar.
+    assert items == ["Calendar", "Venues", "Marketing", "Import",
+                     "Exports", "What changed",
+                     "Ask Tour", "Share links", "Team", "Settings"]
     heads = re.findall(r'class="to-more-head">([^<]+)<', bar)
-    assert heads == ["Show day", "People", "Sell &amp; tell", "Tools"]
+    assert heads == ["Booking", "Close out", "Tools"]
+    for day_of in ("My Day", "Schedule", "Guests", "VIP", "Set lists", "Stage plot", "Merch", "Content", "Tasks"):
+        assert (">%s<" % day_of) not in bar, day_of
     # The old 24-link bar is gone: no tab for Hotels or Route in the top row.
     assert "Hotels</a>" not in bar and "Route</a>" not in bar
 
@@ -95,7 +97,9 @@ def test_the_bar_is_scope_filtered():
     for gated in ("money", "files", "settings", "team", "share", "import", "guests", "merch",
                   "marketing", "content", "vip"):
         assert gated not in keys, gated
-    assert "my-day" in keys and "calendar" in keys and "setlists" in keys
+    assert "calendar" in keys and "venues" in keys
+    for day_of in ("my-day", "schedule", "setlists", "stage-plot", "tasks"):
+        assert day_of not in keys, day_of
 
 
 def test_every_tour_page_still_answers_with_the_new_bar(flask_app):
