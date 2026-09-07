@@ -2296,9 +2296,16 @@ def merch(user, tour, viewer, tour_id):
         low = eng._num(p["low_stock_at"])
         totals[p["id"]] = {"sold": sold, "gross": gross, "left": (inv - sold) if inv else None,
                            "low": bool(low and inv and (inv - sold) <= low)}
+    run = {"sold": int(sum(t["sold"] for t in totals.values())),
+           "gross": sum(t["gross"] for t in totals.values()),
+           "low": sum(1 for t in totals.values() if t["low"]),
+           "counted_shows": len(per_show), "unsettled": 0}
+    for rows in per_show.values():
+        if any(not c.get("settled") for c in rows):
+            run["unsettled"] += 1
     return render_template("tour/merch.html", **_ctx(
         user, tour, viewer, "merch", shows=shows, products=products, per_show=per_show, totals=totals,
-        show_by_id={s["id"]: s for s in shows}))
+        show_by_id={s["id"]: s for s in shows}, run=run))
 
 
 @bp.route("/tours/<tour_id>/merch/products/add", methods=["POST"])
