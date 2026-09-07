@@ -530,6 +530,17 @@ def upsert_artist(provider, provider_artist_id, fields):
     return artist_id
 
 
+def seeded_by(provider):
+    """True when any artist in the universe was ingested by `provider`.
+    The Signal shell asks this of the mock: a fictional universe stays
+    labelled fictional even after a real source has stood the mock down,
+    because the rows on screen are still the ones the mock made."""
+    with get_db() as db:
+        row = db.execute("SELECT 1 FROM signal_artist_ids WHERE provider=? LIMIT 1",
+                         (provider,)).fetchone()
+    return row is not None
+
+
 def provider_ids(artist_id):
     """Every (provider, provider_id) a canonical artist is known by."""
     with get_db() as db:

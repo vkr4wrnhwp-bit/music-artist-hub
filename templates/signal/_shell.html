@@ -53,6 +53,13 @@
         contact on these screens is fictional and generated locally. Nothing here refers to a
         real person or business. Connect a provider under Data sources to work with live data.
       </div>
+    {% elif demo_universe %}
+      <div class="sg-banner" role="status">
+        <b>Demo data.</b> The artists, companies and contacts on these screens were generated
+        locally and are fictional; nothing here refers to a real person or business. The sources
+        now connected answer only what they measure. Connect a music-data provider under Data
+        sources and refresh the universe to replace them.
+      </div>
     {% endif %}
     {% block main %}{% endblock %}
   </main>

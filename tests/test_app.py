@@ -1804,8 +1804,11 @@ def test_bandsintown_honest_when_unconfigured(monkeypatch):
     monkeypatch.delenv("BANDSINTOWN_APP_ID", raising=False)
     client = _demo()
     body = client.get("/epk").get_data(as_text=True)
-    # Field is disabled with an honest note; no fake dates anywhere.
-    assert "not enabled on this server yet" in body
+    # Bandsintown declined an app_id (2026-09-07): the kit names TOUR as
+    # the source and never tells the owner to configure Bandsintown; no
+    # fake dates anywhere.
+    assert "Tour dates: confirm a date in TOUR and it appears here" in body
+    assert "not enabled on this server yet" not in body
     assert "The Fillmore" not in body
 
 

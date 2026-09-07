@@ -16,7 +16,8 @@ adapter with a key would light a "configured" badge and answer nothing.
 | Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Billing; fan-club memberships; TOUR VIP packages sold through a date's public link (`/vip/<token>`, one-time Checkout tagged `kind=tour_vip`, claimed by the webhook or the success redirect, never twice). `VIP_PLATFORM_FEE_PCT` (default 15) is Street Banker's cut, recorded per sale; payouts to the artist are settled outside the app and the ledger says so. |
 | Cloudflare R2 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Uploads, audio outputs |
 | Shopify Admin | `SHOPIFY_DOMAIN` + `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` from the app's settings in Shopify's Dev Dashboard (the app mints its own 24-hour Admin token by the client credentials grant, and its own permanent Storefront token once; the app's released version must carry `read_customers` and the `unauthenticated_read_product_listings` / `unauthenticated_write_checkouts` scopes, and the app and store must be in the same Shopify organization). Legacy `SHOPIFY_ADMIN_TOKEN` / `SHOPIFY_STOREFRONT_TOKEN` still win when set. | Fan CRM: import the store's customers whose email-marketing consent is *subscribed* (`POST /links/fans/import/shopify`, `shopify_customers.py`); others are counted and skipped. The Buy Buttons use the Storefront token, a separate key. |
-| Bandsintown | `BANDSINTOWN_APP_ID` (awaiting their approval) | EPK tour dates and the artist record (people tracking, dates up); Signal "Live dates" tab via `BandsintownAdapter` (events only, keyed by the artist's name as Bandsintown spells it) |
+| Bandsintown | `BANDSINTOWN_APP_ID` | Bandsintown declined to issue an app_id (2026-09-07); dormant. `bandsintown_provider.py` and `BandsintownAdapter` stay in the code unchanged and inert. EPK and Signal dates come from TOUR (`tour_dates.py`). |
+| TOUR itself (first-party) | — | EPK tour dates and Signal live dates: the artist's confirmed and advanced shows (`tour_dates.upcoming`; holds never, past dates never). Signal's `TourDatesAdapter` answers only for the signed-in owner's own act, matched to the tour's artist name. It is a real adapter under the registry's all-or-nothing rule: for a viewer with a confirmed date the mock stands down for every capability and anything no real source covers is "not measured". Rows the mock ingested earlier stay fictional, so the Signal shell keeps its demo banner while any mock-seeded artist is still on screen (`signal_store.seeded_by`). No display cap: the EPK lists and counts every upcoming date. "Today" is the tour's home_tz day, the clock TOUR keeps, not the server's. |
 | MusicBrainz (keyless) | — | Catalog: songwriter and publisher credits by ISRC (`music_apis.musicbrainz_credits`) |
 | Google News RSS (keyless) | — | Press finder on the EPK |
 | **MusicBrainz for Signal** | `MUSICBRAINZ_ENABLED=1`, `MUSICBRAINZ_CONTACT=<email>` | Signal: artist identity, releases, labels — free, no account. Measures nothing (no listeners, cities or distributor), and says so. |
@@ -44,7 +45,7 @@ refuses everywhere else, so demo mode is all-or-nothing.
 ## Order to switch things on
 
 1. `MUSICBRAINZ_ENABLED=1` + `MUSICBRAINZ_CONTACT` — free, immediate, real.
-2. `BANDSINTOWN_APP_ID` — when Bandsintown answers the application.
+2. ~~`BANDSINTOWN_APP_ID`~~ — Bandsintown declined the application (2026-09-07); TOUR is the dates source instead.
 3. Soundcharts — the adapter exists and is sandbox-verified. A plan must
    include: artist search + metadata, current stats, streaming audience
    (listening and local), audience (followers), albums + album metadata,

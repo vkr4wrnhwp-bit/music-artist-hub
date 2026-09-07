@@ -696,6 +696,98 @@ class BandsintownAdapter(MusicIntelligenceProvider):
         return self.events_for_name(name.strip())
 
 
+class TourDatesAdapter(MusicIntelligenceProvider):
+    """The artist's own TOUR, read first-hand (tour_dates.py): confirmed
+    and advanced upcoming dates, for live events only.
+
+    Bandsintown declined this platform an app_id (2026-09-07), so the
+    dates the app already holds are the source. There is no key: the
+    adapter is "configured" for the viewer who is signed in and owns at
+    least one upcoming confirmed date, and for nobody else - so it is per
+    request, on the viewer's own data.
+
+    It is a real adapter under the registry's one rule: once it is
+    configured the mock stands down for EVERY capability, and anything no
+    real source covers is "not measured", never invented. The stored
+    universe is a separate question - rows the mock ingested earlier stay
+    fictional whoever is looking - so the Signal shell keeps its demo
+    banner while any mock-ingested artist remains on screen
+    (signal_store.seeded_by), even with this adapter answering.
+
+    Rows answer only for the Signal artist whose name matches the tour's
+    artist name (case-insensitively), or, for a tour with no artist name,
+    when the page is the owner's own act. Another act's page never
+    borrows these dates.
+    """
+    key = "tour_dates"
+    label = "Your tour in Street Banker"
+    capabilities = (CAP_EVENTS,)
+
+    def __init__(self, user_id=None, resolve=None, own_names=None):
+        self._user_id = user_id      # injectable; default is the Flask session
+        self._resolve = resolve      # provider_artist_id -> name, injectable
+        self._own_names = own_names  # user_id -> names the owner goes by, injectable
+
+    def _uid(self):
+        if self._user_id is not None:
+            return self._user_id
+        try:
+            from flask import has_request_context, session
+            if has_request_context():
+                return session.get("user_id")
+        except Exception:
+            return None
+        return None
+
+    def configured(self):
+        uid = self._uid()
+        if not uid:
+            return False
+        import tour_dates
+        return bool(tour_dates.upcoming(uid, limit=1))
+
+    def health_check(self):
+        on = self.configured()
+        return {"provider": self.key, "configured": on, "ok": on,
+                "detail": ("answering with the signed-in owner's confirmed dates" if on else
+                           "no key needed; answers only for a signed-in owner with a "
+                           "confirmed upcoming date in TOUR"),
+                "capabilities": list(self.capabilities)}
+
+    def _name_for(self, provider_artist_id):
+        if self._resolve is not None:
+            return self._resolve(provider_artist_id) or ""
+        import signal_store as sstore
+        name = sstore.artist_name_for_provider_id(provider_artist_id)
+        if not name:
+            # _live_events hands over the canonical id when an artist has
+            # no provider ids yet; that row still has a name.
+            name = (sstore.get_artist(provider_artist_id) or {}).get("canonical_name") or ""
+        return name
+
+    def _owner_names(self, uid):
+        if self._own_names is not None:
+            return list(self._own_names(uid) or [])
+        import db as store
+        names = [(store.get_user(uid) or {}).get("name") or ""]
+        try:
+            names.append((store.get_pulse_profile(uid) or {}).get("artist_name") or "")
+        except Exception:
+            pass
+        return [n for n in names if n]
+
+    def get_events(self, provider_artist_id):
+        uid = self._uid()
+        if not uid:
+            return []
+        name = (self._name_for(provider_artist_id) or "").strip()
+        if not name:
+            return []
+        import tour_dates
+        return tour_dates.event_rows(uid, artist_name=name,
+                                     own_names=self._owner_names(uid))
+
+
 class MLCAdapter(_EnvProvider):
     """The MLC Public Search API (https://public-api.themlc.com/api/doc).
 
@@ -1220,8 +1312,8 @@ class MockMusicIntelligenceAdapter(MusicIntelligenceProvider):
 
 # --- registry ---------------------------------------------------------------
 
-_REAL_ADAPTERS = (BandsintownAdapter, SoundchartsAdapter, ChartmetricAdapter, MusicBrainzAdapter,
-                  MLCAdapter, SoundExchangeAdapter, SpotifyMetadataAdapter,
+_REAL_ADAPTERS = (BandsintownAdapter, TourDatesAdapter, SoundchartsAdapter, ChartmetricAdapter,
+                  MusicBrainzAdapter, MLCAdapter, SoundExchangeAdapter, SpotifyMetadataAdapter,
                   PublicWebResearchAdapter, InternalStreetBankerAdapter)
 
 
@@ -1251,7 +1343,8 @@ class ProviderRegistry(object):
         real provider exists, a capability nobody real covers returns None,
         and the caller shows "not measured" - because a real artist with
         invented listener numbers beside their real name is the fabrication
-        this product refuses everywhere else. Demo mode is all-or-nothing.
+        this product refuses everywhere else. Demo mode is all-or-nothing:
+        the viewer's own TourDatesAdapter counts like any other real source.
         """
         for p in self.adapters:
             if p.supports(capability) and p.configured():
@@ -1261,7 +1354,9 @@ class ProviderRegistry(object):
         return None
 
     def is_demo(self):
-        """True when nothing real is configured - the UI must say so."""
+        """True when no real provider is configured, so the mock answers -
+        and the UI must say so. Whether the STORED universe is fictional is
+        a separate question the shell asks the store (seeded_by)."""
         return not any(p.configured() for p in self.adapters)
 
     def health(self):

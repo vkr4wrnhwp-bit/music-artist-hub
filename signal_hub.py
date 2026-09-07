@@ -95,11 +95,16 @@ def require(permission="view"):
 
 def _ctx(org, member, **extra):
     reg = providers.registry()
+    demo = reg.is_demo()
     base = {
         "org": org,
         "me": member,
         "sg_can": (lambda perm: sstore.can(member, perm)),
-        "demo_mode": reg.is_demo(),
+        "demo_mode": demo,
+        # the mock has stood down (a real source is configured - maybe only
+        # the viewer's own tour) but rows it ingested are still on screen:
+        # they are still fictional, so the shell still says so
+        "demo_universe": (not demo) and sstore.seeded_by(reg.mock.key),
         "unread_alerts": sstore.unread_alert_count(org["id"]) if org else 0,
         "score_labels": scoring.SCORE_LABELS,
         "score_version": scoring.SCORE_VERSION,
@@ -328,10 +333,11 @@ def artist(org, member, artist_id):
     rec = scoring.recommend(artist_id, features=features)
     tab = request.args.get("tab") or "overview"
     momentum_expl = (scores.get(scoring.MOMENTUM) or {}).get("explanation") or {}
-    events, events_provider = _live_events(artist_id) if tab == "events" else (None, "")
+    events, events_provider, events_source = (_live_events(artist_id) if tab == "events"
+                                              else (None, "", ""))
     return render_template("signal/artist.html", **_ctx(
         org, member, a=a, scores=scores, tab=tab, rec=rec,
-        events=events, events_provider=events_provider,
+        events=events, events_provider=events_provider, events_source=events_source,
         releases=sstore.list_releases(artist_id),
         cities=sstore.list_city_metrics(artist_id),
         contacts=sstore.list_evidence("artist", artist_id, sstore.CLAIM_CONTACT),
@@ -351,18 +357,20 @@ def artist(org, member, artist_id):
 
 def _live_events(artist_id):
     """Upcoming dates from whichever provider serves live events, read live
-    rather than stored: a listing is today's. (None, "") when no provider
-    is connected - the tab then says not measured, not empty."""
+    rather than stored: a listing is today's. (None, "", "") when no
+    provider is connected - the tab then says not measured, not empty.
+    The third value is the provider's key, so the tab can word its
+    source line for a first-party source (the artist's own TOUR)."""
     reg = providers.registry()
     p = reg.for_capability(providers.CAP_EVENTS)
     if p is None:
-        return None, ""
+        return None, "", ""
     ids = sstore.provider_ids(artist_id)
     pid = ids[0]["provider_id"] if ids else artist_id
     try:
-        return list(p.get_events(pid) or []), p.label
+        return list(p.get_events(pid) or []), p.label, p.key
     except providers.ProviderError:
-        return None, p.label
+        return None, p.label, p.key
 
 
 def _brief(a, scores, rec, features):

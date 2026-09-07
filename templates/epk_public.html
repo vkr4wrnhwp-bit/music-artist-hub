@@ -208,7 +208,7 @@
       </section>
       {% endif %}
 
-      <!-- Tour dates (live from Bandsintown) -->
+      <!-- Tour dates: the artist's own TOUR first; Bandsintown only when it is the source. Omitted entirely with no rows. -->
       {% if e.sections_on.tour and e.tour_dates %}
       <section class="py-12">
         <div class="flex items-center gap-5">
@@ -233,7 +233,7 @@
           </div>
           {% endfor %}
         </div>
-        <p class="sb-label mt-3 text-sb-surface-2/35">Live dates via Bandsintown</p>
+        <p class="sb-label mt-3 text-sb-surface-2/35">{% if e.tour_source == 'bandsintown' %}Live dates via Bandsintown{% else %}Dates from the artist's tour in Street Banker{% endif %}</p>
       </section>
       {% endif %}
 

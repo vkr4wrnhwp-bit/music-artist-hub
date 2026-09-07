@@ -198,6 +198,7 @@ import qualification
 import sync_simulator
 import trust_score
 import bandsintown_provider as bandsintown
+import tour_dates as tour_dates_feed
 import capital_engine
 import stripe_provider as stripe_billing
 import royalty_types
@@ -1982,6 +1983,7 @@ def create_app():
             return login_required_redirect()
         pulse_profile = store.get_pulse_profile(user["id"])
         statements = store.get_statements(user["id"])
+        epk_dates_n = len(tour_dates_feed.upcoming(user["id"]))
         integrations = [
             {"name": "Spotify", "kind": "Live API",
              "on": spotify.pulse_configured(),
@@ -2005,12 +2007,13 @@ def create_app():
                         "resets send from %s." % emailer.sender())
              if emailer.configured() else "RESEND_API_KEY not set on the server.",
              "action": ("/links", "Campaigns that use it")},
-            {"name": "Bandsintown", "kind": "Events API",
-             "on": bandsintown.configured(),
-             "detail": ("Tour dates flow onto your public EPK automatically."
-                        if bandsintown.configured() else
-                        "Awaiting app_id from Bandsintown support — tour dates "
-                        "light up on the EPK the day it arrives."),
+            {"name": "Tour dates", "kind": "Your tour (first-party)",
+             "on": bool(epk_dates_n),
+             "detail": (("Tour dates: from your tour in Street Banker (%d confirmed)."
+                         % epk_dates_n if epk_dates_n else
+                         "Tour dates: confirm a date in TOUR and it appears here.")
+                        + " Bandsintown declined this platform an app_id "
+                        "(2026-09-07); that listing stays dormant."),
              "action": ("/epk", "EPK tour section")},
             {"name": "Royalty statements", "kind": "Your uploads",
              "on": bool(statements),
@@ -2195,6 +2198,19 @@ def create_app():
                         ("cover_art", "Cover Art"), ("live_photo", "Live Photo")]
     _EPK_KIND_LABELS = dict(_EPK_ASSET_KINDS)
 
+    def _epk_tour_dates(user_id, overrides):
+        """(rows, bandsintown_profile, source) for the kit's Tour Dates
+        block. TOUR is the source whenever the artist holds a confirmed or
+        advanced upcoming date there - their own word, first-hand. Only
+        when TOUR has nothing do the Bandsintown rows answer, and those
+        are empty while that provider is dormant (no app_id, 2026-09-07)."""
+        rows = tour_dates_feed.epk_rows(user_id) if user_id else []
+        if rows:
+            return rows, None, "tour"
+        name = (overrides or {}).get("bandsintown_artist")
+        return (bandsintown.upcoming_events(name), bandsintown.artist_info(name),
+                "bandsintown")
+
     def _labeled_assets(assets):
         return [{**a, "label": _EPK_KIND_LABELS.get(a["kind"], a["kind"])}
                 for a in assets if a["kind"] in _EPK_KIND_LABELS]
@@ -2225,11 +2241,13 @@ def create_app():
         ctx["vault_images"] = [v for v in vault
                                if v["path"].rsplit(".", 1)[-1].lower()
                                in ("png", "jpg", "jpeg", "webp")]
-        tour = bandsintown.upcoming_events((overrides or {}).get("bandsintown_artist"))
-        bit = bandsintown.artist_info((overrides or {}).get("bandsintown_artist"))
+        tour, bit, tour_source = _epk_tour_dates(user["id"] if user else None,
+                                                 overrides)
+        ctx["tour_dates_count"] = len(tour) if tour_source == "tour" else 0
         ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"],
                                   overrides=overrides, photo=photo, assets=assets,
                                   tour_dates=tour, bandsintown_profile=bit,
+                                  tour_source=tour_source,
                                   demo=_is_demo_email(user["email"]))
         return render_template("epk.html", active_page="press-desk", **ctx)
 
@@ -2293,13 +2311,13 @@ def create_app():
         name = prof["user_name"]
         initials = "".join(w[0] for w in name.split()[:2]).upper() or "SB"
         assets = _labeled_assets(store.get_epk_assets(prof["user_id"], public_only=True))
-        tour = bandsintown.upcoming_events(prof["data"].get("bandsintown_artist"))
-        bit = bandsintown.artist_info(prof["data"].get("bandsintown_artist"))
+        tour, bit, tour_source = _epk_tour_dates(prof["user_id"], prof["data"])
         real = _epk_real_stats(prof["user_id"])
         data = get_epk_data({"name": name, "initials": initials},
                             ctx["catalog_value"],
                             overrides=prof["data"], photo=prof["photo"],
                             assets=assets, tour_dates=tour, bandsintown_profile=bit,
+                            tour_source=tour_source,
                             # Whose kit this is decides whose defaults
                             # apply - a real artist's public EPK must
                             # never fall back to the showcase identity.
@@ -2375,15 +2393,14 @@ def create_app():
         initials = "".join(w[0] for w in name.split()[:2]).upper() or "SB"
         assets = _labeled_assets(store.get_epk_assets(share["user_id"],
                                                       public_only=True))
-        tour = bandsintown.upcoming_events(
-            ((prof or {}).get("data") or {}).get("bandsintown_artist"))
-        bit = bandsintown.artist_info(
-            ((prof or {}).get("data") or {}).get("bandsintown_artist"))
+        tour, bit, tour_source = _epk_tour_dates(share["user_id"],
+                                                 (prof or {}).get("data"))
         data = get_epk_data({"name": name, "initials": initials},
                             ctx["catalog_value"],
                             overrides=(prof or {}).get("data"),
                             photo=(prof or {}).get("photo"),
                             assets=assets, tour_dates=tour, bandsintown_profile=bit,
+                            tour_source=tour_source,
                             demo=_is_demo_email((owner or {}).get("email") or ""))
         viewer = current_user()
         if viewer is None or viewer["id"] != share["user_id"]:

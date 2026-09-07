@@ -179,7 +179,13 @@
           <div class="sg-ev-src">{{ [ev['city'], ev['region'], ev['country']]|select|join(', ') }}</div>
         </div>
       {% endfor %}
+      {% if events_source == 'tour_dates' %}
+      <p class="sg-note">Source: your tour in Street Banker — the confirmed and advanced dates held in TOUR today, first-hand. A date list is not a routing history and not evidence of draw.</p>
+      {% else %}
       <p class="sg-note">Upcoming dates as {{ events_provider }} lists them today. A listing is not a routing history and not evidence of draw.</p>
+      {% endif %}
+    {% elif events_source == 'tour_dates' %}
+      <div class="sg-empty">Source: your tour in Street Banker — none of its confirmed dates are for this artist. That is not evidence the artist is not touring.</div>
     {% else %}
       <div class="sg-empty">No upcoming dates listed on {{ events_provider }}. That is not evidence the artist is not touring.</div>
     {% endif %}
