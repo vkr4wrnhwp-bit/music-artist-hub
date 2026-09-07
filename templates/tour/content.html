@@ -5,13 +5,14 @@
 {% import "tour/_macros.html" as m %}
 <div class="to-head"><div><p class="to-eyebrow">Content Command</p><h1 class="to-h1" style="font-size:20px">The shot list, every night</h1><p class="to-sub">Sixteen default items per show — arrival, venue, crowd line, soundcheck, hero performance, post-show… Assign, set a due time, move status, attach the file. Nothing posts anywhere from here.</p></div></div>
 {% if shows %}
-{% for s in shows %}
+{#- A night's shot list: how much of it has an owner as the meter, the
+    counts as instruments; the rows below are the entry grid. Nights
+    nobody has touched fold behind one count, the first three out. -#}
+{% macro night(s, first) %}
 {% set items = by_show[s['id']] if s['id'] in by_show else [] %}
 {% set assigned = items|selectattr('assignee')|list|length %}
 {% set moved = items|rejectattr('status','equalto','planned')|list|length %}
-{#- A night's shot list: how much of it has an owner as the meter, the
-    counts as instruments; the rows below are the entry grid. -#}
-<details class="to-night" {% if loop.first %}open{% endif %} style="margin-bottom:8px">
+<details class="to-night" {% if first %}open{% endif %} style="margin-bottom:8px">
   <summary class="to-night-head">
     <span class="to-date-when"><span class="to-tile-l">{{ fmt_day(s['date']) }}</span><span class="to-tile-v">{{ s['city'] or s['venue'] }}</span></span>
     <span class="to-gauge">{{ sb.meter("assigned", assigned if items else none, items|length if items else none, "", (assigned ~ " / " ~ items|length) if items else none, "no shot list") }}</span>
@@ -35,6 +36,18 @@
     </tbody>
   </table></div>
 </details>
-{% endfor %}
+{% endmacro %}
+{% set live = [] %}{% set quiet = [] %}
+{% for s in shows %}{% set items = by_show[s['id']] if s['id'] in by_show else [] %}
+{% if items|selectattr('assignee')|list|length == 0 and items|rejectattr('status','equalto','planned')|list|length == 0 %}{% set _ = quiet.append(s) %}{% else %}{% set _ = live.append(s) %}{% endif %}{% endfor %}
+{% if not live %}{% set live = quiet[:3] %}{% set quiet = quiet[3:] %}{% endif %}
+<div id="nights">
+{% for s in live %}{{ night(s, loop.first) }}{% endfor %}
+{% if quiet %}
+<details class="to-fold to-quiet"><summary>{{ quiet|length }} night{{ '' if quiet|length == 1 else 's' }} with nothing assigned yet</summary>
+  <div style="padding:0 10px 10px">{% for s in quiet %}{{ night(s, False) }}{% endfor %}</div>
+</details>
+{% endif %}
+</div>
 {% else %}{{ m.empty("No shows yet", "The content plan is per show.") }}{% endif %}
 {% endblock %}

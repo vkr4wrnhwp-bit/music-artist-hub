@@ -66,6 +66,15 @@ def test_the_home_says_one_line_per_date_with_a_count(flask_app):
     assert "Nashville, TN contract" not in board, "the city is not repeated on every item"
 
 
+def test_content_folds_the_nights_nobody_touched(flask_app):
+    client, owner, tid, sids = _six(flask_app)
+    html = client.get("/tours/%s/content" % tid).get_data(as_text=True)
+    grid = html.split('id="nights"')[1]
+    head, fold = grid.split('<details class="to-fold to-quiet">')
+    assert head.count('<details class="to-night"') == 3 and head.count('<details class="to-night" open') == 1
+    assert fold.startswith("<summary>3 nights with nothing assigned yet</summary>") and fold.count('<details class="to-night"') == 3
+
+
 def test_the_person_form_folds_its_show_list(flask_app):
     client, owner, tid, sids = _six(flask_app)
     html = client.get("/tours/%s/people" % tid).get_data(as_text=True)
