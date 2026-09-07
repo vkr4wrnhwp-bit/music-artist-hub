@@ -47,7 +47,7 @@ def test_a_venue_photo_shows_beside_every_date_at_that_room(flask_app):
     assert ts.get_venue(owner["id"], vid)["photo"]
     img = '<img class="to-thumb-img" src="%s"' % url
     assert img in client.get("/tours/%s/shows" % tid).get_data(as_text=True), "the dates list"
-    assert img in client.get("/tours/%s" % tid).get_data(as_text=True), "the home tiles"
+    assert "to-thumb" not in client.get("/tours/%s" % tid).get_data(as_text=True).split('class="to-cal"')[1], "the home is the month; no rows there"
     page = client.get("/tours/%s/shows/%s" % (tid, sid)).get_data(as_text=True)
     assert '<span class="to-thumb to-thumb--lg">' + img in page, "the date's own header"
     assert 'to-thumb--mono to-thumb--lg' not in page

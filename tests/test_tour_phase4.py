@@ -83,13 +83,15 @@ def test_vip_rolls_up_across_the_run_under_its_own_scope(flask_app):
     assert "Nashville, TN" in page and 'href="/tours/%s/shows/%s?tab=vip"' % (tid, sid) in page
     assert '<span class="to-fig"><span>sold</span><b>3</b></span>' in page
     assert "450.00" in page                       # the owner holds financials: gross shows
-    # The two new pages are in the More menu for an owner.
+    # Day-of-show pages left the tour bar (2026-09-07): a date offers them.
     bar = client.get("/tours/%s" % tid).get_data(as_text=True).split('class="to-tabs to-bar"')[1].split("</nav>")[0]
-    assert ">Set lists<" in bar and ">VIP<" in bar
+    assert ">Set lists<" not in bar and ">VIP<" not in bar
+    date_page = client.get("/tours/%s/shows/%s" % (tid, sid)).get_data(as_text=True)
+    assert 'data-chip="setlist"' in date_page and 'id="vip" data-section="vip"' in date_page
     # A viewer without the vip scope: no page, no menu entry.
     crew = {"is_owner": False, "scopes": ["view"]}
     keys = [t["key"] for t in tour_os._tour_bar(crew, "home")["more"]]
-    assert "vip" not in keys and "setlists" in keys
+    assert "vip" not in keys and "setlists" not in keys and "calendar" in keys
 
 
 def test_the_orphans_are_gone_and_the_modules_say_what_they_are():

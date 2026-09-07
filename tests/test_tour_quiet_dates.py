@@ -55,17 +55,6 @@ def test_guests_marketing_and_money_fold_the_dates_that_hold_nothing(flask_app):
         assert ("/shows/%s?tab=" % sids[4]) in _grid(html, anchor).split('<details class="to-fold to-quiet">')[0], path
 
 
-def test_the_home_says_one_line_per_date_with_a_count(flask_app):
-    client, owner, tid, sids = _six(flask_app)
-    html = client.get("/tours/%s" % tid).get_data(as_text=True)
-    board = html.split("Needs attention</h2>")[1].split("<h2")[0]
-    assert len(re.findall(r'sb-lamp sb-lamp--crit">\d+ open</span>', board)) == 5, "five dates shown, one line each"
-    assert board.count('<details class="to-date-missing"><summary>what</summary>') == 5
-    assert "1 more date with open items" in board
-    assert ('/shows/%s"' % sids[0]) in board and ('/shows/%s"' % sids[5]) not in board
-    assert "Nashville, TN contract" not in board, "the city is not repeated on every item"
-
-
 def test_content_folds_the_nights_nobody_touched(flask_app):
     client, owner, tid, sids = _six(flask_app)
     html = client.get("/tours/%s/content" % tid).get_data(as_text=True)

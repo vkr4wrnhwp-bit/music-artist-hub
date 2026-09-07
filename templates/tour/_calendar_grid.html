@@ -1,0 +1,18 @@
+<div class="to-cal" role="grid" aria-label="{{ month_label }}">
+  {% for d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}<div class="to-cal-dow">{{ d }}</div>{% endfor %}
+  {% for c in cells %}
+    {% set first = c['items'][0] if c['items'] else None %}
+    {% set fshow = show_by_id[first['show_id']] if first and first['show_id'] and first['show_id'] in show_by_id else None %}
+    <a class="to-cal-day {{ 'is-out' if not c['in_month'] }} {{ 'is-today' if c['today'] }}"
+       href="{% if fshow %}/tours/{{ tour['id'] }}/shows/{{ fshow['id'] }}{% else %}/tours/{{ tour['id'] }}/my-day?date={{ c['date'] }}{% endif %}"
+       aria-label="{{ c['date'] }}">
+      <span class="d">{{ c['day'] }}</span>
+      {% for it in c['items'][:2] %}
+        {% set s = show_by_id[it['show_id']] if it['show_id'] and it['show_id'] in show_by_id else None %}
+        <div class="ev {{ 'show' if s }}">{% if s %}{{ s['city'] or s['venue'] }}{% else %}{{ it['title'] or it['kind']|replace('_',' ')|capitalize }}{% endif %}</div>
+        {% if s and s['id'] in cal_pct %}<div class="pct">{{ cal_pct[s['id']] }}% ready</div>{% endif %}
+      {% endfor %}
+      {% if c['items'] %}<span class="dot"></span>{% endif %}
+    </a>
+  {% endfor %}
+</div>

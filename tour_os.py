@@ -144,8 +144,8 @@ TOUR_TAB_SCOPE = {"money": "financials", "merch": "merch", "guests": "guests",
 # The bar every tour page carries. Seven entries for the daily work; the
 # once-a-tour utilities and the roll-ups sit under More. Keys are TOUR_TABS
 # keys, so every route, scope and test path is unchanged - only the bar is.
-PRIMARY_TABS = ("home", "shows", "people", "travel", "money", "files")
-BAR_LABELS = {"home": "Home", "shows": "Dates", "people": "Crew", "travel": "Travel & hotels"}
+PRIMARY_TABS = ("home", "import", "venues", "people", "travel", "money", "files")
+BAR_LABELS = {"home": "Home", "shows": "Dates", "people": "Crew", "travel": "Travel & hotels", "import": "Import"}
 # Pages that live under one primary entry, shown as a sub-row beneath it.
 BAR_GROUPS = {"travel": (("travel", "Travel"), ("hotels", "Hotels"), ("map", "Route"))}
 # The tour level is for booking the run, importing its dates, and closing
@@ -153,12 +153,12 @@ BAR_GROUPS = {"travel": (("travel", "Travel"), ("hotels", "Hotels"), ("map", "Ro
 # set lists, the stage plot, merch counts, the content plan, tasks, My
 # Day - lives inside each show's own bar and is not in this menu. Their
 # run-wide roll-ups still answer at their URLs, reached from inside a show.
-MORE_ORDER = ("calendar", "venues", "marketing", "import", "exports", "changes", "ask", "share",
+MORE_ORDER = ("shows", "calendar", "marketing", "exports", "changes", "ask", "share",
               "team", "settings")
 # Read as three questions. Order inside a group is MORE_ORDER's; a key in
 # no group lands under Tools.
 MORE_GROUPS = (
-    ("Booking", ("calendar", "venues", "marketing", "import")),
+    ("Booking", ("shows", "calendar", "marketing")),
     ("Close out", ("exports", "changes")),
     ("Tools", ("ask", "share", "team", "settings")),
 )
@@ -430,7 +430,7 @@ def _tour_bar(viewer, nav):
         if key not in allowed or key in grouped:
             continue
         label, path = allowed[key]
-        more.append({"key": key, "label": label, "path": path, "on": nav == key})
+        more.append({"key": key, "label": BAR_LABELS.get(key, label), "path": path, "on": nav == key})
     active_more = next((m for m in more if m["on"]), None)
     by_key = {m["key"]: m for m in more}
     groups, placed = [], set()
@@ -697,68 +697,19 @@ def join(token):
 @bp.route("/tours/<tour_id>")
 @require_tour("view")
 def home(user, tour, viewer, tour_id):
+    """The tour's home is the month. Everything else is one click in - the
+    owner, 2026-09-07: "the workflow is to much", then, by number on the
+    mockup, the dates list and the change banner came off the home too.
+    A critical change still waits on What changed."""
     shows = ts.list_shows(tour_id)
-    today = eng.today_in(tour["home_tz"])
-    schedule = _visible(viewer, ts.list_schedule(tour_id))
-    travel = _redact_travel(viewer, ts.list_travel(tour_id))
-    lodging = _redact_lodging(viewer, ts.list_lodging(tour_id))
-    upcoming = [s for s in shows if s["date"] >= today][:5]
-    readiness = {}
-    per_show = []
-    for s in shows:
-        r = _readiness_for(tour, s, viewer)
-        readiness[s["id"]] = r
-        per_show.append({"show": s, "readiness": r})
-    tour_ready = eng.tour_readiness(per_show)
-    attention = eng.needs_attention(shows, readiness, today)
-    # One line per date with a count, the items behind it: ten lines about
-    # two dates read as ten problems.
-    attention_by_date = []
-    for a in attention:
-        if attention_by_date and attention_by_date[-1]["show"]["id"] == a["show"]["id"]:
-            attention_by_date[-1]["items"].append(a)
-        else:
-            attention_by_date.append({"show": a["show"], "items": [a]})
-    sched_p, travel_p = eng.personal(viewer, viewer["scopes"], schedule, travel)
-    nxt = eng.next_item(tour, shows, sched_p, travel_p)
-    changes = _changes_for(viewer, tour_id, ts.list_changes(tour_id, severity_min="important", limit=40))[:8]
-    acks = ts.ack_state(tour_id, [c["id"] for c in changes], user["id"])
-    for c in changes:
-        if c["id"] not in acks:
-            ts.ack(tour_id, tour["user_id"], c["id"], user["id"], "delivered")
-    unack = [c for c in changes if c["severity"] == "critical" and acks.get(c["id"]) != "acknowledged"]
-    finance = None
-    if can(viewer, "financials"):
-        exp = {}
-        for e in ts.list_expenses(tour_id):
-            exp.setdefault(e.get("show_id") or "", []).append(e)
-        finance = eng.tour_finance(shows, exp, tour["currency"], today=today)
-    tasks = _tour_tasks(tour, shows)
-    open_tasks = [t for t in tasks if t["status"] in ("new", "in_progress")]
-    guests_pending = 0
-    if can(viewer, "guests"):
-        for s in upcoming:
-            guests_pending += ts.guest_summary(tour_id, s["id"], s.get("guest_allocation"))["pending"]
-    people_count = len(ts.list_people(tour_id))
-    my_day = eng.my_day(viewer, viewer["scopes"], shows, schedule, travel, lodging, today)
-    return render_template("tour/home.html", **_ctx(
-        user, tour, viewer, "home", shows=shows, upcoming=upcoming, readiness=readiness,
-        tour_ready=tour_ready, attention=attention[:10], attention_by_date=attention_by_date[:5],
-        attention_dates=len(attention_by_date), nxt=nxt, changes=changes,
-        acks=acks, unack=unack, finance=finance, open_tasks=open_tasks[:6],
-        guests_pending=guests_pending, people_count=people_count, my_day=my_day,
-        hotel_tonight=my_day["hotel"], today_show=next((s for s in shows if s["date"] == today), None)))
+    cal = _calendar_month(tour, shows, ts.list_days(tour_id), request.args.get("month") or "", {})
+    cal["cal_pct"] = {s["id"]: _readiness_for(tour, s, viewer)["pct"] for s in shows if s["date"][:7] == cal["month"]}
+    scored = [d for d in ts.list_days(tour_id) if d["date"][:7] == cal["month"] and d.get("show_id") in cal["cal_pct"]]
+    cal["month_stats"]["ready"] = sum(1 for d in scored if cal["cal_pct"][d["show_id"]] >= 100)
+    cal["month_stats"]["scored"] = bool(cal["cal_pct"])
+    cal.pop("today")
+    return render_template("tour/home.html", **_ctx(user, tour, viewer, "home", shows=shows, **cal))
 
-
-@bp.route("/tours/<tour_id>/mode", methods=["POST"])
-@require_tour("edit")
-def set_mode(user, tour, viewer, tour_id):
-    mode = request.form.get("mode") or ""
-    ts.update_tour(tour_id, {"mode_override": mode if mode in ("live", "planning") else ""})
-    return _back("/tours/%s" % tour_id)
-
-
-# --- my day -----------------------------------------------------------------
 
 @bp.route("/tours/<tour_id>/my-day")
 @require_tour("view")
@@ -792,6 +743,37 @@ def my_day(user, tour, viewer, tour_id):
 
 # --- calendar & days --------------------------------------------------------
 
+def _calendar_month(tour, shows, days, month_arg, cal_pct):
+    """One month of cells for the grid, with its counts. `cal_pct` is
+    readiness per show id, only for the shows that were scored."""
+    today = eng.today_in(tour["home_tz"])
+    month = month_arg or (tour["start_date"][:7] if tour["start_date"] and tour["start_date"] > today else today[:7])
+    if not re.match(r"^\d{4}-\d{2}$", month):
+        month = today[:7]
+    y, m = int(month[:4]), int(month[5:7])
+    first = date(y, m, 1)
+    start = first - timedelta(days=(first.weekday() + 1) % 7)   # weeks start Sunday
+    by_date = {}
+    for d in days:
+        by_date.setdefault(d["date"], []).append(d)
+    show_by_id = {s["id"]: s for s in shows}
+    cells = []
+    for i in range(42):
+        d = start + timedelta(days=i)
+        iso = d.isoformat()
+        cells.append({"date": iso, "day": d.day, "in_month": d.month == m, "today": iso == today,
+                      "items": by_date.get(iso, []), "show_by_id": show_by_id})
+    in_month = [d for d in days if d["date"][:7] == month]
+    month_shows = [d for d in in_month if d.get("show_id") in show_by_id]
+    month_stats = {"shows": len(month_shows), "other": len(in_month) - len(month_shows),
+                   "ready": sum(1 for d in month_shows if cal_pct.get(d["show_id"], 0) >= 100),
+                   "scored": bool(cal_pct)}
+    return {"cells": cells, "month": month, "prev_m": (first - timedelta(days=1)).strftime("%Y-%m"),
+            "next_m": (first + timedelta(days=32)).replace(day=1).strftime("%Y-%m"),
+            "month_label": first.strftime("%B %Y"), "show_by_id": show_by_id,
+            "month_stats": month_stats, "cal_pct": cal_pct, "today": today}
+
+
 @bp.route("/tours/<tour_id>/calendar")
 @require_tour("view")
 def calendar(user, tour, viewer, tour_id):
@@ -801,39 +783,17 @@ def calendar(user, tour, viewer, tour_id):
     month = request.args.get("month") or (tour["start_date"][:7] if tour["start_date"] and tour["start_date"] > today else today[:7])
     if not re.match(r"^\d{4}-\d{2}$", month):
         month = today[:7]
-    y, m = int(month[:4]), int(month[5:7])
-    first = date(y, m, 1)
-    start = first - timedelta(days=(first.weekday() + 1) % 7)   # weeks start Sunday
-    cells = []
     readiness = {}
     if request.args.get("ready") != "0":
         for s in shows:
             if s["date"][:7] == month:
                 readiness[s["id"]] = _readiness_for(tour, s, viewer)["pct"]
-    by_date = {}
-    for d in days:
-        by_date.setdefault(d["date"], []).append(d)
-    show_by_id = {s["id"]: s for s in shows}
-    for i in range(42):
-        d = start + timedelta(days=i)
-        iso = d.isoformat()
-        cells.append({"date": iso, "day": d.day, "in_month": d.month == m, "today": iso == today,
-                      "items": by_date.get(iso, []), "show_by_id": show_by_id})
-    prev_m = (first - timedelta(days=1)).strftime("%Y-%m")
-    next_m = (first + timedelta(days=32)).replace(day=1).strftime("%Y-%m")
+    cal = _calendar_month(tour, shows, days, month, readiness)
+    cal.pop("today")
     view = request.args.get("view") or "month"
-    # The month, counted: show days, other days, and how many of its
-    # shows are fully ready - windows above the grid, not a paragraph.
-    in_month = [d for d in days if d["date"][:7] == month]
-    month_shows = [d for d in in_month if d.get("show_id") in show_by_id]
-    month_stats = {"shows": len(month_shows), "other": len(in_month) - len(month_shows),
-                   "ready": sum(1 for d in month_shows if readiness.get(d["show_id"], 0) >= 100),
-                   "scored": bool(readiness)}
     return render_template("tour/calendar.html", **_ctx(
-        user, tour, viewer, "calendar", shows=shows, cells=cells, month=month, prev_m=prev_m,
-        next_m=next_m, month_label=first.strftime("%B %Y"), days=days, readiness=readiness,
-        view=view, show_by_id=show_by_id, month_stats=month_stats,
-        add_open=(not days) or request.args.get("add") == "1"))
+        user, tour, viewer, "calendar", shows=shows, days=days, readiness=readiness, view=view,
+        add_open=(not days) or request.args.get("add") == "1", **cal))
 
 
 @bp.route("/tours/<tour_id>/days/add", methods=["POST"])

@@ -44,7 +44,7 @@ def test_the_bar_is_seven_entries_for_an_owner(flask_app):
     page = client.get("/tours/%s" % tid).get_data(as_text=True)
     bar = _bar(page)
     labels = re.findall(r'class="to-tab[^"]*"[^>]*>([^<]+)<', bar)
-    assert labels[:6] == ["Home", "Dates", "Crew", "Travel &amp; hotels", "Money", "Files"]
+    assert labels[:7] == ["Home", "Import", "Venues", "Crew", "Travel &amp; hotels", "Money", "Files"]
     assert 'class="to-more"' in bar and ">More <" in bar
     # Home is lit; nothing in More is.
     assert 'aria-current="page">Home<' in bar
@@ -52,7 +52,7 @@ def test_the_bar_is_seven_entries_for_an_owner(flask_app):
     # The tour level is for booking the run, importing it and closing it
     # out (2026-09-07: "tour page has no header navigation for day of show
     # features"). Every day-of-show page lives inside a show's own bar.
-    assert items == ["Calendar", "Venues", "Marketing", "Import",
+    assert items == ["Dates", "Calendar", "Marketing",
                      "Exports", "What changed",
                      "Ask Tour", "Share links", "Team", "Settings"]
     heads = re.findall(r'class="to-more-head">([^<]+)<', bar)
@@ -89,15 +89,15 @@ def test_the_bar_is_scope_filtered():
     owner = {"is_owner": True, "scopes": ["admin"]}
     crew = {"is_owner": False, "scopes": ["view", "hotel", "travel"]}
     bar = tour_os._tour_bar(owner, "home")
-    assert [t["key"] for t in bar["primary"]] == ["home", "shows", "people", "travel", "money", "files"]
+    assert [t["key"] for t in bar["primary"]] == ["home", "import", "venues", "people", "travel", "money", "files"]
     assert "settings" in [t["key"] for t in bar["more"]]
     bar = tour_os._tour_bar(crew, "home")
-    assert [t["key"] for t in bar["primary"]] == ["home", "shows", "people", "travel"]
+    assert [t["key"] for t in bar["primary"]] == ["home", "venues", "people", "travel"]
     keys = [t["key"] for t in bar["more"]]
     for gated in ("money", "files", "settings", "team", "share", "import", "guests", "merch",
                   "marketing", "content", "vip"):
         assert gated not in keys, gated
-    assert "calendar" in keys and "venues" in keys
+    assert "calendar" in keys and "shows" in keys
     for day_of in ("my-day", "schedule", "setlists", "stage-plot", "tasks"):
         assert day_of not in keys, day_of
 
