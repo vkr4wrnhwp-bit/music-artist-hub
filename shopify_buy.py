@@ -30,6 +30,7 @@ import os
 import urllib.request
 
 import db as store
+import shopify_customers
 
 API_VERSION = "2025-07"
 CHECK_TTL = 10 * 60
@@ -44,8 +45,49 @@ def domain():
     return (os.environ.get("SHOPIFY_DOMAIN") or "").strip()
 
 
-def token():
+# A Storefront token is permanent and a shop may hold a hundred of them,
+# so the app mints its own once, through the Admin API, and keeps it.
+STOREFRONT_KEY = "shopify:storefront-token"
+STOREFRONT_ERROR_KEY = "shopify:storefront-token-error"
+MINT_MUTATION = """mutation($input: StorefrontAccessTokenInput!) {
+  storefrontAccessTokenCreate(input: $input) {
+    storefrontAccessToken { accessToken title }
+    userErrors { field message }
+  }
+}"""
+
+
+def env_token():
     return (os.environ.get("SHOPIFY_STOREFRONT_TOKEN") or "").strip()
+
+
+def minted_token(post=None):
+    """The Storefront token the app made for itself, or '' - minted once
+    with the Admin token from the app's own credentials and kept in
+    app_kv. Needs the unauthenticated_* scopes on the app's version."""
+    kept = store.get_kv(STOREFRONT_KEY) or ""
+    if kept:
+        return kept
+    if not (domain() and shopify_customers.uses_grant()):
+        return ""
+    made, why, status = shopify_customers.mint_storefront_token(MINT_MUTATION, "Street Banker Buy Buttons", post=post or _post)
+    if made:
+        store.set_kv(STOREFRONT_KEY, made)
+        store.set_kv(STOREFRONT_ERROR_KEY, "")
+        return made
+    store.set_kv(STOREFRONT_ERROR_KEY, json.dumps({"status": status, "why": (why or "")[:200]}))
+    return ""
+
+
+def mint_error():
+    try:
+        return json.loads(store.get_kv(STOREFRONT_ERROR_KEY) or "null") or None
+    except ValueError:
+        return None
+
+
+def token():
+    return env_token() or minted_token()
 
 
 def collection_id():
@@ -65,9 +107,15 @@ def context():
         ("SHOPIFY_DOMAIN", domain()),
         ("SHOPIFY_STOREFRONT_TOKEN", token()),
         ("SHOPIFY_COLLECTION_ID", collection_id())) if not value]
+    reason = "Set %s to embed the store." % ", ".join(missing)
+    if "SHOPIFY_STOREFRONT_TOKEN" in missing and shopify_customers.uses_grant():
+        err = mint_error()
+        reason = ("The store could not mint a Storefront token through the app%s. Give the app's version the "
+                  "unauthenticated_read_product_listings and unauthenticated_write_checkouts scopes, or set "
+                  "SHOPIFY_STOREFRONT_TOKEN." % ((": " + err["why"]) if err and err.get("why") else ""))
     return {"configured": False, "domain": "", "token": "",
             "collection_id": "",
-            "reason": "Set %s to embed the store." % ", ".join(missing)}
+            "reason": reason}
 
 
 def _post(url, headers, body):
