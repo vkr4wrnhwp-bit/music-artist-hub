@@ -18,7 +18,7 @@
       <span class="to-tile-v">{{ s['city'] or s['venue'] }}</span>
       {% if s['ticket_status'] %}<span class="to-tile-s">{{ s['ticket_status'] }}</span>{% endif %}
     </a>
-    <div class="to-meter">{{ sb.meter("tickets", r['progress']['sold'] if r['progress'] else none, r['progress']['cap'] if r['progress'] else none, "", (r['progress']['sold'] ~ " / " ~ r['progress']['cap']) if r['progress'] else none, "not entered") }}</div>
+    <div class="to-gauge">{{ sb.meter("tickets", r['progress']['sold'] if r['progress'] else none, r['progress']['cap'] if r['progress'] else none, "", (r['progress']['sold'] ~ " / " ~ r['progress']['cap']) if r['progress'] else none, "not entered") }}</div>
     <div class="to-figs">
       <span class="to-fig"><span>announce</span><b>{{ mk['announce'] if 'announce' in mk and mk['announce'] else '—' }}</b></span>
       <span class="to-fig"><span>presale</span><b>{{ mk['presale'] if 'presale' in mk and mk['presale'] else '—' }}</b></span>

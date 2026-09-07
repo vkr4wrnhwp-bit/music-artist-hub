@@ -14,7 +14,7 @@
 <details class="to-night" {% if loop.first %}open{% endif %} style="margin-bottom:8px">
   <summary class="to-night-head">
     <span class="to-date-when"><span class="to-tile-l">{{ fmt_day(s['date']) }}</span><span class="to-tile-v">{{ s['city'] or s['venue'] }}</span></span>
-    <span class="to-meter">{{ sb.meter("assigned", assigned if items else none, items|length if items else none, "", (assigned ~ " / " ~ items|length) if items else none, "no shot list") }}</span>
+    <span class="to-gauge">{{ sb.meter("assigned", assigned if items else none, items|length if items else none, "", (assigned ~ " / " ~ items|length) if items else none, "no shot list") }}</span>
     <span class="to-figs"><span class="to-fig"><span>shots</span><b>{{ items|length }}</b></span><span class="to-fig"><span>captured</span><b>{{ moved }}</b></span></span>
     {% if items and assigned < items|length %}{{ sb.lamp((items|length - assigned) ~ " unassigned", "warn") }}{% endif %}
   </summary>

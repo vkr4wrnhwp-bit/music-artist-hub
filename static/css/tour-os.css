@@ -458,7 +458,7 @@ a.to-strip:hover, a.to-strip:focus-visible { border-color: var(--to-gold); outli
 .to-date--file { grid-template-columns: minmax(0, 1.6fr) auto auto auto; }
 .to-date--guest { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; }
 .to-date--market { grid-template-columns: minmax(0, 1fr) minmax(140px, 1fr) minmax(0, 2fr) auto; }
-.to-meter .sb-meter-row { margin: 0; }
+.to-gauge .sb-meter-row { margin: 0; }
 .to-night > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--to-line); border-radius: var(--sb-r-panel); background: var(--to-panel); }
 .to-night > summary::-webkit-details-marker { display: none; }
 .to-night[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
