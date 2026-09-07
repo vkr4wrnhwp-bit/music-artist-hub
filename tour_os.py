@@ -794,10 +794,18 @@ def calendar(user, tour, viewer, tour_id):
     prev_m = (first - timedelta(days=1)).strftime("%Y-%m")
     next_m = (first + timedelta(days=32)).replace(day=1).strftime("%Y-%m")
     view = request.args.get("view") or "month"
+    # The month, counted: show days, other days, and how many of its
+    # shows are fully ready - windows above the grid, not a paragraph.
+    in_month = [d for d in days if d["date"][:7] == month]
+    month_shows = [d for d in in_month if d.get("show_id") in show_by_id]
+    month_stats = {"shows": len(month_shows), "other": len(in_month) - len(month_shows),
+                   "ready": sum(1 for d in month_shows if readiness.get(d["show_id"], 0) >= 100),
+                   "scored": bool(readiness)}
     return render_template("tour/calendar.html", **_ctx(
         user, tour, viewer, "calendar", shows=shows, cells=cells, month=month, prev_m=prev_m,
         next_m=next_m, month_label=first.strftime("%B %Y"), days=days, readiness=readiness,
-        view=view, show_by_id=show_by_id))
+        view=view, show_by_id=show_by_id, month_stats=month_stats,
+        add_open=(not days) or request.args.get("add") == "1"))
 
 
 @bp.route("/tours/<tour_id>/days/add", methods=["POST"])
