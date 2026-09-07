@@ -73,7 +73,10 @@
     {% if no_address %}
     <div class="to-panel">
       <div class="to-eyebrow">No address yet</div>
+      {#- A count, and the dates behind it: on a 36-date run this was 36 lines. -#}
+      <details class="to-fold"><summary>{{ no_address|length }} date{{ '' if no_address|length == 1 else 's' }} without a venue address</summary>
       {% for s in no_address %}<p class="to-sub" style="margin-top:6px"><a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=advance">{{ fmt_day(s['date']) }} · {{ s['venue'] }}</a></p>{% endfor %}
+      </details>
       <p class="to-muted">A venue contact's email on the show's advance, or under People as Venue, makes it sendable.</p>
     </div>
     {% endif %}

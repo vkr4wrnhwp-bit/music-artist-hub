@@ -76,3 +76,13 @@ def test_the_sheet_and_the_worker_moved_on():
     assert int(re.search(r"tour-os\.css\?v=(\d+)", shell).group(1)) >= 11
     sw = open(os.path.join(here, "static", "js", "sw.js"), encoding="utf-8").read()
     assert int(re.search(r'VERSION = "sb-v(\d+)"', sw).group(1)) >= 192
+
+
+def test_the_no_address_list_is_a_count_with_the_dates_behind_it(flask_app):
+    client, owner = _user(flask_app)
+    tid = _tour(client)
+    _show(client, tid)
+    _show(client, tid, "2030-05-03", "Room Two")
+    html = client.get("/tours/%s/shows" % tid).get_data(as_text=True)
+    assert '<details class="to-fold"><summary>2 dates without a venue address</summary>' in html
+    assert "Room Two" in html.split("without a venue address</summary>")[1].split("</details>")[0]
