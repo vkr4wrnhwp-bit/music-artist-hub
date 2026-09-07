@@ -7,20 +7,44 @@
 
 {% if edit or (can('edit') and not rows) %}
 <h2 class="to-h2">{{ 'Edit venue' if edit else 'Add a venue' }}</h2>
+{% if edit %}{% set edit_url = ('/tours/' ~ tour['id'] ~ '/venues/' ~ edit['id'] ~ '/photo') if edit['photo'] else none %}
+{#- The photo of the room, on the record; every date at this venue carries it. -#}
+<div class="to-venue-photo">
+  {{ m.thumb(edit['name'], edit_url, 'lg') }}
+  {% if can('edit') or can('advance') %}
+  <form method="post" action="/tours/{{ tour['id'] }}/venues/{{ edit['id'] }}/photo" enctype="multipart/form-data" class="to-inline">
+    <input type="hidden" name="back" value="/tours/{{ tour['id'] }}/venues?edit={{ edit['id'] }}">
+    <input class="to-input" type="file" name="photo" accept=".png,.jpg,.jpeg,.webp" aria-label="Photo of the venue" style="min-height:32px;padding:4px 6px;width:190px">
+    <button class="to-btn to-btn--ghost to-btn--small" type="submit">{{ 'Replace the photo' if edit_url else 'Add a photo of the room' }}</button>
+    {% if edit_url %}<button class="to-btn to-btn--ghost to-btn--small" type="submit" name="action" value="remove">Remove</button>{% endif %}
+  </form>
+  {% if request.args.get('photo') == 'type' %}<span class="to-muted">PNG, JPEG or WebP only.</span>{% endif %}
+  {% endif %}
+</div>
+{% endif %}
 {% include "tour/_venue_form.html" %}
 {% endif %}
 
 {% if rows %}
-<div class="to-table-wrap"><table class="to-table is-stack">
-  <thead><tr><th>Venue</th><th>City</th><th>Cap</th><th>Used on this tour</th><th></th></tr></thead>
-  <tbody>
-  {% for v in rows %}
-  <tr><td data-k="Venue"><b>{{ v['name'] }}</b>{% if v['address'] %}<div class="to-muted">{{ v['address'] }}</div>{% endif %}</td><td data-k="City">{{ v['city'] }}{% if v['region'] %}, {{ v['region'] }}{% endif %}</td><td data-k="Cap">{{ v['capacity'] or '—' }}</td>
-    <td data-k="Used">{% if v['id'] in use %}{% for s in use[v['id']] %}<a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">{{ s['date'] }}</a>{{ ', ' if not loop.last }}{% endfor %}{% else %}<span class="to-muted">—</span>{% endif %}</td>
-    <td>{% if can('edit') %}<a class="to-btn to-btn--ghost to-btn--small" href="?edit={{ v['id'] }}">Edit</a>{% endif %}</td></tr>
+{#- One row per room: its picture or monogram, the city and cap as
+    instruments, the dates it is used on as chips. -#}
+<div class="to-dates" id="venues">
+  {% for v in rows %}{% set url = ('/tours/' ~ tour['id'] ~ '/venues/' ~ v['id'] ~ '/photo') if v['photo'] else none %}
+  <div class="to-date to-date--venue">
+    <div class="to-date-when">
+      {{ m.thumb(v['name'], url) }}
+      <span class="to-tile-v">{{ v['name'] }}</span>
+      <span class="to-tile-s">{{ v['address'] or 'no address' }}</span>
+    </div>
+    <div class="to-figs">
+      <span class="to-fig"><span>city</span><b>{{ v['city'] or '—' }}{% if v['region'] %}, {{ v['region'] }}{% endif %}</b></span>
+      <span class="to-fig"><span>cap</span><b>{{ v['capacity'] or '—' }}</b></span>
+    </div>
+    <div class="to-date-state">{% if v['id'] in use %}{% for s in use[v['id']] %}<a class="to-chip" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">{{ fmt_day(s['date']) }}</a> {% endfor %}{% else %}<span class="to-muted">not on this run</span>{% endif %}</div>
+    <div>{% if can('edit') %}<a class="to-btn to-btn--ghost to-btn--small" href="?edit={{ v['id'] }}">Edit</a>{% endif %}</div>
+  </div>
   {% endfor %}
-  </tbody>
-</table></div>
+</div>
 {% elif not can('edit') %}
   {{ m.empty("No venue records yet", "They are created from a show's advance, or added by someone with the edit permission.") }}
 {% endif %}

@@ -44,10 +44,13 @@
 {% endmacro %}
 
 <div class="to-head">
-  <div>
+  <div class="to-head-id">
+    {{ m.thumb(show['venue'], thumbs.get(show['id']), 'lg') }}
+    <div>
     <p class="to-eyebrow">Show Command · #{{ show['show_number'] }} of {{ shows|length }}</p>
     <h1 class="to-h1" style="font-size:22px">{{ show['venue'] }}</h1>
     <p class="to-sub">{{ fmt_day(show['date']) }}{% if show['city'] %} · {{ show['city'] }}{% endif %}{% if show['tz'] %} · <span class="to-muted">{{ show['tz'] }}</span>{% endif %} · {{ m.chip(show['status']) }}</p>
+    </div>
   </div>
   <div class="to-inline">
     {% if prev_show %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/shows/{{ prev_show['id'] }}?tab={{ tab }}">‹ {{ prev_show['city'] or prev_show['venue'] }}</a>{% endif %}

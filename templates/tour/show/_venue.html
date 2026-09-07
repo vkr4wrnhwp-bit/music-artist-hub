@@ -4,6 +4,19 @@
     {% if venue %}
     <div class="to-panel is-warm">
       <div class="to-eyebrow">Saved venue record</div>
+{#- The photo of the room, on the record; every date at this venue carries it. -#}
+<div class="to-venue-photo">
+  {{ m.thumb(venue['name'], thumbs.get(show['id']), 'lg') }}
+  {% if can('edit') or can('advance') %}
+  <form method="post" action="/tours/{{ tour['id'] }}/venues/{{ venue['id'] }}/photo" enctype="multipart/form-data" class="to-inline">
+    <input type="hidden" name="back" value="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}?tab=venue">
+    <input class="to-input" type="file" name="photo" accept=".png,.jpg,.jpeg,.webp" aria-label="Photo of the venue" style="min-height:32px;padding:4px 6px;width:190px">
+    <button class="to-btn to-btn--ghost to-btn--small" type="submit">{{ 'Replace the photo' if thumbs.get(show['id']) else 'Add a photo of the room' }}</button>
+    {% if thumbs.get(show['id']) %}<button class="to-btn to-btn--ghost to-btn--small" type="submit" name="action" value="remove">Remove</button>{% endif %}
+  </form>
+  {% if request.args.get('photo') == 'type' %}<span class="to-muted">PNG, JPEG or WebP only.</span>{% endif %}
+  {% endif %}
+</div>
       <div style="font-weight:800;font-size:17px">{{ venue['name'] }}</div>
       <div class="to-muted">{{ venue['address'] }}{% if venue['city'] %}, {{ venue['city'] }}{% endif %}{% if venue['region'] %}, {{ venue['region'] }}{% endif %} {{ venue['country'] }}</div>
       <div class="to-grid" style="margin-top:10px;font-size:13px">

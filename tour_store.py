@@ -691,6 +691,11 @@ def init_tour():
                 db.execute("ALTER TABLE tour_travel ADD COLUMN %s" % col)
             except Exception:
                 pass
+        # A photo of the room, on the venue record: the thumbnail beside its dates.
+        try:
+            db.execute("ALTER TABLE tour_venues ADD COLUMN photo TEXT NOT NULL DEFAULT ''")
+        except Exception:
+            pass
         db.execute("CREATE INDEX IF NOT EXISTS idx_tour_shows_tour ON tour_shows(tour_id)")
 
     # The bill and its per-act line checks. Called from here rather than
@@ -1364,6 +1369,15 @@ def update_venue(user_id, venue_id, fields):
                    % ", ".join("%s=?" % k for k in VENUE_FIELDS),
                    vals + [_now(), venue_id, user_id])
     return changed
+
+
+def set_venue_photo(user_id, venue_id, path):
+    """The venue's own photo: a path in the tour file store, or '' to take
+    it off. Not one of VENUE_FIELDS, so the record form never clears it."""
+    with get_db() as db:
+        cur = db.execute("UPDATE tour_venues SET photo=?, updated=? WHERE id=? AND user_id=?",
+                         (path or "", _now(), venue_id, user_id))
+        return cur.rowcount > 0
 
 
 def get_venue(user_id, venue_id):

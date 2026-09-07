@@ -52,6 +52,7 @@ TOUR_PREFIX = "tour:"
 ALLOWED_FILE_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".csv", ".xlsx",
                      ".xls", ".doc", ".docx", ".txt", ".zip", ".ics", ".heic"}
 MAX_UPLOAD = 25 * 1024 * 1024
+VENUE_PHOTO_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 MONEY_FILE_CATEGORIES = {"invoice", "tax", "settlement", "contract"}
 
 SHOW_TABS = [
@@ -344,6 +345,17 @@ def _status_line(tour, shows):
     return eng.show_status_line(tour, shows, eng.today_in(tour["home_tz"]))
 
 
+def _venue_thumbs(tour, shows):
+    """A show's venue photo, by show id, for every row and tile that draws
+    the room beside the date. Only venues with a photo appear; the
+    template draws the venue's monogram for the rest."""
+    if not any(s.get("venue_id") for s in shows):
+        return {}
+    photos = {v["id"] for v in ts.list_venues(tour["user_id"]) if v.get("photo")}
+    return {s["id"]: "/tours/%s/venues/%s/photo" % (tour["id"], s["venue_id"])
+            for s in shows if s.get("venue_id") in photos}
+
+
 def _ctx(user, tour, viewer, nav, **extra):
     """`nav` is the tour-level tab; `tab` (optional, in extra) is the
     Show Command tab and defaults to nav."""
@@ -354,6 +366,7 @@ def _ctx(user, tour, viewer, nav, **extra):
     today = eng.today_in(tour["home_tz"])
     base = {
         "active_page": "tours", "tour": tour, "viewer": viewer, "nav": nav, "tab": tab,
+        "thumbs": _venue_thumbs(tour, shows),
         "can": lambda s: can(viewer, s), "shows": [_strip_money(viewer, s) for s in shows],
         "mode": eng.tour_mode(tour, shows, today), "status_line": _status_line(tour, shows),
         "today": today, "tour_tabs": _tour_tabs(viewer), "tour_bar": _tour_bar(viewer, nav),
@@ -1981,6 +1994,70 @@ def venue_save(user, tour, viewer, tour_id):
         ts.update_show_ext(tour_id, link_show, {"venue_id": vid, "tz": fields.get("tz") or ""})
         return redirect(_show_url(tour, {"id": link_show}, "venue"))
     return _back("/tours/%s/venues" % tour_id)
+
+
+@bp.route("/tours/<tour_id>/venues/<venue_id>/photo")
+@require_tour("view")
+def venue_photo(user, tour, viewer, tour_id, venue_id):
+    """The venue's photo, inline. Remote storage answers with a short-lived
+    signed URL, local storage with the file."""
+    venue = ts.get_venue(tour["user_id"], venue_id)
+    if not venue or not venue.get("photo"):
+        abort(404)
+    path = venue["photo"]
+    if blob_store.is_remote(path):
+        url = blob_store.url_for(path, ttl=300)
+        if url == path:
+            abort(503)
+        return redirect(url)
+    if path.startswith(TOUR_PREFIX):
+        from flask import send_from_directory
+        return send_from_directory(_tour_dir(), path[len(TOUR_PREFIX):], max_age=3600)
+    abort(404)
+
+
+@bp.route("/tours/<tour_id>/venues/<venue_id>/photo", methods=["POST"])
+@require_tour("edit", "advance")
+def venue_photo_save(user, tour, viewer, tour_id, venue_id):
+    """A photo of the room, on the venue record: the thumbnail beside every
+    date at that venue. PNG, JPEG or WebP; `remove` takes it off. `back`
+    is where the form lives (the venue list or a date's Venue section)."""
+    venue = ts.get_venue(tour["user_id"], venue_id)
+    if not venue:
+        abort(404)
+    back = request.form.get("back") or ""
+    if not back.startswith("/tours/%s/" % tour_id):
+        back = "/tours/%s/venues?edit=%s" % (tour_id, venue_id)
+    if request.form.get("action") == "remove":
+        ts.set_venue_photo(tour["user_id"], venue_id, "")
+        _log(tour, viewer, "venue", venue_id, venue.get("name") or "Venue", {"photo": ("photo", "")})
+        return redirect(back)
+    up = request.files.get("photo")
+    if up is None or not up.filename:
+        return redirect(back)
+    ext = os.path.splitext(os.path.basename(up.filename))[1].lower()
+    if ext not in VENUE_PHOTO_EXTS:
+        return redirect(back + ("&" if "?" in back else "?") + "photo=type")
+    data = up.read(MAX_UPLOAD + 1)
+    if not data:
+        return redirect(back)
+    if len(data) > MAX_UPLOAD:
+        abort(413)
+    fname = "venue-%s%s" % (uuid.uuid4().hex, ext)
+    path = None
+    if blob_store.configured():
+        try:
+            if blob_store.put("tour/" + fname, data, up.mimetype):
+                path = blob_store.PREFIX + "tour/" + fname
+        except Exception:
+            path = None
+    if path is None:
+        with open(os.path.join(_tour_dir(), fname), "wb") as fh:
+            fh.write(data)
+        path = TOUR_PREFIX + fname
+    ts.set_venue_photo(tour["user_id"], venue_id, path)
+    _log(tour, viewer, "venue", venue_id, venue.get("name") or "Venue", {"photo": ("", "photo")})
+    return redirect(back)
 
 
 @bp.route("/tours/<tour_id>/shows/<show_id>/venue/from-advance", methods=["POST"])

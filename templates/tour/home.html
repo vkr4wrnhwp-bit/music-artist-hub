@@ -57,6 +57,7 @@
     <div class="to-glance" id="upcoming">
       {% for s in upcoming %}
       <a class="to-tile" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">
+        {{ m.thumb(s['venue'], thumbs.get(s['id'])) }}
         <span class="to-tile-l">{{ fmt_day(s['date']) }}</span>
         <span class="to-tile-v">{{ s['venue'] }}</span>
         <span class="to-tile-s">{{ s['city'] or '—' }}</span>
