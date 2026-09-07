@@ -433,6 +433,10 @@ a.to-strip:hover, a.to-strip:focus-visible { border-color: var(--to-gold); outli
 .to-head-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .to-venue-photo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 12px; }
 .to-date--venue { grid-template-columns: minmax(0, 1.6fr) auto minmax(0, 1fr) auto; }
+.to-date--offer { grid-template-columns: minmax(0, 1.4fr) auto auto auto; align-items: start; }
+.to-buy .to-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; align-items: end; min-width: 240px; }
+.to-buy .to-btn { min-height: 44px; }
+@media (max-width: 720px) { .to-date--offer { grid-template-columns: minmax(0, 1fr); } .to-buy .to-form { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .to-date--venue { grid-template-columns: minmax(0, 1fr) auto; } }
 .to-date-when:hover .to-tile-v, .to-date-when:focus-visible .to-tile-v { color: var(--to-amber); }
 .to-date-ready { display: flex; flex-direction: column; gap: 2px; }

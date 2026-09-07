@@ -1,4 +1,88 @@
+{% import "_sb.html" as sb %}
 {% import "tour/_macros.html" as m %}
+{#- Sell online: one link to share, the packages on sale, what came in and
+    what Street Banker keeps. Fans pay Stripe; a sale exists only once
+    Stripe says so; payouts are settled outside the app and it says so. -#}
+{% if vip_link is defined %}
+<div class="to-panel is-warm" id="vip-sell" style="margin-bottom:12px">
+  <div class="to-eyebrow">Sell online</div>
+  <div class="to-inline" style="margin-top:6px">
+    <input class="to-input" type="text" readonly value="{{ vip_link }}" id="vip-link" aria-label="Purchase link to share" style="min-height:36px;padding:6px 10px;width:min(100%, 420px)">
+    <button class="to-btn to-btn--ghost to-btn--small" type="button" data-copy="#vip-link">Copy link</button>
+    <a class="to-btn to-btn--ghost to-btn--small" href="{{ vip_link }}" target="_blank" rel="noopener">Open</a>
+  </div>
+  {% if not vip_stripe_live or vip_mail_off %}
+  <div class="to-inline" style="margin-top:8px">
+    {% if not vip_stripe_live %}{{ sb.lamp("not live", "crit") }} <span class="to-muted">No payment provider is connected on this deployment; the link opens but nothing can be bought.</span>{% endif %}
+    {% if vip_mail_off %}{{ sb.lamp("emails off", "warn") }} <span class="to-muted">{{ vip_mail_off }}</span>{% endif %}
+  </div>
+  {% endif %}
+  <div class="to-lcds" id="vip-online" style="margin-top:10px" aria-label="Online sales for this date">
+    {{ sb.lcd(vip_ledger['quantity'] if vip_ledger['count'] else none, "sold online") }}
+    {{ sb.lcd(('%.2f' % (vip_ledger['gross_cents'] / 100)) if vip_ledger['count'] else none, "gross") }}
+    {{ sb.lcd(('%.2f' % (vip_ledger['fee_cents'] / 100)) if vip_ledger['count'] else none, "Street Banker keeps " ~ ('%g' % vip_fee_pct) ~ "%") }}
+    {{ sb.lcd(('%.2f' % (vip_ledger['net_cents'] / 100)) if vip_ledger['count'] else none, "owed to you") }}
+  </div>
+  <p class="to-muted">Fans pay Stripe through the link. Street Banker keeps {{ '%g' % vip_fee_pct }}% and settles the rest with you outside the app; payouts are not automatic yet.</p>
+  {% if vip_offers %}
+  <div class="to-dates" id="vip-offers" style="margin-top:8px">
+    {% for o in vip_offers %}
+    <div class="to-date to-date--offer">
+      <div class="to-date-when">
+        <span class="to-tile-v">{{ o['name'] }}</span>
+        <span class="to-tile-s">{% for b in vip_includes(o) %}{{ b }}{{ ' · ' if not loop.last }}{% endfor %}{% if o['schedule_time'] %}{{ ' · ' if vip_includes(o) }}meet at {{ fmt_time(o['schedule_time']) }}{% endif %}</span>
+      </div>
+      <div class="to-figs"><span class="to-fig"><span>price</span><b>{{ '%.2f' % (o['price_cents'] / 100) }}</b></span><span class="to-fig"><span>sold</span><b>{{ o['sold'] }}{% if o['capacity'] %} / {{ o['capacity'] }}{% endif %}</b></span></div>
+      <div class="to-date-state">{% if not o['active'] %}{{ sb.lamp("paused", "warn") }}{% elif o['sold_out'] %}{{ sb.lamp("sold out", "info") }}{% endif %}</div>
+      <div><form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/offers/{{ o['id'] }}" class="to-inline">
+        {% if o['active'] %}<button class="to-btn to-btn--ghost to-btn--small" type="submit" name="action" value="pause">Pause</button>{% else %}<button class="to-btn to-btn--ghost to-btn--small" type="submit" name="action" value="resume">Resume</button>{% endif %}
+        {% if not o['sold'] %}<button class="to-btn to-btn--ghost to-btn--small to-btn--danger" type="submit" name="action" value="delete" aria-label="Remove {{ o['name'] }}">✕</button>{% endif %}
+      </form></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {#- The offer form waits behind a plus once a package is on sale. -#}
+  {% if vip_offers %}<details class="to-add" id="add-offer">
+  <summary><span class="plus" aria-hidden="true">+</span> Add a package to sell</summary>
+  <div class="to-add-body">{% endif %}
+  <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/offers/add" class="to-form" style="margin-top:8px">
+    <div class="to-grid">
+      {{ m.field('name', 'Package', required=True, placeholder='Soundcheck party') }}
+      {{ m.field('price', 'Price (' ~ (tour['currency'] or 'USD') ~ ')', required=True, placeholder='150') }}
+      {{ m.field('capacity', 'How many to sell', placeholder='blank = no limit') }}
+      {{ m.field('schedule_time', 'Meet at', type='time') }}
+      {{ m.textarea('blurb', 'What to tell the buyer', rows=2, placeholder='Where to meet, what to bring') }}
+    </div>
+    <div class="to-inline" style="margin-top:6px">{{ m.check('meet_greet', 'Meet & greet') }} {{ m.check('early_entry', 'Early entry') }} {{ m.check('merch', 'Merch') }} {{ m.check('photo', 'Photo') }}</div>
+    {% if request.args.get('offer') == 'invalid' %}<p class="to-muted">A package needs a name and a price above zero.</p>{% endif %}
+    <div class="to-bar" style="margin-bottom:0"><button class="to-btn to-btn--small" type="submit">Put it on sale</button></div>
+  </form>
+  {% if vip_offers %}</div>
+  </details>{% endif %}
+  {% if vip_sales %}
+  <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/dayof" class="to-inline" style="margin-top:10px">
+    <input class="to-input" name="message" maxlength="600" placeholder="Anything extra for the day (optional)" aria-label="Extra day-of note" style="min-height:36px;padding:6px 10px;width:min(100%, 320px)">
+    <button class="to-btn to-btn--small" type="submit" {% if vip_mail_off %}disabled aria-disabled="true" title="{{ vip_mail_off }}"{% endif %}>Email day-of details to {{ vip_sales|length }} buyer{{ '' if vip_sales|length == 1 else 's' }}</button>
+    {% if request.args.get('dayof') %}<span class="to-muted">Sent to {{ request.args.get('dayof') }}.</span>{% elif request.args.get('mail') == 'off' %}<span class="to-muted">Nothing sent: {{ vip_mail_off }}</span>{% endif %}
+  </form>
+  {% endif %}
+</div>
+<script>
+(function () {
+  document.querySelectorAll("[data-copy]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var i = document.querySelector(b.getAttribute("data-copy"));
+      if (!i) return;
+      i.select();
+      var done = function () { b.textContent = "Copied"; };
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(i.value).then(done, done); }
+      else { try { document.execCommand("copy"); } catch (e) {} done(); }
+    });
+  });
+})();
+</script>
+{% endif %}
 <div class="to-cards" style="margin-bottom:12px">
   <div class="to-card is-warm"><b>{{ vip['sold'] }}</b><span>Packages sold</span></div>
   <div class="to-card"><b>{{ vip['checked_in'] }}</b><span>Checked in</span></div>

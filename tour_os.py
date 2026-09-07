@@ -41,6 +41,7 @@ import email_provider as emailer
 import plans
 import press_store
 import plot_images
+import stripe_provider
 import tour_advance_mail as tam
 import tour_engine as eng
 import tour_store as ts
@@ -463,6 +464,7 @@ def _date_rows(tour, show, full=False):
         "files": ts.list_files(tid, entity_type="show", entity_id=sid),
         "guest_rows": ts.list_guests(tid, sid),
         "vip_rows": ts.list_vip(tid, sid),
+        "vip_offers": ts.list_vip_offers(tid, sid),
         "content": ts.list_content(tid, show_id=sid),
         "expenses": ts.list_expenses(tid, show_id=sid),
     }
@@ -488,7 +490,7 @@ def _has_data(show, rows, viewer=None, tasks=None):
         "hotel": bool(rows.get("lodging")),
         "travel": bool(rows.get("travel")),
         "guests": bool(rows.get("guest_rows")),
-        "vip": bool(rows.get("vip_rows")),
+        "vip": bool(rows.get("vip_rows")) or bool(rows.get("vip_offers")),
         "settlement": filled(*SETTLEMENT_FIELDS) or bool(rows.get("expenses"))
                       or (show.get("settlement_status") or "open") != "open",
         "marketing": any(str(v or "").strip() for v in mk.values())
@@ -1180,6 +1182,7 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         elif key == "vip":
             d["vip_rows"] = rows["vip_rows"]
             d["vip"] = ts.vip_summary(tid, sid)
+            d.update(_vip_context(tour, show))
         elif key == "merch":
             d["products"] = ts.list_products(tid)
             d["counts"] = {c["product_id"]: c for c in rows["counts"]}
@@ -2248,6 +2251,256 @@ def vip_update(user, tour, viewer, tour_id, show_id, vip_id):
     return _back(_show_url(tour, show, "vip"))
 
 
+# --- VIP sold online ------------------------------------------------------------
+# One public link per date. A fan picks a package, pays Stripe, and the
+# sale exists only once Stripe says the session is paid - claimed by the
+# webhook or by the success redirect, whichever comes first, never twice.
+# Street Banker keeps VIP_PLATFORM_FEE_PCT of each sale; payouts are not
+# automatic and every ledger says so.
+
+def vip_fee_pct():
+    """Street Banker's cut of an online VIP sale: VIP_PLATFORM_FEE_PCT in
+    the environment, 0 to 50, default 10."""
+    try:
+        pct = float(os.environ.get("VIP_PLATFORM_FEE_PCT", "10"))
+    except ValueError:
+        pct = 10.0
+    return max(0.0, min(50.0, pct))
+
+
+def _vip_base_url():
+    """Absolute links a fan can open from anywhere: the deployment's public
+    base, never the request's Host."""
+    return (os.environ.get("PUBLIC_BASE_URL") or "https://street-banker.onrender.com").rstrip("/")
+
+
+def _vip_mail_off():
+    """Why an email would not go; None when it would."""
+    if not emailer.configured():
+        return "No email provider is connected on this deployment, so buyers get no confirmation email."
+    if emailer.using_shared_test_sender():
+        return "Email is not live: the sender is Resend's shared test address, which only delivers to the account owner."
+    return None
+
+
+def vip_includes(offer):
+    bits = []
+    if offer.get("meet_greet"):
+        bits.append("meet & greet")
+    if offer.get("early_entry"):
+        bits.append("early entry")
+    if offer.get("merch"):
+        bits.append("merch")
+    if offer.get("photo"):
+        bits.append("photo")
+    return bits
+
+
+def _vip_context(tour, show):
+    token = ts.ensure_vip_link(tour["id"], show["id"])
+    return {"vip_offers": ts.list_vip_offers(tour["id"], show["id"]),
+            "vip_link": _vip_base_url() + "/vip/" + token,
+            "vip_ledger": ts.vip_sales_ledger(tour["id"], show["id"]),
+            "vip_sales": ts.list_vip_sales(tour["id"], show["id"]),
+            "vip_fee_pct": vip_fee_pct(), "vip_stripe_live": stripe_provider.configured(),
+            "vip_mail_off": _vip_mail_off(), "vip_includes": vip_includes}
+
+
+def _owner_email(tour):
+    return (store.get_user(tour["user_id"]) or {}).get("email") or None
+
+
+def _vip_lines(tour, show, offer, sale, extra=""):
+    """The facts of a purchase, as lines: shared by both emails."""
+    when = eng.fmt_day_long(show["date"])
+    lines = ["%d x %s" % (sale["quantity"], offer["name"]),
+             "%s, %s%s" % (show["venue"], when, (", " + show["city"]) if show.get("city") else "")]
+    inc = vip_includes(offer)
+    if inc:
+        lines.append("Includes: " + ", ".join(inc))
+    if offer.get("schedule_time"):
+        lines.append("Meet at %s" % eng.fmt_time(offer["schedule_time"]))
+    if offer.get("blurb"):
+        lines.append(offer["blurb"])
+    venue = ts.get_venue(tour["user_id"], show["venue_id"]) if show.get("venue_id") else None
+    if venue and venue.get("address"):
+        lines.append("Address: %s%s" % (venue["address"], (", " + venue["city"]) if venue.get("city") else ""))
+    if extra:
+        lines.append(extra)
+    return lines
+
+
+def _vip_mail(tour, to, subject, intro, lines):
+    from markupsafe import escape
+    html = "<p>%s</p><ul>%s</ul><p>Questions? Reply to this email and it reaches %s.</p>" % (
+        escape(intro), "".join("<li>%s</li>" % escape(l) for l in lines),
+        escape(tour.get("artist_name") or tour["name"]))
+    text = intro + "\n\n" + "\n".join("- " + l for l in lines) + "\n\nQuestions? Reply to this email."
+    return emailer.send(to, subject, html, reply_to=_owner_email(tour), text=text)
+
+
+def _send_vip_confirmation(tour, show, offer, sale):
+    subject = "Your VIP package: %s, %s" % (show["venue"], eng.fmt_day_long(show["date"]))
+    intro = "Thanks, %s. You're in. Show this email at the VIP meeting point." % (sale["name"] or sale["email"])
+    return _vip_mail(tour, sale["email"], subject, intro, _vip_lines(tour, show, offer, sale))
+
+
+def _send_vip_dayof(tour, show, offer, sale, message):
+    subject = "Show day: your VIP details at %s" % show["venue"]
+    intro = "Here is everything for %s." % eng.fmt_day_long(show["date"])
+    return _vip_mail(tour, sale["email"], subject, intro, _vip_lines(tour, show, offer, sale, message))
+
+
+def claim_vip_session(sess, tour_id=None, show_id=None):
+    """Record a VIP sale from what Stripe says about a checkout session -
+    never from the URL. Idempotent: the webhook and the success redirect
+    both call this. Returns the sale, or None when the session is not a
+    paid tour_vip session (for this show, when one is named)."""
+    if not sess or sess.get("payment_status") != "paid":
+        return None
+    meta = sess.get("metadata") or {}
+    if meta.get("kind") != "tour_vip":
+        return None
+    if tour_id and meta.get("tour_id") != tour_id:
+        return None
+    if show_id and meta.get("show_id") != show_id:
+        return None
+    tour = ts.get_tour(meta.get("tour_id") or "")
+    show = ts.get_show(tour["id"], meta.get("show_id") or "") if tour else None
+    offer = ts.get_vip_offer(tour["id"], meta.get("offer_id") or "") if tour else None
+    if not (tour and show and offer) or offer["show_id"] != show["id"]:
+        return None
+    details = sess.get("customer_details") or {}
+    email = (meta.get("email") or sess.get("customer_email") or details.get("email") or "").strip().lower()
+    name = (meta.get("name") or details.get("name") or "").strip()
+    try:
+        qty = max(1, int(meta.get("quantity") or 1))
+    except ValueError:
+        qty = 1
+    sale, created = ts.record_vip_sale(tour["id"], tour["user_id"], show, offer, sess.get("id"), email, name,
+                                       qty, vip_fee_pct(), currency=(sess.get("currency") or "usd"))
+    if created:
+        store.notify(tour["user_id"], "tour", "VIP sold: %s" % offer["name"],
+                     "%s bought %d x %s for %s." % (name or email or "A fan", qty, offer["name"], show["venue"]),
+                     "/tours/%s/shows/%s?tab=vip" % (tour["id"], show["id"]))
+        if sale["email"] and not sale["confirmation_sent"] and _send_vip_confirmation(tour, show, offer, sale):
+            ts.mark_vip_sale(sale["id"], confirmation_sent=True)
+            sale["confirmation_sent"] = 1
+    return sale
+
+
+def _vip_link_or_404(token):
+    found = ts.vip_link(token)
+    tour = ts.get_tour(found[0]) if found else None
+    show = ts.get_show(found[0], found[1]) if tour else None
+    if not (tour and show):
+        abort(404)
+    return tour, show
+
+
+VIP_ERRORS = {
+    "closed": "Sales are not open on this link yet.",
+    "offer": "That package is not on sale.",
+    "details": "Your name and an email address are needed for the package.",
+    "sold_out": "That package is sold out.",
+    "stripe": "The payment page could not be opened. Try again in a moment.",
+}
+
+
+@bp.route("/vip/<token>")
+def vip_public(token):
+    """The page a fan gets from the shared link: the packages on sale for
+    one date, and after paying, the confirmation. No account."""
+    tour, show = _vip_link_or_404(token)
+    show = _strip_money({"is_owner": False, "scopes": []}, show)
+    paid = None
+    if request.args.get("paid") and request.args.get("session_id"):
+        paid = claim_vip_session(stripe_provider.get_checkout_session(request.args.get("session_id")),
+                                 tour_id=tour["id"], show_id=show["id"])
+    cur = (tour.get("currency") or "USD").upper()
+    return render_template(
+        "tour/vip_public.html", tour=tour, show=show, token=token,
+        offers=ts.list_vip_offers(tour["id"], show["id"], active_only=True),
+        live=stripe_provider.configured(), paid=paid,
+        paid_offer=ts.get_vip_offer(tour["id"], paid["offer_id"]) if paid else None,
+        error=VIP_ERRORS.get(request.args.get("err") or ""),
+        artist=tour.get("artist_name") or tour["name"], includes=vip_includes,
+        money=lambda cents: "%s %.2f" % (cur, cents / 100.0),
+        venue=ts.get_venue(tour["user_id"], show["venue_id"]) if show.get("venue_id") else None,
+        fmt_day=eng.fmt_day_long, fmt_time=eng.fmt_time)
+
+
+@bp.route("/vip/<token>/buy", methods=["POST"])
+def vip_buy(token):
+    tour, show = _vip_link_or_404(token)
+    back = "/vip/" + token
+    if not stripe_provider.configured():
+        return redirect(back + "?err=closed")
+    offer = ts.get_vip_offer(tour["id"], request.form.get("offer_id") or "")
+    if not offer or not offer["active"] or offer["show_id"] != show["id"]:
+        return redirect(back + "?err=offer")
+    email = (request.form.get("email") or "").strip().lower()
+    name = (request.form.get("name") or "").strip()
+    try:
+        qty = max(1, min(10, int(request.form.get("quantity") or 1)))
+    except ValueError:
+        qty = 1
+    if "@" not in email or not name:
+        return redirect(back + "?err=details")
+    if offer["capacity"] and offer["sold"] + qty > offer["capacity"]:
+        return redirect(back + "?err=sold_out")
+    sess = stripe_provider.create_vip_checkout(
+        tour["id"], show["id"], offer["id"], offer["name"], offer["price_cents"], qty, email, name,
+        token, _vip_base_url(), currency=(tour.get("currency") or "usd"))
+    if not sess or not sess.get("url"):
+        return redirect(back + "?err=stripe")
+    return redirect(sess["url"], code=303)
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/vip/offers/add", methods=["POST"])
+@require_tour("vip")
+def vip_offer_add(user, tour, viewer, tour_id, show_id):
+    show = _show_or_404(tour, show_id)
+    f = request.form
+    fields = {k: f.get(k) for k in ("name", "blurb", "price", "capacity", "schedule_time")}
+    for flag in ts.VIP_OFFER_FLAGS:
+        fields[flag] = bool(f.get(flag))
+    oid = ts.add_vip_offer(tour_id, tour["user_id"], show_id, fields)
+    if oid:
+        _log(tour, viewer, "show", show_id, show["venue"], {"vip_offer": ("", fields.get("name") or "")})
+        return redirect(_show_url(tour, show, "vip"))
+    return redirect(_show_url(tour, show, "vip") + "&offer=invalid")
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/vip/offers/<offer_id>", methods=["POST"])
+@require_tour("vip")
+def vip_offer_update(user, tour, viewer, tour_id, show_id, offer_id):
+    show = _show_or_404(tour, show_id)
+    action = request.form.get("action") or ""
+    if action == "delete":
+        ts.delete_vip_offer(tour_id, offer_id)
+    elif action in ("pause", "resume"):
+        ts.set_vip_offer_active(tour_id, offer_id, action == "resume")
+    return _back(_show_url(tour, show, "vip"))
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/vip/dayof", methods=["POST"])
+@require_tour("vip")
+def vip_dayof(user, tour, viewer, tour_id, show_id):
+    """Email every online buyer of this date their day-of details."""
+    show = _show_or_404(tour, show_id)
+    if _vip_mail_off():
+        return redirect(_show_url(tour, show, "vip") + "&mail=off")
+    offers = {o["id"]: o for o in ts.list_vip_offers(tour_id, show_id)}
+    sent = 0
+    for sale in ts.list_vip_sales(tour_id, show_id):
+        offer = offers.get(sale["offer_id"])
+        if sale["email"] and offer and _send_vip_dayof(tour, show, offer, sale, (request.form.get("message") or "").strip()[:600]):
+            ts.mark_vip_sale(sale["id"], dayof_sent=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+            sent += 1
+    return redirect(_show_url(tour, show, "vip") + "&dayof=%d" % sent)
+
+
 # --- money ------------------------------------------------------------------
 
 @bp.route("/tours/<tour_id>/money")
@@ -2576,7 +2829,8 @@ def vip(user, tour, viewer, tour_id):
     totals = {k: sum(r[k] for r in rows) for k in ("sold", "checked_in", "no_show", "unfulfilled")}
     totals["gross"] = round(sum(r["gross"] for r in rows), 2)
     totals["shows_with"] = len([r for r in rows if r["sold"]])
-    return render_template("tour/vip.html", **_ctx(user, tour, viewer, "vip", rows=rows, totals=totals))
+    return render_template("tour/vip.html", **_ctx(user, tour, viewer, "vip", rows=rows, totals=totals,
+                                                    online=ts.vip_sales_ledger(tour_id), fee_pct=vip_fee_pct()))
 
 
 @bp.route("/tours/<tour_id>/setlists/<setlist_id>/print")

@@ -2931,6 +2931,9 @@ def create_app():
                         "/stage/guest/",
                         "/services", "/favicon", "/presave/", "/reset/",
                         "/team/join/", "/webhooks/", "/club/", "/showday/",
+                        # A fan buying a VIP package from a date's shared link:
+                        # the token is the page, Stripe is the authorisation.
+                        "/vip/",
                         "/rider/", "/roster/join/", "/sign/", "/sheet/", "/pitch/", "/@",
                         # A journalist who was sent an announcement reads it
                         # without an account. The token in the URL is the
@@ -3253,6 +3256,11 @@ def create_app():
                                     "Paid fan club membership via Stripe checkout.")
                     store.notify(artist_id, "fan", "New fan club member",
                                  "%s joined your fan club." % email, "/fan-club")
+        elif etype == "checkout.session.completed" and \
+                (obj.get("metadata") or {}).get("kind") == "tour_vip":
+            # A VIP package for a tour date; claimed once, however many times
+            # Stripe replays it or the success redirect got there first.
+            tour_os.claim_vip_session(obj)
         elif etype == "checkout.session.completed":
             user_id = obj.get("client_reference_id")
             plan = (obj.get("metadata") or {}).get("plan")

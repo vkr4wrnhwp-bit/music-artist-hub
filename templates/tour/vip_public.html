@@ -1,0 +1,48 @@
+{% extends "tour/_public.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}VIP · {{ show['venue'] }} · {{ fmt_day(show['date']) }}{% endblock %}
+{% block body %}
+{#- The page a fan gets from the shared link. Nothing private lives here:
+    the packages, their price, what they include, and after paying, the
+    fan's own confirmation. -#}
+<div class="to-head"><div><p class="to-eyebrow">{{ artist }} · VIP</p><h1 class="to-h1" style="font-size:22px">{{ show['venue'] }}</h1><p class="to-sub">{{ fmt_day(show['date']) }}{% if show['city'] %} · {{ show['city'] }}{% endif %}{% if venue and venue['address'] %} · {{ venue['address'] }}{% endif %}</p></div></div>
+{% if paid %}
+<div class="to-panel is-warm" id="paid">
+  <div class="to-eyebrow">You're in</div>
+  <p class="to-sub"><b>{{ paid['quantity'] }} × {{ paid_offer['name'] }}</b> for {{ paid['name'] or paid['email'] }}.{% if paid_offer['schedule_time'] %} Meet at {{ fmt_time(paid_offer['schedule_time']) }}.{% endif %}</p>
+  <p class="to-muted">{% if paid['confirmation_sent'] %}A confirmation with the details is on its way to {{ paid['email'] }}.{% else %}Keep this page: no confirmation email went out from this deployment.{% endif %}</p>
+</div>
+{% endif %}
+{% if error %}<p class="to-sub" id="err">{{ sb.lamp(error, "warn") }}</p>{% endif %}
+{% if not live %}
+<div class="to-panel" id="closed"><div class="to-eyebrow">Not open yet</div><p class="to-sub">No payment provider is connected on this deployment, so nothing can be bought here yet.</p></div>
+{% endif %}
+{% if offers %}
+<div class="to-dates" id="offers">
+  {% for o in offers %}
+  <div class="to-date to-date--offer">
+    <div class="to-date-when">
+      <span class="to-tile-v">{{ o['name'] }}</span>
+      <span class="to-tile-s">{% for b in includes(o) %}{{ b }}{{ ' · ' if not loop.last }}{% endfor %}{% if o['schedule_time'] %}{{ ' · ' if includes(o) }}meet at {{ fmt_time(o['schedule_time']) }}{% endif %}</span>
+      {% if o['blurb'] %}<span class="to-tile-s">{{ o['blurb'] }}</span>{% endif %}
+    </div>
+    <div class="to-figs"><span class="to-fig"><span>price</span><b>{{ money(o['price_cents']) }}</b></span>{% if o['capacity'] %}<span class="to-fig"><span>left</span><b>{{ o['left'] }}</b></span>{% endif %}</div>
+    <div class="to-buy">
+    {% if o['sold_out'] %}{{ sb.lamp("sold out", "crit") }}
+    {% elif live %}
+      <form method="post" action="/vip/{{ token }}/buy" class="to-form">
+        <input type="hidden" name="offer_id" value="{{ o['id'] }}">
+        <label class="to-field"><span>Name</span><input name="name" required maxlength="120" autocomplete="name"></label>
+        <label class="to-field"><span>Email</span><input name="email" type="email" required maxlength="200" autocomplete="email"></label>
+        <label class="to-field"><span>How many</span><input name="quantity" type="number" min="1" max="{{ [o['left'], 10]|min if o['left'] else 10 }}" value="1" inputmode="numeric"></label>
+        <button class="to-btn" type="submit">Buy · {{ money(o['price_cents']) }}</button>
+      </form>
+    {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}<div class="to-empty">No VIP packages are on sale for this date.</div>{% endif %}
+<p class="to-muted">Payment is handled by Stripe. Your confirmation email says what the package includes and where to meet; reply to it to reach the artist.</p>
+{% endblock %}
+{% block foot %}Sold through Street Banker on behalf of {{ artist }}.{% endblock %}

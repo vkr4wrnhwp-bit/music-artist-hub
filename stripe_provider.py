@@ -192,6 +192,35 @@ def create_club_checkout(artist_id, club_name, price_cents, member_email,
         return None
 
 
+def create_vip_checkout(tour_id, show_id, offer_id, offer_name, unit_cents, quantity,
+                        email, name, token, base_url, currency="usd"):
+    """A VIP package for one date: one-time payment, tagged so the webhook
+    and the success redirect both know which sale it is."""
+    if not configured():
+        return None
+    fields = {
+        "mode": "payment",
+        "customer_email": email,
+        "success_url": base_url + "/vip/" + token + "?paid=1&session_id={CHECKOUT_SESSION_ID}",
+        "cancel_url": base_url + "/vip/" + token,
+        "metadata[kind]": "tour_vip",
+        "metadata[tour_id]": tour_id,
+        "metadata[show_id]": show_id,
+        "metadata[offer_id]": offer_id,
+        "metadata[email]": email,
+        "metadata[name]": (name or "")[:120],
+        "metadata[quantity]": str(int(quantity)),
+        "line_items[0][quantity]": str(int(quantity)),
+        "line_items[0][price_data][currency]": (currency or "usd").lower(),
+        "line_items[0][price_data][unit_amount]": str(int(unit_cents)),
+        "line_items[0][price_data][product_data][name]": (offer_name or "VIP package")[:100],
+    }
+    try:
+        return _http("/v1/checkout/sessions", fields)
+    except Exception:
+        return None
+
+
 def get_checkout_session(session_id):
     """Retrieve a checkout session — lets the success redirect grant fan-club
     access instantly instead of waiting on the webhook."""

@@ -471,6 +471,50 @@ def init_tour():
                 fulfilled INTEGER NOT NULL DEFAULT 0,
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS tour_vip_offers (
+                id TEXT PRIMARY KEY,
+                tour_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                show_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                blurb TEXT NOT NULL DEFAULT '',
+                price_cents INTEGER NOT NULL DEFAULT 0,
+                capacity INTEGER,
+                meet_greet INTEGER NOT NULL DEFAULT 0,
+                early_entry INTEGER NOT NULL DEFAULT 0,
+                merch INTEGER NOT NULL DEFAULT 0,
+                photo INTEGER NOT NULL DEFAULT 0,
+                schedule_time TEXT NOT NULL DEFAULT '',
+                active INTEGER NOT NULL DEFAULT 1,
+                created TEXT NOT NULL,
+                updated TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS tour_vip_sales (
+                id TEXT PRIMARY KEY,
+                tour_id TEXT NOT NULL,
+                show_id TEXT NOT NULL,
+                offer_id TEXT NOT NULL,
+                vip_id TEXT NOT NULL,
+                stripe_session_id TEXT NOT NULL UNIQUE,
+                email TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL DEFAULT '',
+                quantity INTEGER NOT NULL DEFAULT 1,
+                unit_cents INTEGER NOT NULL DEFAULT 0,
+                gross_cents INTEGER NOT NULL DEFAULT 0,
+                fee_pct REAL NOT NULL DEFAULT 0,
+                fee_cents INTEGER NOT NULL DEFAULT 0,
+                net_cents INTEGER NOT NULL DEFAULT 0,
+                currency TEXT NOT NULL DEFAULT 'usd',
+                confirmation_sent INTEGER NOT NULL DEFAULT 0,
+                dayof_sent TEXT NOT NULL DEFAULT '',
+                created TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS tour_vip_links (
+                token TEXT PRIMARY KEY,
+                tour_id TEXT NOT NULL,
+                show_id TEXT NOT NULL UNIQUE,
+                created TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS tour_files (
                 id TEXT PRIMARY KEY,
                 tour_id TEXT NOT NULL,
@@ -1967,6 +2011,201 @@ def vip_summary(tour_id, show_id):
     unfulfilled = len([r for r in rows if r["merch"] and not r["fulfilled"]])
     return {"sold": sold, "checked_in": checked, "no_show": no_show,
             "gross": round(gross, 2), "unfulfilled": unfulfilled}
+
+
+# --- VIP sold online ----------------------------------------------------------
+# An OFFER is what the artist sells for one date; a SALE is what a fan paid
+# Stripe for, recorded once per checkout session and mirrored into tour_vip
+# so the door checks it in like any other package; the LINK is the public
+# token a date's purchase page answers to.
+
+VIP_OFFER_FLAGS = ("meet_greet", "early_entry", "merch", "photo")
+
+
+def _cents(value):
+    try:
+        return int(round(float(str(value or "0").replace(",", "").replace("$", "")) * 100))
+    except ValueError:
+        return 0
+
+
+def _positive_int(value):
+    try:
+        n = int(str(value or "").strip())
+    except ValueError:
+        return None
+    return n if n > 0 else None
+
+
+def add_vip_offer(tour_id, user_id, show_id, fields):
+    name = (fields.get("name") or "").strip()
+    price_cents = _cents(fields.get("price"))
+    if not name or price_cents <= 0:
+        return None
+    oid = _new_id()
+    now = _now()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO tour_vip_offers (id, tour_id, user_id, show_id, name, blurb, price_cents, capacity, "
+            "meet_greet, early_entry, merch, photo, schedule_time, active, created, updated) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)",
+            (oid, tour_id, user_id, show_id, name[:120], (fields.get("blurb") or "")[:600], price_cents,
+             _positive_int(fields.get("capacity")),
+             1 if fields.get("meet_greet") else 0, 1 if fields.get("early_entry") else 0,
+             1 if fields.get("merch") else 0, 1 if fields.get("photo") else 0,
+             (fields.get("schedule_time") or "")[:5], now, now))
+    return oid
+
+
+def set_vip_offer_active(tour_id, offer_id, active):
+    with get_db() as db:
+        db.execute("UPDATE tour_vip_offers SET active=?, updated=? WHERE id=? AND tour_id=?",
+                   (1 if active else 0, _now(), offer_id, tour_id))
+
+
+def delete_vip_offer(tour_id, offer_id):
+    """An offer nobody bought goes; one with sales is paused instead, so
+    the ledger keeps its name. True when it was deleted."""
+    with get_db() as db:
+        n = db.execute("SELECT COUNT(*) FROM tour_vip_sales WHERE offer_id=? AND tour_id=?",
+                       (offer_id, tour_id)).fetchone()[0]
+        if n:
+            db.execute("UPDATE tour_vip_offers SET active=0, updated=? WHERE id=? AND tour_id=?",
+                       (_now(), offer_id, tour_id))
+            return False
+        db.execute("DELETE FROM tour_vip_offers WHERE id=? AND tour_id=?", (offer_id, tour_id))
+    return True
+
+
+def _offers(rows):
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["sold"] = int(d.pop("_sold", 0) or 0)
+        d["left"] = (d["capacity"] - d["sold"]) if d["capacity"] else None
+        d["sold_out"] = bool(d["capacity"]) and d["sold"] >= d["capacity"]
+        out.append(d)
+    return out
+
+
+_OFFER_SELECT = ("SELECT o.*, (SELECT COALESCE(SUM(s.quantity), 0) FROM tour_vip_sales s "
+                 "WHERE s.offer_id = o.id) AS _sold FROM tour_vip_offers o")
+
+
+def get_vip_offer(tour_id, offer_id):
+    with get_db() as db:
+        row = db.execute(_OFFER_SELECT + " WHERE o.id=? AND o.tour_id=?", (offer_id, tour_id)).fetchone()
+    return _offers([row])[0] if row else None
+
+
+def list_vip_offers(tour_id, show_id=None, active_only=False):
+    q = _OFFER_SELECT + " WHERE o.tour_id=?"
+    params = [tour_id]
+    if show_id:
+        q += " AND o.show_id=?"
+        params.append(show_id)
+    if active_only:
+        q += " AND o.active=1"
+    q += " ORDER BY o.price_cents, o.name"
+    with get_db() as db:
+        rows = db.execute(q, params).fetchall()
+    return _offers(rows)
+
+
+def ensure_vip_link(tour_id, show_id):
+    """The public purchase token for a date - made once, kept."""
+    with get_db() as db:
+        row = db.execute("SELECT token FROM tour_vip_links WHERE show_id=? AND tour_id=?",
+                         (show_id, tour_id)).fetchone()
+        if row:
+            return row["token"]
+        token = _new_id() + _new_id()[:8]
+        db.execute("INSERT INTO tour_vip_links (token, tour_id, show_id, created) VALUES (?,?,?,?)",
+                   (token, tour_id, show_id, _now()))
+    return token
+
+
+def vip_link(token):
+    """(tour_id, show_id) for a public purchase token, or None."""
+    with get_db() as db:
+        row = db.execute("SELECT tour_id, show_id FROM tour_vip_links WHERE token=?", (token or "",)).fetchone()
+    return (row["tour_id"], row["show_id"]) if row else None
+
+
+def vip_sale_by_session(session_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM tour_vip_sales WHERE stripe_session_id=?", (session_id or "",)).fetchone()
+    return dict(row) if row else None
+
+
+def record_vip_sale(tour_id, user_id, show, offer, session_id, email, name, quantity, fee_pct, currency="usd"):
+    """One sale per Stripe checkout session, whichever of the webhook and
+    the success redirect gets here first. The tour_vip row is what the
+    door checks in; the sale row is the money. Returns (sale, created)."""
+    existing = vip_sale_by_session(session_id)
+    if existing:
+        return existing, False
+    quantity = max(1, int(quantity or 1))
+    unit = int(offer["price_cents"])
+    gross = unit * quantity
+    fee = int(round(gross * float(fee_pct) / 100.0))
+    vip_id = add_vip(tour_id, user_id, show["id"], {
+        "package": offer["name"], "price": "%.2f" % (unit / 100.0), "quantity": quantity,
+        "purchaser": name, "guest": name, "email": email,
+        "meet_greet": offer["meet_greet"], "early_entry": offer["early_entry"],
+        "merch": offer["merch"], "photo": offer["photo"],
+        "schedule_time": offer["schedule_time"], "notes": "Bought online",
+    })
+    sid = _new_id()
+    try:
+        with get_db() as db:
+            db.execute(
+                "INSERT INTO tour_vip_sales (id, tour_id, show_id, offer_id, vip_id, stripe_session_id, email, "
+                "name, quantity, unit_cents, gross_cents, fee_pct, fee_cents, net_cents, currency, created) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (sid, tour_id, show["id"], offer["id"], vip_id, session_id, (email or "").lower()[:200],
+                 (name or "")[:120], quantity, unit, gross, float(fee_pct), fee, gross - fee,
+                 (currency or "usd")[:8], _now()))
+    except Exception:
+        # The other claimant got there between our lookup and our insert.
+        with get_db() as db:
+            db.execute("DELETE FROM tour_vip WHERE id=? AND tour_id=?", (vip_id, tour_id))
+        return vip_sale_by_session(session_id), False
+    return vip_sale_by_session(session_id), True
+
+
+def mark_vip_sale(sale_id, confirmation_sent=None, dayof_sent=None):
+    sets, params = [], []
+    if confirmation_sent is not None:
+        sets.append("confirmation_sent=?")
+        params.append(1 if confirmation_sent else 0)
+    if dayof_sent is not None:
+        sets.append("dayof_sent=?")
+        params.append(dayof_sent)
+    if not sets:
+        return
+    with get_db() as db:
+        db.execute("UPDATE tour_vip_sales SET %s WHERE id=?" % ", ".join(sets), params + [sale_id])
+
+
+def list_vip_sales(tour_id, show_id=None):
+    q = "SELECT * FROM tour_vip_sales WHERE tour_id=?"
+    params = [tour_id]
+    if show_id:
+        q += " AND show_id=?"
+        params.append(show_id)
+    q += " ORDER BY created"
+    with get_db() as db:
+        rows = db.execute(q, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def vip_sales_ledger(tour_id, show_id=None):
+    rows = list_vip_sales(tour_id, show_id)
+    return {"count": len(rows), "quantity": sum(r["quantity"] for r in rows),
+            "gross_cents": sum(r["gross_cents"] for r in rows),
+            "fee_cents": sum(r["fee_cents"] for r in rows),
+            "net_cents": sum(r["net_cents"] for r in rows)}
 
 
 # --- files ------------------------------------------------------------------
