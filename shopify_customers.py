@@ -66,7 +66,10 @@ def client_secret():
 
 
 def uses_grant():
-    return bool(client_id() and client_secret()) and not legacy_token()
+    # The app's own credentials win over a pasted legacy token: the old
+    # token is the one that used to be wrong, and a stale one must not
+    # silence the grant.
+    return bool(client_id() and client_secret())
 
 
 def _post_form(url, fields):
@@ -156,7 +159,7 @@ def mint_storefront_token(mutation, title, post=None):
 
 
 def token():
-    return legacy_token() or (granted_token() if uses_grant() else "")
+    return granted_token() if uses_grant() else legacy_token()
 
 
 def configured():

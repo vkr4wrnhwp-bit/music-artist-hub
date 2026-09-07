@@ -59,11 +59,16 @@ def test_a_refused_grant_is_named_and_the_legacy_token_still_wins(monkeypatch):
     monkeypatch.setattr(sc, "_post_form", lambda url, fields: (0, {"network": "timed out"}))
     store.set_kv(sc.GRANT_ERROR_KEY, "")
     assert sc.token() == "" and "timed out" in sc.status()["detail"]
-    # A legacy token set beside the credentials is used as before, without a grant.
+    # The app's credentials win over a legacy token left beside them: a stale one must not silence the grant.
     calls = []
-    monkeypatch.setattr(sc, "_post_form", lambda url, fields: calls.append(1) or (200, {"access_token": "x", "expires_in": 86399}))
+    monkeypatch.setattr(sc, "_post_form", lambda url, fields: calls.append(1) or (200, {"access_token": "granted-2", "expires_in": 86399}))
+    store.set_kv(sc.GRANT_KEY, "")
+    monkeypatch.setenv("SHOPIFY_ADMIN_TOKEN", "0123456789abcdef0123456789abcdef")
+    assert sc.uses_grant() and sc.token() == "granted-2" and calls and sc.token_looks_right()
+    # Without credentials the legacy token is used as before.
+    monkeypatch.delenv("SHOPIFY_CLIENT_ID", raising=False)
     monkeypatch.setenv("SHOPIFY_ADMIN_TOKEN", "shpat_legacy")
-    assert sc.token() == "shpat_legacy" and not sc.uses_grant() and not calls
+    assert sc.token() == "shpat_legacy" and not sc.uses_grant()
     monkeypatch.setenv("SHOPIFY_ADMIN_TOKEN", "0123456789abcdef0123456789abcdef")
     assert not sc.token_looks_right() and "does not look right" in sc.status()["headline"]
 
