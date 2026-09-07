@@ -406,6 +406,11 @@ main:has(> .to) { min-width: 0; }
 .to-tile-l .plus { font-weight: 700; }
 .to-tile-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .to-tile-s { font-size: 12px; color: var(--to-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.to-tile-v { font-size: 13px; font-weight: 700; line-height: 1.25; color: var(--to-copy); }
+a.to-strip { color: inherit; text-decoration: none; }
+a.to-strip:hover, a.to-strip:focus-visible { border-color: var(--to-gold); outline: none; }
+.to-lcds { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+a.to-lcds:hover .sb-lcd, a.to-lcds:focus-visible .sb-lcd { border-color: var(--to-gold); }
 .to-adds { border: 1px dashed var(--to-line); border-radius: var(--sb-r-panel); padding: 14px 16px; margin-bottom: 12px; background: rgb(201 162 74 / 0.04); }
 .to-adds-label { font-size: 12px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--to-gold); margin-bottom: 10px; }
 .to-chips { display: flex; flex-wrap: wrap; gap: 8px; }

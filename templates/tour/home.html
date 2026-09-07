@@ -35,8 +35,14 @@
   {% endif %}
 {% endif %}
 
+{#- Readiness is a meter, not a card with a sentence: the number, the
+    bar, and how many shows it is over. -#}
+<a class="to-strip" id="tour-readiness" href="/tours/{{ tour['id'] }}/shows" style="text-decoration:none;color:inherit">
+  <div class="to-strip-score">{{ m.ready(tour_ready['pct']) }}<span class="to-muted">{{ tour_ready['shows'] }} show{{ '' if tour_ready['shows'] == 1 else 's' }} scored</span></div>
+  <div class="to-strip-main"><span class="sb-meter" role="img" aria-label="Tour readiness: {{ tour_ready['pct'] }}%"><span class="sb-meter-fill" style="--sb-meter-fill: {{ tour_ready['pct'] }}%;"></span></span></div>
+</a>
+
 <div class="to-cards">
-  <a class="to-card is-warm" href="/tours/{{ tour['id'] }}/shows"><b>{{ tour_ready['pct'] }}%</b><span>Tour readiness</span><small>{{ tour_ready['shows'] }} show{{ '' if tour_ready['shows'] == 1 else 's' }} scored</small></a>
   <a class="to-card" href="/tours/{{ tour['id'] }}/calendar"><b>{{ shows|length }}</b><span>Shows</span><small>{{ upcoming|length }} upcoming</small></a>
   <a class="to-card" href="/tours/{{ tour['id'] }}/changes"><b>{{ changes|length }}</b><span>Important changes</span><small>last 8 shown below</small></a>
   <a class="to-card" href="/tours/{{ tour['id'] }}/tasks"><b>{{ open_tasks|length }}</b><span>Open tasks</span></a>
@@ -47,20 +53,17 @@
   <div>
     <h2 class="to-h2">Upcoming</h2>
     {% if upcoming %}
-    <div class="to-table-wrap"><table class="to-table is-stack">
-      <thead><tr><th>Date</th><th>City</th><th>Venue</th><th>Status</th><th>Ready</th></tr></thead>
-      <tbody>
+    {#- One tile per date: when, where, its state, how ready. A tile opens the date. -#}
+    <div class="to-glance" id="upcoming">
       {% for s in upcoming %}
-      <tr>
-        <td data-k="Date"><a href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">{{ fmt_day(s['date']) }}</a></td>
-        <td data-k="City">{{ s['city'] or '—' }}</td>
-        <td data-k="Venue">{{ s['venue'] }}</td>
-        <td data-k="Status">{{ m.chip(s['status']) }}</td>
-        <td data-k="Ready">{{ m.ready(readiness[s['id']]['pct']) }}</td>
-      </tr>
+      <a class="to-tile" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">
+        <span class="to-tile-l">{{ fmt_day(s['date']) }}</span>
+        <span class="to-tile-v">{{ s['venue'] }}</span>
+        <span class="to-tile-s">{{ s['city'] or '—' }}</span>
+        <span class="to-tile-row">{{ m.chip(s['status']) }}{{ m.ready(readiness[s['id']]['pct']) }}</span>
+      </a>
       {% endfor %}
-      </tbody>
-    </table></div>
+    </div>
     {% elif shows %}
       {{ m.empty("No upcoming shows", "Every date on this tour is in the past. Mark the tour wrapped in Settings, or add the next run.", "/tours/" ~ tour['id'] ~ "/calendar", "Calendar") }}
     {% else %}
@@ -75,27 +78,31 @@
       {% endfor %}
     </ul>
     {% elif shows %}
-      <p class="to-sub">Nothing flagged. Readiness is computed from the checklists, so a clean board means the checklists are clean — not that the work is done for you.</p>
+      <p class="to-sub">{{ sb.lamp("nothing flagged", "good") }} <span class="to-muted">Checklists are clean. That is what this measures.</span></p>
     {% else %}
       <p class="to-sub">Add a show and its checklist starts here.</p>
     {% endif %}
 
     {% if finance %}
     <h2 class="to-h2">Money</h2>
-    <div class="to-cards">
-      <a class="to-card" href="/tours/{{ tour['id'] }}/money"><b>{{ '%.0f'|format(finance['projected_net']) }}</b><span>Projected net ({{ finance['currency'] }})</span><small>{{ finance['shows_with_numbers'] }} show{{ '' if finance['shows_with_numbers'] == 1 else 's' }} with numbers</small></a>
-      <a class="to-card" href="/tours/{{ tour['id'] }}/money"><b>{{ '%.0f'|format(finance['guarantees']) }}</b><span>Guarantees</span></a>
-      <a class="to-card" href="/tours/{{ tour['id'] }}/money"><b>{{ '%.0f'|format(finance['outstanding']) }}</b><span>Outstanding</span></a>
-      <a class="to-card" href="/tours/{{ tour['id'] }}/money"><b>{{ finance['deposits_outstanding'] }}</b><span>Deposits due</span></a>
-      <a class="to-card" href="/tours/{{ tour['id'] }}/money"><b>{{ finance['unsettled']|length }}</b><span>Unsettled</span></a>
-    </div>
+    {#- Windows. A tour with no numbers entered shows '—', not zero: zero
+        would be a claim about money, and nothing has been measured. -#}
+    {% set known = finance['shows_with_numbers'] > 0 %}
+    <a class="to-lcds" href="/tours/{{ tour['id'] }}/money" style="text-decoration:none;color:inherit" aria-label="Money">
+      {{ sb.lcd(('%.0f'|format(finance['projected_net'])) if known else none, "projected net " ~ finance['currency']) }}
+      {{ sb.lcd(('%.0f'|format(finance['guarantees'])) if known else none, "guarantees") }}
+      {{ sb.lcd(('%.0f'|format(finance['outstanding'])) if known else none, "outstanding") }}
+      {{ sb.lcd(finance['deposits_outstanding'] if known else none, "deposits due") }}
+      {{ sb.lcd(finance['unsettled']|length, "unsettled") }}
+      {{ sb.lcd(finance['shows_with_numbers'], "shows with numbers") }}
+    </a>
     {% endif %}
   </div>
 
   <aside>
     <h2 class="to-h2">What changed</h2>
     {% if changes %}
-      {% for c in changes %}
+      {% for c in changes[:3] %}
       <div class="to-change">
         <span class="sev {{ c['severity'] }}"></span>
         <div>
@@ -106,9 +113,24 @@
         <div>{% if c['severity'] == 'critical' and acks[c['id']] != 'acknowledged' %}<form method="post" action="/tours/{{ tour['id'] }}/changes/{{ c['id'] }}/ack"><button class="to-btn to-btn--small" type="submit">Got it</button></form>{% endif %}</div>
       </div>
       {% endfor %}
+      {% if changes|length > 3 %}
+      <details class="to-add"><summary>{{ changes|length - 3 }} more change{{ '' if changes|length == 4 else 's' }}</summary><div class="to-add-body">
+      {% for c in changes[3:] %}
+      <div class="to-change">
+        <span class="sev {{ c['severity'] }}"></span>
+        <div>
+          <div><b>{{ c['entity_label'] }}</b> · {{ c['field']|replace('_',' ') }}</div>
+          <div><del>{{ c['before'] or '—' }}</del> <ins>{{ c['after'] or '—' }}</ins></div>
+          <small>{{ c['created'][:16]|replace('T',' ') }} UTC · {{ c['actor_name'] or 'system' }}{% if c['source'] != 'manual' %} · via {{ c['source'] }}{% endif %}</small>
+        </div>
+        <div>{% if c['severity'] == 'critical' and acks[c['id']] != 'acknowledged' %}<form method="post" action="/tours/{{ tour['id'] }}/changes/{{ c['id'] }}/ack"><button class="to-btn to-btn--small" type="submit">Got it</button></form>{% endif %}</div>
+      </div>
+      {% endfor %}
+      </div></details>
+      {% endif %}
       <div class="to-bar"><a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/changes">All changes</a></div>
     {% else %}
-      <p class="to-sub">No important changes yet. Time, place and hotel edits land here with who made them.</p>
+      <p class="to-sub">No important changes yet.</p>
     {% endif %}
 
     <h2 class="to-h2">Today for you</h2>
