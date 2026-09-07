@@ -3,7 +3,7 @@
    see, and the offline strip. Pages extend this and fill `tour_body`. #}
 {% extends "base.html" %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/tour-os.css?v=25">
+  <link rel="stylesheet" href="/static/css/tour-os.css?v=26">
 {% endblock %}
 {% block content %}
 {% import "tour/_macros.html" as m %}
@@ -57,6 +57,9 @@
     {% for t in tour_bar.sub %}<a class="to-sub-tab {{ 'is-on' if t.on }}" href="/tours/{{ tour['id'] }}/{{ t.path }}"{% if t.on %} aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}
   </nav>
   {% endif %}
+  {#- The bar is every date; a show's own page is one night, and its plate
+      already says which. -#}
+  {% if not show_page %}<p class="to-bar-note">Every date on this tour. Open a show to work one night.</p>{% endif %}
   {% endif %}
 
   {% block tour_body %}{% endblock %}

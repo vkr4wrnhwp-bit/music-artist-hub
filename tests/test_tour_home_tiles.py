@@ -50,11 +50,11 @@ def test_the_bar_on_the_other_pages_is_what_booking_needs(flask_app):
     html = client.get("/tours/%s/shows" % tid).get_data(as_text=True)
     bar = html.split('class="to-tabs to-bar"')[1].split("</nav>")[0]
     labels = re.findall(r'class="to-tab[^"]*"[^>]*>([^<]+)<', bar)
-    assert labels[:7] == ["Home", "Import", "Venues", "Crew", "Travel &amp; hotels", "Money", "Files"]
+    assert labels[:7] == ["Home", "Import", "Venue book", "Crew directory", "All travel &amp; hotels", "Tour money", "All files"]
     assert '<a class="to-tab " href="/tours">Home</a>' in bar, "Home is your tours and the calendar"
     assert ('href="/tours/%s" style="color:inherit;text-decoration:none">Test Run</a>' % tid) in html, "the tour's name is the way back to its list"
     items = re.findall(r'class="to-more-item[^"]*"[^>]*>([^<]+)<', bar)
-    assert items == ["Dates", "Calendar", "Marketing", "Stage plot", "Exports", "What changed", "Ask Tour", "Share links", "Team", "Settings"]
+    assert items == ["Show list", "Calendar", "Marketing, all dates", "Stage plot", "Exports", "What changed", "Ask Tour", "Share links", "Team", "Settings"]
 
 
 def test_the_sheet_and_the_worker_moved_on():

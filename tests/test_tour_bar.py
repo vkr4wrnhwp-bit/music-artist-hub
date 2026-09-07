@@ -2,7 +2,7 @@
 
 Phase 2 of the audit. Every TOUR_TABS key, route and scope is unchanged;
 only what the bar shows is. A page under a group (hotels, route) lights
-Travel & hotels and gets the sub-row; a page in More lights the More button
+All travel & hotels and gets the sub-row; a page in More lights the More button
 with its own label; a viewer without a scope sees neither the entry nor the
 menu item.
 """
@@ -44,15 +44,16 @@ def test_the_bar_is_seven_entries_for_an_owner(flask_app):
     page = client.get("/tours/%s/people" % tid).get_data(as_text=True)
     bar = _bar(page)
     labels = re.findall(r'class="to-tab[^"]*"[^>]*>([^<]+)<', bar)
-    assert labels[:7] == ["Home", "Import", "Venues", "Crew", "Travel &amp; hotels", "Money", "Files"]
+    # Every entry names the run-wide view it opens (the audit, 2026-09-07).
+    assert labels[:7] == ["Home", "Import", "Venue book", "Crew directory", "All travel &amp; hotels", "Tour money", "All files"]
     assert 'class="to-more"' in bar and ">More <" in bar
-    # Home is lit; nothing in More is.
-    assert 'aria-current="page">Crew<' in bar
+    # Crew directory is lit; nothing in More is.
+    assert 'aria-current="page">Crew directory<' in bar
     items = re.findall(r'class="to-more-item[^"]*"[^>]*>([^<]+)<', bar)
     # The tour level is for booking the run, importing it and closing it
     # out (2026-09-07: "tour page has no header navigation for day of show
     # features"). Every day-of-show page lives inside a show's own bar.
-    assert items == ["Dates", "Calendar", "Marketing", "Stage plot",
+    assert items == ["Show list", "Calendar", "Marketing, all dates", "Stage plot",
                      "Exports", "What changed",
                      "Ask Tour", "Share links", "Team", "Settings"]
     heads = re.findall(r'class="to-more-head">([^<]+)<', bar)
@@ -74,10 +75,10 @@ def test_a_page_in_more_lights_the_more_button_with_its_own_label(flask_app):
 
 def test_hotels_and_route_sit_under_travel_with_a_sub_row(flask_app):
     client, tid = _owner(flask_app)
-    for path, label in (("hotels", "Hotels"), ("map", "Route"), ("travel", "Travel")):
+    for path, label in (("hotels", "Hotels &amp; rooming"), ("map", "Route"), ("travel", "Flights &amp; ground")):
         page = client.get("/tours/%s/%s" % (tid, path)).get_data(as_text=True)
         bar = _bar(page)
-        assert 'class="to-tab is-on" href="/tours/%s/travel" aria-current="page">Travel &amp; hotels<' % tid in bar
+        assert 'class="to-tab is-on" href="/tours/%s/travel" aria-current="page">All travel &amp; hotels<' % tid in bar
         sub = page.split('class="to-subnav"')[1].split("</nav>")[0]
         assert 'aria-current="page">%s<' % label in sub
         assert sub.count("to-sub-tab") == 3
@@ -104,9 +105,13 @@ def test_the_bar_is_scope_filtered():
 
 def test_every_tour_page_still_answers_with_the_new_bar(flask_app):
     client, tid = _owner(flask_app)
+    line = "Every date on this tour. Open a show to work one night."
     for key, _label, path in tour_os.TOUR_TABS:
         url = "/tours/%s%s" % (tid, "/" + path if path else "")
         r = client.get(url)
         assert r.status_code == 200, (key, r.status_code)
+        html = r.get_data(as_text=True)
         # The tour's own page is the list of its shows and carries no bar (the owner, 2026-09-07).
-        assert ('class="to-tabs to-bar"' in r.get_data(as_text=True)) == (key != "home"), key
+        assert ('class="to-tabs to-bar"' in html) == (key != "home"), key
+        # Every page with the bar says what the bar is (the audit).
+        assert (line in html) == (key != "home"), key

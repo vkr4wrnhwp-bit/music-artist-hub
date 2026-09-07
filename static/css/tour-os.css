@@ -394,6 +394,17 @@ main:has(> .to) { min-width: 0; }
 .to-sec-body { padding: 12px 16px 16px; }
 .to-sec-body > .to-h2:first-child { margin-top: 0; }
 .to-sec-remove { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--to-rule); font-size: 12px; }
+/* The line that ends every feature body: the same feature across the run. */
+.to-sec-all { margin: 14px 0 0; font-size: 12px; }
+.to-sec-all a { color: var(--to-soft); text-decoration: none; }
+.to-sec-all a:hover { color: var(--to-amber); }
+/* A quiet secondary link beside a button, or after a fact. */
+.to-quiet-link { color: var(--to-soft); font-size: 12px; text-decoration: none; min-height: 32px; display: inline-flex; align-items: center; }
+.to-quiet-link:hover { color: var(--to-amber); text-decoration: underline; }
+.to-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+/* Under the bar on every run-wide page: what this level is. */
+.to-bar-note { margin: -8px 0 14px; font-size: 12px; color: var(--to-soft); }
+.to-crew-call { width: 110px; min-height: 32px; padding: 4px 8px; }
 
 /* a disclosure inside a section: a sub-tab that used to be a tab */
 .to-fold { border: 1px solid var(--to-rule); border-radius: var(--sb-r-panel); margin-top: 12px; background: rgb(255 255 255 / 0.015); }
