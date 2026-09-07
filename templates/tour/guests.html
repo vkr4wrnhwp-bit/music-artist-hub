@@ -6,8 +6,7 @@
 <div class="to-head"><div><p class="to-eyebrow">Guest lists</p><h1 class="to-h1" style="font-size:20px">Allocation, pending, checked in — per show</h1></div></div>
 {% if shows %}
 {#- One row per show: the counts as instruments, 'over' as a lamp. -#}
-<div class="to-dates" id="guest-shows">
-  {% for s in shows %}{% set g = summary[s['id']] %}
+{% macro row(s) %}{% set g = summary[s['id']] %}
   <div class="to-date to-date--money">
     <a class="to-date-when" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=guests">
       <span class="to-tile-l">{{ fmt_day(s['date']) }}</span>
@@ -22,7 +21,20 @@
     </div>
     <div class="to-date-state">{% if g['pending'] %}{{ sb.lamp(g['pending'] ~ " waiting", "warn") }}{% endif %}</div>
   </div>
-  {% endfor %}
+{% endmacro %}
+{#- The dates that hold something, then the rest behind one counted fold.
+    When nothing holds anything the first three stay out, so the page
+    still shows where to start. -#}
+{% set live = [] %}{% set quiet = [] %}
+{% for s in shows %}{% if summary[s['id']]['used'] == 0 and summary[s['id']]['pending'] == 0 and summary[s['id']]['checked_in'] == 0 and summary[s['id']]['allocation'] is none and not s['guest_cutoff'] %}{% set _ = quiet.append(s) %}{% else %}{% set _ = live.append(s) %}{% endif %}{% endfor %}
+{% if not live %}{% set live = quiet[:3] %}{% set quiet = quiet[3:] %}{% endif %}
+<div class="to-dates" id="guest-shows">
+  {% for s in live %}{{ row(s) }}{% endfor %}
+  {% if quiet %}
+  <details class="to-fold to-quiet"><summary>{{ quiet|length }} date{{ '' if quiet|length == 1 else 's' }} with nothing entered yet</summary>
+    <div class="to-dates">{% for s in quiet %}{{ row(s) }}{% endfor %}</div>
+  </details>
+  {% endif %}
 </div>
 {% else %}{{ m.empty("No shows yet", "Guest lists live on each show.") }}{% endif %}
 

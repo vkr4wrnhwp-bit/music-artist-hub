@@ -707,6 +707,14 @@ def home(user, tour, viewer, tour_id):
         per_show.append({"show": s, "readiness": r})
     tour_ready = eng.tour_readiness(per_show)
     attention = eng.needs_attention(shows, readiness, today)
+    # One line per date with a count, the items behind it: ten lines about
+    # two dates read as ten problems.
+    attention_by_date = []
+    for a in attention:
+        if attention_by_date and attention_by_date[-1]["show"]["id"] == a["show"]["id"]:
+            attention_by_date[-1]["items"].append(a)
+        else:
+            attention_by_date.append({"show": a["show"], "items": [a]})
     sched_p, travel_p = eng.personal(viewer, viewer["scopes"], schedule, travel)
     nxt = eng.next_item(tour, shows, sched_p, travel_p)
     changes = _changes_for(viewer, tour_id, ts.list_changes(tour_id, severity_min="important", limit=40))[:8]
@@ -731,7 +739,8 @@ def home(user, tour, viewer, tour_id):
     my_day = eng.my_day(viewer, viewer["scopes"], shows, schedule, travel, lodging, today)
     return render_template("tour/home.html", **_ctx(
         user, tour, viewer, "home", shows=shows, upcoming=upcoming, readiness=readiness,
-        tour_ready=tour_ready, attention=attention[:10], nxt=nxt, changes=changes,
+        tour_ready=tour_ready, attention=attention[:10], attention_by_date=attention_by_date[:5],
+        attention_dates=len(attention_by_date), nxt=nxt, changes=changes,
         acks=acks, unack=unack, finance=finance, open_tasks=open_tasks[:6],
         guests_pending=guests_pending, people_count=people_count, my_day=my_day,
         hotel_tonight=my_day["hotel"], today_show=next((s for s in shows if s["date"] == today), None)))

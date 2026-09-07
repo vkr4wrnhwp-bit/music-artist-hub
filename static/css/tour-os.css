@@ -384,6 +384,9 @@ main:has(> .to) { min-width: 0; }
 
 /* a disclosure inside a section: a sub-tab that used to be a tab */
 .to-fold { border: 1px solid var(--to-rule); border-radius: var(--sb-r-panel); margin-top: 12px; background: rgb(255 255 255 / 0.015); }
+.to-quiet { margin-top: 4px; }
+.to-quiet > summary { color: var(--to-soft); font-size: 12.5px; }
+.to-quiet > .to-dates { padding: 0 10px 10px; }
 .to-fold > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; min-height: 44px; }
 .to-fold > summary::-webkit-details-marker { display: none; }
 .to-fold > summary::before { content: ""; width: 7px; height: 7px; margin: 0 4px 0 2px; border-right: 1.5px solid var(--to-soft); border-bottom: 1.5px solid var(--to-soft); transform: rotate(-45deg); flex: none; transition: transform 0.15s; }

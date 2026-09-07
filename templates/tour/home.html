@@ -73,11 +73,14 @@
 
     <h2 class="to-h2">Needs attention</h2>
     {% if attention %}
-    <ul class="to-check">
-      {% for a in attention %}
-      <li>{{ sb.lamp("attention", "crit") }}<span><a href="/tours/{{ tour['id'] }}/shows/{{ a['show']['id'] }}">{{ a['text'] }}</a><small>{{ fmt_day(a['show']['date']) }}</small></span></li>
+    {#- One line per date, its count as the lamp, the items behind a fold. -#}
+    <ul class="to-check" id="attention">
+      {% for d in attention_by_date %}
+      <li>{{ sb.lamp(d['items']|length ~ " open", "crit") }}<span><a href="/tours/{{ tour['id'] }}/shows/{{ d['show']['id'] }}">{{ d['show']['city'] or d['show']['venue'] }}</a><small>{{ fmt_day(d['show']['date']) }}</small>
+        <details class="to-date-missing"><summary>what</summary><ul>{% for a in d['items'] %}<li>{{ a['text']|replace(d['show']['city'] ~ ' ', '', 1) }}</li>{% endfor %}</ul></details></span></li>
       {% endfor %}
     </ul>
+    {% if attention_dates > attention_by_date|length %}<p class="to-muted">{{ attention_dates - attention_by_date|length }} more date{{ '' if attention_dates - attention_by_date|length == 1 else 's' }} with open items: see <a href="/tours/{{ tour['id'] }}/shows">Dates</a>.</p>{% endif %}
     {% elif shows %}
       <p class="to-sub">{{ sb.lamp("nothing flagged", "good") }} <span class="to-muted">Checklists are clean. That is what this measures.</span></p>
     {% else %}

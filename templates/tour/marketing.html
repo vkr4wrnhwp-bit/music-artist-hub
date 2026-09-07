@@ -9,8 +9,7 @@
 {#- One row per market: tickets as a meter when both numbers were entered,
     the three dates and the push count as instruments, a missing ticket
     link as the lamp. -#}
-<div class="to-dates" id="markets">
-  {% for r in rows %}{% set s = r['show'] %}{% set mk = r['mk'] %}
+{% macro row(r) %}{% set s = r['show'] %}{% set mk = r['mk'] %}
   {% set ns = namespace(n=0) %}{% for k in ('promo_assets','local_press','radio','influencers','paid_ads','email_blast','sms','posts_scheduled','street_team') %}{% if k in mk and mk[k] %}{% set ns.n = ns.n + 1 %}{% endif %}{% endfor %}
   <div class="to-date to-date--market">
     <a class="to-date-when" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=marketing">
@@ -27,7 +26,20 @@
     </div>
     <div class="to-date-state">{% if s['ticket_url'] %}<a class="to-chip" href="{{ s['ticket_url'] }}" target="_blank" rel="noopener">ticket link</a>{% else %}{{ sb.lamp("no ticket link", "warn") }}{% endif %}</div>
   </div>
-  {% endfor %}
+{% endmacro %}
+{#- The dates that hold something, then the rest behind one counted fold.
+    When nothing holds anything the first three stay out, so the page
+    still shows where to start. -#}
+{% set live = [] %}{% set quiet = [] %}
+{% for r in rows %}{% if not r['progress'] and not r['show']['ticket_url'] and not r['show']['ticket_status'] and not (r['mk'].values()|select|list) %}{% set _ = quiet.append(r) %}{% else %}{% set _ = live.append(r) %}{% endif %}{% endfor %}
+{% if not live %}{% set live = quiet[:3] %}{% set quiet = quiet[3:] %}{% endif %}
+<div class="to-dates" id="markets">
+  {% for r in live %}{{ row(r) }}{% endfor %}
+  {% if quiet %}
+  <details class="to-fold to-quiet"><summary>{{ quiet|length }} date{{ '' if quiet|length == 1 else 's' }} with nothing entered yet</summary>
+    <div class="to-dates">{% for r in quiet %}{{ row(r) }}{% endfor %}</div>
+  </details>
+  {% endif %}
 </div>
 {% else %}{{ m.empty("No shows yet", "Marketing is tracked per show.") }}{% endif %}
 {% endblock %}

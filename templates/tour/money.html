@@ -29,8 +29,7 @@
 {#- One row per show: when and where, the deal as a chip, its figures as
     small instruments, the settlement state. A show with nothing entered
     says so in three words. -#}
-<div class="to-dates" id="by-show">
-  {% for r in finance['rows'] %}{% set s = r['show'] %}
+{% macro row(r) %}{% set s = r['show'] %}
   <div class="to-date to-date--money">
     <a class="to-date-when" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}?tab=money">
       <span class="to-tile-l">{{ fmt_day(s['date']) }}</span>
@@ -50,7 +49,20 @@
     </div>
     <div class="to-date-state">{{ m.chip(s['settlement_status'] or 'open') }}</div>
   </div>
-  {% endfor %}
+{% endmacro %}
+{#- The dates that hold something, then the rest behind one counted fold.
+    When nothing holds anything the first three stay out, so the page
+    still shows where to start. -#}
+{% set live = [] %}{% set quiet = [] %}
+{% for r in finance['rows'] %}{% if not r['has_numbers'] and (r['show']['settlement_status'] or 'open') == 'open' %}{% set _ = quiet.append(r) %}{% else %}{% set _ = live.append(r) %}{% endif %}{% endfor %}
+{% if not live %}{% set live = quiet[:3] %}{% set quiet = quiet[3:] %}{% endif %}
+<div class="to-dates" id="by-show">
+  {% for r in live %}{{ row(r) }}{% endfor %}
+  {% if quiet %}
+  <details class="to-fold to-quiet"><summary>{{ quiet|length }} date{{ '' if quiet|length == 1 else 's' }} with nothing entered yet</summary>
+    <div class="to-dates">{% for r in quiet %}{{ row(r) }}{% endfor %}</div>
+  </details>
+  {% endif %}
 </div>
 {% if finance['best'] %}<p class="to-sub">Best: {{ finance['best']['show']['city'] or finance['best']['show']['venue'] }} ({{ '%.0f'|format(finance['best']['estimated_net']) }}). Worst: {{ finance['worst']['show']['city'] or finance['worst']['show']['venue'] }} ({{ '%.0f'|format(finance['worst']['estimated_net']) }}).</p>{% endif %}
 {% else %}{{ m.empty("No shows yet", "Money is entered per show.") }}{% endif %}
