@@ -5,6 +5,7 @@
 {% block title %}Overview - Royalty Sweep{% endblock %}
 
 {% block content %}
+{{ sb.subnav([("/command-center", "Command Center"), ("/overview", "Overview")], request.path) }}
 
 {# One source for every figure on this page. get_earnings_trend() is six
    hardcoded months; it describes the showcase and nobody else, so a real

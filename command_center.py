@@ -117,6 +117,53 @@ MODULES = [
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)
                    for route, name, blurb, status, disc in MODULES}
 
+# Windows whose route the sidebar folds under a front, so they group with it.
+FOLD_FRONTS = {
+    "/links/fans": "/fans", "/fan-club": "/fans", "/epk": "/press-desk",
+    "/sync/clearance-packs": "/deal-room", "/sync/deal-simulator": "/deal-room",
+    "/tracks": "/catalog", "/money-queue": "/royalty-lanes", "/trust-score": "/qualification",
+    "/royalty-recovery/cases": "/recovery", "/royalty-recovery/mlc": "/recovery",
+}
+OTHER_GROUP = "Also on the board"
+
+
+def module_groups(modules=None):
+    """The board's windows, grouped by the hub each one lives in - the same
+    hubs the sidebar renders, so the board cannot drift from the nav. A
+    route the sidebar folds under a front groups with that front; a route
+    nobody lists lands under 'Also on the board' rather than being hidden.
+    Returns [(group name, [module tuples])] in sidebar order."""
+    import hubs
+    modules = modules or MODULES
+    order, where = [], {}
+    for _hkey, name, _tagline, items in hubs.HUBS:
+        order.append(name)
+        for _k, href, _icon, _label, _desc in items:
+            where.setdefault(href, name)
+    for name, items in (hubs.COMMUNITY_GROUP, hubs.ACCOUNT_GROUP):
+        order.append(name)
+        for _k, href, _icon, _label, _desc in items:
+            where.setdefault(href, name)
+
+    def home(route):
+        if route in where:
+            return where[route]
+        front = FOLD_FRONTS.get(route)
+        if front and front in where:
+            return where[front]
+        for href, name in where.items():
+            if href != "/" and route.startswith(href.rstrip("/") + "/"):
+                return name
+        return OTHER_GROUP
+
+    groups = {}
+    for m in modules:
+        groups.setdefault(home(m[0]), []).append(m)
+    out = [(name, groups[name]) for name in order if name in groups]
+    if OTHER_GROUP in groups:
+        out.append((OTHER_GROUP, groups[OTHER_GROUP]))
+    return out
+
 # Planned-feature bullets shown on preview pages, keyed by route.
 PREVIEW_FEATURES = {
     "/royalty-recovery/cases": ["Case board with status, evidence, and deadlines", "Estimated amounts and confidence scores", "Recovery packet generator", "Results and payout tracking"],

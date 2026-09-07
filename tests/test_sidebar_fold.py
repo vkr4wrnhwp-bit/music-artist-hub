@@ -31,6 +31,8 @@ FOLDED = {
     "/releases": "autopilot", "/documents": "vault", "/tracks": "catalog",
     # Fans, one front (2026-09-06).
     "/fans": "fans", "/links/fans": "fans", "/fan-club": "fans",
+    # Overview under the Command Center front (2026-09-07).
+    "/overview": "command-center",
 }
 
 
@@ -38,11 +40,11 @@ def _entries():
     return [it for _k, _l, _d, items in hubs.HUBS for it in items]
 
 
-def test_the_sidebar_is_thirty_four_entries():
+def test_the_sidebar_is_thirty_three_entries():
     # HUBS only; the Community and Account groups are counted by hubs.py's
     # own group walk. Fans lost two entries there (Fan Label parked, Fan
     # Club folded into the Fans front) without touching this number.
-    assert len(_entries()) == 34
+    assert len(_entries()) == 33          # Overview folded under Command Center, 2026-09-07
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():
@@ -55,7 +57,7 @@ def test_nothing_parked_or_folded_is_a_sidebar_entry():
     for key in ("capital", "benchmark", "funding", "conflicts", "epk", "profile", "mechanicals",
                 "neighboring", "territories", "money-queue", "trust-score", "insights",
                 "connections", "deal-simulator", "sync-packs", "releases", "documents", "tracks",
-                "fan-label", "fan-club-admin", "network"):
+                "fan-label", "fan-club-admin", "network", "overview"):
         assert key not in keys, key
     for key in ("income", "scores", "deals", "royalty-lanes", "press-desk", "reports"):
         assert key in keys, key

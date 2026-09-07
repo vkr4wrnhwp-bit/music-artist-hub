@@ -4,6 +4,7 @@
 {% block title %}Command Center - Street Banker{% endblock %}
 
 {% block content %}
+{{ sb.subnav([("/command-center", "Command Center"), ("/overview", "Overview")], request.path) }}
 {% if tutor %}
 <!-- Tutor mode: the whole product as an ordered walkthrough. Opt-in,
      never gates anything, and every tick is a real query - a step is
@@ -283,18 +284,20 @@
   </div>
 
   <!-- Module grid -->
-  <section>
+  <section id="os">
     <h2 class="sb-label">The Operating System</h2>
-    {# Module cards carry an icon and no LIVE badge. A green "LIVE" on
-       nine tiles out of ten is noise, and a badge is for state that
-       needs acting on. "Preview" still has to be said - it is an
-       honesty claim about whether the module is wired up - so it moves
-       into the note line where it reads as a fact rather than as a
-       status light competing with the alerts above. #}
+    {# The windows are grouped the way the sidebar is, so the board and
+       the nav cannot disagree about where a thing lives. A window that is
+       still a preview carries one lamp and a dashed edge; a live one
+       carries nothing, because a green light on nine windows in ten is
+       noise. The note clamps to two lines and rides on hover in full. #}
+    <p class="mt-1 text-xs text-gray-300">Grouped like the sidebar. A dashed window with a preview lamp is not wired up yet.</p>
     {# Icon per module, keyed off the route so nothing has to be
        maintained in Python for a purely visual mapping. #}
-    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {% for route, name, blurb, status, disc in modules %}
+    {% for group, items in module_groups %}
+    <h3 class="sb-label mt-5 text-gray-300" id="os-{{ loop.index }}">{{ group }}</h3>
+    <div class="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {% for route, name, blurb, status, disc in items %}
         {% set ikey =
              "money"    if ("/royalty" in route or "/revenue" in route or "/deal" in route
                             or "/money" in route or "/capital" in route or "/spend" in route) else
@@ -309,13 +312,10 @@
              "star"     if "/releases" in route else
              "check"    if ("/certified" in route or "/metadata" in route or "/ai-rights" in route) else
              "studio" %}
-        {{ sb.module_card(
-             name,
-             note=blurb if status == "live" else ("Preview — not wired up yet. " ~ blurb),
-             href=route,
-             icon=sb.icons(ikey)) }}
+        {{ sb.module_card(name, note=blurb, href=route, icon=sb.icons(ikey), state=status, disc=disc) }}
       {% endfor %}
     </div>
+    {% endfor %}
   </section>
 </div>
 {% endblock %}

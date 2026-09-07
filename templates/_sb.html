@@ -142,13 +142,19 @@
    what state the module is in belongs on the module, not on the
    door to it. `note` is the one useful fact - "2 shows saved",
    "4 upcoming · 2 unsettled". #}
-{% macro module_card(title, note=none, href="#", icon=none) -%}
-  <a class="sb-mod" href="{{ href }}">
+{% macro module_card(title, note=none, href="#", icon=none, state=none, disc=none) -%}
+  {#- `state` "preview" earns a lamp and a dashed edge; "live" earns nothing,
+      because a green light on nine windows in ten is noise. `disc` is the
+      window's own caveat, small, under the note. The full note is on
+      hover, since the card clamps it to two lines. -#}
+  <a class="sb-mod{% if state == 'preview' %} sb-mod--preview{% endif %}" href="{{ href }}"{% if note %} title="{{ note }}"{% endif %}>
     <div class="sb-mod-head">
       <span class="sb-mod-ic">{{ icon or icons("grid") }}</span>
       <h4 class="sb-mod-title">{{ title }}</h4>
+      {%- if state == 'preview' %}<span class="sb-mod-state">{{ lamp("preview", "warn") }}</span>{% endif %}
     </div>
     {%- if note %}<p class="sb-mod-note">{{ note }}</p>{% endif %}
+    {%- if disc %}<p class="sb-mod-disc">{{ disc }}</p>{% endif %}
   </a>
 {%- endmacro %}
 

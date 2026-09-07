@@ -1825,7 +1825,7 @@ def create_app():
         rr = _real_royalty()
         showcase = _session_is_demo()
         balances = get_platform_balances() if showcase else []
-        return render_template("overview.html", active_page="overview",
+        return render_template("overview.html", active_page="command-center",
                                since_visit=(since_engine.build(user["id"], since)
                                             if user is not None
                                             and not showcase else None),
@@ -3322,7 +3322,7 @@ def create_app():
             summary=cc.get_summary(user["id"]),
             cc_alerts=cc.build_alerts(user["id"]),
             cc_actions=cc.open_actions(user["id"]),
-            modules=cc.MODULES,
+            modules=cc.MODULES, module_groups=cc.module_groups(),
             signal=signal_ctx,
             tutor=tutor_panel,
             # The tutor's first stage IS the firstrun checklist, so when

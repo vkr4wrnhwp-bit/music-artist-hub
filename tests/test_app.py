@@ -6043,7 +6043,9 @@ def test_command_palette_index_cannot_drift_from_the_nav():
     # Things built and shipped are marked live, so the palette does not
     # tell someone a working page is locked.
     live = {i["key"] for i in idx if i["live"]}
-    for key in ("hours", "rack", "overview", "links", "tours"):
+    # Overview is a tab of the Command Center front now (2026-09-07), so the
+    # front is the palette entry; the page still answers at /overview.
+    for key in ("hours", "rack", "command-center", "links", "tours"):
         assert key in live, key
 
 

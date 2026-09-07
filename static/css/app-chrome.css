@@ -807,3 +807,11 @@ details.asx-open[open] .asx-when-closed { display: none; }
 .sb-subnav-a.is-on { color: var(--sb-gold); background: var(--sb-gold-wash); border-color: var(--sb-gold); }
 .sb-subnav-a:focus-visible { outline: none; box-shadow: var(--sb-focus); }
 @media (pointer: coarse) { .sb-subnav-a { min-height: 44px; display: inline-flex; align-items: center; } }
+
+/* --- module windows on the Command Center board ------------------------
+   The note clamps to two lines (the full note rides on hover); a preview
+   window is dashed and carries its one lamp at the head's far edge. */
+.sb-mod-head .sb-mod-state { margin-left: auto; flex: none; }
+.sb-mod-note { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sb-mod-disc { margin: 6px 0 0; font-size: 12px; line-height: 1.4; color: var(--sb-ink-3); }
+.sb-mod--preview { border-style: dashed; }
