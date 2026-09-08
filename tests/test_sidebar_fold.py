@@ -40,11 +40,13 @@ def _entries():
     return [it for _k, _l, _d, items in hubs.HUBS for it in items]
 
 
-def test_the_sidebar_is_thirty_three_entries():
+def test_the_sidebar_is_thirty_four_entries():
     # HUBS only; the Community and Account groups are counted by hubs.py's
     # own group walk. Fans lost two entries there (Fan Label parked, Fan
     # Club folded into the Fans front) without touching this number.
-    assert len(_entries()) == 33          # Overview folded under Command Center, 2026-09-07
+    # 33 after Overview folded under Command Center; 34 with Stage Plot
+    # back under the Live Stage Suite (owner, both 2026-09-07).
+    assert len(_entries()) == 34
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():

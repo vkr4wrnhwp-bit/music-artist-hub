@@ -30,9 +30,13 @@
     </section>
   {% endif %}
 
+  {% if request.args.get("archived") %}
+    <p class="text-sm text-gray-300">Project archived. It no longer opens or appears in the switcher; the record itself is kept.</p>
+  {% endif %}
+
   <section class="sb-panel p-4">
     {% if projects %}
-      {% call sb.table(["Project", "Artist", "Type", "Status", "Updated"]) %}
+      {% call sb.table(["Project", "Artist", "Type", "Status", "Updated", ""]) %}
         {% for p in projects %}
           <tr>
             <td><a class="underline" href="{{ url_for('studio.studio_session', project_id=p.id) }}">{{ p.title }}</a></td>
@@ -40,6 +44,17 @@
             <td class="whitespace-nowrap">{{ p.project_type|replace("_"," ") }}</td>
             <td class="whitespace-nowrap">{{ p.status|replace("_"," ") }}</td>
             <td class="whitespace-nowrap">{{ (p.updated_at or "")[:10] }}</td>
+            <td class="whitespace-nowrap">
+              {#- Quiet on purpose: putting a record away is rare, and a row of
+                  archive buttons would read as the page's main verb. -#}
+              <details class="sb-more">
+                <summary>More</summary>
+                <form method="post" action="{{ url_for('studio.studio_archive', project_id=p.id) }}">
+                  {{ sb.btn("Archive project", variant="secondary", size="sm", type="submit",
+                            aria_label="Archive " ~ p.title) }}
+                </form>
+              </details>
+            </td>
           </tr>
         {% endfor %}
       {% endcall %}

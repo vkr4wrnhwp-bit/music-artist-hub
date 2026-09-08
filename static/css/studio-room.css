@@ -108,6 +108,20 @@
 .sr-rail-join { color: var(--sb-line-strong); font-size: 12px; padding: 0 2px; }
 
 /* --- tabs ---------------------------------------------------------------- */
+/* A quiet fold for the rare verb (archive). Same face as a panel sub-label. */
+.sb-more > summary {
+  cursor: pointer; list-style: none; display: inline-block;
+  font-family: var(--sb-mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--sb-ink-3); padding: 4px 0;
+}
+.sb-more > summary::-webkit-details-marker { display: none; }
+.sb-more > summary:hover { color: var(--sb-ink-2); }
+.sb-more > summary:focus-visible { outline: none; box-shadow: var(--sb-focus); border-radius: var(--sb-r-control); }
+.sb-more[open] > summary { color: var(--sb-ink-2); }
+.sb-more > form { margin-top: 6px; }
+.sr-more { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--sb-line); }
+.sr-more--bare { border-top: 0; padding-top: 0; margin-top: 4px; }
+
 .sr-tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--sb-line); }
 .sr-tab {
   font-family: var(--sb-mono); font-size: 12px; letter-spacing: .13em; text-transform: uppercase;

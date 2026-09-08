@@ -60,8 +60,14 @@
   <section class="sb-panel p-4">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
       <h2 class="sb-label sb-label-gold">Projects</h2>
-      {{ sb.btn("Start a session", variant="primary", size="sm",
-                href=url_for("studio.studio_new")) }}
+      <div class="flex flex-wrap items-center gap-2">
+        {% if projects %}
+          {{ sb.btn("All projects", variant="secondary", size="sm",
+                    href=url_for("studio.studio_projects")) }}
+        {% endif %}
+        {{ sb.btn("Start a session", variant="primary", size="sm",
+                  href=url_for("studio.studio_new")) }}
+      </div>
     </div>
 
     {% if projects %}
@@ -83,6 +89,22 @@
       </p>
     {% endif %}
   </section>
+
+  {% if shared %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Shared with you</h2>
+      {% call sb.table(["Project", "Artist", "Your role", "Updated"]) %}
+        {% for p in shared %}
+          <tr>
+            <td><a class="underline" href="{{ url_for('studio.studio_session', project_id=p.id) }}">{{ p.title }}</a></td>
+            <td>{{ p.artist_name or "—" }}</td>
+            <td class="whitespace-nowrap">{{ p.my_role|replace("_"," ") }}</td>
+            <td class="whitespace-nowrap">{{ (p.updated_at or "")[:10] }}</td>
+          </tr>
+        {% endfor %}
+      {% endcall %}
+    </section>
+  {% endif %}
 
   {{ console.readiness_panel(readiness) }}
 

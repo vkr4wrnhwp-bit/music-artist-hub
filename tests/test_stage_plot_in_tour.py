@@ -6,7 +6,9 @@ it was framed: a Stage plot page under every tour's More menu shows the
 tour owner's plot, the owner edits it there, crew see the drawing and the
 input list it derives, and the sidebar entry went because the plot is
 reached from the tour, from Show Passport and from the TOUR home.
-/stage-plot itself stays, for an act with no tour yet.
+/stage-plot itself stays, for an act with no tour yet - and since 2026-09-07
+it is back in the sidebar under the Live Stage Suite ("stage plot should
+still be under stage suite"), because an act with no tour had no door to it.
 """
 import io
 import os
@@ -80,9 +82,14 @@ def test_the_standalone_page_still_works_for_an_act_with_no_tour(flask_app):
     assert "var EDITABLE = true;" in body
 
 
-def test_the_sidebar_entry_is_gone_and_the_doors_remain():
-    keys = {k for _hk, _n, _t, items in hubs.HUBS for k, *_ in items}
-    assert "stage-plot" not in keys and "stage-plot" not in hubs.LIVE_KEYS
+def test_the_sidebar_entry_is_under_the_stage_suite_and_the_doors_remain():
+    stage = [items for hk, _n, _t, items in hubs.HUBS if hk == "stage"][0]
+    keys = [k for k, *_ in stage]
+    assert "stage-plot" in keys and "stage-plot" in hubs.LIVE_KEYS
+    assert keys.index("stage-plot") == keys.index("passports") + 1
+    entry = [it for it in stage if it[0] == "stage-plot"][0]
+    assert entry[1] == "/stage-plot"
+    assert "tour" in entry[4].lower()          # says what it is for
     home = io.open(os.path.join(HERE, "templates", "tour", "index.html"), encoding="utf-8").read()
     assert 'href="/stage-plot"' in home
     passport = io.open(os.path.join(HERE, "templates", "passport", "detail.html"), encoding="utf-8").read()

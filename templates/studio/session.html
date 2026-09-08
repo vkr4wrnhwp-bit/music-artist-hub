@@ -39,10 +39,10 @@
   <section class="sr-hero" aria-labelledby="sr-title">
     <div class="sr-hero-head">
       <div class="sr-identity">
-        {#- This linked to studio_home, which redirects straight back into the
-            newest session - so the console's only way out led to the console.
-            It points at the list now. -#}
-        <p class="sr-eyebrow"><a href="{{ url_for('studio.studio_projects') }}">Street Banker Studio</a> &middot; Control Room</p>
+        {#- The way out. /studio is a landing page again (it used to redirect
+            straight back into the newest session, so this exit was a loop);
+            the full list is one more click, at All sessions. -#}
+        <p class="sr-eyebrow"><a href="{{ url_for('studio.studio_home') }}">&larr; Studio</a> &middot; Control Room</p>
         <h1 class="sr-title" id="sr-title">{{ project.title }}</h1>
         {#- The switcher. /studio opens the most recently touched project, which
             is right most of the time and wrong the moment you want a different
@@ -167,6 +167,18 @@
         {{ sb.btn("Upload", variant="primary", type="submit") }}
       </form>
     </section>
+  {% endif %}
+
+  {#- Before a source exists the Team panel is not on the page, and a project
+      with nothing in it is exactly the one an owner wants to put away. -#}
+  {% if viewer_role == "owner" and not source %}
+    <details class="sb-more sr-more sr-more--bare">
+      <summary>More</summary>
+      <form method="post" action="{{ url_for('studio.studio_archive', project_id=project.id) }}">
+        {{ sb.btn("Archive project", variant="secondary", size="sm", type="submit") }}
+      </form>
+      <p class="sr-fine">Archiving takes the record off every list and closes this session. The history is kept.</p>
+    </details>
   {% endif %}
 
   {% if source %}
@@ -335,6 +347,13 @@
             </div>
             <p class="sr-fine" style="margin-top:0">Access comes from an <a class="underline" href="/team">accepted team invite</a>. A name alone is a credit.</p>
           </form>
+          <details class="sb-more sr-more">
+            <summary>More</summary>
+            <form method="post" action="{{ url_for('studio.studio_archive', project_id=project.id) }}">
+              {{ sb.btn("Archive project", variant="secondary", size="sm", type="submit") }}
+            </form>
+            <p class="sr-fine">Archiving takes the record off every list and closes this session. The files and the history are kept.</p>
+          </details>
         {% endif %}
       </section>
 

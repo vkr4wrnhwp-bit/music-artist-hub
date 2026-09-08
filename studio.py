@@ -121,34 +121,36 @@ def _project_shared_or_404(user, project_id):
 
 @bp.route("/studio")
 def studio_home():
-    """The front door opens onto the console.
+    """The front door is a page, not a redirect.
 
-    The owner looked at /studio twice and saw "no updates" while the cockpit
-    sat one click away on a session URL nothing pointed at prominently. The
-    mockup's landing IS the console, so with a project in hand this route goes
-    straight to it. The project list stays at /studio/projects.
+    It used to send you straight into the most recently touched session. The
+    owner then landed on the same project every time - one titled "huh" -
+    and read the Studio as broken ("studio still loads messed up", 2026-09-07).
+    So the landing names the projects and offers the newest one as
+    "Continue working"; the console is one click away rather than forced.
+    The full list stays at /studio/projects.
     """
     _live()
     user = _user()
     projects = sstore.list_projects(_partner(user), user["id"], limit=25)
-    if projects:
-        return redirect(url_for("studio.studio_session",
-                                project_id=projects[0]["id"]))
     shared = sstore.list_shared_projects(_partner(user), user["id"])
-    if shared:
-        return redirect(url_for("studio.studio_session",
-                                project_id=shared[0]["id"]))
-    # Reached only when there is nothing to open. The branch that used to sit
-    # here read `if projects:` - which could never be true, because the
-    # redirects above already returned in that case. It was dead the day it
-    # was written, so continue_project was always None and the "continue"
-    # card never rendered.
+    continue_project = projects[0] if projects else None
+    continue_has_source = False
+    recent = []
+    if continue_project is not None:
+        # The same rule session.html uses: Mix and Master unlock when the
+        # project has a source asset.
+        summary = sstore.project_summary(_partner(user), user["id"],
+                                         continue_project["id"])
+        continue_has_source = bool(summary["source"])
+        recent = sstore.provenance(_partner(user), continue_project["id"], 5)
     return render_template("studio/home.html",
-                           continue_has_source=False,
                            active_page="studio",
-                           projects=[],
-                           continue_project=None,
-                           recent=[],
+                           projects=projects,
+                           shared=shared,
+                           continue_project=continue_project,
+                           continue_has_source=continue_has_source,
+                           recent=recent,
                            readiness=studio_config.readiness(),
                            project_types=sstore.PROJECT_TYPES)
 
@@ -301,6 +303,22 @@ def studio_team_remove(project_id, member_id):
     _project_or_404(user, project_id)
     sstore.remove_member(_partner(user), user["id"], project_id, member_id)
     return redirect(url_for("studio.studio_session", project_id=project_id))
+
+
+@bp.route("/studio/session/<project_id>/archive", methods=["POST"])
+def studio_archive(project_id):
+    """Put a project away. Owner only: a shared member can look and talk,
+    never shelve the record. The store keeps the row with archived_at set;
+    every reader already filters on that, so the session URL, the switcher
+    and the lists all stop answering for it. There is no unarchive in the
+    store, so no Restore is offered."""
+    _live()
+    user = _user()
+    _project, role = _project_shared_or_404(user, project_id)
+    if role != "owner":
+        abort(403)
+    sstore.archive_project(_partner(user), user["id"], project_id)
+    return redirect(url_for("studio.studio_projects", archived=1))
 
 
 @bp.route("/studio/session/<project_id>/room", methods=["POST"])

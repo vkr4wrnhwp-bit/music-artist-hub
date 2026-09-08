@@ -33,6 +33,10 @@ HUBS = [
         ("tours", "/tours", "M3 4h14v12H3z|M3 8h14|M6 12h3|M12 12h2|M7 2v4|M13 2v4", "Tour", "The whole run: My Day, Show Command, advance, stage plot, travel, rooms, guests, money."),
         ("passports", "/passports", "M5 3h10a1 1 0 011 1v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z|M7 7h6M7 10h6M7 13h4",
          "Show Passport", "The technical record, versioned — a show keeps the version it was advanced against."),
+        # Back in the sidebar (owner, 2026-09-07: "stage plot should still be
+        # under stage suite"). TOUR keeps its own framed copy per tour.
+        ("stage-plot", "/stage-plot", "M3 4h14v10H3z|M6 7h3v3H6z|M11 7h3v3h-3z|M7 17h6",
+         "Stage Plot", "One drawing per act, attached to every advance you send. Draw it here before there is a tour."),
         ("lights", "/lights", "M10 2v4|M4 6l2 2|M16 6l-2 2|M6 12a4 4 0 118 0v4H6z", "Light Studio", "Cue programming with real DMX output."),
         ("tour-board", "/tour-board", "M7 8a3 3 0 116 0 3 3 0 01-6 0z|M2 17c1-3 4-4 8-4s7 1 8 4", "Team-Up Board", "Artists and venues finding each other."),
     ]),
@@ -114,7 +118,7 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "actions", "autopilot", "scores",
              "vault", "review", "pulse", "team", "tax",
              "income", "disputes", "fans", "portal",
-             "tours", "passports", "tour-board", "rack", "roster", "referrals",
+             "tours", "passports", "stage-plot", "tour-board", "rack", "roster", "referrals",
              "lights", "royalty-lanes", "certified",
              "press-desk", "deals",
              # Reports has five real export routes; only the demo account's

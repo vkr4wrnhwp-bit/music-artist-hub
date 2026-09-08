@@ -200,14 +200,20 @@ def test_another_account_cannot_ask_about_your_project(application):
                       data={"q": "anything"}).status_code == 404
 
 
-def test_studio_front_door_lands_in_the_cockpit(application):
+def test_studio_front_door_is_a_page_with_the_cockpit_one_click_away(application):
     """The owner looked at /studio twice and saw no updates while the console
-    sat one click away. With a project, /studio IS the console now."""
+    sat one click away - so for a while /studio redirected into it. That
+    landed him inside the same project every time and read as broken. It is
+    a page again: the newest project is offered as Continue working, and
+    its Mix and Master rooms are on the card once it has audio."""
     client = _artist(application)
     pid = _project_with_audio(client)
     response = client.get("/studio")
-    assert response.status_code in (301, 302)
-    assert pid in response.headers["Location"]
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "/studio/session/%s" % pid in body
+    assert "/studio/session/%s/mix" % pid in body
+    assert "/studio/session/%s/master" % pid in body
 
     fresh = _artist(application)
     assert fresh.get("/studio").status_code == 200   # no project: the start page
