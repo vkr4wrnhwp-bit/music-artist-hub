@@ -11,8 +11,9 @@ count is None, the 28-day change is None when no point sits 28 days
 back, a distributor nobody recognises is "Needs Research", and an
 endpoint a plan does not include is an error, never a guess.
 """
+import json
 import os
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -131,6 +132,19 @@ def _fake_fetch(calls, deny=()):
     return fetch
 
 
+@pytest.fixture(autouse=True)
+def kv(monkeypatch):
+    """Each test gets its own cache. The adapter keeps every 200 for six
+    hours in the app's key/value store, and the tests share one SQLite
+    file - without this, one test's answers would be served to the next
+    test's failing fetch."""
+    import db
+    store = {}
+    monkeypatch.setattr(db, "get_kv", lambda key, default=None: store.get(key, default))
+    monkeypatch.setattr(db, "set_kv", lambda key, value: store.__setitem__(key, value))
+    return store
+
+
 @pytest.fixture
 def sc(monkeypatch):
     monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
@@ -187,13 +201,14 @@ def test_metrics_are_two_series_and_pages_are_followed(sc):
     assert any("startDate=2020-10-01&endDate=2020-10-10" in c for c in sc.calls)
 
 
-def test_a_metric_endpoint_outside_the_plan_costs_that_series_only(monkeypatch):
+def test_a_metric_endpoint_outside_the_plan_costs_that_series_only(monkeypatch, kv):
     monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
     monkeypatch.setenv("SOUNDCHARTS_APP_ID", "id")
     monkeypatch.setenv("SOUNDCHARTS_API_KEY", "key")
     a = providers.SoundchartsAdapter(fetch=_fake_fetch([], deny=("/streaming/spotify/listening",)))
     pts = a.get_artist_metrics(BILLIE, date(2020, 10, 1), date(2020, 10, 10))
     assert pts and all(p["metric"] == "spotify_followers" for p in pts)
+    kv.clear()               # or the followers series above answers for the next adapter
     both = providers.SoundchartsAdapter(fetch=_fake_fetch([], deny=("/streaming/spotify", "/audience/spotify")))
     with pytest.raises(providers.ProviderError):
         both.get_artist_metrics(BILLIE, date(2020, 10, 1), date(2020, 10, 10))
@@ -296,6 +311,87 @@ def test_ingest_writes_metrics_cities_releases_and_evidence(sc):
     assert sstore.metric_series(artist_id, "spotify_followers")
     titles = {r["title"] for r in sstore.list_releases(artist_id)}
     assert "Happier Than Ever" in titles
+
+
+# --- the six-hour cache ---------------------------------------------------------
+#
+# Every Soundcharts call is billed. The same question inside six hours is
+# answered from the app's key/value store; an error is never kept, so a
+# transient 500 cannot stick for six hours.
+
+@pytest.fixture
+def cached(monkeypatch, kv):
+    """A configured adapter with a movable clock over the per-test store."""
+    monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
+    monkeypatch.setenv("SOUNDCHARTS_APP_ID", "id")
+    monkeypatch.setenv("SOUNDCHARTS_API_KEY", "key")
+    monkeypatch.delenv("SOUNDCHARTS_CACHE_S", raising=False)
+    now = [datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc)]
+    monkeypatch.setattr(providers, "_utcnow", lambda: now[0])
+    calls = []
+    a = providers.SoundchartsAdapter(fetch=_fake_fetch(calls))
+    a.calls, a.kv, a.now = calls, kv, now
+    return a
+
+
+def test_the_same_question_twice_inside_six_hours_is_one_fetch(cached):
+    first = cached.get_artist(BILLIE)
+    n = len(cached.calls)
+    assert n >= 1
+    assert cached.get_artist(BILLIE) == first
+    assert len(cached.calls) == n, "the second read came from the store"
+    assert all(k.startswith("soundcharts:") for k in cached.kv)
+    entry = json.loads(next(iter(cached.kv.values())))
+    assert set(entry) == {"at", "status", "body"} and entry["status"] == 200
+
+
+def test_after_six_hours_and_a_second_it_fetches_again(cached):
+    cached.get_artist(BILLIE)
+    n = len(cached.calls)
+    cached.now[0] += timedelta(hours=6, seconds=1)
+    cached.get_artist(BILLIE)
+    assert len(cached.calls) == 2 * n
+
+
+def test_a_failed_call_is_not_cached(cached):
+    boom = [True]
+    real = cached._fetch
+
+    def flaky(url):
+        if boom[0]:
+            raise providers.ProviderError("Soundcharts 500: Internal Server Error")
+        return real(url)
+    cached._fetch = flaky
+    with pytest.raises(providers.ProviderError):
+        cached._get("/api/v2.9/artist/%s" % BILLIE)
+    assert cached.kv == {}, "a 500 must not stick for six hours"
+    boom[0] = False
+    assert cached._get("/api/v2.9/artist/%s" % BILLIE)["object"]["uuid"] == BILLIE
+    assert len(cached.kv) == 1
+
+
+def test_the_order_of_the_parameters_does_not_change_the_key():
+    k = providers.SoundchartsAdapter.cache_key
+    assert k("/x", {"offset": 0, "limit": 5}) == k("/x", {"limit": 5, "offset": 0})
+    assert k("/x", {"offset": 0, "limit": 5}) != k("/x", {"offset": 0, "limit": 6})
+    assert k("/x", {}) != k("/y", {})
+
+
+def test_the_ttl_is_six_hours_unless_the_environment_says_otherwise(monkeypatch):
+    monkeypatch.delenv("SOUNDCHARTS_CACHE_S", raising=False)
+    assert providers.SoundchartsAdapter.cache_ttl() == 6 * 3600
+    monkeypatch.setenv("SOUNDCHARTS_CACHE_S", "60")
+    assert providers.SoundchartsAdapter.cache_ttl() == 60
+    monkeypatch.setenv("SOUNDCHARTS_CACHE_S", "0")
+    assert providers.SoundchartsAdapter.cache_ttl() == 0
+
+
+def test_a_zero_ttl_disables_the_cache(cached, monkeypatch):
+    monkeypatch.setenv("SOUNDCHARTS_CACHE_S", "0")
+    cached.get_artist(BILLIE)
+    n = len(cached.calls)
+    cached.get_artist(BILLIE)
+    assert len(cached.calls) == 2 * n and cached.kv == {}
 
 
 # --- the sandbox itself --------------------------------------------------------

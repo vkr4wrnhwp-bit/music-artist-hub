@@ -68,6 +68,11 @@ CAPABILITY_LABELS = {
 }
 
 
+def _utcnow():
+    """The clock the Soundcharts cache reads; a test moves it forward."""
+    return datetime.now(timezone.utc)
+
+
 def _flag(name):
     return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes", "on")
 
@@ -233,13 +238,75 @@ class SoundchartsAdapter(_EnvProvider):
     albums_per_artist = 8        # one metadata call each, so bounded
     max_pages = 4                # a paged list is followed this far, no further
 
+    cache_ttl_default = 6 * 3600     # SOUNDCHARTS_CACHE_S overrides; 0 disables
+
     def __init__(self, fetch=None):
         self._fetch = fetch
+
+    # -- cache --
+    # Every answer is billed per call and moves slowly (monthly listeners are
+    # a 28-day figure), so the same question inside six hours is answered from
+    # the app's key/value store. Only a 200 is kept: a transient error that
+    # stuck for six hours would be worse than no cache at all.
+    @staticmethod
+    def cache_ttl():
+        raw = (os.environ.get("SOUNDCHARTS_CACHE_S") or "").strip()
+        if raw == "":
+            return SoundchartsAdapter.cache_ttl_default
+        try:
+            return max(0, int(float(raw)))
+        except ValueError:
+            return SoundchartsAdapter.cache_ttl_default
+
+    @staticmethod
+    def cache_key(path, params):
+        raw = path + "?" + json.dumps(sorted((str(k), str(v)) for k, v in (params or {}).items()))
+        return "soundcharts:" + hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+    def _cache_read(self, key, ttl):
+        try:
+            import db
+            raw = db.get_kv(key)
+        except Exception:
+            return None
+        if not raw:
+            return None
+        try:
+            entry = json.loads(raw)
+            at = datetime.fromisoformat(entry["at"])
+        except Exception:
+            return None
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        if (_utcnow() - at).total_seconds() > ttl or entry.get("status") != 200:
+            return None
+        return entry.get("body")
+
+    def _cache_write(self, key, body):
+        try:
+            import db
+            db.set_kv(key, json.dumps({"at": _utcnow().isoformat(timespec="seconds"),
+                                       "status": 200, "body": body}))
+        except Exception:
+            pass                     # the answer is still good without a cache
 
     # -- transport --
     def _get(self, path, **params):
         if not self.configured():
             raise ProviderError("Soundcharts: not configured")
+        ttl = self.cache_ttl()
+        key = self.cache_key(path, params) if ttl else None
+        if key:
+            hit = self._cache_read(key, ttl)
+            if hit is not None:
+                return hit
+        body = self._fetch_json(path, **params)
+        if key:
+            self._cache_write(key, body)
+        return body
+
+    def _fetch_json(self, path, **params):
+        """One HTTP call; a non-200 raises ProviderError and is never cached."""
         url = self.base_url + path
         if params:
             url += ("&" if "?" in path else "?") + urllib.parse.urlencode(params)
