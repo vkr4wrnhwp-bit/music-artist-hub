@@ -634,16 +634,59 @@ def alert_rule_delete(org, member, rule_id):
 
 # --- admin ------------------------------------------------------------------
 
-@bp.route("/admin/data-sources")
-@require("provider_admin")
-def data_sources(org, member):
+def _own_act_names(app_user):
+    """The owner's own acts, as names Signal could look up: every distinct
+    artist_name on their TOUR tours, then the account name when an EPK
+    exists for it (the kit is published under that name). Nothing here
+    calls a provider - these are suggestions the operator clicks."""
+    if not app_user:
+        return []
+    names, seen = [], set()
+
+    def add(n):
+        n = (n or "").strip()
+        if n and n.lower() not in seen:
+            seen.add(n.lower())
+            names.append(n)
+    try:
+        import tour_store
+        for t in tour_store.list_tours(app_user["id"]):
+            add(t.get("artist_name"))
+    except Exception:                                  # noqa: BLE001 - a suggestion, never a failure
+        pass
+    try:
+        if store.get_epk(app_user["id"]) is not None:
+            add(app_user.get("name"))
+    except Exception:                                  # noqa: BLE001
+        pass
+    return names[:12]
+
+
+def _render_data_sources(org, member, **extra):
     reg = providers.registry()
-    return render_template("signal/data_sources.html", **_ctx(
-        org, member, health=reg.health(), usage=sstore.provider_usage(),
+    ident = reg.for_capability(providers.CAP_ARTIST)
+    mock_only = sstore.artists_seeded_by(reg.mock.key)
+    real_n = sstore.count_artists_not_seeded_by(reg.mock.key)
+    ctx = dict(
+        health=reg.health(), usage=sstore.provider_usage(),
         freshness=sstore.data_freshness(), counts=sstore.counts(),
         capability_labels=providers.CAPABILITY_LABELS,
         preferred=[(cap, (reg.for_capability(cap).label if reg.for_capability(cap) else "none"))
-                   for cap in providers.ALL_CAPABILITIES]))
+                   for cap in providers.ALL_CAPABILITIES],
+        artist_provider=(ident.label if ident else "none"),
+        artist_provider_is_mock=(ident is not None and ident.key == reg.mock.key),
+        suggestions=_own_act_names(_me()),
+        demo_count=len(mock_only), real_count=real_n,
+        retire_reason=("" if real_n else "Add one real artist first"),
+        find_q="", find_results=None, notice=request.args.get("notice") or "")
+    ctx.update(extra)
+    return render_template("signal/data_sources.html", **_ctx(org, member, **ctx))
+
+
+@bp.route("/admin/data-sources")
+@require("provider_admin")
+def data_sources(org, member):
+    return _render_data_sources(org, member)
 
 
 @bp.route("/admin/refresh", methods=["POST"])
@@ -651,6 +694,47 @@ def data_sources(org, member):
 def admin_refresh(org, member):
     ingest.refresh_universe(force=True)
     return redirect(url_for("signal.data_sources"))
+
+
+@bp.route("/admin/find")
+@require("provider_admin")
+def admin_find(org, member):
+    """Look an artist up by name at the preferred identity provider. A
+    blank query renders the page and calls nothing."""
+    q = (request.args.get("q") or "").strip()[:120]
+    results = None
+    if q:
+        reg = providers.registry()
+        ident = reg.for_capability(providers.CAP_ARTIST)
+        results = []
+        if ident is not None:
+            results = ingest.search_provider(ident, q, limit=10)
+    return _render_data_sources(org, member, find_q=q, find_results=results)
+
+
+@bp.route("/admin/add", methods=["POST"])
+@require("provider_admin")
+def admin_add(org, member):
+    pid = (request.form.get("provider_artist_id") or "").strip()[:200]
+    if not pid:
+        abort(400)
+    artist_id = ingest.ingest_artist(pid, force=True)
+    if not artist_id:
+        return redirect(url_for("signal.data_sources", notice="add-failed"))
+    return redirect(url_for("signal.artist", artist_id=artist_id))
+
+
+@bp.route("/admin/retire-demo", methods=["POST"])
+@require("provider_admin")
+def admin_retire_demo(org, member):
+    """Delete every artist the mock alone seeded, with all their rows.
+    Refused while no real artist exists: an empty Signal is worse than a
+    labelled fictional one."""
+    reg = providers.registry()
+    if sstore.count_artists_not_seeded_by(reg.mock.key) == 0:
+        return redirect(url_for("signal.data_sources", notice="retire-blocked"))
+    gone = sstore.retire_artists(sstore.artists_seeded_by(reg.mock.key))
+    return redirect(url_for("signal.data_sources", notice="retired-%d" % gone))
 
 
 @bp.route("/team", methods=["GET", "POST"])

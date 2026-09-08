@@ -213,6 +213,16 @@ def refresh_universe(max_artists=25, reg=None, force=False):
     return n
 
 
+def search_provider(provider, query, limit=10):
+    """A timed, recorded name search at one provider. Returns a list -
+    empty when the provider failed, so the page says 'nothing found' and
+    the failure sits in the usage table where it belongs."""
+    q = (query or "").strip()
+    if not q:
+        return []
+    return _timed(provider, providers.CAP_ARTIST, provider.search_artists, q, limit) or []
+
+
 def _existing_artist(provider, provider_id):
     from db import get_db
     with get_db() as db:

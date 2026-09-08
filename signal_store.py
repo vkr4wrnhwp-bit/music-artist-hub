@@ -541,6 +541,55 @@ def seeded_by(provider):
     return row is not None
 
 
+def artists_seeded_by(provider):
+    """Ids of artists known ONLY through `provider` - the rows to retire when
+    that provider was the mock. An artist that also carries a real
+    provider's id is a real artist the mock happened to name-match, and
+    retiring the demo must never take a real artist with it."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT DISTINCT i.artist_id FROM signal_artist_ids i WHERE i.provider=? "
+            "AND NOT EXISTS (SELECT 1 FROM signal_artist_ids o WHERE o.artist_id=i.artist_id "
+            "AND o.provider<>?)", (provider, provider)).fetchall()
+    return [r["artist_id"] for r in rows]
+
+
+def count_artists_not_seeded_by(provider):
+    """How many artists carry at least one id from a provider other than
+    `provider` - with the mock, how many are real."""
+    with get_db() as db:
+        row = db.execute("SELECT COUNT(DISTINCT artist_id) AS n FROM signal_artist_ids "
+                         "WHERE provider<>?", (provider,)).fetchone()
+    return int(row["n"] or 0)
+
+
+# Every table that hangs off an artist by id. Evidence is keyed by
+# (subject_type, subject_id) and is handled separately in retire_artists.
+_ARTIST_CHILD_TABLES = ("signal_metrics", "signal_city_metrics", "signal_releases",
+                        "signal_scores", "signal_watch_items", "signal_alerts",
+                        "signal_desk_links", "signal_artist_ids")
+
+
+def retire_artists(artist_ids):
+    """Delete these artists and everything hanging off them, in one
+    transaction. Returns how many artist rows went. Nothing is soft-deleted:
+    a retired fictional artist must not be able to come back onto a board."""
+    ids = [a for a in (artist_ids or []) if a]
+    if not ids:
+        return 0
+    gone = 0
+    with get_db() as db:
+        for chunk_start in range(0, len(ids), 200):
+            chunk = ids[chunk_start:chunk_start + 200]
+            marks = ",".join("?" * len(chunk))
+            for table in _ARTIST_CHILD_TABLES:
+                db.execute("DELETE FROM %s WHERE artist_id IN (%s)" % (table, marks), chunk)
+            db.execute("DELETE FROM signal_evidence WHERE subject_type='artist' AND subject_id IN (%s)"
+                       % marks, chunk)
+            gone += db.execute("DELETE FROM signal_artists WHERE id IN (%s)" % marks, chunk).rowcount
+    return gone
+
+
 def provider_ids(artist_id):
     """Every (provider, provider_id) a canonical artist is known by."""
     with get_db() as db:

@@ -16,6 +16,88 @@
       <button class="sg-btn" type="submit">Refresh universe</button>
     </form>
   </div>
+  <p class="sg-note">
+    {% if artist_provider_is_mock %}
+      With no real provider connected, a refresh re-seeds the fictional demo universe.
+    {% else %}
+      A refresh re-pulls the artists already tracked and adds none — to track a new artist, find them by name below.
+    {% endif %}
+  </p>
+
+  {% if notice == 'retire-blocked' %}
+    <div class="sg-banner" role="status"><b>Not retired.</b> Add one real artist first — an empty Signal is worse than a labelled fictional one.</div>
+  {% elif notice == 'add-failed' %}
+    <div class="sg-banner" role="status"><b>Not added.</b> The provider returned no identity for that id; the call is recorded under Usage.</div>
+  {% elif notice.startswith('retired-') %}
+    <div class="sg-banner" role="status"><b>Demo universe retired.</b> {{ notice[8:] }} fictional artists and everything hanging off them were deleted.</div>
+  {% endif %}
+
+  <h2 class="sg-h2">Find and add an artist</h2>
+  <form method="get" action="/signal/admin/find" class="sg-inline" role="search">
+    <label class="sg-field" style="margin:0"><span class="sg-sr">Artist name</span>
+      <input class="sg-input sg-input--wide" type="search" name="q" value="{{ find_q }}" maxlength="120" placeholder="Artist name" required></label>
+    <button class="sg-btn" type="submit">Search {{ artist_provider }}</button>
+  </form>
+  {% if artist_provider_is_mock %}
+    <p class="sg-note">The identity provider serving this search is the demo adapter: every result is fictional. Connect a music-data provider to find real artists.</p>
+  {% endif %}
+  {% if suggestions %}
+    <p class="sg-artist-meta" style="margin-top:10px">Suggested: your own acts</p>
+    <div class="sg-inline" style="margin-top:4px">
+      {% for name in suggestions %}
+        <a class="sg-pill" href="/signal/admin/find?q={{ name|urlencode }}">{{ name }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if find_results is not none %}
+    {% if find_results %}
+      <div class="sg-table-wrap" style="margin-top:12px"><table class="sg-table">
+        <thead><tr><th scope="col">Artist</th><th scope="col">Provider id</th><th scope="col"><span class="sg-sr">Add</span></th></tr></thead>
+        <tbody>
+          {% for r in find_results %}
+            <tr>
+              <td>
+                <div class="sg-inline">
+                  {% if r['image_url'] %}<img src="{{ r['image_url'] }}" alt="" width="36" height="36" style="border-radius:var(--sb-r-control);object-fit:cover">{% endif %}
+                  <div>
+                    <b>{{ r['name'] }}</b>
+                    {% if r['country'] or r['genre'] %}
+                      <span class="sg-artist-meta">{{ [r['genre'], r['country']]|select|join(' · ') }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td><code>{{ r['provider_artist_id'] }}</code></td>
+              <td>
+                <form method="post" action="/signal/admin/add">
+                  <input type="hidden" name="provider_artist_id" value="{{ r['provider_artist_id'] }}">
+                  <button class="sg-btn sg-btn--small" type="submit">Add to Signal</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}
+      <div class="sg-empty" style="margin-top:12px">No artist named “{{ find_q }}” at {{ artist_provider }}.</div>
+    {% endif %}
+  {% endif %}
+
+  {% if demo_count %}
+    <details class="sg-card" style="margin-top:16px">
+      <summary style="cursor:pointer;font-weight:600">Retire the demo universe · {{ demo_count }} fictional artists</summary>
+      <p style="margin-top:8px">
+        Deletes every artist the demo adapter seeded, with their metrics, releases, cities, evidence,
+        scores, watchlist entries, alerts and Operator Desk links. Real artists are untouched.
+        {{ real_count }} real {{ 'artist is' if real_count == 1 else 'artists are' }} tracked now.
+      </p>
+      <form method="post" action="/signal/admin/retire-demo" style="margin-top:10px">
+        {{ sb.btn('Retire ' ~ demo_count ~ ' fictional artists', type='submit', variant='secondary',
+                  disabled_reason=(retire_reason or none)) }}
+        {% if retire_reason %}<span class="sg-artist-meta" style="display:inline;margin-left:8px">{{ retire_reason }}</span>{% endif %}
+      </form>
+    </details>
+  {% endif %}
 
   <h2 class="sg-h2">Preferred provider per capability</h2>
   <div class="sg-table-wrap"><table class="sg-table">
