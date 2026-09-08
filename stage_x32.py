@@ -240,6 +240,21 @@ class X32Adapter(base.ConsoleAdapter):
         return self.transport
 
     # -- the contract --
+    def probe(self):
+        """One UDP /info query, nothing else. Refuses to run at all unless
+        STAGE_BENCH_ADAPTERS=1: an UNTESTED adapter must never touch a desk
+        the operator did not explicitly put it in front of."""
+        import os
+        if (os.environ.get("STAGE_BENCH_ADAPTERS") or "").strip() != "1":
+            raise base.AdapterError("The X32 adapter is UNTESTED; set STAGE_BENCH_ADAPTERS=1 to probe.")
+        try:
+            args = self._need().ask(osc_encode("/info"), "/info")
+        except base.AdapterError as e:
+            return {"reachable": False, "simulated": False, "detail": str(e)}
+        return {"reachable": True, "simulated": False,
+                "detail": "X32 at %s answered /info (%s)." % (
+                    getattr(self.transport, "host", "?"), " ".join(str(a) for a in args[:4]))}
+
     def health(self):
         try:
             args = self._need().ask(osc_encode("/xinfo"), "/xinfo")
@@ -267,6 +282,7 @@ class X32Adapter(base.ConsoleAdapter):
         return int(args[0]) == 0
 
     def apply_send_delta(self, mix, source, step_db):
+        step_db = self.bound_step(step_db)
         addr = self._level_addr(mix, source)
         before = self.read_send_level(mix, source)
         wanted_db = max(MIN_DB, min(MAX_DB, before + float(step_db)))

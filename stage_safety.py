@@ -121,6 +121,38 @@ def age_seconds(ts, now=None):
     return (now - then).total_seconds()
 
 
+# --- network health, defined once ---------------------------------------------
+#
+# "Stale" is the policy's heartbeat_stale_s: past it, the safety engine refuses
+# every command and the show is back in Request Mode. "Offline" is the point at
+# which the Stage Rack panel stops saying "late" and says "gone": OFFLINE_FACTOR
+# stale windows, and never sooner than OFFLINE_FLOOR_S. Both the safety engine
+# and the rack status read these; nothing else defines them.
+
+HEARTBEAT_STATES = ("online", "stale", "offline")
+OFFLINE_FACTOR = 6
+OFFLINE_FLOOR_S = 120
+
+
+def offline_after_s(pol=None):
+    stale = int((pol or POLICY_DEFAULTS)["heartbeat_stale_s"])
+    return max(stale * OFFLINE_FACTOR, OFFLINE_FLOOR_S)
+
+
+def heartbeat_state(last_heartbeat, pol=None, now=None):
+    """'online' / 'stale' / 'offline', or None when no heartbeat has ever
+    arrived - which the rack shows as "Not measured", never as offline."""
+    age = age_seconds(last_heartbeat, now)
+    if age is None:
+        return None
+    pol = pol or POLICY_DEFAULTS
+    if age <= pol["heartbeat_stale_s"]:
+        return "online"
+    if age <= offline_after_s(pol):
+        return "stale"
+    return "offline"
+
+
 # --- the decision ------------------------------------------------------------
 
 class Decision:
@@ -152,8 +184,7 @@ def device_ready(device, pol=None, now=None):
     if not device.get("armed"):
         return _refuse("disarmed", "The show is not armed.")
     pol = pol or POLICY_DEFAULTS
-    age = age_seconds(device.get("last_heartbeat"), now)
-    if age is None or age > pol["heartbeat_stale_s"]:
+    if heartbeat_state(device.get("last_heartbeat"), pol, now) != "online":
         return _refuse("device_stale", "The Stage Bridge has not answered a heartbeat "
                        "in the last %d seconds." % pol["heartbeat_stale_s"])
     try:

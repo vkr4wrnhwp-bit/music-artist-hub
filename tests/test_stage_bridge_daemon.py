@@ -160,3 +160,52 @@ def test_the_x32_needs_the_bench_flag(monkeypatch):
     assert a.spec()["verified"] is False
     with pytest.raises(SystemExit):
         d.build_adapter("nope")
+
+# --- phase 7: what the daemon says about itself --------------------------------
+
+def test_the_heartbeat_carries_the_rack_fields_and_the_daemon_version(tmp_path):
+    api = FakeApi()
+    sim = base.SimulatorAdapter()
+    d.cycle(api, sim, KEY, d.Queue(str(tmp_path / "q.json")), log=lambda *_a: None)
+    hb = [b for p, b in api.calls if p == "/bridge/heartbeat"][0]
+    assert hb["software_version"] == d.VERSION
+    assert hb["health"]["ok"] is True and hb["health"]["simulated"] is True
+    assert hb["adapter_status"] == {"name": "simulator", "verified": True,
+                                    "tested_model": "none - simulated", "simulated": True}
+    assert hb["console_connected"] is True and hb["probe"]["reachable"] is True
+    assert hb["last_update"][:2] == "20"
+    sim.offline = True
+    api = FakeApi()
+    d.cycle(api, sim, KEY, d.Queue(str(tmp_path / "q2.json")), log=lambda *_a: None)
+    hb = [b for p, b in api.calls if p == "/bridge/heartbeat"][0]
+    assert hb["console_connected"] is False and hb["health"]["ok"] is False
+
+
+def test_local_status_never_carries_a_credential(tmp_path):
+    q = d.Queue(str(tmp_path / "q.json"))
+    q.add({"command_id": "c9", "nonce": "n9", "result": {"ok": True}})
+    s = d.local_status(base.SimulatorAdapter(), q)
+    assert s["queued_acks"] == 1 and s["software_version"] == d.VERSION
+    for key in s:
+        assert "token" not in key and "key" not in key
+
+
+def test_diagnostics_flag_prints_local_status_and_talks_to_no_server(tmp_path, capsys, monkeypatch):
+    calls = []
+    monkeypatch.setattr(d.Api, "post", lambda self, path, body: calls.append(path))
+    rc = d.main(["--server", "https://example.invalid", "--token", "TOKEN-SECRET-VALUE",
+                 "--key", "KEY-SECRET-VALUE", "--adapter", "simulator",
+                 "--queue", str(tmp_path / "q.json"), "--diagnostics"])
+    assert rc == 0 and calls == []
+    out = capsys.readouterr().out
+    status = json.loads(out[out.index("{"):])
+    assert status["software_version"] == d.VERSION and status["console_connected"] is True
+    assert status["adapter_status"]["name"] == "simulator"
+    assert "TOKEN-SECRET-VALUE" not in out and "KEY-SECRET-VALUE" not in out
+
+
+def test_a_signed_body_naming_a_command_outside_the_vocabulary_is_refused():
+    assert d.verify(_signed(command="preamp_gain"), KEY, set())[1] == "not_allowed"
+    assert d.verify(_signed(command="read_send_level"), KEY, set())[1] == "not_allowed"
+    assert set(d.ALLOWED_COMMANDS) == set(base.WRITES)
+

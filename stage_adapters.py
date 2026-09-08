@@ -83,6 +83,28 @@ class ConsoleAdapter:
     def supports(cls, command):
         return command in cls.spec()["commands"]
 
+    @classmethod
+    def bound_step(cls, step_db):
+        """The THIRD bound on a level change, after the request vocabulary
+        (stage_store.STEPS_DB) and the safety engine (policy max_step_db).
+        An adapter refuses a delta beyond its own declared limit even if
+        both layers above it were bypassed - a level can never jump."""
+        try:
+            step = float(step_db)
+        except (TypeError, ValueError):
+            raise AdapterError("The step is not a number.")
+        ceiling = float(cls.spec()["limits"].get("max_step_db", 0) or 0)
+        if step != step or abs(step) > ceiling:
+            raise AdapterError("The %s adapter moves at most %g dB at a time; %r was asked."
+                               % (cls.spec()["key"] or "console", ceiling, step_db))
+        return step
+
+    def probe(self):
+        """Can the console be reached right now? Cheap, read-only, no state
+        change. {"reachable": True/False/None, "detail": str}. None means
+        this adapter cannot tell, which the rack shows as "Not measured"."""
+        return {"reachable": None, "detail": "This adapter has no probe."}
+
     def health(self):
         raise AdapterError("This adapter does not report health.")
 
@@ -156,6 +178,10 @@ class SimulatorAdapter(ConsoleAdapter):
                 "detail": "Simulated console. Nothing here moves audio."
                 if not self.offline else "Simulated console is offline."}
 
+    def probe(self):
+        return {"reachable": not self.offline, "simulated": True,
+                "detail": "Simulated console is %s." % ("offline" if self.offline else "answering")}
+
     def _guard(self):
         if self.offline:
             raise AdapterUnavailable("The simulated console is offline.")
@@ -174,6 +200,7 @@ class SimulatorAdapter(ConsoleAdapter):
         return bool(self.mutes.get(self._key(mix, source), False))
 
     def apply_send_delta(self, mix, source, step_db):
+        step_db = self.bound_step(step_db)
         with self._lock:
             self._guard()
             key = self._key(mix, source)

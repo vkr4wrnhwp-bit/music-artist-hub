@@ -234,6 +234,24 @@ def events_since(show_id, since=0, limit=200):
     return out
 
 
+def events_recent(show_id, limit=50):
+    """The last `limit` events, oldest first. For the diagnostic export; the
+    poll uses events_since."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM stage_events WHERE show_id = ? ORDER BY seq DESC LIMIT ?",
+            (show_id, int(limit))).fetchall()
+    out = []
+    for r in reversed(rows):
+        item = dict(r)
+        try:
+            item["payload"] = json.loads(item["payload"] or "{}")
+        except (TypeError, ValueError):
+            item["payload"] = {}
+        out.append(item)
+    return out
+
+
 def cursor(show_id):
     """Where the log currently ends, so a client can start from "now" without
     replaying the whole show."""

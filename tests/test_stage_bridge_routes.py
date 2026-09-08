@@ -49,10 +49,16 @@ def _ask(show, kind="more", step="2"):
     return with_ctx[0]["id"]
 
 
+def _token_from(page):
+    """The token is shown once, on the page, never in the address."""
+    import re
+    return re.search(r'<p class="sc-token">([^<]+)</p>', page).group(1)
+
+
 def _register_and_arm(show):
     c = show["client"]
     r = c.post("/stage/%s/bridge/register" % show["show"], data={"name": "Rack A", "adapter": "simulator"})
-    token = r.headers["Location"].split("token=")[1]
+    token = _token_from(c.get(r.headers["Location"]).get_data(as_text=True))
     c.post("/stage/%s/bridge/arm" % show["show"])
     c.post("/stage/%s/bridge/heartbeat" % show["show"])
     return token
@@ -71,9 +77,12 @@ def test_a_show_without_a_device_says_request_mode_and_offers_registration(show)
 def test_registering_shows_the_token_once(show):
     r = show["client"].post("/stage/%s/bridge/register" % show["show"],
                             data={"name": "Rack A", "adapter": "simulator"})
-    assert r.status_code in (302, 303) and "token=" in r.headers["Location"]
+    assert r.status_code in (302, 303) and "credentials=once" in r.headers["Location"]
+    assert "token=" not in r.headers["Location"], "a device token never travels in a URL"
     once = show["client"].get(r.headers["Location"]).get_data(as_text=True)
-    assert "shown once" in once
+    assert "shown once" in once and len(_token_from(once)) > 30
+    reload = show["client"].get(r.headers["Location"]).get_data(as_text=True)
+    assert "shown once" not in reload, "the same address a second time shows nothing"
     again = show["client"].get("/stage/%s/bridge" % show["show"]).get_data(as_text=True)
     assert "shown once" not in again
     assert "Rack A" in again and "Disarmed" in again

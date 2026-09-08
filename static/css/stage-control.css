@@ -717,5 +717,28 @@ select.sc-in {
 .sc-policy label { display: flex; flex-direction: column; gap: 4px; }
 .sc-policy .sc-in { max-width: 8rem; font-family: var(--sb-mono); font-variant-numeric: tabular-nums; }
 
+/* --- the Stage Rack status panel ----------------------------------------------
+ * Instruments, not prose: one LCD per reading the brief's STAGE RACK list
+ * names, and a lamp only for a state a person must act on. The LCD and lamp
+ * are the shared app-chrome components, so the panel reads like the Rack and
+ * the EQ rather than like a settings page. */
+.sc-rack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--sb-s3) var(--sb-s4);
+  margin-top: var(--sb-s4);
+}
+.sc-rack-grid .sb-lcd { width: 100%; }
+.sc-rack-lamps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sb-s3) var(--sb-s4);
+  margin-top: var(--sb-s3);
+  padding: var(--sb-s3) var(--sb-s4);
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+}
+.sc-rack-foot { margin-top: var(--sb-s4); }
+
 /* The guest shell: a performer's phone with no app chrome around it. */
 .sc-guest { max-width: 720px; margin: 0 auto; padding: var(--sb-s4); }

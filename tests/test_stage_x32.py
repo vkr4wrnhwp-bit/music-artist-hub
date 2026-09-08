@@ -178,3 +178,18 @@ def test_no_host_means_unavailable_not_a_crash():
     with pytest.raises(base.AdapterUnavailable):
         a.read_send_level("Mix 1", "Lead Vox")
     assert a.health()["ok"] is False
+
+def test_the_probe_is_one_info_query_and_only_behind_the_bench_flag(monkeypatch):
+    monkeypatch.delenv("STAGE_BENCH_ADAPTERS", raising=False)
+    desk = FakeDesk()
+    a = _adapter(desk)
+    with pytest.raises(base.AdapterError):
+        a.probe()
+    assert desk.sent == []
+    monkeypatch.setenv("STAGE_BENCH_ADAPTERS", "1")
+    out = a.probe()
+    assert out["reachable"] is True and out["simulated"] is False
+    desk.offline = True
+    assert a.probe()["reachable"] is False
+    assert x32.X32Adapter(patch=PATCH).probe()["reachable"] is False, "no host is unreachable, not a crash"
+

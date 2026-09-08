@@ -4,7 +4,7 @@
 {% block title %}Stage Bridge - Stage Control{% endblock %}
 
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/stage-control.css?v=10">
+  <link rel="stylesheet" href="/static/css/stage-control.css?v=11">
 {% endblock %}
 
 {% block content %}
@@ -42,8 +42,9 @@
     </p>
     <p class="sc-token">{{ token }}</p>
     <p class="sb-note">
-      Signing key: <span class="sc-token" style="display:inline;padding:2px 6px;">{{ device.signing_key }}</span><br>
+      Signing key: <span class="sc-token" style="display:inline;padding:2px 6px;">{{ signing_key }}</span><br>
       The bridge verifies every command's signature with it. Rotating replaces both.
+      Neither is in this page's address, so neither is in your history or our logs.
     </p>
   </section>
 {% endif %}
@@ -113,6 +114,43 @@
         <form method="post" action="/stage/{{ show_id }}/bridge/revoke"><button class="sc-act sc-act--no" type="submit">Revoke device</button></form>
       {% endif %}
     </div>
+  </section>
+
+  {#- The Stage Rack status surface. Every reading is computed from what the
+      device last said (stage_rack.status); a lamp is lit only for a state a
+      person has to act on. A value nobody has measured says so. -#}
+  <section class="sb-panel sc-rack" aria-labelledby="sc-rack-title">
+    <h2 class="sb-label sb-label-gold" id="sc-rack-title">Stage Rack · status</h2>
+    <p class="sb-note">
+      What the edge device reports about itself, read the way a rack would show
+      it. Nothing here is a flag somebody set. The token is never shown; its
+      fingerprint is the first eight characters of its stored hash.
+    </p>
+    {% if rack.lamps %}
+      <div class="sc-rack-lamps" role="status">
+        {% for l in rack.lamps %}{{ sb.lamp(lamp_words[l][0], lamp_words[l][1]) }}{% endfor %}
+      </div>
+    {% endif %}
+    <div class="sc-rack-grid">
+      {{ sb.lcd(rack.device.fingerprint, "Device · " ~ rack.device.name) }}
+      {{ sb.lcd(rack.ownership.tour_id[:8] if rack.ownership.tour_id else none, "Tour", absent="No TOUR date") }}
+      {{ sb.lcd(rack.network.label, "Network") }}
+      {{ sb.lcd((rack.network.heartbeat_age_s ~ " s") if rack.network.heartbeat_age_s is not none else none, "Last heartbeat", absent="Not measured") }}
+      {{ sb.lcd(rack.console.label, "Console") }}
+      {{ sb.lcd(rack.adapter.key ~ (" · verified" if rack.adapter.verified else " · UNTESTED"), "Adapter") }}
+      {{ sb.lcd(rack.software_version, "Software") }}
+      {{ sb.lcd(rack.last_update[11:19] if rack.last_update and rack.last_update[:2] == "20" else rack.last_update, "Last update") }}
+      {{ sb.lcd("Armed" if rack.armed else "Disarmed", "Arming") }}
+      {{ sb.lcd("On" if rack.lockout.on else "Off", "Emergency lockout") }}
+      {{ sb.lcd("Revoked" if rack.revoked.on else "Active", "Remote revocation") }}
+      {{ sb.lcd(rack.mode.mode|capitalize, "Mode") }}
+    </div>
+    <p class="sb-note sc-rack-foot">
+      Stale after {{ rack.policy.heartbeat_stale_s }} s, offline after {{ rack.policy.offline_after_s }} s — the same
+      thresholds the safety engine refuses on.
+      <a href="/stage/{{ show_id }}/bridge/diagnostics.json">Diagnostic export (JSON) →</a>
+      Last 50 events and 20 commands, secrets stripped.
+    </p>
   </section>
 
   {% if not spec.simulated and not device.revoked_at %}

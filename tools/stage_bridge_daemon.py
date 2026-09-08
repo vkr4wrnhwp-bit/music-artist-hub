@@ -38,8 +38,17 @@ import urllib.request
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
 
+# What this daemon reports as its software version. Bump on any change to
+# what it does on the wire; the server shows it on the Stage Rack panel.
+VERSION = "daemon-0.2"
+
 BODY_FIELDS = ("id", "nonce", "device_id", "show_id", "request_id", "command",
                "mix", "source", "step_db", "muted", "revert_of", "issued", "expires")
+
+# The only commands a bridge will hand to its adapter, whatever the body says
+# and however it was signed. Mirrors stage_adapters.WRITES on purpose: a
+# daemon on a venue laptop may be older than the server.
+ALLOWED_COMMANDS = ("send_level_delta", "mute_state")
 
 
 # --- the checks a bridge must make ---------------------------------------------------
@@ -55,6 +64,8 @@ def verify(body, key, seen_nonces, now=None):
     want = hmac.new(key.encode("utf-8"), canonical(body).encode("utf-8"), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(want, body.get("signature") or ""):
         return False, "bad_signature"
+    if body.get("command") not in ALLOWED_COMMANDS:
+        return False, "not_allowed"
     now = now if now is not None else time.time()
     exp = _ts(body.get("expires"))
     if exp is None or now > exp:
@@ -146,6 +157,51 @@ class Queue:
         self.save()
 
 
+# --- what the daemon says about itself ------------------------------------------------------------
+
+def local_status(adapter, queue=None):
+    """The Stage Rack fields this side can measure, without a server: the
+    adapter's health, whether the console answers a probe, the adapter's
+    declaration, this daemon's version, and how many acknowledgements are
+    waiting for the link. Also printed by --diagnostics."""
+    try:
+        health = adapter.health()
+    except Exception as e:
+        health = {"ok": False, "detail": str(e)}
+    try:
+        probe = adapter.probe()
+    except Exception as e:
+        probe = {"reachable": None, "detail": "Probe failed: %s" % e}
+    try:
+        spec = adapter.spec()
+        adapter_status = {"name": spec["key"], "verified": bool(spec.get("verified")),
+                          "tested_model": spec.get("tested_model", ""),
+                          "simulated": bool(spec.get("simulated"))}
+    except Exception:
+        adapter_status = {"name": type(adapter).__name__, "verified": False,
+                          "tested_model": "unknown", "simulated": False}
+    from datetime import datetime, timezone
+    return {
+        "software_version": VERSION,
+        "health": health,
+        "adapter_status": adapter_status,
+        "console_connected": probe.get("reachable"),
+        "probe": probe,
+        "last_update": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "queued_acks": len(queue.entries) if queue is not None else 0,
+    }
+
+
+def heartbeat_body(status):
+    """The heartbeat the server takes. Every field beyond health and
+    software_version is optional on the server, so a phase-5 server still
+    answers this body."""
+    return {"health": status["health"], "software_version": status["software_version"],
+            "adapter_status": status["adapter_status"],
+            "console_connected": status["console_connected"],
+            "probe": status["probe"], "last_update": status["last_update"]}
+
+
 # --- one cycle -----------------------------------------------------------------------------------
 
 def cycle(api, adapter, key, queue, log=print, now=None):
@@ -153,12 +209,9 @@ def cycle(api, adapter, key, queue, log=print, now=None):
     a summary. Never raises for a network failure: the queue keeps the acks
     and the next cycle tries again."""
     out = {"heartbeat": False, "pulled": 0, "acked": 0, "queued": 0, "stopped": False}
+    status = local_status(adapter, queue)
     try:
-        health = adapter.health()
-    except Exception as e:
-        health = {"ok": False, "detail": str(e)}
-    try:
-        hb = api.post("/bridge/heartbeat", {"health": health, "software_version": "daemon-0.1"})
+        hb = api.post("/bridge/heartbeat", heartbeat_body(status))
     except (urllib.error.URLError, OSError, ValueError) as e:
         log("offline: %s" % e)
         return out
@@ -233,11 +286,20 @@ def main(argv=None):
     p.add_argument("--queue", default=os.path.join(HERE, "instance", "stage-bridge-queue.json"))
     p.add_argument("--interval", type=float, default=2.0)
     p.add_argument("--once", action="store_true")
+    p.add_argument("--diagnostics", action="store_true",
+                   help="print this device's local status (what a heartbeat would carry) and exit")
     a = p.parse_args(argv)
     patch = json.load(open(a.patch, encoding="utf-8")) if a.patch else None
     adapter = build_adapter(a.adapter, host=a.host, patch=patch)
     os.makedirs(os.path.dirname(a.queue), exist_ok=True)
     queue = Queue(a.queue)
+    if a.diagnostics:
+        status = local_status(adapter, queue)
+        status["server"] = a.server
+        status["queue_path"] = a.queue
+        # The token and key are never part of the status, so printing it is safe.
+        print(json.dumps(status, indent=2, sort_keys=True))
+        return 0
     api = Api(a.server, a.token)
     print("Stage Bridge: %s adapter -> %s" % (a.adapter, a.server))
     while True:

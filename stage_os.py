@@ -27,8 +27,15 @@ import passport_store as ps
 import advance_store as adv
 import stage_adapters as adapters
 import stage_bridge as sb
+import stage_rack as rack
 import stage_safety as safety
 import stage_store as st
+
+# Fresh device credentials are handed to the page through the session, once,
+# and never through the URL: a query string lands in server logs, proxies and
+# browser history, and a device token is the only thing that authenticates a
+# machine that can move a fader.
+_CREDS_KEY = "stage.credentials.once"
 
 bp = Blueprint("stage", __name__, url_prefix="/stage")
 
@@ -269,6 +276,10 @@ def bridge(show_id, user):
     dev = m["device"]
     inst = adapters.instance_for(dev["id"], dev["adapter_key"]) if dev and m["simulated"] else None
     mixes, sources, _snap = _mixes_and_sources(show_id, user["id"])
+    # Shown once: popped from the session on this render and gone.
+    creds = session.pop(_CREDS_KEY, None) or {}
+    if creds.get("show_id") != show_id or (dev and creds.get("device_id") != dev["id"]):
+        creds = {}
     return render_template(
         "stage/bridge.html", active_page="stage",
         show_id=show_id, mode=m, device=dev, spec=m["spec"],
@@ -279,10 +290,29 @@ def bridge(show_id, user):
         bench=adapters.bench_enabled(),
         commands=sb.commands_for_show(show_id, user["id"], limit=30),
         heartbeat_age=safety.age_seconds(dev["last_heartbeat"]) if dev else None,
+        rack=rack.status(show_id, user["id"]), lamp_words=rack.LAMP_WORDS,
         sim=inst, never=adapters.NEVER,
-        token=request.args.get("token") or "",
+        token=creds.get("token") or "", signing_key=creds.get("signing_key") or "",
         refused=request.args.get("refused") or "",
         **_ctx())
+
+
+@bp.route("/<show_id>/bridge/diagnostics.json")
+@require_show("stage_configure")
+def bridge_diagnostics(show_id, user):
+    """The Stage Rack diagnostic export: status, the last 50 events, the last
+    20 commands - with every secret column stripped (stage_rack.redact)."""
+    body = rack.diagnostics(show_id, user["id"])
+    resp = jsonify(body)
+    resp.headers["Cache-Control"] = "no-store"
+    resp.headers["Content-Disposition"] = 'inline; filename="stage-%s-diagnostics.json"' % show_id
+    return resp
+
+
+def _hand_over_once(show_id, device, token):
+    """Park fresh credentials for exactly one render of the bridge page."""
+    session[_CREDS_KEY] = {"show_id": show_id, "device_id": device["id"],
+                           "token": token, "signing_key": device["signing_key"]}
 
 
 @bp.route("/<show_id>/bridge/<action>", methods=["POST"])
@@ -303,7 +333,8 @@ def bridge_act(show_id, user, action):
                                      adapter_key=request.form.get("adapter") or "simulator")
         except ValueError as e:
             return redirect(url_for("stage.bridge", show_id=show_id, refused=str(e)))
-        return redirect(url_for("stage.bridge", show_id=show_id, token=token))
+        _hand_over_once(show_id, new, token)
+        return redirect(url_for("stage.bridge", show_id=show_id, credentials="once"))
     if action == "policy":
         _pol, refused = safety.set_policy(show_id, user["id"], **{
             k: request.form.get(k) for k in safety.POLICY_BOUNDS if request.form.get(k)})
@@ -333,8 +364,12 @@ def bridge_act(show_id, user, action):
     elif action == "release":
         sb.release_lockout(dev["id"], user["id"], actor=actor)
     elif action == "rotate":
-        _dev, token = sb.rotate(dev["id"], user["id"], actor=actor)
-        return redirect(url_for("stage.bridge", show_id=show_id, token=token))
+        new, token = sb.rotate(dev["id"], user["id"], actor=actor)
+        if new is None:
+            return redirect(url_for("stage.bridge", show_id=show_id,
+                                    refused="A revoked device cannot be rotated."))
+        _hand_over_once(show_id, new, token)
+        return redirect(url_for("stage.bridge", show_id=show_id, credentials="once"))
     elif action == "revoke":
         sb.revoke(dev["id"], user["id"], actor=actor)
     elif action == "heartbeat":
@@ -381,10 +416,15 @@ def device_heartbeat():
     if dev is None:
         return jsonify({"ok": False, "error": "unauthorised"}), 401
     body = request.get_json(silent=True) or {}
+    # The rack fields are optional and backward compatible: a phase-5 daemon
+    # sends health and software_version only, and the rack reads "Not reported".
+    extra = {k: body[k] for k in sb.REPORT_FIELDS if k in body}
     dev = sb.heartbeat(dev, body.get("health") or {"ok": True},
-                       software_version=body.get("software_version") or "")
+                       software_version=body.get("software_version") or "",
+                       report=extra or None)
     return jsonify({"ok": True, "device_id": dev["id"], "armed": bool(dev["armed"]),
-                    "lockout": bool(dev["lockout"]), "revoked": bool(dev["revoked_at"])})
+                    "lockout": bool(dev["lockout"]), "revoked": bool(dev["revoked_at"]),
+                    "heartbeat_stale_s": safety.policy(dev["show_id"])["heartbeat_stale_s"]})
 
 
 @dev_bp.route("/pull", methods=["POST"])

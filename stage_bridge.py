@@ -116,6 +116,16 @@ def init_bridge():
         cols = {r["name"] for r in db.execute("PRAGMA table_info(stage_devices)").fetchall()}
         if "config" not in cols:
             db.execute("ALTER TABLE stage_devices ADD COLUMN config TEXT NOT NULL DEFAULT '{}'")
+        # What the daemon says about itself on each heartbeat beyond health:
+        # adapter status, console reachability, its last update. Phase 7, for
+        # the Stage Rack status surface. Old daemons send none of it and the
+        # rack reads "Not reported".
+        if "report" not in cols:
+            db.execute("ALTER TABLE stage_devices ADD COLUMN report TEXT NOT NULL DEFAULT '{}'")
+        # The poll's clock: expire_stale() runs on every desk poll and reads
+        # the open commands of one show, so it needs the state in the index.
+        db.execute("CREATE INDEX IF NOT EXISTS idx_scmd_show_state "
+                   "ON stage_commands(show_id, user_id, state)")
 
 
 # --- devices -----------------------------------------------------------------
@@ -301,12 +311,49 @@ def release_lockout(device_id, user_id, actor=""):
     return get_device(device_id, user_id)
 
 
-def heartbeat(device, health=None, software_version=""):
+# The heartbeat fields a daemon may report beyond health. Anything else in the
+# body is dropped, and every value is clipped: the device is authenticated but
+# it is still input.
+REPORT_FIELDS = ("adapter_status", "console_connected", "last_update", "probe")
+
+
+def clean_report(report):
+    out = {}
+    for key in REPORT_FIELDS:
+        if key not in (report or {}):
+            continue
+        value = report[key]
+        if key == "console_connected":
+            out[key] = None if value is None else bool(value)
+        elif key == "last_update":
+            out[key] = str(value or "")[:40]
+        elif isinstance(value, dict):
+            out[key] = {str(k)[:40]: (str(v)[:200] if isinstance(v, str) else v)
+                        for k, v in list(value.items())[:12]
+                        if isinstance(v, (str, int, float, bool)) or v is None}
+        else:
+            out[key] = str(value)[:200]
+    return out
+
+
+def report(device):
+    try:
+        return json.loads((device or {}).get("report") or "{}")
+    except ValueError:
+        return {}
+
+
+def heartbeat(device, health=None, software_version="", report=None):
     """The device says it is alive and how its console is. Stored as the last
-    word; staleness is computed from the timestamp, never from a flag."""
-    _set(device["id"], last_heartbeat=_now(),
-         health=json.dumps(health or {"ok": True}),
-         software_version=(software_version or device.get("software_version") or "")[:40])
+    word; staleness is computed from the timestamp, never from a flag.
+    `report` carries the rack fields (REPORT_FIELDS); a daemon that sends
+    none keeps the last one it sent."""
+    fields = dict(last_heartbeat=_now(),
+                  health=json.dumps(health or {"ok": True}),
+                  software_version=(software_version or device.get("software_version") or "")[:40])
+    if report:
+        fields["report"] = json.dumps(clean_report(report))
+    _set(device["id"], **fields)
     return get_device(device["id"])
 
 
@@ -439,19 +486,27 @@ def issue(request_id, user_id, actor="", is_revert=False, now=None):
         step = -abs(step)
     elif req["kind"] == "more":
         step = abs(step)
-    if is_revert:
-        step = -step
     muted = None
     if command == "mute_state":
         muted = 1 if req["kind"] == "mute" else 0
-        if is_revert:
-            muted = 1 - muted
+    if is_revert:
+        # Put back what the console READ BACK, not what was asked for. The
+        # original acknowledgement carries before/after from the desk; the
+        # requested +3 may have been clamped at the top of the fader to +1,
+        # and reverting by -3 would then jump the level 2 dB below where it
+        # started. Only when the ack carries no numbers does the requested
+        # step stand in.
+        step, muted = _revert_target(req, step, muted)
 
     issued = datetime.now(timezone.utc) if now is None else now
     body = {
         "id": _uid(), "nonce": secrets.token_urlsafe(18), "device_id": dev["id"],
         "show_id": show_id, "request_id": request_id, "command": command,
-        "mix": req["mix"], "source": req["source"] if command == "send_level_delta" else "",
+        # The source rides on a mute too: a mute is per (mix, source) in the
+        # vocabulary ("Mute Lead Vox"), and the X32 adapter addresses
+        # /ch/NN/mix/MM/on by channel. Dropping it here (phase 5 did) made
+        # every mute address the empty source - phase 7 finding.
+        "mix": req["mix"], "source": req["source"] or "",
         "step_db": step if command == "send_level_delta" else 0, "muted": muted,
         "revert_of": req["command_id"] if is_revert else "",
         "issued": issued.isoformat(timespec="seconds"),
@@ -476,6 +531,28 @@ def issue(request_id, user_id, actor="", is_revert=False, now=None):
         st.advance(request_id, user_id, "queued_for_device", actor=actor,
                    command_id=body["id"])
     return get_command(body["id"], user_id), decision
+
+
+def _revert_target(req, step, muted):
+    """(step_db, muted) that restores the read-back `before` of the applied
+    command. Bounded by construction: the measured change can be no larger
+    than the bounded step that caused it, and it is rounded to whole dB
+    because that is the vocabulary."""
+    try:
+        ack = json.loads(req.get("device_ack") or "{}")
+    except (TypeError, ValueError):
+        ack = {}
+    before, after = ack.get("before"), ack.get("after")
+    if muted is not None:
+        if isinstance(before, bool):
+            return 0, 1 if before else 0
+        return 0, 1 - muted
+    if isinstance(before, (int, float)) and isinstance(after, (int, float)) \
+            and not isinstance(before, bool) and not isinstance(after, bool):
+        measured = int(round(before - after))
+        if measured != 0:
+            return max(-abs(step), min(abs(step), measured)), None
+    return -step, None
 
 
 def wire(command, signature=True):
@@ -519,6 +596,12 @@ def verify_for_device(command, device, now=None):
         return safety.Decision(False, "wrong_device", "This command is for another device.")
     if not verify_signature(command, device["signing_key"], command.get("signature")):
         return safety.Decision(False, "bad_signature", "The signature does not verify.")
+    if command.get("command") not in adapters.WRITES:
+        # The allowlist, checked on the device side too: a signed body that
+        # names anything outside the vocabulary is refused before the adapter
+        # sees it, however it got signed.
+        return safety.Decision(False, "not_allowed", "%r is not a command a bridge may apply."
+                               % (command.get("command"),))
     if command["state"] != "sent":
         return safety.Decision(False, "replayed", "This command was already handled.")
     return safety.command_alive(command, safety.policy(device["show_id"]), now)
@@ -632,7 +715,13 @@ def run_local(device_id, user_id, now=None):
     if not spec or not spec["simulated"]:
         return {"error": "run_local drives only the simulator; a real console needs a real bridge"}
     inst = adapters.instance_for(dev["id"], dev["adapter_key"])
-    dev = heartbeat(dev, inst.health(), software_version="local-" + spec["version"])
+    probe = inst.probe()
+    dev = heartbeat(dev, inst.health(), software_version="local-" + spec["version"],
+                    report={"adapter_status": {"name": spec["key"], "verified": spec["verified"],
+                                               "tested_model": spec["tested_model"],
+                                               "simulated": spec["simulated"]},
+                            "console_connected": probe.get("reachable"),
+                            "probe": probe, "last_update": _now()})
     outcomes = []
     for body in pull(dev, now):
         cmd = get_command(body["id"])
