@@ -829,6 +829,11 @@ deployment validation, operational runbook.
 Do not enable production console control until a specific adapter is
 implemented and validated.
 
+> Status pointer (2026-09-07): no adapter is validated yet — see
+> [STAGE_CONTROL_PHASE7.md](STAGE_CONTROL_PHASE7.md) for what phase 7 verified and
+> what is open, and [STAGE_CONTROL_PHASE1_AUDIT.md](STAGE_CONTROL_PHASE1_AUDIT.md)
+> for the owner's recorded override on console protocols. The text above stands.
+
 ## ACCEPTANCE CRITERIA
 
 The build is complete only when:

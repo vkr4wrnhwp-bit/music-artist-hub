@@ -88,7 +88,7 @@ required; anything else is 401.
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| POST | `/bridge/heartbeat` | `{"health": {"ok": true, "detail": "…"}, "software_version": "…"}` | armed / lockout / revoked flags |
+| POST | `/bridge/heartbeat` | `{"health": {"ok": true, "detail": "…"}, "software_version": "…"}` plus, optionally, the rack fields `adapter_status`, `console_connected`, `probe`, `last_update` (phase 7; a daemon that omits them is still answered) | armed / lockout / revoked flags, `heartbeat_stale_s` |
 | POST | `/bridge/pull` | — | queued commands, now marked sent |
 | POST | `/bridge/ack` | `{"command_id", "nonce", "result": {"ok", "before", "after", "confirmed", "failure"}}` | `code`: applied / unconfirmed / failed / expired / replayed |
 | POST | `/bridge/reconcile` | `{"entries": [ack bodies…]}` | one code per entry |
@@ -99,7 +99,9 @@ them to `/bridge/reconcile` when it is back; re-posting is safe.
 ## Registering a device
 
 Stage Control desk → **Stage Bridge →** → Register. The token is shown once
-and stored only as a SHA-256 hash; the signing key is shown with it. Rotate
+and stored only as a SHA-256 hash; the signing key is shown with it. Both
+are handed to that one page through the session, never through the URL, so
+neither lands in a proxy log or a browser history (phase 7 finding). Rotate
 replaces both and expires anything queued under the old key. Revoke is
 final: the token is nobody's, queued commands are rejected, and the show
 returns to Request Mode.
@@ -121,6 +123,33 @@ product cannot drift into Connected Control silently.
 Immediate. Disarms the device, settles every queued or sent command as
 rejected (their requests read *failed*), and stays on until released on
 purpose. Releasing does **not** re-arm. Arming during a lockout is refused.
+
+## The Stage Rack status surface
+
+Phase 7. `stage_rack.status(show, owner)` computes, for the registered
+device, every field the brief's STAGE RACK list names: identity (id, name,
+and a **fingerprint** - the first eight hex of the stored token hash, never
+the token), ownership (TOUR id, owner), network health, console connection,
+adapter status, software version, last update, last heartbeat, armed state,
+emergency lockout, remote-revocation state. It is drawn on the bridge page
+as a panel of LCDs with a lamp lit only for a state a person must act on
+(`stage_rack.LAMPS`), and exported by
+`GET /stage/<show>/bridge/diagnostics.json` (owner or `stage_configure`)
+with the last 50 events and 20 commands, every secret column stripped.
+
+**Network health is defined once**, in the safety engine:
+`stage_safety.heartbeat_state()` answers *online* within
+`heartbeat_stale_s`, *stale* up to `offline_after_s` (six stale windows,
+never under 120 s), *offline* past that, and `None` - shown as *Not
+measured* - before any heartbeat. The engine's `device_stale` refusal and
+the rack's lamp read the same function, so the panel can never say online
+while the engine refuses, or the reverse.
+
+The daemon sends the rack fields on every heartbeat (`adapter_status`,
+`console_connected` from the adapter's `probe()`, `software_version` =
+`VERSION`, `last_update`) and prints the same status locally with
+`--diagnostics`. A daemon that predates these fields is still accepted and
+the panel reads *Not reported* for what it did not say.
 
 ## The safety engine
 
@@ -176,6 +205,20 @@ version, commands, acknowledges, can_revert, connection, limits
 back**. The X32 can; not every desk can. An adapter that cannot confirm
 leaves requests at `device_acknowledged` — the performer reads "console
 answered", never "done".
+
+`ConsoleAdapter.bound_step()` is the **third** bound on a level change,
+after the request vocabulary and the safety engine: an adapter refuses a
+delta beyond its own `limits.max_step_db` even if both layers above it were
+bypassed (phase 7). `probe()` is a cheap, read-only reachability check for
+the rack panel; the base answers "cannot tell", the simulator answers from
+its offline switch, and the X32's is one `/info` query that refuses to run
+without `STAGE_BENCH_ADAPTERS=1`.
+
+A **revert** restores what the console read back, not what was asked:
+`issue(is_revert=True)` takes the acknowledged `before`/`after` of the
+applied command and sends their difference (a +3 clamped at the top of the
+fader to +1 is reverted by −1). Only an acknowledgement with no numbers
+falls back to the inverse of the requested step.
 
 ## The simulator
 
@@ -294,7 +337,7 @@ A bridge is a small daemon that:
 The Stage Rack appliance the brief describes is this daemon on dedicated
 hardware. It does not exist yet and nothing here says it does.
 
-## Runbook
+## Quick answers (desk says…)
 
 * **The desk says Request Mode with a reason** — read the reason: revoked,
   lockout, disarmed, stale heartbeat, adapter fault. Fix that; the mode
@@ -309,21 +352,200 @@ hardware. It does not exist yet and nothing here says it does.
 * **Audit** — every issue, refusal, send, acknowledgement, lockout, rotation
   and revocation is in `stage_events`, in order, with the cursor.
 
+## Operating runbook
+
+Phase 7. Everything below is for the person at front of house, or the one
+on the phone with them. The **Stage Rack panel** is the section of the
+bridge page headed *Stage Rack · status*; every reading on it is computed
+from what the device last said (`stage_rack.status`), and every threshold
+it uses is the safety engine's own.
+
+### 1. Install the daemon on a venue laptop
+
+The daemon is `tools/stage_bridge_daemon.py`, standard library only. On the
+laptop that sits on the venue's production network:
+
+1. Install Python 3.10 or later. Copy the repository, or just `tools/`,
+   `stage_adapters.py` and (for the X32) `stage_x32.py`.
+2. Make a folder for the local queue; the default is `instance/` next to
+   the repository. It holds acknowledgements the daemon could not deliver.
+3. Keep the laptop on the same network segment as the console and on a
+   separate path to the internet (a phone hotspot is fine). The daemon calls
+   out; nothing calls in, and no port is opened.
+4. Put the token and signing key somewhere only that user can read (the
+   OS keychain, or a file with owner-only permissions); pass them as
+   `--token` and `--key`. They never go in a script somebody will commit.
+
+### 2. Register a device
+
+On the bridge page (`/stage/<show>/bridge`, owner or a seat with
+`stage_configure`): name the device, pick the adapter, **Register**. The
+page that follows is the only place the token and signing key are ever
+shown. Copy both to the laptop, then start the daemon:
+
+```
+python tools/stage_bridge_daemon.py --server https://<host> --token <token> --key <key> --adapter simulator
+```
+
+Within a few seconds the panel's *Network* LCD reads **online**, *Software*
+reads the daemon's version (`daemon-0.2`), and *Console* reads
+**connected** if the adapter's probe answered.
+
+Check what the daemon sees on its own side, without a server:
+
+```
+python tools/stage_bridge_daemon.py --server x --token x --key x --adapter simulator --diagnostics
+```
+
+It prints the same status a heartbeat would carry (health, probe, adapter
+declaration, version, queued acknowledgements) and exits. It never prints
+the token or key.
+
+### 3. Arm
+
+**Arm the show** on the bridge page. Arming is refused during a lockout.
+The desk banner switches to *Connected Control* only when, right now, the
+device is registered, not revoked, not locked out, armed, has answered a
+heartbeat within `heartbeat_stale_s`, and its last health report was ok.
+Anything else is Request Mode with the reason on the banner.
+
+### 4. Emergency lockout
+
+**EMERGENCY LOCKOUT** is on the desk and on the bridge page, and every seat
+may press it. It is immediate: the device is disarmed, everything queued or
+sent is refused (those requests read *failed*), and the daemon's next pull
+returns `lockout: true` with no commands. It stays on until **Release
+lockout** is pressed on purpose. Releasing does **not** re-arm; arm again
+when it is safe. The console itself is untouched throughout - the engineer
+keeps the physical desk.
+
+### 5. Revoke
+
+**Revoke device** when a laptop is lost, a token may have leaked, or the
+night is over. Final: the token authenticates nothing, queued commands are
+rejected, the daemon stops itself on its next heartbeat, and the show is in
+Request Mode. Register a new device to continue.
+
+### 6. Rotate credentials
+
+**Rotate credentials** issues a new token and a new signing key together,
+shown once on the page that follows. Anything queued under the old key is
+expired, not left to fail on the device. Restart the daemon with the new
+pair. Rotate at the start of a run, after any crew change, and whenever a
+credential has been on a screen somebody else could see.
+
+### 7. What each lamp on the Rack panel means
+
+A lamp lights only for a state a person must act on. No lamp lit is the
+good state; the LCDs carry the readings.
+
+| Lamp | Means | Do |
+| --- | --- | --- |
+| **Revoked** | The device's credentials were revoked. | Register a new device. |
+| **Emergency lockout** | The lockout is on. | Fix what caused it; Release; Arm. |
+| **Offline** | No heartbeat for longer than `offline_after_s` (six stale windows, never less than 120 s). | Check the laptop, its power, its internet path; run `--diagnostics` on it. |
+| **Heartbeat stale** | No heartbeat within `heartbeat_stale_s`; the show is already in Request Mode. | Same as offline; the panel returns to online on the next heartbeat. |
+| **Console unreachable** | The daemon's probe could not reach the desk. | Check the console's network, the host address in the patch map, and that the desk is on the same segment. |
+| **Adapter UNTESTED** | The device runs a bench adapter that has not passed on real hardware. | Do not use it with an audience. Run the bench (section 9). |
+| **Disarmed** | Registered and answering but not armed. | Arm when the room is ready. |
+
+### 8. When the panel says stale or offline
+
+The show is in Request Mode already; nothing you do here can move audio.
+In order:
+
+1. Read the *Last heartbeat* LCD: an age in seconds, or *Not measured* if
+   the device has never answered (then it was never started, or it has the
+   wrong server or token).
+2. On the laptop: is the daemon running? Its log says `offline:` with the
+   error when it cannot reach the server, and `revoked or refused` when its
+   token is dead.
+3. `--diagnostics` on the laptop: does the adapter's probe reach the desk?
+4. If the laptop lost the internet mid-show, do nothing to the queue file.
+   When the link returns the daemon posts what it owes to
+   `/bridge/reconcile`; acknowledgements that arrive after a command's
+   expiry settle as *expired*, never as *applied*.
+5. The desk keeps working as Request Mode throughout. Apply on the console
+   by hand and press **Done on the desk**.
+
+### 9. The X32 bench, and what graduation requires
+
+The X32 adapter is reachable only with `STAGE_BENCH_ADAPTERS=1` in the
+environment of the process that uses it (the daemon on the laptop, and the
+web process if you want to *register* an X32 device). On a spare channel
+and a bus nobody is wearing:
+
+```
+STAGE_BENCH_ADAPTERS=1 python tools/x32_bench.py --host <desk ip> --channel 32 --bus 16
+```
+
+It reads the level, moves it a bounded step, **reads it back**, puts it
+back, mutes and unmutes, and prints PASS/FAIL per step and the desk's
+model and firmware. The adapter graduates only when:
+
+1. every step prints PASS and the result line reads **ALL PASSED**;
+2. a person writes the printed model and firmware into
+   `stage_x32.X32Adapter.SPEC["tested_model"]` / `["tested_firmware"]`,
+   sets `"verified": True`, and moves the class into
+   `stage_adapters.ADAPTERS`;
+3. the commit says who ran the bench, on which desk, on what date;
+4. `tests/test_stage_adapters.py::test_no_real_console_is_claimed` is
+   updated in the same commit to name the new registry entry.
+
+Until then every screen that names the adapter says UNTESTED, the
+*Adapter UNTESTED* lamp is lit, and the adapter's `probe()` refuses to
+run without the flag.
+
+## Deployment validation
+
+Run before the first show on a new deployment, and again after any change
+to `stage_*.py`, the daemon, or the policy bounds.
+
+- [ ] `python -m pytest tests/test_stage_acceptance.py tests/test_stage_security.py tests/test_stage_safety_review.py tests/test_stage_*.py tests/test_passport*.py tests/test_tour_stage_link.py -q` is green.
+- [ ] `tests/test_stage_adapters.py::test_no_real_console_is_claimed` still lists only the adapters that have passed a bench.
+- [ ] `STAGE_BENCH_ADAPTERS` is **unset** on the web host unless an X32 device is being registered on purpose.
+- [ ] `SESSION_COOKIE_SECURE` is on (it follows `RENDER`), and the site is HTTPS end to end - the device token travels as a Bearer header.
+- [ ] Register a simulator device on a throwaway show; the token page shows once; the URL carries no token; reload shows nothing.
+- [ ] Arm; press **Pulse**; the desk reads *Connected Control · SIMULATED*; the Rack panel reads online / connected / `local-1.0`.
+- [ ] Submit a request from the performer page, approve, send: the request reads *Done* and the command *applied* with a `confirmed: true` acknowledgement.
+- [ ] **Take the console offline** on the simulator: the desk falls back to Request Mode with the reason.
+- [ ] **EMERGENCY LOCKOUT**: everything in flight reads *failed*; **Release** leaves the show disarmed.
+- [ ] **Rotate**: a new token page; the old token is 401 on `/bridge/heartbeat`.
+- [ ] **Revoke**: 401 for the device; the bridge page offers registration.
+- [ ] `GET /stage/<show>/bridge/diagnostics.json` answers for the owner, 403 for a manager seat, 404 for a stranger, and contains no `signing_key`, `token_hash` or `signature` key.
+- [ ] A TOUR share link with scope *stage* opens the performer page on a phone with no session; revoking the link makes every guest route 404.
+- [ ] Policy form: `max_step_db` 9 is refused; 2 is stored and the desk refuses a 3 dB send with *delta_out_of_bounds*.
+- [ ] The daemon on a real laptop: `--diagnostics` prints, then a normal run shows *online* on the panel within one interval.
+
 ## Tests
 
 ```
-python -m pytest tests/test_stage_adapters.py tests/test_stage_safety.py \
-  tests/test_stage_bridge.py tests/test_stage_bridge_routes.py
+python -m pytest tests/test_stage_acceptance.py tests/test_stage_security.py \
+  tests/test_stage_safety_review.py tests/test_stage_*.py \
+  tests/test_passport*.py tests/test_tour_stage_link.py -q
 ```
+
+`test_stage_acceptance.py` is the brief's ACCEPTANCE CRITERIA, one test per
+bullet; `test_stage_security.py` and `test_stage_safety_review.py` are the
+phase 7 reviews as tests; `test_stage_rack.py` the status surface;
+`test_stage_performance.py` the poll's bound. See
+[STAGE_CONTROL_PHASE7.md](STAGE_CONTROL_PHASE7.md) for what phase 7 verified
+and what is still open.
 
 ## Known limitations and what validation is still required
 
-* No real console adapter exists. Writing one (X32 first, per the owner) is
-  the next milestone; it must ship with `tested_model` and
-  `tested_firmware` filled in from a real bench test, not from documentation.
-* Permissions are single-owner: the account that owns the passport
-  attachment is the engineer. The brief's role list (operate connected
-  control, configure bridge, arm, lock, emergency lockout) maps onto partner
-  roles later, through `partner_os.require()`.
+* No *verified* console adapter exists. The X32 adapter is written but
+  UNTESTED; it graduates only through the bench run described in the
+  runbook above, with `tested_model` and `tested_firmware` filled in from
+  that run, not from documentation.
+* The Stage Rack appliance does not exist. Its status surface does
+  (`stage_rack.py`, the panel on the bridge page, the diagnostic export);
+  the hardware is a separate validation.
 * The simulator's levels are per web worker. The record is the database.
-* Guest / QR access for performers is still the signed-in page.
+* There is no CSRF token anywhere in the app; Stage Control's posture is the
+  app's (SameSite=Lax session cookie, login wall, Bearer-only device door).
+  `tests/test_stage_security.py::test_csrf_posture_matches_the_rest_of_the_app`
+  fails the day a token exists so the forms here get wired to it.
+* Permissions and guest access, listed as limitations in the first draft of
+  this document, have both shipped: see *Who may do what* and *Performer
+  access by QR* above.
