@@ -887,6 +887,8 @@ class MLCAdapter(_EnvProvider):
         self._transport = transport
         self._now = now or time.time
         self._access, self._refresh, self._expires_at = "", "", 0.0
+        self._id = ""                 # the Cognito ID token, the other bearer they may want
+        self._bearer_kind = "access"  # which of the two the gateway last accepted
 
     # -- transport --
     def _send(self, method, path, body=None, bearer=""):
@@ -929,6 +931,7 @@ class MLCAdapter(_EnvProvider):
             answer = answer or {}
             if status == 200 and answer.get("accessToken"):
                 self._access = answer["accessToken"]
+                self._id = answer.get("idToken") or ""
                 self._refresh = answer.get("refreshToken") or self._refresh
                 try:
                     ttl = float(answer.get("expiresIn") or 3600)
@@ -940,14 +943,35 @@ class MLCAdapter(_EnvProvider):
             self._refresh = ""            # a refresh that failed is spent
         raise ProviderError("The MLC sign-in failed: %s" % last)
 
+    def _bearer(self):
+        """The token the gateway last accepted; the ID token when that is
+        what it wanted, the access token otherwise."""
+        self._token()
+        if self._bearer_kind == "id" and self._id:
+            return self._id
+        return self._access
+
     def _call(self, path, body):
-        status, answer = self._send("POST", path, body, bearer=self._token())
+        status, answer = self._send("POST", path, body, bearer=self._bearer())
         if status == 401:
-            # One retry with a fresh token; a second 401 is their answer.
-            self._access, self._expires_at = "", 0.0
-            status, answer = self._send("POST", path, body, bearer=self._token())
+            # Their gateway may want the other token (Cognito takes the ID
+            # token as the bearer). Try it once, and remember what worked.
+            other = "id" if self._bearer_kind == "access" else "access"
+            self._bearer_kind = other
+            alt = self._bearer()
+            if alt:
+                status, answer = self._send("POST", path, body, bearer=alt)
+            if status == 401:
+                # One retry with a fresh sign-in; a second 401 is their answer.
+                self._bearer_kind = "access"
+                self._access, self._id, self._expires_at = "", "", 0.0
+                status, answer = self._send("POST", path, body, bearer=self._bearer())
         if status != 200:
             msg = (answer or {}).get("message") if isinstance(answer, dict) else ""
+            if status == 401:
+                msg = ("signed in, but the search was refused with both tokens - "
+                       "the account's Public Search API access is not active, or the API "
+                       "expects a bearer this app does not send (%s)" % (msg or "Unauthorized"))
             raise ProviderError("The MLC %s: %s" % (status, msg or "request failed"))
         return answer if isinstance(answer, list) else []
 

@@ -40,9 +40,10 @@ WORK_BARE = dict(WORK_FULL, mlcSongCode="BA7777", iswc="", primaryTitle="STATIC"
 
 class Fake(object):
     """A transport shaped like the API. Records every call it sees."""
-    def __init__(self, password="right", ttl="3600", deny_bearer_once=False):
+    def __init__(self, password="right", ttl="3600", deny_bearer_once=False, wants_id=False):
         self.calls, self.password, self.ttl = [], password, ttl
         self.tokens_issued, self.deny_bearer_once = 0, deny_bearer_once
+        self.wants_id = wants_id          # a Cognito-style gateway: only the ID token is a bearer
 
     def __call__(self, method, url, headers, body):
         self.calls.append((method, url, dict(headers), body))
@@ -55,7 +56,8 @@ class Fake(object):
                              "error": None, "errorDescription": None}
             return 403, {"accessToken": None, "refreshToken": None, "error": "invalid_grant",
                          "errorDescription": "Request failed with status code 403: Wrong email or password."}
-        if headers.get("Authorization") != "Bearer access-%d" % self.tokens_issued or self.deny_bearer_once:
+        expected = "Bearer id" if self.wants_id else "Bearer access-%d" % self.tokens_issued
+        if headers.get("Authorization") != expected or self.deny_bearer_once:
             self.deny_bearer_once = False
             return 401, {"message": "Unauthorized"}
         if path == "/search/recordings":
@@ -136,7 +138,7 @@ def test_a_401_is_retried_once_with_a_fresh_token(env):
     recs = a.find_recordings(isrc="USAIW2600123")
     assert recs and recs[0]["song_code"] == "BA1234"
     assert sum(1 for c in fake.calls if c[1].endswith("/oauth/token")) == 2
-    assert sum(1 for c in fake.calls if c[1].endswith("/search/recordings")) == 2
+    assert sum(1 for c in fake.calls if c[1].endswith("/search/recordings")) == 3, "refused, tried the ID token, then a fresh sign-in"
 
 
 def test_a_wrong_password_is_their_sentence_not_a_crash(monkeypatch):
@@ -226,3 +228,41 @@ def test_ingest_asks_with_the_artists_name_and_stores_the_codes(env, monkeypatch
     assert {q.get("title") for q in asked} >= {"Nevermind", "In Utero"}
     # Album titles with no recording at The MLC leave no evidence - not a gap.
     assert sstore.list_evidence("artist", artist_id, sstore.CLAIM_RIGHTS) == []
+
+
+def test_a_gateway_that_wants_the_id_token_gets_it_and_the_choice_is_remembered(monkeypatch):
+    """The MLC signed the owner in and refused every search made with the
+    access token (2026-09-08). Their token answer carries an idToken too;
+    on a 401 the adapter tries it, and from then on sends it first."""
+    monkeypatch.setenv("MLC_ENABLED", "1")
+    monkeypatch.setenv("MLC_USERNAME", "u@example.net")
+    monkeypatch.setenv("MLC_PASSWORD", "right")
+    fake = Fake(wants_id=True)
+    a = providers.MLCAdapter(transport=fake)
+    rows = a.find_recordings(isrc="USAIW2600123")
+    assert [r["song_code"] for r in rows] == ["BA1234"]
+    searches = [c for c in fake.calls if c[1].endswith("/search/recordings")]
+    assert [c[2]["Authorization"] for c in searches] == ["Bearer access-1", "Bearer id"], "access first, then the ID token"
+    assert fake.tokens_issued == 1, "no second sign-in was needed"
+    a.find_recordings(isrc="USAIW2600777")
+    searches = [c for c in fake.calls if c[1].endswith("/search/recordings")]
+    assert searches[-1][2]["Authorization"] == "Bearer id" and len(searches) == 3, "remembered: straight to the ID token"
+
+
+def test_a_search_refused_with_both_tokens_says_so(monkeypatch):
+    monkeypatch.setenv("MLC_ENABLED", "1")
+    monkeypatch.setenv("MLC_USERNAME", "u@example.net")
+    monkeypatch.setenv("MLC_PASSWORD", "right")
+
+    class Refuses(Fake):
+        def __call__(self, method, url, headers, body):
+            if url.endswith("/oauth/token"):
+                return Fake.__call__(self, method, url, headers, body)
+            self.calls.append((method, url, dict(headers), body))
+            return 401, {"message": "Unauthorized"}
+    fake = Refuses()
+    a = providers.MLCAdapter(transport=fake)
+    with pytest.raises(providers.ProviderError) as e:
+        a.find_recordings(isrc="USAIW2600123")
+    assert "signed in, but the search was refused" in str(e.value)
+    assert fake.tokens_issued == 2, "one fresh sign-in was tried before giving up"
