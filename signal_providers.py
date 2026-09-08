@@ -966,6 +966,8 @@ class MLCAdapter(_EnvProvider):
                 self._bearer_kind = "access"
                 self._access, self._id, self._expires_at = "", "", 0.0
                 status, answer = self._send("POST", path, body, bearer=self._bearer())
+        if status == 204:
+            return []                     # their "no such recording": an answer, not a failure
         if status != 200:
             msg = (answer or {}).get("message") if isinstance(answer, dict) else ""
             if status == 401:

@@ -266,3 +266,22 @@ def test_a_search_refused_with_both_tokens_says_so(monkeypatch):
         a.find_recordings(isrc="USAIW2600123")
     assert "signed in, but the search was refused" in str(e.value)
     assert fake.tokens_issued == 2, "one fresh sign-in was tried before giving up"
+
+
+def test_a_204_is_no_such_recording_not_a_failure(monkeypatch):
+    """Live, 2026-09-08: The MLC answered the owner's own ISRC with 204 No
+    Content once the ID token got through. That is their 'nothing under
+    this ISRC' - the unmatched money Royalty Sweep exists for - so it is
+    an empty answer, never an error."""
+    monkeypatch.setenv("MLC_ENABLED", "1")
+    monkeypatch.setenv("MLC_USERNAME", "u@example.net")
+    monkeypatch.setenv("MLC_PASSWORD", "right")
+
+    class Empty(Fake):
+        def __call__(self, method, url, headers, body):
+            if url.endswith("/oauth/token"):
+                return Fake.__call__(self, method, url, headers, body)
+            self.calls.append((method, url, dict(headers), body))
+            return 204, None
+    a = providers.MLCAdapter(transport=Empty())
+    assert a.find_recordings(isrc="QZTRX2607398") == []
