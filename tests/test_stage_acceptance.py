@@ -105,11 +105,18 @@ def _register_and_arm(show):
 
 
 def _ask(show, kind="more", step="2", source="Lead Vox"):
+    """The id of the request this call created - by set difference, because
+    two requests made inside one second tie on created_at and 'the last open
+    row' then names the wrong one (a 1-in-3 phantom in the lockout test)."""
+    with show["client"].application.app_context():
+        before = {r["id"] for r in st.for_show(show["show"], show["user"]["id"], open_only=True)}
     show["client"].post("/stage/%s/ask" % show["show"], data={
         "performer": "Leafar", "mix": "Mix 1", "kind": kind, "source": source, "step_db": step})
     with show["client"].application.app_context():
         rows = st.for_show(show["show"], show["user"]["id"], open_only=True)
-    return rows[-1]["id"]
+    new = [r["id"] for r in rows if r["id"] not in before]
+    assert len(new) == 1, "one request was made"
+    return new[0]
 
 
 def _state(show, rid):
@@ -343,7 +350,7 @@ def test_emergency_lockout_immediately_prevents_connected_commands(show, applica
     with application.app_context():
         uid = show["user"]["id"]
         queued = _ask(show); st.approve(queued, uid); sb.issue(queued, uid, actor="eng")
-        sent = _ask(show); st.approve(sent, uid); c_sent, dsent = sb.issue(sent, uid, actor="eng"); assert c_sent is not None, (dsent.code, dsent.reason if hasattr(dsent, "reason") else dsent)
+        sent = _ask(show); st.approve(sent, uid); c_sent, _ = sb.issue(sent, uid, actor="eng")
         sb.pull(sb.device_for_show(show["show"], uid))
     # Every seat may press it; here the owner does, from the desk.
     r = show["client"].post("/stage/%s/bridge/lockout" % show["show"], data={"reason": "Feedback"})
