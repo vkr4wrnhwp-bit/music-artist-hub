@@ -458,6 +458,28 @@ def _photo_wanted(show):
     return bool(name) and name.upper() != "TBA"
 
 
+def _link_venue(tour, show):
+    """The show's venue record, linking the show to one first when its
+    venue_id is empty or points at nothing: the existing record by exact
+    name in the show's city, else a new one. Returns (vid, venue); (None,
+    None) when the show names no room."""
+    uid = tour["user_id"]
+    name = (show.get("venue") or "").strip()
+    if not _photo_wanted(show):
+        return None, None
+    vid = show.get("venue_id") or ""
+    venue = ts.get_venue(uid, vid) if vid else None
+    if venue is None:
+        vid = ts.venue_for_show(uid, name, show.get("city") or "")
+        if not vid:
+            return None, None
+        ts.update_show_ext(tour["id"], show["id"], {"venue_id": vid})
+        venue = ts.get_venue(uid, vid)
+        if venue is None:
+            return None, None
+    return vid, venue
+
+
 def ensure_venue_photo(tour, show, missed=None, deadline=None):
     """The room's photo from Google Places, on the show's venue record,
     when there is a key and the record has none. Links the show to its
@@ -476,16 +498,9 @@ def ensure_venue_photo(tour, show, missed=None, deadline=None):
     name = (show.get("venue") or "").strip()
     if not _photo_wanted(show):
         return "skipped"
-    vid = show.get("venue_id") or ""
-    venue = ts.get_venue(uid, vid) if vid else None
+    vid, venue = _link_venue(tour, show)
     if venue is None:
-        vid = ts.venue_for_show(uid, name, show.get("city") or "")
-        if not vid:
-            return "skipped"
-        ts.update_show_ext(tour["id"], show["id"], {"venue_id": vid})
-        venue = ts.get_venue(uid, vid)
-        if venue is None:
-            return "skipped"
+        return "skipped"
     if venue.get("photo"):
         return "present"
     if missed is not None and vid in missed:
@@ -2272,14 +2287,39 @@ def venues(user, tour, viewer, tour_id):
     q = request.args.get("q") or ""
     rows = ts.list_venues(tour["user_id"], q)
     shows = ts.list_shows(tour_id)
+    known = {v["id"] for v in ts.list_venues(tour["user_id"])}
     use = {}
     for s in shows:
-        if s.get("venue_id"):
+        if s.get("venue_id") in known:
             use.setdefault(s["venue_id"], []).append(s)
+    # The gaps, so the page is honest about what it does not have: dates
+    # that name a room with no record behind them (TBA and blank are not
+    # gaps), and records with no photo. The second follows the search.
+    unlinked = [s for s in shows if _photo_wanted(s) and s.get("venue_id") not in known]
+    no_photo = [v for v in rows if not v.get("photo")]
     return render_template("tour/venues.html", **_ctx(
         user, tour, viewer, "venues", shows=shows, rows=rows, q=q, use=use,
+        unlinked=unlinked, no_photo=no_photo, photos_on=venue_photos.configured(),
         edit=ts.get_venue(tour["user_id"], request.args.get("edit") or "") if can(viewer, "edit") else None,
         venue_fields=ts.VENUE_FIELDS))
+
+
+@bp.route("/tours/<tour_id>/venues/link", methods=["POST"])
+@require_tour("edit", "advance")
+def venue_link(user, tour, viewer, tour_id):
+    """Give a date its venue record: the existing one by name in its city,
+    else a new record with the name and city as typed on the show. Asks
+    Google for the room's photo when there is a key, as a new show would."""
+    show = ts.get_show(tour_id, request.form.get("show_id") or "")
+    if show is None:
+        abort(404)
+    had = show.get("venue_id") or ""
+    vid, venue = _link_venue(tour, show)
+    if venue is not None and vid != had:
+        ts.log_change(tour_id, tour["user_id"], _actor(viewer), "venue", vid, venue.get("name"),
+                      "linked", "", eng.fmt_day_long(show["date"]), "info")
+        _photo_quietly(tour, show["id"])
+    return _back("/tours/%s/venues" % tour_id)
 
 
 @bp.route("/tours/<tour_id>/venues/save", methods=["POST"])

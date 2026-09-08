@@ -2,6 +2,7 @@
 {% block title %}Venues - {{ tour['name'] }} - Street Banker{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
+{% import "_sb.html" as sb %}
 <div class="to-head"><div><p class="to-eyebrow">Venues</p><h1 class="to-h1" style="font-size:20px">Your venue records</h1><p class="to-sub">What you know about each room, kept across tours. A show's advance is current and may differ; promote it into the record once it is confirmed.</p></div>
   <form method="get" class="to-inline"><input class="to-input" type="search" name="q" value="{{ q }}" placeholder="Name or city" style="width:200px;min-height:36px;padding:6px 10px"><button class="to-btn to-btn--ghost to-btn--small" type="submit">Search</button></form></div>
 
@@ -24,6 +25,50 @@
 </div>
 {% endif %}
 {% include "tour/_venue_form.html" %}
+{% endif %}
+
+{#- What the book does not have, before what it has. Both folds vanish
+    when there is nothing to say; the first carries a lamp because a
+    date with no record behind it is something to act on. -#}
+{% if unlinked %}
+<details class="to-add" id="unlinked">
+<summary>Dates with no venue record · {{ unlinked|length }} {{ sb.lamp("needs a record", "warn") }}</summary>
+<div class="to-add-body">
+  <p class="to-muted" style="margin:0 0 10px">The room is named on the date but nothing is kept about it yet.{% if can('edit') or can('advance') %} Create record uses the name and city as typed{% if photos_on %}, then asks Google for a photo of the room{% endif %}.{% endif %}</p>
+  <div class="to-dates">
+  {% for s in unlinked %}
+  <div class="to-date">
+    <a class="to-date-when" href="/tours/{{ tour['id'] }}/shows/{{ s['id'] }}">
+      <span class="to-tile-v">{{ fmt_day(s['date']) }}</span>
+      <span class="to-tile-s">{{ s['venue'] }}{% if s['city'] %} · {{ s['city'] }}{% endif %}</span>
+    </a>
+    <span class="to-muted">no record</span>
+    <div>{% if can('edit') or can('advance') %}<form method="post" action="/tours/{{ tour['id'] }}/venues/link" class="to-inline"><input type="hidden" name="show_id" value="{{ s['id'] }}"><button class="to-btn to-btn--ghost to-btn--small" type="submit">Create record</button></form>{% endif %}</div>
+  </div>
+  {% endfor %}
+  </div>
+</div>
+</details>
+{% endif %}
+{% if no_photo %}
+<details class="to-add" id="no-photo">
+<summary>Venues without a photo · {{ no_photo|length }}</summary>
+<div class="to-add-body">
+  <p class="to-muted" style="margin:0 0 10px">{% if photos_on %}Fetch venue photos on the tour home will ask Google for each of these; a room Google has no picture of keeps its monogram.{% else %}The monogram stands in until someone adds a photo of the room.{% endif %}</p>
+  <div class="to-dates">
+  {% for v in no_photo %}
+  <div class="to-date">
+    <div class="to-date-when">
+      <span class="to-tile-v">{{ v['name'] }}</span>
+      <span class="to-tile-s">{{ v['city'] or 'no city' }} · {{ use[v['id']]|length if v['id'] in use else 0 }} date{{ '' if (v['id'] in use and use[v['id']]|length == 1) else 's' }} on this run</span>
+    </div>
+    <span class="to-muted">no photo</span>
+    <div>{% if can('edit') %}<a class="to-btn to-btn--ghost to-btn--small" href="?edit={{ v['id'] }}">Add a photo</a>{% endif %}</div>
+  </div>
+  {% endfor %}
+  </div>
+</div>
+</details>
 {% endif %}
 
 {% if rows %}
