@@ -9484,6 +9484,7 @@ def create_app():
     # themselves are dark by design because they are read beside a console.
     stage_os.init(app, current_user=current_user,
                   dashboard_context=build_dashboard_context)
+    import acr_desk; acr_desk.init(app, current_user=current_user, dashboard_context=build_dashboard_context, uploads_dir=lambda: UPLOADS_DIR)
 
     # Last, so it wraps everything above and gets the final say on the
     # headers Flask's session handling would otherwise leave in place.

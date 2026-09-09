@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Scan results - Street Banker{% endblock %}
+
+{% block content %}
+{#- The shared plate band, like every other internal page. -#}
+{{ sb.plate("/static/img/eq-room", [900, 1200, 1600],
+            "Street Banker · ACRCloud", "Scan results",
+            "Every track ACRCloud detected inside one recording, with where in it each one plays. A lamp on a row means that detection is a master registered to this account - your record, in somebody else's set.",
+            position="center 45%") }}
+
+{% if notice %}
+<section class="sb-panel">
+  <p class="sb-note">{{ sb.badge("ACRCloud", notice.tone) }} {{ notice.text }}</p>
+</section>
+{% endif %}
+
+<section class="sb-panel">
+  <h2 class="sb-label sb-label-gold">{{ scan.source_name or "Untitled recording" }}</h2>
+  <p class="sb-note">
+    {{ sb.lamp(scan.state, "good" if scan.state == "ready" else ("crit" if scan.state == "error" else "info")) }}
+    Scanned {{ scan.created[:10] }} against container <code>{{ scan.container_id }}</code>.
+    {% if scan.state == "ready" %}
+      {{ hits|length }} detection{{ "" if hits|length == 1 else "s" }},
+      {{ mine }} of them your{{ "" if mine == 1 else "s" }} own.
+    {% elif scan.state == "no result" %}
+      ACRCloud finished and matched nothing in it.
+    {% elif scan.state == "error" %}
+      {{ scan.message }}
+    {% else %}
+      ACRCloud is still working through it. Press check again in a minute -
+      nothing here polls on its own.
+    {% endif %}
+  </p>
+  <div class="sb-row sb-row--wrap">
+    {% if not can_act %}
+      <span class="sb-hint">Your seat can read this scan but not re-check it.</span>
+    {% elif not on %}
+      {{ sb.btn("Check again", disabled_reason="The console API is not connected on this deployment.") }}
+    {% else %}
+      <form method="post" action="/fingerprints/scans/{{ scan.id }}/refresh">
+        {{ sb.btn("Check again", type="submit", variant="primary") }}
+      </form>
+    {% endif %}
+    {{ sb.btn("Back to the registry", href="/fingerprints/") }}
+  </div>
+</section>
+
+{% if hits %}
+<section class="sb-panel">
+  <h2 class="sb-label sb-label-gold">Detections</h2>
+  <p class="sb-note">
+    Start and end are this recording's clock, not the released track's.
+    Confidence is ACRCloud's own figure out of 100 - it is theirs, not a score
+    this app computed, and a blank one means they sent none.
+  </p>
+  {% call sb.table(["", "Track", "ISRC", ("Start", "num"), ("End", "num"), ("Confidence", "num"), "Case"]) %}
+    {% for hit in hits %}
+    <tr>
+      <td>
+        {% if hit.mine %}{{ sb.lamp("Yours", "good") }}{% else %}{{ sb.lamp("Theirs", "idle") }}{% endif %}
+      </td>
+      <td>
+        <b>{{ hit.title or "Untitled" }}</b>
+        {% if hit.artists %}<span class="sb-hint"> — {{ hit.artists }}</span>{% endif %}
+      </td>
+      <td>{{ hit.isrc or "Not measured" }}</td>
+      <td class="num">{{ hit.start or "Not measured" }}</td>
+      <td class="num">{{ hit.end or "Not measured" }}</td>
+      <td class="num">{% if hit.score is not none %}{{ hit.score }}{% else %}Not measured{% endif %}</td>
+      <td>
+        {% if not hit.mine %}
+          <span class="sb-hint">Not one of your registered masters.</span>
+        {% elif not can_act %}
+          <span class="sb-hint">Your seat can read this but not open a case.</span>
+        {% else %}
+          <form method="post" action="/royalty-recovery/cases/from-finding">
+            <input type="hidden" name="title" value="{{ hit.case_title }}">
+            <input type="hidden" name="category" value="other">
+            <input type="hidden" name="amount" value="0">
+            <input type="hidden" name="notes" value="{{ hit.case_note }}">
+            {{ sb.btn("Open a usage case", type="submit", size="sm") }}
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  {% endcall %}
+  <p class="sb-note">
+    A case opens at 0, the same as every Recovery finding - nothing in a
+    fingerprint answer measures money. What it carries instead is the
+    evidence: the file, the moment inside it, ACRCloud's confidence and the
+    ISRC when there was one.
+  </p>
+</section>
+{% elif scan.state == "ready" %}
+<section class="sb-panel">
+  <p class="sb-note">
+    ACRCloud finished this recording and detected nothing it recognises. That
+    is an answer, not a failure - and it will stay this way for any of your own
+    masters that were never registered.
+  </p>
+</section>
+{% endif %}
+{% endblock %}
