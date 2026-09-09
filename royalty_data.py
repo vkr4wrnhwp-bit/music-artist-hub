@@ -1,6 +1,8 @@
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 
+import catalog_value
+
 
 @dataclass
 class PlatformBalance:
@@ -508,7 +510,11 @@ def royalty_progress(total, goal):
     return min(total / goal, 1.0)
 
 
-CATALOG_VALUE_MULTIPLES = {"low": 8, "mid": 12, "high": 16}
+# This was 8/12/16 while /valuation and the press kit used 3/4/5, so the
+# same account could be shown two catalog values three times apart. The
+# rule lives in catalog_value now; see that module for why the money
+# pages' band won.
+CATALOG_VALUE_MULTIPLES = catalog_value.MULTIPLES
 
 
 def estimate_catalog_value(earnings_trend, multiples=None):

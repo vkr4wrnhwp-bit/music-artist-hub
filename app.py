@@ -7832,7 +7832,12 @@ def create_app():
     @app.route("/benchmark")
     def benchmark():
         ctx = build_dashboard_context()
-        ctx["benchmark"] = get_benchmark_data()
+        # The account's own statements, so Est. catalog value is the same
+        # figure /valuation and the press kit show rather than a second
+        # estimate at a second multiple.
+        user = current_user()
+        rows = store.get_statement_rows(user["id"]) if user else []
+        ctx["benchmark"] = get_benchmark_data(rows)
         return render_template("benchmark.html", active_page="benchmark", **ctx)
 
     def _ago(created):
