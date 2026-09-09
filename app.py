@@ -6796,6 +6796,39 @@ def create_app():
                                packs=store.list_sync_packs(user["id"]), error=error,
                                **build_dashboard_context())
 
+    @app.route("/sync/clearance-packs/<pack_id>/delete", methods=["POST"])
+    def sync_pack_delete(pack_id):
+        """Delete a clearance pack, and the audio it holds.
+
+        Archiving only hid a pack from supervisors: the row stayed, the
+        private /s/<slug> link stayed, and up to three uploaded files
+        stayed on the disk with nothing left that could reach them. A
+        pitch pack an artist wants gone - a track they lost the rights
+        to, a version they should never have sent - has to actually go.
+
+        `delete_sync_pack` scopes the row to this account and returns
+        None otherwise, so a pack belonging to somebody else is answered
+        the same way as one that never existed: 404, and nothing about
+        whose it was. An empty list is different - a real pack that held
+        no audio - and deletes without complaint.
+
+        The unlink is the narrow rule /vault/<id>/delete established:
+        only `sync_<uuid>`, the name `_sync_audio_upload` writes. Nothing
+        else in the uploads directory can be reached from here.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        paths = store.delete_sync_pack(user["id"], pack_id)
+        if paths is None:
+            abort(404)
+        # Only the slots that held something are unlinked; an absent
+        # instrumental or clean edit is a no-op, not a failure.
+        for path in paths:
+            if os.path.basename(path.split("?")[0]).startswith("sync_"):
+                blob_store.remove(path, uploads_dir=UPLOADS_DIR)
+        return redirect("/sync/clearance-packs")
+
     @app.route("/s/<slug>")
     def sync_pack_public(slug):
         pack = store.get_sync_pack_by_slug(slug, count_view=True)

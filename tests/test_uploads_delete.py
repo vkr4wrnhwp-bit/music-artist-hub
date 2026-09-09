@@ -311,3 +311,133 @@ def test_a_borrowed_cover_does_not_promise_to_delete_the_vault_copy(artist):
 
     assert "the Vault copy stays." in btn
     assert "The file is deleted." not in btn
+
+
+# =========================================================================
+# 3 - Sync clearance packs
+# =========================================================================
+
+@pytest.fixture
+def pro_artist(app_obj):
+    """/sync is a Pro path, so a fresh account gets 402 on the packs page.
+    Promote it rather than borrow the demo account, whose packs are
+    asserted on elsewhere."""
+    a = _account(app_obj, "updel-sync")
+    store.set_user_plan(a["uid"], "pro")
+    return a
+
+
+def _pack(client, title=None, instrumental=False):
+    # A unique title per pack on purpose. `_ml_slug` checks campaigns,
+    # links and variants for a clash but never sync_packs, so two packs
+    # sharing a title raise IntegrityError on sync_packs.slug - a real
+    # defect in the create path, and not one a delete test should be
+    # tripping over on its way to the thing it is measuring.
+    title = title or "Night Drive %s" % uuid.uuid4().hex[:6]
+    data = {"title": title, "main_audio": (io.BytesIO(MP3), "main.mp3")}
+    if instrumental:
+        data["instrumental_audio"] = (io.BytesIO(MP3), "inst.mp3")
+    r = client.post("/sync/clearance-packs", data=data,
+                    content_type="multipart/form-data")
+    assert r.status_code == 302
+    return r
+
+
+def test_deleting_a_pack_leaves_no_row_and_no_audio(pro_artist):
+    client = pro_artist["client"]
+    _pack(client, instrumental=True)
+    pack = store.list_sync_packs(pro_artist["uid"])[0]
+    files = [pack["main_url"], pack["instrumental_url"]]
+    assert all(os.path.basename(f).startswith("sync_") for f in files)
+    assert all(os.path.exists(_disk(f)) for f in files)
+
+    client.post("/sync/clearance-packs/%s/delete" % pack["id"])
+
+    assert store.list_sync_packs(pro_artist["uid"]) == []
+    assert not any(os.path.exists(_disk(f)) for f in files)
+    # The private link a supervisor was sent stops resolving too.
+    assert client.get("/s/%s" % pack["slug"]).status_code == 404
+
+
+def test_a_pack_pointing_at_a_vault_file_gives_up_the_row_and_nothing_else(pro_artist):
+    """Only `sync_<uuid>` - the name _sync_audio_upload writes - is ever
+    unlinked. A pack whose audio is a file the Vault owns and lists must
+    lose the row and leave the bytes, the rule /vault/<id>/delete follows
+    in the other direction."""
+    client = pro_artist["client"]
+    client.post("/vault/upload",
+                data={"file": (io.BytesIO(MP3), "master.mp3"),
+                      "kind": "master", "label": "Master"},
+                content_type="multipart/form-data")
+    vault = store.list_vault_files(pro_artist["uid"])[0]
+    pack_id = store.create_sync_pack(pro_artist["uid"], "vault-backed-pack",
+                                     {"title": "Vault Backed",
+                                      "main_url": vault["path"]})
+
+    client.post("/sync/clearance-packs/%s/delete" % pack_id)
+
+    assert store.list_sync_packs(pro_artist["uid"]) == []
+    assert os.path.exists(_disk(vault["path"]))             # still on disk
+    assert any(v["id"] == vault["id"]                       # still in the Vault
+               for v in store.list_vault_files(pro_artist["uid"]))
+
+
+def test_the_slots_a_pack_never_filled_are_a_no_op_not_a_failure(pro_artist):
+    """An instrumental and a clean edit are optional. A pack that has
+    neither still deletes cleanly, and only the file it really held goes."""
+    client = pro_artist["client"]
+    _pack(client)
+    pack = store.list_sync_packs(pro_artist["uid"])[0]
+    assert pack["instrumental_url"] == "" and pack["clean_url"] == ""
+
+    r = client.post("/sync/clearance-packs/%s/delete" % pack["id"])
+
+    assert r.status_code == 302
+    assert store.list_sync_packs(pro_artist["uid"]) == []
+    assert not os.path.exists(_disk(pack["main_url"]))
+
+
+def test_deleting_a_pack_twice_is_not_a_second_deletion(pro_artist):
+    client = pro_artist["client"]
+    _pack(client)
+    pack = store.list_sync_packs(pro_artist["uid"])[0]
+    client.post("/sync/clearance-packs/%s/delete" % pack["id"])
+
+    assert client.post("/sync/clearance-packs/%s/delete" % pack["id"]).status_code == 404
+
+
+def test_a_stranger_cannot_delete_another_artists_pack(pro_artist, app_obj):
+    other = _account(app_obj, "updel-sync-other")
+    store.set_user_plan(other["uid"], "pro")
+    _pack(pro_artist["client"])
+    pack = store.list_sync_packs(pro_artist["uid"])[0]
+
+    r = other["client"].post("/sync/clearance-packs/%s/delete" % pack["id"])
+
+    # 404, not a 403 that would confirm the pack is real and somebody's.
+    assert r.status_code == 404
+    assert len(store.list_sync_packs(pro_artist["uid"])) == 1
+    assert os.path.exists(_disk(pack["main_url"]))
+
+
+def test_the_pack_control_appears_only_once_a_pack_is_stored(pro_artist):
+    client = pro_artist["client"]
+    page = client.get("/sync/clearance-packs").get_data(as_text=True)
+    assert _button(page, "pack-delete") == ""
+    assert "No packs yet" in page
+
+    title = "Night Drive %s" % uuid.uuid4().hex[:6]
+    _pack(client, title=title)
+    btn = _button(client.get("/sync/clearance-packs").get_data(as_text=True),
+                  "pack-delete")
+    assert btn
+    assert "sb-btn-danger" in btn
+    # It names the track, and both things that go.
+    assert ("Delete the sync pack for %s? The private link stops "
+            "working and the uploaded audio is deleted." % title in btn)
+
+    pack = store.list_sync_packs(pro_artist["uid"])[0]
+    client.post("/sync/clearance-packs/%s/delete" % pack["id"])
+    page = client.get("/sync/clearance-packs").get_data(as_text=True)
+    assert _button(page, "pack-delete") == ""
+    assert "No packs yet" in page                            # empty state is back

@@ -80,6 +80,17 @@
           <button name="status" value="active" class="rounded-md border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-bold text-green-400">Reactivate</button>
           {% endif %}
         </form>
+        {#- Archiving only hides a pack from supervisors. This is the way
+            out: the row, the private link, and the audio files with it.
+            The confirm names the track and both consequences. The title
+            is artist-typed, so it goes through tojson - which escapes
+            the quote, the apostrophe and the angle brackets - and the
+            attribute is single-quoted so the JSON's own double quotes
+            close nothing. -#}
+        <form method="post" action="/sync/clearance-packs/{{ p.id }}/delete" class="shrink-0">
+          <button class="pack-delete sb-btn sb-btn-danger sb-btn-sm"
+                  onclick='return confirm({{ ("Delete the sync pack for " ~ p.title ~ "? The private link stops working and the uploaded audio is deleted.") | tojson }})'>Delete</button>
+        </form>
       </div>
     </div>
     {% endfor %}
