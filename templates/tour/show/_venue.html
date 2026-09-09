@@ -20,6 +20,11 @@
 </div>
       <div style="font-weight:800;font-size:17px">{{ venue['name'] }}</div>
       <div class="to-muted">{{ venue['address'] }}{% if venue['city'] %}, {{ venue['city'] }}{% endif %}{% if venue['region'] %}, {{ venue['region'] }}{% endif %} {{ venue['country'] }}</div>
+{#- Coordinates are only ever shown with where they came from. A pair of
+    numbers with no source reads as a survey; these came from Google's
+    Geocoding API, and the address it matched is printed so the owner can
+    see it is the right building. -#}
+{% if venue['geocoded_at'] %}<div class="to-muted" style="font-size:12px">Coordinates from Google: {{ venue['lat'] }}, {{ venue['lng'] }}{% if venue['geo_address'] %} · matched {{ venue['geo_address'] }}{% endif %}</div>{% endif %}
       <div class="to-grid" style="margin-top:10px;font-size:13px">
         {% for k, label in [('capacity','Capacity'),('venue_type','Type'),('phone','Phone'),('website','Website'),('tz','Timezone'),('loading','Loading'),('parking','Parking'),('bus_parking','Bus parking'),('stage','Stage'),('backstage','Backstage'),('dressing_rooms','Dressing rooms'),('showers','Showers'),('catering','Catering'),('wifi','Wi-Fi'),('settlement_location','Settlement'),('merch_location','Merch'),('production_notes','Production'),('notes','Notes')] %}
           {% if venue[k] %}<div><div class="to-muted" style="font-size:12px;letter-spacing:.12em;text-transform:uppercase">{{ label }}</div><div>{{ venue[k] }}</div></div>{% endif %}
@@ -45,6 +50,10 @@
       <div class="to-eyebrow">Link a saved venue</div>
       <label class="to-field"><span>Venue</span><select name="venue_id"><option value="">— none —</option>{% for v in venues %}<option value="{{ v['id'] }}" {% if v['id'] == show['venue_id'] %}selected{% endif %}>{{ v['name'] }}{% if v['city'] %}, {{ v['city'] }}{% endif %}</option>{% endfor %}</select></label>
       {{ m.field('tz', 'Show timezone', show['tz'], placeholder=tour['home_tz']) }}
+{#- Quiet, not a lamp: nothing is wrong, the field simply was not typed.
+    Only said when the record says that is where the value came from -
+    a zone somebody typed that happens to match the room's is theirs. -#}
+{% if show['tz_source'] == 'venue' %}<p class="to-muted" style="font-size:12px;margin:-4px 0 8px">Time zone from the venue's location.</p>{% endif %}
       {{ m.field('promoter', 'Promoter', show['promoter']) }}
       {{ m.field('capacity', 'Capacity', show['capacity']) }}
       <div class="to-bar" style="margin-bottom:0"><button class="to-btn to-btn--small" type="submit">Save</button></div>

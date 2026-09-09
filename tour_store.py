@@ -759,6 +759,26 @@ def init_tour():
                 db.execute("ALTER TABLE tour_venues ADD COLUMN %s" % col)
             except Exception:
                 pass
+        # Where the room is. `lat`, `lng` and `tz` were already columns on
+        # the record and on VENUE_FIELDS - typed by hand and almost always
+        # empty. These two say whether Google filled them and what address
+        # it matched, so the page can name the source instead of implying
+        # somebody measured it.
+        for col in ("geocoded_at TEXT NOT NULL DEFAULT ''",
+                    "geo_address TEXT NOT NULL DEFAULT ''"):
+            try:
+                db.execute("ALTER TABLE tour_venues ADD COLUMN %s" % col)
+            except Exception:
+                pass
+        # Where a date's time zone came from: 'venue' when it was filled
+        # from the room's location, '' when somebody typed it. Without
+        # this the page would have to guess from the value, and a typed
+        # zone that happens to match the venue's would be credited to
+        # Google.
+        try:
+            db.execute("ALTER TABLE tour_show_ext ADD COLUMN tz_source TEXT NOT NULL DEFAULT ''")
+        except Exception:
+            pass
         db.execute("CREATE INDEX IF NOT EXISTS idx_tour_shows_tour ON tour_shows(tour_id)")
 
     # The bill and its per-act line checks. Called from here rather than
@@ -1140,7 +1160,7 @@ def list_shows(tour_id):
     """Shows on this tour with their ext fields merged, ordered by date."""
     with get_db() as db:
         rows = db.execute(
-            "SELECT s.*, e.venue_id, e.tz AS ext_tz, e.promoter, e.capacity, e.ticket_url, "
+            "SELECT s.*, e.venue_id, e.tz AS ext_tz, e.tz_source, e.promoter, e.capacity, e.ticket_url, "
             # Named one by one rather than e.*, so a column has to be added
             # here on purpose. That is a good rule and it has a cost: a
             # field written by update_show_ext but missed here reads back
@@ -1254,6 +1274,11 @@ def update_show_ext(tour_id, show_id, fields):
         sets.append("readiness_config = ?"); params.append(json.dumps(fields["readiness_config"]))
     if "tz" in fields:
         sets.append("tz = ?"); params.append((fields.get("tz") or "")[:60])
+        # Every write of a zone also states where it came from, so the one
+        # place that sets it from the room's coordinates is the only place
+        # the page will ever credit. A form save passes no source and the
+        # column goes back to '' — typed.
+        sets.append("tz_source = ?"); params.append((fields.get("tz_source") or "")[:20])
     if not sets:
         return changed
     sets.append("updated = ?"); params.append(_now())
@@ -1454,6 +1479,42 @@ def set_venue_photo(user_id, venue_id, path, credit="", source="", place_id=None
         if val is not None:
             sets += ", %s=?" % col
             params.append((val or "").strip()[:cap])
+    with get_db() as db:
+        cur = db.execute("UPDATE tour_venues SET %s WHERE id=? AND user_id=?" % sets,
+                         params + [venue_id, user_id])
+        return cur.rowcount > 0
+
+
+def clear_venue_geo_stamp(user_id, venue_id):
+    """Somebody has typed over the coordinates by hand, so they are no
+    longer Google's and the page must stop saying they are."""
+    with get_db() as db:
+        db.execute("UPDATE tour_venues SET geocoded_at='', geo_address='', updated=? "
+                   "WHERE id=? AND user_id=?", (_now(), venue_id, user_id))
+
+
+def set_venue_geo(user_id, venue_id, lat, lng, tz=None, address=None):
+    """Where the room is, from Google. `lat` and `lng` are the decimal
+    strings the geocoder answered; `tz` the IANA zone for that point;
+    `address` the address Google matched, kept so the page can show what
+    was looked up rather than asking the owner to trust a pair of numbers.
+
+    Not one of VENUE_FIELDS for `geocoded_at`/`geo_address`, so the record
+    form never clears them — but lat, lng and tz ARE on the form, and a
+    later hand edit of those simply wins, as it should. `geocoded_at` is
+    the stamp of this fill, and it is what the page reads to say the
+    coordinates came from Google rather than from somebody's typing."""
+    if not (lat or "").strip() or not (lng or "").strip():
+        return False
+    sets = "lat=?, lng=?, geocoded_at=?, updated=?"
+    now = _now()
+    params = [str(lat).strip()[:40], str(lng).strip()[:40], now, now]
+    if tz:
+        sets += ", tz=?"
+        params.append(str(tz).strip()[:60])
+    if address is not None:
+        sets += ", geo_address=?"
+        params.append(str(address or "").strip()[:300])
     with get_db() as db:
         cur = db.execute("UPDATE tour_venues SET %s WHERE id=? AND user_id=?" % sets,
                          params + [venue_id, user_id])
