@@ -101,12 +101,65 @@ def test_coverage_is_a_meter_counted_from_the_records(artist):
     assert 'aria-label="UPC (releases): 1/2"' in body
 
 
-def test_the_iswc_meter_says_it_is_not_pulled_rather_than_reading_empty(artist):
-    """Nothing this app reads fetches an ISWC. An empty meter would read as
-    zero works registered, which is a claim; "not pulled" is the truth."""
+def test_the_iswc_meter_counts_the_work_codes_the_registry_returned(artist):
+    """The meter said "Not pulled" and the comment above it said nothing
+    in the app ever pulls an ISWC. Both stopped being true when a track's
+    passport could be checked against The MLC: a matched work carries a
+    work code, and it belongs on the catalog row."""
+    import db as store
+
     body = artist["client"].get("/catalog").get_data(as_text=True)
-    assert 'aria-label="ISWC (works): Not pulled"' in body
-    assert "sb-meter--none" in body
+    assert 'aria-label="ISWC (works): 0/2"' in body, "counted, not disclaimed"
+    assert "Not pulled" not in body
+
+    cat = [t for t in store.get_catalog_tracks(artist["uid"])
+           if t["title"] == "Coded Song"][0]
+    store.add_track_mlc_check(
+        artist["uid"], cat["passport_track_id"], "ISRC USSB12600077", "match", "",
+        [{"song_code": "BA1234", "iswc": "T-900.000.001-2", "share_total": 100.0,
+          "writers": [], "publishers": []}])
+    body = artist["client"].get("/catalog").get_data(as_text=True)
+    assert 'aria-label="ISWC (works): 1/2"' in body
+    assert "T-900.000.001-2" in body
+
+
+def test_the_work_code_shows_on_the_song_it_belongs_to(artist):
+    import db as store
+
+    cat = [t for t in store.get_catalog_tracks(artist["uid"])
+           if t["title"] == "Coded Song"][0]
+    store.add_track_mlc_check(
+        artist["uid"], cat["passport_track_id"], "ISRC USSB12600077", "match", "",
+        [{"song_code": "BA1234", "iswc": "T-900.000.001-2", "share_total": 100.0,
+          "writers": [], "publishers": []}])
+    body = artist["client"].get("/catalog").get_data(as_text=True)
+    passports = body.split('id="passports"')[1].split("</section>")[0]
+    assert "ISWC T-900.000.001-2" in passports
+    # The bare song has no work code and claims none.
+    ids = body.split('id="identifiers"')[1].split("</section>")[0]
+    assert ids.count("T-900.000.001-2") == 1
+
+
+def test_a_check_with_no_work_code_is_not_counted(artist):
+    """The MLC answers about plenty of works with no ISWC on file. A
+    match is not a work code."""
+    import db as store
+
+    cat = [t for t in store.get_catalog_tracks(artist["uid"])
+           if t["title"] == "Coded Song"][0]
+    store.add_track_mlc_check(
+        artist["uid"], cat["passport_track_id"], "ISRC USSB12600077", "match", "",
+        [{"song_code": "BA9999", "iswc": "", "share_total": 50.0,
+          "writers": [], "publishers": []}])
+    body = artist["client"].get("/catalog").get_data(as_text=True)
+    assert 'aria-label="ISWC (works): 0/2"' in body
+
+
+def test_nothing_still_claims_the_iswc_is_unreachable():
+    """The comment in app.py said outright that nothing this app reads
+    pulls an ISWC. It was load-bearing for the meter above it."""
+    src = io.open(os.path.join(HERE, "app.py"), encoding="utf-8").read()
+    assert "Nothing this app reads ever pulls an ISWC" not in src
 
 
 def test_a_missing_isrc_is_a_word_and_an_action(artist):

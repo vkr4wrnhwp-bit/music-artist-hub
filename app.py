@@ -1858,14 +1858,14 @@ def create_app():
         ctx["catalog_user"] = user
         ctx["my_tracks"] = store.get_catalog_tracks(user["id"]) if user else []
         # Identifiers, folded in from /identifiers: the same records, read
-        # for their codes. Nothing this app reads ever pulls an ISWC, and
-        # the page says so rather than showing an empty column.
+        # for their codes. The ISWC is pulled: a matched work at The MLC
+        # carries one, and the passport link puts it on the catalog row.
         ids_rows = []
         for t in ctx["my_tracks"]:
             m = t.get("meta") or {}
-            ids_rows.append({"title": t["title"], "artist": t["artist"],
+            ids_rows.append({"id": t["id"], "title": t["title"], "artist": t["artist"],
                              "isrc": m.get("isrc") or "", "upc": m.get("upc") or "",
-                             "label": m.get("label") or "",
+                             "label": m.get("label") or "", "iswc": "",
                              "release_date": m.get("release_date") or ""})
         ctx["ids_rows"] = ids_rows
         ctx["ids_with_isrc"] = sum(1 for r in ids_rows if r["isrc"])
@@ -1879,6 +1879,15 @@ def create_app():
         ctx.update(_passport_section(user, ctx["my_tracks"]) if user else
                    {"passport_rows": [], "passport_pipeline": [],
                     "passport_cert": None, "passport_summary": None})
+        # ISWC coverage: catalog rows whose linked passport holds an MLC
+        # check with a work code on it. Counted after the passports are
+        # read, because that is where the code comes from.
+        ctx["ids_with_iswc"] = len([r for r in ctx["passport_rows"]
+                                    if r["catalog"] and r["iswc"]])
+        _iswc_by_catalog_id = {r["catalog"]["id"]: r["iswc"]
+                               for r in ctx["passport_rows"] if r["catalog"]}
+        for row in ids_rows:
+            row["iswc"] = _iswc_by_catalog_id.get(row["id"], "")
         # Group saved tracks into real releases keyed by UPC (or album title).
         releases = {}
         for t in ctx["my_tracks"]:
@@ -1984,6 +1993,9 @@ def create_app():
                          "caps": artist_os.lockbox_report(t)["caps"],
                          "isrc": (passport.get("isrc") or meta.get("isrc") or "").strip(),
                          "mlc": checks[0] if checks else None,
+                         # The one identifier nothing in this app used to
+                         # pull: a matched work at The MLC carries it.
+                         "iswc": artist_os.mlc_evidence(t)["iswc"],
                          "certificate": (not clean["blocked"]
                                          and clean["score"] >= 100)})
         summary = _os_summary(user["id"], [t for _ct, t in ordered], osctx)
