@@ -3,7 +3,7 @@
 {% block tour_body %}
 {% import "_sb.html" as sb %}
 {% import "tour/_macros.html" as m %}
-<div class="to-head"><div><p class="to-eyebrow">Marketing Command</p><h1 class="to-h1" style="font-size:20px">Every market at a glance</h1><p class="to-sub">Announce, presale, on-sale and the local push, per show. Ticket counts are what you enter; no platform is connected. Use the Press Desk for outreach and Smart Links for the ticket link.</p></div>
+<div class="to-head"><div><p class="to-eyebrow">Marketing Command</p><h1 class="to-h1" style="font-size:20px">Every market at a glance</h1><p class="to-sub">Announce, presale, on-sale and the local push, per show. {% if tickets_ready %}Ticket counts come from Eventbrite on the dates linked to their event, and are what you entered on the rest — each row says which.{% else %}Ticket counts are what you enter; no platform is connected.{% endif %} Use the Press Desk for outreach and Smart Links for the ticket link.</p></div>
   <div class="to-inline"><a class="to-btn to-btn--ghost to-btn--small" href="/press-desk">Press Desk</a><a class="to-btn to-btn--ghost to-btn--small" href="/links">Smart links</a></div></div>
 {% if rows %}
 {#- One row per market: tickets as a meter when both numbers were entered,
@@ -24,7 +24,9 @@
       <span class="to-fig"><span>on sale</span><b>{{ mk['onsale'] if 'onsale' in mk and mk['onsale'] else '—' }}</b></span>
       <span class="to-fig"><span>push</span><b>{{ ns.n }} / 9</b></span>
     </div>
-    <div class="to-date-state">{% if s['ticket_url'] %}<a class="to-chip" href="{{ s['ticket_url'] }}" target="_blank" rel="noopener">ticket link</a>{% else %}{{ sb.lamp("no ticket link", "warn") }}{% endif %}</div>
+    {#- Where the count came from, on the row that shows it: a measured
+        number and a typed one must never look the same. -#}
+    <div class="to-date-state">{% if s['ticket_url'] %}<a class="to-chip" href="{{ s['ticket_url'] }}" target="_blank" rel="noopener">ticket link</a>{% else %}{{ sb.lamp("no ticket link", "warn") }}{% endif %}{% if r['progress'] and r['progress']['synced'] %}{{ sb.lamp("synced " ~ r['progress']['ago']) }}{% elif r['progress'] %}{{ sb.lamp("typed") }}{% endif %}</div>
   </div>
 {% endmacro %}
 {#- The dates that hold something, then the rest behind one counted fold.

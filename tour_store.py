@@ -735,6 +735,15 @@ def init_tour():
                 db.execute("ALTER TABLE tour_travel ADD COLUMN %s" % col)
             except Exception:
                 pass
+        # Which Eventbrite event this date is, and when its ticket
+        # numbers were last read from it. Both empty means the numbers on
+        # the show were typed, and the page says so.
+        for col in ("eventbrite_event_id TEXT NOT NULL DEFAULT ''",
+                    "tickets_synced_at TEXT NOT NULL DEFAULT ''"):
+            try:
+                db.execute("ALTER TABLE tour_show_ext ADD COLUMN %s" % col)
+            except Exception:
+                pass
         # A photo of the room, on the venue record: the thumbnail beside its dates.
         try:
             db.execute("ALTER TABLE tour_venues ADD COLUMN photo TEXT NOT NULL DEFAULT ''")
@@ -1138,6 +1147,7 @@ def list_shows(tour_id):
             # as None forever, which is how `support` first behaved.
             "e.support, e.source_note, e.vip_ticket_url, e.merch_rate, e.fee_note, "
             "e.ticket_status, e.tickets_sold, e.guest_allocation, e.guest_cutoff, "
+            "e.eventbrite_event_id, e.tickets_synced_at, "
             "e.deal_type, e.guarantee, e.backend_pct, e.bonus, e.deposit_required, "
             "e.deposit_received, e.deposit_date, e.ticket_gross, e.adjusted_gross, "
             "e.vip_gross, e.merch_gross, e.venue_merch_cut, e.production_expenses, "
@@ -1201,6 +1211,7 @@ def show_tour_id(show_id):
 # when two sheets disagreed, so nobody has to re-litigate it later.
 EXT_FIELDS = ["venue_id", "promoter", "capacity", "ticket_url", "ticket_status",
               "support", "source_note", "vip_ticket_url", "merch_rate", "fee_note",
+              "eventbrite_event_id", "tickets_synced_at",
               "tickets_sold", "guest_allocation", "guest_cutoff", "deal_type",
               "guarantee", "backend_pct", "bonus", "deposit_required",
               "deposit_received", "deposit_date", "ticket_gross", "adjusted_gross",

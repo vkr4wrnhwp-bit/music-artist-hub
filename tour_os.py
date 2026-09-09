@@ -39,6 +39,7 @@ import blob_store
 import command_center
 import db as store
 import email_provider as emailer
+import eventbrite_provider as eventbrite
 import plans
 import press_store
 import plot_images
@@ -46,6 +47,7 @@ import stripe_provider
 import tour_advance_mail as tam
 import tour_engine as eng
 import tour_store as ts
+import tour_tickets as tickets
 import venue_photos
 
 bp = Blueprint("tours", __name__)
@@ -538,6 +540,50 @@ def _photo_report_key(tour_id):
     return "tour_photos:%s" % tour_id
 
 
+# How long one request may spend asking Eventbrite, in seconds. The walk
+# over the account's events is one call; the sold counts are one call per
+# matched show, so a long tour can outlast a worker without a budget.
+TICKETS_BUDGET_S = 30
+
+
+def _tickets_deadline():
+    return _clock() + TICKETS_BUDGET_S
+
+
+def _tickets_report_key(tour_id):
+    return "tour_tickets:%s" % tour_id
+
+
+def _ago(iso):
+    """'2 h ago' for a stored UTC timestamp, or '' when there is none.
+    Said beside a synced number so nobody reads a stale count as now."""
+    try:
+        then = datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return ""
+    if then.tzinfo is None:
+        then = then.replace(tzinfo=timezone.utc)
+    mins = int((datetime.now(timezone.utc) - then).total_seconds() // 60)
+    if mins < 2:
+        return "just now"
+    if mins < 60:
+        return "%d min ago" % mins
+    if mins < 60 * 48:
+        return "%d h ago" % (mins // 60)
+    return "%d d ago" % (mins // (60 * 24))
+
+
+def _event_url(show):
+    """The Eventbrite page for the event a show is linked to. The ticket
+    link itself when that is the one Eventbrite gave us; otherwise built
+    from the stored id, because the owner's own link points elsewhere."""
+    url = (show.get("ticket_url") or "").strip()
+    if url and tickets.ours(url):
+        return url
+    eid = str(show.get("eventbrite_event_id") or "").strip()
+    return "https://www.eventbrite.com/e/%s" % eid if eid else ""
+
+
 def _ctx(user, tour, viewer, nav, **extra):
     """`nav` is the tour-level tab; `tab` (optional, in extra) is the
     Show Command tab and defaults to nav."""
@@ -990,6 +1036,12 @@ def home(user, tour, viewer, tour_id):
     # What the last Fetch did, said once, from the run itself - never from
     # the query string, which anyone can type.
     ctx["photo_report"] = session.pop(_photo_report_key(tour_id), None) if can(viewer, "edit") else None
+    # Ticket sales, the same way: a button when there is a token, the
+    # plain reason when there is not, and what the last run did - from
+    # the run itself, never from the query string.
+    ctx["tickets_ready"] = eventbrite.configured()
+    ctx["tickets_report"] = session.pop(_tickets_report_key(tour_id), None) if can(viewer, "edit") else None
+    ctx["tickets_line"] = tickets.report_line(ctx["tickets_report"]) if ctx["tickets_report"] else ""
     return render_template("tour/home.html", **ctx)
 
 
@@ -1390,7 +1442,9 @@ def _date_page(user, tour, viewer, show, tab, **extra):
                   "ticket_host": _link_host(show.get("ticket_url") or ""),
                   "support": str(show.get("support") or "").strip(),
                   "capacity": str(show.get("capacity") or "").strip(),
-                  "promoter": str(show.get("promoter") or "").strip()},
+                  "promoter": str(show.get("promoter") or "").strip(),
+                  # measured or typed, said in the same breath as the number
+                  "tickets": _ticket_progress(show)},
         "show_page": True,
         # times
         "schedule": _visible(viewer, rows["schedule"]),
@@ -1535,6 +1589,10 @@ def show_sections(user, tour, viewer, tour_id, show_id):
 
 
 def _ticket_progress(show):
+    """The sold-against-capacity figure, and where it came from: a count
+    Eventbrite measured (with when it was read and the event it came
+    from) or one somebody typed. The page must never present the second
+    as the first, so the two are never merged into one number."""
     try:
         sold = float(str(show.get("tickets_sold") or "").replace(",", ""))
         cap = float(str(show.get("capacity") or "").replace(",", ""))
@@ -1542,7 +1600,11 @@ def _ticket_progress(show):
         return None
     if not cap:
         return None
-    return {"sold": int(sold), "cap": int(cap), "pct": round(100 * sold / cap)}
+    at = str(show.get("tickets_synced_at") or "").strip()
+    synced = bool(str(show.get("eventbrite_event_id") or "").strip() and at)
+    return {"sold": int(sold), "cap": int(cap), "pct": round(100 * sold / cap),
+            "synced": synced, "source": "synced" if synced else "typed",
+            "ago": _ago(at) if synced else "", "event_url": _event_url(show) if synced else ""}
 
 
 @bp.route("/tours/<tour_id>/shows/<show_id>/ext", methods=["POST"])
@@ -2431,6 +2493,44 @@ def venue_fetch_photos(user, tour, viewer, tour_id):
         "&refused=1" if refusal else ""))
 
 
+@bp.route("/tours/<tour_id>/tickets/sync", methods=["POST"])
+@require_tour("edit", "advance")
+def tickets_sync(user, tour, viewer, tour_id):
+    """Ask Eventbrite what each date has actually sold, and write the
+    counts onto the shows it can match. Back to the list with the run's
+    own report: how many were filled, how many had no single match (and
+    which events were on those dates), and Eventbrite's words if it
+    refused the token."""
+    report = tickets.sync(tour, ts.list_shows(tour_id), deadline=_tickets_deadline())
+    # The session carries this one line back to the page; a tour with
+    # fifty unmatched dates must not blow the cookie, so it is trimmed.
+    report = dict(report, unmatched=(report.get("unmatched") or [])[:12],
+                  unmatched_total=len(report.get("unmatched") or []))
+    session[_tickets_report_key(tour_id)] = report
+    return redirect("/tours/%s" % tour_id)
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/tickets/link", methods=["POST"])
+@require_tour("edit", "advance")
+def tickets_link(user, tour, viewer, tour_id, show_id):
+    """Say which Eventbrite event this date is, when the match was
+    ambiguous. The id is stored on the show and every later sync honours
+    it first, so the answer is given once."""
+    show = _show_or_404(tour, show_id)
+    event_id = (request.form.get("event_id") or "").strip()[:60]
+    if not re.match(r"^[A-Za-z0-9_-]+$", event_id or ""):
+        return _back(_show_url(tour, show, "marketing"))
+    ts.update_show_ext(tour_id, show_id, {"eventbrite_event_id": event_id})
+    _log(tour, viewer, "show", show_id, show["venue"],
+         {"eventbrite_event_id": (str(show.get("eventbrite_event_id") or ""), event_id)})
+    # Fill it now from the id just given: no walk of the account is
+    # needed, because the show says which event it is.
+    linked = ts.get_show(tour_id, show_id)
+    if linked:
+        tickets.sync(tour, [linked], events=[], deadline=_tickets_deadline())
+    return _back(_show_url(tour, show, "marketing"))
+
+
 @bp.route("/tours/<tour_id>/shows/<show_id>/venue/from-advance", methods=["POST"])
 @require_tour("edit", "advance")
 def venue_from_advance(user, tour, viewer, tour_id, show_id):
@@ -3043,7 +3143,11 @@ def merch_counts(user, tour, viewer, tour_id, show_id):
 def marketing(user, tour, viewer, tour_id):
     shows = ts.list_shows(tour_id)
     rows = [{"show": s, "progress": _ticket_progress(s), "mk": s.get("marketing") or {}} for s in shows]
-    return render_template("tour/marketing.html", **_ctx(user, tour, viewer, "marketing", shows=shows, rows=rows))
+    # The header must not promise "nothing is connected" on a deployment
+    # where a date's count came straight off Eventbrite.
+    return render_template("tour/marketing.html",
+                           **_ctx(user, tour, viewer, "marketing", shows=shows, rows=rows,
+                                  tickets_ready=eventbrite.configured()))
 
 
 @bp.route("/tours/<tour_id>/shows/<show_id>/marketing", methods=["POST"])

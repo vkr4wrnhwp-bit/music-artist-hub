@@ -86,9 +86,11 @@
     guarantee (only to someone who may read money), the support, the
     capacity and the promoter - plain facts, each only when the sheet
     holds it. Absent when none exists. Nothing here opens anything. -#}
-{% if sheet['ticket_url'] or sheet['guarantee'] or sheet['support'] or sheet['capacity'] or sheet['promoter'] %}
+{% if sheet['ticket_url'] or sheet['guarantee'] or sheet['support'] or sheet['capacity'] or sheet['promoter'] or sheet['tickets'] %}
 <div class="to-sheet" id="sheet">
-  <p class="to-eyebrow">From your sheet</p>
+  {#- The heading has to be true of everything under it: a count read
+      from Eventbrite did not come off anybody's sheet. -#}
+  <p class="to-eyebrow">From your sheet{% if sheet['tickets'] and sheet['tickets']['synced'] %}, and from Eventbrite{% endif %}</p>
   <div class="to-figs">
     {% if sheet['ticket_url'] %}<span class="to-fig"><span>tickets</span><b><a class="to-chip" href="{{ sheet['ticket_url'] }}" target="_blank" rel="noopener">{{ sheet['ticket_host'] }}</a></b></span>{% endif %}
     {% if sheet['guarantee'] %}<span class="to-fig"><span>guarantee</span><b>{{ sheet['guarantee'] }} {{ sheet['currency'] }}</b></span>{% endif %}
@@ -96,6 +98,19 @@
     {% if sheet['capacity'] %}<span class="to-fig"><span>capacity</span><b>{{ sheet['capacity'] }}</b></span>{% endif %}
     {% if sheet['promoter'] %}<span class="to-fig"><span>promoter</span><b>{{ sheet['promoter'] }}</b></span>{% endif %}
   </div>
+  {#- The sold count sits with the rest of the facts, saying in the same
+      breath whether Eventbrite measured it or somebody typed it. -#}
+  {% if sheet['tickets'] and sheet['tickets']['synced'] %}
+  <div class="to-figs" style="margin-top:8px">
+    {{ sb.lcd(sheet['tickets']['sold'] ~ " of " ~ sheet['tickets']['cap'] ~ " sold", "synced " ~ sheet['tickets']['ago']) }}
+    {% if sheet['tickets']['event_url'] %}<span class="to-fig"><span>eventbrite</span><b><a class="to-chip" href="{{ sheet['tickets']['event_url'] }}" target="_blank" rel="noopener">open the event</a></b></span>{% endif %}
+  </div>
+  {% elif sheet['tickets'] %}
+  <div class="to-figs" style="margin-top:8px">
+    <span class="to-fig"><span>tickets sold</span><b>{{ sheet['tickets']['sold'] }} of {{ sheet['tickets']['cap'] }}</b></span>
+    {{ sb.lamp("typed") }}
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 
