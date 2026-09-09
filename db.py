@@ -1499,6 +1499,18 @@ def save_epk_photo(user_id, photo_path):
         )
 
 
+def delete_epk_photo(user_id):
+    """Clear the artist photo. Returns the path that was stored (or "")
+    so the caller can decide whether the file behind it is its own to
+    unlink. A profile with no photo is a no-op, not an error."""
+    with get_db() as db:
+        row = db.execute("SELECT photo FROM epk_profiles WHERE user_id = ?",
+                         (user_id,)).fetchone()
+        db.execute("UPDATE epk_profiles SET photo = NULL, updated = ? WHERE user_id = ?",
+                   (_now(), user_id))
+    return (row["photo"] if row else "") or ""
+
+
 def get_epk(user_id):
     with get_db() as db:
         row = db.execute("SELECT * FROM epk_profiles WHERE user_id = ?", (user_id,)).fetchone()
@@ -1531,6 +1543,18 @@ def set_epk_asset_public(user_id, kind, public):
         cur = db.execute("UPDATE epk_assets SET public = ? WHERE user_id = ? AND kind = ?",
                          (1 if public else 0, user_id, kind))
     return cur.rowcount > 0
+
+
+def delete_epk_asset(user_id, kind):
+    """Drop an asset slot entirely. Returns the path that was stored (or
+    "") - the row is the only record of it, so the caller gets the path
+    back before it is gone. Deleting an empty slot is a no-op."""
+    with get_db() as db:
+        row = db.execute("SELECT path FROM epk_assets WHERE user_id = ? AND kind = ?",
+                         (user_id, kind)).fetchone()
+        db.execute("DELETE FROM epk_assets WHERE user_id = ? AND kind = ?",
+                   (user_id, kind))
+    return (row["path"] if row else "") or ""
 
 
 def get_epk_assets(user_id, public_only=False):

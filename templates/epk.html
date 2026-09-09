@@ -304,6 +304,12 @@
           <input type="file" id="photo-input" accept=".png,.jpg,.jpeg,.webp"
                  class="mt-1 w-full text-xs text-sb-surface-2/60 file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-solid file:border-sb-gold-deep/50 file:bg-sb-gold-deep/10 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-sb-gold-deep">
           <div id="photo-error" class="mt-1 hidden text-xs font-semibold text-red-600"></div>
+          {#- Only when a photo is actually stored. `e.photo` is the saved
+              path itself, not a sample, so this cannot offer to delete
+              something that was never there. -#}
+          {% if e.photo %}
+          <button type="button" id="photo-remove" onclick="return confirm('Remove the artist photo? The file is deleted.')" class="mt-2 sb-btn sb-btn-danger sb-btn-sm">Remove photo</button>
+          {% endif %}
         </div>
 
         {% set field = 'mt-1 w-full rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-sm text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none' %}
@@ -405,7 +411,11 @@
           {% for a in epk.assets %}{% if asset_map.update({a.kind: a}) %}{% endif %}{% endfor %}
           {% for kind, label in asset_kinds %}
           {% set a = asset_map.get(kind) %}
-          <div class="asset-block flex items-center gap-3 rounded-lg border border-sb-surface-2/10 bg-sb-ink p-2.5" data-kind="{{ kind }}">
+          {#- An asset pointed at the Vault shares that file with the
+              Vault, which still owns it, so the two confirmations promise
+              different things - and only the one that is true. -#}
+          {% set own = a and a.path.split('/')[-1].startswith('epkasset_') %}
+          <div class="asset-block flex items-center gap-3 rounded-lg border border-sb-surface-2/10 bg-sb-ink p-2.5" data-kind="{{ kind }}" data-label="{{ label }}">
             {% if a %}
             <img src="{{ a.path | media_url }}" alt="{{ label }}" class="asset-thumb h-11 w-11 shrink-0 rounded-md object-cover">
             {% else %}
@@ -428,6 +438,10 @@
               {{ 'Replace' if a else 'Upload' }}
               <input type="file" class="asset-input hidden" data-kind="{{ kind }}" accept=".png,.jpg,.jpeg,.webp">
             </label>
+            {% if a %}
+            <button type="button" class="asset-remove sb-btn sb-btn-danger sb-btn-sm shrink-0" data-kind="{{ kind }}"
+                    onclick="return confirm('{{ 'Remove the ' ~ label ~ '? The file is deleted.' if own else 'Remove the ' ~ label ~ ' from your press kit? The Vault copy stays.' }}')">Remove</button>
+            {% endif %}
           </div>
           {% endfor %}
           <div>
@@ -522,6 +536,105 @@
   modeEdit.addEventListener("click", () => setMode(false));
   modePreview.addEventListener("click", () => setMode(true));
 
+  // --- Removal ---------------------------------------------------------
+  // Hidden was never gone: unchecking Public left the row and the file in
+  // place, so an artist could never actually take a press photo back. The
+  // controls below delete the row, and the file when this app wrote it.
+  //
+  // The confirmation is the inline `onclick="return confirm(...)"` on each
+  // button, in one place and visible in the markup. Returning false from an
+  // inline handler cancels the event, and these listeners are registered
+  // afterwards, so they stand down on `defaultPrevented` rather than asking
+  // the artist a second time.
+  const EPK_INITIALS = {{ e.initials | tojson }};
+
+  function wireAssetRemove(btn) {
+    btn.addEventListener("click", async (ev) => {
+      if (ev.defaultPrevented) return;
+      const err = document.getElementById("asset-error");
+      err.classList.add("hidden");
+      const block = btn.closest(".asset-block");
+      const res = await fetch("/epk/asset/" + btn.dataset.kind + "/delete",
+                              { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        err.textContent = data.error || "Could not remove that asset.";
+        err.classList.remove("hidden");
+        return;
+      }
+      // Back to the empty state the slot renders on a fresh load.
+      const ph = document.createElement("span");
+      ph.className = "asset-thumb grid h-11 w-11 shrink-0 place-items-center rounded-md border border-dashed border-sb-surface-2/25 text-sb-surface-2/30";
+      ph.textContent = "+";
+      block.querySelector(".asset-thumb").replaceWith(ph);
+      const st = block.querySelector(".asset-status");
+      st.textContent = "Missing";
+      st.className = "asset-status text-xs font-bold uppercase tracking-wide text-amber-700";
+      block.querySelector(".asset-input").parentElement.firstChild.textContent = "Upload";
+      btn.remove();
+    });
+  }
+  document.querySelectorAll(".asset-remove").forEach(wireAssetRemove);
+
+  // A slot that has just been filled without a reload needs its own Remove
+  // control, and it has to promise the right thing: a Vault-backed asset
+  // leaves the Vault copy alone.
+  function setAssetRemove(block, own) {
+    const existing = block.querySelector(".asset-remove");
+    if (existing) existing.remove();
+    const label = block.dataset.label;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "asset-remove sb-btn sb-btn-danger sb-btn-sm shrink-0";
+    btn.dataset.kind = block.dataset.kind;
+    btn.textContent = "Remove";
+    btn.setAttribute("onclick", "return confirm(" + JSON.stringify(
+      own ? "Remove the " + label + "? The file is deleted."
+          : "Remove the " + label + " from your press kit? The Vault copy stays.")
+      + ")");
+    wireAssetRemove(btn);
+    block.appendChild(btn);
+  }
+
+  function setPhotoRemove() {
+    if (document.getElementById("photo-remove")) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "photo-remove";
+    btn.className = "mt-2 sb-btn sb-btn-danger sb-btn-sm";
+    btn.textContent = "Remove photo";
+    btn.setAttribute("onclick",
+      "return confirm('Remove the artist photo? The file is deleted.')");
+    wirePhotoRemove(btn);
+    document.getElementById("photo-error").after(btn);
+  }
+
+  function wirePhotoRemove(btn) {
+    btn.addEventListener("click", async (ev) => {
+      if (ev.defaultPrevented) return;
+      const err = document.getElementById("photo-error");
+      err.classList.add("hidden");
+      const res = await fetch("/epk/photo/delete", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        err.textContent = data.error || "Could not remove the photo.";
+        err.classList.remove("hidden");
+        return;
+      }
+      const img = document.getElementById("epk-photo");
+      if (img) {
+        const fb = document.createElement("span");
+        fb.id = "epk-photo-fallback";
+        fb.className = "grid h-32 w-32 shrink-0 place-items-center rounded-2xl bg-sb-surface-2 text-4xl font-black text-sb-ink";
+        fb.textContent = EPK_INITIALS;
+        img.replaceWith(fb);
+      }
+      btn.remove();
+    });
+  }
+  const photoRemove = document.getElementById("photo-remove");
+  if (photoRemove) wirePhotoRemove(photoRemove);
+
   // Photo upload — saves immediately
   document.getElementById("photo-input").addEventListener("change", async (e) => {
     const f = e.target.files[0];
@@ -542,6 +655,7 @@
         img.className = "h-32 w-32 shrink-0 rounded-2xl object-cover shadow-md";
         fb.replaceWith(img);
       }
+      setPhotoRemove();
     } else { err.textContent = data.error || "Upload failed."; err.classList.remove("hidden"); }
   });
 
@@ -596,6 +710,7 @@
         status.textContent = "Uploaded";
         status.className = "asset-status text-xs font-bold uppercase tracking-wide text-green-700";
         input.parentElement.firstChild.textContent = "Replace";
+        setAssetRemove(block, true);   // this route wrote the file
       } else { err.textContent = data.error || "Upload failed."; err.classList.remove("hidden"); }
     });
   });
@@ -627,6 +742,8 @@
         thumb.replaceWith(img);
         const st = block.querySelector(".asset-status");
         st.textContent = "From Vault"; st.className = "asset-status text-xs font-bold uppercase tracking-wide text-green-700";
+        block.querySelector(".asset-input").parentElement.firstChild.textContent = "Replace";
+        setAssetRemove(block, false);  // the file belongs to the Vault
       }
       sel.value = "";
     });
