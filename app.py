@@ -122,6 +122,7 @@ def _grant_owner_plan(user):
     return False
 import tour_hub_rules as touring   # the old Tour Hub's rule set: public rider/show-day pages, Money Queue fallback
 import tour_store
+import artist_identity
 import artist_os
 import hubs as hub_defs
 from statements_engine import (analyze as analyze_statement, parse_statement,
@@ -301,6 +302,22 @@ def _account_with_user(account):
             "email": user["email"], "role": "Artist Account",
             "plan": plans.PLAN_NAMES.get(plan_key, "Artist"),
             "next_payout": None, "next_payout_in": None}
+
+
+def _epk_account(account, user):
+    """The identity a press kit is published under.
+
+    The sidebar chip is the account - a person, with an email and a plan.
+    A press kit is the act, and the public slug already headlines the act
+    (db.get_epk_by_slug resolves it). The editor and the export used the
+    chip's name, so the same artist could see one name while writing the
+    kit and a different one on the page a label opens. Both resolve
+    through artist_identity now.
+    """
+    name = (artist_identity.display_name(user)
+            or (account or {}).get("name") or "")
+    initials = "".join(p[0] for p in name.split()[:2]).upper() or "?"
+    return {**(account or {}), "name": name, "initials": initials}
 
 
 def _session_is_demo():
@@ -2260,12 +2277,19 @@ def create_app():
         return "-".join(p for p in s.split("-") if p) or "artist"
 
     def _ensure_epk_slug(user):
+        """A kit's public address, minted once and never re-minted.
+
+        The name in it is the act's, not the signup box's - the page it
+        opens is headlined by the act. An existing slug is left exactly
+        as it is: a press link that has been sent out must keep working.
+        """
         saved = store.get_epk(user["id"])
         if saved and saved.get("slug"):
             return saved["slug"]
-        slug = _slugify(user["name"])
+        act = artist_identity.display_name(user) or user["name"]
+        slug = _slugify(act)
         while store.get_epk_by_slug(slug) is not None:
-            slug = "%s-%s" % (_slugify(user["name"]), uuid.uuid4().hex[:4])
+            slug = "%s-%s" % (_slugify(act), uuid.uuid4().hex[:4])
         store.set_epk_slug(user["id"], slug)
         return slug
 
@@ -2318,7 +2342,8 @@ def create_app():
         tour, bit, tour_source = _epk_tour_dates(user["id"] if user else None,
                                                  overrides)
         ctx["tour_dates_count"] = len(tour) if tour_source == "tour" else 0
-        ctx["epk"] = get_epk_data(ctx["account"], ctx["catalog_value"],
+        ctx["epk"] = get_epk_data(_epk_account(ctx["account"], user),
+                                  ctx["catalog_value"],
                                   overrides=overrides, photo=photo, assets=assets,
                                   tour_dates=tour, bandsintown_profile=bit,
                                   tour_source=tour_source,
@@ -2700,7 +2725,8 @@ def create_app():
                                    artist=(owner or {}).get("name", ""))
         slug = (prof or {}).get("slug") or _ensure_epk_slug(owner)
         ctx = build_dashboard_context()
-        name = (owner or {}).get("name", "Artist")
+        _acct = _epk_account({"name": (owner or {}).get("name", "Artist")}, owner)
+        name = _acct["name"] or "Artist"
         initials = "".join(w[0] for w in name.split()[:2]).upper() or "SB"
         assets = _labeled_assets(store.get_epk_assets(share["user_id"],
                                                       public_only=True))
@@ -2841,7 +2867,7 @@ def create_app():
         ctx = build_dashboard_context()
         user = current_user()
         data = get_epk_data(
-            ctx["account"], ctx["catalog_value"],
+            _epk_account(ctx["account"], user), ctx["catalog_value"],
             demo=_is_demo_email((user or {}).get("email") or ""))
         slug = data["name"].lower().replace(" ", "-")
         filename = f"{slug}-press-kit-{datetime.today().strftime('%Y%m%d')}.pdf"
@@ -3906,7 +3932,8 @@ def create_app():
         kit = plan = days_left = None
         if campaign:
             link_url = request.url_root.rstrip("/") + "/l/" + campaign["slug"]
-            kit = artist_os.release_kit(user["name"], campaign["title"],
+            kit = artist_os.release_kit(artist_identity.display_name(user),
+                                        campaign["title"],
                                         campaign.get("release_date"), link_url)
             plan = artist_os.campaign_plan(plan_days, campaign["title"],
                                            campaign.get("release_date"))
@@ -3986,7 +4013,8 @@ def create_app():
         plan_days = request.args.get("days")
         plan_days = int(plan_days) if plan_days in ("14", "30", "60") else 14
         link_url = request.url_root.rstrip("/") + "/l/" + campaign["slug"]
-        kit = artist_os.release_kit(user["name"], campaign["title"],
+        kit = artist_os.release_kit(artist_identity.display_name(user),
+                                    campaign["title"],
                                     campaign.get("release_date"), link_url)
         plan = artist_os.campaign_plan(plan_days, campaign["title"],
                                        campaign.get("release_date"))
@@ -4335,7 +4363,8 @@ def create_app():
                 'text-decoration:none;font-weight:800">Open the drop</a></p>'
                 '<p style="color:#91836A;font-size:12px">This link signs you '
                 'straight in and works for 7 days.</p></div>'
-                % (_html.escape(user["name"] or "Your artist"),
+                % (_html.escape(artist_identity.display_name(user)
+                                or "Your artist"),
                    _html.escape(title),
                    ('<p style="color:#3A3226">%s</p>' % _html.escape(body[:300])
                     if body else ""),
@@ -5164,7 +5193,8 @@ def create_app():
         share_url = ((request.url_root.rstrip("/") + "/showday/" + show["share_token"])
                      if show.get("share_token") else None)
         mail = touring.advance_email(show, show["advance"],
-                                     user["name"] or "The artist", share_url)
+                                     artist_identity.display_name(user)
+                                     or "The artist", share_url)
         import html as _html
         ok = emailer.send(to, mail["subject"],
                           '<pre style="font-family:inherit;white-space:pre-wrap">%s</pre>'
@@ -7321,7 +7351,8 @@ def create_app():
         assets = [{**a, "label": a["kind"].replace("_", " ").title()}
                   for a in store.get_epk_assets(user["id"], public_only=False)]
         ctx = build_dashboard_context()
-        epk_data = get_epk_data(ctx["account"], ctx["catalog_value"],
+        epk_data = get_epk_data(_epk_account(ctx["account"], user),
+                                ctx["catalog_value"],
                                 overrides=saved.get("data"), photo=saved.get("photo"),
                                 assets=assets,
                                 demo=_is_demo_email(user["email"]))
@@ -7974,7 +8005,12 @@ def create_app():
     @app.route("/benchmark")
     def benchmark():
         ctx = build_dashboard_context()
-        ctx["benchmark"] = get_benchmark_data()
+        # The account's own statements, so Est. catalog value is the same
+        # figure /valuation and the press kit show rather than a second
+        # estimate at a second multiple.
+        user = current_user()
+        rows = store.get_statement_rows(user["id"]) if user else []
+        ctx["benchmark"] = get_benchmark_data(rows)
         return render_template("benchmark.html", active_page="benchmark", **ctx)
 
     def _ago(created):

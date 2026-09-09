@@ -1600,15 +1600,33 @@ def get_epk_assets(user_id, public_only=False):
 
 
 def get_epk_by_slug(slug):
+    """The public kit, plus the name it is published under.
+
+    `user_name` used to be `users.name` and nothing else, so a public
+    press kit, fan club and artist hub headlined whatever was typed into
+    the signup box while Pulse, Signal and the metrics provider all
+    measured the act. It resolves through artist_identity now - that
+    module documents the precedence. The import is local because
+    artist_identity reads this module.
+    """
+    import artist_identity
+
     with get_db() as db:
         row = db.execute(
-            "SELECT p.*, u.name AS user_name FROM epk_profiles p "
-            "JOIN users u ON u.id = p.user_id WHERE p.slug = ?", (slug,)).fetchone()
+            "SELECT p.*, u.name AS user_name, u.email AS user_email,"
+            " a.artist_name AS pulse_artist_name FROM epk_profiles p "
+            "JOIN users u ON u.id = p.user_id "
+            "LEFT JOIN pulse_profiles a ON a.user_id = p.user_id "
+            "WHERE p.slug = ?", (slug,)).fetchone()
     if row is None:
         return None
+    name = artist_identity.display_name(
+        {"id": row["user_id"], "name": row["user_name"],
+         "email": row["user_email"]},
+        profile={"artist_name": row["pulse_artist_name"] or ""})
     return {"data": json.loads(row["data"] or "{}"), "photo": row["photo"],
             "slug": row["slug"], "user_id": row["user_id"],
-            "user_name": row["user_name"]}
+            "user_name": name}
 
 
 # --- Pulse snapshots (real growth history) ----------------------------------------

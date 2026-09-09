@@ -33,14 +33,16 @@ comment. No statements means no figure at all.
 """
 
 import capital_engine
+import catalog_value
 import db as store
 import recovery_engine
 import statements_engine
 import trust_score
 
 
-# The same conservative independent-catalog range report_builder quotes.
-MULTIPLES = {"low": 3, "mid": 4, "high": 5}
+# One rule, one place: catalog_value owns the 3-5x band. This name is kept
+# because the page and report_builder read it.
+MULTIPLES = catalog_value.MULTIPLES
 
 
 def _monthly(rows):
@@ -145,7 +147,7 @@ def build(user_id):
         "monthly_avg": monthly_avg,
         "annualized": annualized,
         "multiples": MULTIPLES,
-        "value": {k: round(annualized * m) for k, m in MULTIPLES.items()},
+        "value": catalog_value.band(annualized),
         # One or two months is evidence of a month or two, not of a year.
         "thin": months < 3,
         # A statement with no period column cannot be annualised at all.

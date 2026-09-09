@@ -15,6 +15,8 @@ computable findings on the artist's own numbers:
 import csv
 import io
 
+import catalog_value
+
 # Header aliases -> canonical fields. Compared lowercased/stripped.
 _TITLE_COLS = {"title", "track", "track title", "song", "song title", "track_name",
                "trackname", "song_name", "release title", "asset title", "work title"}
@@ -175,13 +177,13 @@ def build_royalty_summary(rows):
             monthly[r["period"]] = monthly.get(r["period"], 0) + r["amount"]
     trend = [(p, round(a, 2)) for p, a in sorted(monthly.items())]
     result["monthly_trend"] = trend[-12:]
-    # Valuation signal: annualize the average tracked month, apply a
-    # conservative independent-catalog multiple range.
+    # Valuation signal: annualize the average tracked month, apply the
+    # conservative independent-catalog multiple range. The band itself is
+    # catalog_value's to decide - this used to hardcode a second copy of
+    # 3/4/5, and epk_config.real_stats reads the answer straight onto a
+    # press kit.
     months = max(len(monthly), 1)
     annualized = round(result["total"] / months * 12, 2)
     result["annualized"] = annualized
-    result["valuation"] = {
-        "low": round(annualized * 3), "mid": round(annualized * 4),
-        "high": round(annualized * 5),
-    }
+    result["valuation"] = catalog_value.band(annualized)
     return result
