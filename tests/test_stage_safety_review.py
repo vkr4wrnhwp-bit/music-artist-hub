@@ -236,8 +236,12 @@ def test_stale_is_defined_once_and_falls_the_show_back_to_request_mode(show):
     stale, offline = pol["heartbeat_stale_s"], ss.offline_after_s(pol)
     assert offline > stale
     # Heartbeats are stored to the second, so the boundaries are tested a
-    # second either side rather than on the line.
-    now = datetime.now(timezone.utc)
+    # second either side rather than on the line - and the ages are measured
+    # from the heartbeat itself, not from "now": setting the show up can take
+    # a second, which put age 19 past a 20-second line one run in several.
+    now = ss.parse(show["device"]["last_heartbeat"])
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
     for age, state, code in ((0, "online", "ok"), (stale - 1, "online", "ok"),
                              (stale + 2, "stale", "device_stale"),
                              (offline - 1, "stale", "device_stale"),
