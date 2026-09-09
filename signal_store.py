@@ -654,6 +654,16 @@ def list_releases(artist_id):
 
 
 def replace_metrics(artist_id, provider, points):
+    """Replace one provider's whole series for one ROSTER artist.
+
+    `artist_id` is a `signal_artists` row - the shared A&R roster - not a
+    Street Banker account. The account's own audience history lives in
+    `pulse_snapshots`, which is a separate series on purpose; the note
+    above `record_pulse_snapshot` in db.py says why the two were not
+    folded together. The clearest reason is right here: this deletes the
+    provider's rows before writing, so it is safe for an ingest run and
+    unusable as the backing store for a chart an artist is watching.
+    """
     now = _now()
     with get_db() as db:
         db.execute("DELETE FROM signal_metrics WHERE artist_id=? AND provider=?", (artist_id, provider))

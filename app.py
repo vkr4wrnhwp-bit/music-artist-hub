@@ -3964,9 +3964,17 @@ def create_app():
                 {"campaign": request.args["campaign"]})
         return redirect(target + "#clean")
 
-    _RESOLVE_MAP = [("isrc", "isrc", "ISRC"), ("upc", "upc", "UPC"),
-                    ("label", "label", "Label"),
-                    ("songwriters", "writers", "Songwriters"),
+    # Passport fields the catalog record does NOT read through the link,
+    # as (passport key, catalog meta key, label).
+    #
+    # ISRC, UPC and Label used to be here too. They were the manual bridge
+    # between two copies of the same code: a code typed on the passport
+    # sat there until somebody noticed this card and pressed Pull into
+    # catalog. db.get_catalog_tracks reads those three through the
+    # passport link now (see _META_TO_PASSPORT in db.py), so there is
+    # nothing left to pull - offering the button anyway would promise to
+    # copy something already visible.
+    _RESOLVE_MAP = [("songwriters", "writers", "Songwriters"),
                     ("publishers", "publishers", "Publishers")]
 
     def _passport_resolves(user_id):

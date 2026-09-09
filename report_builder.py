@@ -31,6 +31,7 @@ import io
 from datetime import date
 
 import capital_engine
+import catalog_value
 import db as store
 import royalty_types
 
@@ -120,8 +121,13 @@ def _catalog_valuation_report(user_id):
     out = [["Tracked income", "%.2f" % total],
            ["Statement periods", periods],
            ["Annualised pace", "%.2f" % annualised]]
-    for label, mult in (("Low (3x)", 3), ("Mid (4x)", 4), ("High (5x)", 5)):
-        out.append([label, "%.2f" % (annualised * mult)])
+    # A fourth hardcoded copy of the band, and the one that leaves the
+    # building: this is the CSV a label receives. It reads catalog_value
+    # now, so the sheet and the page it was quoted from cannot drift.
+    for key in ("low", "mid", "high"):
+        mult = catalog_value.MULTIPLES[key]
+        out.append(["%s (%gx)" % (key.title(), mult),
+                    "%.2f" % (annualised * mult)])
     out.append(["Basis", "Annualised from your uploaded statement months "
                          "with a conservative independent-catalog multiple. "
                          "An estimate, not an appraisal, and not financial "
