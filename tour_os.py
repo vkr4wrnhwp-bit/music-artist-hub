@@ -26,6 +26,7 @@ Plan
 """
 import hashlib
 import hmac
+import json
 import os
 import re
 import time
@@ -48,6 +49,7 @@ import tour_advance_mail as tam
 import tour_engine as eng
 import tour_store as ts
 import tour_tickets as tickets
+import venue_geo
 import venue_photos
 
 bp = Blueprint("tours", __name__)
@@ -538,6 +540,197 @@ def _photo_quietly(tour, show_id, deadline=None):
 
 def _photo_report_key(tour_id):
     return "tour_photos:%s" % tour_id
+
+
+# --- where the room is ------------------------------------------------------
+# Coordinates from Google's Geocoding API, the room's IANA zone from their
+# Time Zone API, and - only when their Routes API answers - a measured
+# drive between two dates. All three on the one GOOGLE_MAPS_API_KEY the
+# venue photos already use. Nothing here estimates: a leg with no routed
+# answer shows the straight line and says "straight line".
+
+# The same budget as the photos, for the same reason: two 10s calls per
+# venue against a worker gunicorn kills at 180s.
+GEO_BUDGET_S = 30
+
+
+def _geo_deadline():
+    return _clock() + GEO_BUDGET_S
+
+
+def _geo_report_key(tour_id):
+    return "tour_geo:%s" % tour_id
+
+
+def _geo_wanted(venue):
+    """Whether a record names somewhere Google could be asked about. A
+    record with a name and nothing else is not looked up - a bare venue
+    name geocodes to whatever in the world best matches that string - so
+    it is skipped rather than counted as an address Google did not know."""
+    if not venue:
+        return False
+    name = (venue.get("name") or "").strip()
+    if not name or name.upper() == "TBA":
+        return False
+    if (venue.get("place_id") or "").strip():
+        return True          # one exact Places record; no string to drift
+    return bool((venue.get("address") or "").strip() and (venue.get("city") or "").strip()) \
+        or bool((venue.get("address") or "").strip() and (venue.get("region") or "").strip())
+
+
+def _geo_query(venue):
+    """The one line handed to the geocoder: the street address with its
+    city, region and country after it."""
+    parts = [(venue.get("address") or "").strip()]
+    for k in ("city", "region", "country"):
+        val = (venue.get(k) or "").strip()
+        if val and val.lower() not in [p.lower() for p in parts if p]:
+            parts.append(val)
+    return ", ".join(p for p in parts if p)[:400]
+
+
+def ensure_venue_geo(venue, deadline=None):
+    """Coordinates and a time zone on one venue record. Returns 'off' (no
+    provider), 'skipped' (nothing to look up), 'present' (already has
+    them - a hand-typed pair is never replaced), 'deferred' (the
+    request's budget was spent), 'found', or 'missing' (Google did not
+    know the address, or refused; the caller reads last_refusal() to tell
+    those two apart)."""
+    if not venue_geo.configured():
+        return "off"
+    if not _geo_wanted(venue):
+        return "skipped"
+    if (venue.get("lat") or "").strip() and (venue.get("lng") or "").strip():
+        return "present"
+    if deadline is not None and _clock() > deadline:
+        return "deferred"
+    found = venue_geo.geocode(_geo_query(venue), place_id=venue.get("place_id") or "")
+    if not found:
+        return "missing"
+    # The zone is a second call and a second thing that can fail. A venue
+    # with coordinates and no zone is still worth having, so a failure
+    # here loses the zone, not the coordinates.
+    tz = venue_geo.timezone_at(found["lat"], found["lng"])
+    if tz and not eng.valid_tz(tz):
+        tz = None
+    ts.set_venue_geo(venue["user_id"], venue["id"], found["lat"], found["lng"],
+                     tz=tz, address=found.get("formatted_address") or "")
+    return "found"
+
+
+def fill_show_tz(tour, show, venue):
+    """A date with no zone of its own takes the zone of the room it is in,
+    and the record says that is where it came from. A zone somebody typed
+    is never touched: this only ever writes into a blank."""
+    if (show.get("tz") or "").strip():
+        return False
+    z = ((venue or {}).get("tz") or "").strip()
+    if not z or not eng.valid_tz(z):
+        return False
+    ts.update_show_ext(tour["id"], show["id"], {"tz": z, "tz_source": "venue"})
+    return True
+
+
+def _leg_key(frm, to):
+    """One cached drive, keyed by the two points to four decimal places -
+    about eleven metres, so two dates at the same room share the answer
+    and a re-run costs nothing."""
+    def r(v):
+        try:
+            return "%.4f" % float(v)
+        except (TypeError, ValueError):
+            return "?"
+    return "geo_leg:%s,%s|%s,%s" % (r(frm[0]), r(frm[1]), r(to[0]), r(to[1]))
+
+
+def leg_drive(frm, to):
+    """The routed drive between two points if one was ever measured, else
+    None. Reads the store only - a page render never calls Google."""
+    raw = store.get_kv(_leg_key(frm, to))
+    if not raw:
+        return None
+    try:
+        val = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(val, dict) or not val.get("seconds") or not val.get("meters"):
+        return None
+    return {"meters": int(val["meters"]), "seconds": int(val["seconds"])}
+
+
+def measure_leg(frm, to, deadline=None):
+    """Ask Routes for one drive and keep it. Returns the drive, or None -
+    which the page reads as "no measured duration", never as a guess."""
+    got = leg_drive(frm, to)
+    if got:
+        return got
+    if not venue_geo.configured() or not venue_geo.routes_available():
+        return None
+    if deadline is not None and _clock() > deadline:
+        return None
+    got = venue_geo.drive(frm, to)
+    if not got:
+        return None
+    store.set_kv(_leg_key(frm, to), json.dumps({"meters": got["meters"], "seconds": got["seconds"]}))
+    return got
+
+
+def _sched_time(rows, show_id, categories):
+    """The first of these categories with a real clock time on this show."""
+    for cat in categories:
+        for r in rows:
+            if r.get("show_id") == show_id and r.get("category") == cat \
+                    and (r.get("precision") or "exact") != "tbd" \
+                    and re.match(r"^\d{1,2}:\d{2}$", r.get("start_time") or ""):
+                return r["start_time"]
+    return None
+
+
+def overnight_gap(tour, frm_show, to_show, seconds, rows):
+    """Whether a measured drive does not make the next day's load-in.
+
+    Only ever computed from a duration Google measured and two times
+    somebody entered: leaving on the previous night's bus call (or its
+    curfew), arriving before the next date's load-in. A leg with no routed
+    duration, or either time missing, returns None and the page says
+    nothing rather than warning about a drive nobody has measured."""
+    if not seconds:
+        return None
+    out_at = _sched_time(rows, frm_show["id"], ("bus_call", "curfew"))
+    in_at = _sched_time(rows, to_show["id"], ("load_in", "call"))
+    if not out_at or not in_at:
+        return None
+    home = tour.get("home_tz") or "UTC"
+    day = frm_show["date"]
+    # A bus call at 02:00 is the small hours of the following date, not
+    # twenty-two hours before the show it belongs to.
+    if int(out_at.split(":")[0]) < 5:
+        try:
+            day = (date.fromisoformat(day) + timedelta(days=1)).isoformat()
+        except ValueError:
+            return None
+    dep = eng.local_dt(day, out_at, frm_show.get("tz") or home)
+    arr_by = eng.local_dt(to_show["date"], in_at, to_show.get("tz") or home)
+    if dep is None or arr_by is None:
+        return None
+    arrive = dep + timedelta(seconds=seconds)
+    if arrive <= arr_by:
+        return None
+    late = int((arrive - arr_by).total_seconds() // 60)
+    # Both clock times on the flag are the destination's, which is the one
+    # the load-in is in: an arrival printed in the zone left behind is the
+    # kind of number that gets a crew to a room an hour late.
+    return {"leave": out_at, "arrive": arrive.astimezone(arr_by.tzinfo).strftime("%H:%M"),
+            "load_in": in_at, "late_minutes": late, "late_text": _hhmm(late)}
+
+
+def _hhmm(minutes):
+    """90 -> '1 h 30 m'. Minutes measured, never rounded into a story."""
+    minutes = int(minutes or 0)
+    h, m = divmod(minutes, 60)
+    if h and m:
+        return "%d h %d m" % (h, m)
+    return ("%d h" % h) if h else ("%d m" % m)
 
 
 # How long one request may spend asking Eventbrite, in seconds. The walk
@@ -1039,6 +1232,11 @@ def home(user, tour, viewer, tour_id):
     # Ticket sales, the same way: a button when there is a token, the
     # plain reason when there is not, and what the last run did - from
     # the run itself, never from the query string.
+    # And where the rooms are: the same line, the same rule. A record with
+    # no address is not counted, because a press could do nothing for it.
+    ctx["geo_ready"] = venue_geo.configured()
+    ctx["geo_missing"] = _geo_missing(tour, tour_id) if ctx["geo_ready"] else 0
+    ctx["geo_report"] = session.pop(_geo_report_key(tour_id), None) if can(viewer, "edit") else None
     ctx["tickets_ready"] = eventbrite.configured()
     ctx["tickets_report"] = session.pop(_tickets_report_key(tour_id), None) if can(viewer, "edit") else None
     ctx["tickets_line"] = tickets.report_line(ctx["tickets_report"]) if ctx["tickets_report"] else ""
@@ -1629,6 +1827,7 @@ def show_ext(user, tour, viewer, tour_id, show_id):
             fields.pop("venue_id")
         elif not fields.get("tz") and v.get("tz"):
             fields["tz"] = v["tz"]
+            fields["tz_source"] = "venue"      # so the page can say where it came from
     changed = ts.update_show_ext(tour_id, show_id, fields)
     if full and "status" in request.form and request.form["status"] in ts.SHOW_STATUSES:
         if request.form["status"] != show["status"]:
@@ -2395,6 +2594,8 @@ def venue_save(user, tour, viewer, tour_id):
         changed = ts.update_venue(tour["user_id"], vid, fields)
         if changed is None:
             abort(404)
+        if "lat" in changed or "lng" in changed:
+            ts.clear_venue_geo_stamp(tour["user_id"], vid)
         _log(tour, viewer, "venue", vid, fields.get("name") or "Venue", changed)
     else:
         vid = ts.add_venue(tour["user_id"], fields)
@@ -2403,7 +2604,8 @@ def venue_save(user, tour, viewer, tour_id):
                           "created", "", fields.get("city") or "", "info")
     link_show = request.form.get("link_show_id")
     if vid and link_show and ts.get_show(tour_id, link_show):
-        ts.update_show_ext(tour_id, link_show, {"venue_id": vid, "tz": fields.get("tz") or ""})
+        ts.update_show_ext(tour_id, link_show, {"venue_id": vid, "tz": fields.get("tz") or "",
+                                                "tz_source": "venue" if fields.get("tz") else ""})
         return redirect(_show_url(tour, {"id": link_show}, "venue"))
     return _back("/tours/%s/venues" % tour_id)
 
@@ -2491,6 +2693,96 @@ def venue_fetch_photos(user, tour, viewer, tour_id):
     return redirect("/tours/%s?photos=%d&missing=%d%s%s" % (
         tour_id, fetched, len(missed), "&unreached=%d" % unreached if unreached else "",
         "&refused=1" if refusal else ""))
+
+
+def _tour_venues(tour, tour_id):
+    """The venue records the dates on this tour point at, once each, in
+    date order."""
+    out, seen = [], set()
+    for s in ts.list_shows(tour_id):
+        vid = s.get("venue_id") or ""
+        if not vid or vid in seen:
+            continue
+        seen.add(vid)
+        venue = ts.get_venue(tour["user_id"], vid)
+        if venue is not None:
+            out.append(venue)
+    return out
+
+
+def _geo_missing(tour, tour_id):
+    return sum(1 for v in _tour_venues(tour, tour_id)
+               if _geo_wanted(v) and not ((v.get("lat") or "").strip() and (v.get("lng") or "").strip()))
+
+
+@bp.route("/tours/<tour_id>/venues/fetch-coordinates", methods=["POST"])
+@require_tour("edit", "advance")
+def venue_fetch_coordinates(user, tour, viewer, tour_id):
+    """Ask Google where each room on this tour is, then fill the time zone
+    of any date that has none, then measure the drives between the dates
+    that now have coordinates. Back to the list with the run's own
+    numbers - and, if Google refused the key, with Google's words rather
+    than a claim that it did not know the addresses."""
+    found, missing, unreached, zoned, routed = 0, 0, 0, 0, 0
+    refusal = routes_refusal = None
+    if venue_geo.configured():
+        venue_geo.clear_refusal()
+        venue_geo.reset_routes()
+        deadline = _geo_deadline()
+        for venue in _tour_venues(tour, tour_id):
+            try:
+                got = ensure_venue_geo(venue, deadline=deadline)
+            except Exception:
+                continue
+            if got == "found":
+                found += 1
+            elif got == "missing":
+                missing += 1
+            elif got == "deferred":
+                unreached += 1
+        # Read the refusal here, before the drives are attempted: Routes
+        # is a different API on the same key and refuses on its own, and
+        # that must not be reported as "Google refused the coordinates".
+        refusal = venue_geo.last_refusal()
+        venue_geo.clear_refusal()
+        # A date with no zone of its own takes the room's, once the room
+        # has one. Re-read: the records changed a moment ago.
+        venues = {v["id"]: v for v in ts.list_venues(tour["user_id"])}
+        for s in ts.list_shows(tour_id):
+            try:
+                if fill_show_tz(tour, s, venues.get(s.get("venue_id") or "")):
+                    zoned += 1
+            except Exception:
+                continue
+        # And the drives, between consecutive dated shows that both have
+        # coordinates. Routes is a separate API on the same key; when it
+        # refuses, the first leg says so and the rest are not asked.
+        prev = None
+        for s in ts.list_shows(tour_id):
+            v = venues.get(s.get("venue_id") or "")
+            here = _coords(v)
+            if prev and here:
+                try:
+                    if measure_leg(prev, here, deadline=deadline):
+                        routed += 1
+                except Exception:
+                    pass
+            if here:
+                prev = here
+        routes_refusal = venue_geo.last_refusal()
+    session[_geo_report_key(tour_id)] = {
+        "found": found, "missing": missing, "unreached": unreached, "zoned": zoned,
+        "routed": routed, "refused": (refusal or {}).get("message") or "",
+        "refused_status": (refusal or {}).get("status") or "",
+        "routes_refused": (routes_refusal or {}).get("message") or "",
+        "routes_refused_status": (routes_refusal or {}).get("status") or ""}
+    return redirect("/tours/%s" % tour_id)
+
+
+def _coords(venue):
+    """(lat, lng) off a venue record, or None. Both or neither."""
+    lat, lng = (venue or {}).get("lat") or "", (venue or {}).get("lng") or ""
+    return (lat, lng) if str(lat).strip() and str(lng).strip() else None
 
 
 @bp.route("/tours/<tour_id>/tickets/sync", methods=["POST"])
@@ -3622,6 +3914,7 @@ def route_map(user, tour, viewer, tour_id):
     shows = ts.list_shows(tour_id)
     venues = {v["id"]: v for v in ts.list_venues(tour["user_id"])}
     days = ts.list_days(tour_id)
+    sched = ts.list_schedule(tour_id)
     legs = []
     prev = None
     for s in shows:
@@ -3637,8 +3930,18 @@ def route_map(user, tour, viewer, tour_id):
             km = _haversine_km(prev["coords"], stop["coords"]) if prev["coords"] and stop["coords"] else None
             origin = prev["address"] or prev["city"] or prev["show"]["venue"]
             dest = stop["address"] or stop["city"] or s["venue"]
+            # A drive Google measured, if one was ever measured for these
+            # two points; otherwise the straight line this app computed
+            # itself. Each number on the page names which it is, and a
+            # duration is printed only when there is a measured one - a
+            # straight line has no drive time and none is invented.
+            drive = leg_drive(prev["coords"], stop["coords"]) if prev["coords"] and stop["coords"] else None
+            late = overnight_gap(tour, prev["show"], s, (drive or {}).get("seconds"), sched) if drive else None
             legs.append({"frm": prev, "to": stop, "gap_days": gap, "km": km,
                          "miles": round(km * 0.621371) if km else None,
+                         "drive": drive, "late": late,
+                         "drive_miles": round(drive["meters"] * 0.000621371) if drive else None,
+                         "drive_text": _hhmm(round(drive["seconds"] / 60.0)) if drive else "",
                          # Routing flags from dates alone: two shows on one
                          # day, or on consecutive days. No drive time is
                          # guessed; the flag says look before locking both.
@@ -3656,7 +3959,8 @@ def route_map(user, tour, viewer, tour_id):
     fuel["per_show"] = eng.fuel_per_show(fuel, len(shows))
     return render_template("tour/map.html", **_ctx(
         user, tour, viewer, "map", shows=shows, legs=legs, off_days=off_days, venues=venues,
-        fuel=fuel, drives=drives, first=shows[0] if shows else None))
+        fuel=fuel, drives=drives, first=shows[0] if shows else None,
+        geo_ready=venue_geo.configured()))
 
 
 @bp.route("/tours/<tour_id>/fuel", methods=["POST"])
