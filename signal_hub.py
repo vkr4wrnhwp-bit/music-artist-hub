@@ -637,9 +637,17 @@ def alert_rule_delete(org, member, rule_id):
 
 def _own_act_names(app_user):
     """The owner's own acts, as names Signal could look up: every distinct
-    artist_name on their TOUR tours, then the account name when an EPK
-    exists for it (the kit is published under that name). Nothing here
-    calls a provider - these are suggestions the operator clicks."""
+    artist_name on their TOUR tours, then the account's own name when an
+    EPK exists for it (the kit is published under that name). Nothing here
+    calls a provider - these are suggestions the operator clicks.
+
+    This function was the app reconciling three name columns at read
+    time. It still reads the tours, because a tour can be for another
+    act; what it no longer does is reach for `users.name` and call that
+    the account's act. artist_identity resolves that - one accessor, one
+    documented precedence - so the name suggested here is the same one
+    the press kit, the press desk and the artist twin use.
+    """
     if not app_user:
         return []
     names, seen = [], set()
@@ -656,8 +664,9 @@ def _own_act_names(app_user):
     except Exception:                                  # noqa: BLE001 - a suggestion, never a failure
         pass
     try:
+        import artist_identity
         if store.get_epk(app_user["id"]) is not None:
-            add(app_user.get("name"))
+            add(artist_identity.display_name(app_user))
     except Exception:                                  # noqa: BLE001
         pass
     return names[:12]

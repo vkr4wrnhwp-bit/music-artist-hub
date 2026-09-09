@@ -7,6 +7,7 @@ Deterministic template generation today — an AI provider can slot in
 behind generate() later without changing the consent layer.
 """
 
+import artist_identity
 import db as store
 import links_engine
 import links_store as mls
@@ -62,7 +63,10 @@ def gather_context(user_id, enabled):
             facts["tempo_key"] = ", ".join(bits)
             used.append("rack")
     user = store.get_user(user_id)
-    facts["name"] = user["name"] if user else "the artist"
+    # The act, not the signup box: this sentence introduces the artist to
+    # whoever the twin is answering. artist_identity documents which
+    # record wins.
+    facts["name"] = artist_identity.display_name(user) or "the artist"
     if "epk" in enabled:
         saved = store.get_epk(user_id) or {}
         data = saved.get("data") or {}

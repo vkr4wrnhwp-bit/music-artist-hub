@@ -28,6 +28,7 @@ On sending, which is the part worth being careful about:
   Recipients marked do-not-contact or bounced are dropped in the store
   while the pitch is built, so no form can reach them.
 """
+import artist_identity
 import email_provider as emailer
 import db as store
 import press_store
@@ -220,7 +221,7 @@ def release_new(user):
         release_id = press_store.create_release(user["id"], request.form)
         return redirect(url_for("press.release_edit", release_id=release_id))
     return render_template("press/release_form.html", **_ctx(
-        user, release=None, artist_name=user.get("name") or ""))
+        user, release=None, artist_name=artist_identity.display_name(user)))
 
 
 @bp.route("/press-desk/announcements/<release_id>", methods=["GET", "POST"])
@@ -233,7 +234,7 @@ def release_edit(user, release_id):
         press_store.update_release(user["id"], release_id, request.form)
         release = press_store.get_release(user["id"], release_id)
     return render_template("press/release_form.html", **_ctx(
-        user, release=release, artist_name=user.get("name") or "",
+        user, release=release, artist_name=artist_identity.display_name(user),
         embargoed=press_store.embargo_active(release)))
 
 
@@ -265,7 +266,7 @@ def pitch_new(user):
             request.form.get("subject") or DEFAULT_SUBJECT,
             request.form.get("body") or DEFAULT_BODY,
             request.form.get("mode") or press_store.MODE_OWN_INBOX,
-            artist_name=user.get("name") or "",
+            artist_name=artist_identity.display_name(user),
             link_base=_base_url())
         if pitch_id is None:
             abort(404)

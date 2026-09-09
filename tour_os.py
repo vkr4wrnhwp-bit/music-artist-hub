@@ -36,6 +36,7 @@ from datetime import date, datetime, timedelta, timezone
 from flask import (Blueprint, Response, abort, redirect, render_template,
                    request, session, url_for)
 
+import artist_identity
 import blob_store
 import command_center
 import db as store
@@ -1161,16 +1162,20 @@ def create():
         tz = "UTC"
     f = request.form
     one_off = bool(f.get("one_off"))
+    # A tour can be for a different act, so artist_name stays per tour -
+    # but the default offered is the account's own act, not whatever was
+    # typed into the signup box. See artist_identity.
+    own_act = artist_identity.display_name(user)
     if one_off:
         # A one-off show is a tour of one date, its single show made now.
         if not re.match(r"^\d{4}-\d{2}-\d{2}$", f.get("date") or ""):
             return redirect("/tours?one_off=date")
         venue = (f.get("venue") or "").strip() or "TBA"
-        fields = {"name": "%s · %s" % (venue, f.get("date")), "artist_name": f.get("artist_name") or user.get("name"),
+        fields = {"name": "%s · %s" % (venue, f.get("date")), "artist_name": f.get("artist_name") or own_act,
                   "start_date": f.get("date"), "end_date": f.get("date"),
                   "home_tz": tz, "currency": f.get("currency") or "USD"}
     else:
-        fields = {"name": f.get("name"), "artist_name": f.get("artist_name") or user.get("name"),
+        fields = {"name": f.get("name"), "artist_name": f.get("artist_name") or own_act,
                   "start_date": f.get("start_date"), "end_date": f.get("end_date"),
                   "home_tz": tz, "currency": f.get("currency") or "USD"}
     tour_id = ts.create_tour(user["id"], fields)
