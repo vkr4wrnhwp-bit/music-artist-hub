@@ -2064,7 +2064,7 @@ def create_app():
     # fill it. Nothing derived from a credit is in this list, on purpose.
     _DISCOGS_FILLS = (("label", "label"), ("release_title", "title"),
                       ("release_date", "released"), ("upc", "barcode"),
-                      ("isrc", "isrc"))
+                      ("isrc", "isrc"), ("catalog_number", "catno"))
 
     def _discogs_back(user, track_id):
         """Where a lookup lands: the catalog section for a plan that has
@@ -2082,10 +2082,12 @@ def create_app():
             "artist": (passport.get("artist_name")
                        or (row["catalog"] or {}).get("artist") or "").strip(),
             "title": (row["t"]["title"] or "").strip(),
-            # The passport has no catalogue-number field of its own, so the
-            # only one this app holds is the one an attached pressing
-            # supplied - which is what narrows a re-lookup to that pressing.
-            "catno": (link.get("catno") or "").strip(),
+            # A catalogue number identifies a pressing almost on its own.
+            # The typed one wins: the artist reading it off their own
+            # sleeve is better evidence than the pressing already
+            # attached, and it is the only one a FIRST lookup can have.
+            "catno": ((passport.get("catalog_number") or "").strip()
+                      or (link.get("catno") or "").strip()),
             "barcode": (passport.get("upc") or meta.get("upc") or "").strip(),
         }
 
@@ -4761,7 +4763,9 @@ def create_app():
     _CSV_PASSPORT = {"isrc": "isrc", "upc": "upc", "writers": "songwriters",
                      "songwriters": "songwriters", "producers": "producers",
                      "publishers": "publishers", "pro": "pro",
-                     "label": "label", "master_owner": "master_owner"}
+                     "label": "label", "master_owner": "master_owner",
+                     "catalog_number": "catalog_number",
+                     "catno": "catalog_number"}
 
     def _passports_home(user):
         """Where the passport forms land: the catalog section for a plan
@@ -4835,6 +4839,7 @@ def create_app():
                                lanes=artist_os.lane_grid(track, ctx),
                                lockbox=artist_os.lockbox_report(track),
                                fields=artist_os.PASSPORT_FIELDS,
+                               passport_notes=artist_os.PASSPORT_NOTES,
                                **build_dashboard_context())
 
     def _track_mlc_state(user_id, track):
@@ -4921,6 +4926,8 @@ def create_app():
             abort(404)
         passport = track["passport"]
         for key, _label, _crit, _fix in artist_os.PASSPORT_FIELDS:
+            passport[key] = (request.form.get(key) or "").strip()[:200]
+        for key, _label, _hint in artist_os.PASSPORT_NOTES:
             passport[key] = (request.form.get(key) or "").strip()[:200]
         for extra in ("audio_ok", "artwork_ok"):
             passport[extra] = "1" if request.form.get(extra) else ""

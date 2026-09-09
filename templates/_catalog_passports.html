@@ -60,7 +60,7 @@
         </label>
         <span id="id3-msg" class="text-xs text-gray-300 font-medium">Pick an MP3 — the title fills in from its real embedded tag. The file stays on your device.</span>
         <form method="post" action="/tracks/import" enctype="multipart/form-data" class="ml-auto flex items-center gap-2">
-          <label class="cursor-pointer rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-gray-200 hover:bg-white/5" title="Columns: title (required), release, release_date, isrc, upc, writers, producers, publishers, pro, label">
+          <label class="cursor-pointer rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-gray-200 hover:bg-white/5" title="Columns: title (required), release, release_date, isrc, upc, catno, writers, producers, publishers, pro, label">
             Import CSV catalog<input type="file" name="csv" accept=".csv,text/csv" class="hidden" onchange="this.form.submit()">
           </label>
         </form>

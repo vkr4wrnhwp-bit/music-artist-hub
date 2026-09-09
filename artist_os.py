@@ -36,6 +36,20 @@ PASSPORT_FIELDS = [
     ("dsp_routing",     "DSP profile routing",      False, "/connections"),
 ]
 
+# (key, label, hint) - passport fields that are STORED and used, but
+# never scored. A catalogue number is the label's own number for a
+# pressing; most artists have never needed one and could not fill it
+# in. Counting it would drag every completeness score down and revoke
+# Clean Release certificates over a number that says nothing about
+# whether a release is clean. It earns its place by sharpening a
+# Discogs lookup, so it is asked for and left out of the maths.
+PASSPORT_NOTES = [
+    ("catalog_number", "Catalogue number",
+     "The label's own number for this pressing, printed on the sleeve "
+     "or centre label - like PB 41447. Optional, and never counted "
+     "toward your score: it only sharpens a Discogs lookup."),
+]
+
 _NEGATIVE = ("blocked", "issue", "unresolved", "declined", "disputed", "no")
 _POSITIVE_HINTS = ("registered", "cleared", "signed", "licensed", "approved",
                    "complete", "done", "yes", "clean", "routed", "n/a",

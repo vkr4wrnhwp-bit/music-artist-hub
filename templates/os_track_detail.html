@@ -39,6 +39,14 @@
                  class="mt-1 w-full rounded-lg border px-3 py-2 text-sm text-white placeholder-gray-300 focus:outline-none {{ 'border-red-500/40 bg-red-500/[0.06] focus:border-red-400' if item.state == 'red' else 'border-white/15 bg-black/40 focus:border-sb-gold' }}">
         </div>
         {% endfor %}
+        {% for key, label, hint in passport_notes %}
+        <div class="sm:col-span-2">
+          <label class="sb-label text-gray-300">{{ label }}<span class="ml-1.5 font-medium normal-case tracking-normal text-gray-300">— optional, not scored</span></label>
+          <input name="{{ key }}" value="{{ track.passport.get(key, '') }}"
+                 class="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white placeholder-gray-300 focus:border-sb-gold focus:outline-none">
+          <p class="mt-1 text-xs text-gray-300 font-medium">{{ hint }}</p>
+        </div>
+        {% endfor %}
         <label class="flex items-center gap-2 text-xs font-bold text-gray-200"><input type="checkbox" name="audio_ok" value="1" {{ 'checked' if track.passport.get('audio_ok') }} class="h-4 w-4 accent-sb-gold">Audio quality confirmed (final master checked)</label>
         <label class="flex items-center gap-2 text-xs font-bold text-gray-200"><input type="checkbox" name="artwork_ok" value="1" {{ 'checked' if track.passport.get('artwork_ok') }} class="h-4 w-4 accent-sb-gold">Artwork specs confirmed (3000×3000, rights cleared)</label>
         <div class="sm:col-span-2">

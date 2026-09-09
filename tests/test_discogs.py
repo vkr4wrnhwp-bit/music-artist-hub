@@ -376,6 +376,121 @@ def test_the_lookup_lists_candidates_and_runs_only_when_it_is_asked_for(monkeypa
     assert store.get_discogs_link(user["id"], track["id"]) is None, "a search writes nothing"
 
 
+def test_the_catalogue_number_is_asked_for_and_never_scored():
+    """Most artists have never needed a catalogue number and could not
+    produce one. So it is asked for - it sharpens a Discogs lookup - but
+    it is not one of the fields completeness counts. A field the owner
+    cannot fill must never cost them a percentage point or a
+    certificate."""
+    import artist_os
+
+    assert "catalog_number" not in [k for k, *_ in artist_os.PASSPORT_FIELDS]
+    assert "catalog_number" in [k for k, *_ in artist_os.PASSPORT_NOTES]
+
+    scored = {k: "registered / cleared / signed"
+              for k, *_ in artist_os.PASSPORT_FIELDS}
+    without = artist_os.passport_report(
+        {"id": "t1", "title": "Song", "passport": dict(scored)})
+    blank = artist_os.passport_report(
+        {"id": "t2", "title": "Song", "passport": dict(scored, catalog_number="")})
+    filled = artist_os.passport_report(
+        {"id": "t3", "title": "Song",
+         "passport": dict(scored, catalog_number="PB 41447")})
+
+    assert without["pct"] == 100 and without["overall"] == "green"
+    assert (blank["pct"], blank["overall"]) == (100, "green"), \
+        "an empty catalogue number is not an incomplete passport"
+    assert (filled["pct"], filled["overall"]) == (100, "green")
+    assert "catalog_number" not in [i["key"] for i in without["items"]]
+
+
+def test_attaching_a_pressing_cannot_cost_a_track_its_clean_score(monkeypatch):
+    """The attach writes a catalogue number into the passport. That must
+    move nothing: a track sitting at a perfect score before the lookup is
+    still sitting at it afterwards."""
+    import artist_os
+    _adapter_obj, _fake = _connect(monkeypatch)
+    client, user = _artist(create_app())
+    track = _track(client, user, **{k: "registered / cleared / signed"
+                                    for k, *_ in artist_os.PASSPORT_FIELDS})
+    before = artist_os.passport_report(store.get_os_track(user["id"], track["id"]))
+    assert before["pct"] == 100
+
+    client.post("/tracks/%s/discogs" % track["id"],
+                data={"action": "attach", "release_id": "249504"})
+
+    after_track = store.get_os_track(user["id"], track["id"])
+    assert after_track["passport"]["catalog_number"] == "PB 41447"
+    after = artist_os.passport_report(after_track)
+    assert (after["pct"], after["overall"]) == (100, "green")
+
+
+def test_the_passport_form_asks_for_the_catalogue_number_and_keeps_it(monkeypatch):
+    """It is on the form the owner actually edits, marked optional, and a
+    save round-trips it rather than wiping what a lookup supplied."""
+    import artist_os
+    _adapter_obj, _fake = _connect(monkeypatch)
+    client, user = _artist(create_app())
+    track = _track(client, user)
+
+    page = client.get("/tracks/%s" % track["id"]).get_data(as_text=True)
+    assert 'name="catalog_number"' in page
+    assert "optional, not scored" in page
+
+    form = {k: "registered / cleared / signed"
+            for k, *_ in artist_os.PASSPORT_FIELDS}
+    form["catalog_number"] = "PB 41447"
+    client.post("/tracks/%s/passport" % track["id"], data=form)
+
+    saved = store.get_os_track(user["id"], track["id"])
+    assert saved["passport"]["catalog_number"] == "PB 41447"
+    assert artist_os.passport_report(saved)["pct"] == 100
+    # And it reaches Discogs, which is the whole reason it is asked for.
+    assert "PB 41447" in client.get("/tracks/%s" % track["id"]).get_data(as_text=True)
+
+
+def test_a_typed_catalogue_number_narrows_the_very_first_lookup(monkeypatch):
+    """The passport holds a catalogue number of its own, so the owner can
+    read "PB 41447" off their own sleeve and have the FIRST lookup ask by
+    it. Before the field existed the only catalogue number this app held
+    came from an already-attached pressing - which a first lookup, by
+    definition, does not have."""
+    _adapter_obj, fake = _connect(monkeypatch)
+    client, user = _artist(create_app())
+    track = _track(client, user, catalog_number="PB 41447")
+    assert store.get_discogs_link(user["id"], track["id"]) is None
+
+    client.post("/tracks/%s/discogs" % track["id"], data={"action": "search"})
+    page = client.get("/tracks?discogs=%s" % track["id"]).get_data(as_text=True)
+
+    search = [c for c in fake.calls if "/database/search" in c["url"]]
+    assert search and "catno=PB+41447" in search[-1]["url"]
+    assert "catalogue PB 41447" in page, "and it says so in what it asked"
+
+
+def test_a_typed_catalogue_number_outranks_the_attached_pressings(monkeypatch):
+    """A re-lookup asks by what the artist typed, not by the pressing
+    already attached. The typed number is the artist reading their own
+    record; the attached one is a guess this app made earlier, and
+    correcting it is exactly why somebody looks a song up again."""
+    _adapter_obj, fake = _connect(monkeypatch)
+    client, user = _artist(create_app())
+    track = _track(client, user)
+    client.post("/tracks/%s/discogs" % track["id"],
+                data={"action": "attach", "release_id": "249504"})
+    assert store.get_discogs_link(user["id"], track["id"])["catno"] == "PB 41447"
+
+    passport = store.get_os_track(user["id"], track["id"])["passport"]
+    passport["catalog_number"] = "BMG 74321"
+    store.update_os_track_passport(user["id"], track["id"], passport)
+    client.post("/tracks/%s/discogs" % track["id"], data={"action": "search"})
+    client.get("/tracks?discogs=%s" % track["id"])
+
+    search = [c for c in fake.calls if "/database/search" in c["url"]]
+    assert "catno=BMG+74321" in search[-1]["url"]
+    assert "catno=PB+41447" not in search[-1]["url"]
+
+
 def test_attach_stores_the_link_and_fills_only_empty_passport_fields(monkeypatch):
     _adapter_obj, _fake = _connect(monkeypatch)
     client, user = _artist(create_app())
@@ -392,6 +507,8 @@ def test_attach_stores_the_link_and_fills_only_empty_passport_fields(monkeypatch
     assert passport["release_title"] == "Never Gonna Give You Up"
     assert passport["release_date"] == "1987-07"
     assert passport["upc"] == "5012394144777"
+    assert passport["catalog_number"] == "PB 41447", \
+        "the number printed on the sleeve - what a re-lookup then asks by"
 
     link = store.get_discogs_link(user["id"], track["id"])
     assert link["release_id"] == "249504" and link["master_id"] == "96559"
@@ -399,7 +516,8 @@ def test_attach_stores_the_link_and_fills_only_empty_passport_fields(monkeypatch
     assert link["url"] == "https://www.discogs.com/release/249504"
     # The link records exactly which fields Discogs supplied, so a filled
     # value can always be told from a typed one afterwards.
-    assert set(link["filled"]) == {"release_title", "release_date", "upc"}
+    assert set(link["filled"]) == {"release_title", "release_date", "upc",
+                                   "catalog_number"}
     assert "label" not in link["filled"] and "isrc" not in link["filled"]
 
     page = client.get("/tracks").get_data(as_text=True)
