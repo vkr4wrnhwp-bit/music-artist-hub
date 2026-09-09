@@ -1419,6 +1419,24 @@ def _ensure_passport_for(user_id, catalog_id, track):
     return pid
 
 
+# The three identifier codes that live on both sides of the Catalog <->
+# Passport link, as (catalog meta key, passport key).
+#
+# SOURCE OF TRUTH: the passport. `os_tracks.passport["isrc"]` is the copy
+# the artist types on the track page, the copy recovery_mlc.py asks The
+# MLC with, and the copy the clean-release certificate is printed from.
+# `catalog_tracks.meta["isrc"]` was a second, independent copy filled by
+# the Deezer lookup, and it was the only one Catalog and /identifiers
+# read - so a code typed on the passport was invisible on the catalog
+# row, counted as "Missing ISRC" on the health card, and had to be typed
+# a second time (or pulled by hand through the clean-release Resolve
+# button) before anything else in the app would see it.
+#
+# `set_catalog_track_meta` copies a looked-up code down into an empty
+# passport field, so a code entered on the catalog side still reaches the
+# MLC path; `get_catalog_tracks` reads the passport's copy back up, so a
+# code entered on the passport side reaches Catalog. Neither overwrites a
+# value the artist typed.
 _META_TO_PASSPORT = (("isrc", "isrc"), ("upc", "upc"), ("label", "label"))
 
 
@@ -1447,14 +1465,29 @@ def set_catalog_track_meta(user_id, track_id, meta):
 
 
 def get_catalog_tracks(user_id):
+    """The song list, with each row's identifier codes read through its
+    passport link rather than from a second copy. See _META_TO_PASSPORT
+    for why the passport is the source of truth."""
     with get_db() as db:
         rows = db.execute(
-            "SELECT * FROM catalog_tracks WHERE user_id = ? ORDER BY added DESC",
+            "SELECT c.*, o.passport AS _passport FROM catalog_tracks c"
+            " LEFT JOIN os_tracks o ON o.id = c.passport_track_id"
+            " WHERE c.user_id = ? ORDER BY c.added DESC",
             (user_id,)).fetchall()
     out = []
     for r in rows:
         d = dict(r)
+        raw = d.pop("_passport", None)
         d["meta"] = json.loads(d["meta"]) if d.get("meta") else None
+        try:
+            passport = json.loads(raw or "{}")
+        except ValueError:
+            passport = {}
+        for mk, pk in _META_TO_PASSPORT:
+            code = str(passport.get(pk) or "").strip()
+            if code:
+                d["meta"] = dict(d["meta"] or {})
+                d["meta"][mk] = code
         out.append(d)
     return out
 
@@ -1630,6 +1663,39 @@ def get_epk_by_slug(slug):
 
 
 # --- Pulse snapshots (real growth history) ----------------------------------------
+#
+# NOT a duplicate of signal_store's `signal_metrics`, and deliberately not
+# folded into it (audit ruling, 2026-09-09).
+#
+# The two series look alike - a dated audience number with a provider
+# beside it - and the audit proposed making this one a per-user view over
+# signal_metrics. It cannot be done without changing what the readers
+# measure, so it has not been:
+#
+#   Different subject.  `pulse_snapshots.user_id` is a Street Banker
+#                       account. `signal_metrics.artist_id` is a row in
+#                       `signal_artists`, the shared A&R roster, which has
+#                       no account column at all - there is no link from
+#                       an account to a roster artist to read through.
+#                       Signal is roster-wide and org-scoped by design
+#                       ("shared intelligence (no organization_id by
+#                       design)"); Pulse is one artist's own history.
+#   Different writer.   Pulse is written on a page load from the account's
+#                       own connected profile. signal_metrics is replaced
+#                       wholesale per provider by the ingest run
+#                       (`signal_store.replace_metrics` deletes the
+#                       provider's rows first), so a series a user is
+#                       watching would come and go with an operator's
+#                       refresh.
+#   The premise moved.  The audit's reason for preferring signal_metrics
+#                       was that only it records which provider measured a
+#                       value. `provider` is part of this table's primary
+#                       key now, so both series are attributed.
+#
+# trust_score, insights_engine, qualification and twin_report all read the
+# Spotify series here and must keep meaning the same thing, so the
+# duplication stays - documented, not silently tolerated. If an account is
+# ever bound to a `signal_artists` row, this is the note to revisit.
 
 def record_pulse_snapshot(user_id, followers, popularity, deezer_fans,
                           provider="spotify", day=None, monthly_listeners=None):

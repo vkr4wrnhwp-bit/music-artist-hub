@@ -197,3 +197,132 @@ def test_a_new_tour_defaults_to_the_act_not_the_signup_box(artist):
     assert r.status_code == 302
     tours = tour_store.list_tours(artist["uid"])
     assert tours and tours[0]["artist_name"] == ACT
+
+
+# --- Finding 2: one ISRC ------------------------------------------------------
+
+ISRC = "USAIW2600777"
+
+
+def test_an_isrc_typed_on_the_passport_is_the_one_catalog_shows(artist):
+    """Catalog read `catalog_tracks.meta["isrc"]`, a second copy filled
+    only by the Deezer lookup. A code the artist typed on the passport -
+    the copy the MLC check asks with - was invisible on the catalog row,
+    counted as a missing ISRC on the health card, and had to be entered
+    twice."""
+    import db as store
+
+    client = artist["client"]
+    client.post("/tracks/add", data={"title": "Night Drive",
+                                     "release_title": "Midnight EP"})
+    track = [t for t in store.list_os_tracks(artist["uid"])
+             if t["title"] == "Night Drive"][0]
+    assert (store.get_catalog_tracks(artist["uid"])[0].get("meta") or {}
+            ).get("isrc") in (None, "")
+
+    passport = track["passport"]
+    passport["isrc"] = ISRC
+    store.update_os_track_passport(artist["uid"], track["id"], passport)
+
+    row = store.get_catalog_tracks(artist["uid"])[0]
+    assert row["meta"]["isrc"] == ISRC
+    assert row["passport_track_id"] == track["id"], "read through the link"
+
+    body = client.get("/catalog").get_data(as_text=True)
+    assert ISRC in body
+
+
+def test_a_code_looked_up_on_the_catalog_side_reaches_the_mlc_check(artist):
+    """The other direction, which already worked and must keep working:
+    the passport is what recovery_mlc and the /tracks MLC button read."""
+    import db as store
+
+    artist["client"].post("/tracks/add", data={"title": "Cold Room"})
+    track = [t for t in store.list_os_tracks(artist["uid"])
+             if t["title"] == "Cold Room"][0]
+    catalog_id = [c for c in store.get_catalog_tracks(artist["uid"])
+                  if c["passport_track_id"] == track["id"]][0]["id"]
+
+    store.set_catalog_track_meta(artist["uid"], catalog_id, {"isrc": ISRC})
+    assert store.get_os_track(artist["uid"], track["id"])["passport"]["isrc"] == ISRC
+    assert store.get_catalog_tracks(artist["uid"])[0]["meta"]["isrc"] == ISRC
+
+
+def test_a_passport_code_never_loses_to_a_looked_up_one(artist):
+    """A code the artist typed is a decision. A lookup fills an empty
+    field and nothing else - in either direction."""
+    import db as store
+
+    artist["client"].post("/tracks/add", data={"title": "Hollow"})
+    track = [t for t in store.list_os_tracks(artist["uid"])
+             if t["title"] == "Hollow"][0]
+    passport = track["passport"]
+    passport["isrc"] = ISRC
+    store.update_os_track_passport(artist["uid"], track["id"], passport)
+
+    catalog_id = [c for c in store.get_catalog_tracks(artist["uid"])
+                  if c["passport_track_id"] == track["id"]][0]["id"]
+    store.set_catalog_track_meta(artist["uid"], catalog_id,
+                                 {"isrc": "USAIW2600000", "label": "Ghost Rec"})
+
+    assert store.get_os_track(artist["uid"], track["id"])["passport"]["isrc"] == ISRC
+    row = [c for c in store.get_catalog_tracks(artist["uid"])
+           if c["id"] == catalog_id][0]
+    assert row["meta"]["isrc"] == ISRC, "one code, the artist's"
+    # An empty passport field still learns from the lookup.
+    assert row["meta"]["label"] == "Ghost Rec"
+
+
+def test_nothing_still_calls_a_coded_track_uncoded(artist):
+    """The health card and the Command Center alert both counted a track
+    with a passport ISRC as missing one, because both read the second
+    copy."""
+    import command_center
+    import db as store
+
+    client = artist["client"]
+    client.post("/tracks/add", data={"title": "Signal Fire"})
+    track = [t for t in store.list_os_tracks(artist["uid"])
+             if t["title"] == "Signal Fire"][0]
+    alerts = command_center.build_alerts(artist["uid"])
+    assert any("missing an ISRC" in a[1] for a in alerts)
+
+    passport = track["passport"]
+    passport["isrc"] = ISRC
+    store.update_os_track_passport(artist["uid"], track["id"], passport)
+
+    alerts = command_center.build_alerts(artist["uid"])
+    assert not any("missing an ISRC" in a[1] for a in alerts)
+    assert ISRC in client.get("/catalog").get_data(as_text=True)
+
+
+# --- Finding 3: two follower series, on purpose --------------------------------
+
+def test_the_two_audience_series_are_documented_as_separate(artist):
+    """NOT consolidated (audit ruling, 2026-09-09).
+
+    signal_metrics is keyed on a `signal_artists` roster row, which has no
+    account column, so there is no link to read a per-user view through;
+    and its writer replaces a provider's whole series on every ingest run.
+    pulse_snapshots is now provider-stamped in its own primary key, which
+    was the audit's only stated reason for preferring the other table.
+    What must not happen is the duplication going unrecorded.
+    """
+    import inspect
+
+    import db as store
+    import signal_store
+
+    source = inspect.getsource(store)
+    i = source.index("def record_pulse_snapshot")
+    assert "signal_metrics" in source[max(0, i - 2500):i], (
+        "the pulse series must say why it is not the signal one")
+    assert "pulse_snapshots" in inspect.getdoc(signal_store.replace_metrics)
+
+    # And the thing that made them look alike is gone: both are attributed.
+    store.record_pulse_snapshot(artist["uid"], 100, 10, 0, provider="spotify")
+    store.record_pulse_snapshot(artist["uid"], 900, 10, 0, provider="soundcharts")
+    spotify = store.list_pulse_snapshots(artist["uid"], provider="spotify")
+    assert [s["followers"] for s in spotify] == [100], (
+        "trust_score, insights_engine, qualification and twin_report read "
+        "this series and must keep meaning the same thing")

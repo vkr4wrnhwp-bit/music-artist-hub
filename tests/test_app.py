@@ -4859,18 +4859,30 @@ def test_clean_release_nodes_resolve_ping_and_certificate():
                                              "artist": "Cert Artist"})
     page = client.get("/releases/autopilot?campaign=%s"
                       % cid).get_data(as_text=True)
-    # Group meters + passport-pull card with the real value.
+    # Group meters, and the ISRC already on the catalog record: the code
+    # lives on the passport and the catalog row reads it through the link
+    # (one source of truth, 2026-09-09). It used to need this card's
+    # Pull into catalog button pressed before anything else could see it.
     assert "Release assets" in page and "sb-meter" in page
-    assert "Resolve from Track Passport" in page and "USSB12600009" in page
+    ct_before = [t for t in store_mod.get_catalog_tracks(uid) if t["id"] == ctid][0]
+    assert ct_before["meta"]["isrc"] == "USSB12600009"
+    assert "Resolve from Track Passport" not in page, "nothing left to pull"
     # A dated at-risk track pings the inbox exactly once.
     client.get("/releases/autopilot?campaign=%s" % cid)
     pings = [n for n in store_mod.list_notifications(uid)
              if n["kind"] == "release_risk"]
     assert len(pings) == 1 and "Neon Nights" in pings[0]["title"]
-    # Applying the pull writes the passport value into the catalog record.
+    # The card is still the bridge for the fields that are genuinely two
+    # records - songwriters and publishers - and pulling still works.
+    p = store_mod.get_os_track(uid, tid)["passport"]
+    p["songwriters"] = "A. Rivers"
+    store_mod.update_os_track_passport(uid, tid, p)
+    page = client.get("/releases/autopilot?campaign=%s" % cid).get_data(as_text=True)
+    assert "Resolve from Track Passport" in page and "A. Rivers" in page
     client.post("/clean-release/resolve", data={"catalog_id": ctid})
     ct = [t for t in store_mod.get_catalog_tracks(uid) if t["id"] == ctid][0]
     assert ct["meta"]["isrc"] == "USSB12600009"
+    assert ct["meta"]["writers"] == "A. Rivers"
     # Certificate is gated until the track really scores 100...
     assert client.get("/tracks/%s/certificate" % tid).status_code == 302
     # ...then unlocks: full passport, lockbox n/a, live link, rollout, fan.
