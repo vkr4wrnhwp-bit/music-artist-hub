@@ -446,6 +446,44 @@ class SoundchartsAdapter(_EnvProvider):
         except Exception:
             pass                     # the answer is still good without a cache
 
+    def cached_at(self, path, params=None):
+        """When the live cache last stored an answer to this question, or
+        None if it holds none it would still serve.
+
+        A page that shows one of these figures has to be able to say how
+        old it is. Without this the six-hour cache is invisible from
+        outside, and a caption would have to call a figure live that can
+        be six hours behind.
+        """
+        ttl = self.cache_ttl()
+        if not ttl:
+            return None
+        try:
+            import db
+            raw = db.get_kv(self.cache_key(path, params or {}))
+        except Exception:
+            return None
+        if not raw:
+            return None
+        try:
+            entry = json.loads(raw)
+            at = datetime.fromisoformat(entry["at"])
+        except Exception:
+            return None
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        if entry.get("status") != 200 or (_utcnow() - at).total_seconds() > ttl:
+            return None
+        return at
+
+    def metrics_cached_at(self, provider_artist_id, start, end):
+        """When the monthly-listeners answer behind `get_artist_metrics`
+        for this window was measured. The capability's own age, asked for
+        without the caller needing to know the endpoint."""
+        return self.cached_at(
+            "/api/v2/artist/%s/streaming/spotify/listening" % provider_artist_id,
+            {"startDate": start.isoformat(), "endDate": end.isoformat()})
+
     # -- transport --
     def _get(self, path, **params):
         if not self.configured():

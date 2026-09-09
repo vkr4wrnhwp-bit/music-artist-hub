@@ -1858,14 +1858,14 @@ def create_app():
         ctx["catalog_user"] = user
         ctx["my_tracks"] = store.get_catalog_tracks(user["id"]) if user else []
         # Identifiers, folded in from /identifiers: the same records, read
-        # for their codes. Nothing this app reads ever pulls an ISWC, and
-        # the page says so rather than showing an empty column.
+        # for their codes. The ISWC is pulled: a matched work at The MLC
+        # carries one, and the passport link puts it on the catalog row.
         ids_rows = []
         for t in ctx["my_tracks"]:
             m = t.get("meta") or {}
-            ids_rows.append({"title": t["title"], "artist": t["artist"],
+            ids_rows.append({"id": t["id"], "title": t["title"], "artist": t["artist"],
                              "isrc": m.get("isrc") or "", "upc": m.get("upc") or "",
-                             "label": m.get("label") or "",
+                             "label": m.get("label") or "", "iswc": "",
                              "release_date": m.get("release_date") or ""})
         ctx["ids_rows"] = ids_rows
         ctx["ids_with_isrc"] = sum(1 for r in ids_rows if r["isrc"])
@@ -1879,6 +1879,15 @@ def create_app():
         ctx.update(_passport_section(user, ctx["my_tracks"]) if user else
                    {"passport_rows": [], "passport_pipeline": [],
                     "passport_cert": None, "passport_summary": None})
+        # ISWC coverage: catalog rows whose linked passport holds an MLC
+        # check with a work code on it. Counted after the passports are
+        # read, because that is where the code comes from.
+        ctx["ids_with_iswc"] = len([r for r in ctx["passport_rows"]
+                                    if r["catalog"] and r["iswc"]])
+        _iswc_by_catalog_id = {r["catalog"]["id"]: r["iswc"]
+                               for r in ctx["passport_rows"] if r["catalog"]}
+        for row in ids_rows:
+            row["iswc"] = _iswc_by_catalog_id.get(row["id"], "")
         # Group saved tracks into real releases keyed by UPC (or album title).
         releases = {}
         for t in ctx["my_tracks"]:
@@ -1984,6 +1993,9 @@ def create_app():
                          "caps": artist_os.lockbox_report(t)["caps"],
                          "isrc": (passport.get("isrc") or meta.get("isrc") or "").strip(),
                          "mlc": checks[0] if checks else None,
+                         # The one identifier nothing in this app used to
+                         # pull: a matched work at The MLC carries it.
+                         "iswc": artist_os.mlc_evidence(t)["iswc"],
                          "certificate": (not clean["blocked"]
                                          and clean["score"] >= 100)})
         summary = _os_summary(user["id"], [t for _ct, t in ordered], osctx)
@@ -2283,7 +2295,6 @@ def create_app():
             ctx["epk_public_url"] = "/epk/" + _ensure_epk_slug(user)
         ctx["user"] = user
         ctx["asset_kinds"] = _EPK_ASSET_KINDS
-        ctx["bandsintown_configured"] = bandsintown.configured()
         share = store.get_epk_share(user["id"]) if user else None
         ctx["pitch_share"] = share
         ctx["pitch_stats"] = (store.epk_share_stats(share["token"])
@@ -2303,6 +2314,11 @@ def create_app():
                                   overrides=overrides, photo=photo, assets=assets,
                                   tour_dates=tour, bandsintown_profile=bit,
                                   tour_source=tour_source,
+                                  # None, not [] - with nothing real the
+                                  # editor keeps the sample strip, which
+                                  # the banner under it labels as such.
+                                  stats_override=((_epk_real_stats(user["id"]) or None)
+                                                  if user else None),
                                   demo=_is_demo_email(user["email"]))
         return render_template("epk.html", active_page="press-desk", **ctx)
 
@@ -2342,18 +2358,131 @@ def create_app():
         public = bool((request.get_json(silent=True) or {}).get("public"))
         return jsonify({"ok": store.set_epk_asset_public(user["id"], kind, public)})
 
+    # --- Audience metrics through the provider registry ----------------------
+    #
+    # Artist Pulse read Spotify's own Web API directly, so the one number
+    # a label asks for first - monthly listeners - was not on the page at
+    # all: Spotify's public API does not carry it. A provider that does
+    # (Soundcharts, today) answers CAP_METRICS through the registry, and
+    # its figures are stored as provider-stamped snapshots beside the
+    # Spotify ones rather than replacing them.
+
+    _METRICS_WINDOW_DAYS = 30
+
+    def _metrics_provider():
+        """The registry's REAL metrics provider, or None.
+
+        `for_capability` answers with the mock while nothing real is
+        configured. A real artist's name beside invented listener counts
+        is the fabrication this product refuses everywhere else, so the
+        mock is not accepted here: no provider means "Not measured".
+        """
+        import signal_providers as sp
+        reg = sp.registry()
+        prov = reg.for_capability(sp.CAP_METRICS)
+        return None if prov is None or prov is reg.mock else prov
+
+    def _metrics_artist_id(prov, user_id, profile):
+        """The provider's own id for this artist: read from the pulse
+        profile, or resolved once by search and stored there.
+
+        Searching on every page load would spend a billed call to learn
+        what the last one already established.
+        """
+        if profile.get("provider") == prov.key and profile.get("provider_artist_id"):
+            return profile["provider_artist_id"]
+        try:
+            found = prov.search_artists(profile.get("artist_name") or "", limit=1)
+        except Exception:
+            return ""                # a provider that is down is not an answer
+        pid = (found[0].get("provider_artist_id") or "") if found else ""
+        if pid:
+            store.save_pulse_provider_artist(user_id, prov.key, pid)
+        return pid
+
+    def _provider_metrics(user_id, profile, fetch=True):
+        """Followers and monthly listeners from the metrics provider.
+
+        Returns None when no real provider covers CAP_METRICS, or when it
+        holds nothing for this artist - never a placeholder number.
+        `fetch=False` reads only what is already stored, which is what a
+        public press kit does: a stranger opening a pitch link must not
+        spend the artist's provider quota.
+        """
+        prov = _metrics_provider()
+        if prov is None or not profile:
+            return None
+        end = datetime.now(timezone.utc).date()
+        start = end - timedelta(days=_METRICS_WINDOW_DAYS)
+        pid = ""
+        if fetch:
+            pid = _metrics_artist_id(prov, user_id, profile)
+            if pid:
+                try:
+                    rows = prov.get_artist_metrics(pid, start, end)
+                except Exception:
+                    rows = []            # degrade to what is already stored
+                by_day = {}
+                for r in rows:
+                    by_day.setdefault(r["date"], {})[r["metric"]] = r["value"]
+                for day, vals in by_day.items():
+                    store.record_pulse_snapshot(
+                        user_id, vals.get("spotify_followers") or 0, 0, 0,
+                        provider=prov.key, day=day,
+                        monthly_listeners=vals.get("spotify_monthly_listeners"))
+        snaps = store.list_pulse_snapshots(user_id, limit=_METRICS_WINDOW_DAYS + 5,
+                                           provider=prov.key)
+        if not snaps:
+            return None
+        latest = snaps[-1]
+        listeners = next((s["monthly_listeners"] for s in reversed(snaps)
+                          if s["monthly_listeners"] is not None), None)
+        followers = next((s["followers"] for s in reversed(snaps) if s["followers"]), None)
+        hours = None
+        cached_at = getattr(prov, "metrics_cached_at", None)
+        if pid and cached_at is not None:
+            try:
+                at = cached_at(pid, start, end)
+            except Exception:
+                at = None
+            if at is not None:
+                hours = int((datetime.now(timezone.utc) - at).total_seconds() // 3600)
+        if hours is None:
+            note = "Measured by %s; the snapshot on file is from %s." % (
+                prov.label, latest["day"])
+        elif hours < 1:
+            note = "Measured by %s, less than an hour ago." % prov.label
+        elif hours == 1:
+            note = "Measured by %s, 1 hour ago." % prov.label
+        else:
+            note = "Measured by %s, %d hours ago." % (prov.label, hours)
+        return {"provider": prov.key, "label": prov.label,
+                "monthly_listeners": listeners, "followers": followers,
+                "as_of": latest["day"], "cached_hours": hours,
+                "snapshots": snaps, "note": note}
+
     def _epk_real_stats(user_id):
         """Headline figures for a press kit, from the artist's own data.
 
-        Returns [] when there is nothing real to show, and the press kit
-        then renders no stats at all - which is the honest answer for an
-        empty account, and better than borrowing the demo catalogue's
-        numbers on a page that goes to a label.
+        One helper for all three doors - the editor, the public slug and
+        the private pitch link. Two of them used to pass nothing, so the
+        demo catalogue's four numbers rendered on a page that goes to a
+        label, over the artist's name.
+
+        Audience comes from whatever the registry has for CAP_METRICS,
+        read from the snapshots Artist Pulse already stored: a stranger
+        opening a pitch link must not spend the artist's provider quota,
+        and a kit is not the place to discover a vendor is down.
+
+        Returns [] when there is nothing real to show.
         """
         try:
+            metrics = _provider_metrics(user_id, store.get_pulse_profile(user_id),
+                                        fetch=False)
             return epk_config.real_stats(
                 store.get_statement_rows(user_id),
-                len(store.get_catalog_tracks(user_id) or []))
+                len(store.get_catalog_tracks(user_id) or []),
+                metrics=metrics)
         except Exception:
             return []
 
@@ -2450,13 +2579,22 @@ def create_app():
                                                       public_only=True))
         tour, bit, tour_source = _epk_tour_dates(share["user_id"],
                                                  (prof or {}).get("data"))
+        _demo_owner = _is_demo_email((owner or {}).get("email") or "")
         data = get_epk_data({"name": name, "initials": initials},
                             ctx["catalog_value"],
                             overrides=(prof or {}).get("data"),
                             photo=(prof or {}).get("photo"),
                             assets=assets, tour_dates=tour, bandsintown_profile=bit,
                             tour_source=tour_source,
-                            demo=_is_demo_email((owner or {}).get("email") or ""))
+                            # A private pitch link is not a showcase: it
+                            # goes to one named person who asked for it,
+                            # so sample totals there read as this
+                            # artist's. With nothing measured the strip
+                            # says "Not measured" in every slot instead.
+                            stats_override=(_epk_real_stats(share["user_id"])
+                                            or (None if _demo_owner
+                                                else epk_config.not_measured_stats())),
+                            demo=_demo_owner)
         viewer = current_user()
         if viewer is None or viewer["id"] != share["user_id"]:
             first_today = not store.epk_viewed_today(token, today)
@@ -4315,6 +4453,7 @@ def create_app():
             "on": sp.mlc_adapter().configured(),
             "isrc": (passport.get("isrc") or "").strip().upper(),
             "artist": (passport.get("artist_name") or "").strip(),
+            "evidence": artist_os.mlc_evidence(track),
             "checks": store.list_track_mlc_checks(user_id, track["id"]),
             "note": {
                 "off": "The MLC is not connected on this service.",
@@ -4351,11 +4490,12 @@ def create_app():
                     fills["songwriters"] = writers[:200]
                 if pubs and not (passport.get("publishers") or "").strip():
                     fills["publishers"] = pubs[:200]
-                # Only a match by ISRC says THIS recording is registered;
-                # a title match says a work of that name exists.
-                if check["asked"].startswith("ISRC ") and not (passport.get("mlc_status") or "").strip():
-                    fills["mlc_status"] = ("registered - matched at The MLC, song code %s, %g%% claimed"
-                                           % (work.get("song_code") or "?", work.get("share_total") or 0))[:200]
+                # The registration status is NOT written here any more.
+                # It used to compose a sentence into mlc_status, and the
+                # engines then graded that sentence - evidence laundered
+                # into prose, and indistinguishable afterwards from a
+                # sentence the artist typed. The check itself is the
+                # record; artist_os.mlc_evidence reads it.
                 if fills:
                     passport.update(fills)
                     store.update_os_track_passport(user["id"], track_id, passport)
@@ -6692,6 +6832,11 @@ def create_app():
                 store.record_pulse_snapshot(user["id"], pulse["followers"],
                                             pulse["popularity"],
                                             (deezer or {}).get("fans", 0))
+        # Monthly listeners, which Spotify's own public API does not
+        # carry, from whichever provider the registry has for CAP_METRICS.
+        # None of this is required for the Spotify and Deezer blocks: with
+        # no real metrics provider the page is exactly what it was.
+        metrics = _provider_metrics(user["id"], profile) if profile else None
         snaps = store.list_pulse_snapshots(user["id"], limit=30)
         # Peers: pinned artists' PUBLIC Spotify numbers, snapshotted on the
         # same cadence — a real comparison, not a modeled one.
@@ -6747,6 +6892,7 @@ def create_app():
         return render_template("pulse.html", active_page="pulse",
                                pulse_configured=spotify.pulse_configured(),
                                profile=profile, pulse=pulse, deezer=deezer,
+                               metrics=metrics,
                                snaps=snaps, peers=peers, my_delta7=my_delta7,
                                milestone=milestone,
                                link_stats={"pageviews": pageviews, "clicks": clicks,

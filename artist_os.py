@@ -123,6 +123,87 @@ def lockbox_report(track):
     return {"docs": docs, "caps": caps}
 
 
+# --- The MLC, as evidence rather than as prose ----------------------------------
+
+MLC_SHARE_FLOOR = 99.5      # below this, somebody is not collecting
+
+
+def mlc_evidence(track):
+    """What is actually known about this recording's mechanical
+    registration.
+
+    Both Clean Release and the mechanicals lane used to grade the
+    free-text `mlc_status` box, so the word "registered" typed into it
+    scored exactly as high as a matched work with a full claim - and a
+    green tick on a press-ready checklist was, in the worst case, the
+    artist's own optimism read back to them.
+
+    The stored MLC check is the evidence. Returns:
+
+        source  "check"  The MLC answered about this recording
+                "typed"  only the artist's own words are on file
+                "none"   neither
+        state   green / yellow / red, as everywhere else
+        lane    the royalty-lane word for the same fact
+        label   what to put beside the check on a page
+        detail  one sentence naming what was found
+
+    A typed field never reaches green: a claim is not evidence, and it is
+    labelled "typed, unverified" so nothing reads it as one.
+    """
+    track = track or {}
+    check = track.get("mlc_check") or None
+    typed = ((track.get("passport") or {}).get("mlc_status") or "").strip()
+    result = (check or {}).get("result") or ""
+    works = (check or {}).get("works") or []
+    by_isrc = ((check or {}).get("asked") or "").startswith("ISRC ")
+    if result == "match" and works:
+        work = works[0]
+        try:
+            share = float(work.get("share_total") or 0)
+        except (TypeError, ValueError):
+            share = 0.0
+        code = work.get("song_code") or "?"
+        if share >= MLC_SHARE_FLOOR:
+            return {"source": "check", "state": "green", "lane": "claimed",
+                    "label": "claimed",
+                    "detail": ("The MLC holds song code %s with %g%% of the "
+                               "collection share claimed." % (code, share)),
+                    "share_total": share, "song_code": work.get("song_code") or "",
+                    "iswc": work.get("iswc") or "", "typed": typed}
+        return {"source": "check", "state": "yellow", "lane": "needs action",
+                "label": "%g%% claimed" % share,
+                "detail": ("The MLC holds song code %s, but only %g%% of the "
+                           "collection share is claimed - %g%% is going "
+                           "uncollected." % (code, share, round(100.0 - share, 2))),
+                "share_total": share, "song_code": work.get("song_code") or "",
+                "iswc": work.get("iswc") or "", "typed": typed}
+    if result == "none" and by_isrc:
+        # Their empty answer for an ISRC is an answer: no work is linked
+        # to this recording, which is exactly the unclaimed money Royalty
+        # Sweep exists for. A title with no recording is silence, not a
+        # gap - album titles are not works - so that one falls through.
+        return {"source": "check", "state": "red", "lane": "missing",
+                "label": "not registered at The MLC",
+                "detail": ("The MLC has no work linked to this recording's "
+                           "ISRC, so nobody is collecting its mechanicals."),
+                "share_total": None, "song_code": "", "iswc": "", "typed": typed}
+    if typed:
+        state = field_state("mlc_status", typed, False)
+        return {"source": "typed",
+                "state": "red" if state == "red" else "yellow",
+                "lane": "needs action",
+                "label": "typed, unverified",
+                "detail": ("Nobody has asked The MLC about this recording; "
+                           "“%s” is what was typed into the passport."
+                           % typed[:120]),
+                "share_total": None, "song_code": "", "iswc": "", "typed": typed}
+    return {"source": "none", "state": "yellow", "lane": "missing",
+            "label": "not checked",
+            "detail": "Nobody has asked The MLC about this recording yet.",
+            "share_total": None, "song_code": "", "iswc": "", "typed": ""}
+
+
 # --- Clean Release --------------------------------------------------------------
 
 def clean_release(track, ctx):
@@ -131,6 +212,7 @@ def clean_release(track, ctx):
     rep = passport_report(track)
     p = {i["key"]: i for i in rep["items"]}
     box = lockbox_report(track)
+    mlc = mlc_evidence(track)
 
     def pf(key):  # passport field state
         return p[key]["state"]
@@ -142,7 +224,7 @@ def clean_release(track, ctx):
         ("Artist profile routing",   pf("dsp_routing"), False),
         ("Splits locked",            "green" if box["docs"][0]["state"] in ("ready", "n/a") else "red", True),
         ("Publishing set",           pf("publishers"), False),
-        ("Mechanical collection (MLC)", pf("mlc_status"), False),
+        ("Mechanical collection (MLC) — " + mlc["label"], mlc["state"], False),
         ("SoundExchange",            pf("soundexchange_status"), False),
         ("Content ID",               pf("content_id_status"), False),
         ("AI disclosure",            pf("ai_disclosure"), True),
@@ -216,9 +298,8 @@ def _lane_state(lane, track, ctx):
     if lane == "master":
         return "connected" if ctx.get("statement_rows") else "missing"
     if lane == "mechanicals":
-        s = field_state("mlc_status", passport.get("mlc_status"), False)
-        return {"green": "connected", "yellow": "needs action", "red": "needs action"}[s] \
-            if passport.get("mlc_status") or s != "yellow" else "missing"
+        # The MLC's own answer, not the sentence in the passport box.
+        return mlc_evidence(track)["lane"]
     if lane == "pro":
         return "connected" if field_state("pro", passport.get("pro"), False) == "green" else "missing"
     if lane == "soundexchange":

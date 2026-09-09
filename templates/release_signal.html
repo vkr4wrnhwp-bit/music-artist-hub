@@ -1,8 +1,12 @@
 {# Release Signal — the public page.
 
-   No provider is connected, so this page explains what the read will
-   contain and does not accept a file. Taking an upload and returning
-   invented genres would be the exact thing the brief forbids. #}
+   Whether a provider is connected is read at render time: `rs.enabled`
+   comes from release_signal.active_provider(), so the "Not connected
+   yet" note below is this deployment's current state rather than a
+   sentence in a template. While nothing answers, the page explains what
+   the read will contain and does not accept a file — taking an upload
+   and returning invented genres would be the exact thing the brief
+   forbids. #}
 <!DOCTYPE html>
 <html lang="en">
 <head>

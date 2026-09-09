@@ -103,7 +103,7 @@
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
         <h2 class="sb-label text-sb-gold-bright">Your Identifiers</h2>
-        <p class="mt-1 text-xs text-gray-300 font-medium">ISRC, UPC and ISWC are how societies match plays to money — auto-pulled from your catalog records. Missing codes mean uncollected royalties.</p>
+        <p class="mt-1 text-xs text-gray-300 font-medium">ISRC, UPC and ISWC are how societies match plays to money. ISRC and UPC come from your catalog records; the ISWC is the work code The MLC returned when this song's passport was checked against it. Missing codes mean uncollected royalties.</p>
       </div>
       {% if ids_missing_isrc %}
       <form method="post" action="/actions/from-alert">
@@ -120,13 +120,15 @@
                   tone=("good" if ids_n and ids_with_isrc == ids_n else ""), absent="No tracks") }}
       {{ sb.meter("UPC (releases)", ids_with_upc, ids_n, shown=ids_with_upc ~ "/" ~ ids_n,
                   tone=("good" if ids_n and ids_with_upc == ids_n else ""), absent="No tracks") }}
-      {{ sb.meter("ISWC (works)", none, absent="Not pulled") }}
+      {{ sb.meter("ISWC (works)", ids_with_iswc, ids_n, shown=ids_with_iswc ~ "/" ~ ids_n,
+                  tone=("good" if ids_n and ids_with_iswc == ids_n else ""), absent="No tracks") }}
     </div>
     {% if my_tracks %}
     <div class="mt-4 overflow-x-auto">
       <table class="w-full text-left text-xs">
         <thead><tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-300 font-medium">
           <th class="py-2 pr-4 font-medium">Track</th><th class="py-2 pr-4 font-medium">ISRC</th>
+          <th class="py-2 pr-4 font-medium">ISWC</th>
           <th class="py-2 pr-4 font-medium">UPC</th><th class="py-2 pr-4 font-medium">Label</th>
           <th class="py-2 font-medium">Release</th></tr></thead>
         <tbody>
@@ -134,6 +136,7 @@
           <tr class="border-b border-white/5 last:border-0">
             <td class="py-2 pr-4 font-semibold text-gray-100">{{ r.title }}<span class="ml-1 text-gray-300">{{ r.artist }}</span></td>
             <td class="py-2 pr-4 tabular-nums text-gray-200">{% if r.isrc %}{{ r.isrc }}{% else %}{{ sb.lamp("MISSING", "crit") }}{% endif %}</td>
+            <td class="py-2 pr-4 tabular-nums text-gray-200">{{ r.iswc or '—' }}</td>
             <td class="py-2 pr-4 tabular-nums text-gray-200">{{ r.upc or '—' }}</td>
             <td class="py-2 pr-4 text-gray-300">{{ r.label or '—' }}</td>
             <td class="py-2 sb-num text-gray-300">{{ r.release_date or '—' }}</td>

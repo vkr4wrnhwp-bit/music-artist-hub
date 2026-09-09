@@ -64,6 +64,12 @@
         {% endif %}
       </div>
       {% if mlc.note %}<p class="mt-2 text-xs text-amber-300">{{ mlc.note }}</p>{% endif %}
+      {#- What the rest of the product grades this recording on. A typed
+          status is shown as a claim, never as a finding. -#}
+      <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        {{ sb.lamp(mlc.evidence.label, 'good' if mlc.evidence.state == 'green' else ('warn' if mlc.evidence.state == 'yellow' else 'crit')) }}
+        <span class="min-w-0 flex-1 text-gray-300">{{ mlc.evidence.detail }}</span>
+      </div>
       {% if mlc.on %}
       <div class="mt-3 space-y-2">
         {% for c in mlc.checks %}

@@ -93,6 +93,7 @@
         </div>
         <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
           {% if r.isrc %}{{ sb.lamp("ISRC " ~ r.isrc, "good") }}{% else %}{{ sb.lamp("ISRC missing", "crit") }}{% endif %}
+          {% if r.iswc %}{{ sb.lamp("ISWC " ~ r.iswc, "good") }}{% endif %}
           {% if r.mlc %}
             {{ sb.lamp("MLC " ~ ("match" if r.mlc.result == "match" else "no match" if r.mlc.result == "none" else "check failed"),
                        ("good" if r.mlc.result == "match" else "warn" if r.mlc.result == "none" else "crit")) }}

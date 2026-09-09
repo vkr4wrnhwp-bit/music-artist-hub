@@ -76,11 +76,12 @@
         </div>
         {% endfor %}
       </section>
-      {# epk_config already computes stats_are_real - it flips true only
-         when the figures come from the artist's own statements or tracks.
-         The template was ignoring it, so demo career numbers rendered
-         identically to earned ones. #}
-      {% if not e.stats_are_real %}
+      {# epk_config computes two separate things: stats_are_real (these
+         are the artist's own figures) and stats_are_sample (these are
+         the demo catalogue's, standing in). Reading the sample banner off
+         "not real" made a kit with nothing measured accuse itself of
+         showing somebody else's numbers. #}
+      {% if e.stats_are_sample %}
       <p class="border-b border-sb-surface-2/10 bg-amber-100 px-4 py-2 text-center text-xs font-semibold text-sb-gold-deep">
         Sample figures — not your catalog. Upload a royalty statement or add tracks and these switch to your real numbers.
       </p>
@@ -141,7 +142,7 @@
           </div>
           {% endfor %}
         </div>
-        <p class="mt-3 text-xs text-sb-surface-2/50 font-medium">{% if e.tour_source == 'bandsintown' %}Live dates via Bandsintown{% else %}Dates from the artist's tour in Street Banker{% endif %}</p>
+        <p class="mt-3 text-xs text-sb-surface-2/50 font-medium">{% if e.tour_source == 'bandsintown' %}From this artist's Bandsintown listing — their tour in Street Banker holds no confirmed date{% else %}Confirmed dates from this artist's own tour in Street Banker{% endif %}</p>
         {% else %}
         <p class="mt-3 text-xs text-sb-surface-2/50">No confirmed dates yet — confirm a date in TOUR and it appears here.</p>
         {% endif %}
@@ -452,13 +453,11 @@
           <div>
             <p class="text-xs text-sb-surface-2/55 font-medium">{{ 'Tour dates: from your tour in Street Banker (%d confirmed)'|format(tour_dates_count) if tour_dates_count else 'Tour dates: confirm a date in TOUR and it appears here' }}</p>
             <a href="/tours" class="mt-1 inline-block text-xs font-bold uppercase tracking-wide text-sb-gold-deep hover:underline">Open TOUR</a>
-            {% if bandsintown_configured %}
-            <label class="sb-label mt-3 block text-sb-surface-2/55">Bandsintown Artist Name</label>
-            <input id="f-bandsintown" value="{{ epk.bandsintown_artist }}" placeholder="Exact name on Bandsintown" class="mt-1 w-full rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
-            <p class="mt-1 text-xs text-sb-surface-2/45 font-medium">Shows listed there fill the Tour Dates section only while your tour in Street Banker holds no confirmed date.</p>
-            {% else %}
-            <input id="f-bandsintown" type="hidden" value="{{ epk.bandsintown_artist }}">
-            {% endif %}
+            {#- The Bandsintown artist-name field is gone. Bandsintown
+                declined this platform an app_id (2026-09-07), so nothing
+                typed into it could ever be looked up; it rendered as a
+                hidden input carrying a value the artist could not see or
+                change. TOUR is the source. -#}
           </div>
           <div id="asset-error" class="hidden text-xs font-semibold text-red-600"></div>
           <p class="text-xs text-sb-surface-2/45 font-medium">Public assets appear as downloads on your EPK, bundled into the press-kit ZIP. Video saves with your draft.</p>
@@ -560,7 +559,6 @@
       press: [ { quote: v("f-q0"), source: v("f-s0"), url: v("f-u0") }, { quote: v("f-q1"), source: v("f-s1"), url: v("f-u1") } ],
       show_sweep: document.getElementById("f-show-sweep").checked,
       video_url: v("f-video"),
-      bandsintown_artist: v("f-bandsintown"),
       store_url: v("f-store"),
       merch: [0, 1, 2, 3].map((i) => ({ title: v("f-m" + i + "-title"), price: v("f-m" + i + "-price"), url: v("f-m" + i + "-url") })),
       bg_color: v("f-bg"),
