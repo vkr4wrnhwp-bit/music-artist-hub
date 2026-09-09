@@ -32,7 +32,12 @@ def application():
 @pytest.fixture
 def artist(application):
     """A fresh account with one dated campaign and one Track Passport that
-    matches a catalog record — enough for both halves of the desk."""
+    matches a catalog record — enough for both halves of the desk.
+
+    The passport carries a songwriter as well as an ISRC on purpose.
+    ISRC, UPC and Label reach the catalog record through the
+    Catalog-Passport link, so they are never offered as a pull; a
+    songwriter is not, so it is what keeps the resolve card real."""
     import db as store
     import links_store as mls
     from datetime import date, timedelta
@@ -48,7 +53,8 @@ def artist(application):
         cid = mls.create_campaign(uid, "rd-%s" % uuid.uuid4().hex[:6],
                                   {"title": "Desk Drop", "release_date": soon})
         tid = store.add_os_track(uid, "Desk Drop", "Desk EP", soon)
-        store.update_os_track_passport(uid, tid, {"isrc": "USSB12600042"})
+        store.update_os_track_passport(uid, tid, {"isrc": "USSB12600042",
+                                                 "songwriters": "A. Rivers"})
         ctid = store.add_catalog_track(uid, {"title": "Desk Drop",
                                              "artist": "Desk Tester"})
     return {"client": client, "uid": uid, "campaign": cid,
@@ -110,7 +116,12 @@ def test_both_halves_render_on_the_one_page(artist):
     assert "Release Kit" in body and "Export full kit" in body
     # Clean Release's half.
     assert "Track Passports · Clean Release" in body
-    assert "Resolve from Track Passport" in body and "USSB12600042" in body
+    # A pull that is still real: a songwriter does not travel through
+    # the Catalog-Passport link, so copying it over is the owner's call.
+    assert "Resolve from Track Passport" in body and "A. Rivers" in body
+    # The ISRC does travel through that link, so it is not offered as a
+    # pull - it is already on the catalog record, as a passed check.
+    assert 'class="sb-lamp sb-lamp--on">ISRC on catalog track' in body
     assert "Desk Drop" in body
 
 
@@ -134,8 +145,10 @@ def test_only_open_checks_are_listed_and_each_has_a_way_out(artist):
     assert "Cover art set" in body and "Create action" in body
     assert body.count('class="rd-check"') == body.count("Create action")
     # A passed check is counted and folded away, not listed as open.
+    # Two pass here: the campaign's date, and the ISRC the passport
+    # hands the catalog record through their link.
     assert "Release date set" in body
-    assert "1 done" in body
+    assert "2 done" in body
     assert 'class="sb-lamp sb-lamp--on">Release date set' in body
 
 
