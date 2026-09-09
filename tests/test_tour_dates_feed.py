@@ -105,7 +105,7 @@ def _assert_two_dates(body):
     assert "May 4, 2030" in body and "May 6, 2030" in body
     assert "Hold House" not in body
     assert body.count(TIX) == 1 and body.count("Tickets ↗") == 1, "one link, on the date that has one"
-    assert "Dates from the artist's tour in Street Banker" in body
+    assert "Confirmed dates from this artist's own tour in Street Banker" in body
     assert "Live dates via Bandsintown" not in body and "tracking on Bandsintown" not in body
 
 
@@ -137,7 +137,7 @@ def test_with_no_confirmed_date_the_public_kit_has_no_dates_block(flask_app):
     slug = _slug(client, owner)
     pub = flask_app.test_client().get("/epk/" + slug).get_data(as_text=True)
     assert "Hold House" not in pub
-    assert "Dates from the artist's tour in Street Banker" not in pub
+    assert "Confirmed dates from this artist's own tour in Street Banker" not in pub
     assert "Tour Dates" not in pub, "no rows, no block"
 
 
