@@ -1,10 +1,20 @@
 {% import "tour/_macros.html" as m %}
+{% import "_sb.html" as sb %}
+{#- The count, and where it came from, never merged: a number Eventbrite
+    measured says when it was read and links the event it came from; one
+    somebody typed says that it was typed. -#}
 {% if ticket_progress %}
 <div class="to-panel is-warm" style="margin-bottom:12px">
   <div class="to-eyebrow">Tickets</div>
-  <div><b style="font-size:22px">{{ ticket_progress['sold'] }}</b> <span class="to-muted">of {{ ticket_progress['cap'] }} · {{ ticket_progress['pct'] }}%</span></div>
+  {% if ticket_progress['synced'] %}
+  {{ sb.lcd(ticket_progress['sold'] ~ " of " ~ ticket_progress['cap'] ~ " sold", "synced " ~ ticket_progress['ago']) }}
   <span class="sb-meter" style="margin-top:6px" role="img" aria-label="Tickets sold: {{ ticket_progress['pct'] }}%"><span class="sb-meter-fill" style="--sb-meter-fill: {{ ticket_progress['pct'] }}%;"></span></span>
-  <p class="to-muted" style="margin-top:6px">Counts are what you typed in — no ticketing platform is connected.</p>
+  <p class="to-muted" style="margin-top:6px">Counted by Eventbrite{% if ticket_progress['event_url'] %} — <a href="{{ ticket_progress['event_url'] }}" target="_blank" rel="noopener">open the event</a>{% endif %}.</p>
+  {% else %}
+  <div><b style="font-size:22px">{{ ticket_progress['sold'] }}</b> <span class="to-muted">of {{ ticket_progress['cap'] }} · {{ ticket_progress['pct'] }}%</span> {{ sb.lamp("typed") }}</div>
+  <span class="sb-meter" style="margin-top:6px" role="img" aria-label="Tickets sold: {{ ticket_progress['pct'] }}%"><span class="sb-meter-fill" style="--sb-meter-fill: {{ ticket_progress['pct'] }}%;"></span></span>
+  <p class="to-muted" style="margin-top:6px">Counts are what you typed in — this date is not linked to an Eventbrite event.</p>
+  {% endif %}
 </div>
 {% endif %}
 <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/marketing" class="to-form">
