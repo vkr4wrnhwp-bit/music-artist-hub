@@ -2295,7 +2295,6 @@ def create_app():
             ctx["epk_public_url"] = "/epk/" + _ensure_epk_slug(user)
         ctx["user"] = user
         ctx["asset_kinds"] = _EPK_ASSET_KINDS
-        ctx["bandsintown_configured"] = bandsintown.configured()
         share = store.get_epk_share(user["id"]) if user else None
         ctx["pitch_share"] = share
         ctx["pitch_stats"] = (store.epk_share_stats(share["token"])

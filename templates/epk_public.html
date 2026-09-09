@@ -233,7 +233,7 @@
           </div>
           {% endfor %}
         </div>
-        <p class="sb-label mt-3 text-sb-surface-2/35">{% if e.tour_source == 'bandsintown' %}Live dates via Bandsintown{% else %}Dates from the artist's tour in Street Banker{% endif %}</p>
+        <p class="sb-label mt-3 text-sb-surface-2/35">{% if e.tour_source == 'bandsintown' %}From this artist's Bandsintown listing — their tour in Street Banker holds no confirmed date{% else %}Confirmed dates from this artist's own tour in Street Banker{% endif %}</p>
       </section>
       {% endif %}
 
