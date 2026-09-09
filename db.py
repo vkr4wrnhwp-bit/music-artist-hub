@@ -516,8 +516,8 @@ def init_db():
                 user_id TEXT NOT NULL,
                 day TEXT NOT NULL,
                 provider TEXT NOT NULL DEFAULT 'spotify',
-                followers INTEGER NOT NULL DEFAULT 0,
-                popularity INTEGER NOT NULL DEFAULT 0,
+                followers INTEGER,
+                popularity INTEGER,
                 deezer_fans INTEGER NOT NULL DEFAULT 0,
                 monthly_listeners INTEGER,
                 PRIMARY KEY (user_id, day, provider)
@@ -1029,6 +1029,31 @@ def init_db():
                 " SELECT user_id, day, 'spotify', followers, popularity, deezer_fans, NULL"
                 " FROM pulse_snapshots_pre_provider")
             db.execute("DROP TABLE pulse_snapshots_pre_provider")
+        # Migration (2026-09-09): a snapshot must be able to say "not
+        # measured". Spotify omits `followers` and `popularity` for some
+        # apps; the columns were NOT NULL DEFAULT 0, so the only way to
+        # store that silence was a nought - which is why Artist Pulse
+        # showed "0 followers" under an artist who has many. NULL means
+        # not measured; every row on file keeps the number it had.
+        _pulse_cols2 = {r[1]: r for r in
+                        db.execute("PRAGMA table_info(pulse_snapshots)").fetchall()}
+        if _pulse_cols2 and _pulse_cols2.get("followers") and _pulse_cols2["followers"][3]:
+            db.execute("ALTER TABLE pulse_snapshots RENAME TO pulse_snapshots_pre_null")
+            db.execute(
+                "CREATE TABLE pulse_snapshots ("
+                "user_id TEXT NOT NULL, day TEXT NOT NULL,"
+                " provider TEXT NOT NULL DEFAULT 'spotify',"
+                " followers INTEGER,"
+                " popularity INTEGER,"
+                " deezer_fans INTEGER NOT NULL DEFAULT 0,"
+                " monthly_listeners INTEGER,"
+                " PRIMARY KEY (user_id, day, provider))")
+            db.execute(
+                "INSERT INTO pulse_snapshots"
+                " (user_id, day, provider, followers, popularity, deezer_fans, monthly_listeners)"
+                " SELECT user_id, day, provider, followers, popularity, deezer_fans, monthly_listeners"
+                " FROM pulse_snapshots_pre_null")
+            db.execute("DROP TABLE pulse_snapshots_pre_null")
         # Migrations (2026-09-09) on the pulse profile. `provider` +
         # `provider_artist_id` are the metrics provider's own id for the
         # artist, resolved once by search and kept so the page does not

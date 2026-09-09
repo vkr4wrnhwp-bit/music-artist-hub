@@ -191,8 +191,23 @@ def _note(exc):
     _REFUSAL = said or str(exc)[:200]
 
 
+def _count(value):
+    """An int Spotify actually sent, or None. A field they omit is not a
+    zero: printing 0 followers beside a name is a claim about the artist,
+    and a wrong one - it is also the number somebody uses to tell two
+    same-named profiles apart."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def search_artists(q, limit=8):
-    """Live artist search: [{id, name, followers, popularity, image, genres}]."""
+    """Live artist search: [{id, name, followers, popularity, image, genres}].
+
+    `followers` and `popularity` are None when Spotify did not send them."""
     q = (q or "").strip()
     clear_refusal()
     if not q:
@@ -217,8 +232,8 @@ def search_artists(q, limit=8):
         images = a.get("images") or []
         out.append({
             "id": a.get("id"), "name": a.get("name"),
-            "followers": (a.get("followers") or {}).get("total", 0),
-            "popularity": a.get("popularity", 0),
+            "followers": _count((a.get("followers") or {}).get("total")),
+            "popularity": _count(a.get("popularity")),
             "image": images[-1]["url"] if images else "",
             "genres": (a.get("genres") or [])[:3],
         })
@@ -252,8 +267,8 @@ def artist_pulse(artist_id):
     pulse = {
         "id": artist["id"],
         "name": artist.get("name") or "",
-        "followers": (artist.get("followers") or {}).get("total", 0),
-        "popularity": artist.get("popularity", 0),
+        "followers": _count((artist.get("followers") or {}).get("total")),
+        "popularity": _count(artist.get("popularity")),
         "genres": artist.get("genres") or [],
         "image": images[0]["url"] if images else "",
         "url": ((artist.get("external_urls") or {}).get("spotify") or ""),

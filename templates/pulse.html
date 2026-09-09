@@ -104,12 +104,20 @@
     <div class="mt-6 grid gap-4 sm:grid-cols-3">
       <div class="rounded-xl border border-white/10 bg-black/40 p-4">
         <div class="sb-label text-gray-300">Spotify Followers</div>
-        <div class="mt-1 text-3xl font-black tabular-nums text-sb-ink">{{ "{:,}".format(pulse.followers) }}</div>
+        {#- Spotify omits these for some apps. An omitted number is not a
+            zero, and "0 followers" beside a name is a wrong claim about
+            the artist - so say nothing was measured instead. -#}
+        <div class="mt-1 text-3xl font-black tabular-nums text-sb-ink">{% if pulse.followers is not none %}{{ "{:,}".format(pulse.followers) }}{% else %}<span class="text-lg font-bold text-gray-300">Not measured</span>{% endif %}</div>
       </div>
       <div class="rounded-xl border border-white/10 bg-black/40 p-4">
         <div class="sb-label text-gray-300">Popularity Score</div>
+        {% if pulse.popularity is not none %}
         <div class="mt-1 flex items-baseline gap-1.5"><span class="text-3xl font-black tabular-nums">{{ pulse.popularity }}</span><span class="text-sm text-gray-300">/100</span></div>
         <div class="mt-2">{{ sb.meter("Popularity", pulse.popularity, 100, shown=pulse.popularity ~ "/100") }}</div>
+        {% else %}
+        <div class="mt-1 text-lg font-bold text-gray-300">Not measured</div>
+        <div class="mt-2">{{ sb.meter("Popularity", none, 100, absent="Not measured") }}</div>
+        {% endif %}
       </div>
       <div class="rounded-xl border border-white/10 bg-black/40 p-4">
         <div class="sb-label text-gray-300">Deezer Fans</div>
@@ -152,7 +160,7 @@
       <div class="min-w-0 flex-1">
         <div class="sb-label text-gray-300">Milestone crossed</div>
         <div class="mt-0.5 text-2xl font-black text-sb-ink">{{ "{:,}".format(milestone) }} Spotify followers</div>
-        <p class="mt-1 text-xs text-gray-300">Detected from your own snapshot history — your earliest snapshot on file was below this line, today you're at {{ "{:,}".format(pulse.followers) }}.</p>
+        <p class="mt-1 text-xs text-gray-300">Detected from your own snapshot history — your earliest snapshot on file was below this line{% if pulse.followers is not none %}, today you're at {{ "{:,}".format(pulse.followers) }}{% endif %}.</p>
       </div>
       <button id="flex-btn" class="sb-btn sb-btn-primary shrink-0">Download story graphic</button>
     </div>
@@ -201,8 +209,8 @@
       <div class="flex items-center gap-3 rounded-xl border border-sb-gold/40 bg-sb-surface-2 px-4 py-3">
         {% if pulse.image %}<img src="{{ pulse.image }}" class="h-9 w-9 rounded-full object-cover" alt="">{% endif %}
         <span class="min-w-0 flex-1 truncate text-sm font-black text-sb-gold-bright">{{ pulse.name }} (you)</span>
-        <span class="w-28 shrink-0 text-right text-sm font-black sb-num">{{ "{:,}".format(pulse.followers) }}</span>
-        <span class="w-14 shrink-0 text-right text-xs sb-num text-gray-300 font-medium">{{ pulse.popularity }}/100</span>
+        <span class="w-28 shrink-0 text-right text-sm font-black sb-num">{% if pulse.followers is not none %}{{ "{:,}".format(pulse.followers) }}{% else %}—{% endif %}</span>
+        <span class="w-14 shrink-0 text-right text-xs sb-num text-gray-300 font-medium">{% if pulse.popularity is not none %}{{ pulse.popularity }}/100{% else %}—{% endif %}</span>
         <span class="w-20 shrink-0 text-right text-xs font-bold tabular-nums {{ 'text-green-400' if my_delta7 and my_delta7 > 0 else 'text-gray-300' }}">{{ ('%+d' | format(my_delta7)) if my_delta7 is not none else '—' }} 7d</span>
       </div>
       {% endif %}

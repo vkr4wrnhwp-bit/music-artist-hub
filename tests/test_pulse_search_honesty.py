@@ -69,3 +69,37 @@ def test_the_page_prints_whichever_it_was(client):
     body = client.get("/pulse").get_data(as_text=True)
     assert "Spotify refused this app's credentials: " in body
     assert "No artists found" in body
+
+
+def test_a_number_spotify_did_not_send_is_not_a_zero(monkeypatch):
+    """Live, 2026-09-09: the owner picked King 810 and Artist Pulse read
+    "SPOTIFY FOLLOWERS 0" and "POPULARITY 0/100" beside a working Deezer
+    count of 9,579. Spotify omits those fields for some apps, and
+    `.get("total", 0)` turned the silence into a number - a wrong claim
+    about the artist, and the one figure that tells two same-named
+    profiles apart in the picker."""
+    import spotify_provider as sp
+    assert sp._count(None) is None
+    assert sp._count(0) == 0, "a real nought is still a nought"
+    assert sp._count(104233) == 104233
+
+    monkeypatch.setattr(sp, "pulse_configured", lambda: True)
+    monkeypatch.setattr(sp, "app_token", lambda: "t")
+    monkeypatch.setattr(sp, "_api", lambda path, token: {"artists": {"items": [
+        {"id": "a1", "name": "King 810"},                      # no followers key at all
+        {"id": "a2", "name": "Other", "followers": {"total": 12}, "popularity": 7},
+    ]}})
+    rows = sp.search_artists("king 810")
+    assert rows[0]["followers"] is None and rows[0]["popularity"] is None
+    assert rows[1]["followers"] == 12 and rows[1]["popularity"] == 7
+
+
+def test_a_snapshot_can_say_not_measured(tmp_path, monkeypatch):
+    """The columns were NOT NULL DEFAULT 0, so the only way to record
+    "Spotify sent nothing" was to record a nought - and once the provider
+    started returning None, writing it would have broken the page."""
+    import db as store
+    store.record_pulse_snapshot("u-notmeasured", None, None, 9579)
+    rows = [r for r in store.list_pulse_snapshots("u-notmeasured")]
+    assert rows and rows[-1]["followers"] is None and rows[-1]["popularity"] is None
+    assert rows[-1]["deezer_fans"] == 9579, "the number that WAS measured is kept"
