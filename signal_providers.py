@@ -21,7 +21,7 @@ Feature flags (all default off; see .env.example):
     SOUNDCHARTS_ENABLED, CHARTMETRIC_ENABLED, MUSICBRAINZ_ENABLED,
     MLC_ENABLED, SOUNDEXCHANGE_ENABLED, SPOTIFY_METADATA_ENABLED,
     WEB_ENRICHMENT_ENABLED, INTERNAL_REVENUE_ENABLED,
-    PRIVATE_AUDIO_ENABLED, AUDIO_INTELLIGENCE_ENABLED
+    PRIVATE_AUDIO_ENABLED, AUDIO_INTELLIGENCE_ENABLED, YOUTUBE_ENABLED
 """
 import base64
 import hashlib
@@ -944,6 +944,392 @@ class MusicBrainzAdapter(_EnvProvider):
         return out
 
 
+class YouTubeAdapter(_EnvProvider):
+    """YouTube, over the public Data API v3 with a server API key.
+
+    Verified against the API reference (developers.google.com/youtube/v3)
+    rather than guessed:
+
+      * base `https://www.googleapis.com/youtube/v3`;
+      * `GET /channels?part=snippet,statistics` with exactly one filter -
+        `id=`, `forHandle=` (with or without the @) or `forUsername=` -
+        costs 1 quota unit;
+      * `GET /search?part=snippet&type=channel&q=` returns candidates as
+        `items[].id.channelId`. Its reference page states "a quota cost of
+        1 unit in the Search Queries quota bucket" - a separate, small
+        bucket (it was 100 units against the main one for years). Either
+        reading makes it the expensive call, so resolution tries every
+        1-unit lookup first and searches at most once, never again once a
+        channel id is stored;
+      * `statistics` carries `subscriberCount`, `viewCount`, `videoCount`
+        and `hiddenSubscriberCount`. A channel that hides its subscriber
+        count reports `hiddenSubscriberCount: true` and YouTube then
+        returns 0 - which is not an audience of nobody, so this adapter
+        answers None for subscribers and the page reads "Not measured";
+      * an error body is `{"error": {"code": .., "message": ..,
+        "errors": [{"reason": "quotaExceeded" | "keyInvalid" |
+        "accessNotConfigured", ..}]}}`. Google's own reason is carried
+        into the ProviderError, because "403" alone does not tell an
+        owner whether to wait a day or fix the key.
+
+    Capability: CAP_SOCIAL only.
+
+    NOT CAP_METRICS. The Data API answers with the channel's counters as
+    they stand right now - a lifetime view total and a current subscriber
+    count - and offers no history to anyone but the channel's owner
+    (that is YouTube Analytics, a different API behind OAuth; see the
+    separate YOUTUBE_CLIENT_ID/SECRET integration in social_providers).
+    Claiming CAP_METRICS here would mean either an empty series or one
+    invented from repeated reads of a total, so it is not claimed.
+
+    This is a public read: no OAuth, no acting on a channel, nothing
+    account-specific. It measures whatever channel the owner names.
+    """
+    key = "youtube"
+    label = "YouTube"
+    env_flag = "YOUTUBE_ENABLED"
+    env_keys = ("YOUTUBE_API_KEY",)
+    capabilities = (CAP_SOCIAL,)
+    base_url = "https://www.googleapis.com/youtube/v3"
+
+    cache_ttl_default = 6 * 3600     # YOUTUBE_CACHE_S overrides; 0 disables
+    search_results = 5               # candidates asked for in the one search
+
+    # A channel id is "UC" and 22 more of the URL-safe alphabet. Checked
+    # rather than assumed, so a pasted playlist or video id is not sent
+    # to the id= filter as if it were a channel.
+    _ID_RE = re.compile(r"^UC[A-Za-z0-9_-]{22}$")
+
+    def __init__(self, fetch=None):
+        # `fetch(url)` answers a whole API call (a body, or ProviderError).
+        # The tests drive the adapter through it; production leaves it None
+        # and the call goes out over urllib.
+        self._fetch = fetch
+        self.searches = 0            # search.list calls made by this instance
+
+    # -- credentials --
+    @staticmethod
+    def api_key():
+        return (os.environ.get("YOUTUBE_API_KEY") or "").strip()
+
+    def missing_env(self):
+        """The env var names this adapter still needs, for a page that has
+        to say WHICH one is absent rather than "not configured"."""
+        if not _flag(self.env_flag):
+            return [self.env_flag] + [k for k in self.env_keys
+                                      if not (os.environ.get(k) or "").strip()]
+        return [k for k in self.env_keys if not (os.environ.get(k) or "").strip()]
+
+    # -- cache --
+    # Same six-hour store the Soundcharts adapter uses, keyed separately.
+    # Subscriber counts are rounded by YouTube itself and move slowly, so
+    # a page reload inside six hours must not spend quota. Only a 200 is
+    # kept: a quota error cached for six hours would outlast the quota.
+    @staticmethod
+    def cache_ttl():
+        raw = (os.environ.get("YOUTUBE_CACHE_S") or "").strip()
+        if raw == "":
+            return YouTubeAdapter.cache_ttl_default
+        try:
+            return max(0, int(float(raw)))
+        except ValueError:
+            return YouTubeAdapter.cache_ttl_default
+
+    @staticmethod
+    def cache_key(path, params):
+        # The API key is added at the wire and never reaches here, so a
+        # rotated key does not orphan the cache and no secret is hashed
+        # into a key/value name.
+        raw = path + "?" + json.dumps(sorted((str(k), str(v)) for k, v in (params or {}).items()))
+        return "youtube:" + hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+    def _cache_read(self, key, ttl):
+        try:
+            import db
+            raw = db.get_kv(key)
+        except Exception:
+            return None
+        if not raw:
+            return None
+        try:
+            entry = json.loads(raw)
+            at = datetime.fromisoformat(entry["at"])
+        except Exception:
+            return None
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        if (_utcnow() - at).total_seconds() > ttl or entry.get("status") != 200:
+            return None
+        return entry.get("body")
+
+    def _cache_write(self, key, body):
+        try:
+            import db
+            db.set_kv(key, json.dumps({"at": _utcnow().isoformat(timespec="seconds"),
+                                       "status": 200, "body": body}))
+        except Exception:
+            pass                     # the answer is still good without a cache
+
+    def cached_at(self, path, params=None):
+        """When the cache last stored an answer to this question, or None
+        if it holds none it would still serve. A page showing one of these
+        numbers has to be able to say how old it is."""
+        ttl = self.cache_ttl()
+        if not ttl:
+            return None
+        try:
+            import db
+            raw = db.get_kv(self.cache_key(path, params or {}))
+        except Exception:
+            return None
+        if not raw:
+            return None
+        try:
+            entry = json.loads(raw)
+            at = datetime.fromisoformat(entry["at"])
+        except Exception:
+            return None
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        if entry.get("status") != 200 or (_utcnow() - at).total_seconds() > ttl:
+            return None
+        return at
+
+    def social_cached_at(self, channel_id):
+        """When the counts behind `get_social` for this channel were read.
+        The capability's own age, without the caller knowing the endpoint."""
+        return self.cached_at("/channels", self._social_params(channel_id))
+
+    @staticmethod
+    def _social_params(channel_id):
+        return {"part": "snippet,statistics", "id": channel_id}
+
+    # -- transport --
+    def _get(self, path, **params):
+        if not self.configured():
+            raise ProviderError("YouTube: not configured (%s)"
+                                % ", ".join(self.missing_env()))
+        ttl = self.cache_ttl()
+        key = self.cache_key(path, params) if ttl else None
+        if key:
+            hit = self._cache_read(key, ttl)
+            if hit is not None:
+                return hit
+        body = self._fetch_json(path, **params)
+        if key:
+            self._cache_write(key, body)
+        return body
+
+    def _fetch_json(self, path, **params):
+        """One HTTP call. A non-200 raises ProviderError carrying Google's
+        own reason, and is never cached."""
+        url = self.base_url + path + "?" + urllib.parse.urlencode(
+            dict(params, key=self.api_key()))
+        if self._fetch is not None:
+            return self._fetch(url)
+        try:
+            return self._urlopen(url)
+        except _HttpError as e:
+            raise ProviderError(self.redact("YouTube %s: %s" % (e.code, e.msg)))
+
+    @staticmethod
+    def _urlopen(url):
+        req = urllib.request.Request(url, headers={
+            "Accept": "application/json", "User-Agent": "StreetBanker/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            body = {}
+            try:
+                body = json.loads(e.read().decode("utf-8"))
+            except Exception:
+                pass
+            raise _HttpError(e.code, YouTubeAdapter.error_text(body) or str(e.reason))
+        except ProviderError:
+            raise
+        except Exception as e:
+            raise ProviderError(YouTubeAdapter.redact("YouTube: %s" % e))
+
+    @classmethod
+    def redact(cls, text):
+        """The same text with the API key taken out.
+
+        The key travels in the query string, so a transport failure that
+        quotes the URL would put it on a page. Nothing that reaches a
+        viewer goes out unredacted.
+        """
+        out, key = str(text), cls.api_key()
+        return out.replace(key, "[key]") if key else out
+
+    @staticmethod
+    def error_text(body):
+        """Google's error, worded as Google worded it.
+
+        `error.errors[0].reason` is the machine word an owner needs -
+        `quotaExceeded` means wait, `keyInvalid` means fix the key,
+        `accessNotConfigured` means switch YouTube Data API v3 on for the
+        project. Restating it as "forbidden" would throw that away.
+        """
+        err = (body or {}).get("error") or {}
+        errs = err.get("errors") or []
+        first = errs[0] if errs else {}
+        reason = (first.get("reason") or "").strip()
+        msg = (first.get("message") or err.get("message") or "").strip()
+        if reason and msg:
+            return "%s - %s" % (reason, msg)
+        return reason or msg
+
+    # -- resolution --
+    @classmethod
+    def parse_channel_input(cls, value):
+        """What the owner typed, as (kind, term).
+
+        kind is "id" for a channel id, "handle" for an @handle, "username"
+        for a legacy /user/ name, or "name" for anything else. A full URL
+        is unwrapped first, so pasting the address bar works.
+        """
+        raw = (value or "").strip()
+        if not raw:
+            return ("", "")
+        if "youtube.com" in raw.lower() or "youtu.be" in raw.lower():
+            path = urllib.parse.urlsplit(
+                raw if "//" in raw else "https://" + raw).path.strip("/")
+            parts = [p for p in path.split("/") if p]
+            if parts:
+                head = parts[0]
+                if head == "channel" and len(parts) > 1:
+                    raw = parts[1]
+                elif head == "user" and len(parts) > 1:
+                    return ("username", parts[1])
+                elif head == "c" and len(parts) > 1:
+                    # A legacy custom URL is not a handle and not a
+                    # username; only a search can turn it into an id.
+                    return ("name", parts[1])
+                else:
+                    raw = head
+        if cls._ID_RE.match(raw):
+            return ("id", raw)
+        if raw.startswith("@"):
+            return ("handle", raw)
+        return ("name", raw)
+
+    def resolve_channel(self, value):
+        """The channel id for what the owner typed, or "" for no match.
+
+        Order is by quota: every 1-unit `channels.list` filter that could
+        apply is tried first, and `search.list` runs at most once and only
+        when none of them could answer. An explicit @handle or /user/ name
+        is never widened into a search - a handle either exists or it does
+        not, and searching for it would hand back somebody else's channel
+        under a name the owner typed exactly.
+        """
+        kind, term = self.parse_channel_input(value)
+        if not term:
+            return ""
+        if kind == "id":
+            return self._by("id", term)
+        if kind == "handle":
+            return self._by("forHandle", term)
+        if kind == "username":
+            return self._by("forUsername", term)
+        # A bare word could be a handle or a legacy username; both are
+        # 1 unit, so both are tried before the search.
+        if " " not in term:
+            found = self._by("forHandle", term) or self._by("forUsername", term)
+            if found:
+                return found
+        return self._search_once(term)
+
+    def _by(self, filter_name, term):
+        """One `channels.list` lookup: 1 quota unit, no match is "".
+
+        A filter YouTube rejects outright (400 for a malformed handle, say)
+        is not an error the owner needs to see as a failure - it is a
+        no-match on that filter, and the next one still gets its turn.
+        """
+        try:
+            data = self._get("/channels", part="id", **{filter_name: term})
+        except ProviderError as e:
+            if self._is_quota_or_key(e):
+                raise
+            return ""
+        items = data.get("items") or []
+        return (items[0].get("id") or "") if items else ""
+
+    @staticmethod
+    def _is_quota_or_key(err):
+        """A quota or credential failure is the account's answer and must
+        surface. A 400 on one filter is not."""
+        text = str(err)
+        return any(w in text for w in ("quotaExceeded", "keyInvalid",
+                                       "accessNotConfigured", "not configured",
+                                       "403", "401"))
+
+    def _search_once(self, term):
+        """The fallback, run at most once per resolution."""
+        self.searches += 1
+        data = self._get("/search", part="snippet", type="channel", q=term,
+                         maxResults=self.search_results)
+        for item in (data.get("items") or []):
+            cid = ((item.get("id") or {}).get("channelId") or "").strip()
+            if cid:
+                return cid
+        return ""
+
+    # -- shapes --
+    @staticmethod
+    def _count(value):
+        """A counter as an int, or None when YouTube did not report one.
+        Never 0 for "absent" - 0 is a real number on this page."""
+        if value is None or value == "":
+            return None
+        try:
+            return int(str(value).strip())
+        except (TypeError, ValueError):
+            return None
+
+    def get_social(self, channel_id):
+        """The channel's current counters, or None when YouTube has no
+        such channel.
+
+        `subscribers` is None - not 0 - when the channel hides its count:
+        YouTube sends `hiddenSubscriberCount: true` and a
+        `subscriberCount` of 0, and printing that would say the artist has
+        no subscribers.
+        """
+        cid = (channel_id or "").strip()
+        if not cid:
+            return None
+        data = self._get("/channels", **self._social_params(cid))
+        items = data.get("items") or []
+        if not items:
+            return None
+        item = items[0]
+        stats = item.get("statistics") or {}
+        snip = item.get("snippet") or {}
+        hidden = bool(stats.get("hiddenSubscriberCount"))
+        custom = (snip.get("customUrl") or "").strip()
+        at = self.social_cached_at(cid) or _utcnow()
+        return {
+            "channel_id": item.get("id") or cid,
+            "subscribers": None if hidden else self._count(stats.get("subscriberCount")),
+            "views": self._count(stats.get("viewCount")),
+            "videos": self._count(stats.get("videoCount")),
+            "hidden": hidden,
+            "channel_title": snip.get("title") or "",
+            "channel_url": ("https://www.youtube.com/%s" % custom if custom
+                            else "https://www.youtube.com/channel/%s" % (item.get("id") or cid)),
+            "measured_at": at,
+        }
+
+    def get_social_activity(self, provider_artist_id, start, end):
+        """Deliberately absent. The Data API has no public history: a
+        series here would be invented from repeated reads of a total."""
+        raise NotImplementedError(
+            "YouTube's public API reports current totals, not a series")
+
+
 class BandsintownAdapter(MusicIntelligenceProvider):
     """Bandsintown's public events API, for live dates only.
 
@@ -1629,9 +2015,12 @@ class MockMusicIntelligenceAdapter(MusicIntelligenceProvider):
 
 # --- registry ---------------------------------------------------------------
 
+# YouTubeAdapter sits at the END on purpose: Soundcharts already claims
+# CAP_SOCIAL and is preferred where both are configured, so adding this
+# one changes which provider serves nothing that was already served.
 _REAL_ADAPTERS = (BandsintownAdapter, TourDatesAdapter, SoundchartsAdapter, ChartmetricAdapter,
                   MusicBrainzAdapter, MLCAdapter, SoundExchangeAdapter, SpotifyMetadataAdapter,
-                  PublicWebResearchAdapter, InternalStreetBankerAdapter)
+                  PublicWebResearchAdapter, InternalStreetBankerAdapter, YouTubeAdapter)
 
 
 class ProviderRegistry(object):

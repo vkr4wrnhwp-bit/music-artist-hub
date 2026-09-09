@@ -545,6 +545,7 @@ def init_db():
                 artist_image TEXT NOT NULL DEFAULT '',
                 provider TEXT NOT NULL DEFAULT '',
                 provider_artist_id TEXT NOT NULL DEFAULT '',
+                youtube_channel_id TEXT NOT NULL DEFAULT '',
                 updated TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS catalog_tracks (
@@ -1028,11 +1029,15 @@ def init_db():
                 " SELECT user_id, day, 'spotify', followers, popularity, deezer_fans, NULL"
                 " FROM pulse_snapshots_pre_provider")
             db.execute("DROP TABLE pulse_snapshots_pre_provider")
-        # Migration (2026-09-09): the metrics provider's own id for the
-        # artist on the pulse profile, resolved once by search and kept,
-        # so the page does not spend a billed lookup on every load.
+        # Migrations (2026-09-09) on the pulse profile. `provider` +
+        # `provider_artist_id` are the metrics provider's own id for the
+        # artist, resolved once by search and kept so the page does not
+        # spend a billed lookup on every load. `youtube_channel_id` is a
+        # separate column rather than an overload of that pair: it is a
+        # second, unrelated source, and the OWNER types it in by hand.
         for _col in ("provider TEXT NOT NULL DEFAULT ''",
-                     "provider_artist_id TEXT NOT NULL DEFAULT ''"):
+                     "provider_artist_id TEXT NOT NULL DEFAULT ''",
+                     "youtube_channel_id TEXT NOT NULL DEFAULT ''"):
             try:
                 db.execute("ALTER TABLE pulse_profiles ADD COLUMN %s" % _col)
             except sqlite3.OperationalError:
@@ -3439,7 +3444,9 @@ def save_pulse_profile(user_id, artist_id, artist_name, artist_image=""):
             "provider=CASE WHEN pulse_profiles.artist_id=excluded.artist_id "
             "THEN pulse_profiles.provider ELSE '' END, "
             "provider_artist_id=CASE WHEN pulse_profiles.artist_id=excluded.artist_id "
-            "THEN pulse_profiles.provider_artist_id ELSE '' END",
+            "THEN pulse_profiles.provider_artist_id ELSE '' END, "
+            "youtube_channel_id=CASE WHEN pulse_profiles.artist_id=excluded.artist_id "
+            "THEN pulse_profiles.youtube_channel_id ELSE '' END",
             (user_id, artist_id, artist_name, artist_image, _now()),
         )
 
@@ -3452,6 +3459,19 @@ def save_pulse_provider_artist(user_id, provider, provider_artist_id):
             "UPDATE pulse_profiles SET provider = ?, provider_artist_id = ?"
             " WHERE user_id = ?",
             (provider, (provider_artist_id or "")[:120], user_id))
+    return cur.rowcount > 0
+
+
+def save_pulse_youtube_channel(user_id, channel_id):
+    """Remember the YouTube channel the OWNER named for this artist.
+
+    Nothing derives this from the artist name: a channel that merely
+    shares a name is somebody else's audience. An empty string clears it.
+    """
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE pulse_profiles SET youtube_channel_id = ? WHERE user_id = ?",
+            ((channel_id or "")[:64], user_id))
     return cur.rowcount > 0
 
 

@@ -2369,6 +2369,16 @@ def create_app():
 
     _METRICS_WINDOW_DAYS = 30
 
+    # What /pulse?yt=... means. Anything not in here is Google's own error
+    # text, passed through as it stands rather than flattened to "failed".
+    _YT_ERRORS = {
+        "": "",
+        "notfound": ("No YouTube channel matched that. The surest form is the "
+                     "channel's own URL, copied from YouTube."),
+        "unconfigured": ("This server has no YouTube key, so nothing was looked "
+                         "up."),
+    }
+
     def _metrics_provider():
         """The registry's REAL metrics provider, or None.
 
@@ -2399,6 +2409,81 @@ def create_app():
         if pid:
             store.save_pulse_provider_artist(user_id, prov.key, pid)
         return pid
+
+    # --- YouTube, as a public read ------------------------------------------
+    # A second, unrelated source beside the metrics provider: the owner names
+    # a channel and YouTube reports its current subscriber and view totals.
+    # There is no history in the public API, so there is no line for it on
+    # the graph - only two windows and the age of the reading.
+
+    def _youtube_adapter():
+        """The YouTube adapter itself, configured or not.
+
+        Deliberately NOT registry().for_capability(CAP_SOCIAL). The two
+        windows say "measured by YouTube", so they come from YouTube or
+        from nowhere; another social provider's counts are not YouTube
+        subscribers, and the registry may well be preferring one.
+        """
+        import signal_providers as sp
+        for p in sp.registry().all_providers():
+            if isinstance(p, sp.YouTubeAdapter):
+                return p
+        return None
+
+    def _youtube_pulse(user_id, profile, error=""):
+        """The whole state of the YouTube panel, in every case.
+
+        None only when this build carries no YouTube adapter at all.
+        Otherwise the dict always renders, because "not measured" is a
+        state that has to be shown: `configured` says whether the server
+        has the key and `missing` names what it lacks, `channel_id` says
+        whether the OWNER has named a channel, and the counts are None -
+        "Not measured" - until both are true and YouTube answered.
+
+        Nothing here guesses a channel from the artist name. A channel
+        that merely shares a name is somebody else's audience, so the
+        owner types the handle or URL and the panel prints back the title
+        YouTube returned for it.
+        """
+        prov = _youtube_adapter()
+        if prov is None or not profile:
+            return None
+        out = {"configured": prov.configured(), "missing": prov.missing_env(),
+               "channel_id": profile.get("youtube_channel_id") or "",
+               "subscribers": None, "views": None, "videos": None,
+               "hidden": False, "channel_title": "", "channel_url": "",
+               "cached_hours": None, "note": "", "error": error}
+        if not out["configured"]:
+            out["note"] = ("This server has no YouTube key yet, so nothing here is "
+                           "measured. Missing: %s." % ", ".join(out["missing"]))
+            return out
+        if not out["channel_id"]:
+            out["note"] = ("Name your channel below and these read live. Nothing "
+                           "is fetched from YouTube until you do.")
+            return out
+        try:
+            social = prov.get_social(out["channel_id"])
+        except Exception as e:                                  # noqa: BLE001
+            out["note"] = ("YouTube did not answer just now (%s), so these stay "
+                           "unmeasured." % prov.redact(e))
+            return out
+        if not social:
+            out["note"] = ("YouTube no longer has a channel with that id. Set it "
+                           "again below.")
+            return out
+        for k in ("subscribers", "views", "videos", "hidden",
+                  "channel_title", "channel_url"):
+            out[k] = social[k]
+        hours = int((datetime.now(timezone.utc)
+                     - social["measured_at"]).total_seconds() // 3600)
+        out["cached_hours"] = hours
+        when = ("less than an hour ago" if hours < 1 else
+                "1 hour ago" if hours == 1 else "%d hours ago" % hours)
+        out["note"] = "Measured by YouTube, %s." % when
+        if out["hidden"]:
+            out["note"] += (" This channel hides its subscriber count, so YouTube "
+                            "does not report one.")
+        return out
 
     def _provider_metrics(user_id, profile, fetch=True):
         """Followers and monthly listeners from the metrics provider.
@@ -6837,6 +6922,11 @@ def create_app():
         # None of this is required for the Spotify and Deezer blocks: with
         # no real metrics provider the page is exactly what it was.
         metrics = _provider_metrics(user["id"], profile) if profile else None
+        # YouTube: only for a channel the owner has named, and never
+        # derived from the artist name (see _youtube_pulse).
+        youtube = _youtube_pulse(user["id"], profile,
+                                 error=_YT_ERRORS.get(request.args.get("yt") or "",
+                                                      (request.args.get("yt") or "")[:200]))
         snaps = store.list_pulse_snapshots(user["id"], limit=30)
         # Peers: pinned artists' PUBLIC Spotify numbers, snapshotted on the
         # same cadence — a real comparison, not a modeled one.
@@ -6892,7 +6982,7 @@ def create_app():
         return render_template("pulse.html", active_page="pulse",
                                pulse_configured=spotify.pulse_configured(),
                                profile=profile, pulse=pulse, deezer=deezer,
-                               metrics=metrics,
+                               metrics=metrics, youtube=youtube,
                                snaps=snaps, peers=peers, my_delta7=my_delta7,
                                milestone=milestone,
                                link_stats={"pageviews": pageviews, "clicks": clicks,
@@ -6949,6 +7039,37 @@ def create_app():
         store.save_pulse_profile(user["id"], artist_id, name,
                                  (p.get("image") or "").strip()[:300])
         return jsonify({"ok": True})
+
+    @app.route("/pulse/youtube", methods=["POST"])
+    def pulse_youtube():
+        """Save the channel the owner named, resolved to YouTube's own id.
+
+        The typed value is resolved ONCE here rather than on every page
+        load, so the id is what is stored and the page then only ever
+        spends the 1-unit channels.list read. An empty field clears it.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        raw = (request.form.get("channel") or "").strip()[:200]
+        if not raw:
+            store.save_pulse_youtube_channel(user["id"], "")
+            return redirect("/pulse#youtube")
+        prov = _youtube_adapter()
+        if prov is None or not prov.configured():
+            return redirect("/pulse?yt=unconfigured#youtube")
+        try:
+            channel_id = prov.resolve_channel(raw)
+        except Exception as e:                                  # noqa: BLE001
+            # Google's own reason travels to the owner: quotaExceeded means
+            # wait, keyInvalid means fix the key. "Something went wrong"
+            # would tell them neither.
+            return redirect("/pulse?" + urllib.parse.urlencode(
+                {"yt": prov.redact(e)[:200]}) + "#youtube")
+        if not channel_id:
+            return redirect("/pulse?yt=notfound#youtube")
+        store.save_pulse_youtube_channel(user["id"], channel_id)
+        return redirect("/pulse#youtube")
 
     @app.route("/pulse/clear", methods=["POST"])
     def pulse_clear():
