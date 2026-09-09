@@ -54,6 +54,19 @@ class FakeReal(providers.MusicIntelligenceProvider):
         return dict(DEVORA) if provider_artist_id == DEVORA_ID else None
 
 
+class FakeBroken(FakeReal):
+    """A configured provider whose every search fails the way a live
+    Soundcharts account with the wrong credentials does."""
+
+    def __init__(self, message):
+        FakeReal.__init__(self)
+        self.message = message
+
+    def search_artists(self, query, limit=20):
+        self.calls.append(("search", query, limit))
+        raise providers.ProviderError(self.message)
+
+
 @pytest.fixture(scope="module")
 def flask_app():
     return appmod.create_app()
@@ -71,14 +84,16 @@ def _user(flask_app, label="Admin", role="owner"):
     return client, user, org
 
 
-def _mock_universe(n=5):
+def _mock_universe(n=5, fake=None):
     """Seed the fictional universe the way the product does when nothing
     real is configured, then leave a real provider in charge. Starts from
     an empty universe so counts are exact."""
     sstore.retire_artists([a["id"] for a in sstore.list_artists()])
+    with store.get_db() as db:          # one test's recorded failure must not colour the next
+        db.execute("DELETE FROM signal_provider_runs WHERE provider = ?", (FakeReal.key,))
     providers.reset_registry(providers.ProviderRegistry(adapters=[]))
     ingest.refresh_universe(max_artists=n, force=True)
-    fake = FakeReal()
+    fake = fake or FakeReal()
     providers.reset_registry(providers.ProviderRegistry(adapters=[fake]))
     return fake
 
@@ -149,6 +164,64 @@ def test_a_name_nobody_has_says_so(flask_app):
     body = client.get("/signal/admin/find?q=nobody+here").get_data(as_text=True)
     assert "No artist named" in body and "nobody here" in body
     assert "Add to Signal" not in body
+
+
+def test_a_provider_failure_is_shown_rather_than_read_as_no_artist(flask_app):
+    fake = _mock_universe(fake=FakeBroken("Soundcharts 500: Internal Server Error"))
+    client, _, _ = _user(flask_app)
+    body = client.get("/signal/admin/find?q=Billie+Eilish").get_data(as_text=True)
+    assert fake.calls == [("search", "Billie Eilish", 10)]
+    assert "Fake real provider answered: Soundcharts 500: Internal Server Error" in body
+    assert "No artist named" not in body and "Add to Signal" not in body
+    assert "needs credentials" not in body, "a 500 is theirs to fix, not the operator's"
+    assert "ProviderError" not in body, "the page shows what the provider said, not the exception class"
+    assert sstore.last_provider_error("fakereal") == "ProviderError: Soundcharts 500: Internal Server Error"
+
+
+@pytest.mark.parametrize("status", ["401", "403"])
+def test_a_credentials_failure_lights_the_lamp(flask_app, status):
+    detail = {"401": "Soundcharts 401: Invalid credentials",
+              "403": "Soundcharts 403: You cannot access this team"}[status]
+    _mock_universe(fake=FakeBroken(detail))
+    client, _, _ = _user(flask_app)
+    body = client.get("/signal/admin/find?q=Billie+Eilish").get_data(as_text=True)
+    assert "Fake real provider answered: " + detail in body
+    assert 'class="sb-lamp sb-lamp--warn">needs credentials</span>' in body
+    assert "No artist named" not in body
+
+
+def test_a_failure_older_than_ten_minutes_does_not_colour_an_empty_search(flask_app):
+    _mock_universe()
+    sstore.record_provider_run("fakereal", providers.CAP_ARTIST, False, 12, 0,
+                               "ProviderError: Soundcharts 401: Invalid credentials")
+    with store.get_db() as db:
+        db.execute("UPDATE signal_provider_runs SET created_at = ? WHERE provider = ?",
+                   ("2026-01-01T00:00:00+00:00", "fakereal"))
+    assert sstore.last_provider_error("fakereal") is None
+    assert sstore.last_provider_error("fakereal", within_seconds=10 ** 9) == \
+        "ProviderError: Soundcharts 401: Invalid credentials"
+    client, _, _ = _user(flask_app)
+    body = client.get("/signal/admin/find?q=nobody+here").get_data(as_text=True)
+    assert "No artist named" in body and "answered:" not in body and "needs credentials" not in body
+
+
+@pytest.mark.parametrize("env, label", [
+    ({"SOUNDCHARTS_CLIENT_ID": "c", "SOUNDCHARTS_CLIENT_SECRET": "s"}, "OAuth client credentials"),
+    ({"SOUNDCHARTS_APP_ID": "a", "SOUNDCHARTS_API_KEY": "k"}, "legacy app id + api key"),
+])
+def test_the_data_sources_page_names_how_soundcharts_signs_in(flask_app, monkeypatch, env, label):
+    for k in ("SOUNDCHARTS_CLIENT_ID", "SOUNDCHARTS_CLIENT_SECRET", "SOUNDCHARTS_TEAM_ID",
+              "SOUNDCHARTS_APP_ID", "SOUNDCHARTS_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    _mock_universe(fake=providers.SoundchartsAdapter(fetch=lambda url: {"items": []}))
+    client, _, _ = _user(flask_app)
+    body = client.get("/signal/admin/data-sources").get_data(as_text=True)
+    assert "configured · " + label in body
+    other = [l for l in providers.SOUNDCHARTS_AUTH_LABELS.values() if l != label][0]
+    assert other not in body
 
 
 def test_with_the_mock_in_charge_the_search_works_and_the_page_says_so(flask_app):

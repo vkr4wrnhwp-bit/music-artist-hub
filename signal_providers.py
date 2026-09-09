@@ -23,6 +23,7 @@ Feature flags (all default off; see .env.example):
     WEB_ENRICHMENT_ENABLED, INTERNAL_REVENUE_ENABLED,
     PRIVATE_AUDIO_ENABLED, AUDIO_INTELLIGENCE_ENABLED
 """
+import base64
 import hashlib
 import json
 import os
@@ -79,6 +80,15 @@ def _flag(name):
 
 class ProviderError(RuntimeError):
     """A provider failed. Callers degrade; they never crash a page."""
+
+
+class _HttpError(ProviderError):
+    """A non-2xx answer from a transport seam, before it is worded for the
+    caller. `code` is the HTTP status; `msg` is the body's own message."""
+
+    def __init__(self, code, msg):
+        ProviderError.__init__(self, "%s %s" % (code, msg))
+        self.code, self.msg = int(code or 0), msg or ""
 
 
 class MusicIntelligenceProvider(object):
@@ -212,6 +222,15 @@ def _sc_distributor_class(name):
     return "Needs Research"
 
 
+# Where a Soundcharts client id + secret is exchanged for a bearer token
+# (their OAuth client-credentials grant). A test points this at nothing.
+SOUNDCHARTS_TOKEN_URL = "https://account.soundcharts.com/oauth/token"
+
+SOUNDCHARTS_AUTH_LABELS = {"oauth": "OAuth client credentials",
+                           "token": "access token issued by Soundcharts",
+                           "legacy": "legacy app id + api key"}
+
+
 class SoundchartsAdapter(_EnvProvider):
     """Soundcharts, over its customer API (v2).
 
@@ -227,11 +246,20 @@ class SoundchartsAdapter(_EnvProvider):
     current social counts, playlist positions, events, and per-album
     label / UPC / distributor. Soundcharts marks its distributor field
     beta, so that evidence carries a lower confidence here.
+
+    Signing in: new integrations get a client id + secret and exchange them
+    for a bearer token (OAuth client credentials, one hour, re-minted on
+    expiry and on a 401). The older app id + api key headers still work
+    for integrations that were issued them, so both pairs are accepted;
+    when both are set the client pair wins.
     """
     key = "soundcharts"
     label = "Soundcharts"
     env_flag = "SOUNDCHARTS_ENABLED"
-    env_keys = ("SOUNDCHARTS_APP_ID", "SOUNDCHARTS_API_KEY")
+    env_keys = ("SOUNDCHARTS_APP_ID", "SOUNDCHARTS_API_KEY")          # legacy pair
+    oauth_keys = ("SOUNDCHARTS_CLIENT_ID", "SOUNDCHARTS_CLIENT_SECRET")
+    token_kv_key = "soundcharts:oauth-token"
+    token_margin_s = 60          # a token this close to expiry is re-minted, not used
     capabilities = (CAP_ARTIST, CAP_METRICS, CAP_RELEASES, CAP_CITIES,
                     CAP_PLAYLISTS, CAP_SOCIAL, CAP_EVENTS, CAP_DISTRIBUTOR, CAP_LABEL)
     base_url = "https://customer.api.soundcharts.com"
@@ -240,8 +268,136 @@ class SoundchartsAdapter(_EnvProvider):
 
     cache_ttl_default = 6 * 3600     # SOUNDCHARTS_CACHE_S overrides; 0 disables
 
-    def __init__(self, fetch=None):
+    def __init__(self, fetch=None, http=None, token_http=None):
+        # `fetch(url)` answers a whole API call (body or ProviderError) and
+        # bypasses auth - the shape tests use it. `http(url, headers)` and
+        # `token_http(url, headers, body)` replace only the wire, so the
+        # auth path itself can be driven without a network.
         self._fetch = fetch
+        self._http = http
+        self._token_http = token_http
+
+    # -- credentials --
+    @staticmethod
+    def _env(name):
+        return (os.environ.get(name) or "").strip()
+
+    token_key = "SOUNDCHARTS_ACCESS_TOKEN"   # a bearer Soundcharts issued ready-made
+
+    def auth_mode(self):
+        """"oauth" with a client id + secret, "token" with a ready-made
+        access token (what their dashboard hands a new account beside the
+        app id), "legacy" with an app id + api key, "" with none. The
+        client pair wins, then the token, then the legacy pair."""
+        if all(self._env(k) for k in self.oauth_keys):
+            return "oauth"
+        if self._env(self.token_key):
+            return "token"
+        if all(self._env(k) for k in self.env_keys):
+            return "legacy"
+        return ""
+
+    def configured(self):
+        return _flag(self.env_flag) and self.auth_mode() != ""
+
+    def health_check(self):
+        mode = self.auth_mode()
+        if not _flag(self.env_flag):
+            detail = "disabled (%s is not set)" % self.env_flag
+        elif not mode:
+            detail = ("enabled but missing credentials: %s + %s, or %s (or, for an integration "
+                      "issued them, %s + %s)" % (self.oauth_keys + (self.token_key,) + self.env_keys))
+        else:
+            detail = "configured"
+        return {"provider": self.key, "configured": self.configured(),
+                "ok": self.configured(), "detail": detail,
+                "auth": SOUNDCHARTS_AUTH_LABELS.get(mode, ""),
+                "capabilities": list(self.capabilities)}
+
+    # -- bearer token --
+    # Minted once, kept in the app's key/value store with its expiry, and
+    # reused by every process until sixty seconds before it lapses. A 401
+    # on an API call forgets it and mints once more before giving up.
+    def _token_read(self):
+        try:
+            import db
+            raw = db.get_kv(self.token_kv_key)
+        except Exception:
+            return None
+        if not raw:
+            return None
+        try:
+            entry = json.loads(raw)
+            expires_at = datetime.fromisoformat(entry["expires_at"])
+        except Exception:
+            return None
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if entry.get("client_id") != self._env("SOUNDCHARTS_CLIENT_ID"):
+            return None              # a token minted for other credentials
+        if (expires_at - _utcnow()).total_seconds() <= self.token_margin_s:
+            return None
+        return entry.get("token") or None
+
+    def _token_write(self, token, expires_in):
+        expires_at = _utcnow() + timedelta(seconds=max(0, int(expires_in or 0)))
+        try:
+            import db
+            db.set_kv(self.token_kv_key, json.dumps({
+                "token": token, "expires_at": expires_at.isoformat(timespec="seconds"),
+                "client_id": self._env("SOUNDCHARTS_CLIENT_ID")}))
+        except Exception:
+            pass                     # the token still serves this call
+
+    def _token_forget(self):
+        try:
+            import db
+            db.set_kv(self.token_kv_key, "")
+        except Exception:
+            pass
+
+    def _mint_token(self):
+        """POST the client-credentials grant; returns (token, expires_in)."""
+        basic = base64.b64encode(("%s:%s" % (self._env("SOUNDCHARTS_CLIENT_ID"),
+                                             self._env("SOUNDCHARTS_CLIENT_SECRET"))).encode("utf-8"))
+        headers = {"Authorization": "Basic " + basic.decode("ascii"),
+                   "Content-Type": "application/x-www-form-urlencoded",
+                   "Accept": "application/json", "User-Agent": "StreetBanker/1.0"}
+        form = {"grant_type": "client_credentials"}
+        if self._env("SOUNDCHARTS_TEAM_ID"):
+            form["team_id"] = self._env("SOUNDCHARTS_TEAM_ID")
+        body = urllib.parse.urlencode(form)
+        try:
+            if self._token_http is not None:
+                answer = self._token_http(SOUNDCHARTS_TOKEN_URL, headers, body)
+            else:
+                answer = self._urlopen(SOUNDCHARTS_TOKEN_URL, headers, data=body.encode("utf-8"))
+        except _HttpError as e:
+            raise ProviderError("Soundcharts sign-in failed: %s %s" % (e.code, e.msg))
+        except ProviderError as e:
+            raise ProviderError("Soundcharts sign-in failed: %s" % e)
+        except Exception as e:
+            raise ProviderError("Soundcharts sign-in failed: %s" % e)
+        token = (answer or {}).get("access_token") if isinstance(answer, dict) else None
+        if not token:
+            raise ProviderError("Soundcharts sign-in failed: no access_token in the answer")
+        return token, (answer.get("expires_in") or 3600)
+
+    def _token(self):
+        token = self._token_read()
+        if token:
+            return token
+        token, expires_in = self._mint_token()
+        self._token_write(token, expires_in)
+        return token
+
+    def _auth_headers(self, mode):
+        if mode == "oauth":
+            return {"Authorization": "Bearer " + self._token()}
+        if mode == "token":
+            return {"Authorization": "Bearer " + self._env(self.token_key)}
+        return {"x-app-id": self._env("SOUNDCHARTS_APP_ID"),
+                "x-api-key": self._env("SOUNDCHARTS_API_KEY")}
 
     # -- cache --
     # Every answer is billed per call and moves slowly (monthly listeners are
@@ -306,27 +462,57 @@ class SoundchartsAdapter(_EnvProvider):
         return body
 
     def _fetch_json(self, path, **params):
-        """One HTTP call; a non-200 raises ProviderError and is never cached."""
+        """One HTTP call; a non-200 raises ProviderError and is never cached.
+
+        In oauth mode a 401 means the bearer token died early (revoked,
+        or the clock drifted): it is forgotten and the call retried once
+        with a fresh one. A second 401 is the account's answer.
+        """
         url = self.base_url + path
         if params:
             url += ("&" if "?" in path else "?") + urllib.parse.urlencode(params)
         if self._fetch is not None:
             return self._fetch(url)
-        req = urllib.request.Request(url, headers={
-            "x-app-id": (os.environ.get("SOUNDCHARTS_APP_ID") or "").strip(),
-            "x-api-key": (os.environ.get("SOUNDCHARTS_API_KEY") or "").strip(),
-            "Accept": "application/json", "User-Agent": "StreetBanker/1.0"})
+        mode = self.auth_mode()
+        try:
+            return self._call(url, mode)
+        except _HttpError as e:
+            if e.code == 401 and mode == "oauth":
+                self._token_forget()
+                try:
+                    return self._call(url, mode)
+                except _HttpError as again:
+                    raise ProviderError("Soundcharts %s: %s" % (again.code, again.msg))
+            raise ProviderError("Soundcharts %s: %s" % (e.code, e.msg))
+
+    def _call(self, url, mode):
+        headers = dict(self._auth_headers(mode),
+                       Accept="application/json")
+        headers["User-Agent"] = "StreetBanker/1.0"
+        if self._http is not None:
+            return self._http(url, headers)
+        return self._urlopen(url, headers)
+
+    @staticmethod
+    def _urlopen(url, headers, data=None):
+        """The wire. A non-2xx raises _HttpError with the body's own message;
+        anything else (DNS, timeout) raises ProviderError as it stands."""
+        req = urllib.request.Request(url, data=data, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             msg = ""
             try:
-                errs = json.loads(e.read().decode("utf-8")).get("errors") or []
-                msg = (errs[0].get("message") or "") if errs else ""
+                body = json.loads(e.read().decode("utf-8"))
+                errs = body.get("errors") or []
+                msg = ((errs[0].get("message") or "") if errs else
+                       (body.get("error_description") or body.get("message") or body.get("error") or ""))
             except Exception:
                 pass
-            raise ProviderError("Soundcharts %s: %s" % (e.code, msg or e.reason))
+            raise _HttpError(e.code, msg or e.reason)
+        except ProviderError:
+            raise
         except Exception as e:
             raise ProviderError("Soundcharts: %s" % e)
 

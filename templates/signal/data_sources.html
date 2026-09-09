@@ -78,6 +78,11 @@
           {% endfor %}
         </tbody>
       </table></div>
+    {% elif find_error %}
+      <p class="sg-note" style="margin-top:12px">
+        {% if find_error_needs_credentials %}{{ sb.lamp('needs credentials', 'warn') }} {% endif %}
+        {{ artist_provider }} answered: {{ find_error }}
+      </p>
     {% else %}
       <div class="sg-empty" style="margin-top:12px">No artist named “{{ find_q }}” at {{ artist_provider }}.</div>
     {% endif %}
@@ -121,7 +126,7 @@
           <td><b>{{ h['provider'] }}</b></td>
           <td>
             {{ sb.lamp('configured' if h['configured'] else 'not configured', 'on' if h['configured'] else '') }}
-            <span class="sg-artist-meta">{{ h['detail'] }}</span>
+            <span class="sg-artist-meta">{{ h['detail'] }}{% if h.get('auth') %} · {{ h['auth'] }}{% endif %}</span>
           </td>
           <td><span class="sg-artist-meta">{{ h['capabilities']|join(', ') }}</span></td>
         </tr>
