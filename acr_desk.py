@@ -175,7 +175,7 @@ def index():
     eligible = astore.eligible_vault_files(vault, registrations)
     state = _console_state(me)
     return render_template(
-        "acr/index.html", active_page="beats",
+        "acr/index.html", active_page="fingerprints",
         state=state, eligible=eligible, registrations=registrations,
         scans=astore.list_scans(me["id"], limit=10),
         can_act=_can_act(), notice=_take_notice(),
@@ -311,7 +311,7 @@ def scan(scan_id):
         hit["case_title"], hit["case_note"] = astore.case_fields(row, hit)
         hit["case_key"] = astore.case_key(row, hit)
     return render_template(
-        "acr/scan.html", active_page="beats", scan=row, hits=hits,
+        "acr/scan.html", active_page="fingerprints", scan=row, hits=hits,
         mine=astore.count_mine(hits), can_act=_can_act(),
         notice=_take_notice(), on=console.configured(),
         missing=console.missing_env(), **_ctx())

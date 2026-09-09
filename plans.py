@@ -45,7 +45,11 @@ _ARTIST_PATHS = ("/live", "/links", "/rollout-studio", "/artwork", "/command-cen
                  "/beats", "/audio-studio",
                  "/qualification", "/artist-profile",
                  "/vault", "/artist-twin", "/trust-score")
+# /fingerprints is here beside /recovery deliberately. It had no entry at
+# all, so required_tier() returned None for it and a free Fan account could
+# open the desk that spends the owner's ACRCloud quota.
 _PRO_PATHS = ("/overview", "/royalties", "/statements", "/recovery", "/disputes",
+              "/fingerprints",
               "/publishing", "/mechanicals", "/neighboring-rights", "/territories",
               "/connections", "/catalog", "/identifiers", "/documents",
               "/conflicts", "/registration", "/valuation", "/funding", "/sync",

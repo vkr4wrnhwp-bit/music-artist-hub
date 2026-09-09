@@ -24,6 +24,10 @@ HUBS = [
         ("artwork", "/artwork", "M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z", "Cover Art", "Generate and manage release artwork."),
         ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Vault", "Stems, bounces and press assets - and the contracts and licences beside them."),
         ("beats", "/beats", "M5 14a3 3 0 106 0 3 3 0 00-6 0z|M11 14V4l5 2v8|M14 12a2 2 0 104 0 2 2 0 00-4 0z", "Beats", "Beat registry, licences, cleared list, usage cases."),
+        # The ACRCloud desk. It registered its blueprint and appeared in no
+        # navigation at all - not the sidebar, not a hub desk, not the
+        # command palette - so the only way in was to type the URL.
+        ("fingerprints", "/fingerprints/", "M3.5 12a6.5 6.5 0 0113 0v3|M6.5 13a3.5 3.5 0 017 0v2|M9.2 14a0.8 0.8 0 011.6 0v1", "Fingerprints", "Register your masters with ACRCloud, then scan a DJ set or stream for them - a hit opens a usage case with its timestamp."),
         ("catalog", "/catalog", "M7 4v10a2 2 0 11-2-2h2M7 4l9-1v9a2 2 0 11-2-2h2", "Catalog", "Every song you own, its identifiers, and its Track Passport."),
     ]),
     ("launch", "Launch Engine", "From finished master to the world — prepare, release, promote, and measure.", [
@@ -124,6 +128,9 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "vault", "review", "pulse", "team", "tax",
              "income", "disputes", "fans", "portal",
              "tours", "passports", "stage-plot", "tour-board", "rack", "roster", "referrals",
+             # Real registrations and real scan answers, or an honest "not
+             # connected" when the console has no token. Nothing invented.
+             "fingerprints",
              "lights", "royalty-lanes", "certified",
              "press-desk", "deals",
              # Real apps on their own services, opened in a new tab - not
