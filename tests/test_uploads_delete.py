@@ -184,3 +184,130 @@ def test_the_studio_control_appears_only_once_a_file_is_stored(artist):
     page = client.get("/artwork").get_data(as_text=True)
     assert _button(page, "art-upload-remove") == ""
     assert "Nothing saved from this studio yet." in page
+
+
+# =========================================================================
+# 2 - Campaign cover art
+# =========================================================================
+
+def _campaign(client, title="Cover Campaign", cover=True):
+    data = {"title": title}
+    if cover:
+        data["cover_file"] = (io.BytesIO(PNG), "cover.png")
+    r = client.post("/links/new", data=data, content_type="multipart/form-data")
+    return r.headers["Location"].split("/")[2]
+
+
+def test_replacing_a_campaign_cover_removes_the_file_it_replaced(artist):
+    """Every _ml_cover_upload writes a fresh UUID name, so before this the
+    replaced file stayed on the disk with nothing referencing it - a new
+    orphan for every re-upload."""
+    client = artist["client"]
+    cid = _campaign(client)
+    first = mls.get_campaign(cid)["cover_url"]
+    assert os.path.basename(first).startswith("mlcover_")
+    assert os.path.exists(_disk(first))
+
+    client.post("/links/%s/edit" % cid,
+                data={"title": "Cover Campaign",
+                      "cover_file": (io.BytesIO(PNG), "new-cover.png")},
+                content_type="multipart/form-data")
+
+    second = mls.get_campaign(cid)["cover_url"]
+    assert second != first
+    assert os.path.exists(_disk(second))
+    assert not os.path.exists(_disk(first))
+
+
+def test_a_campaign_cover_can_be_cleared_back_to_empty(artist):
+    client = artist["client"]
+    cid = _campaign(client)
+    cover = mls.get_campaign(cid)["cover_url"]
+
+    client.post("/links/%s/cover/delete" % cid)
+
+    assert mls.get_campaign(cid)["cover_url"] == ""
+    assert not os.path.exists(_disk(cover))
+
+
+def test_a_vault_cover_loses_the_reference_and_keeps_its_bytes(artist):
+    """A campaign can point at a file it does not own - a Vault image, a
+    Cover Studio file, a pasted URL. Clearing the field must not reach
+    into any of them."""
+    client = artist["client"]
+    client.post("/vault/upload",
+                data={"file": (io.BytesIO(PNG), "art.png"),
+                      "kind": "cover_art", "label": "Art"},
+                content_type="multipart/form-data")
+    vault = store.list_vault_files(artist["uid"])[0]
+    cid = _campaign(client, cover=False)
+    client.post("/links/%s/edit" % cid,
+                data={"title": "Cover Campaign", "cover_url": vault["path"]})
+    assert mls.get_campaign(cid)["cover_url"] == vault["path"]
+
+    client.post("/links/%s/cover/delete" % cid)
+
+    assert mls.get_campaign(cid)["cover_url"] == ""
+    assert os.path.exists(_disk(vault["path"]))             # still on disk
+    assert any(v["id"] == vault["id"]                       # still in the Vault
+               for v in store.list_vault_files(artist["uid"]))
+
+
+def test_clearing_a_campaign_that_has_no_cover_is_a_successful_no_op(artist):
+    cid = _campaign(artist["client"], cover=False)
+    assert mls.get_campaign(cid)["cover_url"] == ""
+
+    r = artist["client"].post("/links/%s/cover/delete" % cid)
+
+    assert r.status_code == 302
+    assert mls.get_campaign(cid)["cover_url"] == ""
+
+
+def test_a_stranger_cannot_clear_another_artists_cover(artist, stranger):
+    cid = _campaign(artist["client"])
+    cover = mls.get_campaign(cid)["cover_url"]
+
+    r = stranger["client"].post("/links/%s/cover/delete" % cid)
+
+    assert r.status_code == 404
+    assert mls.get_campaign(cid)["cover_url"] == cover
+    assert os.path.exists(_disk(cover))
+
+
+def test_the_cover_control_appears_only_once_a_cover_is_stored(artist):
+    client = artist["client"]
+    cid = _campaign(client, cover=False)
+    page = client.get("/links/%s/edit" % cid).get_data(as_text=True)
+    assert _button(page, "ml-cover-remove") == ""
+
+    client.post("/links/%s/edit" % cid,
+                data={"title": "Cover Campaign",
+                      "cover_file": (io.BytesIO(PNG), "c.png")},
+                content_type="multipart/form-data")
+    btn = _button(client.get("/links/%s/edit" % cid).get_data(as_text=True),
+                  "ml-cover-remove")
+    assert btn
+    assert "sb-btn-danger" in btn
+    assert "onclick=\"return confirm('Remove the cover art? The file is deleted.')\"" in btn
+
+    client.post("/links/%s/cover/delete" % cid)
+    assert _button(client.get("/links/%s/edit" % cid).get_data(as_text=True),
+                   "ml-cover-remove") == ""
+
+
+def test_a_borrowed_cover_does_not_promise_to_delete_the_vault_copy(artist):
+    client = artist["client"]
+    client.post("/vault/upload",
+                data={"file": (io.BytesIO(PNG), "borrowed.png"),
+                      "kind": "cover_art", "label": "Borrowed"},
+                content_type="multipart/form-data")
+    vault = store.list_vault_files(artist["uid"])[0]
+    cid = _campaign(client, cover=False)
+    client.post("/links/%s/edit" % cid,
+                data={"title": "Cover Campaign", "cover_url": vault["path"]})
+
+    btn = _button(client.get("/links/%s/edit" % cid).get_data(as_text=True),
+                  "ml-cover-remove")
+
+    assert "the Vault copy stays." in btn
+    assert "The file is deleted." not in btn

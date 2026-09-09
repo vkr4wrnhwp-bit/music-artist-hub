@@ -60,6 +60,31 @@ def update_campaign(campaign_id, user_id, fields):
     return cur.rowcount > 0
 
 
+def clear_campaign_cover(campaign_id, user_id):
+    """Put the cover back to empty and hand back the path that was there.
+
+    A campaign had no way to lose its cover: `_ml_cover_upload` names
+    every upload with a fresh UUID, so the builder could only ever point
+    the field at a NEW file. The old one stayed on the disk with nothing
+    referencing it, and an artist who wanted no cover at all could not
+    say so.
+
+    Returns "" when the field was already empty, so clearing twice is a
+    no-op rather than an error, and the caller learns whether there is a
+    file worth unlinking without having to read the row first.
+    """
+    with get_db() as db:
+        row = db.execute(
+            "SELECT cover_url FROM ml_campaigns WHERE id = ? AND user_id = ?",
+            (campaign_id, user_id)).fetchone()
+        if row is None:
+            return ""
+        db.execute("UPDATE ml_campaigns SET cover_url = '', updated = ?"
+                   " WHERE id = ? AND user_id = ?",
+                   (_now(), campaign_id, user_id))
+    return row["cover_url"] or ""
+
+
 def _row(row):
     d = dict(row)
     d["settings"] = json.loads(d.get("settings") or "{}")

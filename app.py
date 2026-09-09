@@ -2969,6 +2969,25 @@ def create_app():
         f.save(os.path.join(UPLOADS_DIR, fname))
         return "/uploads/" + fname
 
+    def _ml_drop_cover_file(old, new=""):
+        """Unlink a cover file once nothing points at it any more.
+
+        Every `_ml_cover_upload` writes a fresh UUID name, so replacing a
+        cover used to leave the previous file on the disk permanently
+        unreferenced - a new orphan for every re-upload.
+
+        The unlink is the narrow one /vault/<id>/delete established: only
+        `mlcover_<uuid>`, the name THIS uploader writes. A cover pointed
+        at a Vault image, at a Cover Studio file, or at an external URL
+        belongs to somebody else, so the campaign gives up the reference
+        and the bytes stay exactly where they are.
+        """
+        if not old or old == new:
+            return False
+        if not os.path.basename(old.split("?")[0]).startswith("mlcover_"):
+            return False
+        return blob_store.remove(old, uploads_dir=UPLOADS_DIR)
+
     @app.route("/links/new", methods=["GET", "POST"])
     def ml_new():
         user = current_user()
@@ -3008,7 +3027,13 @@ def create_app():
         if err:
             return err
         if request.method == "POST":
-            mls.update_campaign(cid, campaign["user_id"], _ml_form_fields())
+            was = campaign["cover_url"]
+            fields = _ml_form_fields()
+            mls.update_campaign(cid, campaign["user_id"], fields)
+            # Replacing a cover is the common case and used to orphan the
+            # file it replaced. The row is written first: nothing is
+            # unlinked until the database no longer points at it.
+            _ml_drop_cover_file(was, fields["cover_url"])
             mls.set_destinations(cid, _ml_form_destinations())
             campaign = mls.get_campaign(cid)
         dests = mls.get_destinations(cid)
@@ -3019,6 +3044,22 @@ def create_app():
                                vault_files=store.list_vault_files(campaign["user_id"]),
                                eff_status=links_engine.effective_status(campaign),
                                **build_dashboard_context())
+
+    @app.route("/links/<cid>/cover/delete", methods=["POST"])
+    def ml_cover_delete(cid):
+        """Clear the campaign's cover art, and remove the file when it is
+        this uploader's own.
+
+        The builder could point the cover somewhere new; it could never
+        point it at nothing. `_ml_owned` answers 404 for a campaign that
+        is not this artist's, so a stranger learns nothing about it.
+        """
+        campaign, err = _ml_owned(cid)
+        if err:
+            return err
+        was = mls.clear_campaign_cover(cid, campaign["user_id"])
+        _ml_drop_cover_file(was)
+        return redirect("/links/%s/edit" % cid)
 
     @app.route("/links/<cid>/publish", methods=["POST"])
     def ml_publish(cid):
