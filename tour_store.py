@@ -744,6 +744,17 @@ def init_tour():
                 db.execute("ALTER TABLE tour_show_ext ADD COLUMN %s" % col)
             except Exception:
                 pass
+        # And which Ticketmaster listing it is, and which source last
+        # wrote the ticket fields ('eventbrite', 'ticketmaster' or ''
+        # for typed). Ticketmaster's public API publishes no sold count
+        # and no capacity, so a row sourced from it must be able to say
+        # that rather than show a blank the page would read as zero.
+        for col in ("ticketmaster_event_id TEXT NOT NULL DEFAULT ''",
+                    "ticket_source TEXT NOT NULL DEFAULT ''"):
+            try:
+                db.execute("ALTER TABLE tour_show_ext ADD COLUMN %s" % col)
+            except Exception:
+                pass
         # A photo of the room, on the venue record: the thumbnail beside its dates.
         try:
             db.execute("ALTER TABLE tour_venues ADD COLUMN photo TEXT NOT NULL DEFAULT ''")
@@ -1167,7 +1178,8 @@ def list_shows(tour_id):
             # as None forever, which is how `support` first behaved.
             "e.support, e.source_note, e.vip_ticket_url, e.merch_rate, e.fee_note, "
             "e.ticket_status, e.tickets_sold, e.guest_allocation, e.guest_cutoff, "
-            "e.eventbrite_event_id, e.tickets_synced_at, "
+            "e.eventbrite_event_id, e.ticketmaster_event_id, e.ticket_source, "
+            "e.tickets_synced_at, "
             "e.deal_type, e.guarantee, e.backend_pct, e.bonus, e.deposit_required, "
             "e.deposit_received, e.deposit_date, e.ticket_gross, e.adjusted_gross, "
             "e.vip_gross, e.merch_gross, e.venue_merch_cut, e.production_expenses, "
@@ -1231,7 +1243,8 @@ def show_tour_id(show_id):
 # when two sheets disagreed, so nobody has to re-litigate it later.
 EXT_FIELDS = ["venue_id", "promoter", "capacity", "ticket_url", "ticket_status",
               "support", "source_note", "vip_ticket_url", "merch_rate", "fee_note",
-              "eventbrite_event_id", "tickets_synced_at",
+              "eventbrite_event_id", "ticketmaster_event_id", "ticket_source",
+              "tickets_synced_at",
               "tickets_sold", "guest_allocation", "guest_cutoff", "deal_type",
               "guarantee", "backend_pct", "bonus", "deposit_required",
               "deposit_received", "deposit_date", "ticket_gross", "adjusted_gross",

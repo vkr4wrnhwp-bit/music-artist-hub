@@ -86,11 +86,11 @@
     guarantee (only to someone who may read money), the support, the
     capacity and the promoter - plain facts, each only when the sheet
     holds it. Absent when none exists. Nothing here opens anything. -#}
-{% if sheet['ticket_url'] or sheet['guarantee'] or sheet['support'] or sheet['capacity'] or sheet['promoter'] or sheet['tickets'] %}
+{% if sheet['ticket_url'] or sheet['guarantee'] or sheet['support'] or sheet['capacity'] or sheet['promoter'] or sheet['tickets'] or sheet['ticket_note'] %}
 <div class="to-sheet" id="sheet">
   {#- The heading has to be true of everything under it: a count read
       from Eventbrite did not come off anybody's sheet. -#}
-  <p class="to-eyebrow">From your sheet{% if sheet['tickets'] and sheet['tickets']['synced'] %}, and from Eventbrite{% endif %}</p>
+  <p class="to-eyebrow">From your sheet{% if sheet['tickets'] and sheet['tickets']['synced'] %}, and from Eventbrite{% elif sheet['ticket_note'] %}, and from Ticketmaster's listing{% endif %}</p>
   <div class="to-figs">
     {% if sheet['ticket_url'] %}<span class="to-fig"><span>tickets</span><b><a class="to-chip" href="{{ sheet['ticket_url'] }}" target="_blank" rel="noopener">{{ sheet['ticket_host'] }}</a></b></span>{% endif %}
     {% if sheet['guarantee'] %}<span class="to-fig"><span>guarantee</span><b>{{ sheet['guarantee'] }} {{ sheet['currency'] }}</b></span>{% endif %}
@@ -109,6 +109,14 @@
   <div class="to-figs" style="margin-top:8px">
     <span class="to-fig"><span>tickets sold</span><b>{{ sheet['tickets']['sold'] }} of {{ sheet['tickets']['cap'] }}</b></span>
     {{ sb.lamp("typed") }}
+  </div>
+  {% endif %}
+  {#- A date whose link came from Ticketmaster says where it came from
+      and, in the same breath, that no count comes with it. -#}
+  {% if sheet['ticket_note'] %}
+  <div class="to-figs" style="margin-top:8px">
+    <span class="to-fig"><span>ticketmaster</span><b>{% if sheet['ticket_note']['event_url'] %}<a class="to-chip" href="{{ sheet['ticket_note']['event_url'] }}" target="_blank" rel="noopener">open the listing</a>{% else %}{{ sheet['ticket_note']['status'] or 'listed' }}{% endif %}</b></span>
+    {{ sb.lamp("no count published") }}
   </div>
   {% endif %}
 </div>
