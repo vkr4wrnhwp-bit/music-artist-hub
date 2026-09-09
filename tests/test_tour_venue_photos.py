@@ -481,3 +481,24 @@ def test_a_key_google_refuses_is_reported_as_a_refusal_not_as_rooms_without_phot
     monkeypatch.setattr(venue_photos, "_http", gone)
     assert venue_photos.fetch_photo("places/ChIJ123/photos/AB9") is None
     assert venue_photos.last_refusal() is None
+
+
+def test_a_long_google_photo_name_is_kept_whole(monkeypatch):
+    """Live, 2026-09-09: the first fetch with the key enabled found every
+    room and then Google refused each photo as 'invalid resource' - the
+    photo name had been trimmed to 400 characters. Their names are longer."""
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "test-key")
+    long_name = "places/ChIJ123/photos/" + ("A" * 700)
+    seen = []
+
+    def fake_http(url, payload=None, headers=None):
+        if url == venue_photos.SEARCH_URL:
+            return json.dumps({"places": [{"id": "ChIJ123", "displayName": {"text": "The Basement East"},
+                                            "photos": [{"name": long_name, "authorAttributions": []}]}]}).encode("utf-8"), "application/json"
+        seen.append(url)
+        return JPEG, "image/jpeg"
+    monkeypatch.setattr(venue_photos, "_http", fake_http)
+    found = venue_photos.lookup("The Basement East", "Nashville, TN")
+    assert found["photo_name"] == long_name
+    assert venue_photos.fetch_photo(found["photo_name"]) is not None
+    assert seen and seen[0].startswith(venue_photos.MEDIA_URL.split("%s")[0] + long_name + "/media?")

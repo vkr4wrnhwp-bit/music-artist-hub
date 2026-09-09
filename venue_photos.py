@@ -155,7 +155,7 @@ def lookup(name, city):
         "place_id": str(place.get("id") or "")[:200],
         "name": str(display or "")[:200],
         "address": str(place.get("formattedAddress") or "")[:300],
-        "photo_name": str(first.get("name") or "")[:400],
+        "photo_name": str(first.get("name") or "")[:4000],   # Google's photo names run past 400 chars; a trimmed one is refused as invalid
         "credit": credit,
     }
 
