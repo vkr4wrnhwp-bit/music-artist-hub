@@ -3207,6 +3207,38 @@ def update_os_track_lockbox(user_id, track_id, lockbox):
     return cur.rowcount > 0
 
 
+def delete_os_track_lockbox_file(user_id, track_id, doc_key):
+    """Detach one document from a track's lockbox and hand back the path
+    it held, or "" when the slot held nothing.
+
+    /tracks/<id>/delete removed a whole track and everything on it. One
+    wrongly attached document - the split sheet for the other song, a
+    contract with a name in it that should not have been shared - could
+    not be removed on its own, only overwritten by uploading another.
+
+    The approvals stay. They are a record of who was asked and what they
+    answered, and a replacement document goes to the same signers; the
+    lockbox report reads the file's absence and puts the slot back to
+    "missing" on its own. Returns "" for a track that is not this
+    artist's too, so the caller cannot tell those two cases apart.
+    """
+    with get_db() as db:
+        row = db.execute("SELECT lockbox FROM os_tracks WHERE id = ? AND user_id = ?",
+                         (track_id, user_id)).fetchone()
+        if row is None:
+            return ""
+        box = json.loads(row["lockbox"] or "{}")
+        entry = box.get(doc_key) or {}
+        path = entry.get("file") or ""
+        if not path:
+            return ""
+        entry.pop("file", None)
+        box[doc_key] = entry
+        db.execute("UPDATE os_tracks SET lockbox = ? WHERE id = ? AND user_id = ?",
+                   (json.dumps(box), track_id, user_id))
+    return path
+
+
 def delete_os_track(user_id, track_id):
     """Delete a passport and, with it, the song's catalog row - one list."""
     with get_db() as db:

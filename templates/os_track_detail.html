@@ -155,7 +155,27 @@
               <span class="min-w-0 flex-1 truncate font-bold text-gray-200">{{ doc.label }}{% if doc.required %}<span class="text-red-400/60">*</span>{% endif %}</span>
               <span class="shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold uppercase {{ 'border-green-500/30 text-green-400' if doc.state in ('ready', 'n/a') else 'border-red-500/30 text-red-400' if doc.state == 'declined' else 'border-amber-500/30 text-amber-400' }}">{{ doc.state }}</span>
             </div>
-            {% if doc.file %}<a href="{{ doc.file }}" target="_blank" class="mt-1 block truncate text-xs text-sb-gold-bright hover:underline font-medium">View document ↗</a>{% endif %}
+            {#- Only when a document is actually attached. `doc.file` is
+                the saved path itself, so this cannot offer to remove
+                something that was never uploaded. The confirm names the
+                slot and says what survives: the sign-off requests are a
+                record of who was asked and what they answered, and
+                "not applicable" is a separate mark this does not touch.
+
+                Eight slots render this loop, so the control carries the
+                slot it belongs to - without `data-doc` the only way to
+                tell one Remove from another is its position on the
+                page, and a test scoped that way proves nothing about
+                which document it would take. -#}
+            {% if doc.file %}
+            <div class="mt-1 flex items-center gap-2">
+              <a href="{{ doc.file }}" target="_blank" class="min-w-0 flex-1 truncate text-xs text-sb-gold-bright hover:underline font-medium">View document ↗</a>
+              <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}/delete" class="shrink-0">
+                <button class="lockbox-remove sb-btn sb-btn-danger sb-btn-sm" data-doc="{{ doc.key }}"
+                        onclick="return confirm('Remove the {{ doc.label }} document? The file is deleted. The sign-off requests stay.')">Remove</button>
+              </form>
+            </div>
+            {% endif %}
             {% for a in doc.approvals %}
             <div class="mt-1 flex items-center gap-2 text-xs text-gray-300 font-medium">
               <span class="min-w-0 flex-1 truncate">{{ a.name or a.email }}</span>

@@ -4984,6 +4984,18 @@ def create_app():
 
     _LOCKBOX_KEYS = tuple(k for k, _l, _r in artist_os.LOCKBOX_DOCS)
 
+    def _is_lockbox_upload(path):
+        """Is this the name the lockbox uploader itself writes?
+
+        `uuid4().hex + "-" + <original filename>` - so 32 hex characters,
+        a dash, and then something. Nothing else in the uploads directory
+        has that shape, which is what makes it safe to unlink: the same
+        narrow rule /vault/<id>/delete uses in the other direction.
+        """
+        base = os.path.basename((path or "").split("?")[0])
+        return (len(base) > 33 and base[32] == "-"
+                and all(c in "0123456789abcdef" for c in base[:32]))
+
     @app.route("/tracks/<track_id>/lockbox/<doc_key>", methods=["POST"])
     def os_lockbox_update(track_id, doc_key):
         user = current_user()
@@ -5030,6 +5042,36 @@ def create_app():
                                     track["title"], link), reply_to=user["email"])
         box[doc_key] = entry
         store.update_os_track_lockbox(user["id"], track_id, box)
+        return redirect("/tracks/" + track_id)
+
+    @app.route("/tracks/<track_id>/lockbox/<doc_key>/delete", methods=["POST"])
+    def os_lockbox_file_delete(track_id, doc_key):
+        """Detach one document from a lockbox slot, and remove the file.
+
+        /tracks/<id>/delete removed a whole track and everything on it;
+        one wrongly attached document - the split sheet for the other
+        song, a contract carrying a name that should not have been
+        shared - could only be overwritten, never removed. So the way to
+        take one document back was to destroy the passport around it.
+
+        Scoped exactly like the upload it undoes: `get_os_track` is
+        already owner-scoped, so another artist's track and an unknown
+        doc_key get the same 404 and neither confirms the other exists.
+        The approvals stay - they record who was asked and what they
+        answered - and lockbox_report puts the slot back to "missing" on
+        the file's absence by itself.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        track = store.get_os_track(user["id"], track_id)
+        if track is None or doc_key not in _LOCKBOX_KEYS:
+            abort(404)
+        # An empty slot answers the same way: nothing was there to
+        # remove, which is the state the caller asked for.
+        path = store.delete_os_track_lockbox_file(user["id"], track_id, doc_key)
+        if path and _is_lockbox_upload(path):
+            blob_store.remove(path, uploads_dir=UPLOADS_DIR)
         return redirect("/tracks/" + track_id)
 
     @app.route("/sign/<token>", methods=["GET", "POST"])
