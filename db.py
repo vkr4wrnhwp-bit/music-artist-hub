@@ -3077,19 +3077,45 @@ def link_song_tables():
                 c["passport_track_id"] = pid
 
 
+def _attach_mlc_checks(db, user_id, tracks):
+    """Hang the newest stored MLC answer on each track as `mlc_check`.
+
+    The engines used to grade mechanicals off the free-text box the
+    artist typed into, so the word "registered" scored exactly as high as
+    a matched work with a full claim. They read this instead; a track
+    nobody has checked carries None, and that stays honestly unverified.
+    One query for the lot, not one per track.
+    """
+    if not tracks:
+        return tracks
+    ids = [t["id"] for t in tracks]
+    rows = db.execute(
+        "SELECT * FROM track_mlc_checks WHERE user_id = ? AND track_id IN (%s)"
+        " ORDER BY created ASC, rowid ASC" % ",".join("?" * len(ids)),
+        [user_id] + ids).fetchall()
+    newest = {}
+    for r in rows:                       # ascending, so the last one wins
+        newest[r["track_id"]] = _mlc_check_dict(r)
+    for t in tracks:
+        t["mlc_check"] = newest.get(t["id"])
+    return tracks
+
+
 def list_os_tracks(user_id):
     with get_db() as db:
         rows = db.execute(
             "SELECT * FROM os_tracks WHERE user_id = ? ORDER BY created DESC",
             (user_id,)).fetchall()
-    return [_os_track_dict(r) for r in rows]
+        return _attach_mlc_checks(db, user_id, [_os_track_dict(r) for r in rows])
 
 
 def get_os_track(user_id, track_id):
     with get_db() as db:
         row = db.execute("SELECT * FROM os_tracks WHERE id = ? AND user_id = ?",
                          (track_id, user_id)).fetchone()
-    return _os_track_dict(row) if row else None
+        if row is None:
+            return None
+        return _attach_mlc_checks(db, user_id, [_os_track_dict(row)])[0]
 
 
 def update_os_track_passport(user_id, track_id, passport):

@@ -4418,6 +4418,7 @@ def create_app():
             "on": sp.mlc_adapter().configured(),
             "isrc": (passport.get("isrc") or "").strip().upper(),
             "artist": (passport.get("artist_name") or "").strip(),
+            "evidence": artist_os.mlc_evidence(track),
             "checks": store.list_track_mlc_checks(user_id, track["id"]),
             "note": {
                 "off": "The MLC is not connected on this service.",
@@ -4454,11 +4455,12 @@ def create_app():
                     fills["songwriters"] = writers[:200]
                 if pubs and not (passport.get("publishers") or "").strip():
                     fills["publishers"] = pubs[:200]
-                # Only a match by ISRC says THIS recording is registered;
-                # a title match says a work of that name exists.
-                if check["asked"].startswith("ISRC ") and not (passport.get("mlc_status") or "").strip():
-                    fills["mlc_status"] = ("registered - matched at The MLC, song code %s, %g%% claimed"
-                                           % (work.get("song_code") or "?", work.get("share_total") or 0))[:200]
+                # The registration status is NOT written here any more.
+                # It used to compose a sentence into mlc_status, and the
+                # engines then graded that sentence - evidence laundered
+                # into prose, and indistinguishable afterwards from a
+                # sentence the artist typed. The check itself is the
+                # record; artist_os.mlc_evidence reads it.
                 if fills:
                     passport.update(fills)
                     store.update_os_track_passport(user["id"], track_id, passport)
