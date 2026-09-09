@@ -282,7 +282,12 @@ def test_a_venue_with_an_address_gets_a_point_a_zone_and_the_matched_address(fla
     assert "Coordinates for 2 venues" not in _home(client, tid)
 
 
-def test_a_room_with_no_address_is_skipped_not_counted_as_missing(flask_app, monkeypatch):
+def test_a_room_off_a_date_sheet_is_looked_up_by_name_and_city(flask_app, monkeypatch):
+    """A date sheet gives a name and a city, never a street address. An
+    earlier rule demanded the address, so on the owner's real 36-date tour
+    every room was skipped, the missing count was 0, and the Fetch
+    coordinates button never rendered at all. A name with a city is the
+    query Places already answers correctly for the photo lookup."""
     calls = _google(monkeypatch)
     client, owner = _user(flask_app)
     tid = _tour(client)
@@ -292,14 +297,20 @@ def test_a_room_with_no_address_is_skipped_not_counted_as_missing(flask_app, mon
     assert vid, "the room is named, so it has a record"
     assert not ts.get_venue(owner["id"], vid)["address"], "and no address yet"
     home = _home(client, tid)
-    assert "Fetch coordinates" not in home, "nothing a press could do"
+    assert "Fetch coordinates" in home, "there is a room to place"
     r = client.post("/tours/%s/venues/fetch-coordinates" % tid)
     assert r.status_code == 302
-    assert [u for u, _p in calls if u.startswith(venue_geo.GEOCODE_URL)] == [], \
-        "a name with no address is not geocoded: the best match for a bare name is anywhere"
-    home = _home(client, tid)
-    assert "Coordinates for 0 venues; 0 not found" in home
-    assert not ts.get_venue(owner["id"], vid)["lat"]
+    asked = [p for u, p in calls if u.startswith(venue_geo.GEOCODE_URL)]
+    assert len(asked) == 1, "the named room, once; TBA is not a place"
+    assert "The Basement East" in str(asked[0]) and "Nashville" in str(asked[0]), asked
+    assert ts.get_venue(owner["id"], vid)["lat"], "and it was placed"
+
+
+def test_a_bare_name_with_no_city_is_still_skipped():
+    """The caution the address rule protected is real, and kept: a name on
+    its own geocodes to whatever in the world best matches it."""
+    assert tour_os._geo_wanted({"name": "The Basement East"}) is False
+    assert tour_os._geo_wanted({"name": "The Basement East", "city": "Nashville, TN"}) is True
 
 
 def test_an_address_google_does_not_know_is_not_found_not_an_error(flask_app, monkeypatch):
@@ -550,3 +561,20 @@ def test_typing_over_the_point_takes_googles_name_off_it(flask_app, monkeypatch)
     assert v["lat"] == "36.2" and not v["geocoded_at"] and not v["geo_address"]
     assert "Coordinates from Google" not in \
         client.get("/tours/%s/shows/%s?tab=venue" % (tid, sid)).get_data(as_text=True)
+
+
+def test_a_room_off_a_date_sheet_is_looked_up_by_name_and_city():
+    """Live, 2026-09-09: the owner's 36-date tour showed no Fetch
+    coordinates button at all. Every venue had come off an imported date
+    sheet - a name and a city, no street address - and the rule demanded
+    an address, so all 35 rooms were skipped, the missing count was zero
+    and the button never rendered. A name with a city is the same query
+    Places already answers correctly for the photo lookup."""
+    assert tour_os._geo_wanted({"name": "Turf Club", "city": "St. Paul, MN"}) is True
+    assert tour_os._geo_query({"name": "Turf Club", "city": "St. Paul, MN"}) == "Turf Club, St. Paul, MN"
+    # A bare name is still refused: it geocodes to anywhere on earth.
+    assert tour_os._geo_wanted({"name": "Turf Club"}) is False
+    assert tour_os._geo_wanted({"name": "TBA", "city": "St. Paul, MN"}) is False
+    # An address still wins the first slot when the record has one.
+    assert tour_os._geo_query({"name": "Turf Club", "address": "1601 University Ave W",
+                               "city": "St. Paul", "region": "MN"}) == "1601 University Ave W, St. Paul, MN"

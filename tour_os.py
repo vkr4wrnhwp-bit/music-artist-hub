@@ -565,10 +565,14 @@ def _geo_report_key(tour_id):
 
 
 def _geo_wanted(venue):
-    """Whether a record names somewhere Google could be asked about. A
-    record with a name and nothing else is not looked up - a bare venue
-    name geocodes to whatever in the world best matches that string - so
-    it is skipped rather than counted as an address Google did not know."""
+    """Whether a record names somewhere Google could be asked about.
+
+    A bare venue name is still skipped - it geocodes to whatever in the
+    world best matches that string. But a name WITH a city is not bare:
+    it is the same query `venue_photos.lookup` sends to Places and gets
+    the right room back from, and it is all a date sheet gives us, so a
+    rule that demanded a street address hid this feature from every tour
+    imported from one."""
     if not venue:
         return False
     name = (venue.get("name") or "").strip()
@@ -576,14 +580,16 @@ def _geo_wanted(venue):
         return False
     if (venue.get("place_id") or "").strip():
         return True          # one exact Places record; no string to drift
-    return bool((venue.get("address") or "").strip() and (venue.get("city") or "").strip()) \
-        or bool((venue.get("address") or "").strip() and (venue.get("region") or "").strip())
+    where = (venue.get("city") or "").strip() or (venue.get("region") or "").strip()
+    return bool(where)       # an address is better, and _geo_query uses it when there is one
 
 
 def _geo_query(venue):
     """The one line handed to the geocoder: the street address with its
-    city, region and country after it."""
-    parts = [(venue.get("address") or "").strip()]
+    city, region and country after it - or, when the record came off a
+    date sheet and has no address, the room's name in the same place of
+    the string, which is what Places matches on."""
+    parts = [(venue.get("address") or "").strip() or (venue.get("name") or "").strip()]
     for k in ("city", "region", "country"):
         val = (venue.get(k) or "").strip()
         if val and val.lower() not in [p.lower() for p in parts if p]:
