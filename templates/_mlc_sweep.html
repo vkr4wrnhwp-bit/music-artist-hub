@@ -1,6 +1,9 @@
 {# The latest MLC sweep, shared by Recovery and Mechanicals. Expects `mlc`
    from recovery_mlc.state() and the sb macros in context. A row carries
-   `earning` when the page crossed it with an income stream. #}
+   `earning` when the page crossed it with an income stream. Every gap
+   shows what it is worth: money the title has already earned in the
+   owner's own statements, and for a partly claimed work the unclaimed
+   share of that - measured, and captioned with what it is. #}
 {% if mlc.latest %}
       <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-200">
         <span>Checked {{ mlc.latest.summary.checked }} · {{ mlc.latest.created[:16] }}</span>
@@ -22,14 +25,15 @@
           </div>
           {% if r.message %}<p class="mt-1 text-gray-200">{{ r.message }}</p>{% endif %}
           {% if r.gap %}
-          <div class="mt-2 flex flex-wrap gap-2">
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            {{ sb.lcd(r.case_figure, r.case_caption) }}
             {% if r.has_case %}
             <a href="/royalty-recovery/cases" class="rounded-md border border-green-500/30 bg-green-500/10 px-3 py-1.5 text-xs font-bold text-green-400">Case open →</a>
             {% else %}
             <form method="post" action="/royalty-recovery/cases/from-finding">
               <input type="hidden" name="title" value="{{ r.case_title }}">
               <input type="hidden" name="category" value="mechanical">
-              <input type="hidden" name="amount" value="0">
+              <input type="hidden" name="amount" value="{{ r.case_amount }}">
               <input type="hidden" name="notes" value="{{ r.case_note }}">
               <button class="rounded-md bg-sb-surface-2 px-3 py-1.5 text-xs font-bold text-sb-gold-bright ring-1 ring-sb-gold/50 hover:bg-black">Open case</button>
             </form>
