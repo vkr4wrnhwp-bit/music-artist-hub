@@ -227,6 +227,7 @@ def _sc_distributor_class(name):
 SOUNDCHARTS_TOKEN_URL = "https://account.soundcharts.com/oauth/token"
 
 SOUNDCHARTS_AUTH_LABELS = {"oauth": "OAuth client credentials",
+                           "token": "access token issued by Soundcharts",
                            "legacy": "legacy app id + api key"}
 
 
@@ -281,11 +282,17 @@ class SoundchartsAdapter(_EnvProvider):
     def _env(name):
         return (os.environ.get(name) or "").strip()
 
+    token_key = "SOUNDCHARTS_ACCESS_TOKEN"   # a bearer Soundcharts issued ready-made
+
     def auth_mode(self):
-        """"oauth" with a client id + secret, "legacy" with an app id +
-        api key, "" with neither. The client pair wins when both exist."""
+        """"oauth" with a client id + secret, "token" with a ready-made
+        access token (what their dashboard hands a new account beside the
+        app id), "legacy" with an app id + api key, "" with none. The
+        client pair wins, then the token, then the legacy pair."""
         if all(self._env(k) for k in self.oauth_keys):
             return "oauth"
+        if self._env(self.token_key):
+            return "token"
         if all(self._env(k) for k in self.env_keys):
             return "legacy"
         return ""
@@ -298,8 +305,8 @@ class SoundchartsAdapter(_EnvProvider):
         if not _flag(self.env_flag):
             detail = "disabled (%s is not set)" % self.env_flag
         elif not mode:
-            detail = ("enabled but missing credentials: %s + %s (or, for an integration issued "
-                      "them, %s + %s)" % (self.oauth_keys + self.env_keys))
+            detail = ("enabled but missing credentials: %s + %s, or %s (or, for an integration "
+                      "issued them, %s + %s)" % (self.oauth_keys + (self.token_key,) + self.env_keys))
         else:
             detail = "configured"
         return {"provider": self.key, "configured": self.configured(),
@@ -387,6 +394,8 @@ class SoundchartsAdapter(_EnvProvider):
     def _auth_headers(self, mode):
         if mode == "oauth":
             return {"Authorization": "Bearer " + self._token()}
+        if mode == "token":
+            return {"Authorization": "Bearer " + self._env(self.token_key)}
         return {"x-app-id": self._env("SOUNDCHARTS_APP_ID"),
                 "x-api-key": self._env("SOUNDCHARTS_API_KEY")}
 

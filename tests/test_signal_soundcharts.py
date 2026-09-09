@@ -594,3 +594,26 @@ def test_the_public_sandbox_answers_in_these_shapes(monkeypatch):
     assert a.get_playlist_activity(BILLIE, date(2020, 1, 1), date(2020, 2, 1))
     assert a.get_social_activity(BILLIE, date(2020, 1, 1), date(2020, 2, 1))
     assert isinstance(a.get_events(BILLIE), list)
+
+
+def test_a_ready_made_access_token_is_sent_as_the_bearer(monkeypatch):
+    """The owner's Soundcharts page (2026-09-09) shows an app id and a
+    token, not an api key: the token goes on the wire as the bearer, no
+    minting, no legacy headers."""
+    monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
+    monkeypatch.delenv("SOUNDCHARTS_CLIENT_ID", raising=False)
+    monkeypatch.delenv("SOUNDCHARTS_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("SOUNDCHARTS_API_KEY", raising=False)
+    monkeypatch.setenv("SOUNDCHARTS_APP_ID", "app-1")
+    monkeypatch.setenv("SOUNDCHARTS_ACCESS_TOKEN", "issued-token")
+    seen = []
+
+    def http(url, headers):
+        seen.append(dict(headers))
+        return {"items": []}
+    a = providers.SoundchartsAdapter(http=http, token_http=lambda *a: (_ for _ in ()).throw(AssertionError("no minting")))
+    assert a.auth_mode() == "token" and a.configured()
+    assert a.search_artists("billie") == []
+    assert seen and seen[0].get("Authorization") == "Bearer issued-token"
+    assert "x-api-key" not in seen[0]
+    assert a.health_check()["auth"] == "access token issued by Soundcharts"
