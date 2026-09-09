@@ -347,11 +347,15 @@
     g.beginPath(); g.arc(W/2, H*0.38, 390, 0, Math.PI * 2); g.stroke();
     g.textAlign = "center"; g.fillStyle = "#E8B950";
     g.font = "900 150px system-ui, sans-serif";
-    g.fillText({{ ('{:,}'.format(milestone) | tojson) if milestone else "''" }}, W/2, H*0.38 + 10);
+    {#- the else branch used to be the bare string "''", which autoescape turned
+        into &#39;&#39; - a SyntaxError that killed this whole script block, and with
+        it every handler on the page including the artist search. Escaping happens
+        to the WHOLE expression, so the conditional has to be inside tojson. -#}
+    g.fillText({{ ('{:,}'.format(milestone) if milestone else '') | tojson }}, W/2, H*0.38 + 10);
     g.fillStyle = "#A99B84"; g.font = "700 44px system-ui, sans-serif";
     g.fillText("S P O T I F Y   F O L L O W E R S", W/2, H*0.38 + 110);
     g.fillStyle = "#ffffff"; g.font = "900 72px system-ui, sans-serif";
-    g.fillText({{ pulse.name | tojson if pulse else "''" }}, W/2, H*0.62);
+    g.fillText({{ (pulse.name if pulse else '') | tojson }}, W/2, H*0.62);
     g.fillStyle = "#A99B84"; g.font = "600 40px system-ui, sans-serif";
     g.fillText("thank you — " + new Date().toISOString().slice(0, 10), W/2, H*0.62 + 70);
     g.fillStyle = "#91836A"; g.font = "700 34px system-ui, sans-serif";
