@@ -32,6 +32,7 @@ import uuid
 
 import pytest
 
+import artist_os
 import db as store
 import links_store as mls
 from app import create_app
@@ -441,3 +442,237 @@ def test_the_pack_control_appears_only_once_a_pack_is_stored(pro_artist):
     page = client.get("/sync/clearance-packs").get_data(as_text=True)
     assert _button(page, "pack-delete") == ""
     assert "No packs yet" in page                            # empty state is back
+
+
+# =========================================================================
+# 4 - Track lockbox documents
+# =========================================================================
+
+PDF = b"%PDF-1.4\n" + b"0" * 64
+
+
+def _track(client, uid, title="Lockbox Track"):
+    client.post("/tracks/add", data={"title": title})
+    return store.list_os_tracks(uid)[0]["id"]
+
+
+def _lockbox_upload(client, tid, key="split_sheet", name="split.pdf"):
+    r = client.post("/tracks/%s/lockbox/%s" % (tid, key),
+                    data={"action": "upload", "file": (io.BytesIO(PDF), name)},
+                    content_type="multipart/form-data")
+    assert r.status_code == 302
+
+
+def _lockbox_file(uid, tid, key="split_sheet"):
+    return ((store.get_os_track(uid, tid)["lockbox"].get(key) or {})
+            .get("file") or "")
+
+
+def _lockbox_state(uid, tid, key="split_sheet"):
+    """The slot as the page badge and the release caps both read it.
+
+    Asserting on the stored JSON would only prove which keys survived.
+    `lockbox_report` is what turns those keys into "missing", "n/a" or
+    "ready" - and it is the same function that decides whether a track
+    can be released - so it is the honest place to ask whether removing
+    a file and marking a slot not applicable really are two states.
+    """
+    docs = artist_os.lockbox_report(store.get_os_track(uid, tid))["docs"]
+    return [d["state"] for d in docs if d["key"] == key][0]
+
+
+def _mark_na(client, tid, key="split_sheet"):
+    r = client.post("/tracks/%s/lockbox/%s" % (tid, key), data={"action": "na"})
+    assert r.status_code == 302
+
+
+def test_one_lockbox_document_can_be_removed_without_the_track(artist):
+    """/tracks/<id>/delete removed the whole passport. Taking back one
+    wrongly attached document should not cost the track around it."""
+    client, uid = artist["client"], artist["uid"]
+    tid = _track(client, uid)
+    _lockbox_upload(client, tid)
+    path = _lockbox_file(uid, tid)
+    assert os.path.exists(_disk(path))
+
+    r = client.post("/tracks/%s/lockbox/split_sheet/delete" % tid)
+
+    assert r.status_code == 302
+    assert _lockbox_file(uid, tid) == ""
+    assert not os.path.exists(_disk(path))
+    assert store.get_os_track(uid, tid) is not None          # the track stands
+    # The slot reads as missing again, on the file's absence alone.
+    page = client.get("/tracks/%s" % tid).get_data(as_text=True)
+    assert "View document" not in page
+
+
+def test_the_signoff_requests_survive_the_document(artist):
+    """Approvals record who was asked and what they answered. Replacing a
+    bad scan should not erase that, so removing the file does not."""
+    client, uid = artist["client"], artist["uid"]
+    tid = _track(client, uid)
+    _lockbox_upload(client, tid)
+    client.post("/tracks/%s/lockbox/split_sheet" % tid,
+                data={"action": "approver", "name": "Ray",
+                      "email": "ray@example.net"})
+
+    client.post("/tracks/%s/lockbox/split_sheet/delete" % tid)
+
+    entry = store.get_os_track(uid, tid)["lockbox"]["split_sheet"]
+    assert entry.get("file", "") == ""
+    assert [a["email"] for a in entry["approvals"]] == ["ray@example.net"]
+
+
+def test_a_lockbox_slot_pointing_at_a_vault_file_keeps_the_bytes(artist):
+    """The unlink matches only what the lockbox uploader itself writes -
+    32 hex characters, a dash, the original filename. A slot pointed at a
+    file the Vault owns gives up the reference and nothing else.
+
+    The slot is filled through the store rather than through a route on
+    purpose: nothing in the app points a lockbox slot anywhere but at its
+    own upload today, which is why the confirm can promise the file goes
+    without lying. This is the guard that keeps that promise true if a
+    second writer ever appears - not a state an artist can reach now.
+    """
+    client, uid = artist["client"], artist["uid"]
+    client.post("/vault/upload",
+                data={"file": (io.BytesIO(PDF), "contract.pdf"),
+                      "kind": "file", "label": "Contract"},
+                content_type="multipart/form-data")
+    vault = store.list_vault_files(uid)[0]
+    tid = _track(client, uid)
+    store.update_os_track_lockbox(uid, tid, {"beat_license": {"file": vault["path"]}})
+
+    client.post("/tracks/%s/lockbox/beat_license/delete" % tid)
+
+    assert _lockbox_file(uid, tid, "beat_license") == ""
+    assert os.path.exists(_disk(vault["path"]))              # still on disk
+    assert any(v["id"] == vault["id"]                        # still in the Vault
+               for v in store.list_vault_files(uid))
+
+
+def test_removing_a_document_from_an_empty_slot_is_a_successful_no_op(artist):
+    client, uid = artist["client"], artist["uid"]
+    tid = _track(client, uid)
+
+    r = client.post("/tracks/%s/lockbox/artwork_license/delete" % tid)
+
+    assert r.status_code == 302
+    assert _lockbox_file(uid, tid, "artwork_license") == ""
+
+
+def test_an_unknown_lockbox_key_is_refused(artist):
+    tid = _track(artist["client"], artist["uid"])
+    assert artist["client"].post(
+        "/tracks/%s/lockbox/nonsense/delete" % tid).status_code == 404
+
+
+def test_a_stranger_cannot_remove_another_artists_lockbox_document(artist, stranger):
+    client, uid = artist["client"], artist["uid"]
+    tid = _track(client, uid)
+    _lockbox_upload(client, tid)
+    path = _lockbox_file(uid, tid)
+
+    r = stranger["client"].post("/tracks/%s/lockbox/split_sheet/delete" % tid)
+
+    # get_os_track is already owner-scoped, so the track simply does not
+    # exist for this account: 404, not a refusal that confirms it does.
+    assert r.status_code == 404
+    assert _lockbox_file(uid, tid) == path
+    assert os.path.exists(_disk(path))
+
+
+def test_the_lockbox_control_appears_only_once_a_document_is_attached(artist):
+    """Scoped to the slot, not to the page: eight documents render this
+    control, so `data-doc` is the only thing that says which one a given
+    Remove would take."""
+    client, uid = artist["client"], artist["uid"]
+    tid = _track(client, uid)
+    page = client.get("/tracks/%s" % tid).get_data(as_text=True)
+    assert _button(page, "lockbox-remove") == ""         # none of the eight
+
+    _lockbox_upload(client, tid)
+    page = client.get("/tracks/%s" % tid).get_data(as_text=True)
+    btn = _button(page, "lockbox-remove", 'data-doc="split_sheet"')
+    assert btn
+    assert "sb-btn-danger" in btn
+    # It names the slot, what goes, and what stays.
+    assert ("onclick=\"return confirm('Remove the Split sheet document? "
+            "The file is deleted. The sign-off requests stay.')\"" in btn)
+    # And only that slot: the other seven still hold nothing.
+    assert _button(page, "lockbox-remove", 'data-doc="beat_license"') == ""
+
+    client.post("/tracks/%s/lockbox/split_sheet/delete" % tid)
+    assert _button(client.get("/tracks/%s" % tid).get_data(as_text=True),
+                   "lockbox-remove") == ""
+
+
+# --- "not applicable" is a different answer from "removed" -----------------------
+
+def test_removing_the_file_does_not_mark_the_slot_not_applicable(artist):
+    """The slot goes back to MISSING, which still blocks a release. If
+    removing a document quietly marked it not applicable, deleting a bad
+    scan would clear the track for release on the strength of nothing."""
+    client, uid = artist["client"], artist["uid"]
+    tid = _track(client, uid)
+    _lockbox_upload(client, tid)
+
+    client.post("/tracks/%s/lockbox/split_sheet/delete" % tid)
+
+    assert _lockbox_state(uid, tid) == "missing"
+    entry = store.get_os_track(uid, tid)["lockbox"]["split_sheet"]
+    assert not entry.get("not_applicable")
+    # The empty state is back: the upload form for THIS slot, and no
+    # "View document" link left pointing at a file that is gone. The
+    # `enctype` is what distinguishes it from the n/a and approver forms,
+    # which post to the same address.
+    page = client.get("/tracks/%s" % tid).get_data(as_text=True)
+    assert re.search(r'<form method="post" action="/tracks/%s/lockbox/'
+                     r'split_sheet" enctype="multipart/form-data"' % tid, page)
+    assert "View document" not in page
+
+
+def test_marking_a_slot_not_applicable_does_not_remove_the_file(artist):
+    """The other direction. "This song has no sample to clear" is a claim
+    about the song, not an instruction to destroy the document already
+    filed against it."""
+    client, uid = artist["client"], artist["uid"]
+    tid = _track(client, uid)
+    _lockbox_upload(client, tid)
+    path = _lockbox_file(uid, tid)
+
+    _mark_na(client, tid)
+
+    assert _lockbox_state(uid, tid) == "n/a"
+    assert _lockbox_file(uid, tid) == path
+    assert os.path.exists(_disk(path))
+
+
+def test_removing_the_file_from_an_n_a_slot_leaves_it_n_a(artist):
+    """Both marks on one slot, and they come off separately. Taking the
+    file off a slot the artist has said does not apply must not reopen it
+    as missing - that would undo a decision they made on purpose."""
+    client, uid = artist["client"], artist["uid"]
+    tid = _track(client, uid)
+    _lockbox_upload(client, tid)
+    _mark_na(client, tid)
+    path = _lockbox_file(uid, tid)
+
+    client.post("/tracks/%s/lockbox/split_sheet/delete" % tid)
+
+    assert _lockbox_file(uid, tid) == ""
+    assert not os.path.exists(_disk(path))
+    assert _lockbox_state(uid, tid) == "n/a"             # still the artist's word
+
+
+def test_removing_from_an_n_a_slot_that_never_held_a_file_changes_nothing(artist):
+    """The no-op has to be a no-op on the n/a mark too, or a stray POST
+    at an empty slot would quietly reopen it."""
+    client, uid = artist["client"], artist["uid"]
+    tid = _track(client, uid)
+    _mark_na(client, tid, "sample_clearance")
+
+    r = client.post("/tracks/%s/lockbox/sample_clearance/delete" % tid)
+
+    assert r.status_code == 302
+    assert _lockbox_state(uid, tid, "sample_clearance") == "n/a"
