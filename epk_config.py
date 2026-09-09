@@ -167,7 +167,29 @@ def _video_thumb(url):
     return "https://img.youtube.com/vi/%s/hqdefault.jpg" % vid if vid else None
 
 
-def real_stats(statement_rows, track_count):
+# The four labels the sample strip uses, in its order, so a kit that can
+# measure none of them keeps the shape and says so in every slot rather
+# than borrowing somebody else's numbers to fill them.
+NOT_MEASURED_LABELS = (("Monthly Listeners", "No metrics provider connected"),
+                       ("Followers", "No metrics provider connected"),
+                       ("Catalog Earnings", "No statements uploaded"),
+                       ("Releases", "No tracks in the catalog"))
+
+
+def not_measured_stats():
+    """The headline strip for a real account with nothing measured yet.
+
+    A private pitch link goes to one named person who asked for it, so a
+    demo catalogue's totals there are not an illustration - they are a
+    claim about this artist. Four honest blanks beat four flattering
+    numbers that belong to nobody.
+    """
+    return [{"label": label, "value": "Not measured", "sub": sub,
+             "measured": False}
+            for label, sub in NOT_MEASURED_LABELS]
+
+
+def real_stats(statement_rows, track_count, metrics=None):
     """Headline figures built only from what the artist actually has.
 
     The press kit is the one page that leaves the building. It goes to
@@ -182,6 +204,18 @@ def real_stats(statement_rows, track_count):
     in, so an empty press kit looks empty instead of looking successful.
     """
     stats = []
+    # Audience first: it is the number a label opens a press kit for, and
+    # it is real without a single statement having been uploaded. It
+    # comes from whichever provider the registry has for CAP_METRICS.
+    if metrics:
+        if metrics.get("monthly_listeners") is not None:
+            stats.append({"label": "Monthly Listeners",
+                          "value": "{:,}".format(metrics["monthly_listeners"]),
+                          "sub": "Measured by %s" % metrics.get("label", "the metrics provider")})
+        if metrics.get("followers") is not None:
+            stats.append({"label": "Followers",
+                          "value": "{:,}".format(metrics["followers"]),
+                          "sub": "Measured by %s" % metrics.get("label", "the metrics provider")})
     rows = statement_rows or []
     if rows:
         import statements_engine
@@ -253,10 +287,17 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
     # of their own, the demo stats above are discarded rather than padded
     # out - a press kit that shows two true numbers is worth more to a
     # label than one showing four that belong to nobody.
+    # `stats_are_sample` is the separate question: is the strip the demo
+    # catalogue's numbers standing in for this artist? It used to be read
+    # off `not stats_are_real`, which made "nothing is measured" and
+    # "these belong to somebody else" the same state on the page.
     stats_are_real = False
+    stats_are_sample = True
     if stats_override is not None:
         stats = stats_override
-        stats_are_real = bool(stats_override)
+        stats_are_sample = False
+        stats_are_real = bool(stats_override) and any(
+            s.get("measured", True) for s in stats_override)
 
     # Merge the artist's saved edits over the base profile. Real accounts
     # start empty; only the demo showcase starts from _EPK_PROFILE.
@@ -302,6 +343,7 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
 
     return {
         "stats_are_real": stats_are_real,
+        "stats_are_sample": stats_are_sample,
         # True only when the showcase profile is standing in for an
         # artist who has written nothing. Lets the page say so.
         "profile_is_sample": bool(demo and not o),

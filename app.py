@@ -2315,6 +2315,11 @@ def create_app():
                                   overrides=overrides, photo=photo, assets=assets,
                                   tour_dates=tour, bandsintown_profile=bit,
                                   tour_source=tour_source,
+                                  # None, not [] - with nothing real the
+                                  # editor keeps the sample strip, which
+                                  # the banner under it labels as such.
+                                  stats_override=((_epk_real_stats(user["id"]) or None)
+                                                  if user else None),
                                   demo=_is_demo_email(user["email"]))
         return render_template("epk.html", active_page="press-desk", **ctx)
 
@@ -2460,15 +2465,25 @@ def create_app():
     def _epk_real_stats(user_id):
         """Headline figures for a press kit, from the artist's own data.
 
-        Returns [] when there is nothing real to show, and the press kit
-        then renders no stats at all - which is the honest answer for an
-        empty account, and better than borrowing the demo catalogue's
-        numbers on a page that goes to a label.
+        One helper for all three doors - the editor, the public slug and
+        the private pitch link. Two of them used to pass nothing, so the
+        demo catalogue's four numbers rendered on a page that goes to a
+        label, over the artist's name.
+
+        Audience comes from whatever the registry has for CAP_METRICS,
+        read from the snapshots Artist Pulse already stored: a stranger
+        opening a pitch link must not spend the artist's provider quota,
+        and a kit is not the place to discover a vendor is down.
+
+        Returns [] when there is nothing real to show.
         """
         try:
+            metrics = _provider_metrics(user_id, store.get_pulse_profile(user_id),
+                                        fetch=False)
             return epk_config.real_stats(
                 store.get_statement_rows(user_id),
-                len(store.get_catalog_tracks(user_id) or []))
+                len(store.get_catalog_tracks(user_id) or []),
+                metrics=metrics)
         except Exception:
             return []
 
@@ -2565,13 +2580,22 @@ def create_app():
                                                       public_only=True))
         tour, bit, tour_source = _epk_tour_dates(share["user_id"],
                                                  (prof or {}).get("data"))
+        _demo_owner = _is_demo_email((owner or {}).get("email") or "")
         data = get_epk_data({"name": name, "initials": initials},
                             ctx["catalog_value"],
                             overrides=(prof or {}).get("data"),
                             photo=(prof or {}).get("photo"),
                             assets=assets, tour_dates=tour, bandsintown_profile=bit,
                             tour_source=tour_source,
-                            demo=_is_demo_email((owner or {}).get("email") or ""))
+                            # A private pitch link is not a showcase: it
+                            # goes to one named person who asked for it,
+                            # so sample totals there read as this
+                            # artist's. With nothing measured the strip
+                            # says "Not measured" in every slot instead.
+                            stats_override=(_epk_real_stats(share["user_id"])
+                                            or (None if _demo_owner
+                                                else epk_config.not_measured_stats())),
+                            demo=_demo_owner)
         viewer = current_user()
         if viewer is None or viewer["id"] != share["user_id"]:
             first_today = not store.epk_viewed_today(token, today)
