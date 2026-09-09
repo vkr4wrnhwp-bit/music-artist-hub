@@ -134,6 +134,27 @@ def test_a_finding_opens_a_real_case_and_the_page_says_so():
     assert "In pipeline" in body
 
 
+def test_a_statement_finding_opens_one_case_however_often_it_is_pressed():
+    """The "Case open" swap beside a finding is cosmetic - a refresh, a
+    back button or the same gap offered again on the Real Numbers band
+    posts anyway. The case is keyed on what the finding is (the source
+    that paid without naming a track), so the second press lands on the
+    first case and the pipeline counts the $12.40 once."""
+    client = _fresh_client()
+    _upload(client)
+    body = client.get("/recovery").get_data(as_text=True)
+    assert 'name="case_key" value="recovery:unattributed:spotify"' in body
+
+    post = {"case_key": "recovery:unattributed:spotify",
+            "title": "Unattributed revenue on Spotify",
+            "category": "unmatched", "amount": "12.40"}
+    client.post("/royalty-recovery/cases/from-finding", data=post)
+    r = client.post("/royalty-recovery/cases/from-finding", data=post)
+    assert "opened=already_open" in r.headers["Location"]
+    page = client.get("/royalty-recovery/cases").get_data(as_text=True)
+    assert "$12.40" in page and "$24.80" not in page
+
+
 def test_clean_statements_get_a_scoped_all_clear():
     client = _fresh_client()
     _upload(client, b"Track Title,Store,Net Revenue,Sales Period\n"

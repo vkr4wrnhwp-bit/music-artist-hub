@@ -76,6 +76,7 @@
           <span class="sb-hint">Your seat can read this but not open a case.</span>
         {% else %}
           <form method="post" action="/royalty-recovery/cases/from-finding">
+            <input type="hidden" name="case_key" value="{{ hit.case_key }}">
             <input type="hidden" name="title" value="{{ hit.case_title }}">
             <input type="hidden" name="category" value="other">
             <input type="hidden" name="amount" value="0">

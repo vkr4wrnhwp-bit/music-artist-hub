@@ -77,6 +77,18 @@ def _slug(text):
     return "".join(c if c.isalnum() else "-" for c in str(text).lower()).strip("-")
 
 
+def finding_key(kind, fact=""):
+    """The identity of a statement finding, so its case cannot open twice.
+
+    What the finding is about - the source that paid without naming a
+    track, the title missing from a platform - rather than the sentence
+    this page wrote about it. The Recovery page and the Real Numbers band
+    describe the same coverage gap in different words; keyed on the gap
+    they refresh one case instead of opening two.
+    """
+    return "recovery:%s:%s" % (kind, _slug(fact)) if fact else "recovery:%s" % kind
+
+
 def build(user_id):
     """The whole /recovery page for one account. Never seed data."""
     rows = store.get_statement_rows(user_id) if user_id else []
@@ -126,6 +138,7 @@ def build(user_id):
             "action": _UNATTRIBUTED_ACTION,
             "case_title": "Unattributed revenue on %s" % entry["source"],
             "case_category": "unmatched",
+            "case_key": finding_key("unattributed", entry["source"]),
         })
 
     for gap in analysis["coverage_gaps"]:
@@ -150,6 +163,7 @@ def build(user_id):
             "action": _GAP_ACTION,
             "case_title": "Coverage gap: %s" % gap["title"],
             "case_category": "coverage_gap",
+            "case_key": finding_key("coverage_gap", gap["title"]),
         })
 
     findings.sort(key=lambda f: (f["basis"] != "Actual", -f["amount"]))
