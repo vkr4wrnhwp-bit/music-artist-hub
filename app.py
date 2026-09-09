@@ -162,7 +162,10 @@ def _hours_float(value, default=0.0):
 from catalog_config import get_account, get_catalog_data
 from reports_config import get_reports_data
 from epk_config import get_epk_data, normalize_epk_overrides
-from artwork_config import get_artwork_data, suggest_from_prompt
+from artwork_config import (get_artwork_data, suggest_from_prompt,
+                            list_uploads as list_artwork_uploads,
+                            take_upload as take_artwork_upload,
+                            owned_prefixes as artwork_upload_prefixes)
 from links_config import get_links_data, create_smart_link
 from funding_config import get_funding_data
 from disputes_config import get_disputes_data, advance_dispute
@@ -2848,6 +2851,11 @@ def create_app():
     def artwork():
         ctx = build_dashboard_context()
         ctx["artwork"] = get_artwork_data(ctx["account"])
+        # What this studio has already written to the disk, so it can be
+        # taken back off it. Signed out, there is nothing to list.
+        user = current_user()
+        ctx["art_uploads"] = (list_artwork_uploads(user["id"], UPLOADS_DIR)
+                              if user else [])
         return render_template("artwork.html", active_page="artwork", **ctx)
 
     @app.route("/artwork/generate", methods=["POST"])
@@ -2912,6 +2920,41 @@ def create_app():
         with open(os.path.join(UPLOADS_DIR, fname), "wb") as f:
             f.write(data)
         return jsonify({"ok": True, "path": "/uploads/" + fname})
+
+    @app.route("/artwork/upload/delete", methods=["POST"])
+    def artwork_upload_delete():
+        """Take one studio file back off the disk.
+
+        /artwork/upload and /artwork/save each wrote a file and recorded
+        nothing, so every second idea orphaned the first one permanently.
+        This is the way back, and the Cover Studio now lists what it has
+        written so there is something to point it at.
+
+        Ownership and the unlink are one check, the rule /vault/<id>/delete
+        established: only a basename this studio writes for THIS artist -
+        `artup_<user>_` or `aiart_<user>_` - can be named at all. Another
+        account's file cannot be addressed, so the answer is 404 rather
+        than a refusal that confirms whose it is.
+
+        A finished cover saved through "Save cover to uploads" is a Vault
+        file (`vault_<user>_<ms>`), owned and listed by the Vault. It is
+        not offered here and cannot be reached from here.
+        """
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        name = (request.get_json(silent=True) or {}).get("name") or ""
+        if not os.path.basename(name.split("?")[0]).startswith(
+                artwork_upload_prefixes(user["id"])):
+            abort(404)
+        path = take_artwork_upload(user["id"], name, UPLOADS_DIR)
+        # A name of theirs with no file behind it is a no-op, not an
+        # error: already gone is the state the caller asked for.
+        removed_file = False
+        if path and os.path.basename(path).startswith(
+                artwork_upload_prefixes(user["id"])):
+            removed_file = blob_store.remove(path, uploads_dir=UPLOADS_DIR)
+        return jsonify({"ok": True, "removed": bool(path), "file": removed_file})
 
     def _ml_campaign_card(c):
         counts = mls.event_counts(c["id"])
@@ -3020,6 +3063,25 @@ def create_app():
         f.save(os.path.join(UPLOADS_DIR, fname))
         return "/uploads/" + fname
 
+    def _ml_drop_cover_file(old, new=""):
+        """Unlink a cover file once nothing points at it any more.
+
+        Every `_ml_cover_upload` writes a fresh UUID name, so replacing a
+        cover used to leave the previous file on the disk permanently
+        unreferenced - a new orphan for every re-upload.
+
+        The unlink is the narrow one /vault/<id>/delete established: only
+        `mlcover_<uuid>`, the name THIS uploader writes. A cover pointed
+        at a Vault image, at a Cover Studio file, or at an external URL
+        belongs to somebody else, so the campaign gives up the reference
+        and the bytes stay exactly where they are.
+        """
+        if not old or old == new:
+            return False
+        if not os.path.basename(old.split("?")[0]).startswith("mlcover_"):
+            return False
+        return blob_store.remove(old, uploads_dir=UPLOADS_DIR)
+
     @app.route("/links/new", methods=["GET", "POST"])
     def ml_new():
         user = current_user()
@@ -3059,7 +3121,13 @@ def create_app():
         if err:
             return err
         if request.method == "POST":
-            mls.update_campaign(cid, campaign["user_id"], _ml_form_fields())
+            was = campaign["cover_url"]
+            fields = _ml_form_fields()
+            mls.update_campaign(cid, campaign["user_id"], fields)
+            # Replacing a cover is the common case and used to orphan the
+            # file it replaced. The row is written first: nothing is
+            # unlinked until the database no longer points at it.
+            _ml_drop_cover_file(was, fields["cover_url"])
             mls.set_destinations(cid, _ml_form_destinations())
             campaign = mls.get_campaign(cid)
         dests = mls.get_destinations(cid)
@@ -3070,6 +3138,22 @@ def create_app():
                                vault_files=store.list_vault_files(campaign["user_id"]),
                                eff_status=links_engine.effective_status(campaign),
                                **build_dashboard_context())
+
+    @app.route("/links/<cid>/cover/delete", methods=["POST"])
+    def ml_cover_delete(cid):
+        """Clear the campaign's cover art, and remove the file when it is
+        this uploader's own.
+
+        The builder could point the cover somewhere new; it could never
+        point it at nothing. `_ml_owned` answers 404 for a campaign that
+        is not this artist's, so a stranger learns nothing about it.
+        """
+        campaign, err = _ml_owned(cid)
+        if err:
+            return err
+        was = mls.clear_campaign_cover(cid, campaign["user_id"])
+        _ml_drop_cover_file(was)
+        return redirect("/links/%s/edit" % cid)
 
     @app.route("/links/<cid>/publish", methods=["POST"])
     def ml_publish(cid):
@@ -6825,6 +6909,39 @@ def create_app():
         return render_template("sync_packs.html", active_page="deals",
                                packs=store.list_sync_packs(user["id"]), error=error,
                                **build_dashboard_context())
+
+    @app.route("/sync/clearance-packs/<pack_id>/delete", methods=["POST"])
+    def sync_pack_delete(pack_id):
+        """Delete a clearance pack, and the audio it holds.
+
+        Archiving only hid a pack from supervisors: the row stayed, the
+        private /s/<slug> link stayed, and up to three uploaded files
+        stayed on the disk with nothing left that could reach them. A
+        pitch pack an artist wants gone - a track they lost the rights
+        to, a version they should never have sent - has to actually go.
+
+        `delete_sync_pack` scopes the row to this account and returns
+        None otherwise, so a pack belonging to somebody else is answered
+        the same way as one that never existed: 404, and nothing about
+        whose it was. An empty list is different - a real pack that held
+        no audio - and deletes without complaint.
+
+        The unlink is the narrow rule /vault/<id>/delete established:
+        only `sync_<uuid>`, the name `_sync_audio_upload` writes. Nothing
+        else in the uploads directory can be reached from here.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        paths = store.delete_sync_pack(user["id"], pack_id)
+        if paths is None:
+            abort(404)
+        # Only the slots that held something are unlinked; an absent
+        # instrumental or clean edit is a no-op, not a failure.
+        for path in paths:
+            if os.path.basename(path.split("?")[0]).startswith("sync_"):
+                blob_store.remove(path, uploads_dir=UPLOADS_DIR)
+        return redirect("/sync/clearance-packs")
 
     @app.route("/s/<slug>")
     def sync_pack_public(slug):

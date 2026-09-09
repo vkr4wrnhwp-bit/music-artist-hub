@@ -3923,6 +3923,32 @@ def list_sync_packs(user_id):
     return [dict(r) for r in rows]
 
 
+def delete_sync_pack(user_id, pack_id):
+    """Drop a clearance pack and hand back every audio path it held.
+
+    A pack could be archived - which only hides it from supervisors - and
+    that was the whole of it. The row stayed, the private link stayed, and
+    up to three uploaded audio files stayed on the disk with nothing left
+    that could reach them.
+
+    The row is the only record of those paths, so the caller gets them
+    back before it is gone. Returns None - not [] - for a pack that is
+    not this artist's, which is indistinguishable from one that does not
+    exist: the caller answers 404 either way and tells a stranger
+    nothing. [] means the pack was real and simply held no audio.
+    """
+    with get_db() as db:
+        row = db.execute("SELECT main_url, instrumental_url, clean_url FROM sync_packs"
+                         " WHERE id = ? AND user_id = ?", (pack_id, user_id)).fetchone()
+        if row is None:
+            return None
+        db.execute("DELETE FROM sync_packs WHERE id = ? AND user_id = ?",
+                   (pack_id, user_id))
+    # Only the slots that actually hold something. An instrumental and a
+    # clean edit are optional, and an empty one is not a path.
+    return [p for p in (row["main_url"], row["instrumental_url"], row["clean_url"]) if p]
+
+
 def get_sync_pack_by_slug(slug, count_view=False):
     with get_db() as db:
         row = db.execute("SELECT * FROM sync_packs WHERE slug = ?", (slug,)).fetchone()

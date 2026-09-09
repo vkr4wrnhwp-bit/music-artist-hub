@@ -86,9 +86,22 @@
             <div class="min-w-0 flex-1 space-y-1.5">
               <input type="file" name="cover_file" accept=".png,.jpg,.jpeg,.webp" class="w-full text-xs text-gray-300 file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-solid file:border-sb-gold/40 file:bg-sb-gold/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-sb-gold-bright">
               <input id="cover-url-input" name="cover_url" value="{{ c.cover_url if c }}" placeholder="...or paste an image URL (auto-scan fills this)" class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
+              {#- Only when a cover is actually stored, and only on a saved
+                  campaign - there is nothing to clear before one exists.
+                  `form=` puts the control here and the submission on the
+                  little form below, so it is not part of the builder's own
+                  save and cannot be reached by pressing Enter in a field.
+                  The promise it makes depends on who owns the file: this
+                  uploader writes `mlcover_<uuid>`, and anything else - a
+                  Vault image, a Cover Studio file, a pasted URL - keeps
+                  its bytes. -#}
+              {% if c and c.cover_url %}
+              <button form="cover-delete-form" class="ml-cover-remove sb-btn sb-btn-danger sb-btn-sm"
+                      onclick="return confirm('{{ 'Remove the cover art? The file is deleted.' if c.cover_url.split('/')[-1].startswith('mlcover_') else 'Remove the cover art from this campaign? The image itself is not deleted — the Vault copy stays.' }}')">Remove cover</button>
+              {% endif %}
             </div>
           </div>
-          <p class="mt-1 text-xs text-gray-300 font-medium">Uploading a file overrides the URL. Square, 1500px+ recommended.</p>
+          <p class="mt-1 text-xs text-gray-300 font-medium">Uploading a file overrides the URL — the file it replaces is deleted. Square, 1500px+ recommended.</p>
         </div>
         <div class="sm:col-span-2"><label class="sb-label text-gray-300">Announcement text</label>
           <textarea name="description" rows="2" placeholder="The new single. Out everywhere." class="{{ field }} resize-none">{{ c.description if c }}</textarea></div>
@@ -148,6 +161,11 @@
       {% endif %}
     </div>
   </form>
+
+  {% if c and c.cover_url %}
+  {#- The Remove cover button above submits this, not the builder form. -#}
+  <form id="cover-delete-form" method="post" action="/links/{{ c.id }}/cover/delete" class="hidden"></form>
+  {% endif %}
 
   {% if c %}
   <div class="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">

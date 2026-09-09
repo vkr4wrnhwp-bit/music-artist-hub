@@ -280,6 +280,30 @@
 
 
       </section>
+
+      {#- Studio files: every upload and every saved generate wrote a file
+          and listed it nowhere, so a second idea orphaned the first one
+          for good. This is the listing, and the way back off the disk.
+          Only files this studio wrote for this account appear. -#}
+      <section class="rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5">
+        <div class="plate"><span class="nm">Your studio files</span><span class="rule"></span></div>
+        <p class="mt-3 text-xs font-medium text-gray-300">Uploads and saved generates land here. A finished cover sent with &ldquo;Save cover to uploads&rdquo; is a <a href="/vault" class="font-bold text-sb-gold-bright underline">Vault</a> file &mdash; remove that one there.</p>
+        <div id="art-uploads" class="mt-3 space-y-1.5">
+          {% for u in art_uploads %}
+          <div class="art-upload-row flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 p-2">
+            <img src="{{ u.path }}" alt="" class="h-9 w-9 shrink-0 rounded-md border border-white/10 object-cover">
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-xs font-bold text-gray-200">{{ u.kind }} &middot; {{ u.when }}</div>
+              <div class="truncate text-xs font-medium text-gray-300">{{ u.name }}</div>
+            </div>
+            <button type="button" class="art-upload-use sb-btn sb-btn-secondary sb-btn-sm shrink-0" data-path="{{ u.path }}">Use</button>
+            <button type="button" class="art-upload-remove sb-btn sb-btn-danger sb-btn-sm shrink-0" data-name="{{ u.name }}"
+                    onclick="return confirm('Delete {{ u.name }}? The file is deleted. A campaign cover or press-kit slot pointing at it loses its image.')">Remove</button>
+          </div>
+          {% endfor %}
+        </div>
+        <p id="art-uploads-empty" class="mt-3 text-xs font-medium text-gray-300 {{ 'hidden' if art_uploads else '' }}">Nothing saved from this studio yet. Upload your own art, or save a generate, and it shows up here with a way to remove it.</p>
+      </section>
     </div>
   </div>
 </div>
@@ -638,6 +662,30 @@
   document.getElementById("generate4-btn").addEventListener("click", generateFour);
   aiAgain.addEventListener("click", generateArt);
   document.getElementById("ai-remove-btn").addEventListener("click", () => setDesignerImage(null));
+
+  // Studio files: one Remove per file, and the empty state comes back.
+  // The inline confirm is the only prompt - it cancels the event, and
+  // this listener stands down on `defaultPrevented` rather than asking
+  // a second time.
+  function wireArtUpload(row) {
+    const use = row.querySelector(".art-upload-use");
+    if (use) use.addEventListener("click", () => setDesignerImage(use.dataset.path));
+    const rm = row.querySelector(".art-upload-remove");
+    if (!rm) return;
+    rm.addEventListener("click", async (ev) => {
+      if (ev.defaultPrevented) return;
+      rm.disabled = true;
+      const res = await fetch("/artwork/upload/delete", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: rm.dataset.name }),
+      });
+      if (!res.ok) { rm.disabled = false; return; }
+      row.remove();
+      document.getElementById("art-uploads-empty").classList.toggle(
+        "hidden", !!document.querySelector(".art-upload-row"));
+    });
+  }
+  document.querySelectorAll(".art-upload-row").forEach(wireArtUpload);
 
   // Upload your own artwork straight into the designer
   document.getElementById("art-upload").addEventListener("change", async (e) => {
