@@ -12,6 +12,11 @@ for CAP_METRICS count as real without a single statement; a public kit
 never spends the artist's provider quota on a stranger's page load; and a
 private pitch link for a real account shows "Not measured" rather than
 somebody else's totals.
+
+And the public slug does the same (owner ruling, 2026-09-09). It was
+still falling back to the demo catalogue under a "Sample figures"
+banner, which on a page carrying a real artist's name is a caption on
+somebody else's career. Only the demo showcase keeps that strip.
 """
 import uuid
 
@@ -132,6 +137,53 @@ def test_the_editor_and_the_slug_read_the_same_helper(artist, measured):
     assert "Sample figures" not in editor
     public = artist["client"].get("/epk/" + artist["slug"]).get_data(as_text=True)
     assert "61,200" in public
+
+
+def test_a_public_slug_for_a_real_account_never_shows_the_demo_totals(artist):
+    """The slug is as public as a press kit gets and it carries this
+    artist's name, so it follows the pitch link's rule: what was measured,
+    or four honest blanks - never the showcase's totals."""
+    anon = artist["client"].application.test_client()
+    body = anon.get("/epk/" + artist["slug"]).get_data(as_text=True)
+    assert body.count("Not measured") >= 2
+    assert "Sample metrics" not in body
+    assert "Total Streams" not in body and "Est. Catalog Value" not in body
+    assert "Monthly Listeners" in body and "No metrics provider connected" in body
+
+
+def test_a_public_slug_shows_measured_figures_when_there_are_any(artist, measured):
+    _seed_reading(artist["uid"])
+    anon = artist["client"].application.test_client()
+    body = anon.get("/epk/" + artist["slug"]).get_data(as_text=True)
+    assert "61,200" in body and "4,310" in body
+    assert "Not measured" not in body and "Sample metrics" not in body
+
+
+def test_the_demo_showcase_is_never_reduced_to_four_blanks(app_obj):
+    """The showcase seeds its own statements, so its public slug carries
+    measured figures. Whichever strip it lands on, the ruling must not
+    empty it."""
+    owner = app_obj.test_client()
+    owner.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    owner.get("/epk")                        # mints the slug
+    body = app_obj.test_client().get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "Not measured" not in body
+    assert "Catalog Earnings" in body
+
+
+def test_the_demo_showcase_keeps_its_sample_strip_when_it_measures_nothing(
+        app_obj, monkeypatch):
+    """The one account allowed to stand in for a career, because the page
+    says outright that the figures are samples. Emptied of what it
+    measures, the demo falls back to that labelled strip - a real account
+    in the same state gets "Not measured" instead."""
+    owner = app_obj.test_client()
+    owner.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    owner.get("/epk")                        # mints the slug
+    monkeypatch.setattr(store, "get_statement_rows", lambda *a, **k: [])
+    monkeypatch.setattr(store, "get_catalog_tracks", lambda *a, **k: [])
+    body = app_obj.test_client().get("/epk/synthwave-surfer").get_data(as_text=True)
+    assert "Sample metrics" in body and "Not measured" not in body
 
 
 def test_an_empty_real_account_keeps_the_sample_strip_but_labels_it(artist):

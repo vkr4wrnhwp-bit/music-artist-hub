@@ -2612,6 +2612,8 @@ def create_app():
         assets = _labeled_assets(store.get_epk_assets(prof["user_id"], public_only=True))
         tour, bit, tour_source = _epk_tour_dates(prof["user_id"], prof["data"])
         real = _epk_real_stats(prof["user_id"])
+        _demo_owner = _is_demo_email((store.get_user(prof["user_id"]) or {})
+                                     .get("email") or "")
         data = get_epk_data({"name": name, "initials": initials},
                             ctx["catalog_value"],
                             overrides=prof["data"], photo=prof["photo"],
@@ -2620,15 +2622,17 @@ def create_app():
                             # Whose kit this is decides whose defaults
                             # apply - a real artist's public EPK must
                             # never fall back to the showcase identity.
-                            demo=_is_demo_email(
-                                (store.get_user(prof["user_id"]) or {})
-                                .get("email") or ""),
-                            # None, not [] - an empty list would override
-                            # the demo stats with nothing and delete the
-                            # section. With no real figures the demo ones
-                            # stay, and the page says outright that they
-                            # are samples.
-                            stats_override=(real or None))
+                            demo=_demo_owner,
+                            # The public slug follows the same rule as the
+                            # private pitch link (owner ruling, 2026-09-09):
+                            # a real account shows what was measured, or
+                            # says "Not measured" in every slot - never the
+                            # demo catalogue's totals standing over this
+                            # artist's name on a page that leaves the
+                            # building. The showcase keeps its sample strip,
+                            # which the page labels as samples.
+                            stats_override=(real or (None if _demo_owner
+                                                     else epk_config.not_measured_stats())))
         return render_template("epk_public.html", e=data, slug=slug, shopify=shopify_buy.context())
 
     @app.route("/epk/share", methods=["POST"])
