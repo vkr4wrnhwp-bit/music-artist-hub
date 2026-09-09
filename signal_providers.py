@@ -283,6 +283,7 @@ class SoundchartsAdapter(_EnvProvider):
         return (os.environ.get(name) or "").strip()
 
     token_key = "SOUNDCHARTS_ACCESS_TOKEN"   # a bearer Soundcharts issued ready-made
+    _pair_instead = False                    # set when their 401 says it is an api key, not a bearer
 
     def auth_mode(self):
         """"oauth" with a client id + secret, "token" with a ready-made
@@ -395,6 +396,12 @@ class SoundchartsAdapter(_EnvProvider):
         if mode == "oauth":
             return {"Authorization": "Bearer " + self._token()}
         if mode == "token":
+            # Their dashboard hands out an app id and a second value whose
+            # name varies; if it is really an api key, "token" mode is the
+            # wrong shape and _fetch_json swaps to this one after a 401.
+            if self._pair_instead:
+                return {"x-app-id": self._env("SOUNDCHARTS_APP_ID"),
+                        "x-api-key": self._env(self.token_key)}
             return {"Authorization": "Bearer " + self._env(self.token_key)}
         return {"x-app-id": self._env("SOUNDCHARTS_APP_ID"),
                 "x-api-key": self._env("SOUNDCHARTS_API_KEY")}
@@ -505,6 +512,11 @@ class SoundchartsAdapter(_EnvProvider):
         In oauth mode a 401 means the bearer token died early (revoked,
         or the clock drifted): it is forgotten and the call retried once
         with a fresh one. A second 401 is the account's answer.
+
+        In token mode a 401 may mean the value is not a bearer at all but
+        the api key of their `x-app-id` + `x-api-key` pair - the owner's
+        account showed exactly that in 2026-09. The other shape is tried
+        once and, if it works, is remembered for this process.
         """
         url = self.base_url + path
         if params:
@@ -521,6 +533,16 @@ class SoundchartsAdapter(_EnvProvider):
                     return self._call(url, mode)
                 except _HttpError as again:
                     raise ProviderError("Soundcharts %s: %s" % (again.code, again.msg))
+            if e.code == 401 and mode == "token" and self._env("SOUNDCHARTS_APP_ID"):
+                # The value may be an api key rather than a bearer: try the
+                # pair once, and keep whichever the account accepts.
+                self._pair_instead = not self._pair_instead
+                try:
+                    answer = self._call(url, mode)
+                except _HttpError as again:
+                    self._pair_instead = not self._pair_instead
+                    raise ProviderError("Soundcharts %s: %s" % (again.code, again.msg))
+                return answer
             raise ProviderError("Soundcharts %s: %s" % (e.code, e.msg))
 
     def _call(self, url, mode):

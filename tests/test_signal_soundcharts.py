@@ -617,3 +617,46 @@ def test_a_ready_made_access_token_is_sent_as_the_bearer(monkeypatch):
     assert seen and seen[0].get("Authorization") == "Bearer issued-token"
     assert "x-api-key" not in seen[0]
     assert a.health_check()["auth"] == "access token issued by Soundcharts"
+
+
+def test_a_token_their_account_wants_as_an_api_key_is_retried_as_the_pair(monkeypatch):
+    """Live, 2026-09-09: the value Soundcharts issued beside the app id was
+    refused as a bearer with 401 Invalid credentials. Their dashboard names
+    it inconsistently, so rather than make somebody guess which slot a secret
+    belongs in, a 401 in token mode tries the x-app-id + x-api-key pair once
+    and keeps whichever the account accepts."""
+    monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
+    for k in ("SOUNDCHARTS_CLIENT_ID", "SOUNDCHARTS_CLIENT_SECRET", "SOUNDCHARTS_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("SOUNDCHARTS_APP_ID", "app-1")
+    monkeypatch.setenv("SOUNDCHARTS_ACCESS_TOKEN", "the-value")
+    seen = []
+
+    def http(url, headers):
+        seen.append(dict(headers))
+        if "Authorization" in headers:                 # their account refuses a bearer
+            raise providers._HttpError(401, "Invalid credentials")
+        assert headers["x-app-id"] == "app-1" and headers["x-api-key"] == "the-value"
+        return {"items": []}
+    a = providers.SoundchartsAdapter(http=http)
+    assert a.auth_mode() == "token"
+    assert a.search_artists("billie") == []
+    assert len(seen) == 2 and "Authorization" in seen[0] and "x-api-key" in seen[1]
+    a.search_artists("another")                        # remembered: no wasted 401
+    assert "x-api-key" in seen[-1] and all("Authorization" not in h for h in seen[2:])
+
+
+def test_a_pair_that_is_also_refused_reports_their_words_and_does_not_latch(monkeypatch):
+    monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
+    for k in ("SOUNDCHARTS_CLIENT_ID", "SOUNDCHARTS_CLIENT_SECRET", "SOUNDCHARTS_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("SOUNDCHARTS_APP_ID", "app-1")
+    monkeypatch.setenv("SOUNDCHARTS_ACCESS_TOKEN", "the-value")
+
+    def http(url, headers):
+        raise providers._HttpError(401, "Invalid credentials")
+    a = providers.SoundchartsAdapter(http=http)
+    with pytest.raises(providers.ProviderError) as e:
+        a.search_artists("billie")
+    assert "401" in str(e.value) and "Invalid credentials" in str(e.value)
+    assert a._pair_instead is False, "a shape that also failed is not remembered"
