@@ -2358,6 +2358,36 @@ def create_app():
         public = bool((request.get_json(silent=True) or {}).get("public"))
         return jsonify({"ok": store.set_epk_asset_public(user["id"], kind, public)})
 
+    @app.route("/epk/asset/<kind>/delete", methods=["POST"])
+    def epk_asset_delete(kind):
+        """Remove an asset slot, and the file behind it when this route
+        wrote it.
+
+        Hidden was never gone: `visibility` only unsets `public`, so a
+        press photo an artist wanted rid of stayed in the row and stayed
+        on disk forever. This deletes both.
+
+        The unlink is deliberately narrow, the same rule /vault/<id>/delete
+        uses: only a basename this uploader writes -
+        `epkasset_<user>_<kind>.<ext>` - is removed. An asset pointed at a
+        Vault image by /epk/asset/<kind>/from-vault shares that file with
+        the Vault, which still lists and owns it, so clearing the EPK slot
+        must leave the file exactly where it is.
+        """
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        if kind not in _EPK_KIND_LABELS:
+            return jsonify({"ok": False, "error": "Unknown asset type."}), 400
+        path = store.delete_epk_asset(user["id"], kind)
+        removed_file = False
+        if path and os.path.basename(path.split("?")[0]).startswith(
+                "epkasset_%s_%s." % (user["id"], kind)):
+            removed_file = blob_store.remove(path, uploads_dir=UPLOADS_DIR)
+        # An empty slot answers ok. Nothing was there to remove, which is
+        # the state the caller asked for.
+        return jsonify({"ok": True, "removed": bool(path), "file": removed_file})
+
     # --- Audience metrics through the provider registry ----------------------
     #
     # Artist Pulse read Spotify's own Web API directly, so the one number
@@ -2691,6 +2721,23 @@ def create_app():
         photo_path = "/uploads/" + fname
         store.save_epk_photo(user["id"], photo_path)
         return jsonify({"ok": True, "photo": photo_path})
+
+    @app.route("/epk/photo/delete", methods=["POST"])
+    def epk_photo_delete():
+        """Remove the artist photo, and the file /epk/photo wrote for it.
+
+        Same narrow unlink as the asset route: only `epk_<user>.<ext>`,
+        the one name this uploader produces.
+        """
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        path = store.delete_epk_photo(user["id"])
+        removed_file = False
+        if path and os.path.basename(path.split("?")[0]).startswith(
+                "epk_%s." % user["id"]):
+            removed_file = blob_store.remove(path, uploads_dir=UPLOADS_DIR)
+        return jsonify({"ok": True, "removed": bool(path), "file": removed_file})
 
     @app.route("/epk/export", methods=["POST"])
     def epk_export():
