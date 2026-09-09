@@ -331,9 +331,11 @@ def evidence_line(scan, hit):
 def case_fields(scan, hit):
     """Title and note for `/royalty-recovery/cases/from-finding`.
 
-    Amount stays 0 and the form says so: nothing here measures money. The
-    MLC sweep does the same, and for the same reason - a case with an
-    invented figure on it is worse than a case with none.
+    Amount stays 0 and the form says so: nothing here measures money.
+    An MLC gap can be priced - the title's own statement earnings are
+    what is at risk behind an unregistered work - but somebody else's
+    use of your master is not measured by anything this account holds,
+    and a case with an invented figure on it is worse than one with none.
     """
     title = "Your master detected in %s: %s" % (
         scan.get("source_name") or "a scanned recording",
