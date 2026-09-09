@@ -1789,7 +1789,9 @@ def test_bandsintown_tour_dates(monkeypatch):
         "bandsintown_artist": "Art Is War"}).get_json()["ok"]
     # Editor: field prefilled, live dates render in the preview.
     body = client.get("/epk").get_data(as_text=True)
-    assert "Bandsintown Artist Name" in body
+    assert "Bandsintown Artist Name" not in body, (
+        "Bandsintown declined an app_id in 2026-09-07, so the field could never "
+        "be reached; the tour dates below come from TOUR")
     assert "The Fillmore" in body and "Aug 1, 2026" in body
     assert "Charlotte, NC" in body
     # Public EPK carries the tour section with the ticket link.
@@ -1804,7 +1806,8 @@ def test_bandsintown_tour_dates(monkeypatch):
     pub = app_obj.test_client().get("/epk/" + slug).get_data(as_text=True)
     assert "Tour Dates" in pub and "The Fillmore" in pub
     assert "https://tix.example/1" in pub
-    assert "Live dates via Bandsintown" in pub
+    assert "From this artist's Bandsintown listing" in pub, (
+        "the caption names whichever source answered - here the seeded Bandsintown rows, since this fixture supplies them")
 
 
 def test_bandsintown_honest_when_unconfigured(monkeypatch):
@@ -1927,7 +1930,8 @@ def test_artist_pulse_live_flow(monkeypatch):
     assert "4,321" in body                       # Spotify followers
     assert "Anthem" in body and "LP1" in body    # live top tracks
     assert "777" in body                         # Deezer fans
-    assert "refreshed every 6 hours" in body     # honest sourcing note
+    assert "read fresh on every load of this page" in body   # honest sourcing note
+    assert "nothing above is cached" in body
     # Change Artist resets to setup.
     assert client.post("/pulse/clear").get_json()["ok"]
     assert "Find yourself on Spotify" in client.get("/pulse").get_data(as_text=True)
@@ -2980,7 +2984,8 @@ def test_identifiers_page_uses_real_catalog(monkeypatch):
     body = client.get("/catalog").get_data(as_text=True)
     assert "Your Identifiers" in body
     assert "USTEST2500001" in body and "123456789012" in body   # real pulled IDs
-    assert "auto-pulled from your catalog" in body
+    assert "ISRC and UPC come from your catalog records" in body
+    assert "the ISWC is the work code The MLC returned" in body
     # A metadata-less track is flagged with an actionable MISSING row.
     monkeypatch.setattr(music_apis, "_fetch_json",
                         lambda url: {"data": [], "results": []})
@@ -4880,6 +4885,13 @@ def test_clean_release_nodes_resolve_ping_and_certificate():
     ros_mod.create_campaign(uid, {"title": "Neon Nights",
                                   "release_date": soon})
     mls_mod.upsert_fan(uid, "fan-%s@example.net" % _uuid.uuid4().hex[:6], cid)
+    # Typing "registered" into the MLC box is not evidence any more, so the
+    # certificate stays shut until a real check comes back claimed.
+    assert client.get("/tracks/%s/certificate" % tid).status_code == 302
+    store_mod.add_track_mlc_check(
+        uid, tid, "ISRC USSB12600009", "match", "",
+        [{"song_code": "SB1234", "iswc": "T1234567890", "title": "NEON NIGHTS",
+          "share_total": 100.0, "writers": [], "publishers": []}])
     cert = client.get("/tracks/%s/certificate" % tid)
     assert cert.status_code == 200
     body = cert.get_data(as_text=True)
