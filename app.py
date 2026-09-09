@@ -162,7 +162,10 @@ def _hours_float(value, default=0.0):
 from catalog_config import get_account, get_catalog_data
 from reports_config import get_reports_data
 from epk_config import get_epk_data, normalize_epk_overrides
-from artwork_config import get_artwork_data, suggest_from_prompt
+from artwork_config import (get_artwork_data, suggest_from_prompt,
+                            list_uploads as list_artwork_uploads,
+                            take_upload as take_artwork_upload,
+                            owned_prefixes as artwork_upload_prefixes)
 from links_config import get_links_data, create_smart_link
 from funding_config import get_funding_data
 from disputes_config import get_disputes_data, advance_dispute
@@ -2754,6 +2757,11 @@ def create_app():
     def artwork():
         ctx = build_dashboard_context()
         ctx["artwork"] = get_artwork_data(ctx["account"])
+        # What this studio has already written to the disk, so it can be
+        # taken back off it. Signed out, there is nothing to list.
+        user = current_user()
+        ctx["art_uploads"] = (list_artwork_uploads(user["id"], UPLOADS_DIR)
+                              if user else [])
         return render_template("artwork.html", active_page="artwork", **ctx)
 
     @app.route("/artwork/generate", methods=["POST"])
@@ -2818,6 +2826,41 @@ def create_app():
         with open(os.path.join(UPLOADS_DIR, fname), "wb") as f:
             f.write(data)
         return jsonify({"ok": True, "path": "/uploads/" + fname})
+
+    @app.route("/artwork/upload/delete", methods=["POST"])
+    def artwork_upload_delete():
+        """Take one studio file back off the disk.
+
+        /artwork/upload and /artwork/save each wrote a file and recorded
+        nothing, so every second idea orphaned the first one permanently.
+        This is the way back, and the Cover Studio now lists what it has
+        written so there is something to point it at.
+
+        Ownership and the unlink are one check, the rule /vault/<id>/delete
+        established: only a basename this studio writes for THIS artist -
+        `artup_<user>_` or `aiart_<user>_` - can be named at all. Another
+        account's file cannot be addressed, so the answer is 404 rather
+        than a refusal that confirms whose it is.
+
+        A finished cover saved through "Save cover to uploads" is a Vault
+        file (`vault_<user>_<ms>`), owned and listed by the Vault. It is
+        not offered here and cannot be reached from here.
+        """
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in first."}), 401
+        name = (request.get_json(silent=True) or {}).get("name") or ""
+        if not os.path.basename(name.split("?")[0]).startswith(
+                artwork_upload_prefixes(user["id"])):
+            abort(404)
+        path = take_artwork_upload(user["id"], name, UPLOADS_DIR)
+        # A name of theirs with no file behind it is a no-op, not an
+        # error: already gone is the state the caller asked for.
+        removed_file = False
+        if path and os.path.basename(path).startswith(
+                artwork_upload_prefixes(user["id"])):
+            removed_file = blob_store.remove(path, uploads_dir=UPLOADS_DIR)
+        return jsonify({"ok": True, "removed": bool(path), "file": removed_file})
 
     def _ml_campaign_card(c):
         counts = mls.event_counts(c["id"])

@@ -8,6 +8,9 @@ cover is composed client-side as SVG (no external dependency), and the
 can be dropped in later behind the same call.
 """
 
+import os
+import time
+
 from royalty_data import get_songs
 
 # Each colorway is two gradient stops plus an accent and text color.
@@ -104,3 +107,89 @@ def suggest_from_prompt(prompt):
         "template_id": template_id,
         "note": "Concept generated from your prompt. Connect an AI model to render full artwork.",
     }
+
+
+# --- What the Cover Studio has written into the uploads directory -----------
+#
+# Every generate and every "upload your own" wrote a file and recorded
+# nothing: no row, no listing, no way back. So the studio orphaned a file
+# on the disk each time somebody tried a second idea, and the artist had
+# no address for any of them.
+#
+# The two names this studio produces carry the owner inside the filename:
+#
+#     artup_<user>_<unix>.<ext>    /artwork/upload
+#     aiart_<user>_<unix>.jpg      /artwork/save
+#
+# so the directory is the record, and the prefix is both the listing key
+# and the ownership check. That is also why this reads the directory
+# rather than a new table: a table added today would know nothing about
+# the files already orphaned before there was a delete, and those are the
+# ones actually taking up the disk.
+#
+# Finished covers are deliberately NOT here. "Save cover to uploads"
+# posts to /vault/upload, which writes vault_<user>_<ms> and is removed
+# from the Vault by /vault/<id>/delete. The studio does not own that copy
+# and must not offer to destroy it.
+
+UPLOAD_PREFIXES = (("artup_", "Uploaded"), ("aiart_", "Generated"))
+
+
+def owned_prefixes(user_id):
+    """The exact basename prefixes this studio writes for one artist."""
+    return tuple("%s%s_" % (p, user_id) for p, _label in UPLOAD_PREFIXES)
+
+
+def owns(user_id, name):
+    """Is this basename one the studio wrote for this artist?
+
+    The whole ownership model, in one line: nothing else can match, and a
+    name belonging to another account cannot be made to.
+    """
+    base = os.path.basename((name or "").split("?")[0])
+    return bool(user_id) and bool(base) and base.startswith(owned_prefixes(user_id))
+
+
+def list_uploads(user_id, uploads_dir):
+    """This artist's studio files, newest first. Never anybody else's."""
+    if not user_id:
+        return []
+    labels = {"%s%s_" % (p, user_id): label for p, label in UPLOAD_PREFIXES}
+    out = []
+    try:
+        names = os.listdir(uploads_dir)
+    except OSError:
+        return []
+    for name in names:
+        prefix = next((p for p in labels if name.startswith(p)), None)
+        if prefix is None:
+            continue
+        full = os.path.join(uploads_dir, name)
+        try:
+            stat = os.stat(full)
+        except OSError:
+            continue
+        out.append({"name": name, "path": "/uploads/" + name,
+                    "kind": labels[prefix], "bytes": stat.st_size,
+                    "when": time.strftime("%d %b %Y", time.localtime(stat.st_mtime)),
+                    "sort": stat.st_mtime})
+    out.sort(key=lambda u: u["sort"], reverse=True)
+    return out
+
+
+def take_upload(user_id, name, uploads_dir):
+    """Give up the studio's record of one file and hand back the stored
+    path, or "" when there is nothing to give up.
+
+    The listing is the record here, so "taking" it means confirming the
+    file is really in this artist's listing before the caller unlinks it.
+    A name that is not there - already deleted, or never written - yields
+    "", which the route reports as a successful no-op rather than an
+    error: the state the caller asked for is the state they got.
+    """
+    if not owns(user_id, name):
+        return ""
+    base = os.path.basename(name.split("?")[0])
+    if not os.path.exists(os.path.join(uploads_dir, base)):
+        return ""
+    return "/uploads/" + base
