@@ -48,7 +48,8 @@ def artist(application):
         cid = mls.create_campaign(uid, "rd-%s" % uuid.uuid4().hex[:6],
                                   {"title": "Desk Drop", "release_date": soon})
         tid = store.add_os_track(uid, "Desk Drop", "Desk EP", soon)
-        store.update_os_track_passport(uid, tid, {"isrc": "USSB12600042"})
+        store.update_os_track_passport(uid, tid, {"isrc": "USSB12600042",
+                                                  "songwriters": "A. Tester / B. Tester"})
         ctid = store.add_catalog_track(uid, {"title": "Desk Drop",
                                              "artist": "Desk Tester"})
     return {"client": client, "uid": uid, "campaign": cid,
@@ -110,7 +111,11 @@ def test_both_halves_render_on_the_one_page(artist):
     assert "Release Kit" in body and "Export full kit" in body
     # Clean Release's half.
     assert "Track Passports · Clean Release" in body
-    assert "Resolve from Track Passport" in body and "USSB12600042" in body
+    # The ISRC is no longer a gap - Catalog reads it through the passport
+    # link - so the card is exercised through a field that still can be.
+    assert "Resolve from Track Passport" in body and "A. Tester / B. Tester" in body
+    # The code itself is not printed here; its check passes instead.
+    assert 'sb-lamp--on">ISRC on catalog track' in body
     assert "Desk Drop" in body
 
 
@@ -135,8 +140,12 @@ def test_only_open_checks_are_listed_and_each_has_a_way_out(artist):
     assert body.count('class="rd-check"') == body.count("Create action")
     # A passed check is counted and folded away, not listed as open.
     assert "Release date set" in body
-    assert "1 done" in body
+    # Two, not one: Catalog reads the ISRC through the passport link now,
+    # so a code typed on the passport passes the catalog check without
+    # being copied across by hand first.
+    assert "2 done" in body
     assert 'class="sb-lamp sb-lamp--on">Release date set' in body
+    assert 'sb-lamp--on">ISRC on catalog track' in body
 
 
 def test_the_strip_reads_real_numbers(artist):
