@@ -5181,7 +5181,10 @@ def test_pulse_peers_trendline_and_milestone(monkeypatch):
     page = client.get("/pulse").get_data(as_text=True)
     # Layered trendline from real snapshots, with the honest no-fake-lines note.
     assert "Pulse Graph" in page and page.count("<polyline") == 3
-    assert "no line is better than a fake one" in page
+    # The YouTube read made this its own sentence, so it is capitalised now;
+    # assert the claim, and that the reason for each absent line is still given.
+    assert "No line is better than a fake one" in page
+    assert "YouTube's public API reports current totals with no history" in page
     # Peer Watch: you + peer, both with measured 7-day deltas.
     assert "Peer A" in page and "(you)" in page
     assert "+200" in page and "+300" in page
