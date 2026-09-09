@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}ACRCloud registry - Street Banker{% endblock %}
+
+{% block content %}
+{#- Every internal page opens with the shared plate band, never a landing
+    hero. The richness belongs in the body below it. -#}
+{{ sb.plate("/static/img/eq-room", [900, 1200, 1600],
+            "Street Banker · Beats", "ACRCloud registry",
+            "Two things ACRCloud can do beyond naming a clip. Register your own masters into your custom bucket, so their index knows what is yours. Then scan a long recording - a DJ set, a livestream rip, a podcast - and get every track it detected with a start and an end. Nothing here runs on a schedule; every call happens because you pressed a button.",
+            position="center 45%") }}
+
+{% if notice %}
+<section class="sb-panel">
+  <p class="sb-note">{{ sb.badge("ACRCloud", notice.tone) }} {{ notice.text }}</p>
+</section>
+{% endif %}
+
+{# --- the connection, measured ----------------------------------------- #}
+<section class="sb-panel">
+  <h2 class="sb-label sb-label-gold">The connection</h2>
+  {% if not state.on %}
+    <p class="sb-note">
+      {{ sb.lamp("Not connected", "warn") }}
+      {% if state.missing %}
+        The console API needs {% for name in state.missing %}<code>{{ name }}</code>{{ ", " if not loop.last }}{% endfor %}
+        set in the host's environment. Until it is, nothing on this page can
+        register a master or read a scan, and none of it is guessed at.
+      {% else %}
+        The console API is switched off on this deployment.
+      {% endif %}
+    </p>
+    <p class="sb-note">
+      This is a second credential, not the one the Beats page already uses.
+      The identify keys - <code>ACRCLOUD_ACCESS_KEY</code> and
+      <code>ACRCLOUD_ACCESS_SECRET</code> - answer "what is this clip".
+      A console token manages the account itself, and it carries the scopes
+      <code>write-audios</code>, <code>read-buckets</code> and
+      <code>read-filescanning</code>.
+    </p>
+  {% elif state.error %}
+    <p class="sb-note">
+      {{ sb.lamp("Refused", "crit") }}
+      ACRCloud answered: {{ state.error }}
+    </p>
+    <p class="sb-note">
+      That is ACRCloud's own message, unedited. A missing scope on the token
+      reads like this, and so does a rate limit.
+    </p>
+  {% else %}
+    <p class="sb-note">
+      {{ sb.lamp("Connected", "good") }}
+      {{ state.buckets|length }} custom bucket{{ "" if state.buckets|length == 1 else "s" }}
+      and {{ state.containers|length }} file-scanning container{{ "" if state.containers|length == 1 else "s" }}
+      on this account.
+    </p>
+    {% if not state.buckets %}
+    <p class="sb-note">
+      {{ sb.badge("No bucket", "warn") }} {{ bucket_advice }}
+      Nothing was created for you - a bucket is a billing decision, so it is
+      yours to make.
+    </p>
+    {% endif %}
+    {% if not state.containers %}
+    <p class="sb-note">
+      {{ sb.badge("No container", "warn") }} {{ container_advice }}
+    </p>
+    {% endif %}
+  {% endif %}
+</section>
+
+{# --- register a master ------------------------------------------------- #}
+<section class="sb-panel">
+  <h2 class="sb-label sb-label-gold">Register your catalog</h2>
+  <p class="sb-note">
+    Only Vault files filed as
+    {% for kind in registerable_kinds %}<b>{{ kind }}</b>{{ " or " if not loop.last }}{% endfor %}
+    are offered, and only audio ones. A file is sent once; after that this page
+    shows the id ACRCloud gave it rather than a button that would send it
+    again. At most {{ max_register_mb }} MB per file.
+  </p>
+
+  {% if eligible %}
+    {% call sb.table(["File", "Filed as", "ACRCloud", ("State", "num"), "Action"]) %}
+      {% for item in eligible %}
+      <tr>
+        <td>{{ item.label or item.path.rsplit("/", 1)[-1] }}</td>
+        <td>{{ item.kind }}</td>
+        <td>
+          {% if item.registration %}
+            <code>{{ item.registration.acr_audio_id or "—" }}</code>
+          {% else %}
+            Not registered
+          {% endif %}
+        </td>
+        <td class="num">
+          {% if item.registration %}
+            {{ sb.badge(item.registration.state_word or "accepted", "good") }}
+          {% else %}
+            {{ sb.badge("Not sent", "idle") }}
+          {% endif %}
+        </td>
+        <td>
+          {% if item.registration %}
+            <span class="sb-hint">Registered {{ item.registration.created[:10] }}</span>
+          {% elif not can_act %}
+            <span class="sb-hint">Your seat can read this desk but not spend the account's ACRCloud quota.</span>
+          {% elif not state.on %}
+            {{ sb.btn("Register with ACRCloud", size="sm",
+                      disabled_reason="The console API is not connected on this deployment.") }}
+          {% elif not state.buckets %}
+            {{ sb.btn("Register with ACRCloud", size="sm",
+                      disabled_reason="This account has no custom bucket yet - make one in your ACRCloud console.") }}
+          {% else %}
+            <form method="post" action="/fingerprints/register">
+              <input type="hidden" name="vault_id" value="{{ item.id }}">
+              <select class="sb-select" name="bucket_id" aria-label="Bucket for {{ item.label or 'this file' }}">
+                {% for bucket in state.buckets %}
+                <option value="{{ bucket.id }}">{{ bucket.name }} ({{ bucket.region }})</option>
+                {% endfor %}
+              </select>
+              {{ sb.btn("Register with ACRCloud", type="submit", variant="primary", size="sm") }}
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    {% endcall %}
+  {% else %}
+    <p class="sb-note">
+      Nothing in your Vault is filed as a master or stems yet. Upload one there
+      and it appears here - this page reads the Vault rather than keeping a
+      second copy of your catalog.
+    </p>
+  {% endif %}
+</section>
+
+{# --- what is registered ------------------------------------------------ #}
+{% if registrations %}
+<section class="sb-panel">
+  <h2 class="sb-label sb-label-gold">Registered with ACRCloud</h2>
+  <p class="sb-note">
+    A row here means ACRCloud answered with an id. Nothing that was refused is
+    listed - a refusal is told to you at the time, in ACRCloud's words, and
+    writes nothing.
+  </p>
+  {% call sb.table(["Title", "Bucket", "Audio id", "Fingerprint id", ("State", "num"), ("Registered", "num")]) %}
+    {% for reg in registrations %}
+    <tr>
+      <td>{{ reg.title or reg.filename }}</td>
+      <td>{{ reg.bucket_name or reg.bucket_id or "—" }}</td>
+      <td><code>{{ reg.acr_audio_id or "—" }}</code></td>
+      <td><code>{{ reg.acr_id or "—" }}</code></td>
+      <td class="num">{{ sb.badge(reg.state_word or "unknown", "good" if reg.state == 1 else "info") }}</td>
+      <td class="num">{{ reg.created[:10] }}</td>
+    </tr>
+    {% endfor %}
+  {% endcall %}
+</section>
+{% endif %}
+
+{# --- scanning ----------------------------------------------------------- #}
+<section class="sb-panel">
+  <h2 class="sb-label sb-label-gold">Scan a long recording</h2>
+  <p class="sb-note">
+    Hand ACRCloud a set, a stream rip or a podcast and it returns every track
+    it detected with a start and an end. When one of them is a master you
+    registered above, the row lights up and offers a usage case carrying the
+    timestamp and this file's name as the evidence.
+  </p>
+  {% if not can_act %}
+    <p class="sb-note">Your seat can read scans but not start one.</p>
+  {% elif not state.on %}
+    <p class="sb-note">Connect the console token and this form starts working.</p>
+  {% elif not state.containers %}
+    <p class="sb-note">{{ container_advice }}</p>
+  {% else %}
+    <form method="post" action="/fingerprints/scans" enctype="multipart/form-data" class="sb-row sb-row--wrap">
+      <div class="sb-field">
+        <label class="sb-label" for="f-container_id">Container</label>
+        <select class="sb-select" id="f-container_id" name="container_id" required>
+          {% for c in state.containers %}
+          <option value="{{ c.id }}">{{ c.name }} ({{ c.region }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="sb-field">
+        <label class="sb-label" for="f-recording">Upload a recording</label>
+        <input class="sb-input" id="f-recording" name="recording" type="file" accept="audio/*,video/*">
+        <span class="sb-hint">Anything larger than 80 MB should go in as a link instead.</span>
+      </div>
+      {{ sb.field("url", "Or paste a link ACRCloud can fetch",
+                  placeholder="https://example.com/the-set.mp3",
+                  hint="With a link the file never passes through this deployment at all.") }}
+      {{ sb.btn("Start scan", type="submit", variant="primary") }}
+    </form>
+  {% endif %}
+
+  {% if scans %}
+    {% call sb.table(["Recording", ("State", "num"), ("Hits", "num"), ("Started", "num"), ""]) %}
+      {% for row in scans %}
+      <tr>
+        <td>{{ row.source_name or "Untitled recording" }}</td>
+        <td class="num">{{ sb.badge(row.state, "good" if row.state == "ready" else ("crit" if row.state == "error" else "info")) }}</td>
+        <td class="num">{{ row.hits }}</td>
+        <td class="num">{{ row.created[:10] }}</td>
+        <td>{{ sb.btn("Open", href="/fingerprints/scans/" ~ row.id, size="sm") }}</td>
+      </tr>
+      {% endfor %}
+    {% endcall %}
+  {% else %}
+    <p class="sb-note">No scan has been run from this account yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
