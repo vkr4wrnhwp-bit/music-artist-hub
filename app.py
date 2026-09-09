@@ -7246,8 +7246,11 @@ def create_app():
     def pulse_search():
         if current_user() is None:
             return jsonify({"ok": False, "results": []}), 401
-        return jsonify({"ok": True,
-                        "results": spotify.search_artists(request.args.get("q"))})
+        results = spotify.search_artists(request.args.get("q"))
+        # An empty list has two very different causes. Say which one.
+        refused = spotify.last_refusal() if not results else None
+        return jsonify({"ok": True, "results": results,
+                        "refused": refused or ""})
 
     @app.route("/pulse/select", methods=["POST"])
     def pulse_select():

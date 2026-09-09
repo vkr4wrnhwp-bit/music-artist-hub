@@ -258,7 +258,9 @@
       const box = document.getElementById("pulse-results");
       box.innerHTML = "";
       if (!data.results.length) {
-        err.textContent = "No artists found — check the spelling.";
+        err.textContent = data.refused
+          ? "Spotify refused this app's credentials: " + data.refused
+          : "No artists found — check the spelling.";
         err.classList.remove("hidden");
         return;
       }

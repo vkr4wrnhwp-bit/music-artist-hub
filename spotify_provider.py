@@ -155,18 +155,62 @@ def _api(path, token):
                  headers={"Authorization": "Bearer " + token})
 
 
+_REFUSAL = None
+
+
+def last_refusal():
+    """Why the last lookup came back empty, when the reason was Spotify's
+    and not the search term's - so a wrong credential is never shown to
+    somebody as their own spelling mistake. None when nothing refused."""
+    return _REFUSAL
+
+
+def clear_refusal():
+    global _REFUSAL
+    _REFUSAL = None
+
+
+def _note(exc):
+    """Keep Spotify's own words. Their token endpoint answers 400 with
+    {"error": "invalid_client", "error_description": "Invalid client
+    secret"}, which is the one thing worth putting in front of a person."""
+    global _REFUSAL
+    body = ""
+    try:
+        body = (exc.read() or b"").decode("utf-8", "replace")
+    except Exception:
+        body = str(exc)
+    said = ""
+    try:
+        doc = json.loads(body)
+        said = doc.get("error_description") or doc.get("error") or ""
+        if isinstance(doc.get("error"), dict):
+            said = doc["error"].get("message") or said
+    except Exception:
+        said = (body or str(exc))[:200]
+    _REFUSAL = said or str(exc)[:200]
+
+
 def search_artists(q, limit=8):
     """Live artist search: [{id, name, followers, popularity, image, genres}]."""
     q = (q or "").strip()
-    if not q or not pulse_configured():
+    clear_refusal()
+    if not q:
+        return []
+    if not pulse_configured():
+        global _REFUSAL
+        _REFUSAL = "Spotify is not connected on this deployment (SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET)."
         return []
     try:
         token = app_token()
         if not token:
+            if _REFUSAL is None:
+                _REFUSAL = "Spotify did not issue a token for this app's credentials."
             return []
         data = _api("/search?" + urllib.parse.urlencode(
             {"q": q, "type": "artist", "limit": limit}), token)
-    except Exception:
+    except Exception as e:
+        _note(e)
         return []
     out = []
     for a in (data.get("artists") or {}).get("items", []):
