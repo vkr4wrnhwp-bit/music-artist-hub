@@ -4,11 +4,11 @@
 {% block title %}{{ track.title }} - Track Passport - Street Banker{% endblock %}
 
 {% block content %}
-{{ sb.subnav([("/catalog", "Catalog"), ("/tracks", "Track Passports")], "/tracks") }}
+{{ sb.subnav([("/catalog", "Catalog"), (passports_home, "Track Passports")], passports_home) }}
 <div class="mx-auto max-w-[1100px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <a href="/tracks" class="text-xs font-bold text-gray-300 hover:text-sb-gold-bright">← Track Passports</a>
+      <a href="{{ passports_home }}" class="text-xs font-bold text-gray-300 hover:text-sb-gold-bright">← Track Passports</a>
       <h1 class="sb-h1 mt-1">{{ track.title }}</h1>
       <p class="mt-0.5 text-sm text-gray-300">{{ track.release_title }}{% if track.release_date %} · {{ track.release_date }}{% endif %}</p>
     </div>

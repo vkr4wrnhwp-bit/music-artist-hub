@@ -30,7 +30,7 @@
 {% endmacro %}
 
 {% block content %}
-{{ sb.subnav([("/catalog", "Catalog"), ("/tracks", "Track Passports")], "/catalog") }}
+{{ sb.subnav([("/catalog", "Catalog"), ("/catalog#passports", "Track Passports")], "/catalog") }}
 <style>
   /* The remove control is revealed by hover, which a touch screen cannot
      do - so on a device with no hover it is simply always there. Keeping
@@ -145,6 +145,8 @@
     <p class="mt-3 text-xs text-gray-300 font-medium">ISRC identifies a recording, ISWC a composition, UPC a release. Registrations use these to route royalties to you; the ISWC comes from your PRO once the work is registered.</p>
     {% endif %}
   </section>
+
+  {% include "_catalog_passports.html" %}
   {% endif %}
 
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -728,6 +730,60 @@
       const data = await res.json();
       if (data.ok) document.getElementById(`mytrack-${btn.dataset.id}`).remove();
     });
+  });
+
+  // --- Track Passports (folded in from /tracks) ---------------------------
+  // State filter pills over the real passport rows
+  document.querySelectorAll(".state-pill").forEach((p) => {
+    p.addEventListener("click", () => {
+      document.querySelectorAll(".state-pill").forEach((x) => x.classList.remove("border-sb-gold", "bg-sb-gold/10"));
+      p.classList.add("border-sb-gold", "bg-sb-gold/10");
+      const st = p.dataset.state;
+      document.querySelectorAll(".passport-row").forEach((r) => {
+        r.classList.toggle("hidden", !!st && r.dataset.state !== st);
+      });
+    });
+  });
+
+  // Honest tag reading: parses the file's real ID3v2 title frame locally.
+  const id3In = document.getElementById("id3-file");
+  if (id3In) id3In.addEventListener("change", async () => {
+    const f = id3In.files[0];
+    if (!f) return;
+    const msg = document.getElementById("id3-msg");
+    const titleIn = document.getElementById("pp-title");
+    const buf = new Uint8Array(await f.slice(0, 65536).arrayBuffer());
+    let title = "";
+    if (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) {  // "ID3"
+      let pos = 10;
+      const end = Math.min(buf.length - 10, 60000);
+      while (pos < end) {
+        const id = String.fromCharCode(buf[pos], buf[pos+1], buf[pos+2], buf[pos+3]);
+        if (!/^[A-Z0-9]{4}$/.test(id)) break;
+        const size = (buf[pos+4] << 21) | (buf[pos+5] << 14) | (buf[pos+6] << 7) | buf[pos+7];
+        if (size <= 0 || size > 5000) { pos += 10 + Math.max(size, 1); continue; }
+        if (id === "TIT2") {
+          const enc = buf[pos+10];
+          const bytes = buf.slice(pos + 11, pos + 10 + size);
+          title = (enc === 1 || enc === 2)
+            ? new TextDecoder("utf-16").decode(bytes)
+            : new TextDecoder("utf-8").decode(bytes);
+          title = title.split(String.fromCharCode(0)).join("").trim();
+          break;
+        }
+        pos += 10 + size;
+      }
+    }
+    if (title) {
+      titleIn.value = title;
+      msg.textContent = 'Title read from the file’s tags: “' + title + '” — check it, then Add Track.';
+      msg.className = "text-xs text-green-400";
+    } else {
+      titleIn.value = f.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim();
+      msg.textContent = "No embedded title tag found — used the filename instead. Edit before adding.";
+      msg.className = "text-xs text-amber-400";
+    }
+    id3In.value = "";
   });
 </script>
 {% endblock %}

@@ -972,6 +972,20 @@ def init_db():
                 db.execute("ALTER TABLE tour_shows ADD COLUMN %s" % _col)
             except sqlite3.OperationalError:
                 pass  # column already exists
+        # Migration (tier C, 2026-09-09): one song list. The catalog row
+        # (catalog_tracks - what royalties, valuation, the twin, insights
+        # and the documents vault key on) and the Track Passport row
+        # (os_tracks - rights, lockbox, MLC checks, light shows) now point
+        # at each other. Both tables stay; nothing is deleted.
+        try:
+            db.execute("ALTER TABLE catalog_tracks ADD COLUMN passport_track_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        try:
+            db.execute("ALTER TABLE os_tracks ADD COLUMN catalog_track_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+    link_song_tables()
 
 
 def _now():
@@ -1208,29 +1222,142 @@ def log_click(slug):
 
 # --- API cache -----------------------------------------------------------------
 
+def _song_key(title):
+    return " ".join((title or "").split()).casefold()
+
+
 def add_catalog_track(user_id, track):
-    """Save a Discover track to the user's catalog. Returns the row id,
-    or None if the same title+artist is already in their catalog."""
+    """Save a song to the user's catalog. Returns the row id, or None if
+    the same title+artist is already in their catalog.
+
+    One song list: the row gets a Track Passport too. A passport of the
+    same title that has no catalog row yet (added from the passport form
+    before this, or imported) is linked rather than duplicated; otherwise
+    a passport is opened with what the catalog already knows (artist,
+    album, and any codes in `meta`), and `release_title` / `release_date`
+    on `track` land on it."""
     track_id = uuid.uuid4().hex
-    try:
-        with get_db() as db:
+    title = (track.get("title") or "").strip()
+    artist = (track.get("artist") or "").strip()
+    with get_db() as db:
+        if artist and db.execute(
+                "SELECT 1 FROM catalog_tracks WHERE user_id = ? AND title = ? AND artist = ?",
+                (user_id, title, artist)).fetchone():
+            return None
+        # A song added from its passport first has a catalog row with no
+        # artist yet; saving the same title with one claims that row
+        # rather than listing the song twice.
+        placeholder = next(
+            (r for r in db.execute(
+                "SELECT id, title FROM catalog_tracks WHERE user_id = ? AND artist = ''"
+                " ORDER BY added", (user_id,)).fetchall()
+             if _song_key(r["title"]) == _song_key(title)), None) if artist else None
+        if placeholder is not None:
             db.execute(
-                "INSERT INTO catalog_tracks (id, user_id, title, artist, album, art, preview, url, added)"
-                " VALUES (?,?,?,?,?,?,?,?,?)",
-                (track_id, user_id, (track.get("title") or "").strip(),
-                 (track.get("artist") or "").strip(), track.get("album") or "",
-                 track.get("art") or "", track.get("preview") or "",
-                 track.get("url") or "", _now()),
-            )
-    except sqlite3.IntegrityError:
-        return None
+                "UPDATE catalog_tracks SET artist = ?, album = COALESCE(NULLIF(?, ''), album),"
+                " art = COALESCE(NULLIF(?, ''), art), preview = COALESCE(NULLIF(?, ''), preview),"
+                " url = COALESCE(NULLIF(?, ''), url) WHERE id = ?",
+                (artist, track.get("album") or "", track.get("art") or "",
+                 track.get("preview") or "", track.get("url") or "", placeholder["id"]))
+            track_id = placeholder["id"]
+        else:
+            try:
+                db.execute(
+                    "INSERT INTO catalog_tracks (id, user_id, title, artist, album, art, preview, url, added)"
+                    " VALUES (?,?,?,?,?,?,?,?,?)",
+                    (track_id, user_id, title, artist, track.get("album") or "",
+                     track.get("art") or "", track.get("preview") or "",
+                     track.get("url") or "", _now()),
+                )
+            except sqlite3.IntegrityError:
+                return None
+    pid = _ensure_passport_for(user_id, track_id, track)
+    if placeholder is not None and pid and artist:
+        # The passport learns the artist too, if it had none.
+        with get_db() as db:
+            row = db.execute("SELECT passport FROM os_tracks WHERE id = ?", (pid,)).fetchone()
+            passport = json.loads(row["passport"] or "{}") if row else {}
+            if row is not None and not (passport.get("artist_name") or "").strip():
+                passport["artist_name"] = artist[:200]
+                db.execute("UPDATE os_tracks SET passport = ? WHERE id = ?",
+                           (json.dumps(passport), pid))
     return track_id
 
 
+def _ensure_passport_for(user_id, catalog_id, track):
+    """Give one catalog row its passport: adopt an unlinked passport of the
+    same title, else open one. Returns the passport (os_tracks) id."""
+    title = (track.get("title") or "").strip()
+    with get_db() as db:
+        row = db.execute("SELECT passport_track_id FROM catalog_tracks"
+                         " WHERE id = ? AND user_id = ?", (catalog_id, user_id)).fetchone()
+        if row is None:
+            return None
+        if row["passport_track_id"]:
+            return row["passport_track_id"]
+        orphan = None
+        for ost in db.execute("SELECT id, title FROM os_tracks WHERE user_id = ?"
+                              " AND (catalog_track_id IS NULL OR catalog_track_id = '')"
+                              " ORDER BY created", (user_id,)).fetchall():
+            if _song_key(ost["title"]) == _song_key(title):
+                orphan = ost["id"]
+                break
+        if orphan:
+            db.execute("UPDATE os_tracks SET catalog_track_id = ? WHERE id = ?",
+                       (catalog_id, orphan))
+            db.execute("UPDATE catalog_tracks SET passport_track_id = ? WHERE id = ?",
+                       (orphan, catalog_id))
+            return orphan
+        meta = track.get("meta") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except ValueError:
+                meta = {}
+        passport = {k: v for k, v in {
+            "artist_name": (track.get("artist") or "").strip(),
+            "isrc": meta.get("isrc") or "", "upc": meta.get("upc") or "",
+            "label": meta.get("label") or "",
+        }.items() if v}
+        pid = uuid.uuid4().hex
+        db.execute(
+            "INSERT INTO os_tracks (id, user_id, title, release_title,"
+            " release_date, passport, created, catalog_track_id)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            (pid, user_id, title[:120],
+             (track.get("release_title") or track.get("album") or "")[:120],
+             (track.get("release_date") or meta.get("release_date") or "")[:10],
+             json.dumps(passport), _now(), catalog_id))
+        db.execute("UPDATE catalog_tracks SET passport_track_id = ? WHERE id = ?",
+                   (pid, catalog_id))
+    return pid
+
+
+_META_TO_PASSPORT = (("isrc", "isrc"), ("upc", "upc"), ("label", "label"))
+
+
 def set_catalog_track_meta(user_id, track_id, meta):
+    """Store looked-up codes on the catalog row, and copy them into the
+    linked passport's fields that are still empty. A code the artist typed
+    on the passport is a decision; a looked-up one never overwrites it."""
     with get_db() as db:
         db.execute("UPDATE catalog_tracks SET meta = ? WHERE id = ? AND user_id = ?",
                    (json.dumps(meta), track_id, user_id))
+        row = db.execute("SELECT passport_track_id FROM catalog_tracks WHERE id = ?",
+                         (track_id,)).fetchone()
+        pid = row["passport_track_id"] if row else None
+        ost = db.execute("SELECT passport FROM os_tracks WHERE id = ? AND user_id = ?",
+                         (pid, user_id)).fetchone() if pid else None
+        if ost is not None and isinstance(meta, dict):
+            passport = json.loads(ost["passport"] or "{}")
+            changed = False
+            for mk, pk in _META_TO_PASSPORT:
+                if meta.get(mk) and not (passport.get(pk) or "").strip():
+                    passport[pk] = str(meta[mk])[:200]
+                    changed = True
+            if changed:
+                db.execute("UPDATE os_tracks SET passport = ? WHERE id = ?",
+                           (json.dumps(passport), pid))
 
 
 def get_catalog_tracks(user_id):
@@ -1247,9 +1374,19 @@ def get_catalog_tracks(user_id):
 
 
 def remove_catalog_track(user_id, track_id):
+    """Remove a song from the list: the catalog row and its passport go
+    together, because there is one list (a passport left behind would
+    walk back in on the next start-up)."""
     with get_db() as db:
+        row = db.execute("SELECT passport_track_id FROM catalog_tracks"
+                         " WHERE id = ? AND user_id = ?", (track_id, user_id)).fetchone()
         cur = db.execute("DELETE FROM catalog_tracks WHERE id = ? AND user_id = ?",
                          (track_id, user_id))
+        if cur.rowcount and row and row["passport_track_id"]:
+            db.execute("DELETE FROM os_tracks WHERE id = ? AND user_id = ?",
+                       (row["passport_track_id"], user_id))
+            db.execute("DELETE FROM track_mlc_checks WHERE track_id = ?",
+                       (row["passport_track_id"],))
     return cur.rowcount > 0
 
 
@@ -2710,14 +2847,136 @@ def _os_track_dict(row):
 
 
 def add_os_track(user_id, title, release_title="", release_date=""):
-    track_id = uuid.uuid4().hex
+    """Open a Track Passport. One song list: if the catalog already has
+    this title, the passport is that song's - its existing passport id
+    comes back rather than a second passport, or the passport is opened
+    on the catalog row that had none. A title the catalog has never seen
+    gets a catalog row of its own (artist unknown until the passport
+    says)."""
+    key = _song_key(title)
     with get_db() as db:
+        unpassported, passported = None, None
+        for ct in db.execute("SELECT id, passport_track_id, title FROM catalog_tracks"
+                             " WHERE user_id = ? ORDER BY added", (user_id,)).fetchall():
+            if _song_key(ct["title"]) != key:
+                continue
+            if ct["passport_track_id"]:
+                if db.execute("SELECT 1 FROM os_tracks WHERE id = ?",
+                              (ct["passport_track_id"],)).fetchone():
+                    passported = passported or ct["passport_track_id"]
+                    continue
+            unpassported = unpassported or ct["id"]
+        if passported and not unpassported:
+            return passported
+        track_id = uuid.uuid4().hex
+        catalog_id = unpassported
+        if catalog_id is None:
+            catalog_id = uuid.uuid4().hex
+            try:
+                db.execute(
+                    "INSERT INTO catalog_tracks (id, user_id, title, artist, album,"
+                    " added, passport_track_id) VALUES (?,?,?,?,?,?,?)",
+                    (catalog_id, user_id, title.strip()[:120], "",
+                     release_title[:120], _now(), track_id))
+            except sqlite3.IntegrityError:
+                catalog_id = None
         db.execute(
             "INSERT INTO os_tracks (id, user_id, title, release_title,"
-            " release_date, created) VALUES (?,?,?,?,?,?)",
+            " release_date, created, catalog_track_id) VALUES (?,?,?,?,?,?,?)",
             (track_id, user_id, title[:120], release_title[:120],
-             release_date[:10], _now()))
+             release_date[:10], _now(), catalog_id))
+        if catalog_id:
+            db.execute("UPDATE catalog_tracks SET passport_track_id = ? WHERE id = ?",
+                       (track_id, catalog_id))
     return track_id
+
+
+def link_song_tables():
+    """Start-up migration for songs that existed before the two tables
+    pointed at each other. Every passport gets a catalog row (matched by
+    ISRC, then by title, else opened) and every catalog row a passport
+    (matched by title, else opened with its codes). Runs every start;
+    does nothing once everything is linked. Deletes nothing."""
+    with get_db() as db:
+        users = [r[0] for r in db.execute(
+            "SELECT user_id FROM os_tracks WHERE catalog_track_id IS NULL OR catalog_track_id = ''"
+            " UNION SELECT user_id FROM catalog_tracks"
+            " WHERE passport_track_id IS NULL OR passport_track_id = ''").fetchall()]
+    for uid in users:
+        with get_db() as db:
+            cats = [dict(r) for r in db.execute(
+                "SELECT * FROM catalog_tracks WHERE user_id = ? ORDER BY added", (uid,)).fetchall()]
+            osts = [dict(r) for r in db.execute(
+                "SELECT * FROM os_tracks WHERE user_id = ? ORDER BY created", (uid,)).fetchall()]
+            for c in cats:
+                c["_meta"] = json.loads(c["meta"]) if c.get("meta") else {}
+            for o in osts:
+                o["_pp"] = json.loads(o.get("passport") or "{}")
+            taken = {c["passport_track_id"] for c in cats if c.get("passport_track_id")}
+            linked = {o["catalog_track_id"] for o in osts if o.get("catalog_track_id")}
+
+            def _link(o, c):
+                db.execute("UPDATE os_tracks SET catalog_track_id = ? WHERE id = ?",
+                           (c["id"], o["id"]))
+                o["catalog_track_id"] = c["id"]
+                linked.add(c["id"])
+                if not c.get("passport_track_id"):
+                    db.execute("UPDATE catalog_tracks SET passport_track_id = ? WHERE id = ?",
+                               (o["id"], c["id"]))
+                    c["passport_track_id"] = o["id"]
+                    taken.add(o["id"])
+
+            # Passports first: by ISRC, then by title (a catalog row with
+            # no passport before one that has).
+            for o in osts:
+                if o.get("catalog_track_id"):
+                    continue
+                isrc = (o["_pp"].get("isrc") or "").strip().upper()
+                match = None
+                if isrc:
+                    match = next((c for c in cats if c["id"] not in linked and
+                                  (c["_meta"].get("isrc") or "").strip().upper() == isrc), None)
+                if match is None:
+                    same = [c for c in cats if _song_key(c["title"]) == _song_key(o["title"])]
+                    match = (next((c for c in same if not c.get("passport_track_id")), None)
+                             or next((c for c in same if c["id"] not in linked), None)
+                             or (same[0] if same else None))
+                if match is None:
+                    cid = uuid.uuid4().hex
+                    try:
+                        db.execute(
+                            "INSERT INTO catalog_tracks (id, user_id, title, artist, album,"
+                            " added, passport_track_id) VALUES (?,?,?,?,?,?,?)",
+                            (cid, uid, o["title"][:120],
+                             (o["_pp"].get("artist_name") or "")[:120],
+                             (o["release_title"] or "")[:120], o["created"], o["id"]))
+                    except sqlite3.IntegrityError:
+                        continue
+                    match = {"id": cid, "title": o["title"], "passport_track_id": o["id"],
+                             "_meta": {}}
+                    cats.append(match)
+                    taken.add(o["id"])
+                _link(o, match)
+            # Then catalog rows still without a passport.
+            for c in cats:
+                if c.get("passport_track_id"):
+                    continue
+                pid = uuid.uuid4().hex
+                meta = c["_meta"] or {}
+                passport = {k: v for k, v in {
+                    "artist_name": c.get("artist") or "",
+                    "isrc": meta.get("isrc") or "", "upc": meta.get("upc") or "",
+                    "label": meta.get("label") or ""}.items() if v}
+                db.execute(
+                    "INSERT INTO os_tracks (id, user_id, title, release_title,"
+                    " release_date, passport, created, catalog_track_id)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (pid, uid, c["title"][:120], (c.get("album") or "")[:120],
+                     (meta.get("release_date") or "")[:10], json.dumps(passport),
+                     c.get("added") or _now(), c["id"]))
+                db.execute("UPDATE catalog_tracks SET passport_track_id = ? WHERE id = ?",
+                           (pid, c["id"]))
+                c["passport_track_id"] = pid
 
 
 def list_os_tracks(user_id):
@@ -2750,11 +3009,14 @@ def update_os_track_lockbox(user_id, track_id, lockbox):
 
 
 def delete_os_track(user_id, track_id):
+    """Delete a passport and, with it, the song's catalog row - one list."""
     with get_db() as db:
         cur = db.execute("DELETE FROM os_tracks WHERE id = ? AND user_id = ?",
                          (track_id, user_id))
         if cur.rowcount:
             db.execute("DELETE FROM track_mlc_checks WHERE track_id = ?", (track_id,))
+            db.execute("DELETE FROM catalog_tracks WHERE passport_track_id = ? AND user_id = ?",
+                       (track_id, user_id))
     return cur.rowcount > 0
 
 

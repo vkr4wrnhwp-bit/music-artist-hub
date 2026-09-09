@@ -4267,7 +4267,9 @@ def test_artist_os_tracks_flow():
     import db as store_mod
     app_obj = create_app()
     artist = _demo(app_obj)
-    page = artist.get("/tracks").get_data(as_text=True)
+    # /tracks (the list) is a section of the catalog now; the passport
+    # detail below still lives at /tracks/<id>.
+    page = artist.get("/tracks", follow_redirects=True).get_data(as_text=True)
     assert "Track Passports" in page and "Street Banker Certified" in page
     artist.post("/tracks/add", data={"title": "Night Drive OS",
                                      "release_title": "Midnight EP",
@@ -4671,7 +4673,7 @@ def test_track_passports_pipeline_and_csv_import():
     anon = app_obj.test_client().post("/tracks/import")
     assert anon.status_code == 302 and "/login" in anon.headers["Location"]
     # Empty catalog: no pipeline strip, but the import control is offered.
-    page = client.get("/tracks").get_data(as_text=True)
+    page = client.get("/tracks", follow_redirects=True).get_data(as_text=True)
     assert "In catalog" not in page and "Import CSV catalog" in page
     # CSV import: blank-title rows skipped, known columns land in passports.
     csv_bytes = ("title,isrc,writers,label,release,release_date\n"

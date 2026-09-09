@@ -1871,6 +1871,14 @@ def create_app():
         ctx["ids_with_isrc"] = sum(1 for r in ids_rows if r["isrc"])
         ctx["ids_with_upc"] = sum(1 for r in ids_rows if r["upc"])
         ctx["ids_missing_isrc"] = len(ids_rows) - ctx["ids_with_isrc"]
+        # TRACK PASSPORTS - folded in from /tracks (tier C, 2026-09-09). One
+        # song list: each catalog row carries its passport (rights, splits,
+        # MLC checks, certificate). A passport that sits on no catalog row -
+        # data from before the two tables were linked - is listed too, so
+        # nothing is hidden; the start-up link makes that rare.
+        ctx.update(_passport_section(user, ctx["my_tracks"]) if user else
+                   {"passport_rows": [], "passport_pipeline": [],
+                    "passport_cert": None, "passport_summary": None})
         # Group saved tracks into real releases keyed by UPC (or album title).
         releases = {}
         for t in ctx["my_tracks"]:
@@ -1946,6 +1954,53 @@ def create_app():
                                     "status": "Registered" if (t.get("meta") or {}).get("isrc") else "Pending"}
                                    for t in tracks[:5]]
         return render_template("catalog.html", active_page="catalog", **ctx)
+
+    def _passport_section(user, my_tracks):
+        """The Track Passports section: each song once, with its passport
+        state. A passport on no catalog row (from before the link) is
+        listed too, so nothing is hidden."""
+        os_tracks = store.list_os_tracks(user["id"])
+        by_id = {t["id"]: t for t in os_tracks}
+        osctx = _os_ctx(user["id"])
+        ordered, seen = [], set()
+        for ct in my_tracks:
+            t = by_id.get(ct.get("passport_track_id") or "")
+            if t is not None and t["id"] not in seen:
+                seen.add(t["id"])
+                ordered.append((ct, t))
+        for t in os_tracks:
+            if t["id"] not in seen:
+                seen.add(t["id"])
+                ordered.append((None, t))
+        rows = []
+        for ct, t in ordered:
+            checks = store.list_track_mlc_checks(user["id"], t["id"], limit=1)
+            passport = t.get("passport") or {}
+            meta = (ct or {}).get("meta") or {}
+            clean = artist_os.clean_release(t, osctx)
+            rows.append({"t": t, "catalog": ct,
+                         "passport": artist_os.passport_report(t),
+                         "clean": clean,
+                         "caps": artist_os.lockbox_report(t)["caps"],
+                         "isrc": (passport.get("isrc") or meta.get("isrc") or "").strip(),
+                         "mlc": checks[0] if checks else None,
+                         "certificate": (not clean["blocked"]
+                                         and clean["score"] >= 100)})
+        summary = _os_summary(user["id"], [t for _ct, t in ordered], osctx)
+        return {
+            "passport_rows": rows,
+            "passport_summary": summary,
+            "passport_cert": artist_os.certification(summary),
+            "passport_pipeline": [
+                ("In catalog", len(rows)),
+                ("Metadata complete", len([r for r in rows
+                                           if r["passport"]["pct"] == 100])),
+                ("Rights signed", len([r for r in rows if r["caps"]["release"]])),
+                ("Release-ready", len([r for r in rows
+                                       if not r["clean"]["blocked"]
+                                       and r["clean"]["score"] >= 80])),
+            ],
+        }
 
     @app.route("/catalog/add", methods=["POST"])
     def catalog_add():
@@ -3611,11 +3666,13 @@ def create_app():
     def _passport_resolves(user_id):
         """Side-by-side diffs: passport fields that exist but are missing on
         the matching catalog record. Real values only, applied on click."""
-        os_by_title = {t["title"].casefold(): t
-                       for t in store.list_os_tracks(user_id)}
+        os_tracks = store.list_os_tracks(user_id)
+        os_by_id = {t["id"]: t for t in os_tracks}
+        os_by_title = {t["title"].casefold(): t for t in os_tracks}
         out = []
         for ct in store.get_catalog_tracks(user_id):
-            ost = os_by_title.get((ct["title"] or "").casefold())
+            ost = (os_by_id.get(ct.get("passport_track_id") or "")
+                   or os_by_title.get((ct["title"] or "").casefold()))
             if ost is None:
                 continue
             passport = ost.get("passport") or {}
@@ -3639,9 +3696,10 @@ def create_app():
         for ct in store.get_catalog_tracks(user["id"]):
             if ct["id"] != target:
                 continue
-            ost = next((t for t in store.list_os_tracks(user["id"])
-                        if t["title"].casefold() ==
-                        (ct["title"] or "").casefold()), None)
+            ost = (store.get_os_track(user["id"], ct.get("passport_track_id") or "")
+                   or next((t for t in store.list_os_tracks(user["id"])
+                            if t["title"].casefold() ==
+                            (ct["title"] or "").casefold()), None))
             if ost is None:
                 break
             passport = ost.get("passport") or {}
@@ -4144,38 +4202,36 @@ def create_app():
 
     @app.route("/tracks")
     def os_tracks():
+        """Folded into the catalog (tier C, 2026-09-09). This page listed
+        the same songs as /catalog from a second table; the two tables now
+        point at each other and the catalog shows each song once with its
+        passport state. The passport itself stays at /tracks/<id>.
+
+        Catalog is a Pro page and this was an Artist one (plans.py, left
+        as it is): an Artist-plan account would meet an upgrade card at the
+        redirect, so for that plan the section renders here on its own."""
         user = current_user()
         if user is None:
             return login_required_redirect()
-        tracks = store.list_os_tracks(user["id"])
-        ctx = _os_ctx(user["id"])
-        rows = [{"t": t,
-                 "passport": artist_os.passport_report(t),
-                 "clean": artist_os.clean_release(t, ctx),
-                 "caps": artist_os.lockbox_report(t)["caps"]}
-                for t in tracks]
-        summary = _os_summary(user["id"], tracks, ctx)
-        # Pipeline stages, each computed from real row state.
-        pipeline = [
-            ("In catalog", len(rows)),
-            ("Metadata complete", len([r for r in rows
-                                       if r["passport"]["pct"] == 100])),
-            ("Rights signed", len([r for r in rows if r["caps"]["release"]])),
-            ("Release-ready", len([r for r in rows
-                                   if not r["clean"]["blocked"]
-                                   and r["clean"]["score"] >= 80])),
-        ]
-        return render_template("os_tracks.html", active_page="catalog",
-                               rows=rows, pipeline=pipeline,
-                               cert=artist_os.certification(summary),
-                               summary=summary,
-                               **build_dashboard_context())
+        if plans.allowed(user.get("plan") or "artist", plans.required_tier("/catalog")):
+            return redirect("/catalog#passports")
+        ctx = build_dashboard_context()
+        ctx["my_tracks"] = store.get_catalog_tracks(user["id"])
+        ctx.update(_passport_section(user, ctx["my_tracks"]))
+        return render_template("os_tracks.html", active_page="catalog", **ctx)
 
     # CSV column -> passport field, for catalog migrations.
     _CSV_PASSPORT = {"isrc": "isrc", "upc": "upc", "writers": "songwriters",
                      "songwriters": "songwriters", "producers": "producers",
                      "publishers": "publishers", "pro": "pro",
                      "label": "label", "master_owner": "master_owner"}
+
+    def _passports_home(user):
+        """Where the passport forms land: the catalog section for a plan
+        that has the Catalog page, the passports page for one that has not."""
+        if plans.allowed(user.get("plan") or "artist", plans.required_tier("/catalog")):
+            return "/catalog#passports"
+        return "/tracks"
 
     @app.route("/tracks/import", methods=["POST"])
     def os_tracks_import():
@@ -4186,7 +4242,7 @@ def create_app():
             return login_required_redirect()
         f = request.files.get("csv")
         if f is None or not f.filename:
-            return redirect("/tracks")
+            return redirect(_passports_home(user))
         import csv as _csv
         import io as _io
         try:
@@ -4211,7 +4267,7 @@ def create_app():
                 made += 1
         except (UnicodeDecodeError, _csv.Error):
             pass
-        return redirect("/tracks")
+        return redirect(_passports_home(user))
 
     @app.route("/tracks/add", methods=["POST"])
     def os_tracks_add():
@@ -4223,7 +4279,7 @@ def create_app():
             store.add_os_track(user["id"], title,
                                (request.form.get("release_title") or "").strip(),
                                (request.form.get("release_date") or "").strip())
-        return redirect("/tracks")
+        return redirect(_passports_home(user))
 
     @app.route("/tracks/<track_id>")
     def os_track_detail(track_id):
@@ -4235,7 +4291,7 @@ def create_app():
             abort(404)
         ctx = _os_ctx(user["id"])
         return render_template("os_track_detail.html", active_page="catalog",
-                               track=track,
+                               track=track, passports_home=_passports_home(user),
                                mlc=_track_mlc_state(user["id"], track),
                                passport=artist_os.passport_report(track),
                                clean=artist_os.clean_release(track, ctx),
@@ -4618,7 +4674,7 @@ def create_app():
         if user is None:
             return login_required_redirect()
         store.delete_os_track(user["id"], track_id)
-        return redirect("/tracks")
+        return redirect(_passports_home(user))
 
     # --- Tour Hub (folded into TOUR) + Stage Plot ------------------------------
     # Phase 3 of the TOUR restructure: there is one tour product at /tours.

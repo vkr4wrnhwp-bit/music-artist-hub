@@ -92,9 +92,18 @@ def test_every_parked_page_still_answers_and_says_it_is_parked(demo):
         assert 'href="%s"' % href not in body.split('id="main"')[0] if 'id="main"' in body else True
 
 
+# Tier C, merged underneath (2026-09-09): the old list URL forwards to the
+# section of the front that now holds its data. The bookmark still lands
+# on a page with the strip; only the hop changed.
+MERGED = {"/tracks": "/catalog#passports"}
+
+
 def test_every_folded_page_answers_and_carries_its_strip(demo):
     for href, front in FOLDED.items():
         r = demo.get(href)
+        if href in MERGED:
+            assert r.status_code == 302 and r.headers["Location"].endswith(MERGED[href]), href
+            r = demo.get(href, follow_redirects=True)
         assert r.status_code == 200, href
         body = r.get_data(as_text=True)
         assert 'class="sb-subnav"' in body or 'class="pd-bar"' in body, href

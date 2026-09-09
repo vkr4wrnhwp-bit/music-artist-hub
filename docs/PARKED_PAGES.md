@@ -38,7 +38,19 @@ correctly get APIs to utilize them."*
 | Settings | Data & Connections (`/connections`) — it was never money |
 | Releases (`/releases/autopilot`) | Autopilot · Calendar (`/releases`) |
 | Vault | Files · Contracts & licences (`/documents`) |
-| Catalog | Catalog · Track Passports (`/tracks`) — two song tables still; unifying the data is a separate job |
+| Catalog | Catalog · Track Passports (`/catalog#passports`) — merged underneath 2026-09-09, see below |
 | Fans (`/fans`) | Dashboard · Fan CRM (`/links/fans`) · Fan Club (`/fan-club`) — 2026-09-06 |
 
 Every folded URL is unchanged.
+
+## Tier C, merged underneath (2026-09-09)
+
+The three tier-C pairs were tabs of one page with two tables each behind
+them. The data is now one thing per pair; the old URL answers as a
+redirect (inbox links, certificates and bookmarks keep working), and no
+migration deletes a row - the old tables stay and new code reads the
+linked view.
+
+| What merged | Where the old URL goes | The shape underneath |
+| --- | --- | --- |
+| Track Passports into Catalog | `GET /tracks` → `/catalog#passports`; `/tracks/<id>` (the passport itself), `/tracks/<id>/mlc`, `/passport`, `/certificate`, `/lockbox/<doc>` and `/delete` are unchanged; `/tracks/add` and `/tracks/import` still accept the form and land on the section | `catalog_tracks` is the song list (royalties, valuation, the twin, insights and the documents vault key on it); `os_tracks` is the passport. `catalog_tracks.passport_track_id` and `os_tracks.catalog_track_id` point at each other. Adding a song from either side makes one song; the start-up link `db.link_song_tables()` joins rows from before the merge by ISRC, then title, else opens the missing half. Removing a song from either side removes both halves - there is one list. Catalog is a Pro page and `plans.py` is left alone, so an Artist-plan account is not redirected: `/tracks` renders the same section on its own for that plan (`templates/os_tracks.html` is that shell), and the passport forms land wherever the account can go. |
