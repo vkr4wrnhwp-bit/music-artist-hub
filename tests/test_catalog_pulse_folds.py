@@ -166,3 +166,157 @@ def test_link_engagement_counts_the_artists_own_links(artist):
     section = body.split('id="engagement"')[1].split("</section>")[0]
     assert '<span class="sb-lcd-v">2</span>' in section
     assert '<span class="sb-lcd-v">1</span>' in section
+
+
+# --- the pulse, through the provider registry ------------------------------------
+#
+# Artist Pulse read Spotify's own Web API and nothing else, so the first
+# number a label asks for - monthly listeners - was not on the page:
+# Spotify's public API does not carry it. Whatever the registry has for
+# CAP_METRICS now answers, its figures are stored provider-stamped beside
+# the Spotify ones, and the caption says how old they are.
+
+import signal_providers as providers
+
+
+class FakeMetrics(providers.MusicIntelligenceProvider):
+    """A configured CAP_ARTIST + CAP_METRICS provider, shaped like
+    Soundcharts and reaching no network."""
+
+    key = "fakecharts"
+    label = "FakeCharts"
+    capabilities = (providers.CAP_ARTIST, providers.CAP_METRICS)
+
+    def __init__(self, hours=3, found=True):
+        self.searches = self.metric_calls = 0
+        self.hours, self.found = hours, found
+
+    def configured(self):
+        return True
+
+    def search_artists(self, query, limit=20):
+        self.searches += 1
+        return ([{"provider_artist_id": "fc-1", "name": query}]
+                if self.found else [])
+
+    def get_artist_metrics(self, provider_artist_id, start, end):
+        self.metric_calls += 1
+        return [{"date": "2026-09-01", "metric": "spotify_monthly_listeners", "value": 39000},
+                {"date": "2026-09-08", "metric": "spotify_monthly_listeners", "value": 42100},
+                {"date": "2026-09-08", "metric": "spotify_followers", "value": 8800}]
+
+    def metrics_cached_at(self, provider_artist_id, start, end):
+        from datetime import datetime, timedelta, timezone
+        return datetime.now(timezone.utc) - timedelta(hours=self.hours)
+
+
+@pytest.fixture
+def metrics_provider():
+    fake = FakeMetrics()
+    providers.reset_registry(providers.ProviderRegistry(adapters=[fake]))
+    yield fake
+    providers.reset_registry(None)
+
+
+def _pick_artist(uid, name="Fold Tester"):
+    import db as store
+    store.save_pulse_profile(uid, "spotify-artist-1", name)
+
+
+def test_monthly_listeners_come_from_the_registry_and_carry_their_age(artist, metrics_provider):
+    _pick_artist(artist["uid"])
+    body = artist["client"].get("/pulse").get_data(as_text=True)
+    section = body.split('id="measured"')[1].split("</section>")[0]
+    assert "measured by FakeCharts" in body
+    assert '<span class="sb-lcd-v">42,100</span>' in section
+    assert "monthly listeners" in section
+    assert '<span class="sb-lcd-v">8,800</span>' in section
+    assert "Measured by FakeCharts, 3 hours ago." in section
+    assert "Not measured" not in section
+
+
+def test_the_provider_id_is_resolved_once_and_kept(artist, metrics_provider):
+    import db as store
+
+    _pick_artist(artist["uid"])
+    artist["client"].get("/pulse")
+    assert metrics_provider.searches == 1
+    profile = store.get_pulse_profile(artist["uid"])
+    assert profile["provider"] == "fakecharts"
+    assert profile["provider_artist_id"] == "fc-1"
+    artist["client"].get("/pulse")
+    assert metrics_provider.searches == 1, "the second load asked the store, not the vendor"
+    assert metrics_provider.metric_calls == 2, "the figures are still re-read; the id is not"
+
+
+def test_a_new_artist_drops_the_old_providers_id(artist, metrics_provider):
+    import db as store
+
+    _pick_artist(artist["uid"])
+    artist["client"].get("/pulse")
+    assert store.get_pulse_profile(artist["uid"])["provider_artist_id"] == "fc-1"
+    store.save_pulse_profile(artist["uid"], "spotify-artist-2", "Someone Else")
+    profile = store.get_pulse_profile(artist["uid"])
+    assert profile["provider_artist_id"] == "" and profile["provider"] == ""
+
+
+def test_the_snapshots_are_provider_stamped_and_sit_beside_spotifys(artist, metrics_provider):
+    import db as store
+
+    _pick_artist(artist["uid"])
+    store.record_pulse_snapshot(artist["uid"], 100, 20, 5, day="2026-09-08")
+    artist["client"].get("/pulse")
+    spotify_rows = store.list_pulse_snapshots(artist["uid"])
+    fake_rows = store.list_pulse_snapshots(artist["uid"], provider="fakecharts")
+    assert [r["day"] for r in spotify_rows] == ["2026-09-08"]
+    assert spotify_rows[0]["followers"] == 100, "the same day from another provider did not overwrite it"
+    assert [r["day"] for r in fake_rows] == ["2026-09-01", "2026-09-08"]
+    assert fake_rows[-1]["monthly_listeners"] == 42100 and fake_rows[-1]["followers"] == 8800
+    assert all(r["provider"] == "fakecharts" for r in fake_rows)
+
+
+def test_a_day_the_provider_did_not_report_listeners_stays_null(artist, metrics_provider):
+    """A nought there would read as an audience of nobody."""
+    import db as store
+
+    _pick_artist(artist["uid"])
+    store.record_pulse_snapshot(artist["uid"], 10, 0, 0, provider="fakecharts",
+                                day="2026-08-01")
+    rows = store.list_pulse_snapshots(artist["uid"], provider="fakecharts")
+    assert rows[0]["monthly_listeners"] is None
+
+
+def test_with_no_real_metrics_provider_the_spotify_page_is_what_it_was(artist):
+    _pick_artist(artist["uid"])
+    providers.reset_registry(providers.ProviderRegistry(adapters=[]))
+    try:
+        body = artist["client"].get("/pulse").get_data(as_text=True)
+    finally:
+        providers.reset_registry(None)
+    assert 'id="measured"' not in body, "the mock must not stand in for a real audience"
+    assert 'id="engagement"' in body
+
+
+def test_a_provider_that_cannot_find_the_artist_says_nothing(artist):
+    fake = FakeMetrics(found=False)
+    providers.reset_registry(providers.ProviderRegistry(adapters=[fake]))
+    try:
+        _pick_artist(artist["uid"], "Nobody At All")
+        body = artist["client"].get("/pulse").get_data(as_text=True)
+    finally:
+        providers.reset_registry(None)
+    assert 'id="measured"' not in body
+    assert fake.metric_calls == 0
+
+
+def test_each_cadence_line_describes_its_own_source():
+    """The page said the Spotify block was "refreshed every 6 hours" and,
+    twelve lines up, that peers were "snapshotted whenever this page
+    loads". Both read the same API on the same load; only one could be
+    true. The six hours belong to the cached metrics provider."""
+    src = io.open(os.path.join(HERE, "templates", "pulse.html"),
+                  encoding="utf-8").read()
+    assert "refreshed every 6 hours" not in src
+    assert "read fresh on every load of this page" in src
+    assert "snapshotted whenever this page loads" in src
+    assert "{{ metrics.note }}" in src

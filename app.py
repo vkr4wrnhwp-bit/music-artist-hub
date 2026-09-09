@@ -2342,6 +2342,109 @@ def create_app():
         public = bool((request.get_json(silent=True) or {}).get("public"))
         return jsonify({"ok": store.set_epk_asset_public(user["id"], kind, public)})
 
+    # --- Audience metrics through the provider registry ----------------------
+    #
+    # Artist Pulse read Spotify's own Web API directly, so the one number
+    # a label asks for first - monthly listeners - was not on the page at
+    # all: Spotify's public API does not carry it. A provider that does
+    # (Soundcharts, today) answers CAP_METRICS through the registry, and
+    # its figures are stored as provider-stamped snapshots beside the
+    # Spotify ones rather than replacing them.
+
+    _METRICS_WINDOW_DAYS = 30
+
+    def _metrics_provider():
+        """The registry's REAL metrics provider, or None.
+
+        `for_capability` answers with the mock while nothing real is
+        configured. A real artist's name beside invented listener counts
+        is the fabrication this product refuses everywhere else, so the
+        mock is not accepted here: no provider means "Not measured".
+        """
+        import signal_providers as sp
+        reg = sp.registry()
+        prov = reg.for_capability(sp.CAP_METRICS)
+        return None if prov is None or prov is reg.mock else prov
+
+    def _metrics_artist_id(prov, user_id, profile):
+        """The provider's own id for this artist: read from the pulse
+        profile, or resolved once by search and stored there.
+
+        Searching on every page load would spend a billed call to learn
+        what the last one already established.
+        """
+        if profile.get("provider") == prov.key and profile.get("provider_artist_id"):
+            return profile["provider_artist_id"]
+        try:
+            found = prov.search_artists(profile.get("artist_name") or "", limit=1)
+        except Exception:
+            return ""                # a provider that is down is not an answer
+        pid = (found[0].get("provider_artist_id") or "") if found else ""
+        if pid:
+            store.save_pulse_provider_artist(user_id, prov.key, pid)
+        return pid
+
+    def _provider_metrics(user_id, profile, fetch=True):
+        """Followers and monthly listeners from the metrics provider.
+
+        Returns None when no real provider covers CAP_METRICS, or when it
+        holds nothing for this artist - never a placeholder number.
+        `fetch=False` reads only what is already stored, which is what a
+        public press kit does: a stranger opening a pitch link must not
+        spend the artist's provider quota.
+        """
+        prov = _metrics_provider()
+        if prov is None or not profile:
+            return None
+        end = datetime.now(timezone.utc).date()
+        start = end - timedelta(days=_METRICS_WINDOW_DAYS)
+        pid = ""
+        if fetch:
+            pid = _metrics_artist_id(prov, user_id, profile)
+            if pid:
+                try:
+                    rows = prov.get_artist_metrics(pid, start, end)
+                except Exception:
+                    rows = []            # degrade to what is already stored
+                by_day = {}
+                for r in rows:
+                    by_day.setdefault(r["date"], {})[r["metric"]] = r["value"]
+                for day, vals in by_day.items():
+                    store.record_pulse_snapshot(
+                        user_id, vals.get("spotify_followers") or 0, 0, 0,
+                        provider=prov.key, day=day,
+                        monthly_listeners=vals.get("spotify_monthly_listeners"))
+        snaps = store.list_pulse_snapshots(user_id, limit=_METRICS_WINDOW_DAYS + 5,
+                                           provider=prov.key)
+        if not snaps:
+            return None
+        latest = snaps[-1]
+        listeners = next((s["monthly_listeners"] for s in reversed(snaps)
+                          if s["monthly_listeners"] is not None), None)
+        followers = next((s["followers"] for s in reversed(snaps) if s["followers"]), None)
+        hours = None
+        cached_at = getattr(prov, "metrics_cached_at", None)
+        if pid and cached_at is not None:
+            try:
+                at = cached_at(pid, start, end)
+            except Exception:
+                at = None
+            if at is not None:
+                hours = int((datetime.now(timezone.utc) - at).total_seconds() // 3600)
+        if hours is None:
+            note = "Measured by %s; the snapshot on file is from %s." % (
+                prov.label, latest["day"])
+        elif hours < 1:
+            note = "Measured by %s, less than an hour ago." % prov.label
+        elif hours == 1:
+            note = "Measured by %s, 1 hour ago." % prov.label
+        else:
+            note = "Measured by %s, %d hours ago." % (prov.label, hours)
+        return {"provider": prov.key, "label": prov.label,
+                "monthly_listeners": listeners, "followers": followers,
+                "as_of": latest["day"], "cached_hours": hours,
+                "snapshots": snaps, "note": note}
+
     def _epk_real_stats(user_id):
         """Headline figures for a press kit, from the artist's own data.
 
@@ -6692,6 +6795,11 @@ def create_app():
                 store.record_pulse_snapshot(user["id"], pulse["followers"],
                                             pulse["popularity"],
                                             (deezer or {}).get("fans", 0))
+        # Monthly listeners, which Spotify's own public API does not
+        # carry, from whichever provider the registry has for CAP_METRICS.
+        # None of this is required for the Spotify and Deezer blocks: with
+        # no real metrics provider the page is exactly what it was.
+        metrics = _provider_metrics(user["id"], profile) if profile else None
         snaps = store.list_pulse_snapshots(user["id"], limit=30)
         # Peers: pinned artists' PUBLIC Spotify numbers, snapshotted on the
         # same cadence — a real comparison, not a modeled one.
@@ -6747,6 +6855,7 @@ def create_app():
         return render_template("pulse.html", active_page="pulse",
                                pulse_configured=spotify.pulse_configured(),
                                profile=profile, pulse=pulse, deezer=deezer,
+                               metrics=metrics,
                                snaps=snaps, peers=peers, my_delta7=my_delta7,
                                milestone=milestone,
                                link_stats={"pageviews": pageviews, "clicks": clicks,

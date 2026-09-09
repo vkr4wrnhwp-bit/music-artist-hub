@@ -16,6 +16,22 @@
     {% endif %}
   </div>
 
+  {#- Monthly listeners and followers, measured by whichever provider the
+      registry has for CAP_METRICS. Spotify's own public API does not
+      carry monthly listeners, which is why this page never had it. The
+      caption carries the age of the figure: this read is cached for six
+      hours, so calling it live would be a claim it cannot keep. -#}
+  {% if metrics %}
+  <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-6" id="measured">
+    <h3 class="sb-label text-sb-gold">Audience — measured by {{ metrics.label }}</h3>
+    <div class="mt-3 flex flex-wrap gap-3">
+      {{ sb.lcd(("{:,}".format(metrics.monthly_listeners) if metrics.monthly_listeners is not none else none), "monthly listeners", absent="Not measured") }}
+      {{ sb.lcd(("{:,}".format(metrics.followers) if metrics.followers is not none else none), "followers", absent="Not measured") }}
+    </div>
+    <p class="mt-3 text-xs text-gray-300 font-medium">{{ metrics.note }} Monthly listeners are a 28-day rolling figure, so the line moves slowly by design.</p>
+  </section>
+  {% endif %}
+
   {% if not pulse_configured %}
   <!-- Honest state: no Spotify credentials on this server -->
   <section class="rounded-2xl border border-amber-500/30 bg-sb-surface-2 p-6">
@@ -184,7 +200,7 @@
     <div id="peer-error" class="mt-2 hidden text-xs font-semibold text-red-400"></div>
   </section>
 
-  <p class="px-1 text-xs text-gray-300 font-medium">Live data from the Spotify Web API{% if deezer %} and Deezer{% endif %}, refreshed every 6 hours. Popularity is Spotify's own 0–100 signal based on recent plays.</p>
+  <p class="px-1 text-xs text-gray-300 font-medium">Live data from the Spotify Web API{% if deezer %} and Deezer{% endif %}, read fresh on every load of this page and snapshotted as it is read — nothing above is cached. Popularity is Spotify's own 0–100 signal based on recent plays.</p>
   {% endif %}
 
   {#- Owned engagement, folded in from /stats: the one thing that page had

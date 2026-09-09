@@ -515,10 +515,12 @@ def init_db():
             CREATE TABLE IF NOT EXISTS pulse_snapshots (
                 user_id TEXT NOT NULL,
                 day TEXT NOT NULL,
+                provider TEXT NOT NULL DEFAULT 'spotify',
                 followers INTEGER NOT NULL DEFAULT 0,
                 popularity INTEGER NOT NULL DEFAULT 0,
                 deezer_fans INTEGER NOT NULL DEFAULT 0,
-                PRIMARY KEY (user_id, day)
+                monthly_listeners INTEGER,
+                PRIMARY KEY (user_id, day, provider)
             );
             CREATE TABLE IF NOT EXISTS pulse_peers (
                 user_id TEXT NOT NULL,
@@ -541,6 +543,8 @@ def init_db():
                 artist_id TEXT NOT NULL,
                 artist_name TEXT NOT NULL,
                 artist_image TEXT NOT NULL DEFAULT '',
+                provider TEXT NOT NULL DEFAULT '',
+                provider_artist_id TEXT NOT NULL DEFAULT '',
                 updated TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS catalog_tracks (
@@ -997,6 +1001,42 @@ def init_db():
             db.execute("ALTER TABLE documents ADD COLUMN vault_file_id TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration (2026-09-09): which provider measured a pulse
+        # snapshot. The table held one row per user per day, implicitly
+        # Spotify's, so a second metrics provider answering about the
+        # same day would have overwritten Spotify's row rather than
+        # sitting beside it. The key becomes (user_id, day, provider)
+        # and every row already on file is stamped "spotify", which is
+        # what it was. SQLite cannot alter a primary key, so the table
+        # is rebuilt once; no row is dropped.
+        _pulse_cols = [r[1] for r in
+                       db.execute("PRAGMA table_info(pulse_snapshots)").fetchall()]
+        if _pulse_cols and "provider" not in _pulse_cols:
+            db.execute("ALTER TABLE pulse_snapshots RENAME TO pulse_snapshots_pre_provider")
+            db.execute(
+                "CREATE TABLE pulse_snapshots ("
+                "user_id TEXT NOT NULL, day TEXT NOT NULL,"
+                " provider TEXT NOT NULL DEFAULT 'spotify',"
+                " followers INTEGER NOT NULL DEFAULT 0,"
+                " popularity INTEGER NOT NULL DEFAULT 0,"
+                " deezer_fans INTEGER NOT NULL DEFAULT 0,"
+                " monthly_listeners INTEGER,"
+                " PRIMARY KEY (user_id, day, provider))")
+            db.execute(
+                "INSERT INTO pulse_snapshots"
+                " (user_id, day, provider, followers, popularity, deezer_fans, monthly_listeners)"
+                " SELECT user_id, day, 'spotify', followers, popularity, deezer_fans, NULL"
+                " FROM pulse_snapshots_pre_provider")
+            db.execute("DROP TABLE pulse_snapshots_pre_provider")
+        # Migration (2026-09-09): the metrics provider's own id for the
+        # artist on the pulse profile, resolved once by search and kept,
+        # so the page does not spend a billed lookup on every load.
+        for _col in ("provider TEXT NOT NULL DEFAULT ''",
+                     "provider_artist_id TEXT NOT NULL DEFAULT ''"):
+            try:
+                db.execute("ALTER TABLE pulse_profiles ADD COLUMN %s" % _col)
+            except sqlite3.OperationalError:
+                pass  # column already exists
     link_song_tables()
     link_document_store()
 
@@ -1516,23 +1556,40 @@ def get_epk_by_slug(slug):
 
 # --- Pulse snapshots (real growth history) ----------------------------------------
 
-def record_pulse_snapshot(user_id, followers, popularity, deezer_fans):
-    """One snapshot per user per day; later same-day calls refresh it."""
-    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+def record_pulse_snapshot(user_id, followers, popularity, deezer_fans,
+                          provider="spotify", day=None, monthly_listeners=None):
+    """One snapshot per user per day PER PROVIDER; a later call the same
+    day refreshes it.
+
+    `day` lets a provider that answers with a dated series write its own
+    history rather than pretending every point was measured today.
+    `monthly_listeners` is left NULL when the provider does not report it
+    - a nought there would read as an audience of nobody.
+    """
+    day = day or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     with get_db() as db:
         db.execute(
-            "INSERT INTO pulse_snapshots (user_id, day, followers, popularity, deezer_fans) "
-            "VALUES (?,?,?,?,?) "
-            "ON CONFLICT(user_id, day) DO UPDATE SET followers=excluded.followers, "
-            "popularity=excluded.popularity, deezer_fans=excluded.deezer_fans",
-            (user_id, day, followers, popularity, deezer_fans))
+            "INSERT INTO pulse_snapshots (user_id, day, provider, followers, popularity,"
+            " deezer_fans, monthly_listeners) VALUES (?,?,?,?,?,?,?) "
+            "ON CONFLICT(user_id, day, provider) DO UPDATE SET followers=excluded.followers, "
+            "popularity=excluded.popularity, deezer_fans=excluded.deezer_fans, "
+            "monthly_listeners=COALESCE(excluded.monthly_listeners, pulse_snapshots.monthly_listeners)",
+            (user_id, day, provider, followers, popularity, deezer_fans,
+             monthly_listeners))
 
 
-def list_pulse_snapshots(user_id, limit=90):
+def list_pulse_snapshots(user_id, limit=90, provider="spotify"):
+    """Snapshots from one provider, oldest first.
+
+    The default is Spotify because that is what every existing reader of
+    this list means by it: followers, popularity and Deezer fans, read on
+    a page load. A metrics provider's series is asked for by name.
+    """
     with get_db() as db:
         rows = db.execute(
-            "SELECT * FROM pulse_snapshots WHERE user_id = ? ORDER BY day DESC LIMIT ?",
-            (user_id, limit)).fetchall()
+            "SELECT * FROM pulse_snapshots WHERE user_id = ? AND provider = ?"
+            " ORDER BY day DESC LIMIT ?",
+            (user_id, provider, limit)).fetchall()
     return [dict(r) for r in reversed(rows)]
 
 
@@ -3349,9 +3406,27 @@ def save_pulse_profile(user_id, artist_id, artist_name, artist_image=""):
             "VALUES (?,?,?,?,?) "
             "ON CONFLICT(user_id) DO UPDATE SET artist_id=excluded.artist_id, "
             "artist_name=excluded.artist_name, artist_image=excluded.artist_image, "
-            "updated=excluded.updated",
+            "updated=excluded.updated, "
+            # A different artist is a different artist everywhere: the
+            # metrics provider's id for the old one must not survive the
+            # change, or the page would measure somebody else.
+            "provider=CASE WHEN pulse_profiles.artist_id=excluded.artist_id "
+            "THEN pulse_profiles.provider ELSE '' END, "
+            "provider_artist_id=CASE WHEN pulse_profiles.artist_id=excluded.artist_id "
+            "THEN pulse_profiles.provider_artist_id ELSE '' END",
             (user_id, artist_id, artist_name, artist_image, _now()),
         )
+
+
+def save_pulse_provider_artist(user_id, provider, provider_artist_id):
+    """Remember the metrics provider's own id for this artist, so the
+    search that found it is run once rather than on every page load."""
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE pulse_profiles SET provider = ?, provider_artist_id = ?"
+            " WHERE user_id = ?",
+            (provider, (provider_artist_id or "")[:120], user_id))
+    return cur.rowcount > 0
 
 
 def get_pulse_profile(user_id):
