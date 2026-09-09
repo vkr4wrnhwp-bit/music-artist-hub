@@ -468,6 +468,26 @@ def init_db():
                 works TEXT NOT NULL DEFAULT '[]',
                 created TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS discogs_links (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                track_id TEXT NOT NULL,
+                release_id TEXT NOT NULL,
+                master_id TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL DEFAULT '',
+                artist TEXT NOT NULL DEFAULT '',
+                year TEXT NOT NULL DEFAULT '',
+                country TEXT NOT NULL DEFAULT '',
+                label TEXT NOT NULL DEFAULT '',
+                catno TEXT NOT NULL DEFAULT '',
+                formats TEXT NOT NULL DEFAULT '',
+                url TEXT NOT NULL DEFAULT '',
+                filled TEXT NOT NULL DEFAULT '{}',
+                credits TEXT NOT NULL DEFAULT '[]',
+                created TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_discogs_links
+                ON discogs_links(user_id, track_id);
             CREATE TABLE IF NOT EXISTS recovery_mlc_sweeps (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -3312,6 +3332,8 @@ def delete_os_track(user_id, track_id):
                          (track_id, user_id))
         if cur.rowcount:
             db.execute("DELETE FROM track_mlc_checks WHERE track_id = ?", (track_id,))
+            db.execute("DELETE FROM discogs_links WHERE track_id = ? AND user_id = ?",
+                       (track_id, user_id))
             db.execute("DELETE FROM catalog_tracks WHERE passport_track_id = ? AND user_id = ?",
                        (track_id, user_id))
     return cur.rowcount > 0
@@ -3353,6 +3375,64 @@ def get_track_mlc_check(user_id, check_id):
         row = db.execute("SELECT * FROM track_mlc_checks WHERE id = ? AND user_id = ?",
                          (check_id, user_id)).fetchone()
     return _mlc_check_dict(row) if row else None
+
+
+# --- Discogs, attached to one passport: the pressing the owner chose ------------
+#
+# One row per track, replaced when a different pressing is attached. It
+# records WHICH release answered and WHICH passport fields it filled, so
+# a value that came from Discogs can always be told apart afterwards from
+# one the artist typed. `credits` is kept for the owner to read; nothing
+# reads it back into a split or a songwriter field.
+
+_DISCOGS_COLS = ("release_id", "master_id", "title", "artist", "year",
+                 "country", "label", "catno", "formats", "url")
+
+
+def set_discogs_link(user_id, track_id, release, filled=None):
+    link_id = uuid.uuid4().hex
+    values = [(str((release or {}).get(c) or ""))[:300] for c in _DISCOGS_COLS]
+    with get_db() as db:
+        db.execute("DELETE FROM discogs_links WHERE user_id = ? AND track_id = ?",
+                   (user_id, track_id))
+        db.execute(
+            "INSERT INTO discogs_links (id, user_id, track_id, release_id, master_id,"
+            " title, artist, year, country, label, catno, formats, url, filled, credits, created)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            tuple([link_id, user_id, track_id] + values +
+                  [json.dumps(filled or {})[:4000],
+                   json.dumps((release or {}).get("credits") or [])[:60000],
+                   _now()]))
+    return link_id
+
+
+def _discogs_link_dict(row):
+    d = dict(row)
+    for key, empty in (("filled", {}), ("credits", [])):
+        try:
+            d[key] = json.loads(d.get(key) or "null")
+        except ValueError:
+            d[key] = empty
+        if d[key] is None:
+            d[key] = empty
+    return d
+
+
+def get_discogs_link(user_id, track_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM discogs_links WHERE user_id = ? AND track_id = ?"
+                         " ORDER BY created DESC, rowid DESC LIMIT 1",
+                         (user_id, track_id)).fetchone()
+    return _discogs_link_dict(row) if row else None
+
+
+def discogs_links_by_track(user_id):
+    """Every attached pressing for this account, keyed by track id - one
+    query for a page that lists the whole catalog."""
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM discogs_links WHERE user_id = ?"
+                          " ORDER BY created ASC, rowid ASC", (user_id,)).fetchall()
+    return {r["track_id"]: _discogs_link_dict(r) for r in rows}
 
 
 def add_recovery_mlc_sweep(user_id, summary, rows):

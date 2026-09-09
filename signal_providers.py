@@ -21,7 +21,8 @@ Feature flags (all default off; see .env.example):
     SOUNDCHARTS_ENABLED, CHARTMETRIC_ENABLED, MUSICBRAINZ_ENABLED,
     MLC_ENABLED, SOUNDEXCHANGE_ENABLED, SPOTIFY_METADATA_ENABLED,
     WEB_ENRICHMENT_ENABLED, INTERNAL_REVENUE_ENABLED,
-    PRIVATE_AUDIO_ENABLED, AUDIO_INTELLIGENCE_ENABLED, YOUTUBE_ENABLED
+    PRIVATE_AUDIO_ENABLED, AUDIO_INTELLIGENCE_ENABLED, YOUTUBE_ENABLED,
+    DISCOGS_ENABLED
 """
 import base64
 import hashlib
@@ -964,6 +965,506 @@ class MusicBrainzAdapter(_EnvProvider):
                             "source_url": "https://musicbrainz.org/release/%s" % (releases[0].get("id") or ""),
                             "confidence": 0.8})
         return out
+
+
+# A descriptive User-Agent is not optional at Discogs: a request without
+# one is refused at the edge with 403 before it reaches the API (verified
+# 2026-09-09), and their General Information section names
+# `curl/7.9.8 ...`, a copied `Mozilla/5.0 ...` and "my app" as the bad
+# examples - "the alternative is that we just silently block it". So this
+# names the product and a URL they could reach us at, in the shape their
+# good examples take.
+DISCOGS_USER_AGENT = "StreetBanker/1.0 +https://app.artiswarrecords.com"
+
+
+def _discogs_date(released):
+    """Discogs' `released` with its zero parts removed.
+
+    They print an unknown month or day as `00`: "1987-07-00" is July 1987
+    and "1987-00-00" is only 1987. Writing either into a date field
+    verbatim invents a day that nobody recorded, so the unknown parts are
+    dropped and what is left stands on its own.
+    """
+    parts = (released or "").strip().split("-")
+    out = []
+    for p in parts:
+        if not p or p.strip("0") == "":
+            break
+        out.append(p)
+    return "-".join(out)
+
+
+class DiscogsAdapter(_EnvProvider):
+    """Discogs, over its public API v2 (https://www.discogs.com/developers).
+
+    Verified against the live API and their documentation on 2026-09-09
+    rather than guessed:
+
+      * base `https://api.discogs.com`;
+      * a personal access token travels as
+        `Authorization: Discogs token=<token>` (their Discogs Auth Flow
+        section; the `?token=` query form is the same credential in the
+        URL, which is why the header is used here);
+      * a **descriptive User-Agent is required** - no header at all is
+        403 at the edge, and their docs name generic library and browser
+        agents as the ones they silently block;
+      * rate limit: "Authenticated requests are limited to 60 per minute,
+        and unauthenticated requests are limited to 25 per minute", a
+        moving average over a 60-second window. A spent window answers
+        429. Every response carries `X-Discogs-Ratelimit`,
+        `-Ratelimit-Used` and `-Ratelimit-Remaining`, which this adapter
+        reads and paces itself by - it never spins on a 429;
+      * `GET /database/search` takes `q`, `type=release|master|artist|label`,
+        `artist`, `release_title`, `catno`, `barcode`, `track`, `year`,
+        `per_page`, `page`, and answers `{pagination, results[]}` where a
+        result carries `id`, `master_id`, `title`, `year`, `country`,
+        `label[]`, `catno`, `formats[]`, `barcode[]` and `uri`;
+      * `GET /releases/{id}` carries the pressing itself: `labels[].name`
+        and `labels[].catno` (the catalogue number), `formats[].name`,
+        `.qty` and `.descriptions[]`, `country`, `released`,
+        `identifiers[]` (`{type, value, description}` - `Barcode`,
+        `Matrix / Runout`, `Label Code`, and occasionally `ISRC`),
+        `extraartists[].name`/`.role` and `tracklist[].extraartists[]`;
+      * `GET /masters/{id}` and `GET /masters/{id}/versions` list the
+        other pressings of the same work.
+
+    Capabilities: CAP_RELEASES and CAP_LABEL.
+
+    NOT CAP_METRICS. Discogs is a collector-maintained discography and a
+    marketplace; the only counts it publishes are `community.have` and
+    `community.want` - how many collectors own or want a copy - plus
+    `num_for_sale` and `lowest_price`. Those measure a second-hand market,
+    not an audience: a record with 4,000 haves has no listeners figure
+    attached to it, and putting one on the Pulse graph beside Spotify
+    would be inventing a metric out of an inventory. So this adapter
+    answers what a pressing IS and refuses to answer how it performed.
+    """
+    key = "discogs"
+    label = "Discogs"
+    env_flag = "DISCOGS_ENABLED"
+    env_keys = ("DISCOGS_TOKEN",)
+    capabilities = (CAP_RELEASES, CAP_LABEL)
+    base_url = "https://api.discogs.com"
+    web_release = "https://www.discogs.com/release/%s"
+    web_master = "https://www.discogs.com/master/%s"
+    user_agent = DISCOGS_USER_AGENT
+
+    per_page = 10                 # candidates shown for one lookup
+    max_pages = 3                 # a version list is followed this far, no further
+    min_interval = 1.1            # seconds between calls: ~54/min, inside their 60
+    low_water = 2                 # this few left in the window and we wait it out
+    window_s = 60                 # their window, per the docs
+
+    cache_ttl_default = 6 * 3600  # DISCOGS_CACHE_S overrides; 0 disables
+
+    def __init__(self, transport=None, sleep=None):
+        # `transport(method, url, headers)` answers (status, headers, body)
+        # and replaces only the wire, so the auth header, the User-Agent
+        # and the rate-limit handling are all still exercised by a test.
+        self._transport = transport
+        self._sleep = sleep if sleep is not None else time.sleep
+        self._last = 0.0
+        self._remaining = None    # X-Discogs-Ratelimit-Remaining, last seen
+        self._limit = None        # X-Discogs-Ratelimit, last seen
+
+    # -- credentials --
+    @staticmethod
+    def _token():
+        return (os.environ.get("DISCOGS_TOKEN") or "").strip()
+
+    def configured(self):
+        # A sandbox deployment reports no provider even when the token is
+        # present. The whole app already knows how to behave without one -
+        # it says so on the page and offers no action - so the sandbox
+        # reuses that path instead of inventing a second one.
+        import sandbox
+        if sandbox.active():
+            return False
+        return _EnvProvider.configured(self)
+
+    def health_check(self):
+        import sandbox
+        if sandbox.active():
+            return {"provider": self.key, "configured": False, "ok": False,
+                    "detail": "off in this sandbox deployment",
+                    "capabilities": list(self.capabilities)}
+        return _EnvProvider.health_check(self)
+
+    def rate_limit(self):
+        """{'limit', 'remaining'} as Discogs last reported them, or None
+        before the first call. The page can say how much of the window is
+        left rather than guessing that a lookup will work."""
+        if self._limit is None and self._remaining is None:
+            return None
+        return {"limit": self._limit, "remaining": self._remaining}
+
+    # -- cache: six hours in the app's key/value store, 200s only --------------
+    # A pressing does not change. The same lookup inside six hours is
+    # answered from the store, which also keeps a page render off their
+    # rate limit entirely. A non-200 is never written: an error frozen for
+    # six hours is worse than no cache at all.
+    @staticmethod
+    def cache_ttl():
+        raw = (os.environ.get("DISCOGS_CACHE_S") or "").strip()
+        if raw == "":
+            return DiscogsAdapter.cache_ttl_default
+        try:
+            return max(0, int(float(raw)))
+        except ValueError:
+            return DiscogsAdapter.cache_ttl_default
+
+    @staticmethod
+    def cache_key(path, params):
+        raw = path + "?" + json.dumps(sorted((str(k), str(v)) for k, v in (params or {}).items()))
+        return "discogs:" + hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+    def _cache_read(self, key, ttl):
+        try:
+            import db
+            raw = db.get_kv(key)
+        except Exception:
+            return None
+        if not raw:
+            return None
+        try:
+            entry = json.loads(raw)
+            at = datetime.fromisoformat(entry["at"])
+        except Exception:
+            return None
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        if (_utcnow() - at).total_seconds() > ttl or entry.get("status") != 200:
+            return None
+        return entry.get("body")
+
+    def _cache_write(self, key, body):
+        try:
+            import db
+            db.set_kv(key, json.dumps({"at": _utcnow().isoformat(timespec="seconds"),
+                                       "status": 200, "body": body}))
+        except Exception:
+            pass                  # the answer is still good without a cache
+
+    def cached_at(self, path, params=None):
+        """When the cache last stored an answer to this question, or None
+        if it holds none it would still serve."""
+        ttl = self.cache_ttl()
+        if not ttl:
+            return None
+        try:
+            import db
+            raw = db.get_kv(self.cache_key(path, params or {}))
+        except Exception:
+            return None
+        if not raw:
+            return None
+        try:
+            entry = json.loads(raw)
+            at = datetime.fromisoformat(entry["at"])
+        except Exception:
+            return None
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        if entry.get("status") != 200 or (_utcnow() - at).total_seconds() > ttl:
+            return None
+        return at
+
+    # -- transport --
+    def _get(self, path, **params):
+        if not self.configured():
+            raise ProviderError("Discogs: not configured")
+        ttl = self.cache_ttl()
+        key = self.cache_key(path, params) if ttl else None
+        if key:
+            hit = self._cache_read(key, ttl)
+            if hit is not None:
+                return hit
+        self._pace()
+        status, headers, body = self._send(path, params)
+        self._read_limits(headers)
+        if status != 200:
+            raise ProviderError("Discogs %s: %s" % (status, self._message(status, body)))
+        if key:
+            self._cache_write(key, body)
+        return body
+
+    def _pace(self):
+        """Stay inside their window instead of discovering it with a 429.
+
+        Two rules, both bounded: never more than one call every
+        `min_interval`, and when the last answer said the window is nearly
+        spent, wait the window out once. There is no retry loop anywhere
+        in this adapter - a 429 that still arrives is raised, with what
+        Discogs said about it.
+        """
+        wait = self.min_interval - (time.time() - self._last)
+        if self._remaining is not None and self._remaining <= self.low_water:
+            wait = max(wait, self.window_s)
+            self._remaining = None      # the wait spends the knowledge with it
+        if wait > 0:
+            self._sleep(wait)
+        self._last = time.time()
+
+    def _read_limits(self, headers):
+        got = {}
+        for k, v in (headers or {}).items():
+            got[str(k).strip().lower()] = v
+        for name, attr in (("x-discogs-ratelimit", "_limit"),
+                           ("x-discogs-ratelimit-remaining", "_remaining")):
+            if name in got:
+                try:
+                    setattr(self, attr, int(str(got[name]).strip()))
+                except (TypeError, ValueError):
+                    pass
+
+    def _send(self, path, params):
+        """(status, headers, body) for one call. Injectable for tests."""
+        url = self.base_url + path
+        if params:
+            url += "?" + urllib.parse.urlencode(params)
+        headers = {"User-Agent": self.user_agent, "Accept": "application/json"}
+        token = self._token()
+        if token:
+            headers["Authorization"] = "Discogs token=" + token
+        if self._transport is not None:
+            return self._transport("GET", url, headers)
+        return self._urlopen(url, headers)
+
+    @staticmethod
+    def _urlopen(url, headers):
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                raw = resp.read().decode("utf-8", "replace")
+                return resp.status, dict(resp.headers), (json.loads(raw) if raw.strip() else None)
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode("utf-8", "replace")
+            try:
+                body = json.loads(raw)
+            except ValueError:
+                body = None
+            return e.code, dict(e.headers or {}), body
+        except Exception as e:
+            raise ProviderError("Discogs: %s" % e)
+
+    @classmethod
+    def _message(cls, status, body):
+        """What Discogs said, and only what Discogs said.
+
+        Their error bodies are `{"message": "..."}` - "Invalid consumer
+        token. Please register an app before making requests." for a bad
+        token, "That release does not exist or may have been deleted."
+        for a missing id (both verified live). When a refusal carries no
+        body at all - a spent window answered 429 with an empty one on
+        2026-09-09 - the fallback states the published limit rather than
+        putting words in their mouth.
+        """
+        msg = ""
+        if isinstance(body, dict):
+            msg = (body.get("message") or "").strip()
+        if msg:
+            return msg
+        if status == 429:
+            return ("rate limit reached - Discogs allows 60 requests a minute "
+                    "to an authenticated app, over a rolling 60-second window")
+        if status in (401, 403):
+            return "refused the token (no message given)"
+        return "no message given"
+
+    # -- shapes --
+    @staticmethod
+    def _format_text(formats):
+        """"Vinyl, LP, Album, Reissue" - the name, then the descriptions
+        Discogs hangs off it, and a quantity only when there is more than
+        one disc."""
+        out = []
+        for f in formats or []:
+            bits = [(f.get("name") or "").strip()]
+            bits += [d for d in (f.get("descriptions") or []) if d]
+            text = (f.get("text") or "").strip()
+            if text:
+                bits.append(text)
+            piece = ", ".join(b for b in bits if b)
+            try:
+                qty = int(str(f.get("qty") or "1").strip())
+            except ValueError:
+                qty = 1
+            if qty > 1 and piece:
+                piece = "%s x %s" % (qty, piece)
+            if piece:
+                out.append(piece)
+        return " / ".join(out)
+
+    @classmethod
+    def _candidate(cls, r):
+        labels = [l for l in (r.get("label") or []) if l]
+        # Discogs repeats a label once per role on a search row (pressing
+        # plant, mastering studio), so the first is the imprint.
+        return {
+            "release_id": str(r.get("id") or ""),
+            "master_id": str(r.get("master_id") or ""),
+            "title": (r.get("title") or "").strip(),
+            "year": str(r.get("year") or "").strip(),
+            "country": (r.get("country") or "").strip(),
+            "label": labels[0].strip() if labels else "",
+            "catno": (r.get("catno") or "").strip(),
+            "formats": cls._format_text(r.get("formats")),
+            "url": cls.web_release % (r.get("id") or ""),
+        }
+
+    @classmethod
+    def _release(cls, d):
+        ids = d.get("identifiers") or []
+        barcode, isrc = "", ""
+        for i in ids:
+            kind = (i.get("type") or "").strip().lower()
+            value = (i.get("value") or "").strip()
+            if not value:
+                continue
+            if kind == "barcode" and not barcode:
+                digits = re.sub(r"[^0-9]", "", value)
+                # A barcode field also carries the printed spacing and,
+                # sometimes, a rights-society note; only a real UPC/EAN
+                # run of digits is offered as one.
+                if len(digits) in (8, 12, 13, 14):
+                    barcode = digits
+            if kind == "isrc" and not isrc:
+                isrc = re.sub(r"[^A-Za-z0-9]", "", value).upper()
+        labels = d.get("labels") or []
+        artists = ", ".join(a.get("name") or "" for a in d.get("artists") or [] if a.get("name"))
+        return {
+            "release_id": str(d.get("id") or ""),
+            "master_id": str(d.get("master_id") or ""),
+            "title": (d.get("title") or "").strip(),
+            "artist": artists,
+            "year": str(d.get("year") or "").strip(),
+            "country": (d.get("country") or "").strip(),
+            "released": _discogs_date(d.get("released")),
+            "label": (labels[0].get("name") or "").strip() if labels else "",
+            "catno": (labels[0].get("catno") or "").strip() if labels else "",
+            "labels": [{"name": (l.get("name") or "").strip(),
+                        "catno": (l.get("catno") or "").strip()} for l in labels],
+            "formats": cls._format_text(d.get("formats")),
+            "barcode": barcode,
+            "isrc": isrc,
+            "identifiers": [{"type": (i.get("type") or "").strip(),
+                             "value": (i.get("value") or "").strip(),
+                             "description": (i.get("description") or "").strip()}
+                            for i in ids],
+            "url": cls.web_release % (d.get("id") or ""),
+            "credits": cls._credits(d),
+        }
+
+    @staticmethod
+    def _credits(d):
+        """`extraartists` on the release and on each track, as {name, role}.
+
+        Discogs prints a compound role exactly as the sleeve does -
+        "Producer, Written-By" - and it is kept whole. Splitting it would
+        be this app deciding which half of somebody else's credit is a
+        writing claim, which is the decision it must not make.
+        """
+        rows, seen = [], set()
+        groups = [d.get("extraartists") or []]
+        for t in d.get("tracklist") or []:
+            groups.append(t.get("extraartists") or [])
+        for group in groups:
+            for a in group:
+                name = (a.get("name") or "").strip()
+                role = (a.get("role") or "").strip()
+                if not name or not role:
+                    continue
+                if (name, role) in seen:
+                    continue
+                seen.add((name, role))
+                rows.append({"name": name, "role": role})
+        return rows
+
+    # -- the questions the catalog asks --
+    def search_release(self, artist, title, catno=None, barcode=None):
+        """Candidate pressings for one song.
+
+        A barcode or a catalogue number identifies a pressing on its own,
+        so when the passport holds one it is sent and the artist and title
+        narrow it; without either this is an artist + title search. A
+        search with nothing to go on returns nothing rather than the
+        front page of the database.
+        """
+        params = {"type": "release", "per_page": self.per_page, "page": 1}
+        artist, title = (artist or "").strip(), (title or "").strip()
+        catno, barcode = (catno or "").strip(), (barcode or "").strip()
+        if artist:
+            params["artist"] = artist
+        if title:
+            params["release_title"] = title
+        if catno:
+            params["catno"] = catno
+        if barcode:
+            params["barcode"] = barcode
+        if not (artist or title or catno or barcode):
+            return []
+        data = self._get("/database/search", **params)
+        return [self._candidate(r) for r in (data or {}).get("results") or []]
+
+    def get_release(self, release_id):
+        rid = str(release_id or "").strip()
+        if not rid:
+            return None
+        data = self._get("/releases/%s" % urllib.parse.quote(rid, safe=""))
+        if not data or not data.get("id"):
+            return None
+        return self._release(data)
+
+    def credits_for(self, release_id):
+        """The people Discogs lists on a pressing, as {name, role} rows.
+
+        For the owner to READ. Nothing here is written into splits or into
+        the passport's songwriter fields - see the fill action.
+        """
+        release = self.get_release(release_id)
+        return release["credits"] if release else []
+
+    def pressings_for(self, master_id):
+        """Every version of a master, up to `max_pages` pages.
+
+        Their `pagination` carries `pages`, so the walk is bounded by a
+        number that is known before it starts - never a `while has_more`
+        that a broken next-link could run forever.
+        """
+        mid = str(master_id or "").strip()
+        if not mid:
+            return []
+        out, page = [], 1
+        quoted = urllib.parse.quote(mid, safe="")
+        while page <= self.max_pages:
+            data = self._get("/masters/%s/versions" % quoted,
+                             per_page=self.per_page, page=page) or {}
+            for v in data.get("versions") or []:
+                out.append({
+                    "release_id": str(v.get("id") or ""),
+                    "title": (v.get("title") or "").strip(),
+                    "year": str(v.get("released") or "").strip()[:4],
+                    "country": (v.get("country") or "").strip(),
+                    "label": (v.get("label") or "").strip(),
+                    "catno": (v.get("catno") or "").strip(),
+                    "formats": (v.get("format") or "").strip(),
+                    "url": self.web_release % (v.get("id") or ""),
+                })
+            pages = int(((data.get("pagination") or {}).get("pages") or 1))
+            if page >= pages:
+                break
+            page += 1
+        return out
+
+    # -- the registry's questions --
+    def get_label_evidence(self, provider_release_id):
+        release = self.get_release(provider_release_id)
+        if not release:
+            return []
+        return [{"label_name": l["name"], "catalog_number": l["catno"],
+                 "source_type": "release_metadata", "source_label": "Discogs release",
+                 "source_url": release["url"], "confidence": 0.7}
+                for l in release["labels"] if l["name"]]
 
 
 class YouTubeAdapter(_EnvProvider):
@@ -2042,7 +2543,8 @@ class MockMusicIntelligenceAdapter(MusicIntelligenceProvider):
 # one changes which provider serves nothing that was already served.
 _REAL_ADAPTERS = (BandsintownAdapter, TourDatesAdapter, SoundchartsAdapter, ChartmetricAdapter,
                   MusicBrainzAdapter, MLCAdapter, SoundExchangeAdapter, SpotifyMetadataAdapter,
-                  PublicWebResearchAdapter, InternalStreetBankerAdapter, YouTubeAdapter)
+                  PublicWebResearchAdapter, InternalStreetBankerAdapter, YouTubeAdapter,
+                  DiscogsAdapter)
 
 
 class ProviderRegistry(object):
@@ -2101,6 +2603,19 @@ def mlc_adapter():
     if _mlc is None:
         _mlc = MLCAdapter()
     return _mlc
+
+
+_discogs = None
+
+
+def discogs_adapter():
+    """One Discogs adapter for the process, so its rate-limit window is
+    tracked in one place rather than by each page separately. Tests swap
+    the function."""
+    global _discogs
+    if _discogs is None:
+        _discogs = DiscogsAdapter()
+    return _discogs
 
 
 _registry = None

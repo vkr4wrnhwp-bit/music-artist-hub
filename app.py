@@ -1903,7 +1903,8 @@ def create_app():
         # nothing is hidden; the start-up link makes that rare.
         ctx.update(_passport_section(user, ctx["my_tracks"]) if user else
                    {"passport_rows": [], "passport_pipeline": [],
-                    "passport_cert": None, "passport_summary": None})
+                    "passport_cert": None, "passport_summary": None,
+                    "discogs": _DISCOGS_OFF})
         # ISWC coverage: catalog rows whose linked passport holds an MLC
         # check with a work code on it. Counted after the passports are
         # read, because that is where the code comes from.
@@ -2023,9 +2024,11 @@ def create_app():
                          "iswc": artist_os.mlc_evidence(t)["iswc"],
                          "certificate": (not clean["blocked"]
                                          and clean["score"] >= 100)})
+        discogs = _discogs_state(user, rows)
         summary = _os_summary(user["id"], [t for _ct, t in ordered], osctx)
         return {
             "passport_rows": rows,
+            "discogs": discogs,
             "passport_summary": summary,
             "passport_cert": artist_os.certification(summary),
             "passport_pipeline": [
@@ -2038,6 +2041,136 @@ def create_app():
                                        and r["clean"]["score"] >= 80])),
             ],
         }
+
+    # --- Discogs: the pressing behind a song ------------------------------------
+    #
+    # Discogs is a discography, not an audience source: it answers what a
+    # record IS - the label, the catalogue number, the country, the year,
+    # the format and the people printed on the sleeve. The owner looks a
+    # song up, picks the pressing that is actually theirs, and attaches
+    # it; the attach fills only passport fields that are still EMPTY, the
+    # same rule the MLC fill action follows, and records which fields came
+    # from Discogs so a filled value can always be told from a typed one.
+    #
+    # Credits are the deliberate exception: they are shown and never
+    # written. A songwriter field is a rights claim, and a third-party
+    # database does not get to make one on somebody else's behalf.
+
+    _DISCOGS_OFF = {"on": False, "flag": "DISCOGS_ENABLED", "token": "DISCOGS_TOKEN",
+                    "open": "", "candidates": [], "error": "", "asked": "",
+                    "sandbox": False}
+
+    # passport field <- the field of a normalised Discogs release that may
+    # fill it. Nothing derived from a credit is in this list, on purpose.
+    _DISCOGS_FILLS = (("label", "label"), ("release_title", "title"),
+                      ("release_date", "released"), ("upc", "barcode"),
+                      ("isrc", "isrc"))
+
+    def _discogs_back(user, track_id):
+        """Where a lookup lands: the catalog section for a plan that has
+        the Catalog page, the passports page for one that has not."""
+        base, _hash, frag = _passports_home(user).partition("#")
+        return "%s?discogs=%s#%s" % (base, track_id, frag or "passports")
+
+    def _discogs_query(row):
+        """What this song would be looked up by: the artist and title, plus
+        a catalogue number or barcode when the passport holds one."""
+        passport = row["t"].get("passport") or {}
+        meta = (row["catalog"] or {}).get("meta") or {}
+        link = row.get("discogs") or {}
+        return {
+            "artist": (passport.get("artist_name")
+                       or (row["catalog"] or {}).get("artist") or "").strip(),
+            "title": (row["t"]["title"] or "").strip(),
+            # The passport has no catalogue-number field of its own, so the
+            # only one this app holds is the one an attached pressing
+            # supplied - which is what narrows a re-lookup to that pressing.
+            "catno": (link.get("catno") or "").strip(),
+            "barcode": (passport.get("upc") or meta.get("upc") or "").strip(),
+        }
+
+    def _discogs_state(user, rows):
+        """The Discogs surface for the catalog page.
+
+        Every row gets its attached pressing (or None). A lookup runs only
+        for the one song named in ?discogs=, which is only ever set by the
+        Look up button - so opening /catalog calls nothing.
+        """
+        import signal_providers as sp
+        for r in rows:
+            r["discogs"] = None
+        links = store.discogs_links_by_track(user["id"])
+        for r in rows:
+            r["discogs"] = links.get(r["t"]["id"])
+        adapter = sp.discogs_adapter()
+        state = dict(_DISCOGS_OFF, on=adapter.configured(),
+                     sandbox=sandbox.active(), candidates=[])
+        open_id = (request.args.get("discogs") or "").strip()
+        if not state["on"] or not open_id:
+            return state
+        row = next((r for r in rows if r["t"]["id"] == open_id), None)
+        if row is None:
+            return state
+        state["open"] = open_id
+        q = _discogs_query(row)
+        state["asked"] = " ".join(p for p in
+                                  [q["artist"], q["title"],
+                                   ("catalogue " + q["catno"]) if q["catno"] else "",
+                                   ("barcode " + q["barcode"]) if q["barcode"] else ""] if p)
+        try:
+            state["candidates"] = adapter.search_release(
+                q["artist"], q["title"], catno=q["catno"], barcode=q["barcode"])
+        except sp.ProviderError as e:
+            # Discogs' own words - "Invalid consumer token...", the rate
+            # limit - travel to the owner, because a bare 401 does not say
+            # whether to fix the token or wait a minute.
+            state["error"] = str(e)
+        return state
+
+    @app.route("/tracks/<track_id>/discogs", methods=["POST"])
+    def os_track_discogs(track_id):
+        """Look a song up on Discogs, or attach the pressing the owner picked.
+
+        'attach' stores the release and fills passport fields that are
+        still empty. A value the artist typed is a decision and is never
+        overwritten. Credits are stored with the link so the owner can
+        read them; nothing copies them into splits or songwriter fields.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        track = store.get_os_track(user["id"], track_id)
+        if track is None:
+            abort(404)
+        import signal_providers as sp
+        adapter = sp.discogs_adapter()
+        back = _discogs_back(user, track_id)
+        if not adapter.configured():
+            return redirect(_discogs_back(user, "off"))
+        if request.form.get("action") == "attach":
+            release_id = (request.form.get("release_id") or "").strip()
+            if not release_id:
+                return redirect(back)
+            try:
+                release = adapter.get_release(release_id)
+            except sp.ProviderError:
+                # The lookup that follows the redirect reports it in
+                # Discogs' own words; nothing is written on a failure.
+                return redirect(back)
+            if not release:
+                return redirect(back)
+            passport = track.get("passport") or {}
+            fills = {}
+            for field, source in _DISCOGS_FILLS:
+                value = (release.get(source) or "").strip()
+                if value and not (passport.get(field) or "").strip():
+                    fills[field] = value[:200]
+            if fills:
+                passport.update(fills)
+                store.update_os_track_passport(user["id"], track_id, passport)
+            store.set_discogs_link(user["id"], track_id, release, fills)
+            return redirect(back)
+        return redirect(back)
 
     @app.route("/catalog/add", methods=["POST"])
     def catalog_add():
