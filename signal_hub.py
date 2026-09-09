@@ -20,6 +20,7 @@ Access composes with what the app already has rather than replacing it:
 import csv
 import io
 import json
+import re
 from datetime import date, datetime, timedelta, timezone
 
 from flask import (Blueprint, redirect, render_template, request, session,
@@ -678,7 +679,8 @@ def _render_data_sources(org, member, **extra):
         suggestions=_own_act_names(_me()),
         demo_count=len(mock_only), real_count=real_n,
         retire_reason=("" if real_n else "Add one real artist first"),
-        find_q="", find_results=None, notice=request.args.get("notice") or "")
+        find_q="", find_results=None, find_error="", find_error_needs_credentials=False,
+        notice=request.args.get("notice") or "")
     ctx.update(extra)
     return render_template("signal/data_sources.html", **_ctx(org, member, **ctx))
 
@@ -702,14 +704,30 @@ def admin_find(org, member):
     """Look an artist up by name at the preferred identity provider. A
     blank query renders the page and calls nothing."""
     q = (request.args.get("q") or "").strip()[:120]
-    results = None
+    results, error = None, ""
     if q:
         reg = providers.registry()
         ident = reg.for_capability(providers.CAP_ARTIST)
         results = []
         if ident is not None:
             results = ingest.search_provider(ident, q, limit=10)
-    return _render_data_sources(org, member, find_q=q, find_results=results)
+            if not results:
+                # an empty answer and a failed call look the same to the
+                # caller; the run log tells them apart
+                error = _plain_error(sstore.last_provider_error(ident.key))
+    return _render_data_sources(org, member, find_q=q, find_results=results, find_error=error,
+                                find_error_needs_credentials=_needs_credentials(error))
+
+
+def _plain_error(detail):
+    """`_timed` records "ProviderError: Soundcharts 401: ..."; the page
+    shows what the provider said, not the exception class."""
+    return re.sub(r"^[A-Za-z_]*(Error|Exception): ", "", detail or "")
+
+
+def _needs_credentials(error):
+    """A 401 or 403 is the account, not the artist: the operator has to act."""
+    return bool(re.search(r"\b40[13]\b", error or ""))
 
 
 @bp.route("/admin/add", methods=["POST"])

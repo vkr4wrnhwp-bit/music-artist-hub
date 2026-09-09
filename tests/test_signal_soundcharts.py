@@ -11,6 +11,7 @@ count is None, the 28-day change is None when no point sits 28 days
 back, a distributor nobody recognises is "Needs Research", and an
 endpoint a plan does not include is an error, never a guess.
 """
+import base64
 import json
 import os
 from datetime import date, datetime, timedelta, timezone
@@ -145,11 +146,17 @@ def kv(monkeypatch):
     return store
 
 
+LEGACY_KEYS = ("SOUNDCHARTS_APP_ID", "SOUNDCHARTS_API_KEY")
+OAUTH_KEYS = ("SOUNDCHARTS_CLIENT_ID", "SOUNDCHARTS_CLIENT_SECRET", "SOUNDCHARTS_TEAM_ID")
+
+
 @pytest.fixture
 def sc(monkeypatch):
     monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
     monkeypatch.setenv("SOUNDCHARTS_APP_ID", "id")
     monkeypatch.setenv("SOUNDCHARTS_API_KEY", "key")
+    for k in OAUTH_KEYS:
+        monkeypatch.delenv(k, raising=False)
     calls = []
     a = providers.SoundchartsAdapter(fetch=_fake_fetch(calls))
     a.calls = calls
@@ -157,7 +164,7 @@ def sc(monkeypatch):
 
 
 def test_unconfigured_it_refuses_rather_than_guessing(monkeypatch):
-    for k in ("SOUNDCHARTS_ENABLED", "SOUNDCHARTS_APP_ID", "SOUNDCHARTS_API_KEY"):
+    for k in ("SOUNDCHARTS_ENABLED",) + LEGACY_KEYS + OAUTH_KEYS:
         monkeypatch.delenv(k, raising=False)
     a = providers.SoundchartsAdapter(fetch=lambda url: pytest.fail("must not call out"))
     assert a.configured() is False
@@ -394,6 +401,172 @@ def test_a_zero_ttl_disables_the_cache(cached, monkeypatch):
     assert len(cached.calls) == 2 * n and cached.kv == {}
 
 
+# --- signing in ------------------------------------------------------------------
+# Soundcharts' current grant is OAuth client credentials: a client id and
+# secret are exchanged for a one-hour bearer token. These drive the whole
+# path over a fake wire - the token endpoint and the API - so the header
+# on every call, the mint count and the 401 retry are all asserted, and
+# nothing reaches the network.
+
+def _wire(minted, api, token_answer=None, deny_401=0):
+    """`minted` collects (url, headers, body) of every token request; `api`
+    collects (url, headers) of every API call. The first `deny_401` API
+    calls answer 401 the way an expired token does."""
+    state = {"n": 0, "denied": 0}
+
+    def token_http(url, headers, body):
+        minted.append((url, headers, body))
+        if token_answer is not None:
+            return token_answer()
+        state["n"] += 1
+        return {"access_token": "tok-%d" % state["n"], "token_type": "bearer",
+                "expires_in": 3600, "refresh_token": None}
+
+    def http(url, headers):
+        api.append((url, headers))
+        if state["denied"] < deny_401:
+            state["denied"] += 1
+            raise providers._HttpError(401, "Expired JWT Token")
+        return {"type": "artist", "object": ARTIST}
+    return http, token_http
+
+
+@pytest.fixture
+def oauth(monkeypatch, kv):
+    monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
+    monkeypatch.setenv("SOUNDCHARTS_CLIENT_ID", "cid")
+    monkeypatch.setenv("SOUNDCHARTS_CLIENT_SECRET", "sec")
+    monkeypatch.delenv("SOUNDCHARTS_TEAM_ID", raising=False)
+    for k in LEGACY_KEYS:
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("SOUNDCHARTS_CACHE_S", "0")      # every call reaches the wire
+    now = [datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)]
+    monkeypatch.setattr(providers, "_utcnow", lambda: now[0])
+
+    def make(**wire_kw):
+        minted, api = [], []
+        http, token_http = _wire(minted, api, **wire_kw)
+        a = providers.SoundchartsAdapter(http=http, token_http=token_http)
+        a.minted, a.api, a.now, a.kv = minted, api, now, kv
+        return a
+    return make
+
+
+def _bearer(call):
+    return call[1].get("Authorization")
+
+
+def test_oauth_mode_mints_once_and_reuses_the_token(oauth):
+    a = oauth()
+    assert a.configured() and a.auth_mode() == "oauth"
+    assert a.get_artist(BILLIE)["name"] == "Billie Eilish"
+    assert a.get_artist(BILLIE)["name"] == "Billie Eilish"
+    assert len(a.minted) == 1, "one sign-in serves every call inside the hour"
+    assert len(a.api) == 4, "an artist is two calls (identity + current stats), so four on the wire"
+    url, headers, body = a.minted[0]
+    assert url == providers.SOUNDCHARTS_TOKEN_URL == "https://account.soundcharts.com/oauth/token"
+    assert headers["Authorization"] == "Basic " + base64.b64encode(b"cid:sec").decode("ascii")
+    assert headers["Content-Type"] == "application/x-www-form-urlencoded"
+    assert body == "grant_type=client_credentials"
+    assert [_bearer(c) for c in a.api] == ["Bearer tok-1"] * 4
+    assert all("x-app-id" not in c[1] and "x-api-key" not in c[1] for c in a.api)
+    entry = json.loads(a.kv["soundcharts:oauth-token"])
+    assert entry["token"] == "tok-1" and entry["expires_at"] == "2026-09-09T13:00:00+00:00"
+
+
+def test_the_team_id_rides_along_when_set(oauth, monkeypatch):
+    monkeypatch.setenv("SOUNDCHARTS_TEAM_ID", "team-7")
+    a = oauth()
+    a.get_artist(BILLIE)
+    assert a.minted[0][2] == "grant_type=client_credentials&team_id=team-7"
+
+
+def test_the_token_is_re_minted_after_expiry_with_a_minute_to_spare(oauth):
+    a = oauth()
+    a.get_artist(BILLIE)
+    a.now[0] += timedelta(seconds=3600 - 61)
+    a.get_artist(BILLIE)
+    assert len(a.minted) == 1, "fifty-nine minutes in, the token still has more than a minute"
+    a.now[0] += timedelta(seconds=2)
+    a.get_artist(BILLIE)
+    assert len(a.minted) == 2, "inside the last minute it is minted again"
+    assert _bearer(a.api[-1]) == "Bearer tok-2"
+
+
+def test_a_stored_token_is_shared_by_a_second_process(oauth):
+    first = oauth()
+    first.get_artist(BILLIE)
+    second = oauth()
+    second.get_artist(BILLIE)
+    assert second.minted == [] and _bearer(second.api[0]) == "Bearer tok-1"
+
+
+def test_a_401_forgets_the_token_and_mints_exactly_once_more(oauth):
+    a = oauth(deny_401=1)
+    assert a.get_artist(BILLIE)["name"] == "Billie Eilish"
+    assert len(a.minted) == 2
+    assert [_bearer(c) for c in a.api] == ["Bearer tok-1", "Bearer tok-2", "Bearer tok-2"],         "the 401, the retry, then the stats call on the fresh token"
+    a.kv.clear()
+    stubborn = oauth(deny_401=2)
+    with pytest.raises(providers.ProviderError, match=r"^Soundcharts 401: Expired JWT Token$"):
+        stubborn.get_artist(BILLIE)
+    assert len(stubborn.minted) == 2 and len(stubborn.api) == 2, "a second 401 is the answer"
+
+
+def test_a_sign_in_failure_names_the_status_and_calls_no_api(oauth):
+    def refused():
+        raise providers._HttpError(401, "Invalid client credentials")
+    a = oauth(token_answer=refused)
+    with pytest.raises(providers.ProviderError, match=r"^Soundcharts sign-in failed: 401 Invalid client credentials$"):
+        a.get_artist(BILLIE)
+    assert a.api == [] and "soundcharts:oauth-token" not in a.kv
+
+    def empty():
+        return {"token_type": "bearer"}
+    b = oauth(token_answer=empty)
+    with pytest.raises(providers.ProviderError, match=r"sign-in failed: no access_token"):
+        b.get_artist(BILLIE)
+
+
+def test_legacy_mode_still_sends_the_app_id_headers_and_never_signs_in(oauth, monkeypatch):
+    for k in ("SOUNDCHARTS_CLIENT_ID", "SOUNDCHARTS_CLIENT_SECRET"):
+        monkeypatch.delenv(k)
+    monkeypatch.setenv("SOUNDCHARTS_APP_ID", "id")
+    monkeypatch.setenv("SOUNDCHARTS_API_KEY", "key")
+    a = oauth()
+    assert a.auth_mode() == "legacy"
+    assert a.get_artist(BILLIE)["name"] == "Billie Eilish"
+    assert a.minted == [] and a.kv == {}
+    assert a.api[0][1]["x-app-id"] == "id" and a.api[0][1]["x-api-key"] == "key"
+    assert "Authorization" not in a.api[0][1]
+
+
+@pytest.mark.parametrize("flag, env, configured, mode", [
+    ("1", {"SOUNDCHARTS_CLIENT_ID": "c", "SOUNDCHARTS_CLIENT_SECRET": "s"}, True, "oauth"),
+    ("1", {"SOUNDCHARTS_APP_ID": "a", "SOUNDCHARTS_API_KEY": "k"}, True, "legacy"),
+    ("1", {"SOUNDCHARTS_CLIENT_ID": "c", "SOUNDCHARTS_CLIENT_SECRET": "s",
+           "SOUNDCHARTS_APP_ID": "a", "SOUNDCHARTS_API_KEY": "k"}, True, "oauth"),
+    ("1", {"SOUNDCHARTS_CLIENT_ID": "c"}, False, ""),
+    ("1", {"SOUNDCHARTS_CLIENT_SECRET": "s", "SOUNDCHARTS_API_KEY": "k"}, False, ""),
+    ("1", {}, False, ""),
+    ("", {"SOUNDCHARTS_CLIENT_ID": "c", "SOUNDCHARTS_CLIENT_SECRET": "s"}, False, "oauth"),
+    ("", {"SOUNDCHARTS_APP_ID": "a", "SOUNDCHARTS_API_KEY": "k"}, False, "legacy"),
+])
+def test_configured_needs_the_flag_and_either_pair(monkeypatch, flag, env, configured, mode):
+    for k in LEGACY_KEYS + OAUTH_KEYS:
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("SOUNDCHARTS_ENABLED", flag)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    a = providers.SoundchartsAdapter()
+    assert a.configured() is configured and a.auth_mode() == mode
+    h = a.health_check()
+    assert h["configured"] is configured
+    assert h["auth"] == providers.SOUNDCHARTS_AUTH_LABELS.get(mode, "")
+    if flag and not mode:
+        assert "SOUNDCHARTS_CLIENT_ID" in h["detail"] and "SOUNDCHARTS_APP_ID" in h["detail"]
+
+
 # --- the sandbox itself --------------------------------------------------------
 
 @pytest.mark.skipif(not os.environ.get("SOUNDCHARTS_SANDBOX_LIVE"),
@@ -402,6 +575,8 @@ def test_the_public_sandbox_answers_in_these_shapes(monkeypatch):
     monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
     monkeypatch.setenv("SOUNDCHARTS_APP_ID", "soundcharts")
     monkeypatch.setenv("SOUNDCHARTS_API_KEY", "soundcharts")
+    for k in OAUTH_KEYS:
+        monkeypatch.delenv(k, raising=False)      # the sandbox is legacy-only
     a = providers.SoundchartsAdapter()
     art = a.get_artist(BILLIE)
     assert art["name"] == "Billie Eilish" and art["city"] == "Los Angeles" and art["monthly_listeners"] > 1000000

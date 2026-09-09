@@ -1109,6 +1109,18 @@ def record_provider_run(provider, capability, ok, ms, cost=0.0, detail=""):
                     (detail or "")[:300], _now()))
 
 
+def last_provider_error(provider, within_seconds=600):
+    """The newest failed run's detail for a provider, if one was recorded
+    in the last `within_seconds`; None otherwise. The find page uses it so
+    an empty search does not hide the provider's own answer."""
+    since = (datetime.now(timezone.utc) - timedelta(seconds=within_seconds)).isoformat(timespec="seconds")
+    with get_db() as db:
+        row = db.execute(
+            "SELECT detail FROM signal_provider_runs WHERE provider = ? AND ok = 0 AND created_at >= ? "
+            "ORDER BY created_at DESC LIMIT 1", (provider, since)).fetchone()
+    return (row["detail"] or None) if row else None
+
+
 def provider_usage(days=30):
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
     with get_db() as db:
