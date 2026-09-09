@@ -17,6 +17,18 @@
     <a href="/recovery" class="sb-btn sb-btn-secondary">← Recovery findings</a>
   </div>
 
+  {% if opened in ('already_open', 'refreshed', 'reopened') %}
+  <div class="rounded-2xl border border-sb-gold/40 bg-sb-gold/10 p-4 text-sm text-gray-100">
+    {% if opened == 'already_open' %}
+    That finding already had a case open, so nothing opened twice. It is below, and its figure has not moved.
+    {% elif opened == 'refreshed' %}
+    That finding already had a case open. The newer figure and note went onto it instead of a second case being opened, so the pipeline still counts this gap once.
+    {% else %}
+    The earlier case for that finding was closed, so this gap coming back opened a new one. Its note says which case it follows.
+    {% endif %}
+  </div>
+  {% endif %}
+
   <!-- Totals -->
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
     <div class="rounded-2xl border border-green-500/25 bg-green-500/[0.05] p-4">
@@ -52,7 +64,7 @@
   {% if cases %}
   <div class="space-y-3">
     {% for c in cases %}
-    <div class="rounded-2xl border {{ 'border-green-500/25' if c.status == 'won' else 'border-white/10' }} bg-sb-surface-1 p-4">
+    <div id="case-{{ c.id }}" class="rounded-2xl border {{ 'border-green-500/25' if c.status == 'won' else 'border-white/10' }} bg-sb-surface-1 p-4">
       <div class="flex flex-wrap items-center gap-3">
         <span class="rounded px-2 py-0.5 text-xs font-bold uppercase {{ status_tone.get(c.status, 'bg-white/10 text-gray-300') }}">{{ c.status }}</span>
         <span class="min-w-0 flex-1 truncate text-sm font-bold text-gray-100">{{ c.title }}</span>

@@ -342,3 +342,20 @@ def case_fields(scan, hit):
         hit.get("title") or "an untitled recording")
     return title[:200], evidence_line(scan, hit)
 
+
+def case_key(scan, hit):
+    """The identity of a fingerprint hit, so its case cannot open twice.
+
+    ACRCloud's own id for the recording it matched, inside the scan it was
+    matched in. The same detection in the same file is one finding however
+    many times the button is pressed; the same recording found in a second
+    file is a second finding, and gets its own case. Two scans of the same
+    audio are two scans - this cannot tell that they were.
+
+    A hit ACRCloud returned no id for has no identifying fact, so it gets
+    no key and keeps opening a case per press. An invented one would merge
+    findings that are not the same, which is worse than a duplicate.
+    """
+    acrid = (hit.get("acrid") or "").strip()
+    return "acr:%s:%s" % (acrid, scan.get("id") or "") if acrid else ""
+

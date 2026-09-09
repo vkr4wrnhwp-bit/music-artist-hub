@@ -605,6 +605,11 @@ def create_app():
     # Capability status, resolved against the running deployment. One
     # source of truth for every public surface - see capability_status.py.
     app.jinja_env.globals["cap"] = capability_status.resolve
+    # The identity of a statement finding, for the two bands that offer a
+    # case straight from one. Computed here rather than spelled out in the
+    # template, so the Recovery page and the Real Numbers band cannot
+    # drift into keying the same gap two different ways.
+    app.jinja_env.globals["case_key"] = recovery_engine.finding_key
     # Stored paths come in two shapes - "/uploads/..." on disk and
     # "r2:<key>" in the bucket. Templates print media_url(path) and do
     # not care which; the bucket stays private and the URL expires.
@@ -6563,21 +6568,41 @@ def create_app():
                                cases=cases, recovered=recovered, pipeline=pipeline,
                                docs=docs, doc_list=list(docs.values()),
                                categories=_CASE_CATEGORIES, statuses=_CASE_STATUSES,
+                               # What the press that arrived here did. A press
+                               # that changed nothing has to say so, or the
+                               # page looks like it ignored it.
+                               opened=request.args.get("opened", ""),
                                **build_dashboard_context())
 
     @app.route("/royalty-recovery/cases/from-finding", methods=["POST"])
     def case_from_finding():
+        """Open the case behind a finding - once.
+
+        A finding is a repeatable thing: the sweep runs again, the browser
+        replays the POST, the hand double-presses. This route used to make
+        a new case every time, and the only guard was cosmetic - the MLC
+        sweep swapping its button for "Case open" once a case with that
+        exact title existed, which a second sweep or a back button walks
+        straight past. That was untidy and nothing more while every
+        finding-sourced case was worth 0. It is not, now that a case
+        carries the money the gap is measured at: the duplicate adds that
+        money to the recovery pipeline a second time, and the money only
+        exists once. So the form posts the finding's own identity and the
+        store keeps one live case per identity - refreshed, not repeated,
+        when a later sweep measures a different share.
+        """
         user = current_user()
         if user is None:
             return login_required_redirect()
         f = request.form
-        store.create_recovery_case(user["id"], {
-            "title": (f.get("title") or "Statement finding").strip(),
-            "category": f.get("category") if f.get("category") in _CASE_CATEGORIES else "other",
-            "estimated_amount": f.get("amount") or 0,
-            "confidence": "high" if f.get("category") == "unmatched" else "medium",
-            "notes": (f.get("notes") or "").strip()})
-        return redirect("/royalty-recovery/cases")
+        case_id, opened = store.open_case_for_finding(
+            user["id"], f.get("case_key"), {
+                "title": (f.get("title") or "Statement finding").strip(),
+                "category": f.get("category") if f.get("category") in _CASE_CATEGORIES else "other",
+                "estimated_amount": f.get("amount") or 0,
+                "confidence": "high" if f.get("category") == "unmatched" else "medium",
+                "notes": (f.get("notes") or "").strip()})
+        return redirect("/royalty-recovery/cases?opened=%s#case-%s" % (opened, case_id))
 
     @app.route("/deal-room", methods=["GET", "POST"])
     def deal_room():

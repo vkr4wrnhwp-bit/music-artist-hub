@@ -309,6 +309,7 @@ def scan(scan_id):
         hit["start"] = console.clock(hit.get("start_ms"))
         hit["end"] = console.clock(hit.get("end_ms"))
         hit["case_title"], hit["case_note"] = astore.case_fields(row, hit)
+        hit["case_key"] = astore.case_key(row, hit)
     return render_template(
         "acr/scan.html", active_page="beats", scan=row, hits=hits,
         mine=astore.count_mine(hits), can_act=_can_act(),

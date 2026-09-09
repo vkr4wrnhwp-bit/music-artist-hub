@@ -314,30 +314,147 @@ def test_with_no_statement_rows_the_case_still_opens_at_zero_and_says_why(monkey
     assert store.list_recovery_cases(user["id"])[0]["estimated_amount"] == 0.0
 
 
-def test_the_sweep_hides_a_second_case_but_the_route_does_not_dedupe(monkeypatch):
-    """Recorded, not invented. The only guard against opening the same gap
-    twice is the sweep partial, which swaps the button for "Case open" once
-    a case with that exact title exists. `/royalty-recovery/cases/from-finding`
-    has no dedupe of its own, so a repeated POST does make a second case and
-    the pipeline does count both. Adding a route-level guard was out of scope
-    here; this test says what today's behaviour is instead of implying a
-    protection that is not there."""
-    _registry(monkeypatch)
-    app_obj = create_app()
-    client, user = _artist(app_obj)
-    _track(client, user, "Ghost", isrc="USXXX9999999")
-    _statements(client, "title,source,amount,period,territory\n"
-                        "Ghost,The MLC,20,2026-02,\n")
-    client.post("/recovery/mlc")
-    row = _row(user, "USXXX9999999")
-    post = {"title": row["case_title"], "category": "mechanical",
-            "amount": row["case_amount"], "notes": row["case_note"]}
+# --- one gap, one case ------------------------------------------------------
+#
+# The sweep partial swapping its button for "Case open" is cosmetic and
+# always was: a second sweep, a back button or a double-press posts to
+# `/royalty-recovery/cases/from-finding` anyway. While every gap was worth
+# 0 the duplicate was only an untidy list. Now that a case carries the
+# money the gap is measured at, a duplicate puts money in the recovery
+# pipeline that exists once. So the case is keyed on what the gap IS.
 
-    client.post("/royalty-recovery/cases/from-finding", data=post)
+
+def _gap_post(row):
+    return {"case_key": row["case_key"], "title": row["case_title"],
+            "category": "mechanical", "amount": row["case_amount"],
+            "notes": row["case_note"]}
+
+
+def _ghost(monkeypatch, csv="title,source,amount,period,territory\n"
+                             "Ghost,The MLC,20,2026-02,\n"):
+    _registry(monkeypatch)                       # nothing is linked
+    client, user = _artist(create_app())
+    _track(client, user, "Ghost", isrc="USXXX9999999")
+    _statements(client, csv)
+    client.post("/recovery/mlc")
+    return client, user
+
+
+def test_pressing_open_case_twice_leaves_one_case_and_one_amount(monkeypatch):
+    """The gap is keyed on the ISRC the registry has no work for, so the
+    second press lands on the first case. The sweep's own "Case open"
+    swap still happens - it is a nicety on top, not the guard."""
+    client, user = _ghost(monkeypatch)
+    row = _row(user, "USXXX9999999")
+    assert row["case_key"] == "mlc:isrc:USXXX9999999"
+
+    client.post("/royalty-recovery/cases/from-finding", data=_gap_post(row))
     page = client.get("/recovery").get_data(as_text=True)
-    assert "Case open" in page
+    assert "Case open" in page, "the cosmetic swap still happens"
     assert 'name="title" value="%s"' % row["case_title"] not in page
 
-    client.post("/royalty-recovery/cases/from-finding", data=post)
+    r = client.post("/royalty-recovery/cases/from-finding", data=_gap_post(row))
+    assert "opened=already_open" in r.headers["Location"]
+    cases = store.list_recovery_cases(user["id"])
+    assert len(cases) == 1 and cases[0]["estimated_amount"] == 20.0
+    assert cases[0]["finding_key"] == "mlc:isrc:USXXX9999999"
+
+    # And the pipeline counts the $20.00 once, which is all there is.
+    page = client.get("/royalty-recovery/cases?opened=already_open").get_data(as_text=True)
+    assert "$20.00" in page and "$40.00" not in page
+    assert "already had a case open, so nothing opened twice" in page
+
+
+def test_a_partly_claimed_work_is_keyed_on_the_song_code(monkeypatch):
+    """A partial claim is a fact about the work The MLC linked, so the
+    case is keyed on its song code. A partial that came back without one
+    falls back to the ISRC - the only identifying fact it has left."""
+    _registry(monkeypatch, {"USAIW2600777": [
+        {"song_code": "BA9000", "iswc": "", "share_total": 60.0,
+         "writers": [], "publishers": []}],
+        "USXXX9999999": [
+        {"song_code": "", "iswc": "", "share_total": 60.0,
+         "writers": [], "publishers": []}]})
+    client, user = _artist(create_app())
+    _track(client, user, "Static", isrc="USAIW2600777")
+    _track(client, user, "Ghost", isrc="USXXX9999999")
+    _statements(client, "title,source,amount,period,territory\n"
+                        "Static,The MLC,45,2026-02,\n")
+    client.post("/recovery/mlc")
+    assert _row(user, "USAIW2600777")["case_key"] == "mlc:song:BA9000"
+    assert _row(user, "USXXX9999999")["case_key"] == "mlc:isrc:USXXX9999999"
+
+    row = _row(user, "USAIW2600777")
+    client.post("/royalty-recovery/cases/from-finding", data=_gap_post(row))
+    client.post("/royalty-recovery/cases/from-finding", data=_gap_post(row))
+    cases = store.list_recovery_cases(user["id"])
+    assert len(cases) == 1 and cases[0]["estimated_amount"] == 18.0
+
+
+def test_a_second_press_refreshes_the_figure_a_later_sweep_measured(monkeypatch):
+    """The gap is worth what the statements say today, and next quarter
+    they say more. The second press moves the case's figure and note onto
+    the newer measurement rather than standing a second case beside it at
+    the older one."""
+    client, user = _ghost(monkeypatch)
+    client.post("/royalty-recovery/cases/from-finding",
+                data=_gap_post(_row(user, "USXXX9999999")))
+
+    _statements(client, "title,source,amount,period,territory\n"
+                        "Ghost,The MLC,45,2026-03,\n")
+    client.post("/recovery/mlc")
+    later = _row(user, "USXXX9999999")
+    assert later["case_amount"] == 65.0
+
+    r = client.post("/royalty-recovery/cases/from-finding", data=_gap_post(later))
+    assert "opened=refreshed" in r.headers["Location"]
+    cases = store.list_recovery_cases(user["id"])
+    assert len(cases) == 1 and cases[0]["estimated_amount"] == 65.0
+    assert "$65.00" in cases[0]["notes"] and "$20.00" not in cases[0]["notes"]
+
+    page = client.get("/royalty-recovery/cases?opened=refreshed").get_data(as_text=True)
+    assert "$65.00" in page and "$85.00" not in page
+    assert "instead of a second case being opened" in page
+
+
+def test_a_closed_case_lets_the_gap_come_back_and_the_new_one_says_so(monkeypatch):
+    """A gap can genuinely recur - the work is registered, the case is
+    won, and the registration lapses again - so a closed case does not
+    lock the finding out. The new case says which case it follows, rather
+    than reading as a duplicate somebody forgot to tidy."""
+    client, user = _ghost(monkeypatch)
+    row = _row(user, "USXXX9999999")
+    client.post("/royalty-recovery/cases/from-finding", data=_gap_post(row))
+    first = store.list_recovery_cases(user["id"])[0]
+    client.post("/royalty-recovery/cases",
+                data={"case_id": first["id"], "status": "won", "payout_result": "20"})
+
+    r = client.post("/royalty-recovery/cases/from-finding", data=_gap_post(row))
+    assert "opened=reopened" in r.headers["Location"]
+    cases = store.list_recovery_cases(user["id"])
+    assert len(cases) == 2
+    fresh = [c for c in cases if c["id"] != first["id"]][0]
+    assert fresh["notes"].startswith(
+        "This gap has come back: an earlier case for the same finding was won on ")
+    assert "The MLC has no work linked" in fresh["notes"], "and still says what the gap is"
+    page = client.get("/royalty-recovery/cases?opened=reopened").get_data(as_text=True)
+    assert "says which case it follows" in page
+
+    # The recurrence is now the live one, and it does not fork either.
+    client.post("/royalty-recovery/cases/from-finding", data=_gap_post(row))
     assert len(store.list_recovery_cases(user["id"])) == 2
-    assert "$40.00" in client.get("/royalty-recovery/cases").get_data(as_text=True)
+
+
+def test_a_finding_with_no_identity_keeps_opening_a_case_per_press(monkeypatch):
+    """Not every poster has an identifying fact to send. One that sends no
+    key keeps today's behaviour, because nothing here can tell two of those
+    apart - and an invented identity would silently merge two findings that
+    are not the same, which is worse than a duplicate."""
+    client, user = _ghost(monkeypatch)
+    row = _row(user, "USXXX9999999")
+    keyless = dict(_gap_post(row))
+    keyless.pop("case_key")
+    r = client.post("/royalty-recovery/cases/from-finding", data=keyless)
+    assert "opened=opened" in r.headers["Location"]
+    client.post("/royalty-recovery/cases/from-finding", data=keyless)
+    assert len(store.list_recovery_cases(user["id"])) == 2

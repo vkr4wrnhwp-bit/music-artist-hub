@@ -367,10 +367,49 @@ def test_the_case_button_opens_a_real_case_carrying_the_evidence(flask_app, monk
     mine = [h for h in astore.list_hits(user["id"], scan_id) if h["mine"]][0]
     title, note = astore.case_fields(scan, mine)
     client.post("/royalty-recovery/cases/from-finding",
-                data={"title": title, "category": "other", "amount": "0", "notes": note})
+                data={"case_key": astore.case_key(scan, mine), "title": title,
+                      "category": "other", "amount": "0", "notes": note})
     cases = store.list_recovery_cases(user["id"])
     assert any(c["title"] == title and "warehouse-set.mp3" in (c["notes"] or "")
                for c in cases)
+
+
+def test_one_detection_opens_one_case_however_often_it_is_pressed(flask_app, monkeypatch):
+    """This page never had even the cosmetic guard the MLC sweep has - it
+    offers the button again on every load - so a second press was a second
+    case. The case is keyed on ACRCloud's own id for the recording inside
+    the scan it was matched in, which is what the detection actually is.
+    A usage case still opens at 0, so a duplicate cost nothing but noise;
+    the rule is the same one either way, and the noise is somebody's
+    evidence list."""
+    client, user, scan_id = _scan_with_hits(flask_app, monkeypatch)
+    scan = astore.get_scan(user["id"], scan_id)
+    mine = [h for h in astore.list_hits(user["id"], scan_id) if h["mine"]][0]
+    key = astore.case_key(scan, mine)
+    assert key == "acr:acr-mine-1:%s" % scan_id
+
+    page = client.get("/fingerprints/scans/%s" % scan_id).get_data(as_text=True)
+    assert 'name="case_key" value="%s"' % key in page
+
+    title, note = astore.case_fields(scan, mine)
+    post = {"case_key": key, "title": title, "category": "other",
+            "amount": "0", "notes": note}
+    client.post("/royalty-recovery/cases/from-finding", data=post)
+    r = client.post("/royalty-recovery/cases/from-finding", data=post)
+    assert "opened=already_open" in r.headers["Location"]
+    cases = store.list_recovery_cases(user["id"])
+    assert len(cases) == 1 and cases[0]["finding_key"] == key
+
+
+def test_a_detection_with_no_acrcloud_id_is_not_given_an_identity(flask_app, monkeypatch):
+    """Nothing else on a hit identifies the recording - a title is not an
+    identity and two files can share one - so a hit ACRCloud returned no
+    id for gets no key and keeps opening a case per press. Merging two
+    findings that are not the same would be worse than a duplicate."""
+    client, user, scan_id = _scan_with_hits(flask_app, monkeypatch)
+    scan = astore.get_scan(user["id"], scan_id)
+    mine = [h for h in astore.list_hits(user["id"], scan_id) if h["mine"]][0]
+    assert astore.case_key(scan, dict(mine, acrid="")) == ""
 
 
 def test_nothing_is_mine_until_it_is_registered(flask_app, monkeypatch):

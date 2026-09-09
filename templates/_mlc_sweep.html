@@ -31,6 +31,7 @@
             <a href="/royalty-recovery/cases" class="rounded-md border border-green-500/30 bg-green-500/10 px-3 py-1.5 text-xs font-bold text-green-400">Case open →</a>
             {% else %}
             <form method="post" action="/royalty-recovery/cases/from-finding">
+              <input type="hidden" name="case_key" value="{{ r.case_key }}">
               <input type="hidden" name="title" value="{{ r.case_title }}">
               <input type="hidden" name="category" value="mechanical">
               <input type="hidden" name="amount" value="{{ r.case_amount }}">

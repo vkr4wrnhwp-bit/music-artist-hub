@@ -1037,6 +1037,34 @@ def init_db():
                 db.execute("ALTER TABLE pulse_profiles ADD COLUMN %s" % _col)
             except sqlite3.OperationalError:
                 pass  # column already exists
+        # Migration (2026-09-09): which finding a case was opened from.
+        # `/royalty-recovery/cases/from-finding` had no dedupe of its own -
+        # the only guard was the MLC sweep partial swapping its button for
+        # "Case open" once a case with that exact title existed, so a
+        # double-press, a browser replay or a second sweep opened a second
+        # case. While every MLC case was worth 0 that was an untidy list
+        # and nothing more; now that a case carries the money the gap is
+        # measured at, a duplicate adds that money to the recovery
+        # pipeline twice. A finding-sourced case therefore carries the
+        # finding's own identity - "mlc:isrc:USXXX9999999",
+        # "acr:<acrid>:<scan id>", "recovery:gap-night-drive" - and one
+        # identity gets one live case. A hand-typed case has no identity
+        # and keeps an empty key.
+        try:
+            db.execute("ALTER TABLE recovery_cases ADD COLUMN finding_key"
+                       " TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        # One live case per finding per account, enforced by the database
+        # and not only by the read above the insert: two presses that land
+        # together both pass a Python check. A partial index, so it needs
+        # no table rewrite and covers neither hand-typed cases (empty key)
+        # nor cases already closed - a gap can genuinely recur, and a
+        # recurrence is allowed a fresh case. Every row already on file
+        # has an empty key, so this index can never fail to be created.
+        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS recovery_cases_live_finding"
+                   " ON recovery_cases (user_id, finding_key)"
+                   " WHERE finding_key <> '' AND closed_at IS NULL")
     link_song_tables()
     link_document_store()
 
@@ -3663,15 +3691,91 @@ def create_recovery_case(user_id, fields):
     with get_db() as db:
         db.execute(
             "INSERT INTO recovery_cases (id, user_id, title, category, estimated_amount,"
-            " confidence, status, deadline, notes, created, updated)"
-            " VALUES (?,?,?,?,?,?,'open',?,?,?,?)",
+            " confidence, status, deadline, notes, finding_key, created, updated)"
+            " VALUES (?,?,?,?,?,?,'open',?,?,?,?,?)",
             (case_id, user_id, fields.get("title", "Untitled case")[:200],
              fields.get("category", "other")[:40],
              float(fields.get("estimated_amount") or 0),
              fields.get("confidence", "medium")[:10],
              fields.get("deadline", "")[:10], fields.get("notes", "")[:600],
-             now, now))
+             (fields.get("finding_key") or "")[:200], now, now))
     return case_id
+
+
+# What a press of "Open case" actually did, so the page can say it rather
+# than looking like it did nothing.
+CASE_OPENED = "opened"               # the first case for this finding
+CASE_ALREADY_OPEN = "already_open"   # its case was open, the figure had not moved
+CASE_REFRESHED = "refreshed"         # its case was open, a later sweep measured more
+CASE_REOPENED = "reopened"           # the gap came back after an earlier case closed
+
+_FOLLOWS_CLOSED = ("This gap has come back: an earlier case for the same "
+                   "finding was %s on %s. ")
+
+
+def open_case_for_finding(user_id, key, fields):
+    """Open the case behind a finding once, keyed on what the finding is.
+
+    `key` is the finding's own identity - "mlc:isrc:USXXX9999999",
+    "mlc:song:BA9000", "acr:<acrid>:<scan id>", "recovery:gap-night-drive" -
+    and never the title, which two findings can share and which changes
+    whenever the wording does. A finding whose case is still live refreshes
+    that case rather than opening a second one, because a later sweep can
+    measure a different share of the same gap. A finding whose earlier case
+    was closed may open a new one - a gap recurring is a real thing - and
+    the new case's note says it follows the closed one.
+
+    An empty key means the form had no identifying fact to offer, which is
+    true of a hand-typed case. Those keep opening one case per press,
+    because nothing here can tell two of them apart.
+
+    Returns (case_id, what_happened).
+    """
+    key = (key or "").strip()[:200]
+    if not key:
+        return create_recovery_case(user_id, fields), CASE_OPENED
+    title = fields.get("title", "Untitled case")[:200]
+    amount = float(fields.get("estimated_amount") or 0)
+    notes = fields.get("notes", "")[:600]
+    now = _now()
+    with get_db() as db:
+        live = db.execute(
+            "SELECT id, estimated_amount FROM recovery_cases WHERE user_id = ?"
+            " AND finding_key = ? AND closed_at IS NULL"
+            " ORDER BY created DESC LIMIT 1", (user_id, key)).fetchone()
+        if live is not None:
+            db.execute(
+                "UPDATE recovery_cases SET title = ?, estimated_amount = ?,"
+                " notes = ?, updated = ? WHERE id = ? AND user_id = ?",
+                (title, amount, notes, now, live["id"], user_id))
+            moved = abs(float(live["estimated_amount"] or 0) - amount) >= 0.005
+            return live["id"], (CASE_REFRESHED if moved else CASE_ALREADY_OPEN)
+        prior = db.execute(
+            "SELECT status, closed_at FROM recovery_cases WHERE user_id = ?"
+            " AND finding_key = ? AND closed_at IS NOT NULL"
+            " ORDER BY closed_at DESC LIMIT 1", (user_id, key)).fetchone()
+        if prior is not None:
+            notes = (_FOLLOWS_CLOSED % (prior["status"] or "closed",
+                                        (prior["closed_at"] or "")[:10]) + notes)[:600]
+        case_id = uuid.uuid4().hex
+        try:
+            db.execute(
+                "INSERT INTO recovery_cases (id, user_id, title, category,"
+                " estimated_amount, confidence, status, deadline, notes,"
+                " finding_key, created, updated) VALUES (?,?,?,?,?,?,'open',?,?,?,?,?)",
+                (case_id, user_id, title, fields.get("category", "other")[:40],
+                 amount, fields.get("confidence", "medium")[:10],
+                 fields.get("deadline", "")[:10], notes, key, now, now))
+        except sqlite3.IntegrityError:
+            # Two presses landed together and the other one reached the
+            # index first. Fall in behind its case; do not make a second.
+            other = db.execute(
+                "SELECT id FROM recovery_cases WHERE user_id = ? AND finding_key = ?"
+                " AND closed_at IS NULL LIMIT 1", (user_id, key)).fetchone()
+            if other is None:
+                raise
+            return other["id"], CASE_ALREADY_OPEN
+    return case_id, (CASE_REOPENED if prior is not None else CASE_OPENED)
 
 
 def update_recovery_case(user_id, case_id, fields):

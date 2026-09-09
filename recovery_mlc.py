@@ -124,8 +124,16 @@ def _case_for(row, money=None):
     case is opened with; `figure` and `caption` are what the sweep partial
     shows beside the row. Nothing here is invented: with no statement rows
     for the title the amount stays 0 and the note says why.
+
+    `key` is what the gap *is*, so the route can refuse to open it twice:
+    the ISRC the registry has no work for, or the song code it only partly
+    claims. Not the title - two recordings can share one, and the title
+    changes the moment the sweep's answer does. A partly claimed work that
+    came back without a song code falls back to its ISRC, which is then the
+    only identifying fact it has.
     """
-    blank = {"title": "", "note": "", "amount": 0.0, "figure": None, "caption": ""}
+    blank = {"title": "", "note": "", "amount": 0.0, "figure": None,
+             "caption": "", "key": ""}
     earned, basis = _earned(money)
     if row["result"] == "none":
         note = 'The MLC has no work linked to ISRC %s for "%s". ' % (row["isrc"], row["title"])
@@ -142,7 +150,8 @@ def _case_for(row, money=None):
                 "note": note + "Register the work at The MLC, then check again.",
                 "amount": earned,
                 "figure": _cash(earned) if earned else None,
-                "caption": caption}
+                "caption": caption,
+                "key": "mlc:isrc:%s" % row["isrc"]}
     if row["result"] == "match" and row["share_total"] < 99.5:
         unclaimed = max(0.0, 100.0 - row["share_total"])
         amount = round(earned * unclaimed / 100.0, 2)
@@ -162,7 +171,9 @@ def _case_for(row, money=None):
                 "note": note + "Claim the missing share.",
                 "amount": amount,
                 "figure": _cash(amount) if amount else None,
-                "caption": caption}
+                "caption": caption,
+                "key": ("mlc:song:%s" % row["song_code"] if row["song_code"]
+                        else "mlc:isrc:%s" % row["isrc"])}
     return blank
 
 
@@ -189,7 +200,7 @@ def state(user_id):
             case = _case_for(row, earnings.get((row.get("title") or "").strip().lower()))
             row["case_title"], row["case_note"] = case["title"], case["note"]
             row["case_amount"], row["case_figure"] = case["amount"], case["figure"]
-            row["case_caption"] = case["caption"]
+            row["case_caption"], row["case_key"] = case["caption"], case["key"]
             row["gap"] = bool(row["case_title"])
             row["has_case"] = row["case_title"].strip().lower() in titles if row["case_title"] else False
     return {"on": providers.mlc_adapter().configured(), "ready": ready, "missing": missing,
