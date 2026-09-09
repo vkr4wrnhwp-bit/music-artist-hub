@@ -814,7 +814,10 @@ def test_tier2_pages_render_and_are_in_nav():
     nav = client.get("/overview").get_data(as_text=True)
     # Documents is a tab of Vault and the calendar a tab of Releases now;
     # both answer, and their fronts are in the nav.
-    assert client.get("/documents").status_code == 200
+    # Contracts are a section of the Vault; the old URL forwards.
+    r = client.get("/documents")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    assert client.get("/documents", follow_redirects=True).status_code == 200
     # The calendar is a section of Release Autopilot; the old URL forwards.
     r = client.get("/releases")
     assert r.status_code == 302 and r.headers["Location"].endswith("/releases/autopilot#calendar")
@@ -2952,7 +2955,7 @@ def test_documents_vault_real():
         "doc_type": "Producer Agreement", "note": "50/50 with Marcus"},
         content_type="multipart/form-data")
     assert r.status_code == 302
-    body = client.get("/documents").get_data(as_text=True)
+    body = client.get("/documents", follow_redirects=True).get_data(as_text=True)
     assert "Add to your vault" in body and "producer-split.pdf" in body
     assert "50/50 with Marcus" in body
     user = store_mod.get_user_by_email(email)
@@ -2963,7 +2966,7 @@ def test_documents_vault_real():
                       content_type="multipart/form-data")
     assert "Use PDF" in bad.get_data(as_text=True)
     client.post("/documents/%s/delete" % doc["id"])
-    assert "producer-split.pdf" not in client.get("/documents").get_data(as_text=True)
+    assert "producer-split.pdf" not in client.get("/documents", follow_redirects=True).get_data(as_text=True)
     # Other users cannot delete someone else's document.
     assert store_mod.delete_document("someone-else", doc["id"]) is None
 

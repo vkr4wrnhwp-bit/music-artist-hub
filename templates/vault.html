@@ -4,7 +4,7 @@
 {% block title %}Asset Vault - Street Banker{% endblock %}
 
 {% block content %}
-{{ sb.subnav([("/vault", "Files"), ("/documents", "Contracts & licences")], "/vault") }}
+{{ sb.subnav([("/vault", "Files"), ("/vault#contracts", "Contracts & licences")], "/vault") }}
 <div class="mx-auto max-w-[1100px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
@@ -35,18 +35,22 @@
       <input id="vault-label" placeholder="Label (e.g. Night Drive v2 final)" class="w-64 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
       <span id="vault-msg" class="text-xs text-gray-300 font-medium"></span>
     </form>
-    <p class="mt-2 text-xs text-gray-300 font-medium">Images, audio, video, zips, and PDFs. The Rack can archive masters here directly, and the Cover Art studio files every saved cover automatically.</p>
+    <p class="mt-2 text-xs text-gray-300 font-medium">Images, audio, video, zips, and PDFs. The Rack can archive masters here directly, and the Cover Art studio files every saved cover automatically. Contracts and licences file <a href="#contracts" class="font-semibold text-sb-gold-bright hover:underline">below</a>, into the same drawer.</p>
   </section>
 
-  {% if items %}
-  <!-- Type filters + search -->
+  {#- The zip form serves every card with a checkbox - assets here and
+      contracts below - so it stands outside either block. -#}
   <div class="flex flex-wrap items-center gap-2">
+    {% if items %}
     <input id="vault-search" placeholder="Search assets…" class="w-52 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
     <div id="vault-pills" class="flex flex-wrap gap-1.5 text-xs font-bold uppercase tracking-wide"></div>
+    {% endif %}
     <form id="vault-zip-form" method="post" action="/vault/zip" class="ml-auto">
       <button id="vault-zip-btn" class="sb-btn sb-btn-secondary sb-btn-sm hidden">Download selected (zip)</button>
     </form>
   </div>
+
+  {% if items %}
 
   <div id="vault-grid" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
     {% for a in items %}
@@ -87,6 +91,8 @@
     <p class="mx-auto mt-1 max-w-md text-xs text-gray-300">Upload anything above, save cover art in the studio, archive a master from The Rack — everything lands here.</p>
   </div>
   {% endif %}
+
+  {% include "_vault_contracts.html" %}
 </div>
 {% endblock %}
 
@@ -117,7 +123,8 @@
   const pillWrap = document.getElementById("vault-pills");
   let activeType = "";
   function applyFilter() {
-    const q = (document.getElementById("vault-search").value || "").toLowerCase();
+    const search = document.getElementById("vault-search");
+    const q = (search && search.value || "").toLowerCase();
     cards.forEach((c) => {
       const okType = !activeType || c.dataset.type === activeType;
       const okQ = !q || c.dataset.name.includes(q);

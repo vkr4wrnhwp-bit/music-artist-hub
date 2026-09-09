@@ -40,9 +40,15 @@ def _upload_doc(client, name="split.pdf", doc_type="Split Agreement", track=""):
                        content_type="multipart/form-data")
 
 
+def test_the_documents_page_is_the_contracts_section_of_the_vault():
+    client = _fresh_client()
+    r = client.get("/documents")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+
+
 def test_empty_vault_shows_no_invented_completeness():
     client = _fresh_client()
-    body = client.get("/documents").get_data(as_text=True)
+    body = client.get("/documents", follow_redirects=True).get_data(as_text=True)
     assert "34%" not in body
     assert "Songs Tracked" not in body
     # No recordings named: a percentage would have no denominator.
@@ -53,7 +59,7 @@ def test_empty_vault_shows_no_invented_completeness():
 def test_tracks_come_from_the_accounts_own_statements():
     client = _fresh_client()
     _upload_statement(client)
-    body = client.get("/documents").get_data(as_text=True)
+    body = client.get("/documents", follow_redirects=True).get_data(as_text=True)
     assert "Paperwork by Recording" in body
     assert "Midnight Drive" in body and "Neon Dreams" in body
     # Two recordings, three asked-for documents each, none uploaded.
@@ -93,7 +99,7 @@ def test_catalog_wide_paperwork_is_not_held_against_a_track():
     assert view["covered_slots"] == 0
     assert view["catalog_missing"] == ["Publishing", "Registration"]
     assert len(view["unfiled"]) == 1
-    body = client.get("/documents").get_data(as_text=True)
+    body = client.get("/documents", follow_redirects=True).get_data(as_text=True)
     assert "Filed to the whole catalog" in body
 
 
@@ -101,7 +107,7 @@ def test_a_document_filed_against_an_unknown_title_is_flagged():
     client = _fresh_client()
     _upload_statement(client)
     _upload_doc(client, name="ghost.pdf", track="Song That Does Not Exist")
-    body = client.get("/documents").get_data(as_text=True)
+    body = client.get("/documents", follow_redirects=True).get_data(as_text=True)
     assert "no longer names" in body
     assert "Song That Does Not Exist" in body
 
@@ -109,6 +115,6 @@ def test_a_document_filed_against_an_unknown_title_is_flagged():
 def test_coverage_is_scoped_not_claimed_as_clean_rights():
     client = _fresh_client()
     _upload_statement(client)
-    body = client.get("/documents").get_data(as_text=True)
+    body = client.get("/documents", follow_redirects=True).get_data(as_text=True)
     assert "not a legal opinion" in body
     assert "invisible to this page" in body

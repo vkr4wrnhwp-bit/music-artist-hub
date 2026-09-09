@@ -6884,6 +6884,9 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        return _render_vault(user)
+
+    def _render_vault(user, doc_error=None):
         items = []
         for v in store.list_vault_files(user["id"]):
             items.append({"name": v["label"] or "Vault file",
@@ -6925,7 +6928,21 @@ def create_app():
                                   "usage": "Rollout content + edit plans",
                                   "status": "In rollout",
                                   "manage": "/rollout-studio/%s" % r["id"]})
+        # Contracts & licences - folded in from /documents (tier C,
+        # 2026-09-09). Same store now; the paperwork facts and coverage
+        # come from documents_engine, which says what it says when empty.
+        # /documents was a Pro page and the vault is an Artist one; plans.py
+        # is left alone, so the section is offered to the plan that had it.
+        contracts_allowed = plans.allowed(user.get("plan") or "artist",
+                                          plans.required_tier("/documents"))
         return render_template("vault.html", active_page="vault", items=items,
+                               contracts_allowed=contracts_allowed,
+                               contracts_tier=plans.required_tier("/documents"),
+                               documents_view=(documents_engine.build(user["id"])
+                                               if contracts_allowed else None),
+                               documents_per_track_types=documents_engine.PER_TRACK_TYPES,
+                               documents_catalog_types=documents_engine.CATALOG_TYPES,
+                               doc_types=_DOC_TYPES, doc_error=doc_error,
                                **build_dashboard_context())
 
     VAULT_KINDS = ("cover_art", "master", "stems", "press_photo", "video", "file")
@@ -6968,8 +6985,9 @@ def create_app():
             return login_required_redirect()
         path = store.delete_vault_file(user["id"], file_id)
         # Handles both shapes: deletes the object, or unlinks the file.
+        # A document's file is vault-owned too (doc_ prefix).
         if path and (blob_store.is_remote(path)
-                     or path.startswith("/uploads/vault_")):
+                     or path.startswith(("/uploads/vault_", "/uploads/doc_"))):
             blob_store.remove(path, uploads_dir=UPLOADS_DIR)
         return redirect("/vault")
 
@@ -6982,7 +7000,7 @@ def create_app():
             return login_required_redirect()
         wanted = set(request.form.getlist("paths"))
         allowed = set()
-        for v in store.list_vault_files(user["id"]):
+        for v in store.list_vault_files(user["id"], include_documents=True):
             allowed.add(v["path"])
         for a in store.get_epk_assets(user["id"]):
             allowed.add(a["path"])
@@ -7918,51 +7936,52 @@ def create_app():
     _DOC_EXTS = ("pdf", "doc", "docx", "txt", "csv", "png", "jpg", "jpeg", "webp")
 
     @app.route("/documents", methods=["GET", "POST"])
+    @app.route("/vault/documents", methods=["POST"])
     def documents():
+        """Contracts & licences are a section of the Vault (tier C,
+        2026-09-09): one store. GET forwards; POST still files a document
+        from either address, into the vault, with its paperwork facts."""
         user = current_user()
-        error = None
-        if request.method == "POST":
-            if user is None:
-                return login_required_redirect()
-            f = request.files.get("document")
-            if f is None or not f.filename:
-                error = "Choose a file to upload."
-            else:
-                ext = f.filename.rsplit(".", 1)[-1].lower()
-                if ext not in _DOC_EXTS:
-                    error = "Use PDF, DOC/DOCX, TXT, CSV, or an image file."
-                else:
-                    fname = "doc_%s.%s" % (uuid.uuid4().hex, ext)
-                    f.save(os.path.join(UPLOADS_DIR, fname))
-                    doc_type = request.form.get("doc_type") or "Other"
-                    store.add_document(user["id"], f.filename, "/uploads/" + fname,
-                                       doc_type if doc_type in _DOC_TYPES else "Other",
-                                       (request.form.get("note") or "").strip(),
-                                       (request.form.get("track") or "").strip())
-                    return redirect("/documents")
-        ctx = build_dashboard_context()
-        ctx["docs_user"] = user
-        ctx["real_docs"] = store.list_documents(user["id"]) if user else []
-        ctx["doc_types"] = _DOC_TYPES
-        ctx["doc_error"] = error
-        return render_template(
-            "documents.html", active_page="vault",
-            documents_view=documents_engine.build(user["id"]) if user else None,
-            documents_per_track_types=documents_engine.PER_TRACK_TYPES,
-            documents_catalog_types=documents_engine.CATALOG_TYPES, **ctx)
+        if user is None:
+            return login_required_redirect()
+        # The old page was Pro; the vault is Artist. The section is gated
+        # the way the page was, from either address.
+        tier = plans.required_tier("/documents")
+        if not plans.allowed(user.get("plan") or "artist", tier):
+            return render_template("upgrade.html", required=tier,
+                                   plans_list=plans.PLANS,
+                                   **build_dashboard_context()), 402
+        if request.method != "POST":
+            return redirect("/vault#contracts")
+        f = request.files.get("document")
+        if f is None or not f.filename:
+            return _render_vault(user, doc_error="Choose a file to upload.")
+        ext = f.filename.rsplit(".", 1)[-1].lower()
+        if ext not in _DOC_EXTS:
+            return _render_vault(user, doc_error="Use PDF, DOC/DOCX, TXT, CSV, or an image file.")
+        fname = "doc_%s.%s" % (uuid.uuid4().hex, ext)
+        # Same store as every other vault file: the object store when it
+        # is configured, the disk when it is not.
+        path = blob_store.save(fname, f.read(), content_type=f.mimetype,
+                               uploads_dir=UPLOADS_DIR)
+        doc_type = request.form.get("doc_type") or "Other"
+        store.add_document(user["id"], f.filename, path,
+                           doc_type if doc_type in _DOC_TYPES else "Other",
+                           (request.form.get("note") or "").strip(),
+                           (request.form.get("track") or "").strip())
+        return redirect("/vault#contracts")
 
     @app.route("/documents/<doc_id>/delete", methods=["POST"])
+    @app.route("/vault/documents/<doc_id>/delete", methods=["POST"])
     def document_delete(doc_id):
         user = current_user()
         if user is None:
             return login_required_redirect()
         path = store.delete_document(user["id"], doc_id)
-        if path:
-            try:
-                os.remove(os.path.join(UPLOADS_DIR, os.path.basename(path)))
-            except OSError:
-                pass
-        return redirect("/documents")
+        if path and (blob_store.is_remote(path)
+                     or path.startswith(("/uploads/doc_", "/uploads/vault_"))):
+            blob_store.remove(path, uploads_dir=UPLOADS_DIR)
+        return redirect("/vault#contracts")
 
     @app.route("/identifiers")
     def identifiers():

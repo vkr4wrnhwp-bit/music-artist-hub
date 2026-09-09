@@ -231,3 +231,129 @@ def test_the_calendar_renders_inside_the_desk_with_the_campaign_kept(artist):
     assert ics.status_code == 200 and "Calendar Kept" in ics.get_data(as_text=True)
     # One shell: the strip lights the desk, and the calendar tab points at the section.
     assert 'href="/releases/autopilot#calendar"' in body
+
+
+# --- Merge 3: Documents into Vault -------------------------------------------
+
+def _doc(client, name="split.pdf", doc_type="Split Agreement", track="", where="/vault/documents"):
+    import io
+    return client.post(where, data={"document": (io.BytesIO(b"%PDF-1.4 signed"), name),
+                                    "doc_type": doc_type, "track": track, "note": "tier c"},
+                       content_type="multipart/form-data")
+
+
+def test_the_documents_page_forwards_to_the_contracts_section(artist):
+    r = artist["client"].get("/documents")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    body = artist["client"].get("/vault").get_data(as_text=True)
+    assert 'id="contracts"' in body and 'href="/vault#contracts"' in body
+    assert "Nothing stored yet" in body and "No recordings named yet" in body
+
+
+def test_a_document_uploaded_before_the_merge_is_in_the_vault_after(artist):
+    """A row written the old way - documents only, no vault row - gets its
+    vault row on the next start; the file is listed once, in the
+    contracts section, and the zip allowlist knows it."""
+    import db as store
+    uid = artist["uid"]
+    with store.get_db() as db:
+        db.execute("INSERT INTO documents (id, user_id, filename, path, doc_type, note, track, created)"
+                   " VALUES (?,?,?,?,?,?,?,?)",
+                   ("old-doc", uid, "old-split.pdf", "/uploads/doc_old.pdf",
+                    "Split Agreement", "", "", "2026-01-01T00:00:00"))
+    assert not [v for v in store.list_vault_files(uid, include_documents=True)
+                if v.get("document_id") == "old-doc"]
+    store.link_document_store()
+    rows = [v for v in store.list_vault_files(uid, include_documents=True)
+            if v.get("document_id") == "old-doc"]
+    assert len(rows) == 1 and rows[0]["kind"] == "document" and rows[0]["label"] == "old-split.pdf"
+    doc = [d for d in store.list_documents(uid) if d["id"] == "old-doc"][0]
+    assert doc["vault_file_id"] == rows[0]["id"]
+    store.link_document_store()                                   # idempotent
+    assert len([v for v in store.list_vault_files(uid, include_documents=True)
+                if v.get("document_id") == "old-doc"]) == 1
+    body = artist["client"].get("/vault").get_data(as_text=True)
+    assert body.count('aria-label="Delete old-split.pdf"') == 1      # one row
+    # Documents are not assets: the pickers do not see them.
+    assert not [v for v in store.list_vault_files(uid) if v.get("document_id")]
+
+
+def test_an_upload_from_the_contracts_section_lands_in_one_store(artist):
+    import db as store
+    c = artist["client"]
+    r = _doc(c, name="producer.pdf", doc_type="Producer Agreement")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    docs = [d for d in store.list_documents(artist["uid"]) if d["filename"] == "producer.pdf"]
+    assert len(docs) == 1
+    vrows = [v for v in store.list_vault_files(artist["uid"], include_documents=True)
+             if v["path"] == docs[0]["path"]]
+    assert len(vrows) == 1 and vrows[0]["kind"] == "document"
+    assert vrows[0]["document_id"] == docs[0]["id"] and docs[0]["vault_file_id"] == vrows[0]["id"]
+    assert c.get(docs[0]["path"]).status_code == 200
+    body = c.get("/vault").get_data(as_text=True)
+    assert body.count('aria-label="Delete producer.pdf"') == 1 and "Producer Agreement" in body
+    # The old address still files a document, into the same store.
+    r = _doc(c, name="feature.pdf", doc_type="Feature Agreement", where="/documents")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    assert [v for v in store.list_vault_files(artist["uid"], include_documents=True)
+            if v["label"] == "feature.pdf"]
+    # A bad extension is refused on the vault page, with the reason.
+    bad = _doc(c, name="evil.exe")
+    assert bad.status_code == 200 and "Use PDF" in bad.get_data(as_text=True)
+
+
+def test_deleting_from_either_side_removes_the_document_and_its_file(artist):
+    import db as store
+    c = artist["client"]
+    _doc(c, name="gone-a.pdf")
+    _doc(c, name="gone-b.pdf")
+    docs = {d["filename"]: d for d in store.list_documents(artist["uid"])}
+    a, b = docs["gone-a.pdf"], docs["gone-b.pdf"]
+    assert c.get(a["path"]).status_code == 200 and c.get(b["path"]).status_code == 200
+    r = c.post("/documents/%s/delete" % a["id"])
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    c.post("/vault/%s/delete" % b["vault_file_id"])
+    names = {d["filename"] for d in store.list_documents(artist["uid"])}
+    assert "gone-a.pdf" not in names and "gone-b.pdf" not in names
+    labels = {v["label"] for v in store.list_vault_files(artist["uid"], include_documents=True)}
+    assert "gone-a.pdf" not in labels and "gone-b.pdf" not in labels
+    assert c.get(a["path"]).status_code == 404 and c.get(b["path"]).status_code == 404
+    # Someone else cannot delete it.
+    assert store.delete_document("someone-else", a["id"]) is None
+
+
+def test_the_zip_includes_only_the_callers_own_documents(artist, application):
+    import io
+    import zipfile
+    import db as store
+    c = artist["client"]
+    _doc(c, name="mine.pdf")
+    mine = [d for d in store.list_documents(artist["uid"]) if d["filename"] == "mine.pdf"][0]
+    # Another account's document, by path, is not honoured.
+    other_email = "tierc-other-%s@example.net" % uuid.uuid4().hex[:8]
+    other = application.test_client()
+    other.post("/signup", data={"name": "Other", "email": other_email, "password": PASSWORD})
+    other.post("/login", data={"email": other_email, "password": PASSWORD})
+    other.post("/plan/switch", data={"plan": "pro"})
+    _doc(other, name="theirs.pdf")
+    other_uid = store.get_user_by_email(other_email)["id"]
+    theirs = [d for d in store.list_documents(other_uid) if d["filename"] == "theirs.pdf"][0]
+    z = c.post("/vault/zip", data={"paths": [mine["path"], theirs["path"]]})
+    assert z.status_code == 200
+    names = zipfile.ZipFile(io.BytesIO(z.data)).namelist()
+    assert names == [mine["path"].rsplit("/", 1)[-1]]
+
+
+def test_an_artist_plan_account_sees_the_plan_note_not_the_form(application):
+    """/documents was Pro and the vault is Artist; plans.py is left alone,
+    so the section says which plan has it, and the old address meets the
+    same gate it always did."""
+    email = "tierc-vault-artist-%s@example.net" % uuid.uuid4().hex[:8]
+    c = application.test_client()
+    c.post("/signup", data={"name": "Artist Plan", "email": email, "password": PASSWORD})
+    c.post("/login", data={"email": email, "password": PASSWORD})
+    body = c.get("/vault").get_data(as_text=True)
+    assert 'id="contracts"' in body and "See plans" in body
+    assert 'action="/vault/documents"' not in body
+    assert c.get("/documents").status_code == 402
+    assert _doc(c).status_code == 402

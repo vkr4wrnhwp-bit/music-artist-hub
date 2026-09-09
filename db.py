@@ -985,7 +985,20 @@ def init_db():
             db.execute("ALTER TABLE os_tracks ADD COLUMN catalog_track_id TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration (tier C, 2026-09-09): one file store. Every document
+        # (contract, licence, statement) is a vault file of kind
+        # "document"; the documents table keeps the paperwork facts (type,
+        # recording, note) and points at its vault row. Both tables stay.
+        try:
+            db.execute("ALTER TABLE vault_files ADD COLUMN document_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        try:
+            db.execute("ALTER TABLE documents ADD COLUMN vault_file_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
     link_song_tables()
+    link_document_store()
 
 
 def _now():
@@ -1970,15 +1983,23 @@ def add_vault_file(user_id, path, label, kind):
     return file_id
 
 
-def list_vault_files(user_id):
+DOCUMENT_KIND = "document"
+
+
+def list_vault_files(user_id, include_documents=False):
+    """The vault's files. Contracts and licences are vault files too (one
+    store), but the asset pickers - cover art, audio, storyboard - ask
+    for assets, so documents come only when asked for."""
     with get_db() as db:
         rows = db.execute("SELECT * FROM vault_files WHERE user_id = ? "
                           "ORDER BY created DESC", (user_id,)).fetchall()
-    return [dict(r) for r in rows]
+    return [dict(r) for r in rows
+            if include_documents or r["kind"] != DOCUMENT_KIND]
 
 
 def delete_vault_file(user_id, file_id):
-    """Removes the record; returns the path so the caller can clean the file."""
+    """Removes the record - and, for a document, its paperwork facts;
+    returns the path so the caller can clean the file."""
     with get_db() as db:
         row = db.execute("SELECT path FROM vault_files WHERE id = ? AND user_id = ?",
                          (file_id, user_id)).fetchone()
@@ -1986,7 +2007,27 @@ def delete_vault_file(user_id, file_id):
             return None
         db.execute("DELETE FROM vault_files WHERE id = ? AND user_id = ?",
                    (file_id, user_id))
+        db.execute("DELETE FROM documents WHERE vault_file_id = ? AND user_id = ?",
+                   (file_id, user_id))
     return row["path"]
+
+
+def link_document_store():
+    """Start-up migration: every document row from before the merge gets
+    its vault row (kind "document", labelled by filename, dated as the
+    document was). Runs every start; nothing to do once linked. Deletes
+    nothing."""
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM documents WHERE vault_file_id IS NULL"
+                          " OR vault_file_id = ''").fetchall()
+        for d in rows:
+            vid = uuid.uuid4().hex
+            db.execute(
+                "INSERT INTO vault_files (id, user_id, path, label, kind, created, document_id)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (vid, d["user_id"], d["path"][:300], (d["filename"] or "Document")[:120],
+                 DOCUMENT_KIND, d["created"], d["id"]))
+            db.execute("UPDATE documents SET vault_file_id = ? WHERE id = ?", (vid, d["id"]))
 
 # --- EPK pitch share -----------------------------------------------------------
 
@@ -3451,13 +3492,22 @@ def mark_notifications_read(user_id):
 # --- Documents vault -----------------------------------------------------------
 
 def add_document(user_id, filename, path, doc_type, note="", track=""):
+    """File a document: one vault row (the store) and its paperwork facts
+    (the documents table), pointing at each other."""
     doc_id = uuid.uuid4().hex
+    vid = uuid.uuid4().hex
+    now = _now()
     with get_db() as db:
         db.execute(
+            "INSERT INTO vault_files (id, user_id, path, label, kind, created, document_id)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (vid, user_id, path[:300], (filename or "Document")[:120], DOCUMENT_KIND,
+             now, doc_id))
+        db.execute(
             "INSERT INTO documents (id, user_id, filename, path, doc_type, note,"
-            " track, created) VALUES (?,?,?,?,?,?,?,?)",
+            " track, created, vault_file_id) VALUES (?,?,?,?,?,?,?,?,?)",
             (doc_id, user_id, filename[:200], path, doc_type[:60], note[:300],
-             (track or "")[:200], _now()))
+             (track or "")[:200], now, vid))
     return doc_id
 
 
@@ -3476,6 +3526,8 @@ def delete_document(user_id, doc_id):
         if row is None:
             return None
         db.execute("DELETE FROM documents WHERE id = ? AND user_id = ?", (doc_id, user_id))
+        db.execute("DELETE FROM vault_files WHERE document_id = ? AND user_id = ?",
+                   (doc_id, user_id))
     return row["path"]
 
 # --- Recovery cases + deal room --------------------------------------------------
