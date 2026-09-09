@@ -36,7 +36,7 @@ correctly get APIs to utilize them."*
 | Deals (`/deal-room`) | Deal Room · Simulator · Sync packs |
 | Press (`/press-desk`) | Desk · Media list · Announcements · Coverage · Press kit (`/epk`) · One-sheet (`/artist-profile`) |
 | Settings | Data & Connections (`/connections`) — it was never money |
-| Releases (`/releases/autopilot`) | Autopilot · Calendar (`/releases`) |
+| Releases (`/releases/autopilot`) | Autopilot · Calendar (`/releases/autopilot#calendar`) — merged underneath 2026-09-09, see below |
 | Vault | Files · Contracts & licences (`/documents`) |
 | Catalog | Catalog · Track Passports (`/catalog#passports`) — merged underneath 2026-09-09, see below |
 | Fans (`/fans`) | Dashboard · Fan CRM (`/links/fans`) · Fan Club (`/fan-club`) — 2026-09-06 |
@@ -54,3 +54,4 @@ linked view.
 | What merged | Where the old URL goes | The shape underneath |
 | --- | --- | --- |
 | Track Passports into Catalog | `GET /tracks` → `/catalog#passports`; `/tracks/<id>` (the passport itself), `/tracks/<id>/mlc`, `/passport`, `/certificate`, `/lockbox/<doc>` and `/delete` are unchanged; `/tracks/add` and `/tracks/import` still accept the form and land on the section | `catalog_tracks` is the song list (royalties, valuation, the twin, insights and the documents vault key on it); `os_tracks` is the passport. `catalog_tracks.passport_track_id` and `os_tracks.catalog_track_id` point at each other. Adding a song from either side makes one song; the start-up link `db.link_song_tables()` joins rows from before the merge by ISRC, then title, else opens the missing half. Removing a song from either side removes both halves - there is one list. Catalog is a Pro page and `plans.py` is left alone, so an Artist-plan account is not redirected: `/tracks` renders the same section on its own for that plan (`templates/os_tracks.html` is that shell), and the passport forms land wherever the account can go. |
+| Release Scheduler into Release Autopilot | `GET /releases` → `/releases/autopilot#calendar`, query string kept (`?preset=` still selects the milestone overlay); `/releases/calendar.ics` is unchanged - calendar subscriptions point at it | No data to merge: the scheduler was date maths over the same campaigns and rollout posts. It renders as the `#calendar` panel of the desk (`templates/_release_calendar.html`), inside the page shell, keeping the desk's `campaign` and `days` on its preset links. Both were Artist pages, so no plan door changes. |

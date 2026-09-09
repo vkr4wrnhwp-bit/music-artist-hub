@@ -32,7 +32,7 @@ PASSPORT_FIELDS = [
     ("artwork_rights",  "Artwork rights",           True,  None),
     ("ai_disclosure",   "AI disclosure",            True,  None),
     ("territories",     "Territory restrictions",   False, None),
-    ("release_date",    "Release date",             False, "/releases"),
+    ("release_date",    "Release date",             False, "/releases/autopilot#calendar"),
     ("dsp_routing",     "DSP profile routing",      False, "/connections"),
 ]
 

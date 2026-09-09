@@ -814,8 +814,11 @@ def test_tier2_pages_render_and_are_in_nav():
     nav = client.get("/overview").get_data(as_text=True)
     # Documents is a tab of Vault and the calendar a tab of Releases now;
     # both answer, and their fronts are in the nav.
-    for href in ("/documents", "/releases"):
-        assert client.get(href).status_code == 200
+    assert client.get("/documents").status_code == 200
+    # The calendar is a section of Release Autopilot; the old URL forwards.
+    r = client.get("/releases")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/releases/autopilot#calendar")
+    assert client.get("/releases", follow_redirects=True).status_code == 200
     assert 'href="/vault"' in nav and 'href="/releases/autopilot"' in nav
     # Conflicts is parked off the sidebar (docs/PARKED_PAGES.md); it answers.
     assert client.get("/conflicts").status_code == 200
@@ -846,8 +849,9 @@ def test_releases_real_calendar():
     client.post("/links/new", data={"title": "Calendar Drop",
                                     "release_date": "2031-03-15",
                                     "dest_spotify": "https://open.spotify.com/track/x"})
-    body = client.get("/releases").get_data(as_text=True)
-    assert "Release Scheduler" in body
+    # The scheduler is the Calendar section of Release Autopilot now.
+    body = client.get("/releases", follow_redirects=True).get_data(as_text=True)
+    assert "Release Scheduler" in body and 'id="calendar"' in body
     assert "2031-03" in body and "Calendar Drop" in body   # real campaign date
     assert "release day" in body
     assert "Readiness Checklist" not in body               # old mock gone
@@ -4904,7 +4908,13 @@ def test_release_scheduler_lanes_warnings_presets_ics():
                            ("rush", "Rush Drop", rush)):
         mls_mod.create_campaign(uid, "%s-%s" % (slug, _uuid.uuid4().hex[:6]),
                                 {"title": title, "release_date": d})
-    page = client.get("/releases").get_data(as_text=True)
+    # The scheduler renders inside Release Autopilot; /releases forwards
+    # there and keeps its query string.
+    r = client.get("/releases?preset=standard")
+    assert r.status_code == 302
+    assert r.headers["Location"].endswith("/releases/autopilot?preset=standard#calendar")
+    page = client.get("/releases/autopilot").get_data(as_text=True)
+    assert 'id="calendar"' in page and "Release Scheduler" in page
     # Date-math lead-time warnings: amber under 21 days, red under 7,
     # nothing for the release with a full runway.
     assert "Lead-time warnings" in page
@@ -4916,7 +4926,7 @@ def test_release_scheduler_lanes_warnings_presets_ics():
     assert "Standard 30-day" in page and "Surprise drop" in page
     # Milestones only appear when a preset is chosen — they're derived.
     assert "nothing is stored or predicted" in page
-    on = client.get("/releases?preset=standard").get_data(as_text=True)
+    on = client.get("/releases/autopilot?preset=standard").get_data(as_text=True)
     assert "Foundation" in on and on.count("days out") > 3
     # One-way iCal export carries the same derived events.
     resp = client.get("/releases/calendar.ics?preset=standard")

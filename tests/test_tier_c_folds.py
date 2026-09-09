@@ -200,3 +200,34 @@ def test_the_startup_link_joins_rows_from_before_the_merge(artist):
     section = artist["client"].get("/catalog").get_data(as_text=True).split('id="passports"')[1].split("</section>")[0]
     for title in ("New Title", "Same Name", "Passport Only", "Catalog Only"):
         assert section.count(">" + title) == 1, title
+
+
+# --- Merge 2: Release Scheduler into Release Autopilot ------------------------
+
+def test_the_scheduler_forwards_into_the_desk_and_keeps_its_arguments(artist):
+    c = artist["client"]
+    r = c.get("/releases")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/releases/autopilot#calendar")
+    r = c.get("/releases?preset=blitz")
+    assert r.headers["Location"].endswith("/releases/autopilot?preset=blitz#calendar")
+    assert appmod.app.test_client().get("/releases").status_code == 302   # login wall
+
+
+def test_the_calendar_renders_inside_the_desk_with_the_campaign_kept(artist):
+    import links_store as mls
+    from datetime import date, timedelta
+    c = artist["client"]
+    soon = (date.today() + timedelta(days=30)).isoformat()
+    cid = mls.create_campaign(artist["uid"], "cal-%s" % uuid.uuid4().hex[:6],
+                              {"title": "Calendar Kept", "release_date": soon})
+    body = c.get("/releases/autopilot?campaign=%s&days=30&preset=standard" % cid).get_data(as_text=True)
+    assert 'id="calendar"' in body and "Release Scheduler" in body
+    assert "Calendar Kept" in body and "Foundation" in body
+    # Preset links carry the desk's own arguments, and the .ics link its URL.
+    assert 'href="/releases/autopilot?campaign=%s&amp;days=30&amp;preset=blitz#calendar"' % cid in body
+    assert 'href="/releases/autopilot?campaign=%s&amp;days=30#calendar"' % cid in body
+    assert 'href="/releases/calendar.ics?preset=standard"' in body
+    ics = c.get("/releases/calendar.ics?preset=standard")
+    assert ics.status_code == 200 and "Calendar Kept" in ics.get_data(as_text=True)
+    # One shell: the strip lights the desk, and the calendar tab points at the section.
+    assert 'href="/releases/autopilot#calendar"' in body

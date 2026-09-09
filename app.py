@@ -2969,7 +2969,7 @@ def create_app():
                     "reds": summary["reds"], "alerts": alerts[:4],
                     "flow": [("Track Passport", "/tracks"),
                              ("Clean Release", "/releases/autopilot#clean"),
-                             ("Schedule", "/releases"),
+                             ("Schedule", "/releases/autopilot#calendar"),
                              ("Smart Link", "/links"),
                              ("Rollout", "/rollout-studio"),
                              ("Pulse", "/pulse")]}
@@ -3592,7 +3592,11 @@ def create_app():
                                      "blockers" if r["clean"]["blocked"]
                                      else "open items"),
                                  "/releases/autopilot#clean")
+        cal = _release_calendar(user["id"], request.args.get("preset") or "off",
+                                keep_args={"campaign": request.args.get("campaign") or "",
+                                           "days": request.args.get("days") or ""})
         return render_template("release_autopilot.html", active_page="autopilot",
+                               cal=cal,
                                campaigns=campaigns, c=campaign, checks=checks,
                                open_checks=[ck for ck in checks if not ck[1]],
                                done_checks=[ck for ck in checks if ck[1]],
@@ -8039,16 +8043,15 @@ def create_app():
         events.sort(key=lambda e: e["date"])
         return events, warnings
 
-    @app.route("/releases")
-    def releases():
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        preset = request.args.get("preset") or "off"
+    def _release_calendar(user_id, preset, keep_args=None):
+        """The Release Scheduler's page: lanes, warnings, presets and the
+        month rail, computed from the account's campaigns and rollout
+        posts. Rendered as the Calendar section of Release Autopilot
+        (tier C, 2026-09-09); the .ics feed reads the same events."""
         if preset not in _SCHED_PRESETS:
             preset = "off"
         today = date.today().isoformat()
-        events, warnings = _scheduler_events(user["id"], preset)
+        events, warnings = _scheduler_events(user_id, preset)
         upcoming = [e for e in events if e["date"] >= today]
         past = [e for e in events if e["date"] < today][-15:]
         # Swimlanes: one horizontal track per campaign over the next 90 days.
@@ -8073,12 +8076,31 @@ def create_app():
             if not months or months[-1]["month"] != label:
                 months.append({"month": label, "events": []})
             months[-1]["events"].append(e)
-        return render_template("releases.html", active_page="autopilot",
-                               months=months, past=past, lanes=lanes,
-                               warnings=warnings, preset=preset,
-                               presets=_SCHED_PRESETS,
-                               total_upcoming=len(upcoming),
-                               **build_dashboard_context())
+        # Preset links keep the desk's own arguments (campaign, days) so a
+        # milestone overlay never loses the release it was read beside.
+        base = {k: v for k, v in (keep_args or {}).items() if v}
+        def _href(key):
+            q = dict(base, preset=key) if key != "off" else dict(base)
+            return ("/releases/autopilot?%s#calendar" % urllib.parse.urlencode(q)
+                    if q else "/releases/autopilot#calendar")
+        preset_links = [("off", "Off", _href("off"), preset == "off")] + [
+            (key, label, _href(key), preset == key)
+            for key, (label, _days) in _SCHED_PRESETS.items()]
+        return {"months": months, "past": past, "lanes": lanes,
+                "warnings": warnings, "preset": preset,
+                "presets": _SCHED_PRESETS, "preset_links": preset_links,
+                "total_upcoming": len(upcoming)}
+
+    @app.route("/releases")
+    def releases():
+        """The Release Scheduler is the Calendar section of Release
+        Autopilot now (tier C, 2026-09-09): one page shell, one campaign
+        context. The .ics feed below keeps its URL - calendar
+        subscriptions point at it."""
+        if current_user() is None:
+            return login_required_redirect()
+        qs = request.query_string.decode("utf-8", "replace")
+        return redirect("/releases/autopilot" + ("?" + qs if qs else "") + "#calendar")
 
     @app.route("/releases/calendar.ics")
     def releases_ics():

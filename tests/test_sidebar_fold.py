@@ -95,7 +95,8 @@ def test_every_parked_page_still_answers_and_says_it_is_parked(demo):
 # Tier C, merged underneath (2026-09-09): the old list URL forwards to the
 # section of the front that now holds its data. The bookmark still lands
 # on a page with the strip; only the hop changed.
-MERGED = {"/tracks": "/catalog#passports"}
+MERGED = {"/tracks": "/catalog#passports",
+          "/releases": "/releases/autopilot#calendar"}
 
 
 def test_every_folded_page_answers_and_carries_its_strip(demo):
