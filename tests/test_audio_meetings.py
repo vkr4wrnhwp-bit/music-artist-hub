@@ -29,7 +29,19 @@ def application():
 
 
 @pytest.fixture
-def desk(application):
+def desk(application, monkeypatch):
+    # The mock transcriber draws four to eight lines from its pool, seeded by
+    # the upload's storage key, so a draw with no commitment in it is possible
+    # and the extractor then (honestly) finds nothing - a one-in-N phantom in
+    # a full run (2026-09-08). Every line in this pool is a commitment, so
+    # the tests below prove the approval boundary, not the dice.
+    import audio_mock
+    monkeypatch.setattr(audio_mock, "_LINES", [
+        "I will send the paperwork over so your attorney can look at it.",
+        "Can you pull the last twelve months of statements for that catalogue.",
+        "We should talk about the split on the two features before release.",
+        "Let us get the metadata cleaned up before anything is delivered.",
+    ])
     client = application.test_client()
     client.post("/signup", data={"name": "Meet Owner", "email": OWNER,
                                  "password": "meet-pass-123"})
@@ -159,7 +171,8 @@ def test_nothing_reaches_a_lead_until_a_person_approves(desk, application):
     import desk_store
 
     meeting_id = _upload(desk)
-    desk.post("/operator-desk/meetings/%s/transcribe" % meeting_id)
+    r = desk.post("/operator-desk/meetings/%s/transcribe" % meeting_id)
+    assert r.status_code in (301, 302), r.get_data(as_text=True)[:300]
 
     with application.app_context():
         candidates = meetings.list_candidates(meeting_id)
