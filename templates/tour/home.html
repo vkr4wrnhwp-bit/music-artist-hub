@@ -31,21 +31,26 @@
     {% if geo_missing %}<form method="post" action="/tours/{{ tour['id'] }}/venues/fetch-coordinates" class="to-inline"><button class="to-btn to-btn--ghost to-btn--small" type="submit">Fetch coordinates</button></form>{% endif %}
   {% else %}<span class="to-muted">Venue coordinates: no Google Maps key on this deployment</span>{% endif %}
 </div>
-{#- And the same line for ticket sales: with a token the button reads
-    Eventbrite's own counts onto the dates it can match; without one the
+{#- And the same line for ticket sales: one press asks both sources.
+    Eventbrite's own counts land on the dates it can match; Ticketmaster
+    fills the link and the on-sale word on the dates it lists, and never
+    a count, because their public API publishes none. Without a key the
     page names the variable that is missing rather than showing a button
     that could do nothing. -#}
 <div class="to-photos-line">
   {% if tickets_ready %}
     {% if tickets_line %}<span class="to-muted">{{ tickets_line }}</span>{% endif %}
     <form method="post" action="/tours/{{ tour['id'] }}/tickets/sync" class="to-inline"><button class="to-btn to-btn--ghost to-btn--small" type="submit">Sync ticket sales</button></form>
-  {% else %}<span class="to-muted">Ticket sales: no Eventbrite token on this deployment (EVENTBRITE_TOKEN)</span>{% endif %}
+    {% if not tickets_sources['ticketmaster'] %}<span class="to-muted">Ticketmaster is not connected (TICKETMASTER_API_KEY): with a key it would add the ticket link and on-sale status for dates that are not on Eventbrite — never a sold count, which it does not publish.</span>{% endif %}
+    {% if not tickets_sources['eventbrite'] %}<span class="to-muted">Eventbrite is not connected (EVENTBRITE_TOKEN): Ticketmaster publishes no sold count, so counts here are what you enter.</span>{% endif %}
+  {% else %}<span class="to-muted">Ticket sales: no Eventbrite token on this deployment (EVENTBRITE_TOKEN), and no Ticketmaster key (TICKETMASTER_API_KEY)</span>{% endif %}
 </div>
-{#- A date with no single Eventbrite event is never guessed at: it is
-    listed with the events that were on that date, and one press says
-    which it is. That answer is stored, so it is only given once. -#}
+{#- A date with no single listing is never guessed at: it is listed with
+    the events that were on that date, each saying which source it came
+    from, and one press says which it is. That answer is stored against
+    that source, so it is only given once. -#}
 {% if tickets_report and tickets_report['unmatched'] %}
-<div class="to-photos-line"><span class="to-muted">No single Eventbrite event matched these dates{% if tickets_report['unmatched_total'] and tickets_report['unmatched_total'] > tickets_report['unmatched']|length %} (first {{ tickets_report['unmatched']|length }} of {{ tickets_report['unmatched_total'] }}){% endif %}:</span></div>
+<div class="to-photos-line"><span class="to-muted">No single {% if tickets_sources['eventbrite'] and tickets_sources['ticketmaster'] %}Eventbrite or Ticketmaster{% elif tickets_sources['ticketmaster'] %}Ticketmaster{% else %}Eventbrite{% endif %} event matched these dates{% if tickets_report['unmatched_total'] and tickets_report['unmatched_total'] > tickets_report['unmatched']|length %} (first {{ tickets_report['unmatched']|length }} of {{ tickets_report['unmatched_total'] }}){% endif %}:</span></div>
 {% for u in tickets_report['unmatched'] %}
 <div class="to-photos-line">
   <span class="to-muted">{{ u['date'] }} · {{ u['venue'] or 'no room named' }}</span>
@@ -53,10 +58,11 @@
     {% for c in u['candidates'] %}
     <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ u['show_id'] }}/tickets/link" class="to-inline">
       <input type="hidden" name="event_id" value="{{ c['id'] }}">
-      <button class="to-btn to-btn--ghost to-btn--small" type="submit">Link {{ c['name'] }}{% if c['venue'] %} · {{ c['venue'] }}{% endif %}</button>
+      <input type="hidden" name="source" value="{{ c['source'] }}">
+      <button class="to-btn to-btn--ghost to-btn--small" type="submit">Link {{ c['name'] }}{% if c['venue'] %} · {{ c['venue'] }}{% endif %} ({{ 'Ticketmaster' if c['source'] == 'ticketmaster' else 'Eventbrite' }})</button>
     </form>
     {% endfor %}
-  {% else %}<span class="to-muted">no Eventbrite event on that date</span>{% endif %}
+  {% else %}<span class="to-muted">no listing on that date</span>{% endif %}
 </div>
 {% endfor %}
 {% endif %}

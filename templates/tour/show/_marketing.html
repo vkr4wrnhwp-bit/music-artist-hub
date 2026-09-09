@@ -17,6 +17,17 @@
   {% endif %}
 </div>
 {% endif %}
+{#- A date filled from Ticketmaster: their public listing has the link
+    and the on-sale word and nothing else. It publishes no sold count and
+    no capacity, so the panel says that in as many words — an empty
+    figure here would read as nobody has bought a ticket. -#}
+{% if ticket_note %}
+<div class="to-panel is-warm" style="margin-bottom:12px">
+  <div class="to-eyebrow">Ticketmaster</div>
+  <div>{{ sb.lamp(ticket_note['status'] or "listed") }} {% if ticket_note['ago'] %}<span class="to-muted">read {{ ticket_note['ago'] }}</span>{% endif %}</div>
+  <p class="to-muted" style="margin-top:6px">Ticketmaster's public listing gives this date its ticket link and on-sale status. It does not publish how many tickets have sold, or the room's capacity, so there is no count from this source{% if ticket_progress %} — the figure above is one you typed{% endif %}.{% if ticket_note['event_url'] %} <a href="{{ ticket_note['event_url'] }}" target="_blank" rel="noopener">open the listing</a>.{% endif %}</p>
+</div>
+{% endif %}
 <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/marketing" class="to-form">
   <div class="to-eyebrow">Tickets</div>
   <div class="to-grid">

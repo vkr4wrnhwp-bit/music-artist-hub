@@ -45,6 +45,7 @@ import plans
 import press_store
 import plot_images
 import stripe_provider
+import ticketmaster_provider as ticketmaster
 import tour_advance_mail as tam
 import tour_engine as eng
 import tour_store as ts
@@ -747,6 +748,13 @@ def _tickets_report_key(tour_id):
     return "tour_tickets:%s" % tour_id
 
 
+def _ticket_sources():
+    """Which ticket sources this deployment actually has a key for. The
+    two are not interchangeable and the page never pretends they are:
+    Eventbrite measures a count, Ticketmaster publishes a listing."""
+    return {"eventbrite": eventbrite.configured(), "ticketmaster": ticketmaster.configured()}
+
+
 def _ago(iso):
     """'2 h ago' for a stored UTC timestamp, or '' when there is none.
     Said beside a synced number so nobody reads a stale count as now."""
@@ -766,15 +774,33 @@ def _ago(iso):
     return "%d d ago" % (mins // (60 * 24))
 
 
-def _event_url(show):
-    """The Eventbrite page for the event a show is linked to. The ticket
-    link itself when that is the one Eventbrite gave us; otherwise built
+def _event_url(show, source="eventbrite"):
+    """The listing page for the event a show is linked to. The ticket
+    link itself when that is the one this source gave us; otherwise built
     from the stored id, because the owner's own link points elsewhere."""
     url = (show.get("ticket_url") or "").strip()
-    if url and tickets.ours(url):
+    if url and tickets.ours(url, source):
         return url
-    eid = str(show.get("eventbrite_event_id") or "").strip()
-    return "https://www.eventbrite.com/e/%s" % eid if eid else ""
+    eid = str(show.get(tickets.ID_FIELD[source]) or "").strip()
+    if not eid:
+        return ""
+    base = ("https://www.ticketmaster.com/event/%s" if source == "ticketmaster"
+            else "https://www.eventbrite.com/e/%s")
+    return base % eid
+
+
+def _ticket_note(show):
+    """A date whose ticket fields came from Ticketmaster: the listing,
+    the on-sale word it publishes, and when it was read. Their Discovery
+    API publishes no sold count and no capacity at all, so this is the
+    row that has to say so — a blank beside the date would read as
+    nobody has bought a ticket."""
+    eid = str(show.get("ticketmaster_event_id") or "").strip()
+    at = str(show.get("tickets_synced_at") or "").strip()
+    if not eid or (show.get("ticket_source") or "") == "eventbrite":
+        return None
+    return {"source": "ticketmaster", "status": (show.get("ticket_status") or "").strip(),
+            "ago": _ago(at), "event_url": _event_url(show, "ticketmaster")}
 
 
 def _ctx(user, tour, viewer, nav, **extra):
@@ -1237,7 +1263,12 @@ def home(user, tour, viewer, tour_id):
     ctx["geo_ready"] = venue_geo.configured()
     ctx["geo_missing"] = _geo_missing(tour, tour_id) if ctx["geo_ready"] else 0
     ctx["geo_report"] = session.pop(_geo_report_key(tour_id), None) if can(viewer, "edit") else None
-    ctx["tickets_ready"] = eventbrite.configured()
+    # Either source is enough for the button: Eventbrite measures the
+    # counts, Ticketmaster fills the link and the on-sale state for the
+    # clubs that are not on Eventbrite. The page names whichever key is
+    # missing rather than showing a button that could do nothing.
+    ctx["tickets_sources"] = _ticket_sources()
+    ctx["tickets_ready"] = any(ctx["tickets_sources"].values())
     ctx["tickets_report"] = session.pop(_tickets_report_key(tour_id), None) if can(viewer, "edit") else None
     ctx["tickets_line"] = tickets.report_line(ctx["tickets_report"]) if ctx["tickets_report"] else ""
     return render_template("tour/home.html", **ctx)
@@ -1642,7 +1673,10 @@ def _date_page(user, tour, viewer, show, tab, **extra):
                   "capacity": str(show.get("capacity") or "").strip(),
                   "promoter": str(show.get("promoter") or "").strip(),
                   # measured or typed, said in the same breath as the number
-                  "tickets": _ticket_progress(show)},
+                  "tickets": _ticket_progress(show),
+                  # and a date whose fields came from a listing that
+                  # publishes no count says exactly that
+                  "ticket_note": _ticket_note(show)},
         "show_page": True,
         # times
         "schedule": _visible(viewer, rows["schedule"]),
@@ -1730,6 +1764,7 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         elif key == "marketing":
             d["marketing"] = show.get("marketing") or {}
             d["ticket_progress"] = _ticket_progress(show)
+            d["ticket_note"] = _ticket_note(show)
         elif key == "content":
             ts.ensure_content_plan(tid, tour["user_id"], sid)
             d["content"] = ts.list_content(tid, show_id=sid)
@@ -1790,7 +1825,11 @@ def _ticket_progress(show):
     """The sold-against-capacity figure, and where it came from: a count
     Eventbrite measured (with when it was read and the event it came
     from) or one somebody typed. The page must never present the second
-    as the first, so the two are never merged into one number."""
+    as the first, so the two are never merged into one number.
+
+    Only Eventbrite can make a count measured. A date whose fields were
+    last written by Ticketmaster carries a link and an on-sale word and
+    no count at all, so any number beside it is one somebody typed."""
     try:
         sold = float(str(show.get("tickets_sold") or "").replace(",", ""))
         cap = float(str(show.get("capacity") or "").replace(",", ""))
@@ -1799,7 +1838,8 @@ def _ticket_progress(show):
     if not cap:
         return None
     at = str(show.get("tickets_synced_at") or "").strip()
-    synced = bool(str(show.get("eventbrite_event_id") or "").strip() and at)
+    synced = bool(str(show.get("eventbrite_event_id") or "").strip() and at
+                  and (show.get("ticket_source") or "eventbrite") == "eventbrite")
     return {"sold": int(sold), "cap": int(cap), "pct": round(100 * sold / cap),
             "synced": synced, "source": "synced" if synced else "typed",
             "ago": _ago(at) if synced else "", "event_url": _event_url(show) if synced else ""}
@@ -2788,11 +2828,13 @@ def _coords(venue):
 @bp.route("/tours/<tour_id>/tickets/sync", methods=["POST"])
 @require_tour("edit", "advance")
 def tickets_sync(user, tour, viewer, tour_id):
-    """Ask Eventbrite what each date has actually sold, and write the
-    counts onto the shows it can match. Back to the list with the run's
-    own report: how many were filled, how many had no single match (and
-    which events were on those dates), and Eventbrite's words if it
-    refused the token."""
+    """Ask both ticket sources about every date in one press: Eventbrite
+    for what it has actually sold, then Ticketmaster - for the dates
+    Eventbrite could not match - for the listing's link and on-sale
+    state, which is all their public API publishes. Back to the list
+    with the run's own report: what each source matched, how many had no
+    single match (and which listings were on those dates), and each
+    provider's own words if it refused the key."""
     report = tickets.sync(tour, ts.list_shows(tour_id), deadline=_tickets_deadline())
     # The session carries this one line back to the page; a tour with
     # fifty unmatched dates must not blow the cookie, so it is trimmed.
@@ -2805,16 +2847,19 @@ def tickets_sync(user, tour, viewer, tour_id):
 @bp.route("/tours/<tour_id>/shows/<show_id>/tickets/link", methods=["POST"])
 @require_tour("edit", "advance")
 def tickets_link(user, tour, viewer, tour_id, show_id):
-    """Say which Eventbrite event this date is, when the match was
-    ambiguous. The id is stored on the show and every later sync honours
-    it first, so the answer is given once."""
+    """Say which listing this date is, when the match was ambiguous. The
+    form carries the source it came from, the id is stored in that
+    source's own column, and every later sync honours it first, so the
+    answer is given once."""
     show = _show_or_404(tour, show_id)
     event_id = (request.form.get("event_id") or "").strip()[:60]
-    if not re.match(r"^[A-Za-z0-9_-]+$", event_id or ""):
+    source = (request.form.get("source") or "eventbrite").strip()
+    if source not in tickets.SOURCES or not re.match(r"^[A-Za-z0-9_-]+$", event_id or ""):
         return _back(_show_url(tour, show, "marketing"))
-    ts.update_show_ext(tour_id, show_id, {"eventbrite_event_id": event_id})
+    field = tickets.ID_FIELD[source]
+    ts.update_show_ext(tour_id, show_id, {field: event_id})
     _log(tour, viewer, "show", show_id, show["venue"],
-         {"eventbrite_event_id": (str(show.get("eventbrite_event_id") or ""), event_id)})
+         {field: (str(show.get(field) or ""), event_id)})
     # Fill it now from the id just given: no walk of the account is
     # needed, because the show says which event it is.
     linked = ts.get_show(tour_id, show_id)
@@ -3434,12 +3479,16 @@ def merch_counts(user, tour, viewer, tour_id, show_id):
 @require_tour("marketing")
 def marketing(user, tour, viewer, tour_id):
     shows = ts.list_shows(tour_id)
-    rows = [{"show": s, "progress": _ticket_progress(s), "mk": s.get("marketing") or {}} for s in shows]
+    rows = [{"show": s, "progress": _ticket_progress(s), "note": _ticket_note(s),
+             "mk": s.get("marketing") or {}} for s in shows]
     # The header must not promise "nothing is connected" on a deployment
-    # where a date's count came straight off Eventbrite.
+    # where a date's count came straight off Eventbrite - nor imply a
+    # count where the connected source publishes none.
+    sources = _ticket_sources()
     return render_template("tour/marketing.html",
                            **_ctx(user, tour, viewer, "marketing", shows=shows, rows=rows,
-                                  tickets_ready=eventbrite.configured()))
+                                  tickets_sources=sources,
+                                  tickets_ready=any(sources.values())))
 
 
 @bp.route("/tours/<tour_id>/shows/<show_id>/marketing", methods=["POST"])
@@ -3455,6 +3504,13 @@ def show_marketing(user, tour, viewer, tour_id, show_id):
     for k in ("ticket_url", "ticket_status", "tickets_sold", "capacity"):
         if k in request.form:
             fields[k] = request.form.get(k)
+    # A count somebody edits by hand is a typed count from that moment
+    # on, whatever a sync wrote before it. The link to the listing is
+    # kept - it is still the right listing - but the number stops being
+    # credited to a source that did not produce it.
+    typed = (fields.get("tickets_sold") or "").strip()
+    if "tickets_sold" in fields and typed != str(show.get("tickets_sold") or "").strip():
+        fields["ticket_source"] = "typed"
     ts.update_show_ext(tour_id, show_id, fields)
     return _back(_show_url(tour, show, "marketing"))
 
