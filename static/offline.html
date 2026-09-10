@@ -1,9 +1,48 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Offline — Street Banker</title></head>
+<title>Can't reach Street Banker</title></head>
 <body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a0b;color:#cfc6b0;font-family:Arial,sans-serif">
 <div style="text-align:center;padding:24px">
 <div style="color:#d8b25a;font-weight:800;letter-spacing:4px;font-size:11px">.STREET BANKER</div>
-<h1 style="color:#f3ead2;font-size:20px;margin:12px 0 6px">You're offline</h1>
-<p style="font-size:13px;max-width:320px">Your data is safe on the server — reconnect and pull this page again.</p>
-</div></body></html>
+<h1 id="ttl" style="color:#f3ead2;font-size:20px;margin:12px 0 6px">Can't reach Street Banker</h1>
+<p id="msg" style="font-size:13px;max-width:340px">The page didn't load. Your data is safe on the server.</p>
+<p id="try" style="font-size:12px;color:#8d8579">&nbsp;</p>
+</div>
+<script>
+/* This page is served by the service worker when a navigation fails
+   twice. It must not assert why: the browser knows whether there is a
+   network, and saying "you're offline" to somebody whose connection is
+   fine is a claim we cannot support - it also sends them to reboot a
+   router when the server was the thing that stalled. */
+(function () {
+  var ttl = document.getElementById("ttl");
+  var msg = document.getElementById("msg");
+  var note = document.getElementById("try");
+  function word() {
+    if (navigator.onLine === false) {
+      ttl.textContent = "You're offline";
+      msg.textContent = "Your device has no connection. Your data is safe on the server \u2014 this page comes back on its own when you reconnect.";
+    } else {
+      ttl.textContent = "Can't reach Street Banker";
+      msg.textContent = "Your connection looks fine, so the server didn't answer this time. Your data is safe. Trying again\u2026";
+    }
+  }
+  word();
+  window.addEventListener("online", function () { word(); location.reload(); });
+  window.addEventListener("offline", word);
+  /* Come back by itself rather than waiting to be reloaded by hand,
+     backing off so a server that is still waking is not hammered. */
+  var waits = [3, 6, 12, 30], n = 0;
+  (function again() {
+    if (n >= waits.length) { note.textContent = "Still no answer. Reload when you're ready."; return; }
+    var s = waits[n++];
+    note.textContent = "Trying again in " + s + "s\u2026";
+    setTimeout(function () {
+      fetch(location.href, {method: "HEAD", cache: "no-store"})
+        .then(function (r) { if (r && (r.ok || r.status === 302)) location.reload(); else again(); })
+        .catch(again);
+    }, s * 1000);
+  })();
+})();
+</script>
+</body></html>

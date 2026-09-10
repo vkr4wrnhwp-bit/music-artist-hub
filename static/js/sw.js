@@ -2,13 +2,19 @@
    static assets cache-first, pages always network (dashboards must
    never go stale), offline navigations get a friendly fallback.
 
+   A navigation is only called offline after a second attempt fails:
+   one rejected fetch is a blip, a cold start or a backgrounded tab, and
+   answering it with "You're offline" states something about the reader's
+   machine that we have not checked. The fallback page checks
+   navigator.onLine itself and words itself accordingly.
+
    One exception, for the road: TOUR's Tour Home, My Day and Show Command
    pages are network-first with a cached fallback, so a schedule that was
    open an hour ago still opens in a venue basement with no signal. The
    copy is per-URL - query string included, because Show Command tabs and
    My Day dates live in the query - is whatever the server last sent that
    signed-in person, and is replaced on every successful load. */
-var VERSION = "sb-v213";   /* Stage Rack status panel on the bridge page */
+var VERSION = "sb-v214";   /* a blip is not an outage: the navigation is retried, and the fallback stops claiming the reader is offline */
 var PAGES = VERSION + "-tour";
 var PRECACHE = ["/static/offline.html", "/static/img/streetbanker-logo.svg",
                 "/static/img/icon-192.png", "/static/manifest.json"];
@@ -26,6 +32,17 @@ self.addEventListener("activate", function (e) {
   }).then(function () { return self.clients.claim(); }));
 });
 
+function retryThenFallback(request) {
+  /* One more go before we tell somebody their connection is gone. A
+     request that failed because the tab was backgrounded, or because the
+     server was still waking, usually succeeds on the second ask. Only a
+     second failure reaches the fallback page - which then decides for
+     itself whether "offline" is a true word for what happened. */
+  return fetch(request).catch(function () {
+    return caches.match("/static/offline.html");
+  });
+}
+
 self.addEventListener("fetch", function (e) {
   var url = new URL(e.request.url);
   if (e.request.mode === "navigate") {
@@ -38,12 +55,12 @@ self.addEventListener("fetch", function (e) {
         return resp;
       }).catch(function () {
         return caches.open(PAGES).then(function (c) { return c.match(e.request); })
-          .then(function (hit) { return hit || caches.match("/static/offline.html"); });
+          .then(function (hit) { return hit || retryThenFallback(e.request); });
       }));
       return;
     }
     e.respondWith(fetch(e.request).catch(function () {
-      return caches.match("/static/offline.html");
+      return retryThenFallback(e.request);
     }));
     return;
   }
