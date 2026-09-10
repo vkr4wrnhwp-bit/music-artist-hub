@@ -31,7 +31,10 @@ STEPS = [
     ("profile", "Name the artist",
      "Every public page — your press kit, smart links, one-sheet — reads "
      "from this. Nothing else looks right until it is filled in.",
-     "/artist-profile", "Set up the profile"),
+     # The Press Office, not /artist-profile. The one-sheet is a printable
+     # read of this data with no field on it, so the first instruction the
+     # product gives used to open a page where it could not be carried out.
+     "/epk", "Set up the profile"),
     ("track", "Add a track",
      "Tracks are the spine: royalty lanes, registration, metadata and the "
      "release tools all hang off one. With none, most of the app has "

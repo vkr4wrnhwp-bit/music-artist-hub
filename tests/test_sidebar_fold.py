@@ -48,7 +48,10 @@ def test_the_sidebar_is_thirty_seven_entries():
     # back under the Live Stage Suite (owner, both 2026-09-07). 37 with the
     # owner's three outside apps - Noise Lab, The Room, REACH - each on its
     # own Render service and opened in a new tab (2026-09-08).
-    assert len(_entries()) == 37
+    # 38 with the ACRCloud desk (2026-09-09): it registered a blueprint at
+    # /fingerprints and was in no navigation at all, so the only way in was
+    # to type the URL.
+    assert len(_entries()) == 38
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():
@@ -68,6 +71,41 @@ def test_nothing_parked_or_folded_is_a_sidebar_entry():
     community = {it[0] for it in hubs.COMMUNITY_GROUP[1]} | {it[0] for it in hubs.ACCOUNT_GROUP[1]}
     assert "fans" in community and "fan-label" not in community and "fan-club-admin" not in community
     assert "network" not in community
+
+
+def test_the_acr_desk_is_reachable_gated_and_lights_its_own_entry():
+    """It was in neither hubs.HUBS nor command_center.MODULES nor plans.py.
+
+    Three consequences from one omission: no sidebar entry and no command
+    palette result, so the only way in was to type /fingerprints; and
+    required_tier() returned None, so a free Fan account could open the
+    desk that spends the owner's ACRCloud quota. Its pages also passed
+    active_page="beats", so the sidebar lit the wrong row.
+    """
+    import plans
+
+    entry = next((it for it in _entries() if it[0] == "fingerprints"), None)
+    assert entry, "the ACRCloud desk is in no hub"
+    assert entry[1] == "/fingerprints/"
+    studio = next(h for h in hubs.HUBS if h[0] == "studio")
+    assert "fingerprints" in {it[0] for it in studio[3]}, "it belongs beside Beats"
+
+    # Same tier as the finding source it feeds.
+    assert plans.required_tier("/fingerprints/") == plans.required_tier("/recovery") == "pro"
+    assert plans.required_tier("/fingerprints/scans/abc") == "pro"
+    assert not plans.allowed("fan", "pro") and not plans.allowed("artist", "pro")
+
+    # In the palette, and not badged as example data.
+    assert "fingerprints" in {row["key"] for row in hubs.command_index()}
+    assert "fingerprints" in set(hubs.live_keys())
+
+
+def test_the_acr_desk_highlights_itself_not_beats():
+    import io
+
+    source = io.open(os.path.join(HERE, "acr_desk.py"), encoding="utf-8").read()
+    assert 'active_page="beats"' not in source
+    assert source.count('active_page="fingerprints"') == 2
 
 
 def test_the_fronts_are_live_and_reports_is_no_longer_a_sample():

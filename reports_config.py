@@ -26,8 +26,16 @@ FORMAT_TONE = {
 }
 
 
-def get_reports_data(demo=False):
+def get_reports_data(user_id, demo=False):
     """`demo` decides whether the example saved schedules are included.
+
+    `user_id` decides whose "generated this session" log comes back. It
+    used to come back unconditionally from a process-global list, so
+    every Pro account was shown every other account's report labels,
+    filenames and dates. It comes first and has no default so a call site
+    that forgets it raises here instead of quietly serving the whole
+    box's; passing None is the deliberate signed-out case and returns no
+    rows.
 
     There is no scheduler behind them. Nothing runs monthly, nothing is
     emailed to "2 recipients", and the next-run dates are literals - the
@@ -37,7 +45,7 @@ def get_reports_data(demo=False):
     than showing three jobs that will never run.
     """
     reports = get_available_reports()
-    history = get_report_history()
+    history = get_report_history(user_id)
     scheduled = get_scheduled_reports() if demo else []
 
     # Group the library by category, preserving the canonical order.

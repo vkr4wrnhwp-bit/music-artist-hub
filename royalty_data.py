@@ -1329,8 +1329,23 @@ _scheduled_reports = [
     {"id": "sched-3", "report_id": "missing-money-report", "cadence": "Weekly", "next_run": "2026-07-11", "recipients": 1, "enabled": False},
 ]
 
-# Live log of reports generated this session, newest first.
-_report_history = []
+# Live log of reports generated this session, newest first, KEYED BY
+# ACCOUNT. It was one flat list shared by the whole process, and
+# generate_report() appended to it without a user id, so every Pro
+# account on the box read every other account's report labels, filenames
+# and dates under a heading that said "Downloads created this session" -
+# their session, on your page.
+#
+# Kept in memory rather than moved to a table on purpose. The heading is
+# the honest description of what this is: nothing here survives a
+# restart, and nothing needs to. The file itself is never stored -
+# /reports/<id>/download rebuilds it from live statement data on every
+# request - so a durable table would be rows outliving the only thing
+# they describe, plus a migration, for no gain. The bug was a missing
+# predicate, not a missing store. It stays per-process, which under
+# several workers can show a shorter list than you generated; that was
+# already true and matches the words on the page.
+_report_history = {}
 
 
 def get_available_reports():
@@ -1346,11 +1361,18 @@ def get_scheduled_reports():
     return out
 
 
-def get_report_history():
-    return list(_report_history)
+def get_report_history(user_id):
+    """One account's own log. No user id, no rows - never everybody's.
+
+    The argument is required and there is no default, so a caller that
+    forgets it fails loudly here instead of quietly serving the process.
+    """
+    if not user_id:
+        return []
+    return list(_report_history.get(user_id) or [])
 
 
-def generate_report(report_id):
+def generate_report(report_id, user_id):
     match = next((r for r in REPORT_TYPES if r["id"] == report_id), None)
     if match is None:
         return None
@@ -1362,8 +1384,10 @@ def generate_report(report_id):
         "generated_at": generated_at.isoformat(),
         "filename": f"{report_id}-{generated_at.strftime('%Y%m%d')}.{match['format'].lower()}",
     }
-    _report_history.insert(0, report)
-    del _report_history[25:]
+    if user_id:
+        rows = _report_history.setdefault(user_id, [])
+        rows.insert(0, report)
+        del rows[25:]
     return report
 
 

@@ -52,6 +52,45 @@ def test_every_step_points_at_a_real_route():
             assert ok, "%s points at %s, which is not a route" % (key, href)
 
 
+def test_every_step_lands_on_a_page_the_step_can_be_done_on(flask_app):
+    """A route that answers 200 is not the same as a place you can act.
+
+    Step one ("Name the artist") pointed at /artist-profile for both
+    firstrun and the tutor. That page renders 200 and reads well - and it
+    is a print-only one-sheet with no field on it, whose own header says
+    "Edit in Press Office". Its completion check reads the EPK and the
+    account name, both edited at /epk. So the first instruction the
+    product gave a brand-new account could not be carried out from where
+    it sent them.
+
+    The check: everything the page's own <main> block contains, with the
+    shared chrome (sidebar search, command palette) left outside it. A
+    step that asks you to create something must land somewhere with at
+    least one control to create it in.
+    """
+    import re
+
+    import firstrun
+
+    client, user = _artist(flask_app, "Curriculum")
+    with flask_app.app_context():
+        store.set_user_plan(user["id"], "label")   # open every gate
+
+    steps = [("firstrun", s) for s in firstrun.STEPS]
+    steps += [("tutor", s) for _k, _n, _p, rows in tutor.STAGES for s in rows]
+
+    for source, (key, _title, _why, href, _cta) in steps:
+        html = client.get(href, follow_redirects=True).get_data(as_text=True)
+        main = re.search(r"<main[ >].*?</main>", html, re.S | re.I)
+        assert main, "%s/%s: %s rendered no <main>" % (source, key, href)
+        controls = re.findall(r"<(?:input|textarea|select)[ >/]|contenteditable",
+                              main.group(0), re.I)
+        assert controls, (
+            "%s step %r sends you to %s, which has nothing to fill in - "
+            "a checklist must not open a page the step cannot be done on"
+            % (source, key, href))
+
+
 def test_step_keys_are_unique_and_stage_one_is_firstrun():
     """The tutor's first stage IS the firstrun checklist — same keys, so
     the two features can never disagree about what 'set up' means."""
