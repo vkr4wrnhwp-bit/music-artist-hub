@@ -83,6 +83,34 @@
         {% endfor %}
       {% endcall %}
 
+      {#- Level. A dub comes back at whatever level the vendor rendered it,
+          which has been routinely far hotter than the material sent in, so
+          the dub shouts next to the original. This measures both to
+          BS.1770-4 with the meter the Mix and Master rooms already use and
+          applies the difference as one static gain - an offset, not a
+          treatment: compressing to hit a number would change the
+          performance. Dubbing only, deliberately. A stem or an isolated
+          voice is a component of the mix and is meant to sit below it, so
+          matching one to the full source would be wrong, not helpful. -#}
+      {% if item.kind == "dubbing" and item.source_asset_id %}
+        <div class="mt-4 border-t border-white/10 pt-4" id="dub-match"
+             data-source="{{ url_for('audio_studio.studio_source', work_id=item.id) }}"
+             data-dub="{{ url_for('audio_studio.studio_output', work_id=item.id, asset_id=outputs[0].id) }}"
+             data-name="{{ outputs[0].file_name }}">
+          <h3 class="sb-label sb-label-gold">Level</h3>
+          <p class="mt-2 text-sm text-gray-300">
+            Bring the dub back to the loudness the source went out at. Measured
+            both ways before anything changes, so the page can tell you what it
+            did rather than asking you to trust it.
+          </p>
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            {{ sb.btn("Match to the source level", variant="secondary",
+                      id="dub-match-run", type="button") }}
+          </div>
+          <p class="mt-2 text-sm text-gray-300" id="dub-match-say"></p>
+        </div>
+      {% endif %}
+
       {#- Somewhere to put them. A separated stem used to exist as a row and
           nothing else: no way into the Vault, the Rack, or a hard drive. -#}
       {% if vaulted %}
@@ -156,4 +184,39 @@
     {{ sb.btn("Delete", variant="secondary", size="sm", type="submit") }}
   </form>
 </div>
+
+<script src="/static/js/loudness.js?v=1"></script>
+<script src="/static/js/audioconv.js?v=1"></script>
+<script src="/static/js/dubmatch.js?v=1"></script>
+<script>
+(function () {
+  var box = document.getElementById("dub-match");
+  if (!box) { return; }
+  var run = document.getElementById("dub-match-run");
+  var say = document.getElementById("dub-match-say");
+  run.addEventListener("click", function () {
+    run.disabled = true;
+    say.textContent = "Measuring both files…";
+    window.SBDubMatch.match(box.dataset.source, box.dataset.dub)
+      .then(function (r) {
+        if (!r.ok) { say.textContent = r.why; run.disabled = false; return; }
+        say.textContent = window.SBDubMatch.say(r.plan, r.after);
+        var blob = new Blob([r.wav], {type: "audio/wav"});
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = box.dataset.name.replace(/\.[^.]+$/, "") + " (level matched).wav";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
+        run.disabled = false;
+      })
+      .catch(function (e) {
+        /* Say which step failed. "Something went wrong" sends nobody anywhere. */
+        say.textContent = "Could not match the level: " + e.message;
+        run.disabled = false;
+      });
+  });
+})();
+</script>
 {% endblock %}

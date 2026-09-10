@@ -499,6 +499,11 @@ def studio_output(work_id, asset_id):
         # Destroyed on the retention schedule. Saying so beats a 500.
         abort(410)
 
+    return _send_asset(asset)
+
+
+def _send_asset(asset):
+    """The bytes of one asset, however this deployment stores them."""
     path = asset["storage_key"]
     if blob_store.is_remote(path):
         signed = blob_store.url_for(path, ttl=300)
@@ -506,9 +511,42 @@ def studio_output(work_id, asset_id):
             abort(503)
         return redirect(signed)
     if path.startswith(STUDIO_PREFIX):
-        return send_file(os.path.join(_studio_dir(), path[len(STUDIO_PREFIX):]),
+        local = os.path.join(_studio_dir(), path[len(STUDIO_PREFIX):])
+        if not os.path.exists(local):
+            # The row outlived the bytes - a half-finished write, a restored
+            # database, a disk that was not. send_file would raise and the
+            # owner would get a 500 for a file that is simply gone.
+            abort(410)
+        return send_file(local,
                          mimetype=asset.get("mime_type") or "audio/wav")
     abort(404)
+
+
+@bp.route("/audio-studio/<work_id>/source")
+def studio_source(work_id):
+    """The bytes of what was sent in, to its owner only.
+
+    Here so the browser can measure the level the material went out at.
+    A dub comes back at whatever level the vendor rendered it, which is
+    routinely far louder than the source, and there is no way to match
+    the two without being able to read both.
+
+    Same ownership check as the outputs, for the same reason: this is
+    the artist's own recording.
+    """
+    user = _current_user()
+    if user is None:
+        return redirect(url_for("login", next=request.path))
+    item = works.get_work(work_id)
+    if item is None or item["user_id"] != user["id"]:
+        abort(404)
+    if not item.get("source_asset_id"):
+        abort(404)
+    asset = astore.get_asset(None, item["source_asset_id"])
+    if asset is None or asset.get("deleted_at") or not asset.get("storage_key"):
+        # Destroyed on the retention schedule. Saying so beats a 500.
+        abort(410)
+    return _send_asset(asset)
 
 
 @bp.route("/audio-studio/<work_id>/to-vault", methods=["POST"])
