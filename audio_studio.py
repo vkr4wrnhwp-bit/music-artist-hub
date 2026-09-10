@@ -29,8 +29,8 @@ path in development rather than in production.
 import os
 import time
 
-from flask import (Blueprint, abort, jsonify, redirect, render_template,
-                   request, send_file, url_for)
+from flask import (Blueprint, Response, abort, jsonify, redirect,
+                   render_template, request, send_file, url_for)
 
 import audio_policy
 import audio_providers as ap
@@ -68,6 +68,10 @@ LANES = [
     ("voice_vault", "voice_vault", "ARTIST_VOICE_VAULT_ENABLED",
      "Artist Voice Vault",
      "Register a voice its owner has verified. Only they can."),
+    ("lyric_sheet", "lyric_sheet", "LYRIC_SHEET_ENABLED",
+     "Lyric sheet",
+     "Pull the words up off a recording you own, timed to the audio. A "
+     "transcript of what was sung — it does not write lyrics."),
 ]
 
 LANE_BY_KEY = {lane[0]: lane for lane in LANES}
@@ -457,10 +461,32 @@ def studio_item(work_id):
     outputs = [o for o in outputs if o and not o.get("deleted_at")]
     return render_template("audio_studio_item.html", item=item,
                            outputs=outputs,
+                           lyrics=_transcript(item),
+                           source_url=(url_for("audio_studio.studio_source",
+                                               work_id=item["id"])
+                                       if item.get("source_asset_id") else ""),
                            lane=_lane_for_kind(item["kind"]),
                            vaulted=request.args.get("vaulted"),
                            pending=item["status"] in ("queued", "running"),
                            safety_warning=works.safety_warning())
+
+
+def _transcript(item):
+    """The words this job pulled up, or [] if it produced none.
+
+    A transcript is not a file, so it never becomes an output asset and
+    the outputs table has nothing to show for it. It lives on the job
+    result, which is where this reads it from - defensively, because a
+    job that failed, was refused, or predates the lane has no result at
+    all and that is not an error.
+    """
+    import audio_store as astore
+
+    if item.get("kind") != "lyric_sheet":
+        return []
+    stored = astore.transcript_for_asset(None, item.get("source_asset_id"))
+    segments = (stored or {}).get("segments") or []
+    return [s for s in segments if (s.get("text") or "").strip()]
 
 
 @bp.route("/audio-studio/<work_id>/outputs.json")
@@ -537,6 +563,36 @@ def _send_asset(asset):
         return send_file(local,
                          mimetype=asset.get("mime_type") or "audio/wav")
     abort(404)
+
+
+@bp.route("/audio-studio/<work_id>/lyrics.txt", methods=["POST"])
+def studio_lyrics_txt(work_id):
+    """The words as a plain file, timed, to its owner only.
+
+    Plain text rather than a document format: this gets pasted into a
+    registration, a split sheet or a lyric video, and every one of those
+    wants the words and nothing else.
+    """
+    user = _current_user()
+    if user is None:
+        return redirect(url_for("login", next=request.path))
+    item = works.get_work(work_id)
+    if item is None or item["user_id"] != user["id"]:
+        abort(404)
+    lines = _transcript(item)
+    if not lines:
+        abort(404)
+    body = []
+    for line in lines:
+        ms = line.get("start_ms") or 0
+        body.append("[%d:%02d] %s" % (ms // 60000, (ms // 1000) % 60,
+                                      (line.get("text") or "").strip()))
+    text = "\n".join(body) + "\n"
+    name = "".join(c for c in (item.get("title") or "lyrics")
+                   if c.isalnum() or c in " -_")[:60].strip() or "lyrics"
+    return Response(text, mimetype="text/plain; charset=utf-8",
+                    headers={"Content-Disposition":
+                             'attachment; filename="%s.txt"' % name})
 
 
 @bp.route("/audio-studio/<work_id>/source")

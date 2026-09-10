@@ -752,6 +752,23 @@ def get_transcript(partner_id, transcript_id):
     return t
 
 
+def transcript_for_asset(partner_id, audio_asset_id):
+    """The most recent transcript taken off one recording, or None.
+
+    A transcript is not a file, so it never becomes an output asset and
+    cannot be found the way every other result is. The recording it came
+    off is the thing the caller has.
+    """
+    if not audio_asset_id:
+        return None
+    with get_db() as db:
+        row = db.execute(
+            "SELECT id FROM audio_transcripts WHERE audio_asset_id = ? "
+            "AND partner_id IS ? ORDER BY created_at DESC LIMIT 1",
+            (audio_asset_id, partner_id)).fetchone()
+    return get_transcript(partner_id, row["id"]) if row else None
+
+
 def rename_speaker(partner_id, transcript_id, provider_speaker_key, display_name,
                    person_id=None):
     with get_db() as db:

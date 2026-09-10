@@ -81,6 +81,16 @@ FEATURES = {
         "cap": "audio.transcription", "policy": "allow_transcription",
         "consent": None, "rights": False,
     },
+    # Pulling the words up off a recording an artist owns. Same
+    # capability as transcription and the same policy switch, but its
+    # own flag and its own rights answer: this reads a master, so the
+    # per-item rights confirmation is required, which a meeting
+    # transcript does not need.
+    "lyric_sheet": {
+        "flag": "LYRIC_SHEET_ENABLED", "capability": ap.TRANSCRIPTION,
+        "cap": "audio.transcription", "policy": "allow_transcription",
+        "consent": None, "rights": True,
+    },
     "signal_briefs": {
         "flag": "SIGNAL_AUDIO_BRIEFS_ENABLED", "capability": ap.SPEECH,
         "cap": "audio.signal_briefs", "policy": "allow_voice_generation",

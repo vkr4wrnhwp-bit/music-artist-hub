@@ -58,6 +58,53 @@
     </section>
   {% endif %}
 
+  {#- The words, when this job pulled words up. A transcript is not a
+      file, so it never reaches the outputs table - it is read off the
+      job result. Timed, so a line can be clicked and heard: reading a
+      lyric sheet without being able to check it against the take is
+      how a mis-heard line gets copied into a registration. -#}
+  {% if lyrics %}
+    <section class="sb-panel p-4">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="sb-label sb-label-gold">The words</h2>
+        <p class="text-sm text-gray-300">{{ lyrics | length }} line{{ "" if lyrics|length == 1 else "s" }}</p>
+      </div>
+      <p class="mt-2 text-sm text-gray-300">
+        Heard off the recording, not written. Mumbled and doubled lines are
+        where a transcript is weakest — click a line to hear it before you
+        rely on it.
+      </p>
+      {% if source_url %}
+      <audio id="lyric-audio" preload="metadata" class="sr-only" src="{{ source_url }}"></audio>
+      {% endif %}
+      <ol class="mt-3 space-y-1">
+        {% for line in lyrics %}
+        <li class="flex items-baseline gap-3">
+          <button type="button" class="sd-btn shrink-0"
+                  data-lyric-at="{{ (line.start_ms or 0) / 1000 }}"
+                  aria-label="Play from {{ (line.start_ms or 0) // 60000 }} minutes {{ ((line.start_ms or 0) // 1000) % 60 }} seconds">
+            {{ (line.start_ms or 0) // 60000 }}:{{ "%02d" % (((line.start_ms or 0) // 1000) % 60) }}
+          </button>
+          <span class="text-sm text-sb-ink">{{ line.text | trim }}</span>
+        </li>
+        {% endfor %}
+      </ol>
+      <form method="post" action="{{ url_for('audio_studio.studio_lyrics_txt', work_id=item.id) }}"
+            class="mt-3">
+        {{ sb.btn("Download as a text file", variant="secondary", type="submit") }}
+      </form>
+    </section>
+  {% elif item.kind == "lyric_sheet" and item.status == "ready" %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">The words</h2>
+      <p class="mt-2 text-sm text-gray-300">
+        Nothing intelligible came back off this recording. That happens with
+        an instrumental, a very quiet vocal, or heavy processing — it is not
+        a failure of the upload.
+      </p>
+    </section>
+  {% endif %}
+
   {% if outputs %}
     <section class="sb-panel p-4">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
@@ -208,7 +255,22 @@
   </form>
 </div>
 
-<script src="/static/js/stemdeck.js?v=1"></script>
+<script src="/static/js/stemdeck.js?v=1"></script>
+<script>
+/* Click a line, hear it. The element is the engine here for the same
+   reason it is on the stem decks: it streams, and it cannot get stuck
+   behind a suspended AudioContext. */
+(function () {
+  var audio = document.getElementById("lyric-audio");
+  if (!audio) { return; }
+  document.querySelectorAll("[data-lyric-at]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      audio.currentTime = parseFloat(btn.dataset.lyricAt) || 0;
+      audio.play();
+    });
+  });
+})();
+</script>
 <script src="/static/js/loudness.js?v=1"></script>
 <script src="/static/js/audioconv.js?v=1"></script>
 <script src="/static/js/dubmatch.js?v=1"></script>

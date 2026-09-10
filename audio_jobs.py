@@ -135,8 +135,14 @@ def _dispatch(job, adapter, request, partner_id):
 
     status = (result or {}).get("status") or "completed"
     if job["operation"] in SYNCHRONOUS or status == "completed":
+        # Some capabilities answer the create call with an id and hold the
+        # payload behind status() - transcription is one. Those jobs
+        # finished here, so poll() never runs and _store_result never
+        # fired, and the words were never written down anywhere.
+        result = _collect_inline(adapter, job, result, partner_id)
         astore.set_job_status(partner_id, jid, "completed",
                               provider_job_id=provider_job_id)
+        _store_result(partner_id, job, result)
     else:
         # Slow work: the row stays running and the poller or the webhook
         # finishes it. provider_job_id is written now so both can find it.
@@ -287,6 +293,29 @@ def poll(partner_id, job_id):
     if out:
         out["result"] = res
     return out
+
+
+def _collect_inline(adapter, job, result, partner_id):
+    """Ask the adapter for a payload the create call did not carry.
+
+    Only where there is something missing to fetch, and never fatally: a
+    provider that cannot answer leaves the job completed with the result
+    it already gave, which is the behaviour before this existed.
+    """
+    res = result or {}
+    if job.get("capability") != ap.TRANSCRIPTION or res.get("segments"):
+        return res
+    inline = res.get("inline")
+    if isinstance(inline, dict) and inline.get("segments"):
+        return dict(res, **inline)
+    pid = res.get("provider_job_id")
+    if not pid:
+        return res
+    try:
+        fetched = adapter.status(pid) or {}
+    except Exception:
+        return res
+    return dict(res, **fetched) if fetched.get("segments") else res
 
 
 def _store_result(partner_id, job, res):

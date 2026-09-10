@@ -46,6 +46,12 @@ WORK_KINDS = {
     # Reads a track and reports what is measurable in it. Generates nothing,
     # which is why Remix Lab can run without music generation switched on.
     "remix_plan": ("music", "Composition plan", True),
+    # Pulls the words up off a recording. A transcript of what was
+    # actually sung - not written lyrics, and deliberately not invented
+    # ones: the words on a master belong to whoever wrote them, and a
+    # machine guessing at a mumbled line and presenting it as the lyric
+    # would be putting words in somebody's mouth.
+    "lyric_sheet": ("transcription", "Lyric sheet", True),
 }
 
 WORK_STATUSES = ("draft", "queued", "running", "ready", "refused", "failed")
@@ -548,6 +554,18 @@ def _build_request(work, capability, ap, partner_id=None):
         request = {"source_asset_id": work.get("source_asset_id"),
                    "operation": "isolate"}
         request.update(_source_file(work, partner_id))
+        return request
+    if capability == "transcription":
+        request = ap.TranscriptionRequest(
+            language=options.get("language") or None,
+            # One singer on a vocal take: speaker labels would split a
+            # double-tracked chorus into two people who do not exist.
+            diarize=False,
+            timestamps=True)
+        found = _source_file(work, partner_id)
+        request.audio_path = found.get("audio_path")
+        request.audio_bytes = found.get("audio_bytes")
+        request.file_name = found.get("file_name")
         return request
     if capability == "music":
         # remix_plan analyses; music_generation creates. Same capability,
