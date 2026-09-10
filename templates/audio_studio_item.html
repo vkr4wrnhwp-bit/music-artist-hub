@@ -75,8 +75,31 @@
               <div class="text-xs text-gray-300">{{ out.mime_type }}</div>
             </td>
             <td>
-              {#- Served through the owner check, never a bare bucket URL. -#}
-              <audio controls preload="none" class="w-full" src="{{ out_url }}"></audio>
+              {#- Served through the owner check, never a bare bucket URL.
+                  The element stays the engine - it streams, and it cannot
+                  get stuck behind a suspended AudioContext the way the
+                  Studio and Rack transports did. The canvas beside it is
+                  drawn from a one-off decode, so there is a picture of the
+                  file and somewhere to click, which four identical grey
+                  bars never gave anybody comparing stems. -#}
+              <div class="sd-deck" data-sd-src="{{ out_url }}">
+                <button type="button" class="sd-btn" data-sd-back
+                        aria-label="Back ten seconds" title="Back 10s">⏪</button>
+                <button type="button" class="sd-btn" data-sd-play
+                        aria-label="Play">▶</button>
+                <button type="button" class="sd-btn" data-sd-fwd
+                        aria-label="Forward ten seconds" title="Forward 10s">⏩</button>
+                <canvas class="sd-wave" data-sd-wave height="44"
+                        aria-label="Waveform for {{ out.file_name }} — click to seek"></canvas>
+                <span class="sd-time" data-sd-time>0:00</span>
+                <audio preload="metadata" class="sr-only" src="{{ out_url }}"></audio>
+                <span class="sd-note" data-sd-note></span>
+              </div>
+              {#- Kept for anyone who wants the browser's own controls, and
+                  as the fallback when the script does not run at all. -#}
+              <noscript>
+                <audio controls preload="none" class="w-full" src="{{ out_url }}"></audio>
+              </noscript>
             </td>
             <td class="whitespace-nowrap">{{ (out.file_size or 0) // 1024 }} KB</td>
           </tr>
@@ -185,6 +208,7 @@
   </form>
 </div>
 
+<script src="/static/js/stemdeck.js?v=1"></script>
 <script src="/static/js/loudness.js?v=1"></script>
 <script src="/static/js/audioconv.js?v=1"></script>
 <script src="/static/js/dubmatch.js?v=1"></script>
