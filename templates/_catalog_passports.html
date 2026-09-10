@@ -60,7 +60,7 @@
         </label>
         <span id="id3-msg" class="text-xs text-gray-300 font-medium">Pick an MP3 — the title fills in from its real embedded tag. The file stays on your device.</span>
         <form method="post" action="/tracks/import" enctype="multipart/form-data" class="ml-auto flex items-center gap-2">
-          <label class="cursor-pointer rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-gray-200 hover:bg-white/5" title="Columns: title (required), release, release_date, isrc, upc, writers, producers, publishers, pro, label">
+          <label class="cursor-pointer rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-gray-200 hover:bg-white/5" title="Columns: title (required), release, release_date, isrc, upc, catno, writers, producers, publishers, pro, label">
             Import CSV catalog<input type="file" name="csv" accept=".csv,text/csv" class="hidden" onchange="this.form.submit()">
           </label>
         </form>
@@ -104,11 +104,77 @@
           {% else %}{{ sb.lamp("No certificate yet") }}{% endif %}
           <a href="/tracks/{{ r.t.id }}" class="ml-auto font-bold text-sb-gold-bright hover:underline">Open passport →</a>
         </div>
+
+        {#- DISCOGS - the pressing behind the song. A discography, not an
+            audience source: it answers what the record IS. The lookup runs
+            only when the button is pressed, and an attach fills EMPTY
+            passport fields only. Credits are shown and never written. -#}
+        <div class="mt-3 border-t border-white/5 pt-3">
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            {% if r.discogs %}
+              {{ sb.lamp("Discogs " ~ (r.discogs.catno or r.discogs.release_id), "good") }}
+              <span class="text-gray-300 font-medium">{{ [r.discogs.year, r.discogs.country, r.discogs.label, r.discogs.formats] | select | join(" · ") }}</span>
+              <a href="{{ r.discogs.url }}" target="_blank" rel="noopener" class="font-bold text-sb-gold-bright hover:underline">Release on Discogs →</a>
+            {% else %}
+              {{ sb.lamp("No Discogs pressing attached") }}
+            {% endif %}
+            {% if discogs.on %}
+            <form method="post" action="/tracks/{{ r.t.id }}/discogs" class="ml-auto">
+              <input type="hidden" name="action" value="search">
+              {{ sb.btn("Look up on Discogs" if not r.discogs else "Look up again", type="submit", size="sm") }}
+            </form>
+            {% endif %}
+          </div>
+
+          {% if r.discogs and r.discogs.filled %}
+          <p class="mt-2 text-xs text-gray-300 font-medium">Filled from Discogs: {% for k, v in r.discogs.filled.items() %}<span class="text-gray-200">{{ k }}</span> = {{ v }}{{ ", " if not loop.last }}{% endfor %}. Only fields that were empty were filled — anything you typed stands.</p>
+          {% endif %}
+
+          {% if discogs.on and discogs.open == r.t.id %}
+            {% if discogs.error %}
+            <p class="mt-2 text-xs text-red-400 font-medium">Discogs answered: {{ discogs.error }}. Nothing was saved.</p>
+            {% elif discogs.candidates %}
+            <p class="mt-2 text-xs text-gray-300 font-medium">Searched Discogs for {{ discogs.asked }}. Pick the pressing that is actually yours — a reissue is a different record from the original.</p>
+            <div class="mt-2 space-y-2">
+              {% for c in discogs.candidates %}
+              <div class="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-sb-surface-1 px-3 py-2 text-xs">
+                <a href="{{ c.url }}" target="_blank" rel="noopener" class="min-w-0 flex-1 truncate font-bold text-sb-gold-bright hover:underline">{{ c.title }}</a>
+                <span class="text-gray-300 font-medium">{{ [c.year, c.country, c.label, c.catno, c.formats] | select | join(" · ") }}</span>
+                <form method="post" action="/tracks/{{ r.t.id }}/discogs">
+                  <input type="hidden" name="action" value="attach">
+                  <input type="hidden" name="release_id" value="{{ c.release_id }}">
+                  {{ sb.btn("Attach", type="submit", size="sm", variant="primary") }}
+                </form>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-2 text-xs text-gray-300 font-medium">Discogs has no release matching {{ discogs.asked }}. That is not a problem with the song — plenty of records were never catalogued there.</p>
+            {% endif %}
+          {% endif %}
+
+          {% if r.discogs and r.discogs.credits %}
+          <div class="mt-2 rounded-lg border border-white/10 bg-black/30 p-3">
+            <div class="sb-label text-gray-300">Credits printed on this pressing</div>
+            <div class="mt-2 flex flex-wrap gap-1.5 text-xs">
+              {% for c in r.discogs.credits %}{{ sb.lamp(c.name ~ " — " ~ c.role) }}{% endfor %}
+            </div>
+            <p class="mt-2 text-xs text-gray-300 font-medium">These are shown for you to read and are never written into your splits or songwriter fields: a credit on a third-party database is somebody else’s record of this release, not a rights claim this app can make on your behalf.</p>
+          </div>
+          {% endif %}
+        </div>
       </div>
       {% endfor %}
     </div>
     {% else %}
     <p class="mt-3 text-sm text-gray-300">No passports yet. Add your first track — the passport starts honest: everything unfilled shows yellow or red until you complete it.</p>
+    {% endif %}
+    {% if discogs.on %}
+    <p class="mt-3 text-xs text-gray-300 font-medium">Discogs is connected. It is a discography, not an audience source — it answers what a pressing is (label, catalogue number, country, year, format, sleeve credits) and publishes no listener or streaming figures at all, so nothing here feeds a chart.</p>
+    {% elif discogs.sandbox %}
+    <p class="mt-3 text-xs text-gray-300 font-medium">Discogs lookups are off on this sandbox deployment, so nothing reaches their API from here.</p>
+    {% else %}
+    <p class="mt-3 text-xs text-gray-300 font-medium">Discogs is not connected, so there is no lookup button. Set <span class="text-gray-200">DISCOGS_TOKEN</span> (a personal access token from your Discogs developer settings) and <span class="text-gray-200">DISCOGS_ENABLED=1</span> to look a pressing up by artist and title, catalogue number or barcode.</p>
     {% endif %}
     <p class="mt-3 text-xs text-gray-300 font-medium">Green = clean and release-ready. Yellow = incomplete but fixable. Red = a rights or metadata issue that blocks release until fixed. Nothing here is assumed — every state is computed from what you've entered and uploaded.</p>
   </section>
