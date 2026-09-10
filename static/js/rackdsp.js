@@ -2667,7 +2667,15 @@ function sbWhenRunning(c, fn) {
       statusEl.textContent = "This browser can't record video — use the WAV export.";
       return;
     }
-    ensureCtx().resume();
+    /* Wait for the clock, like every other path that depends on it. A
+       MediaRecorder started against a suspended context records the
+       opening of the hook as silence - and unlike a transport that
+       appears to do nothing, this one produces a file that looks right
+       and is wrong, which is discovered after it has been posted. */
+    sbWhenRunning(ensureCtx(), function () { renderHookVideoNow(h); });
+  }
+
+  function renderHookVideoNow(h) {
     var vc = document.createElement("canvas");
     vc.width = 720; vc.height = 1280;
     var vg = vc.getContext("2d");

@@ -144,8 +144,14 @@
           <div class="truncate text-xs text-gray-300 font-medium">{{ t.album }}</div>
         </div>
         <div class="flex w-32 shrink-0 items-center gap-2">
+          {%- if t.popularity is not none %}
           <span class="sb-meter sb-meter--sm flex-1" role="img" aria-label="{{ t.name }} popularity: {{ t.popularity }}/100"><span class="sb-meter-fill" style="--sb-meter-fill: {{ t.popularity }}%;"></span></span>
           <span class="sb-meter-val w-6">{{ t.popularity }}</span>
+          {%- else %}
+          {#- An empty meter reads as "no popularity", which is a measurement.
+              This one was never taken. -#}
+          <span class="flex-1 text-xs text-gray-300">Not measured</span>
+          {%- endif %}
         </div>
       </div>
       {% endfor %}

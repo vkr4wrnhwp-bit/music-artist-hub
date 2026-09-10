@@ -98,3 +98,33 @@ def test_the_provider_returns_a_silence_rather_than_a_nought(monkeypatch):
     assert sp._count(None) is None, "absent is not zero"
     assert sp._count(0) == 0, "and zero, when sent, is a real reading"
     assert sp._count(104233) == 104233
+
+
+def test_a_top_track_with_no_popularity_says_so_rather_than_showing_zero(client, monkeypatch):
+    """The last false zero from this change, fixed after the outage.
+
+    `t.get("popularity", 0)` does nothing for a key that is present
+    holding null — the same trap that put "0 followers" under an artist
+    who has many. An empty meter reads as "no popularity", which is a
+    measurement; this one was never taken.
+    """
+    _history(client, "tracks-%s" % uuid.uuid4().hex[:8])
+    monkeypatch.setattr(sp, "pulse_configured", lambda: True)
+    monkeypatch.setattr(sp, "app_token", lambda: "token")
+    monkeypatch.setattr(sp, "_api", lambda path, token: (
+        dict(ARTIST, followers={"total": 104233}, popularity=47)
+        if "/artists/" in path and "top-tracks" not in path else
+        {"tracks": [{"name": "Measured", "popularity": 52,
+                     "album": {"name": "Memoirs"}, "external_urls": {}},
+                    {"name": "Withheld", "album": {"name": "Memoirs"},
+                     "external_urls": {}}]}))
+    body = client.get("/pulse").get_data(as_text=True)
+    assert ">52<" in body, "a real reading still shows its number"
+    assert "Not measured" in body
+    assert "--sb-meter-fill: 0%" not in body, "an empty bar is a claim"
+    assert "--sb-meter-fill: None%" not in body, "and None is broken CSS"
+
+
+def test_the_provider_never_invents_a_track_popularity():
+    assert sp._count(None) is None
+    assert sp._count(0) == 0, "a real nought is a real reading"

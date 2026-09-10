@@ -274,7 +274,11 @@ def artist_pulse(artist_id):
         "url": ((artist.get("external_urls") or {}).get("spotify") or ""),
         "top_tracks": [{
             "name": t.get("name") or "",
-            "popularity": t.get("popularity", 0),
+            # `.get(key, 0)` does nothing for a key that is present
+            # holding null, and a track with no popularity is not a
+            # track with none - the same claim that put "0 followers"
+            # under an artist who has many.
+            "popularity": _count(t.get("popularity")),
             "album": ((t.get("album") or {}).get("name") or ""),
             "url": ((t.get("external_urls") or {}).get("spotify") or ""),
         } for t in (top.get("tracks") or [])[:10]],

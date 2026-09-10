@@ -80,3 +80,15 @@ def test_decoding_was_not_slowed_down_for_no_reason():
     src = _read("static/js/rackdsp.js")
     assert re.search(r'ensureCtx\(\)\.resume\(\);', src), (
         "the load paths should still resume eagerly without waiting")
+
+
+def test_the_video_capture_waits_for_the_clock_too():
+    """A MediaRecorder started against a suspended context records the
+    opening of the hook as silence — and unlike a transport that appears
+    to do nothing, this produces a file that looks right and is wrong,
+    discovered after it has been posted."""
+    src = _read("static/js/rackdsp.js")
+    start = src[src.index("function renderHookVideo(h)"):]
+    start = start[:start.index("function renderHookVideoNow(h)")]
+    assert "sbWhenRunning(ensureCtx()" in start
+    assert ".resume();" not in start, "no un-awaited resume before recording"
