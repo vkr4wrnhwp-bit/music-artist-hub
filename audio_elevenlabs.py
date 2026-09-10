@@ -64,6 +64,21 @@ VENDOR = "elevenlabs"
 DEFAULT_STT_MODEL = os.environ.get("ELEVENLABS_STT_MODEL") or "scribe_v2"
 DEFAULT_TTS_MODEL = os.environ.get("ELEVENLABS_TTS_MODEL") or "eleven_multilingual_v2"
 
+# Which text-to-speech models accept an explicit language_code. The default
+# one does NOT: sending it returned
+#
+#   Model 'eleven_multilingual_v2' does not support language_code 'english'
+#
+# and the whole voiceover failed. That model reads the language off the
+# script itself, which is why there is nothing to pass it. Passing an
+# unsupported parameter is the caller's mistake, not the artist's, so the
+# parameter is dropped for those models rather than the job refused.
+LANGUAGE_CODE_MODELS = ("eleven_turbo_v2_5", "eleven_flash_v2_5", "eleven_v3")
+
+
+def model_takes_language_code(model_id):
+    return (model_id or "").strip() in LANGUAGE_CODE_MODELS
+
 _TRUE = ("1", "true", "yes", "on")
 _lock = threading.Lock()
 _health_cache = {"at": 0.0, "value": None}
@@ -476,7 +491,7 @@ class ElevenLabsSpeech(_Base, ap.SpeechProvider):
             "output_format": OUTPUT_FORMAT,
             "enable_logging": self._logging_flag(request.zero_retention),
         }
-        if request.language:
+        if request.language and model_takes_language_code(kw["model_id"]):
             kw["language_code"] = request.language
         audio = _bytes(c.text_to_speech.convert(**kw))
         return {"audio": audio, "mime_type": _mime_for_format(OUTPUT_FORMAT),

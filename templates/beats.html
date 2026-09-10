@@ -96,6 +96,24 @@
             {% endif %}
             <span class="bt-hint">{{ row.summary.signed }} signed · {{ row.summary.unsigned }} awaiting · {{ row.summary.cleared }} cleared</span>
             <span class="bt-fee">${{ "{:,.2f}".format(row.summary.fees_agreed) }}</span>
+            {#- Undo a wrong drop from here. Both controls already existed on
+                the beat's own page and nowhere else, so a file dropped onto
+                the wrong row could only be undone by somebody who already
+                knew to go looking for it. Offered only while nothing is
+                signed: once a licence exists, removal is a heavier act than
+                a list row should carry, and the beat's page says so in
+                those words. -#}
+            {% if not row.summary.signed %}
+              {% if a %}
+              <button type="button" class="bt-btn bt-btn--ghost bt-btn--small"
+                      data-drop-audio="{{ row.beat.id }}"
+                      data-title="{{ row.beat.title }}">Remove audio</button>
+              {% endif %}
+              <form method="post" action="/beats/{{ row.beat.id }}/delete"
+                    onsubmit="return confirm('Delete “{{ row.beat.title }}” from the registry? {{ 'The audio goes with it. ' if a else '' }}Nothing is signed against it.');">
+                <button class="bt-btn bt-btn--ghost bt-btn--small" type="submit">Delete beat</button>
+              </form>
+            {% endif %}
           </div>
         </li>
         {% endfor %}
@@ -223,5 +241,36 @@
 
 <script>window.__btAudio = {{ audio_public | js_json }}; window.__btMaxMb = {{ max_beat_mb }};</script>
 <script src="/static/js/tempokey.js?v=3"></script>
-<script src="/static/js/beats.js?v=1"></script>
+<script src="/static/js/beats.js?v=2"></script>
+<script>
+/* Remove just the audio, keeping the registry row and anything filed
+   under it. The endpoint answers JSON, so this is a fetch rather than a
+   form, and the page is reloaded so the waveform and the play button
+   agree with what is actually on the beat now. */
+(function () {
+  document.querySelectorAll("[data-drop-audio]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var title = btn.dataset.title || "this beat";
+      if (!confirm("Remove the audio from “" + title + "”? "
+                 + "The beat stays in the registry — you can drop the "
+                 + "right file on it afterwards.")) { return; }
+      btn.disabled = true;
+      fetch("/beats/" + btn.dataset.dropAudio + "/audio/delete",
+            {method: "POST", credentials: "same-origin"})
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.ok) { window.location.reload(); return; }
+          btn.disabled = false;
+          alert("That audio could not be removed. It may already be gone — "
+              + "reload the page to see where things stand.");
+        })
+        .catch(function () {
+          btn.disabled = false;
+          alert("That audio could not be removed: the request did not reach "
+              + "the server.");
+        });
+    });
+  });
+})();
+</script>
 {% endblock %}

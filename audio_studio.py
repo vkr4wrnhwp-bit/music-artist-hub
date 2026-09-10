@@ -96,6 +96,18 @@ DUBBING_CODES = tuple(code for code, _n in _DUBBING)
 def unknown_languages(codes):
     return [c for c in codes if c not in DUBBING_CODES]
 
+
+def language_code(typed):
+    """An ISO code from whatever somebody typed, or "" if it is not one.
+
+    The voiceover field took the raw text, lowercased and cut to eight
+    characters, and handed it to the vendor. Typing the language rather
+    than the code sent language_code="english" and came back a 400 -
+    and the truncation would have turned "portuguese" into "portugue"
+    even for somebody who typed a name we do know.
+    """
+    return DUBBING_LANGUAGES.get((typed or "").strip().lower(), "")
+
 # The two separations on offer, as (option value, what the artist reads).
 # The values are the provider's own variation ids; the adapter validates
 # them again before anything is sent.
@@ -382,7 +394,12 @@ def studio_new():
     # One item per piece of work. A dub is one language each - the provider
     # runs one project per target language - so "es, fr" becomes two items
     # sharing the same source, each with its own status, files and reason.
-    option_sets = [_options(kind)]
+    try:
+        option_sets = [_options(kind)]
+    except ValueError as bad:
+        # A field the artist can fix, said plainly, rather than a 500 or a
+        # vendor 400 arriving after the job looks like it started.
+        return _refuse(str(bad))
     if kind == "dubbing":
         unknown = unknown_languages(option_sets[0]["languages"])
         if unknown:
@@ -645,9 +662,18 @@ def _options(kind):
         voice = (request.form.get("voice_id") or "").strip()[:80]
         if voice:
             out["voice_id"] = voice
-        language = (request.form.get("language") or "").strip().lower()[:8]
-        if language:
-            out["language"] = language
+        typed = (request.form.get("language") or "").strip()
+        if typed:
+            code = language_code(typed)
+            if not code:
+                # Refused here, before the job is created and before a
+                # character is spent - the same rule dubbing already used.
+                raise ValueError(
+                    "“%s” is not a language this reads. Use a "
+                    "two-letter code such as en, es or fr, or leave it empty "
+                    "and the voice follows the language of the script."
+                    % typed[:40])
+            out["language"] = code
         return out
     if kind == "voice_vault":
         # owner_verified is never taken from this form. The vendor's own
