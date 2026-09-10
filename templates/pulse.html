@@ -180,15 +180,22 @@
       </div>
     </div>
     {% set n = snaps | length %}
-    {% set fmax = (snaps | map(attribute='followers') | max) or 1 %}
-    {% set fmin = snaps | map(attribute='followers') | min %}
+    {#- A snapshot can hold "not measured": Spotify omits the follower
+        count for some apps, and that is stored as NULL rather than as a
+        nought. So the scale is taken from the days that WERE measured,
+        and an unmeasured day is a gap in the line rather than a zero
+        plunge - or a crash, which is what comparing None to an int did. -#}
+    {% set fvals = snaps | map(attribute='followers') | reject('none') | list %}
+    {% set fmax = (fvals | max) or 1 if fvals else 1 %}
+    {% set fmin = (fvals | min) if fvals else 0 %}
     {% set dmax = (snaps | map(attribute='deezer_fans') | max) or 1 %}
     {% set dmin = snaps | map(attribute='deezer_fans') | min %}
     <svg viewBox="0 0 600 160" class="mt-3 w-full">
       {% for key, cls, vmin, vmax, color in [('followers', 'tl-followers', fmin, fmax, '#E8B950'), ('popularity', 'tl-pop', 0, 100, '#7FA8E8'), ('deezer_fans', 'tl-deezer', dmin, dmax, '#7FA8E8')] %}
       <polyline id="{{ cls }}" fill="none" stroke="{{ color }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" {{ 'style=display:none' if cls == 'tl-deezer' }}
-        points="{% for sn in snaps %}{{ (10 + loop.index0 * 580 / ([n - 1, 1] | max)) | round(1) }},{{ (150 - ((sn[key] - vmin) / ([(vmax - vmin), 1] | max) * 135)) | round(1) }} {% endfor %}">
-        <title>{{ key }}: {{ snaps[0][key] }} → {{ snaps[-1][key] }}</title>
+        points="{% for sn in snaps %}{% if sn[key] is not none %}{{ (10 + loop.index0 * 580 / ([n - 1, 1] | max)) | round(1) }},{{ (150 - ((sn[key] - vmin) / ([(vmax - vmin), 1] | max) * 135)) | round(1) }} {% endif %}{% endfor %}">
+        {%- set read = snaps | map(attribute=key) | reject('none') | list %}
+        <title>{{ key }}: {% if read %}{{ read[0] }} → {{ read[-1] }}{% if read | length < n %} ({{ n - (read | length) }} of {{ n }} days not measured){% endif %}{% else %}not measured{% endif %}</title>
       </polyline>
       {% endfor %}
     </svg>

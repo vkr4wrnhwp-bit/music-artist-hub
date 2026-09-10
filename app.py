@@ -7370,12 +7370,15 @@ def create_app():
             week_ago = (datetime.now(timezone.utc).date()
                         - timedelta(days=7)).isoformat()
             base = next((s for s in snaps if s["day"] <= week_ago), snaps[0])
-            if base["followers"]:
+            # Both ends have to be measured. Spotify omits `followers`
+            # for some apps, and the difference between a number and a
+            # silence is not a change - it is one reading.
+            if base["followers"] and pulse["followers"] is not None:
                 my_delta7 = pulse["followers"] - base["followers"]
         # Milestone: the largest round follower number crossed between the
         # oldest snapshot on file and today — detection, not prediction.
         milestone = None
-        if pulse and snaps and len(snaps) > 1:
+        if pulse and snaps and len(snaps) > 1 and pulse["followers"] is not None:
             start = min(s["followers"] for s in snaps if s["followers"]) \
                 if any(s["followers"] for s in snaps) else 0
             for level in (1000000, 500000, 100000, 50000, 10000, 5000,
