@@ -130,12 +130,19 @@
   <!-- Growth -->
   <div class="card mt-4 rounded-xl border border-white/10 bg-sb-surface-1 p-4">
     <div class="sb-label text-sb-gold">Audience Growth</div>
-    {% if pulse|length >= 2 %}
-    <p class="mt-1.5 text-sm">Spotify followers {{ "{:,}".format(pulse[0].followers) }} → {{ "{:,}".format(pulse[-1].followers) }}
-      ({{ '+' if pulse[-1].followers - pulse[0].followers >= 0 else '' }}{{ "{:,}".format(pulse[-1].followers - pulse[0].followers) }})
-      between {{ pulse[0].day }} and {{ pulse[-1].day }} — tracked by Street Banker Pulse.</p>
+    {#- Only the readings that carry a number. A snapshot can say "not
+      measured" - Spotify omits the follower count for some applications
+      - and a growth claim built out of two silences is not a claim this
+      sheet can put in front of a label. -#}
+    {% set counted = pulse | rejectattr('followers', 'none') | list %}
+    {% if counted|length >= 2 %}
+    <p class="mt-1.5 text-sm">Spotify followers {{ "{:,}".format(counted[0].followers) }} → {{ "{:,}".format(counted[-1].followers) }}
+      ({{ '+' if counted[-1].followers - counted[0].followers >= 0 else '' }}{{ "{:,}".format(counted[-1].followers - counted[0].followers) }})
+      between {{ counted[0].day }} and {{ counted[-1].day }} — tracked by Street Banker Pulse.</p>
+    {% elif counted %}
+    <p class="mt-1.5 text-sm text-gray-300">One Pulse snapshot on file ({{ counted[0].day }}: {{ "{:,}".format(counted[0].followers) }} Spotify followers). Growth trend appears after the next snapshot lands.</p>
     {% elif pulse %}
-    <p class="mt-1.5 text-sm text-gray-300">One Pulse snapshot on file ({{ pulse[0].day }}: {{ "{:,}".format(pulse[0].followers) }} Spotify followers). Growth trend appears after the next snapshot lands.</p>
+    <p class="mt-1.5 text-sm text-gray-300">Pulse is tracking this artist, but Spotify has not returned a follower count for the {{ pulse|length }} snapshot{{ '' if pulse|length == 1 else 's' }} on file. Growth appears here once a count comes back.</p>
     {% else %}
     <p class="mt-1.5 text-sm text-gray-300">No Pulse snapshots yet — growth tracking starts when the artist connects their Spotify profile in Pulse.</p>
     {% endif %}

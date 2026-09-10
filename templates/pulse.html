@@ -284,7 +284,7 @@
         b.className = "flex items-center gap-3 rounded-xl border border-white/10 bg-black/40 p-3 text-left hover:border-sb-gold/50";
         b.innerHTML = (a.image ? '<img src="' + a.image + '" class="h-10 w-10 rounded-full object-cover">' : '<span class="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-sm">♪</span>')
           + '<span class="min-w-0"><span class="block truncate text-sm font-bold"></span>'
-          + '<span class="block text-xs text-gray-300 font-medium">' + a.followers.toLocaleString() + ' followers'
+          + '<span class="block text-xs text-gray-300 font-medium">' + followerLine(a.followers)
           + (a.genres && a.genres.length ? ' · ' + a.genres.slice(0, 2).join(", ") : '') + '</span></span>';
         b.querySelector(".font-bold").textContent = a.name;
         b.addEventListener("click", async () => {
@@ -298,6 +298,14 @@
     searchBtn.addEventListener("click", run);
     q.addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
   }
+  /* Spotify omits `followers` for some applications, so the search
+     endpoint sends null rather than pretending it is nought. Calling
+     toLocaleString() on that throws, and a thrown handler renders no
+     results at all - which looked exactly like "no artists found" on
+     the one control that gates the whole page. */
+  const followerLine = (n) =>
+    (n === null || n === undefined) ? "Follower count not measured"
+                                    : n.toLocaleString() + " followers";
   // Peer watch: search, pin, remove
   const peerBtn = document.getElementById("peer-search");
   if (peerBtn) {
@@ -314,7 +322,7 @@
         b.className = "flex items-center gap-3 rounded-xl border border-white/10 bg-black/40 p-3 text-left hover:border-sb-gold/50";
         b.innerHTML = (a.image ? '<img src="' + a.image + '" class="h-9 w-9 rounded-full object-cover">' : '<span class="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-sm">♪</span>')
           + '<span class="min-w-0"><span class="block truncate text-sm font-bold"></span>'
-          + '<span class="block text-xs text-gray-300 font-medium">' + a.followers.toLocaleString() + ' followers</span></span>'
+          + '<span class="block text-xs text-gray-300 font-medium">' + followerLine(a.followers) + '</span></span>'
           + '<span class="ml-auto shrink-0 text-xs font-black uppercase text-sb-gold-bright">Pin</span>';
         b.querySelector(".font-bold").textContent = a.name;
         b.addEventListener("click", async () => {
