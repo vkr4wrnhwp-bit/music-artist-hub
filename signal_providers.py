@@ -862,6 +862,113 @@ class SoundchartsAdapter(_EnvProvider):
         return out
 
 
+class SongstatsAdapter(_EnvProvider):
+    """Songstats, through their enterprise API.
+
+    A second provider for the same capabilities Soundcharts covers. The
+    registry picks ONE per capability by preference order, so this is a
+    fallback or an alternative primary - never a second opinion rendered
+    beside the first. Two sources quietly disagreeing about one artist is
+    its own honesty problem, and the registry deliberately does not create
+    it.
+
+    Their rate limit is unusual and worth stating: 10 requests a second,
+    10 concurrent, and 1000 requests per calendar month PER RESOURCE. The
+    six-hour cache above sits far inside that, so the monthly ceiling is
+    not a constraint in practice - but it is why nothing here loops over
+    an artist list.
+    """
+    key = "songstats"
+    label = "Songstats"
+    env_flag = "SONGSTATS_ENABLED"
+    env_keys = ("SONGSTATS_API_KEY",)
+    capabilities = (CAP_ARTIST, CAP_METRICS)
+    base_url = "https://api.songstats.com/enterprise/v1"
+
+    def __init__(self, fetch=None):
+        self._fetch = fetch
+
+    def cache_ttl(self):
+        return 6 * 3600
+
+    # -- transport --
+    def _get(self, path, **params):
+        url = "%s/%s?%s" % (self.base_url, path.lstrip("/"),
+                            urllib.parse.urlencode(
+                                {k: v for k, v in params.items() if v not in (None, "")}))
+        if self._fetch is not None:
+            return self._fetch(url)
+        req = urllib.request.Request(url, headers={
+            "apikey": (os.environ.get("SONGSTATS_API_KEY") or "").strip(),
+            "Accept": "application/json",
+            "User-Agent": "StreetBanker/1.0"})
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            # Their words, not a flattened "failed". 429 is the per-resource
+            # monthly ceiling and reads very differently from a bad key.
+            body = ""
+            try:
+                body = e.read().decode("utf-8", "replace")[:200]
+            except Exception:
+                pass
+            raise ProviderError("Songstats %s: %s" % (e.code, body or e.reason))
+        except Exception as e:
+            raise ProviderError("Songstats: %s" % e)
+
+    # -- artists --
+    def search_artists(self, query, limit=20):
+        q = (query or "").strip()
+        if not q:
+            return []
+        payload = self._get("/artists/search", q=q, limit=limit) or {}
+        out = []
+        for item in (payload.get("artists") or payload.get("results") or []):
+            pid = (item.get("songstats_artist_id") or item.get("id") or "").strip()
+            if not pid:
+                continue
+            out.append({"provider_artist_id": pid,
+                        "name": (item.get("name") or "").strip(),
+                        "image": (item.get("avatar") or item.get("image") or ""),
+                        "genres": item.get("genres") or []})
+        return out
+
+    # Their history keys, mapped to the names this registry already uses.
+    # Anything not in here is deliberately dropped rather than guessed at.
+    _METRICS = {
+        "monthly_listeners_current": "spotify_monthly_listeners",
+        "followers_total": "spotify_followers",
+        "popularity_current": "spotify_popularity",
+    }
+
+    def get_artist_metrics(self, provider_artist_id, start, end):
+        payload = self._get("/artists/historic_stats",
+                            songstats_artist_id=provider_artist_id,
+                            source="spotify",
+                            start_date=start.isoformat(),
+                            end_date=end.isoformat()) or {}
+        out = []
+        for block in (payload.get("stats") or []):
+            if (block.get("source") or "") != "spotify":
+                continue
+            for row in ((block.get("data") or {}).get("history") or []):
+                day = (row.get("date") or "")[:10]
+                if not day:
+                    continue
+                for their_key, ours in self._METRICS.items():
+                    value = row.get(their_key)
+                    if value is None:
+                        continue        # a silence is not a nought
+                    try:
+                        out.append({"date": day, "metric": ours,
+                                    "value": int(value)})
+                    except (TypeError, ValueError):
+                        continue
+        out.sort(key=lambda x: (x["metric"], x["date"]))
+        return out
+
+
 class ChartmetricAdapter(_EnvProvider):
     key = "chartmetric"
     label = "Chartmetric"
@@ -2590,10 +2697,15 @@ class MockMusicIntelligenceAdapter(MusicIntelligenceProvider):
 # YouTubeAdapter sits at the END on purpose: Soundcharts already claims
 # CAP_SOCIAL and is preferred where both are configured, so adding this
 # one changes which provider serves nothing that was already served.
+# Order is preference, and it decides which single provider answers a
+# capability. Soundcharts stays ahead of Songstats because it covers nine
+# of the eleven capabilities against Songstats' two - a fallback that
+# quietly took over CAP_METRICS would leave cities and playlists behind
+# with nothing announcing the swap.
 _REAL_ADAPTERS = (BandsintownAdapter, TourDatesAdapter, SoundchartsAdapter, ChartmetricAdapter,
                   MusicBrainzAdapter, MLCAdapter, SoundExchangeAdapter, SpotifyMetadataAdapter,
                   PublicWebResearchAdapter, InternalStreetBankerAdapter, YouTubeAdapter,
-                  DiscogsAdapter)
+                  DiscogsAdapter, SongstatsAdapter)
 
 
 class ProviderRegistry(object):
