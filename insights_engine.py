@@ -81,15 +81,21 @@ def build_insights(user_id):
                             "/links/fans", "Fan CRM"))
 
     # --- Growth: pulse snapshot deltas ------------------------------------------
-    snaps = store.list_pulse_snapshots(user_id)
+    # Only readings that carry a number: Spotify omits the follower count
+    # for some applications and the snapshot records that as NULL, so a
+    # growth claim needs two measured ends or there is no claim to make.
+    snaps = [s for s in store.list_pulse_snapshots(user_id)
+             if s["followers"] is not None]
     if len(snaps) >= 2:
         first, last = snaps[0], snaps[-1]
         delta = last["followers"] - first["followers"]
         if delta != 0:
+            pop = ("Popularity is %d/100 as of the latest snapshot."
+                   % last["popularity"] if last["popularity"] is not None
+                   else "Spotify did not return a popularity score for it.")
             out.append(_insight("growth", "Spotify followers %+d" % delta,
-                                "From %s to %s, tracked live. Popularity is %d/100 "
-                                "as of the latest snapshot."
-                                % (first["day"], last["day"], last["popularity"]),
+                                "From %s to %s, tracked live. %s"
+                                % (first["day"], last["day"], pop),
                                 "/pulse", "Growth history"))
 
     # --- Catalog hygiene ----------------------------------------------------------

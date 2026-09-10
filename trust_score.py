@@ -14,7 +14,8 @@ import links_store as mls
 
 
 def _pts(value, full):
-    if full <= 0:
+    """A value of None was never measured, and scores nothing."""
+    if full <= 0 or value is None:
         return 0
     return min(round(10 * value / full), 10)
 
@@ -25,8 +26,14 @@ def _pulse_pts(user_id):
     if store.get_pulse_profile(user_id) is None:
         return 0
     snaps = store.list_pulse_snapshots(user_id)
-    latest = snaps[-1] if snaps else {}
-    return (5 + (3 if latest.get("followers", 0) > 0 else 0)
+    # "Real followers on record" means a reading that carries a number.
+    # Spotify omits the field for some applications and the snapshot
+    # stores that as NULL, so `.get("followers", 0)` returns None - the
+    # key is there, holding nothing - and comparing it to 0 raised,
+    # taking down /trust-score, /capital-score, /funding, /insights and
+    # /valuation, all of which read this score.
+    counted = [s["followers"] for s in snaps if s["followers"] is not None]
+    return (5 + (3 if counted and counted[-1] > 0 else 0)
             + (2 if len(snaps) >= 2 else 0))
 
 
