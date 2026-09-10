@@ -1,6 +1,22 @@
 /* The Rack — SB-1200. All DSP runs here in the browser via Web Audio;
    nothing is uploaded. Knobs, meters, and curves read/write one state
    object; buildChain() is shared by live playback and offline export. */
+/* A browser starts an AudioContext suspended until a user gesture, and
+   resume() is asynchronous. Starting a source against a suspended clock
+   schedules it at a time that never arrives, so the sound never comes -
+   which is why the first click on a transport appeared to do nothing and
+   the second one worked. Anything that depends on the clock running goes
+   through here; decoding does not, and stays where it is. Defined at file
+   scope on purpose: the call sites sit inside different closures. */
+function sbWhenRunning(c, fn) {
+  if (c && c.state === "suspended") {
+    var go = function () { fn(); };
+    c.resume().then(go, go);
+    return;
+  }
+  fn();
+}
+
 (function () {
   "use strict";
   var EQ_BANDS = [
@@ -114,7 +130,6 @@
     if (m === "cab") return !!state.cab.on;
     return state.mods[m] !== false;
   }
-
 
   var ctx = null, buffer = null, playing = null;
   var live = null;
@@ -1706,7 +1721,10 @@
   }
 
   function startPlayback(offset) {
-    ensureCtx().resume();
+    sbWhenRunning(ensureCtx(), function () { startPlaybackNow(offset); });
+  }
+
+  function startPlaybackNow(offset) {
     var loop = document.getElementById("rk-loop").checked;
     offset = Math.max(0, Math.min(offset || 0, Math.max(0, duration() - 0.05)));
     if (refMode && refBuffer) {
@@ -2982,7 +3000,6 @@
         .catch(function (e) { studioDone(e.message); });
     });
   }
-
 
   /* ---------- Explain mode -------------------------------------------
      Forty-eight controls on this page carry a title attribute holding
@@ -4376,13 +4393,14 @@
         try { tkPreviewSrc.stop(); } catch (e) { /* already finished */ }
       }
       ensureCtx();
-      ctx.resume();
-      tkPreviewSrc = ctx.createBufferSource();
-      tkPreviewSrc.buffer = buf;
-      tkPreviewSrc.connect(ctx.destination);
-      tkPreviewSrc.start();
-      tkStatus.textContent = "Playing " + mmss(buf.duration)
-        + " preview — dry, straight out, not through the rack.";
+      sbWhenRunning(ctx, function () {
+        tkPreviewSrc = ctx.createBufferSource();
+        tkPreviewSrc.buffer = buf;
+        tkPreviewSrc.connect(ctx.destination);
+        tkPreviewSrc.start();
+        tkStatus.textContent = "Playing " + mmss(buf.duration)
+          + " preview — dry, straight out, not through the rack.";
+      });
     });
   });
 
@@ -4875,7 +4893,6 @@
     if (e.shiftKey) histRedo(); else histUndo();
   });
 
-
   /* ---------- the manual drawer ----------
      The printed manual, in the drawer under the amp. Nothing in it is a
      second copy that can drift: the signal path is read from the patch the
@@ -4922,7 +4939,6 @@
       }
     });
   })();
-
 
   /* ---------- BOUNCE: render once, measure THAT render, hand over the file ----------
      The page could already export a WAV, measure loudness, and convert

@@ -31,6 +31,22 @@
  * an AudioContext: peaks for the waveform, the match gain, dBFS conversion,
  * timecode formatting, marker positioning.
  */
+/* A browser starts an AudioContext suspended until a user gesture, and
+   resume() is asynchronous. Starting a source against a suspended clock
+   schedules it at a time that never arrives, so the sound never comes -
+   which is why the first click on a transport appeared to do nothing and
+   the second one worked. Anything that depends on the clock running goes
+   through here; decoding does not, and stays where it is. Defined at file
+   scope on purpose: the call sites sit inside different closures. */
+function sbWhenRunning(c, fn) {
+  if (c && c.state === "suspended") {
+    var go = function () { fn(); };
+    c.resume().then(go, go);
+    return;
+  }
+  fn();
+}
+
 (function (root) {
   "use strict";
 
@@ -324,9 +340,8 @@
       },
       play: function () {
         if (!bufA) { return; }
-        ensure().resume();
-        startAt(position());
-        emit();
+        var at = position();
+        sbWhenRunning(ensure(), function () { startAt(at); emit(); });
       },
       pause: function () {
         offset = position();
