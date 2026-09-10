@@ -77,9 +77,19 @@ def index():
     user = _signed_in()
     if user is None:
         return redirect(url_for("login", next=request.path))
+    # Archived passports are a separate view rather than a mixed list with
+    # a badge: the working list should be the ones in use, and the archive
+    # is somewhere you go on purpose.
+    showing_archived = request.args.get("archived") == "1"
+    everything = ps.list_passports(user["id"], include_archived=True)
+    archived_n = sum(1 for p in everything if p.get("archived"))
     return render_template("passport/index.html",
                            active_page="passports",
-                           passports=ps.list_passports(user["id"]),
+                           passports=[p for p in everything
+                                      if bool(p.get("archived")) == showing_archived],
+                           showing_archived=showing_archived,
+                           archived_n=archived_n,
+                           notice=(request.args.get("notice") or ""),
                            **_ctx())
 
 
@@ -187,6 +197,37 @@ def publish(head, user):
     return redirect(url_for("passport.versions", passport_id=head["id"]))
 
 
+@bp.route("/<passport_id>/archive", methods=["POST"])
+@require_passport
+def archive(head, user):
+    """Put a passport out of the working list, or bring it back.
+
+    Not a delete: the versions, the change log and everything anybody
+    advanced against are the point of a passport, and a tour that ended is
+    exactly when that history starts being worth keeping.
+    """
+    wanted = request.form.get("archived") != "0"
+    ps.set_archived(head["id"], user["id"], wanted)
+    if wanted:
+        return redirect(url_for("passport.index"))
+    return redirect(url_for("passport.detail", passport_id=head["id"]))
+
+
+@bp.route("/<passport_id>/version/<version_id>/archive", methods=["POST"])
+@require_passport
+def archive_version(head, user, version_id):
+    """Retire a version nobody should advance against again.
+
+    The store refuses to archive the version in force, because that would
+    leave the passport pointing at a document it is not offering. That
+    refusal is reported rather than swallowed - a button that silently
+    does nothing is worse than one that is not there.
+    """
+    ok = ps.archive_version(version_id, user["id"])
+    return redirect(url_for("passport.versions", passport_id=head["id"],
+                            notice="" if ok else "version-in-force"))
+
+
 @bp.route("/<passport_id>/versions")
 @require_passport
 def versions(head, user):
@@ -201,6 +242,7 @@ def versions(head, user):
     return render_template("passport/versions.html",
                            active_page="passports",
                            passport=head, versions=history,
+                           notice=(request.args.get("notice") or ""),
                            section_labels=dict(SECTION_LABELS,
                                                identity="Identity",
                                                stage_plot="Stage plot",

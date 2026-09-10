@@ -35,6 +35,13 @@
         <span class="sc-section-no">01</span>
         <h3 class="sc-section-title">Versions</h3>
       </div>
+      {% if notice == 'version-in-force' %}
+        <p class="sb-note">
+          <b>Not archived.</b> That is the version in force. Archiving it would
+          leave the passport pointing at a document it is not offering — publish
+          a newer one first.
+        </p>
+      {% endif %}
       {% for v in versions %}
         <div class="sc-vrow">
           <span class="sc-vno">v{{ v.number }}</span>
@@ -44,6 +51,15 @@
           <span>{{ v.change_note or "" }}</span>
           <a class="sc-btn" style="margin-left:auto;"
              href="/passports/{{ passport.id }}/version/{{ v.id }}">Read</a>
+          {%- if v.state != 'published' and v.state != 'archived' %}
+            {#- Only ever offered where the store would allow it: the version
+                in force refuses, and a button that silently does nothing is
+                worse than one that is not there. -#}
+            <form method="post" action="/passports/{{ passport.id }}/version/{{ v.id }}/archive"
+                  onsubmit="return confirm('Archive v{{ v.number }}? It stays readable in the history — this marks it as one nobody should advance against again.');">
+              <button class="sc-btn" type="submit">Archive</button>
+            </form>
+          {%- endif %}
         </div>
       {% endfor %}
     </section>

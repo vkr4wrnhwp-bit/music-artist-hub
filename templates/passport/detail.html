@@ -289,5 +289,17 @@
     </p>
   {% endif %}
 
+  {#- Archiving, not deleting. The versions and the change log are the point
+      of a passport, and a tour that has ended is exactly when that history
+      starts being worth keeping. -#}
+  <form class="sc-noprint" method="post" style="margin-top:18px"
+        action="/passports/{{ passport.id }}/archive"
+        onsubmit="return confirm('Archive this passport? It leaves the working list and keeps everything — every version, the change log, and anything anybody advanced against. You can restore it.');">
+    <button class="sc-btn" type="submit">Archive this passport</button>
+    <span class="sc-muted" style="font-size:13px;margin-left:8px">
+      Leaves the working list. Nothing is deleted, and it can be restored.
+    </span>
+  </form>
+
 </article>
 {% endblock %}

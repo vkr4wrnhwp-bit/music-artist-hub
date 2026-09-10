@@ -29,6 +29,20 @@
   </form>
 </section>
 
+{#- The working list is the passports in use. The archive is somewhere
+    you go on purpose, not a badge mixed into the list you read nightly. -#}
+{% if archived_n or showing_archived %}
+  <p class="sb-note" style="margin-top:12px">
+    {% if showing_archived %}
+      Showing {{ archived_n }} archived passport{{ '' if archived_n == 1 else 's' }}.
+      <a href="/passports">Back to the ones in use</a>
+    {% else %}
+      <a href="/passports?archived=1">{{ archived_n }} archived passport{{ '' if archived_n == 1 else 's' }}</a>
+      — kept whole, out of the way.
+    {% endif %}
+  </p>
+{% endif %}
+
 {% if passports %}
   <div class="sc-grid">
     {% for p in passports %}
@@ -46,8 +60,20 @@
           {% endif %}
         </p>
       </a>
+      {% if showing_archived %}
+        {#- Outside the card, because the card is itself a link and a form
+            cannot live inside one. -#}
+        <form method="post" action="/passports/{{ p.id }}/archive" style="margin:-8px 0 12px">
+          <input type="hidden" name="archived" value="0">
+          <button class="sc-btn" type="submit">Restore “{{ p.artist_name or 'this passport' }}”</button>
+        </form>
+      {% endif %}
     {% endfor %}
   </div>
+{% elif showing_archived %}
+  <section class="sb-panel">
+    <p class="sb-note">Nothing archived.</p>
+  </section>
 {% else %}
   <section class="sb-panel">
     <p class="sb-note">
