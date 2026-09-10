@@ -621,7 +621,10 @@ def twin_report(tracks, ctx, pulse_snaps, queue, analysis=None):
     _measured = [s for s in (pulse_snaps or [])
                  if s["followers"] is not None and s["popularity"] is not None]
     if len(_measured) >= 2:
-        new, old = _measured[0], _measured[-1]
+        # Snapshots come oldest first, so the last one is the current
+        # reading. The names were the wrong way round here, which made
+        # the arrow in the line below run backwards through time.
+        old, new = _measured[0], _measured[-1]
         sec("Audience signal (Spotify/Deezer via Pulse)", "ready",
             ["Followers %s \u2192 %s, popularity %s \u2192 %s over your last %d snapshots."
              % (old["followers"], new["followers"], old["popularity"],
