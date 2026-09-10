@@ -85,14 +85,13 @@ def test_no_template_links_to_a_route_that_does_not_exist(application):
     import glob
     import os
 
-    rules = {str(r) for r in application.url_map.iter_rules()}
-    patterned = [r for r in rules if "<" in r]
+    # The same predicate the homepage editor validates a saved link with.
+    # Two copies of "is this a real route" would drift, and the drift would
+    # be silent: the editor would accept a link this test rejects, or
+    # refuse one it allows, and nobody would find out until a visitor did.
+    import homepage_edit
 
-    def resolves(path):
-        if path in rules:
-            return True
-        return any(re.match("^" + re.sub(r"<[^>]+>", "[^/]+", rule) + "$", path)
-                   for rule in patterned)
+    resolves = homepage_edit.route_resolver(application)
 
     # Only literal hrefs with no Jinja in them, and only ones that look like
     # app routes rather than assets or anchors.

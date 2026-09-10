@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{#- The homepage, editable by its owner.
+
+    The page was already config-driven; the only reason a headline needed
+    an engineer is that the config lived in Python. What is saved here is
+    an override that sits on top of the shipped defaults, so an empty
+    override is the page exactly as it ships and "reset" is deleting a
+    key rather than restoring a backup.
+
+    Text and links only. Rearranging sections would be a page builder and
+    would walk into the design locks; that is a different job.
+-#}
+
+{% block title %}Homepage - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[900px] space-y-5">
+
+  {{ sb.plate("/static/img/closing-wide", [960, 1440, 1672],
+              "Street Banker · Back office", "Homepage",
+              "The words and links on the front door. Saved here, live on the "
+              "next page load — no deploy, and nobody else needed.",
+              position="center 45%") }}
+
+  {% if request.args.get('saved') %}
+    <div class="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-gray-100">
+      <b>Saved.</b> The homepage is showing this now.
+    </div>
+  {% endif %}
+
+  {% if problems %}
+    <div class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3">
+      <p class="text-sm font-bold text-gray-100">Not saved — nothing on the homepage changed.</p>
+      <ul class="mt-2 space-y-1 text-sm text-gray-200">
+        {% for p in problems %}<li>· {{ p }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {#- Said before the form, not after it: this is the one place in the
+      product where something wrong reaches the public without a test run
+      standing in the way. -#}
+  <section class="sb-panel p-4">
+    <p class="text-sm text-gray-300">
+      Two things are checked when you save: that every link goes somewhere real
+      on this site, and that no line claims something is “coming soon” or “not
+      connected” — a fixed sentence cannot know that, and it will still be
+      saying it long after it stops being true.
+    </p>
+    <p class="mt-2 text-sm text-gray-300">
+      <strong class="text-sb-ink">Nothing checks whether what you write is true.</strong>
+      Everywhere else in Street Banker a change goes through a full test run
+      before it reaches anybody. This does not, and that is the whole point of
+      it — so read it back before you save.
+    </p>
+  </section>
+
+  <form method="post" action="/homepage" class="space-y-3">
+    <section class="sb-panel p-4 space-y-3">
+      <h2 class="sb-label sb-label-gold">What the front door says</h2>
+      {% for key, label, value, kind in fields %}
+        <label class="block">
+          <span class="sb-label text-gray-300">{{ label }}{% if kind == 'link' %} <span class="text-gray-300">· a path like /catalog-sweep, an anchor like #platform, or a full https:// address</span>{% endif %}</span>
+          {% if kind == 'long' %}
+            <textarea name="{{ key }}" rows="3" maxlength="600"
+                      class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">{{ value }}</textarea>
+          {% else %}
+            <input name="{{ key }}" value="{{ value }}" maxlength="600"
+                   class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+          {% endif %}
+        </label>
+      {% endfor %}
+      <div class="flex flex-wrap items-center gap-2 pt-1">
+        {{ sb.btn("Save and publish", variant="primary", type="submit") }}
+        <a class="sb-btn sb-btn-secondary" href="/" target="_blank" rel="noopener">Open the homepage ↗</a>
+      </div>
+    </section>
+  </form>
+
+  {% if edited %}
+    <section class="sb-panel p-4">
+      <h2 class="sb-label sb-label-gold">Back to the shipped copy</h2>
+      <p class="mt-2 text-sm text-gray-300">
+        The original wording lives in the code and in git, so this is not a
+        backup that can go missing — putting it back is simply dropping what
+        you saved.
+      </p>
+      <form method="post" action="/homepage/reset" class="mt-3"
+            onsubmit="return confirm('Put the homepage back to the shipped copy? Everything you have saved here is dropped.');">
+        {{ sb.btn("Reset to the shipped copy", variant="secondary", type="submit") }}
+      </form>
+    </section>
+  {% else %}
+    <p class="text-xs text-gray-300">
+      The homepage is showing the shipped copy. Once you save something, a way
+      back to it appears here.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

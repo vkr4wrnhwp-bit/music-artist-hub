@@ -30,6 +30,7 @@ import live_store
 import studio
 import studio_store
 import audio_webhooks
+import homepage_edit
 import partner_os
 import passport_os
 import stage_os
@@ -1711,6 +1712,11 @@ def create_app():
                                 max(hero_img.get("wide_widths") or [0]))
         if not _has_file({"src": widest}):
             config["hero"] = {**config["hero"], "image": None}
+
+        # Whatever the owner has saved, on top of what ships. An empty
+        # override is the shipped page exactly, so this cannot break the
+        # homepage by existing.
+        config = homepage_edit.apply_override(config)
 
         # The Artist EQ ships its data twice: once as a dict for Jinja to
         # render the plate from, once as JSON for the component script.
@@ -7606,6 +7612,115 @@ def create_app():
                                campaigns=campaigns,
                                fan_count=len(mls.list_fans(user["id"])),
                                **ctx)
+
+    # --- The homepage, editable without a deploy ---------------------------
+
+    def _homepage_fields(cfg):
+        """Every editable field, flat, as (key, label, value, kind).
+
+        Flat on purpose: the form, the save and the validator all walk the
+        same list, so a field cannot exist in one and be missed by another.
+        """
+        hero, nav, footer = cfg["hero"], cfg["nav"], cfg["footer"]
+        head = (hero.get("headline") or ["", ""]) + ["", ""]
+        rows = [
+            ("hero.eyebrow", "Eyebrow, above the headline", hero.get("eyebrow") or "", "text"),
+            ("hero.headline.0", "Headline, first line", head[0], "text"),
+            ("hero.headline.1", "Headline, second line", head[1], "text"),
+            ("hero.support", "Supporting paragraph", hero.get("support") or "", "long"),
+            ("nav.logo.primary", "Logo wordmark", nav["logo"].get("primary") or "", "text"),
+            ("nav.logo.secondary", "Logo strapline", nav["logo"].get("secondary") or "", "text"),
+            ("nav.cta.label", "Header button", nav["cta"].get("label") or "", "text"),
+            ("nav.cta.short", "Header button, short form", nav["cta"].get("short") or "", "text"),
+            ("nav.cta.href", "Header button link", nav["cta"].get("href") or "", "link"),
+            ("footer.copyright", "Footer copyright line", footer.get("copyright") or "", "text"),
+        ]
+        for i, cta in enumerate(hero.get("ctas") or []):
+            rows.append(("hero.ctas.%d.label" % i,
+                         "Hero button %d" % (i + 1), cta.get("label") or "", "text"))
+            rows.append(("hero.ctas.%d.href" % i,
+                         "Hero button %d link" % (i + 1), cta.get("href") or "", "link"))
+        for i, link in enumerate(nav.get("links") or []):
+            rows.append(("nav.links.%d.label" % i,
+                         "Menu item %d" % (i + 1), link.get("label") or "", "text"))
+            rows.append(("nav.links.%d.href" % i,
+                         "Menu item %d link" % (i + 1), link.get("href") or "", "link"))
+        return rows
+
+    def _homepage_nest(flat):
+        """Turn dotted keys back into the shape landing_config uses."""
+        out = {}
+        for key, value in flat.items():
+            node, parts = out, key.split(".")
+            for part in parts[:-1]:
+                node = node.setdefault(part, {})
+            node[parts[-1]] = value
+        return _homepage_lists(out)
+
+    def _homepage_lists(node):
+        """A dict whose keys are 0,1,2... was a list before it was flattened."""
+        if not isinstance(node, dict):
+            return node
+        node = {k: _homepage_lists(v) for k, v in node.items()}
+        if node and all(k.isdigit() for k in node):
+            return [node[k] for k in sorted(node, key=int)]
+        return node
+
+    def _homepage_view(error_lines=None, draft=None):
+        cfg = homepage_edit.apply_override(get_landing_config())
+        rows = _homepage_fields(cfg)
+        if draft:
+            rows = [(k, label, draft.get(k, v), kind) for k, label, v, kind in rows]
+        return render_template("homepage_edit.html", active_page="",
+                               fields=rows, edited=homepage_edit.is_edited(),
+                               problems=error_lines or [],
+                               **build_dashboard_context())
+
+    @app.route("/homepage")
+    def homepage_edit_page():
+        _user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
+        return _homepage_view()
+
+    @app.route("/homepage", methods=["POST"])
+    def homepage_edit_save():
+        _user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
+        cfg = homepage_edit.apply_override(get_landing_config())
+        draft = {}
+        for key, _label, current, _kind in _homepage_fields(cfg):
+            draft[key] = (request.form.get(key) or "").strip()[:600]
+
+        # Validate before anything is saved. A page that half-published is
+        # worse than one that refused.
+        resolves = homepage_edit.route_resolver(app)
+        buckets = {"_links": [], "_text": []}
+        for key, label, _current, kind in _homepage_fields(cfg):
+            buckets["_links" if kind == "link" else "_text"].append(
+                (label, draft[key]))
+        problems = homepage_edit.check(buckets, resolves)
+        blank = [label for key, label, _c, _k in _homepage_fields(cfg)
+                 if not draft[key]]
+        if blank:
+            problems.append(
+                "These would render empty: %s. Clear the whole page back to "
+                "the shipped copy instead, if that is what you want."
+                % ", ".join(blank[:4]))
+        if problems:
+            return _homepage_view(problems, draft)
+
+        homepage_edit.write_override(_homepage_nest(draft))
+        return redirect("/homepage?saved=1")
+
+    @app.route("/homepage/reset", methods=["POST"])
+    def homepage_edit_reset():
+        _user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
+        homepage_edit.clear_override()
+        return redirect("/homepage")
 
     # --- Resellers: Street Banker's own back office ------------------------
 
