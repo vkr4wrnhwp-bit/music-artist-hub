@@ -194,8 +194,9 @@
     {% set fvals = snaps | map(attribute='followers') | reject('none') | list %}
     {% set fmax = (fvals | max) or 1 if fvals else 1 %}
     {% set fmin = (fvals | min) if fvals else 0 %}
-    {% set dmax = (snaps | map(attribute='deezer_fans') | max) or 1 %}
-    {% set dmin = snaps | map(attribute='deezer_fans') | min %}
+    {% set dvals = snaps | map(attribute='deezer_fans') | reject('none') | list %}
+    {% set dmax = (dvals | max) or 1 if dvals else 1 %}
+    {% set dmin = (dvals | min) if dvals else 0 %}
     <svg viewBox="0 0 600 160" class="mt-3 w-full">
       {% for key, cls, vmin, vmax, color in [('followers', 'tl-followers', fmin, fmax, '#E8B950'), ('popularity', 'tl-pop', 0, 100, '#7FA8E8'), ('deezer_fans', 'tl-deezer', dmin, dmax, '#7FA8E8')] %}
       <polyline id="{{ cls }}" fill="none" stroke="{{ color }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" {{ 'style=display:none' if cls == 'tl-deezer' }}

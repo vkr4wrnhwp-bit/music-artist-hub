@@ -538,7 +538,12 @@ def init_db():
                 provider TEXT NOT NULL DEFAULT 'spotify',
                 followers INTEGER,
                 popularity INTEGER,
-                deezer_fans INTEGER NOT NULL DEFAULT 0,
+                -- Nullable for the same reason as the two above, and found
+                -- by a test that had been stranded in a worktree: a metrics
+                -- provider reports monthly listeners and knows nothing about
+                -- Deezer, and writing 0 there claims the artist has no
+                -- Deezer following. That is a measurement nobody took.
+                deezer_fans INTEGER,
                 monthly_listeners INTEGER,
                 PRIMARY KEY (user_id, day, provider)
             );
@@ -1057,7 +1062,12 @@ def init_db():
         # not measured; every row on file keeps the number it had.
         _pulse_cols2 = {r[1]: r for r in
                         db.execute("PRAGMA table_info(pulse_snapshots)").fetchall()}
-        if _pulse_cols2 and _pulse_cols2.get("followers") and _pulse_cols2["followers"][3]:
+        # Any of the three still NOT NULL means the rebuild is owed. Guarding
+        # on `followers` alone left deezer_fans behind on every database that
+        # had already taken the first pass - which is exactly what happened.
+        _pulse_notnull = [c for c in ("followers", "popularity", "deezer_fans")
+                          if _pulse_cols2.get(c) and _pulse_cols2[c][3]]
+        if _pulse_cols2 and _pulse_notnull:
             db.execute("ALTER TABLE pulse_snapshots RENAME TO pulse_snapshots_pre_null")
             db.execute(
                 "CREATE TABLE pulse_snapshots ("
@@ -1065,7 +1075,7 @@ def init_db():
                 " provider TEXT NOT NULL DEFAULT 'spotify',"
                 " followers INTEGER,"
                 " popularity INTEGER,"
-                " deezer_fans INTEGER NOT NULL DEFAULT 0,"
+                " deezer_fans INTEGER,"
                 " monthly_listeners INTEGER,"
                 " PRIMARY KEY (user_id, day, provider))")
             db.execute(
@@ -1814,8 +1824,16 @@ def record_pulse_snapshot(user_id, followers, popularity, deezer_fans,
         db.execute(
             "INSERT INTO pulse_snapshots (user_id, day, provider, followers, popularity,"
             " deezer_fans, monthly_listeners) VALUES (?,?,?,?,?,?,?) "
-            "ON CONFLICT(user_id, day, provider) DO UPDATE SET followers=excluded.followers, "
-            "popularity=excluded.popularity, deezer_fans=excluded.deezer_fans, "
+            # Every measure coalesces. A later write that did not measure
+            # something must not erase what an earlier one did: once these
+            # columns could hold NULL, "I have no figure" and "the figure is
+            # gone" became the same UPDATE, and a provider reporting monthly
+            # listeners alone would wipe the follower count recorded beside
+            # it that morning.
+            "ON CONFLICT(user_id, day, provider) DO UPDATE SET "
+            "followers=COALESCE(excluded.followers, pulse_snapshots.followers), "
+            "popularity=COALESCE(excluded.popularity, pulse_snapshots.popularity), "
+            "deezer_fans=COALESCE(excluded.deezer_fans, pulse_snapshots.deezer_fans), "
             "monthly_listeners=COALESCE(excluded.monthly_listeners, pulse_snapshots.monthly_listeners)",
             (user_id, day, provider, followers, popularity, deezer_fans,
              monthly_listeners))
