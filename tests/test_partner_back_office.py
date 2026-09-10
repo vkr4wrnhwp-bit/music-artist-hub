@@ -184,3 +184,149 @@ def test_an_invented_status_is_refused(owner, application):
 def test_a_partner_that_does_not_exist_is_a_404(owner):
     assert owner.post("/partners/nope/seats", data={"seat_limit": "1"}).status_code == 404
     assert owner.post("/partners/nope/status", data={"status": "active"}).status_code == 404
+
+
+# --- a roster that can actually be filled ------------------------------------
+#
+# attach_user and detach_user had no caller anywhere, and nothing else in
+# the app writes users.partner_id. A reseller's console read
+# `WHERE partner_id = ?` and was therefore empty for ever - so the
+# white-label product still could not be sold after the back office
+# existed, because no artist could be seated.
+
+def _artist(application, email=None):
+    email = email or ("seatme-%s@example.net" % uuid.uuid4().hex[:8])
+    c = application.test_client()
+    c.post("/signup", data={"name": "Artist", "email": email, "password": PASSWORD})
+    with application.app_context():
+        return store.get_user_by_email(email)
+
+
+def test_an_artist_can_be_put_on_a_roster(owner, application):
+    with application.app_context():
+        p = _make(owner)
+    artist = _artist(application)
+    owner.post("/partners/%s/artists" % p["id"], data={"email": artist["email"]})
+    with application.app_context():
+        assert [r["id"] for r in ps.roster(p["id"])] == [artist["id"]]
+        assert ps.seats_used(p["id"]) == 1
+
+
+def test_an_account_that_does_not_exist_is_not_invented(owner, application):
+    with application.app_context():
+        p = _make(owner)
+    missing = "ghost-%s@example.net" % uuid.uuid4().hex[:8]
+    r = owner.post("/partners/%s/artists" % p["id"], data={"email": missing})
+    assert "have to sign up" in r.get_data(as_text=True)
+    with application.app_context():
+        assert store.get_user_by_email(missing) is None
+        assert ps.roster(p["id"]) == []
+
+
+def test_somebody_elses_artist_is_a_transfer_not_a_grab(owner, application):
+    """attach_user refuses to move an account between resellers, and the
+    page has to say why rather than failing silently."""
+    with application.app_context():
+        first = _make(owner)
+        second = _make(owner)
+    artist = _artist(application)
+    owner.post("/partners/%s/artists" % first["id"], data={"email": artist["email"]})
+    r = owner.post("/partners/%s/artists" % second["id"], data={"email": artist["email"]})
+    body = r.get_data(as_text=True)
+    assert "already belongs to" in body and "transfer" in body
+    with application.app_context():
+        assert ps.roster(second["id"]) == []
+        assert len(ps.roster(first["id"])) == 1
+
+
+def test_a_full_roster_refuses_and_says_it_is_the_cap(owner, application):
+    with application.app_context():
+        p = _make(owner)
+    owner.post("/partners/%s/seats" % p["id"], data={"seat_limit": "1"})
+    a1, a2 = _artist(application), _artist(application)
+    owner.post("/partners/%s/artists" % p["id"], data={"email": a1["email"]})
+    r = owner.post("/partners/%s/artists" % p["id"], data={"email": a2["email"]})
+    assert "seat cap" in r.get_data(as_text=True)
+    with application.app_context():
+        assert len(ps.roster(p["id"])) == 1
+
+
+def test_removing_an_artist_keeps_the_account_and_its_work(owner, application):
+    with application.app_context():
+        p = _make(owner)
+    artist = _artist(application)
+    owner.post("/partners/%s/artists" % p["id"], data={"email": artist["email"]})
+    owner.post("/partners/%s/artists/%s/remove" % (p["id"], artist["id"]))
+    with application.app_context():
+        assert ps.roster(p["id"]) == []
+        assert store.get_user(artist["id"]) is not None, (
+            "coming off a roster is not a deletion")
+
+
+def test_a_reseller_cannot_reach_another_resellers_artists(owner, application, stranger):
+    with application.app_context():
+        p = _make(owner)
+    artist = _artist(application)
+    owner.post("/partners/%s/artists" % p["id"], data={"email": artist["email"]})
+    assert stranger.post("/partners/%s/artists" % p["id"],
+                         data={"email": artist["email"]}).status_code == 404
+    assert stranger.post("/partners/%s/artists/%s/remove"
+                         % (p["id"], artist["id"])).status_code == 404
+    with application.app_context():
+        assert len(ps.roster(p["id"])) == 1
+
+
+def test_a_seat_invited_by_email_binds_when_its_holder_signs_up(owner, application):
+    """claim_seats had no caller either.
+
+    member_for_user matches on user_id, and a seat created before its
+    holder signed up has user_id NULL - so a reseller's own staff could
+    not reach their console however correct the seat was. Unit tests all
+    passed; only walking the whole lifecycle showed it.
+    """
+    with application.app_context():
+        p = _make(owner)
+    staff_email = "staff-%s@northwind.example" % uuid.uuid4().hex[:8]
+    owner.post("/partners/%s/members" % p["id"],
+               data={"email": staff_email, "role": "owner"})
+    with application.app_context():
+        seat = next(m for m in ps.list_members(p["id"]) if m["email"] == staff_email)
+        assert not seat["user_id"], "nobody has signed up yet"
+
+    staff = application.test_client()
+    staff.post("/signup", data={"name": "Staff", "email": staff_email,
+                                "password": PASSWORD})
+    staff.post("/login", data={"email": staff_email, "password": PASSWORD})
+    assert staff.get("/partner/roster").status_code == 200, (
+        "their own console has to be reachable")
+    with application.app_context():
+        seat = next(m for m in ps.list_members(p["id"]) if m["email"] == staff_email)
+        assert seat["user_id"], "the seat bound to the account"
+
+
+def test_the_whole_lifecycle_holds_together(owner, application):
+    """Create, cap, seat staff, roster an artist, and let the reseller
+    work. Each step passed on its own before the console 404'd on the
+    step nothing tested."""
+    with application.app_context():
+        p = _make(owner)
+    owner.post("/partners/%s/seats" % p["id"], data={"seat_limit": "10"})
+    staff_email = "lifecycle-%s@northwind.example" % uuid.uuid4().hex[:8]
+    owner.post("/partners/%s/members" % p["id"],
+               data={"email": staff_email, "role": "owner"})
+    artist = _artist(application)
+    owner.post("/partners/%s/artists" % p["id"], data={"email": artist["email"]})
+
+    staff = application.test_client()
+    staff.post("/signup", data={"name": "Staff", "email": staff_email,
+                                "password": PASSWORD})
+    staff.post("/login", data={"email": staff_email, "password": PASSWORD})
+    page = staff.get("/partner/roster")
+    assert page.status_code == 200
+    assert artist["email"] in page.get_data(as_text=True), (
+        "the reseller must see the artist they were given")
+
+    staff.post("/partner/roster/%s/plan" % artist["id"], data={"plan": "pro"})
+    with application.app_context():
+        assert store.get_user(artist["id"])["plan"] == "pro", (
+            "and be able to move them between tiers")

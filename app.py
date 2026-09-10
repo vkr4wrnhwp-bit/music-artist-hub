@@ -3665,6 +3665,14 @@ def create_app():
                 p = partner_store.partner_by_slug(host[:-len(_PARTNER_ROOT) - 1])
             if p is None:
                 uid = session.get("user_id")
+                # Bind any seat invited by email to this account first.
+                # member_for_user matches on user_id, and a seat created
+                # before its holder signed up has user_id NULL - so without
+                # this the reseller's own staff could not reach their
+                # console at all, however correct the seat was.
+                user = store.get_user(uid) if uid else None
+                if user:
+                    partner_store.claim_seats(user["id"], user.get("email"))
                 seat = partner_store.member_for_user(uid) if uid else None
                 if seat:
                     p = partner_store.get_partner(seat["partner_id"])
@@ -7619,6 +7627,7 @@ def create_app():
                 seats_used=partner_store.seats_used(p["id"]),
                 seat_limit=partner_store.seat_limit(p["id"]),
                 members=partner_store.list_members(p["id"]),
+                roster=partner_store.roster_detail(p["id"]),
             ))
         return render_template("partners_admin.html", active_page="",
                                partners=rows, roles=partner_store.ROLES,
@@ -7682,6 +7691,54 @@ def create_app():
         # holds a seat changes its role rather than refusing, which is what
         # typing a colleague's address into this box usually means.
         partner_store.add_member(pid, email, email.split("@")[0], role)
+        return redirect("/partners")
+
+    @app.route("/partners/<pid>/artists", methods=["POST"])
+    def partners_attach(pid):
+        """Put an existing account on a reseller's roster.
+
+        Owner-only on purpose. Attaching by email means learning whether an
+        account exists at that address, and giving that to every reseller
+        would be an enumeration oracle over the whole platform.
+        """
+        _user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
+        if partner_store.get_partner(pid) is None:
+            abort(404)
+        email = (request.form.get("email") or "").strip().lower()
+        if not email:
+            return _partners_view("Which account? An email address, please.")
+        artist = store.get_user_by_email(email)
+        if artist is None:
+            return _partners_view(
+                "No account here uses %s. They have to sign up before they can "
+                "be put on a roster - an account is not invented for them."
+                % email)
+        current = artist.get("partner_id")
+        if current and current != pid:
+            other = partner_store.get_partner(current)
+            return _partners_view(
+                "That account already belongs to %s. Moving it is a transfer, "
+                "and a transfer is a deliberate two-step: take it off that "
+                "roster first."
+                % ((other or {}).get("name") or "another reseller"))
+        if not partner_store.attach_user(pid, artist["id"]):
+            return _partners_view(
+                "That roster is at its seat cap. Raise the cap, or take "
+                "somebody off before adding another.")
+        return redirect("/partners")
+
+    @app.route("/partners/<pid>/artists/<uid>/remove", methods=["POST"])
+    def partners_detach(pid, uid):
+        """Take an account off a roster. The account and everything in it
+        survives: it goes back to being an ordinary Street Banker account."""
+        _user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
+        if partner_store.get_partner(pid) is None:
+            abort(404)
+        partner_store.detach_user(pid, uid)
         return redirect("/partners")
 
     @app.route("/partners/<pid>/status", methods=["POST"])
