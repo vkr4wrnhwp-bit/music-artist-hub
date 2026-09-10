@@ -584,6 +584,17 @@ def _geo_wanted(venue):
     return bool(where)       # an address is better, and _geo_query uses it when there is one
 
 
+def _address_to_promote(venue):
+    """Google's matched address, when the record has none of its own.
+
+    Empty when the owner typed an address (theirs wins, always) or when
+    the geocoder never matched one, so the caller can treat a truthy
+    answer as "there is a promotion to make"."""
+    if (venue.get("address") or "").strip():
+        return ""
+    return (venue.get("geo_address") or "").strip()
+
+
 def _geo_query(venue):
     """The one line handed to the geocoder: the street address with its
     city, region and country after it - or, when the record came off a
@@ -598,17 +609,27 @@ def _geo_query(venue):
 
 
 def ensure_venue_geo(venue, deadline=None):
-    """Coordinates and a time zone on one venue record. Returns 'off' (no
-    provider), 'skipped' (nothing to look up), 'present' (already has
-    them - a hand-typed pair is never replaced), 'deferred' (the
+    """Coordinates, a time zone and a street address on one venue record.
+
+    Returns 'off' (no provider), 'skipped' (nothing to look up), 'filled'
+    (the address Google already matched was promoted onto the record - no
+    call needed), 'present' (nothing left to do), 'deferred' (the
     request's budget was spent), 'found', or 'missing' (Google did not
     know the address, or refused; the caller reads last_refusal() to tell
-    those two apart)."""
+    those two apart). A hand-typed value is never replaced by any of it.
+    """
     if not venue_geo.configured():
         return "off"
     if not _geo_wanted(venue):
         return "skipped"
     if (venue.get("lat") or "").strip() and (venue.get("lng") or "").strip():
+        # Already placed. If the record still has no address of its own and
+        # Google matched one, put it on the record - that is the line the
+        # advance, the day sheet and the rider print, and it costs nothing.
+        if _address_to_promote(venue):
+            ts.update_venue(venue["user_id"], venue["id"],
+                            {"address": _address_to_promote(venue)})
+            return "filled"
         return "present"
     if deadline is not None and _clock() > deadline:
         return "deferred"
@@ -2762,8 +2783,18 @@ def _tour_venues(tour, tour_id):
 
 
 def _geo_missing(tour, tour_id):
-    return sum(1 for v in _tour_venues(tour, tour_id)
-               if _geo_wanted(v) and not ((v.get("lat") or "").strip() and (v.get("lng") or "").strip()))
+    """How many rooms a run would change - so the button appears when
+    there is work and disappears when there is not. A room already placed
+    still counts while Google's matched address has not been promoted
+    onto the record, because that promotion is the rest of the job."""
+    n = 0
+    for v in _tour_venues(tour, tour_id):
+        if not _geo_wanted(v):
+            continue
+        placed = (v.get("lat") or "").strip() and (v.get("lng") or "").strip()
+        if not placed or _address_to_promote(v):
+            n += 1
+    return n
 
 
 @bp.route("/tours/<tour_id>/venues/fetch-coordinates", methods=["POST"])
@@ -2774,7 +2805,7 @@ def venue_fetch_coordinates(user, tour, viewer, tour_id):
     that now have coordinates. Back to the list with the run's own
     numbers - and, if Google refused the key, with Google's words rather
     than a claim that it did not know the addresses."""
-    found, missing, unreached, zoned, routed = 0, 0, 0, 0, 0
+    found, missing, unreached, zoned, routed, filled = 0, 0, 0, 0, 0, 0
     refusal = routes_refusal = None
     if venue_geo.configured():
         venue_geo.clear_refusal()
@@ -2787,6 +2818,8 @@ def venue_fetch_coordinates(user, tour, viewer, tour_id):
                 continue
             if got == "found":
                 found += 1
+            elif got == "filled":
+                filled += 1          # the address was already on the row
             elif got == "missing":
                 missing += 1
             elif got == "deferred":
@@ -2823,6 +2856,7 @@ def venue_fetch_coordinates(user, tour, viewer, tour_id):
         routes_refusal = venue_geo.last_refusal()
     session[_geo_report_key(tour_id)] = {
         "found": found, "missing": missing, "unreached": unreached, "zoned": zoned,
+        "filled": filled,
         "routed": routed, "refused": (refusal or {}).get("message") or "",
         "refused_status": (refusal or {}).get("status") or "",
         "routes_refused": (routes_refusal or {}).get("message") or "",
