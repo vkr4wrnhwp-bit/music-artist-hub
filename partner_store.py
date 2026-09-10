@@ -183,6 +183,20 @@ def init_partners():
                        "NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Branding. Every column is nullable and empty by default, so a
+        # partner that existed before this migration renders exactly as it
+        # did - the platform's own shell - until somebody fills one in.
+        # Nothing here is required to run a reseller; it is required to
+        # make one look like itself.
+        for column, spec in (("display_name", "TEXT NOT NULL DEFAULT ''"),
+                             ("accent", "TEXT NOT NULL DEFAULT ''"),
+                             ("logo_path", "TEXT NOT NULL DEFAULT ''"),
+                             ("tagline", "TEXT NOT NULL DEFAULT ''")):
+            try:
+                db.execute("ALTER TABLE partners ADD COLUMN %s %s" % (column, spec))
+            except sqlite3.OperationalError:
+                pass  # column already exists
+
         # The spine. NULL for every account that exists today, which is
         # exactly right: they are direct Street Banker accounts.
         try:
@@ -360,6 +374,49 @@ def seat_limit(partner_id):
     if row is None:
         return SEAT_UNLIMITED
     return int(row["seat_limit"] or SEAT_UNLIMITED)
+
+
+def set_branding(partner_id, display_name=None, accent=None,
+                 logo_path=None, tagline=None):
+    """What a reseller's artists see instead of the platform.
+
+    Only the fields named are written, so saving a logo cannot blank a
+    colour somebody set last week - the same rule the homepage override
+    follows, for the same reason.
+    """
+    sets, args = [], []
+    for column, value in (("display_name", display_name), ("accent", accent),
+                          ("logo_path", logo_path), ("tagline", tagline)):
+        if value is not None:
+            sets.append("%s = ?" % column)
+            args.append((value or "").strip()[:200])
+    if not sets:
+        return False
+    args.append(partner_id)
+    with get_db() as db:
+        cur = db.execute("UPDATE partners SET %s WHERE id = ?" % ", ".join(sets), args)
+    return cur.rowcount > 0
+
+
+def branding(partner):
+    """The brand to render for this tenant, falling back to the platform.
+
+    Takes the partner row rather than an id because every caller already
+    has it from tenant resolution, and a per-request database read to
+    render a wordmark is a cost with nothing to show for it.
+
+    Returns None when there is no tenant, which the shell reads as "this
+    is Street Banker's own" rather than as an absence to paper over.
+    """
+    if not partner:
+        return None
+    name = (partner.get("display_name") or partner.get("name") or "").strip()
+    return {
+        "name": name,
+        "tagline": (partner.get("tagline") or "").strip(),
+        "accent": (partner.get("accent") or "").strip(),
+        "logo": (partner.get("logo_path") or "").strip(),
+    }
 
 
 def set_seat_limit(partner_id, limit):

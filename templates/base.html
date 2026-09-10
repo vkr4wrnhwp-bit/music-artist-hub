@@ -83,8 +83,15 @@
       <!-- Mobile: one compact row - brand + menu toggle -->
       <div class="flex items-center justify-between lg:hidden">
         <a href="/overview" class="flex items-center gap-2">
-          <svg width="26" height="16" viewBox="0 0 40 24" fill="none" stroke="#E8B950" stroke-width="1.6" stroke-linejoin="round"><path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/></svg>
-          <span class="text-xs font-bold tracking-[0.25em] text-gray-100">ROYALTY SWEEP</span>
+          {#- A reseller's artists see the reseller. `brand` is None on
+              Street Banker's own tenant, which is how this stays the
+              platform's shell rather than a special case of a partner. -#}
+          {% if brand and brand.logo %}
+            <img src="{{ brand.logo }}" alt="{{ brand.name }}" class="h-4 w-auto">
+          {% else %}
+            <svg width="26" height="16" viewBox="0 0 40 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" class="text-sb-gold-bright"{% if brand and brand.accent %} style="color: {{ brand.accent }}"{% endif %}><path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/></svg>
+          {% endif %}
+          <span class="text-xs font-bold tracking-[0.25em] text-gray-100">{{ (brand.name if brand else "ROYALTY SWEEP") | upper }}</span>
         </a>
         <div class="flex items-center gap-2">
           <!-- The palette's only opener was Ctrl-K, which a phone has no
@@ -100,14 +107,22 @@
         </div>
       </div>
       <a href="/" class="hidden flex-col items-center transition-opacity hover:opacity-80 lg:flex">
-        <svg width="34" height="20" viewBox="0 0 40 24" fill="none" stroke="#E8B950" stroke-width="1.6" stroke-linejoin="round" class="shrink-0">
-          <path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/>
-        </svg>
+        {% if brand and brand.logo %}
+          <img src="{{ brand.logo }}" alt="{{ brand.name }}" class="sb-hide-rail max-h-16 w-auto shrink-0">
+        {% else %}
+          <svg width="34" height="20" viewBox="0 0 40 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" class="shrink-0 text-sb-gold-bright"{% if brand and brand.accent %} style="color: {{ brand.accent }}"{% endif %}>
+            <path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/>
+          </svg>
+        {% endif %}
         <div class="sb-hide-rail mt-1.5 text-center leading-none">
-          <div class="text-xs font-bold tracking-[0.35em] text-gray-100">ROYALTY</div>
-          <div class="mt-1 text-lg font-bold tracking-[0.3em] text-gray-100">SWEEP</div>
+          {% if brand %}
+            <div class="text-lg font-bold tracking-[0.3em] text-gray-100">{{ brand.name | upper }}</div>
+          {% else %}
+            <div class="text-xs font-bold tracking-[0.35em] text-gray-100">ROYALTY</div>
+            <div class="mt-1 text-lg font-bold tracking-[0.3em] text-gray-100">SWEEP</div>
+          {% endif %}
         </div>
-        <div class="sb-label sb-hide-rail mt-2 text-amber-500/70">Track it. Collect it. Sweep it.</div>
+        <div class="sb-label sb-hide-rail mt-2 text-amber-500/70">{{ brand.tagline if brand and brand.tagline else ("" if brand else "Track it. Collect it. Sweep it.") }}</div>
       </a>
 
       <div id="sb-menu" class="hidden lg:contents">

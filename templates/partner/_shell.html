@@ -13,6 +13,7 @@
   <nav class="flex flex-wrap gap-2">
     <a href="/partner/" class="sw px-3 py-1.5 text-xs">Overview</a>
     {% if can('roster_view') %}<a href="/partner/roster" class="sw px-3 py-1.5 text-xs">Roster</a>{% endif %}
+    {% if can('branding_edit') %}<a href="/partner/branding" class="sw px-3 py-1.5 text-xs">Branding</a>{% endif %}
     <a href="/partner/audit" class="sw px-3 py-1.5 text-xs">Activity</a>
   </nav>
   {% block partner_body %}{% endblock %}

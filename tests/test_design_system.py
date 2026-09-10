@@ -257,18 +257,11 @@ def test_radius_is_one_of_three_values():
 
 # --- 4. contrast, measured rather than asserted -------------------------
 
-def _lum(h):
-    h = h.lstrip("#")
-    c = [int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
-    c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4
-         for x in c]
-    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
-
-
-def _ratio(a, b):
-    la, lb = _lum(a), _lum(b)
-    hi, lo = max(la, lb), min(la, lb)
-    return (hi + 0.05) / (lo + 0.05)
+# The same maths the partner branding screen validates an accent with.
+# A reseller's colour lives in the database, where the hex rule above
+# cannot see it, so the contrast check has to run at the point of entry -
+# and it has to be THIS check, not a second one that drifts from it.
+from brand_contrast import luminance as _lum, ratio as _ratio  # noqa: E402
 
 
 def _token(name):

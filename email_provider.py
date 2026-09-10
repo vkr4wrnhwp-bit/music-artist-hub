@@ -28,8 +28,49 @@ def configured():
     return bool(os.environ.get("RESEND_API_KEY"))
 
 
-def sender():
-    return os.environ.get("EMAIL_FROM") or "Street Banker <onboarding@resend.dev>"
+def sender(display_name=None):
+    """Who the mail comes from.
+
+    A reseller's artists should see the reseller in their inbox, so the
+    display name is swappable - but the ADDRESS is not. It stays on the
+    domain verified in Resend, because SPF and DKIM are published for that
+    domain and no other. Sending as noreply@their-domain without their DNS
+    does not fail loudly; it lands in spam, and nobody finds out for weeks.
+
+    A partner's own sending domain is a real feature and a separate one:
+    it needs their DNS, verified per partner, and an opt-in that says so.
+    """
+    configured = os.environ.get("EMAIL_FROM") or "Street Banker <onboarding@resend.dev>"
+    name = (display_name or "").strip()
+    if not name:
+        return configured
+    # Keep the verified address, swap only the name in front of it.
+    address = configured
+    if "<" in configured and ">" in configured:
+        address = configured[configured.index("<"):].strip()
+    else:
+        address = "<%s>" % configured.strip()
+    safe = name.replace('"', "").replace("<", "").replace(">", "")[:78]
+    return '%s %s' % (safe, address)
+
+
+def _tenant_display_name():
+    """The reseller this request belongs to, or "" for Street Banker's own.
+
+    Reads the request context and never raises: mail sent from a
+    background path has no request, and that is not an error - it is the
+    platform's own mail.
+    """
+    try:
+        from flask import g, has_request_context
+        if not has_request_context():
+            return ""
+        partner = getattr(g, "partner", None)
+        if not partner:
+            return ""
+        return (partner.get("display_name") or partner.get("name") or "").strip()
+    except Exception:
+        return ""
 
 
 def _http(url, payload, headers):
@@ -53,7 +94,12 @@ def send(to, subject, html, attachments=None, reply_to=None, cc=None, text=None)
     list or one address."""
     if not configured() or not to:
         return False
-    payload = {"from": sender(), "to": [to], "subject": subject, "html": html}
+    # The tenant whose page triggered this send, if any. Resolved here
+    # rather than threaded through forty call sites: every one of them
+    # would have to remember, and the one that forgot would put the
+    # platform's name in a reseller's artist's inbox.
+    payload = {"from": sender(_tenant_display_name()), "to": [to],
+               "subject": subject, "html": html}
     if attachments:
         payload["attachments"] = attachments
     if reply_to:

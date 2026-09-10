@@ -14,6 +14,7 @@ forgot to scope itself.
 
 A template hiding a button is cosmetic. This is the check.
 """
+import io
 from functools import wraps
 
 from flask import Blueprint, abort, g, redirect, render_template, request, session, url_for
@@ -98,6 +99,77 @@ def home(partner, member):
                            partner=partner, member=member, roster=roster,
                            can=lambda p: pstore.can(member, p),
                            role_label=pstore.ROLE_LABELS.get(member["role"], member["role"]))
+
+
+# The surfaces an accent has to be legible on. Read from the token sheet
+# rather than written here, so a change to the palette moves the bar with
+# it instead of leaving this check measuring against a colour the product
+# stopped using.
+def _brand_surfaces():
+    import re
+
+    import os as _os
+    here = _os.path.dirname(_os.path.abspath(__file__))
+    try:
+        with io.open(_os.path.join(here, "tools", "tailwind-input.css"),
+                     encoding="utf-8") as fh:
+            sheet = fh.read()
+    except OSError:
+        return {"sidebar": "#0B0A08"}
+    out = {}
+    for token, label in (("ground", "sidebar"), ("surface-1", "panel")):
+        m = re.search(r"--sb-%s:\s*(#[0-9a-fA-F]{6})" % re.escape(token), sheet)
+        if m:
+            out[label] = m.group(1)
+    return out or {"sidebar": "#0B0A08"}
+
+
+@bp.route("/branding", methods=["GET", "POST"])
+@require("branding_edit")
+def branding(partner, member):
+    """What a reseller's artists see instead of Street Banker.
+
+    branding_edit has existed as a permission since Partner OS shipped and
+    guarded nothing, because there was nowhere to edit and nothing to
+    store. This is the screen it was named for.
+
+    The accent is checked for contrast at save. The design lock reads
+    source files for colour literals and cannot see a colour that arrives
+    from the database, so the only place this can be caught is here - the
+    same answer the homepage editor reached for links.
+    """
+    import brand_contrast
+
+    problems, saved = [], False
+    if request.method == "POST":
+        display_name = (request.form.get("display_name") or "").strip()[:120]
+        tagline = (request.form.get("tagline") or "").strip()[:120]
+        raw_accent = (request.form.get("accent") or "").strip()
+        accent = ""
+        if raw_accent:
+            accent, accent_problems = brand_contrast.check_accent(
+                raw_accent, _brand_surfaces())
+            problems += accent_problems
+            accent = accent or ""
+        if not display_name:
+            problems.append(
+                "A name is needed - it is what your artists see where "
+                "Street Banker's own would be.")
+        if not problems:
+            pstore.set_branding(partner["id"], display_name=display_name,
+                                accent=accent, tagline=tagline)
+            pstore.audit(partner["id"], "branding.save", actor=member,
+                         detail="Brand set to %s" % display_name)
+            saved = True
+
+    fresh = pstore.get_partner(partner["id"])
+    return render_template("partner/branding.html",
+                           partner=fresh, member=member,
+                           brand=pstore.branding(fresh),
+                           problems=problems, saved=saved,
+                           can=lambda p: pstore.can(member, p),
+                           role_label=pstore.ROLE_LABELS.get(member["role"],
+                                                             member["role"]))
 
 
 @bp.route("/roster")

@@ -1,0 +1,94 @@
+{% extends "partner/_shell.html" %}
+
+{#- What a reseller's artists see instead of Street Banker.
+
+    branding_edit has been a permission since Partner OS shipped and
+    guarded nothing: there was nowhere to edit and nothing to store. This
+    is the screen it was named for.
+-#}
+
+{% block partner_body %}
+<div class="space-y-5">
+
+  {% if saved %}
+    <div class="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-gray-100">
+      <b>Saved.</b> Your artists see this now, on your domain and on the sign-in page.
+    </div>
+  {% endif %}
+
+  {% if problems %}
+    <div class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3">
+      <p class="text-sm font-bold text-gray-100">Not saved — nothing changed.</p>
+      <ul class="mt-2 space-y-1 text-sm text-gray-200">
+        {% for p in problems %}<li>· {{ p }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+    <h2 class="sb-label sb-label-gold">Your brand</h2>
+    <p class="mt-2 text-sm text-gray-300">
+      Your artists see this name in the sidebar and on the page where they sign
+      in. On your own domain they see it before they have an account at all.
+    </p>
+
+    <form method="post" class="mt-4 space-y-3">
+      <label class="block">
+        <span class="sb-label text-gray-300">Name</span>
+        <input name="display_name" required maxlength="120"
+               value="{{ partner.display_name or partner.name }}"
+               class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+      </label>
+
+      <label class="block">
+        <span class="sb-label text-gray-300">Strapline <span class="text-gray-300">· optional, under the name</span></span>
+        <input name="tagline" maxlength="120" value="{{ partner.tagline or '' }}"
+               placeholder="Sign. Ship. Get paid."
+               class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+      </label>
+
+      <label class="block">
+        <span class="sb-label text-gray-300">Accent colour <span class="text-gray-300">· six hex digits</span></span>
+        <input name="accent" maxlength="7" value="{{ partner.accent or '' }}"
+               placeholder="4FA3D1"
+               class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+      </label>
+
+      <p class="text-sm text-gray-300">
+        The colour is checked against the surfaces it sits on before it is
+        saved. One that cannot be read on a dark sidebar is refused, with the
+        contrast it managed — a brand nobody can read is not a brand.
+      </p>
+
+      <button type="submit" class="sb-btn sb-btn-primary">Save branding</button>
+    </form>
+  </section>
+
+  {% if brand and brand.name %}
+    <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+      <h2 class="sb-label sb-label-gold">How it reads</h2>
+      <div class="mt-3 flex items-center gap-3 rounded-xl bg-sb-ground p-4">
+        <svg width="34" height="20" viewBox="0 0 40 24" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linejoin="round" class="shrink-0 text-sb-gold-bright"
+             {% if brand.accent %}style="color: {{ brand.accent }}"{% endif %}>
+          <path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/>
+        </svg>
+        <div class="leading-none">
+          <div class="text-lg font-bold tracking-[0.3em] text-gray-100">{{ brand.name | upper }}</div>
+          {% if brand.tagline %}<div class="sb-label mt-2 text-amber-500/70">{{ brand.tagline }}</div>{% endif %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+    <h2 class="sb-label sb-label-gold">What does not change</h2>
+    <p class="mt-2 text-sm text-gray-300">
+      The Terms and Privacy pages keep naming Street Banker LLC. They describe
+      who actually holds your artists' data and who they are contracting with,
+      and that does not change because your name is above it. Everything your
+      artists read as the product is yours; the paperwork stays accurate.
+    </p>
+  </section>
+</div>
+{% endblock %}

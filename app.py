@@ -3467,6 +3467,24 @@ def create_app():
         return [e for e in idx if e["key"] in allowed]
 
     @app.context_processor
+    def inject_brand():
+        """The tenant's brand, for every template, or None for our own.
+
+        A context processor rather than a per-route argument: the wordmark
+        renders in the shell, on the login page and in the manifest, and a
+        route that forgot to pass it would quietly show the platform's name
+        to a reseller's artist. There is no route to forget here.
+
+        None means Street Banker's own, and the templates read it as that
+        rather than as a missing value to paper over.
+        """
+        try:
+            return {"brand": partner_store.branding(getattr(g, "partner", None))}
+        except Exception:
+            # A partner table mid-migration must not take every page down.
+            return {"brand": None}
+
+    @app.context_processor
     def inject_hub_context():
         # The Ecosystem Hub model: one source of truth (hubs.py) feeds the
         # sidebar and the /desk/<hub> landing pages.
