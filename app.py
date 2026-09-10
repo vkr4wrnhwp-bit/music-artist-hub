@@ -2998,6 +2998,38 @@ def create_app():
             removed_file = blob_store.remove(path, uploads_dir=UPLOADS_DIR)
         return jsonify({"ok": True, "removed": bool(path), "file": removed_file})
 
+    @app.route("/epk/delete", methods=["POST"])
+    def epk_delete():
+        """Take the whole press kit down.
+
+        Every piece could already be cleared on its own - the photo, one
+        asset slot, the share link - and the kit itself could not, so an
+        artist who wanted to start again had to empty it field by field
+        and still keep the slug and the share token they were trying to
+        be rid of.
+
+        The unlink is the same narrow rule the two single-item routes
+        use, applied per file: only names this app wrote - `epk_<user>.`
+        for the photo and `epkasset_<user>_<kind>.` for a slot - are
+        removed. An asset pointed at a Vault image shares that file with
+        the Vault, which still lists and owns it, so it must stay exactly
+        where it is.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        paths = store.delete_epk(user["id"])
+        ours = ("epk_%s." % user["id"], "epkasset_%s_" % user["id"])
+        for path in paths:
+            name = os.path.basename((path or "").split("?")[0])
+            if name.startswith(ours):
+                try:
+                    blob_store.remove(path, uploads_dir=UPLOADS_DIR)
+                except Exception:
+                    # A file already gone is the state we were after.
+                    pass
+        return redirect("/epk")
+
     @app.route("/epk/export", methods=["POST"])
     def epk_export():
         ctx = build_dashboard_context()

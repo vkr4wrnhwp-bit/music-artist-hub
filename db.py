@@ -1696,6 +1696,44 @@ def get_epk_assets(user_id, public_only=False):
     return [dict(r) for r in rows]
 
 
+def delete_epk(user_id):
+    """Take the whole press kit down and give back every file it owned.
+
+    The pieces could each be cleared on their own - the photo, one asset
+    slot, the share link - and there was no way to remove the kit
+    itself, so an artist who wanted to start again had to empty it field
+    by field and still keep the slug and the share token they were
+    trying to get rid of.
+
+    Returns the stored paths so the caller can unlink the files it wrote.
+    The rows are the only record of them; once these are gone the bytes
+    have no owner and would sit on the disk for ever.
+    """
+    paths = []
+    with get_db() as db:
+        row = db.execute("SELECT photo FROM epk_profiles WHERE user_id = ?",
+                         (user_id,)).fetchone()
+        if row and row["photo"]:
+            paths.append(row["photo"])
+        for a in db.execute("SELECT path FROM epk_assets WHERE user_id = ?",
+                            (user_id,)).fetchall():
+            if a["path"]:
+                paths.append(a["path"])
+        db.execute("DELETE FROM epk_assets WHERE user_id = ?", (user_id,))
+        db.execute("DELETE FROM epk_profiles WHERE user_id = ?", (user_id,))
+        # The share link goes too, with its open log. Leaving the link
+        # would keep a URL alive that answers for a kit that no longer
+        # exists; leaving the log would keep a record of who opened
+        # something the artist has just destroyed.
+        token = db.execute("SELECT token FROM epk_shares WHERE user_id = ?",
+                           (user_id,)).fetchone()
+        db.execute("DELETE FROM epk_shares WHERE user_id = ?", (user_id,))
+        if token is not None:
+            db.execute("DELETE FROM epk_share_events WHERE token = ?",
+                       (token["token"],))
+    return paths
+
+
 def get_epk_by_slug(slug):
     """The public kit, plus the name it is published under.
 
