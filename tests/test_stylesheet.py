@@ -28,7 +28,11 @@ CSS = os.path.join(HERE, "static", "css", "tailwind.css")
 # "this page is styled entirely by its own CSS".
 TW_PREFIXES = ("flex", "grid", "text-", "bg-", "border-", "rounded",
                "w-", "h-", "p-", "px-", "py-", "m-", "mx-", "my-", "gap-",
-               "font-", "items-", "justify-", "space-", "max-w-", "min-h-")
+               "font-", "items-", "justify-", "space-", "max-w-", "min-h-",
+               # max-h- and min-w- were missing while their opposites were
+               # listed, so `max-h-48` - which has no rule in the build -
+               # was never judged a utility and rode into a page unstyled.
+               "max-h-", "min-w-", "aspect-", "object-", "overflow-")
 TW_BARE = {"block", "inline", "hidden", "relative", "absolute", "fixed",
            "truncate", "uppercase", "italic", "underline"}
 
@@ -249,14 +253,37 @@ def _class_tokens(blob):
     return out
 
 
+def _macro_argument_literals(source):
+    """Class lists handed to a macro rather than written as an attribute.
+
+        {{ thumb(p, 'aspect-[9/16] max-h-56 w-full') }}
+
+    These style a real element and used to escape this check entirely,
+    because the class="..." they end up in lives in the macro's own
+    template. Only quoted literals are read, and only tokens that already
+    look like utilities are judged - a prose string passing through a
+    macro is not a class list.
+    """
+    out = []
+    for expr in re.findall(r"\{\{(.*?)\}\}", source, re.S):
+        if "(" not in expr:
+            continue
+        for lit in re.findall(r"'([^']*)'", expr) + re.findall(r'"([^"]*)"', expr):
+            out += lit.split()
+    return out
+
+
 def test_no_utility_class_in_the_markup_resolves_to_nothing():
     defined = _defined_classes()
     orphans = {}
     for p in _templates():
         s = _STYLE.sub("", _SCRIPT.sub(
             "", io.open(p, encoding="utf8", errors="replace").read()))
+        tokens = []
         for blob in re.findall(r'class="([^"]*)"', s):
-            for t in _class_tokens(blob):
+            tokens += _class_tokens(blob)
+        tokens += _macro_argument_literals(s)
+        for t in tokens:
                 if not _looks_like_a_utility(t):
                     continue
                 if t in defined or t.split(":")[-1].lstrip("!") in defined:
