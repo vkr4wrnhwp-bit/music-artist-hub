@@ -65,16 +65,18 @@ def test_the_audience_line_never_reads_none():
     assert "Real numbers from your connected profiles" not in blob, (
         "an unmeasured pair cannot be presented as real numbers")
 
-    measured = [{"followers": 104233, "popularity": 47, "deezer_fans": 9200},
-                {"followers": 90000, "popularity": 41, "deezer_fans": 9000}]
+    # Oldest first, the order list_pulse_snapshots actually returns.
+    measured = [{"followers": 90000, "popularity": 41, "deezer_fans": 9000},
+                {"followers": 104233, "popularity": 47, "deezer_fans": 9200}]
     blob = repr(artist_os.twin_report([], {}, measured, []))
-    assert "Followers 90000 → 104233" in blob, "real readings still report"
+    assert "Followers 90000 → 104233" in blob, (
+        "real readings still report, and the arrow runs forwards in time")
 
 
 def test_a_mixed_history_counts_only_what_was_measured():
-    mixed = [{"followers": 104233, "popularity": 47, "deezer_fans": 9300},
+    mixed = [{"followers": 90000, "popularity": 41, "deezer_fans": 9000},
              {"followers": None, "popularity": None, "deezer_fans": 9200},
-             {"followers": 90000, "popularity": 41, "deezer_fans": 9000}]
+             {"followers": 104233, "popularity": 47, "deezer_fans": 9300}]
     blob = repr(artist_os.twin_report([], {}, mixed, []))
     assert "over your last 2 snapshots" in blob, (
         "the count names the readings behind the line, not the days on file")
@@ -108,12 +110,20 @@ def test_the_search_dropdown_survives_an_artist_with_no_follower_count(client, m
 
 
 def test_the_deal_onesheet_does_not_claim_growth_it_could_not_measure():
-    """The export a label reads. It formatted followers unconditionally."""
+    """The export a label reads. It formatted followers unconditionally.
+
+    On its own account, deliberately. Borrowing the demo login for the
+    tier means inheriting whatever every other test in the suite has
+    already done to it - and one of them gives it measured snapshots,
+    so this stopped testing an unmeasured history at all.
+    """
     c = appmod.app.test_client()
-    # The one-sheet is tier-gated; the demo account carries the tier.
-    c.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    email = "onesheet-%s@example.net" % uuid.uuid4().hex[:10]
+    c.post("/signup", data={"name": "Owner", "email": email, "password": PASSWORD})
+    c.post("/login", data={"email": email, "password": PASSWORD})
     with appmod.app.app_context():
-        uid = store.get_user_by_email("demo@streetbanker.io")["id"]
+        uid = store.get_user_by_email(email)["id"]
+        store.set_user_plan(uid, "label")        # the one-sheet is tier-gated
         store.save_pulse_profile(uid, "os-%s" % uuid.uuid4().hex[:8], "King 810")
         store.record_pulse_snapshot(uid, None, None, 9000, day="2026-09-01")
         store.record_pulse_snapshot(uid, None, None, 9200, day="2026-09-02")
