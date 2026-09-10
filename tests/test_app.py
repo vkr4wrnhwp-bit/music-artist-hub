@@ -688,7 +688,7 @@ def test_reports_page_includes_report_library():
 
 def test_reports_data_config_shapes():
     from reports_config import get_reports_data
-    data = get_reports_data()
+    data = get_reports_data("shape-check-user")
     assert data["summary"]["total_reports"] == len(data["categories"][0]["reports"]) + sum(
         len(c["reports"]) for c in data["categories"][1:]
     )
@@ -699,7 +699,7 @@ def test_reports_data_config_shapes():
     # three examples ("Monthly · 2 recipients · next 2026-08-01") were
     # identical for every account and would never have run.
     assert data["scheduled"] == [], "real accounts are shown jobs that do not exist"
-    assert get_reports_data(demo=True)["scheduled"], "showcase lost its examples"
+    assert get_reports_data("shape-check-user", demo=True)["scheduled"], "showcase lost its examples"
 
 
 def test_epk_page_includes_press_kit():

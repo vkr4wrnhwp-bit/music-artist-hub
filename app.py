@@ -2179,7 +2179,8 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["reports_user"] = current_user()
         ctx["reports_data"] = get_reports_data(
-            demo=_is_demo_email((ctx["reports_user"] or {}).get("email") or ""))
+            demo=_is_demo_email((ctx["reports_user"] or {}).get("email") or ""),
+            user_id=(ctx["reports_user"] or {}).get("id"))
         return render_template("reports.html", active_page="reports", **ctx)
 
     @app.route("/reports/campaigns.csv")
@@ -9911,7 +9912,7 @@ def create_app():
         # Build it for real before claiming it exists. When there is no
         # data the honest answer is the reason, not a header-row file -
         # an empty "Missing Money Report" reads as "nothing is missing".
-        report = generate_report(report_id)
+        report = generate_report(report_id, user["id"])
         if report is None:
             return jsonify({"ok": False, "error": "Unknown report."}), 404
         filename, body, reason = report_builder.build(report_id, user["id"])

@@ -49,6 +49,7 @@ from royalty_data import (
     complete_registration_step,
     generate_report,
     get_available_reports,
+    get_report_history,
     get_catalog_value_tracker,
     get_documents_vault,
     get_fixes_queue,
@@ -735,13 +736,23 @@ def test_get_available_reports_have_ids_and_labels():
 
 
 def test_generate_report_returns_metadata():
-    report = generate_report("royalty-report")
+    report = generate_report("royalty-report", "rd-metadata-user")
     assert report["id"] == "royalty-report"
     assert report["filename"].startswith("royalty-report-")
 
 
 def test_generate_report_unknown_id_returns_none():
-    assert generate_report("not-a-report") is None
+    assert generate_report("not-a-report", "rd-metadata-user") is None
+
+
+def test_report_history_is_one_accounts_own_and_is_required():
+    """The log is keyed by account, so generating as one is invisible to
+    the other. A call site that forgets whose log it wants raises."""
+    generate_report("royalty-report", "rd-owner")
+    assert any(r["id"] == "royalty-report" for r in get_report_history("rd-owner"))
+    assert get_report_history("rd-other") == []
+    with pytest.raises(TypeError):
+        get_report_history()
 
 
 def test_get_since_last_login_summary_counts_connection_issues():
