@@ -554,8 +554,8 @@ def init_db():
                 user_id TEXT NOT NULL,
                 artist_id TEXT NOT NULL,
                 day TEXT NOT NULL,
-                followers INTEGER NOT NULL DEFAULT 0,
-                popularity INTEGER NOT NULL DEFAULT 0,
+                followers INTEGER,
+                popularity INTEGER,
                 PRIMARY KEY (user_id, artist_id, day)
             );
             CREATE TABLE IF NOT EXISTS pulse_profiles (
@@ -1074,6 +1074,25 @@ def init_db():
                 " SELECT user_id, day, provider, followers, popularity, deezer_fans, monthly_listeners"
                 " FROM pulse_snapshots_pre_null")
             db.execute("DROP TABLE pulse_snapshots_pre_null")
+        # The peer table has the same silence to record, and the same
+        # NOT NULL shape. It is worse here: the writer passes the
+        # provider's value straight through, and an explicit NULL is
+        # never replaced by a column DEFAULT, so a pinned peer whose
+        # follower count Spotify omitted raised a constraint error and
+        # took the whole page down rather than reading "not measured".
+        _peer_cols = {r[1]: r for r in
+                      db.execute("PRAGMA table_info(pulse_peer_snapshots)").fetchall()}
+        if _peer_cols and _peer_cols.get("followers") and _peer_cols["followers"][3]:
+            db.execute("ALTER TABLE pulse_peer_snapshots RENAME TO pulse_peer_pre_null")
+            db.execute(
+                "CREATE TABLE pulse_peer_snapshots ("
+                "user_id TEXT NOT NULL, artist_id TEXT NOT NULL, day TEXT NOT NULL,"
+                " followers INTEGER, popularity INTEGER,"
+                " PRIMARY KEY (user_id, artist_id, day))")
+            db.execute(
+                "INSERT INTO pulse_peer_snapshots (user_id, artist_id, day, followers, popularity)"
+                " SELECT user_id, artist_id, day, followers, popularity FROM pulse_peer_pre_null")
+            db.execute("DROP TABLE pulse_peer_pre_null")
         # Migrations (2026-09-09) on the pulse profile. `provider` +
         # `provider_artist_id` are the metrics provider's own id for the
         # artist, resolved once by search and kept so the page does not

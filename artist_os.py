@@ -614,12 +614,18 @@ def twin_report(tracks, ctx, pulse_snaps, queue, analysis=None):
         sec("Best single to lead with", "awaiting",
             ["Unlocks once tracks exist in the spine."])
 
-    if pulse_snaps and len(pulse_snaps) >= 2:
-        new, old = pulse_snaps[0], pulse_snaps[-1]
+    # Only the readings that carry a number. Spotify omits `followers`
+    # and `popularity` for some apps, and a line reading "Followers
+    # None -> None" under the words "Real numbers" is worse than no
+    # line at all.
+    _measured = [s for s in (pulse_snaps or [])
+                 if s["followers"] is not None and s["popularity"] is not None]
+    if len(_measured) >= 2:
+        new, old = _measured[0], _measured[-1]
         sec("Audience signal (Spotify/Deezer via Pulse)", "ready",
             ["Followers %s \u2192 %s, popularity %s \u2192 %s over your last %d snapshots."
              % (old["followers"], new["followers"], old["popularity"],
-                new["popularity"], len(pulse_snaps)),
+                new["popularity"], len(_measured)),
              "Real numbers from your connected profiles \u2014 not projections."])
     else:
         sec("Audience signal", "awaiting",
