@@ -1723,6 +1723,7 @@ def create_app():
         eq = get_artist_eq_config()
         departments = get_departments_config()
         return render_template("landing.html", config=config, artist_eq=eq,
+                               public_base=PUBLIC_BASE_URL,
                                artist_eq_json=json.dumps(eq),
                                departments=departments,
                                departments_json=json.dumps(departments),
