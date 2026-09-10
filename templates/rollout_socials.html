@@ -8,7 +8,8 @@
     <div>
       <div class="sb-label text-sb-gold">Rollout Engine · Social Accounts</div>
       <h1 class="sb-h1 mt-1">Publishing Connections</h1>
-      <p class="mt-1 max-w-xl text-sm text-gray-300">Manual mode works today: copy captions from the Posts page, post them yourself, and mark them posted. Auto-posting activates per platform once API credentials are connected.</p>
+      <p class="mt-1 max-w-xl text-sm text-gray-300">Manual posting is the only route that works today. Copy the caption and asset, post it yourself, paste the published link back, and mark it posted — attribution still runs, because it hangs off each post’s own tracked link rather than off the platform.</p>
+      <p class="mt-2 max-w-xl text-sm text-gray-300"><strong class="text-sb-ink">Nothing here posts for you yet.</strong> No platform below has an upload path built. Credentials sitting in the environment are not a connection: each of these also needs an OAuth grant you approve as the account holder, and on YouTube an upload scope Google reviews before anyone outside this account can use it.</p>
     </div>
     <a href="/rollout-studio/{{ c.id }}" class="sb-btn sb-btn-secondary">← Overview</a>
   </div>
@@ -20,17 +21,17 @@
         <div class="text-sm font-bold text-gray-100">{{ name }}</div>
         {% if status == 'ready' %}
         <div class="text-xs text-green-400 font-medium">Active — copy captions and assets, mark posts as posted, attribution tracks through each post's link.</div>
-        {% elif status == 'configured' %}
-        <div class="text-xs text-sb-gold-bright font-medium">Credentials detected — OAuth connection flow is next on the roadmap.</div>
+        {% elif status == 'not connected' %}
+        <div class="text-xs text-sb-gold-bright font-medium">Credentials are on the deployment, and that is all — there is no upload path behind this platform, so nothing can be posted to it from here.</div>
         {% else %}
         <div class="text-xs text-gray-300 font-medium">Auto-posting requires platform API credentials and app approval. Until then, use manual mode.</div>
         {% endif %}
       </div>
-      <span class="shrink-0 rounded-md px-2 py-1 text-xs font-bold uppercase {{ 'bg-green-500/15 text-green-400' if status == 'ready' else ('bg-sb-gold/15 text-sb-gold-bright' if status == 'configured' else 'bg-white/10 text-gray-300') }}">{{ status }}</span>
+      <span class="shrink-0 rounded-md px-2 py-1 text-xs font-bold uppercase {{ 'bg-green-500/15 text-green-400' if status == 'ready' else ('bg-sb-gold/15 text-sb-gold-bright' if status == 'not connected' else 'bg-white/10 text-gray-300') }}">{{ status }}</span>
     </div>
     {% endfor %}
   </div>
 
-  <p class="text-xs text-gray-300 font-medium">Platform tokens, when connected, are stored server-side and never exposed to the browser. Every publish attempt will be logged with its platform response.</p>
+  <p class="text-xs text-gray-300 font-medium">When a platform is genuinely connected, its tokens will be stored server-side and never exposed to the browser, and every publish attempt will be logged with the platform’s own response. None of that is running yet, and this page will say so on each platform’s own evidence rather than on the presence of a variable.</p>
 </div>
 {% endblock %}

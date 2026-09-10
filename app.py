@@ -7917,7 +7917,7 @@ def create_app():
         store.notify(campaign["user_id"], "rollout",
                      "Rollout generated: %s" % campaign["title"],
                      "%d posts drafted across the release arc — review and approve." % len(posts),
-                     "/rollout-studio/%s/posts" % cid)
+                     "/rollout-studio/%s/plan" % cid)
         return redirect("/rollout-studio/%s" % cid)
 
     @app.route("/rollout-studio/<cid>")
@@ -7947,11 +7947,32 @@ def create_app():
                                platform_names=rollout_engine.PLATFORM_NAMES,
                                **build_dashboard_context())
 
-    @app.route("/rollout-studio/<cid>/posts", methods=["GET", "POST"])
-    def rollout_posts(cid):
+    # --- One plan, three arrangements ---------------------------------------
+    #
+    # Posts, Storyboard and Calendar were three pages over the same rows in
+    # ro_posts. Nothing separated them but which columns each chose to show:
+    # the words on one, the picture on another, the dates on a third. So a
+    # single post could not be finished anywhere - you wrote the caption on
+    # Posts, went to Storyboard to attach the asset, and to Calendar to see
+    # where it landed.
+    #
+    # They are one page now. The post is the unit of work and carries
+    # everything it needs; `view` chooses how the same set is arranged.
+
+    RO_VIEWS = ("list", "board", "calendar")
+
+    def _ro_plan_view():
+        wanted = (request.args.get("view") or "list").strip().lower()
+        return wanted if wanted in RO_VIEWS else "list"
+
+    @app.route("/rollout-studio/<cid>/plan", methods=["GET", "POST"])
+    def rollout_plan(cid):
         campaign, err = _ro_owned(cid)
         if err:
             return err
+        user = current_user()
+        view = _ro_plan_view()
+
         if request.method == "POST":
             post = ros.get_post(request.form.get("post_id") or "")
             if post and post["campaign_id"] == cid:
@@ -7965,19 +7986,43 @@ def create_app():
                         "status": "posted",
                         "published_url": (request.form.get("published_url") or "").strip()[:300]})
                 elif action == "save":
-                    ros.update_post(post["id"], {
-                        "caption": (request.form.get("caption") or "").strip()[:2200],
-                        "hashtags": (request.form.get("hashtags") or "").strip()[:300],
-                        "scheduled_date": (request.form.get("scheduled_date") or "").strip()[:10]})
-            return redirect("/rollout-studio/%s/posts" % cid)
+                    fields = {}
+                    # Only what the form actually carried. The board and the
+                    # calendar send a subset, and a missing field must not
+                    # blank a caption somebody wrote on the list view.
+                    if "caption" in request.form:
+                        fields["caption"] = (request.form.get("caption") or "").strip()[:2200]
+                    if "hashtags" in request.form:
+                        fields["hashtags"] = (request.form.get("hashtags") or "").strip()[:300]
+                    if "scheduled_date" in request.form:
+                        fields["scheduled_date"] = (request.form.get("scheduled_date") or "").strip()[:10]
+                    if fields:
+                        ros.update_post(post["id"], fields)
+                elif action == "asset":
+                    # Attach or detach a Vault file. The file is looked up in
+                    # this user's own vault listing - nothing else is
+                    # reachable by id.
+                    vid = request.form.get("vault_id") or ""
+                    if vid == "":
+                        ros.update_post(post["id"], {"asset_id": None})
+                    else:
+                        v = next((v for v in store.list_vault_files(user["id"])
+                                  if v["id"] == vid), None)
+                        if v:
+                            ext = v["path"].rsplit(".", 1)[-1].lower()
+                            atype = ("video" if ext in ("mp4", "mov")
+                                     else "image" if ext in ("png", "jpg", "jpeg",
+                                                             "webp", "gif")
+                                     else "file")
+                            aid = ros.add_asset(cid, atype, v["path"])
+                            ros.update_post(post["id"], {"asset_id": aid})
+            return redirect("/rollout-studio/%s/plan?view=%s" % (cid, view))
+
         posts = _ro_post_attribution(campaign)
         variants = ({v["id"]: v for v in mls.list_variants(campaign["ml_campaign_id"])}
                     if campaign.get("ml_campaign_id") else {})
         ml_campaign = (mls.get_campaign(campaign["ml_campaign_id"])
                        if campaign.get("ml_campaign_id") else None)
-        # Per-platform recasts: rule-built from each post's own caption,
-        # the campaign's real tracked link, and the Twin's do-not-say list.
-        user = current_user()
         twin_cfg = store.get_twin_settings(user["id"]) if user else None
         avoid = [p.strip() for p in
                  ((twin_cfg or {}).get("do_not_say") or "").split(",")
@@ -7990,64 +8035,46 @@ def create_app():
             p["casts"] = rollout_engine.platform_casts(
                 p["caption"], p["hashtags"], campaign["title"], link, avoid)
             p["asset"] = assets.get(p["asset_id"])
-        return render_template("rollout_posts.html", active_page="rollout",
-                               c=campaign, posts=posts, variants=variants,
-                               ml_campaign=ml_campaign, avoid_count=len(avoid),
-                               phase_names=rollout_engine.PHASE_NAMES,
-                               platform_names=rollout_engine.PLATFORM_NAMES,
-                               **build_dashboard_context())
 
-    @app.route("/rollout-studio/<cid>/storyboard", methods=["GET", "POST"])
+        # Filters, so one arrangement does not have to show everything.
+        phase = (request.args.get("phase") or "").strip()
+        platform = (request.args.get("platform") or "").strip()
+        shown = [p for p in posts
+                 if (not phase or p["phase"] == phase)
+                 and (not platform or p["platform"] == platform)]
+
+        by_date = {}
+        for p in shown:
+            by_date.setdefault(p["scheduled_date"], []).append(p)
+
+        return render_template(
+            "rollout_plan.html", active_page="rollout", c=campaign,
+            posts=shown, total_posts=len(posts), view=view,
+            by_date=sorted(by_date.items()),
+            vault=store.list_vault_files(user["id"]),
+            variants=variants, ml_campaign=ml_campaign,
+            avoid_count=len(avoid),
+            phase=phase, platform=platform,
+            phases_present=sorted({p["phase"] for p in posts}),
+            platforms_present=sorted({p["platform"] for p in posts}),
+            phase_names=rollout_engine.PHASE_NAMES,
+            platform_names=rollout_engine.PLATFORM_NAMES,
+            **build_dashboard_context())
+
+    # The three pages this replaced. Kept as redirects because they are in
+    # people's history and in the subnav of anything not yet redeployed -
+    # a dead link is a worse answer than the page they were looking for.
+    @app.route("/rollout-studio/<cid>/posts")
+    def rollout_posts(cid):
+        return redirect("/rollout-studio/%s/plan?view=list" % cid, code=301)
+
+    @app.route("/rollout-studio/<cid>/storyboard")
     def rollout_storyboard(cid):
-        campaign, err = _ro_owned(cid)
-        if err:
-            return err
-        user = current_user()
-        if request.method == "POST":
-            # Attach a Vault asset to a post: the file is referenced from the
-            # user's own vault listing — nothing else is reachable by id.
-            post = ros.get_post(request.form.get("post_id") or "")
-            vid = request.form.get("vault_id") or ""
-            if post and post["campaign_id"] == cid:
-                if vid == "":
-                    ros.update_post(post["id"], {"asset_id": None})
-                else:
-                    v = next((v for v in store.list_vault_files(user["id"])
-                              if v["id"] == vid), None)
-                    if v:
-                        ext = v["path"].rsplit(".", 1)[-1].lower()
-                        atype = ("video" if ext in ("mp4", "mov")
-                                 else "image" if ext in ("png", "jpg", "jpeg",
-                                                         "webp", "gif")
-                                 else "file")
-                        aid = ros.add_asset(cid, atype, v["path"])
-                        ros.update_post(post["id"], {"asset_id": aid})
-            return redirect("/rollout-studio/%s/storyboard" % cid)
-        posts = _ro_post_attribution(campaign)
-        assets = {a["id"]: a for a in ros.list_assets(cid)}
-        for p in posts:
-            p["asset"] = assets.get(p["asset_id"])
-        vault = store.list_vault_files(user["id"])
-        return render_template("rollout_storyboard.html", active_page="rollout",
-                               c=campaign, posts=posts, vault=vault,
-                               phase_names=rollout_engine.PHASE_NAMES,
-                               platform_names=rollout_engine.PLATFORM_NAMES,
-                               **build_dashboard_context())
+        return redirect("/rollout-studio/%s/plan?view=board" % cid, code=301)
 
     @app.route("/rollout-studio/<cid>/calendar")
     def rollout_calendar(cid):
-        campaign, err = _ro_owned(cid)
-        if err:
-            return err
-        posts = ros.list_posts(cid)
-        by_date = {}
-        for p in posts:
-            by_date.setdefault(p["scheduled_date"], []).append(p)
-        return render_template("rollout_calendar.html", active_page="rollout",
-                               c=campaign, by_date=sorted(by_date.items()),
-                               phase_names=rollout_engine.PHASE_NAMES,
-                               platform_names=rollout_engine.PLATFORM_NAMES,
-                               **build_dashboard_context())
+        return redirect("/rollout-studio/%s/plan?view=calendar" % cid, code=301)
 
     @app.route("/rollout-studio/<cid>/performance")
     def rollout_performance(cid):

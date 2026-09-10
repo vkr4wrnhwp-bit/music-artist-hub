@@ -2214,10 +2214,10 @@ def test_rollout_studio_full_flow():
     assert "export_checklist" in video_posts[0]["edit_plan"]
     # Approval workflow + manual posting with published URL.
     pid = posts[0]["id"]
-    client.post("/rollout-studio/%s/posts" % cid,
+    client.post("/rollout-studio/%s/plan" % cid,
                 data={"post_id": pid, "action": "approve"})
     assert ros.get_post(pid)["status"] == "approved"
-    client.post("/rollout-studio/%s/posts" % cid,
+    client.post("/rollout-studio/%s/plan" % cid,
                 data={"post_id": pid, "action": "posted",
                       "published_url": "https://instagram.com/p/abc"})
     post = ros.get_post(pid)
@@ -2230,8 +2230,15 @@ def test_rollout_studio_full_flow():
     perf = client.get("/rollout-studio/%s/performance" % cid).get_data(as_text=True)
     assert "Top Posts" in perf and "1v" in perf
     # All pages render; socials shows manual mode ready.
-    for path in ("", "/posts", "/calendar", "/socials"):
+    for path in ("", "/plan", "/plan?view=board", "/plan?view=calendar", "/socials"):
         assert client.get("/rollout-studio/%s%s" % (cid, path)).status_code == 200
+    # The three pages the plan replaced still answer, so a link somebody
+    # saved does not die.
+    for old_path, view in (("/posts", "list"), ("/storyboard", "board"),
+                           ("/calendar", "calendar")):
+        moved = client.get("/rollout-studio/%s%s" % (cid, old_path))
+        assert moved.status_code == 301
+        assert moved.headers["Location"].endswith("/plan?view=%s" % view)
     socials = client.get("/rollout-studio/%s/socials" % cid).get_data(as_text=True)
     assert "Manual posting" in socials and "ready" in socials
     assert "TikTok" in socials and "needs credentials" in socials
@@ -5049,26 +5056,28 @@ def test_rollout_storyboard_casts_and_safezone():
     posts = ros_mod.list_posts(cid)
     assert posts
     pid = posts[0]["id"]
-    # Storyboard: heat legend + vault attach that survives the round trip.
-    page = client.get("/rollout-studio/%s/storyboard" % cid).get_data(as_text=True)
+    # Board view: heat legend + vault attach that survives the round trip.
+    page = client.get("/rollout-studio/%s/plan?view=board" % cid).get_data(as_text=True)
     assert "Heat = this post" in page and "Attach from Vault" in page
-    client.post("/rollout-studio/%s/storyboard" % cid,
-                data={"post_id": pid, "vault_id": vid})
+    client.post("/rollout-studio/%s/plan" % cid,
+                data={"post_id": pid, "action": "asset", "vault_id": vid})
     p0 = ros_mod.get_post(pid)
     assets = {a["id"]: a for a in ros_mod.list_assets(cid)}
     assert p0["asset_id"] in assets
     assert assets[p0["asset_id"]]["asset_type"] == "image"
-    page = client.get("/rollout-studio/%s/storyboard" % cid).get_data(as_text=True)
+    page = client.get("/rollout-studio/%s/plan?view=board" % cid).get_data(as_text=True)
     assert assets[p0["asset_id"]]["file_path"] in page
-    # Posts page: rule-based platform casts honoring do-not-say, safe zones.
-    page = client.get("/rollout-studio/%s/posts" % cid).get_data(as_text=True)
+    # List view: rule-based platform casts honoring do-not-say, safe zones.
+    page = client.get("/rollout-studio/%s/plan?view=list" % cid).get_data(as_text=True)
     assert "Platform casts" in page and "a generator, not a chatbot" in page
     assert "do-not-say phrase" in page
     assert "Safe-zone preview" in page and "Not any platform" in page
-    assert "/rollout-studio/%s/storyboard" % cid in page
+    # The picture and the words are on the same page now, so there is no
+    # link to a separate board to assert - the switch is there instead.
+    assert "?view=board" in page
     # Detach clears; a stranger's vault id never attaches.
-    client.post("/rollout-studio/%s/storyboard" % cid,
-                data={"post_id": pid, "vault_id": ""})
+    client.post("/rollout-studio/%s/plan" % cid,
+                data={"post_id": pid, "action": "asset", "vault_id": ""})
     assert ros_mod.get_post(pid)["asset_id"] is None
     other = app_obj.test_client()
     other.post("/signup", data={"name": "X", "email":
@@ -5077,8 +5086,9 @@ def test_rollout_storyboard_casts_and_safezone():
     other.post("/vault/upload", data={
         "file": (_io.BytesIO(b"png"), "other.png"), "kind": "press_photo"},
         content_type="multipart/form-data")
-    client.post("/rollout-studio/%s/storyboard" % cid,
-                data={"post_id": pid, "vault_id": "not-my-vault-id"})
+    client.post("/rollout-studio/%s/plan" % cid,
+                data={"post_id": pid, "action": "asset",
+                      "vault_id": "not-my-vault-id"})
     assert ros_mod.get_post(pid)["asset_id"] is None
 
 
