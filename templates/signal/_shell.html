@@ -47,18 +47,23 @@
   </nav>
 
   <main class="sg-main">
-    {% if demo_mode %}
-      <div class="sg-banner" role="status">
-        <b>Demo data.</b> No music-data provider is connected, so every artist, company and
-        contact on these screens is fictional and generated locally. Nothing here refers to a
-        real person or business. Connect a provider under Data sources to work with live data.
-      </div>
-    {% elif demo_universe %}
+    {#- The strongest claim first: whether the rows on screen are made up
+        is a fact about the rows, not about what happens to be configured
+        today. Only when they are real does the connection state get to
+        speak, and then it says what it actually knows. -#}
+    {% if demo_universe %}
       <div class="sg-banner" role="status">
         <b>Demo data.</b> The artists, companies and contacts on these screens were generated
-        locally and are fictional; nothing here refers to a real person or business. The sources
-        now connected answer only what they measure. Connect a music-data provider under Data
-        sources and refresh the universe to replace them.
+        locally and are fictional; nothing here refers to a real person or business.
+        {% if demo_mode %}No music-data provider is connected. Connect one under Data sources
+        to work with live data.{% else %}The sources now connected answer only what they
+        measure. Refresh the universe under Data sources to replace these rows.{% endif %}
+      </div>
+    {% elif demo_mode %}
+      <div class="sg-banner" role="status">
+        <b>Nothing is connected.</b> No music-data provider is configured, so nothing on these
+        screens is being refreshed and a new lookup will not run. What is here is real and as
+        current as the last time a source answered. Connect a provider under Data sources.
       </div>
     {% endif %}
     {% block main %}{% endblock %}

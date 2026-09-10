@@ -102,10 +102,19 @@ def _ctx(org, member, **extra):
         "me": member,
         "sg_can": (lambda perm: sstore.can(member, perm)),
         "demo_mode": demo,
-        # the mock has stood down (a real source is configured - maybe only
-        # the viewer's own tour) but rows it ingested are still on screen:
-        # they are still fictional, so the shell still says so
-        "demo_universe": (not demo) and sstore.seeded_by(reg.mock.key),
+        # Two separate facts, deliberately not folded together.
+        #
+        # demo_mode: no real source is connected, so nothing refreshes and a
+        # new lookup will not run.
+        # demo_universe: rows the mock ingested are still on screen, and
+        # those are fictional whatever is connected now.
+        #
+        # This used to read `(not demo) and seeded_by(...)`, which made the
+        # stored universe unaskable whenever no provider was configured -
+        # so an owner who retired the fictional artists and then lost a
+        # provider key was told every artist on screen was fictional, about
+        # a real one, by a banner that had not looked.
+        "demo_universe": sstore.seeded_by(reg.mock.key),
         "unread_alerts": sstore.unread_alert_count(org["id"]) if org else 0,
         "score_labels": scoring.SCORE_LABELS,
         "score_version": scoring.SCORE_VERSION,
