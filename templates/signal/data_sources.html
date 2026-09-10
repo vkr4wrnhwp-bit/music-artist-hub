@@ -119,16 +119,22 @@
 
   <h2 class="sg-h2">Adapters</h2>
   <div class="sg-table-wrap"><table class="sg-table">
-    <thead><tr><th scope="col">Provider</th><th scope="col">State</th><th scope="col">Capabilities</th></tr></thead>
+    <thead><tr><th scope="col">Provider</th><th scope="col">State</th><th scope="col">Capabilities</th><th scope="col">Connection</th></tr></thead>
     <tbody>
       {% for h in health %}
         <tr>
           <td><b>{{ h['provider'] }}</b></td>
           <td>
-            {{ sb.lamp('configured' if h['configured'] else 'not configured', 'on' if h['configured'] else '') }}
+            {{ sb.lamp('credentials present' if h['configured'] else 'not configured', 'on' if h['configured'] else '') }}
             <span class="sg-artist-meta">{{ h['detail'] }}{% if h.get('auth') %} · {{ h['auth'] }}{% endif %}</span>
           </td>
           <td><span class="sg-artist-meta">{{ h['capabilities']|join(', ') }}</span></td>
+          <td>
+            {#- The row above reads the environment. This asks the vendor. -#}
+            <button type="button" class="sg-btn sg-btn--ghost sg-btn--small"
+                    data-probe="{{ h['provider'] }}">Test connection</button>
+            <span class="sg-artist-meta" data-probe-result="{{ h['provider'] }}"></span>
+          </td>
         </tr>
       {% endfor %}
     </tbody>
@@ -138,6 +144,40 @@
     that has not been implemented raises rather than returning a plausible guess — a fabricated
     distributor or manager is worse than a blank one.
   </p>
+  <p class="sg-note">
+    <b>Credentials present is not the same as the vendor answering.</b> The state column reads this
+    deployment’s environment; a key can be revoked or a plan lapse without a single variable
+    changing. <b>Test connection</b> spends one real lookup and reports what came back, in the
+    provider’s own words. An adapter with no cheap call to spend says so rather than reporting a
+    pass it did not earn.
+  </p>
+<script>
+/* One real call per click, and the answer written where it was asked for.
+   Nothing is cached: a test that showed you a previous run's result would
+   be the exact confusion this button exists to remove. */
+(function () {
+  document.querySelectorAll("[data-probe]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var key = btn.dataset.probe;
+      var out = document.querySelector('[data-probe-result="' + key + '"]');
+      btn.disabled = true;
+      out.textContent = "Asking " + key + "\u2026";
+      fetch("/signal/admin/probe/" + encodeURIComponent(key),
+            {method: "POST", credentials: "same-origin"})
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var mark = d.ok === true ? "\u2713 " : (d.ok === false ? "\u2717 " : "\u2014 ");
+          out.textContent = mark + (d.detail || "");
+          btn.disabled = false;
+        })
+        .catch(function () {
+          out.textContent = "The test could not be sent from this browser.";
+          btn.disabled = false;
+        });
+    });
+  });
+})();
+</script>
 
   <h2 class="sg-h2">Usage — last 30 days</h2>
   {% if usage %}

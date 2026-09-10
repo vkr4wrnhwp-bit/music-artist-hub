@@ -8,7 +8,17 @@
       <h1 class="sg-h1">{{ board_title }}</h1>
       <p class="sg-lede">{{ board_lede }}</p>
     </div>
-    <a class="sg-btn sg-btn--ghost sg-btn--small" href="/signal/export/board.csv">Export CSV</a>
+    {#- The file is the board on the screen: the board's own name, the
+        mandate if one is chosen, and whatever it is narrowed to. -#}
+    <a class="sg-btn sg-btn--ghost sg-btn--small"
+       href="/signal/export/board.csv?board={{ board|default('') |urlencode }}{%
+         if active_mandate %}&mandate={{ active_mandate['id']|urlencode }}{% endif %}{%
+         if facets is defined and facets %}{%
+           if facets['shape'] %}&shape={{ facets['shape']|urlencode }}{% endif %}{%
+           if facets['genre'] %}&genre={{ facets['genre']|urlencode }}{% endif %}{%
+           if facets['tier'] %}&tier={{ facets['tier']|urlencode }}{% endif %}{%
+           if facets['max_listeners'] %}&max_listeners={{ facets['max_listeners']|urlencode }}{% endif %}{%
+         endif %}">Export CSV</a>
   </div>
 
   {% if mandates is defined and mandates %}
@@ -27,8 +37,71 @@
     </form>
   {% endif %}
 
+  {%- if facets is defined and facets %}
+    {#- Narrowing, built from the rows this board holds - so a choice can
+        never remove itself from its own list, and an empty result says
+        "nothing matches" rather than "this board is empty". -#}
+    <form class="sg-rail" method="get">
+      {% if active_mandate %}<input type="hidden" name="mandate" value="{{ active_mandate['id'] }}">{% endif %}
+      {% if facets['shapes'] %}
+      <label class="sg-field">
+        <span>Growth shape</span>
+        <select class="sg-select" name="shape">
+          <option value="">Any shape</option>
+          {% for sh in facets['shapes'] %}
+          <option value="{{ sh }}" {% if facets['shape'] == sh %}selected{% endif %}>{{ sh }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      {% if facets['genres'] %}
+      <label class="sg-field">
+        <span>Genre</span>
+        <select class="sg-select" name="genre">
+          <option value="">Any genre</option>
+          {% for g in facets['genres'] %}
+          <option value="{{ g }}" {% if facets['genre'] == g %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      {% if facets['tiers'] %}
+      <label class="sg-field">
+        <span>Distribution tier</span>
+        <select class="sg-select" name="tier">
+          <option value="">Any tier</option>
+          {% for t in facets['tiers'] %}
+          <option value="{{ t }}" {% if facets['tier'] == t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      <label class="sg-field">
+        <span>Listener ceiling</span>
+        <select class="sg-select" name="max_listeners">
+          <option value="">No ceiling</option>
+          {% for n, label in [(10000, 'Under 10k'), (25000, 'Under 25k'), (50000, 'Under 50k'),
+                              (100000, 'Under 100k'), (250000, 'Under 250k')] %}
+          <option value="{{ n }}" {% if facets['max_listeners'] == n|string %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="sg-btn sg-btn--small" type="submit">Apply</button>
+      {% if facets['filtered'] %}
+      <a class="sg-btn sg-btn--ghost sg-btn--small"
+         href="/signal/{{ board }}{% if active_mandate %}?mandate={{ active_mandate['id'] }}{% endif %}">Clear</a>
+      {% endif %}
+    </form>
+  {%- endif %}
+
   {% if rows %}
-    <p class="sg-h2">{{ rows|length }} artist{{ '' if rows|length == 1 else 's' }}</p>
+    <p class="sg-h2">
+      {%- if facets is defined and facets and facets['filtered'] -%}
+        {{ rows|length }} of {{ facets['total'] }} artist{{ '' if facets['total'] == 1 else 's' }} shown
+      {%- else -%}
+        {{ rows|length }} artist{{ '' if rows|length == 1 else 's' }}
+      {%- endif -%}
+    </p>
     {{ board_table(rows, sg_can) }}
     <p class="sg-note">
       Every score is cohort-relative — an artist is measured against others at the same career
@@ -36,10 +109,19 @@
       inputs, weights and what data was missing.
     </p>
   {% else %}
+    {% if facets is defined and facets and facets['filtered'] %}
+    <div class="sg-empty">
+      <b>Nothing on this board matches that filter.</b><br>
+      {{ facets['total'] }} artist{{ '' if facets['total'] == 1 else 's' }} clear this board's bar —
+      none of them match what you narrowed to.
+      <a href="/signal/{{ board }}">Clear the filter</a> to see them.
+    </div>
+    {% else %}
     <div class="sg-empty">
       <b>Nothing meets this board's bar right now.</b><br>
       That is a real answer, not an error — this board only shows artists whose movement clears
       its threshold. Widen the window, or check Data sources to confirm the universe is fresh.
     </div>
+    {% endif %}
   {% endif %}
 {% endblock %}

@@ -175,6 +175,104 @@ def _distribution_for(rows):
     return rows
 
 
+# --- boards -----------------------------------------------------------------
+#
+# One rule per board, named once. The page and the CSV both ask for it, so
+# the file you download is the board you were reading rather than the whole
+# universe - which is what the export used to send, on every board, however
+# it was filtered.
+
+BOARD_RULES = {
+    "breaking": {
+        "title": "Breaking Now",
+        "lede": "Artists whose audience materially changed in the last seven days. "
+                "Sorted by 7-day movement; every number opens its own explanation.",
+        "keep": lambda r: (r["change_7d"] or 0) > 0,
+        "order": lambda r: -(r["change_7d"] or 0),
+        "sort_col": "change_7d",
+    },
+    "early": {
+        "title": "Early Signal",
+        "lede": "Under 250k monthly listeners, accelerating across more than one period, "
+                "and scored against artists at the same career stage - not against superstars.",
+        "keep": lambda r: ((r["artist"].get("monthly_listeners") or 0) <= 250000
+                           and r["momentum"] >= 45
+                           and (r["change_28d"] or 0) >= 8),
+        "order": lambda r: -r["momentum"],
+        "sort_col": "momentum",
+    },
+    "undervalued": {
+        "title": "Undervalued Infrastructure",
+        "lede": "Where the audience is running ahead of the business behind it - "
+                "distribution, team, catalogue consistency or rights.",
+        "keep": lambda r: r["gap"] >= 55,
+        "order": lambda r: -r["gap"],
+        "sort_col": "gap",
+    },
+    "deal-ready": {
+        "title": "Deal Ready",
+        "lede": "Momentum quality, release cadence, contactability and rights health, "
+                "scored together. Filter by one of your mandates to see fit.",
+        "keep": lambda r: r["deal"] >= 45,
+        "order": lambda r: -r["deal"],
+        "sort_col": "deal",
+    },
+}
+
+
+def _board_rows(org, board):
+    """Every row that clears this board's bar, in this board's order."""
+    rule = BOARD_RULES[board]
+    rows = [r for r in _distribution_for(_rows_for(org)) if rule["keep"](r)]
+    rows.sort(key=rule["order"])
+    return rows
+
+
+def _tier_of(row):
+    return ((row.get("distribution") or {}).get("classification") or "").strip()
+
+
+def _board_filter(rows):
+    """Narrow a board by what is on it, and say how much is hidden.
+
+    The facets are built from the rows BEFORE filtering, so a choice never
+    removes itself from its own dropdown. A filtered board that looks like
+    the whole board is a lie of omission, so the caller is handed the
+    total to print beside the count.
+    """
+    shape = (request.args.get("shape") or "").strip()
+    genre = (request.args.get("genre") or "").strip()
+    tier = (request.args.get("tier") or "").strip()
+    ceiling_raw = (request.args.get("max_listeners") or "").strip()
+    try:
+        ceiling = int(ceiling_raw) if ceiling_raw else 0
+    except ValueError:
+        ceiling = 0
+
+    facets = {
+        "shapes": sorted({r["shape"] for r in rows if r["shape"]}),
+        "genres": sorted({(r["artist"].get("genre") or "").strip()
+                          for r in rows if (r["artist"].get("genre") or "").strip()}),
+        "tiers": sorted({_tier_of(r) for r in rows if _tier_of(r)}),
+        "shape": shape, "genre": genre, "tier": tier,
+        "max_listeners": ceiling_raw if ceiling else "",
+        "total": len(rows),
+    }
+
+    kept = rows
+    if shape:
+        kept = [r for r in kept if r["shape"] == shape]
+    if genre:
+        kept = [r for r in kept if (r["artist"].get("genre") or "").strip() == genre]
+    if tier:
+        kept = [r for r in kept if _tier_of(r) == tier]
+    if ceiling:
+        kept = [r for r in kept
+                if (r["artist"].get("monthly_listeners") or 0) <= ceiling]
+    facets["filtered"] = len(kept) != len(rows)
+    return kept, facets
+
+
 # --- pages ------------------------------------------------------------------
 
 @bp.route("")
@@ -200,14 +298,11 @@ def dashboard(org, member):
 @require("view")
 def breaking(org, member):
     ingest.ensure_universe()
-    rows = _distribution_for(_rows_for(org))
-    rows = [r for r in rows if (r["change_7d"] or 0) > 0]
-    rows.sort(key=lambda r: -(r["change_7d"] or 0))
+    rows, facets = _board_filter(_board_rows(org, "breaking"))
     return render_template("signal/board.html", **_ctx(
-        org, member, board_title="Breaking Now",
-        board_lede="Artists whose audience materially changed in the last seven days. "
-                   "Sorted by 7-day movement; every number opens its own explanation.",
-        rows=rows, sort_col="change_7d"))
+        org, member, board_title=BOARD_RULES["breaking"]["title"],
+        board_lede=BOARD_RULES["breaking"]["lede"],
+        rows=rows, sort_col="change_7d", board="breaking", facets=facets))
 
 
 @bp.route("/early")
@@ -216,23 +311,11 @@ def early(org, member):
     """Smaller artists accelerating faster than their own cohort. The point
     is abnormal acceleration from a credible base - not raw size."""
     ingest.ensure_universe()
-    rows = _distribution_for(_rows_for(org))
-    picked = []
-    for r in rows:
-        a = r["artist"]
-        if (a.get("monthly_listeners") or 0) > 250000:
-            continue
-        if r["momentum"] < 45:
-            continue
-        if (r["change_28d"] or 0) < 8:
-            continue
-        picked.append(r)
-    picked.sort(key=lambda r: -(r["momentum"]))
+    rows, facets = _board_filter(_board_rows(org, "early"))
     return render_template("signal/board.html", **_ctx(
-        org, member, board_title="Early Signal",
-        board_lede="Under 250k monthly listeners, accelerating across more than one period, "
-                   "and scored against artists at the same career stage - not against superstars.",
-        rows=picked, sort_col="momentum"))
+        org, member, board_title=BOARD_RULES["early"]["title"],
+        board_lede=BOARD_RULES["early"]["lede"],
+        rows=rows, sort_col="momentum", board="early", facets=facets))
 
 
 @bp.route("/cities")
@@ -262,32 +345,28 @@ def cities(org, member):
 @require("view")
 def undervalued(org, member):
     ingest.ensure_universe()
-    rows = _distribution_for(_rows_for(org))
-    rows = [r for r in rows if r["gap"] >= 55]
-    rows.sort(key=lambda r: -r["gap"])
+    rows, facets = _board_filter(_board_rows(org, "undervalued"))
     return render_template("signal/board.html", **_ctx(
-        org, member, board_title="Undervalued Infrastructure",
-        board_lede="Where the audience is running ahead of the business behind it - "
-                   "distribution, team, catalogue consistency or rights.",
-        rows=rows, sort_col="gap"))
+        org, member, board_title=BOARD_RULES["undervalued"]["title"],
+        board_lede=BOARD_RULES["undervalued"]["lede"],
+        rows=rows, sort_col="gap", board="undervalued", facets=facets))
 
 
 @bp.route("/deal-ready")
 @require("view")
 def deal_ready(org, member):
     ingest.ensure_universe()
-    rows = _distribution_for(_rows_for(org))
     mandate_id = (request.args.get("mandate") or "").strip()
     mandate = sstore.get_mandate(org["id"], mandate_id) if mandate_id else None
+    rows = _board_rows(org, "deal-ready")
     if mandate:
         rows = [r for r in rows if _mandate_match(r, mandate)[0]]
-    rows = [r for r in rows if r["deal"] >= 45]
-    rows.sort(key=lambda r: -r["deal"])
+    rows, facets = _board_filter(rows)
     return render_template("signal/board.html", **_ctx(
-        org, member, board_title="Deal Ready",
-        board_lede="Momentum quality, release cadence, contactability and rights health, "
-                   "scored together. Filter by one of your mandates to see fit.",
-        rows=rows, sort_col="deal", mandates=sstore.list_mandates(org["id"], active_only=True),
+        org, member, board_title=BOARD_RULES["deal-ready"]["title"],
+        board_lede=BOARD_RULES["deal-ready"]["lede"],
+        rows=rows, sort_col="deal", board="deal-ready", facets=facets,
+        mandates=sstore.list_mandates(org["id"], active_only=True),
         active_mandate=mandate))
 
 
@@ -700,6 +779,24 @@ def data_sources(org, member):
     return _render_data_sources(org, member)
 
 
+@bp.route("/admin/probe/<key>", methods=["POST"])
+@require("provider_admin")
+def admin_probe(org, member, key):
+    """Ask one adapter a real question and report what came back.
+
+    The Adapters table reads the environment; this reads the vendor. They
+    disagree exactly when it matters - a revoked key, a lapsed plan, a
+    moved endpoint - and that gap is the whole reason for the button.
+    """
+    adapter = next((a for a in providers.registry().all_providers()
+                    if a.key == key), None)
+    if adapter is None:
+        return jsonify({"ok": False, "detail": "No adapter by that name."}), 404
+    result = adapter.probe()
+    return jsonify({"provider": key, "ok": result.get("ok"),
+                    "detail": result.get("detail") or ""})
+
+
 @bp.route("/admin/refresh", methods=["POST"])
 @require("provider_admin")
 def admin_refresh(org, member):
@@ -892,7 +989,28 @@ def _ask_match(row, f):
 @bp.route("/export/board.csv")
 @require("view")
 def export_board(org, member):
-    rows = _distribution_for(_rows_for(org))
+    """The board the reader is looking at, not the whole universe.
+
+    This used to ignore both the board and its filters and write every
+    artist on file - so "Export CSV" on Breaking Now offered the breaking
+    cohort and delivered everything. The board's own rule is applied here
+    from the same table the page uses, so the two cannot drift apart.
+    """
+    board = (request.args.get("board") or "").strip()
+    if board in BOARD_RULES:
+        rows = _board_rows(org, board)
+        mandate_id = (request.args.get("mandate") or "").strip()
+        if board == "deal-ready" and mandate_id:
+            mandate = sstore.get_mandate(org["id"], mandate_id)
+            if mandate:
+                rows = [r for r in rows if _mandate_match(r, mandate)[0]]
+        rows, _facets = _board_filter(rows)
+        filename = "signal-%s.csv" % board
+    else:
+        # No board named: the whole universe, which is what every caller
+        # of this route got before it could be asked for anything else.
+        rows = _distribution_for(_rows_for(org))
+        filename = "signal-board.csv"
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Artist", "Genre", "City", "Monthly listeners", "SB Momentum",
@@ -907,7 +1025,8 @@ def export_board(org, member):
                     (r["distribution"] or {}).get("classification") or "",
                     scoring.SCORE_VERSION])
     return Response(buf.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=signal-board.csv"})
+                    headers={"Content-Disposition":
+                             "attachment; filename=%s" % filename})
 
 
 # --- registration -----------------------------------------------------------

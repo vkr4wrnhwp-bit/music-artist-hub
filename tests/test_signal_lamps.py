@@ -65,7 +65,10 @@ def test_the_board_draws_states_as_lamps_on_paper(flask_app):
     sstore.upsert_member(org["id"], email, "Scout", "owner", user_id=user["id"])
     body = client.get("/signal/admin/data-sources").get_data(as_text=True)
     if "configured" in body:
-        assert re.search(r'sb-lamp[^"]*">(configured|not configured)<', body)
+        # "credentials present" rather than "configured": the lamp reads the
+        # environment, and a key can be revoked without a variable changing.
+        assert re.search(
+            r'sb-lamp[^"]*">(credentials present|not configured)<', body)
         assert "sg-pill is-ok" not in body
     board = client.get("/signal").get_data(as_text=True)
     assert 'class="sg-body sb-on-paper"' in board

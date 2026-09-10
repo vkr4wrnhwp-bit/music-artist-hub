@@ -118,6 +118,20 @@ class MusicIntelligenceProvider(object):
     def supports(self, capability):
         return capability in self.capabilities
 
+    def probe(self):
+        """Ask the vendor one real question, and report what came back.
+
+        Distinct from health_check(), which only reads the environment.
+        Credentials being present is not the vendor answering: a key can
+        be revoked or a plan lapse without a single variable changing.
+
+        Returns {ok, detail}. `ok` is None - not False - when no test was
+        run, because "we did not ask" and "we asked and it failed" are
+        different answers and a lamp must not conflate them.
+        """
+        return {"ok": None,
+                "detail": "No connection test is implemented for this adapter."}
+
     # Every method below is optional per capability.
     def search_artists(self, query, limit=20):
         raise NotImplementedError
@@ -181,6 +195,41 @@ class _EnvProvider(MusicIntelligenceProvider):
         return {"provider": self.key, "configured": self.configured(),
                 "ok": self.configured(), "detail": detail,
                 "capabilities": list(self.capabilities)}
+
+    def probe(self):
+        """One real lookup, through the same seam the product uses.
+
+        An artist search is the cheapest question most of these vendors
+        answer, and it exercises the whole path - credentials, token
+        mint, host, parsing. An adapter that cannot answer one says so;
+        it does not get a pass for being configured.
+        """
+        if not self.configured():
+            return {"ok": False,
+                    "detail": self.health_check().get("detail") or "not configured"}
+        if not self.supports(CAP_ARTIST):
+            return {"ok": None,
+                    "detail": "No connection test for this adapter yet - it serves "
+                              "%s, and none of those has a cheap call to spend on a test."
+                              % ", ".join(self.capabilities)}
+        try:
+            found = self.search_artists("radiohead", limit=1)
+        except NotImplementedError:
+            return {"ok": None,
+                    "detail": "This adapter declares artist search and has not "
+                              "implemented it."}
+        except ProviderError as e:
+            # The vendor's own words, not a flattened "failed".
+            return {"ok": False, "detail": str(e) or "The provider refused the call."}
+        except Exception as e:
+            return {"ok": False, "detail": "%s: %s" % (type(e).__name__, e)}
+        n = len(found or [])
+        if not n:
+            return {"ok": True,
+                    "detail": "Answered, with no match for the test query. The "
+                              "connection works; the catalogue simply had nothing."}
+        return {"ok": True, "detail": "Answered with %d result%s."
+                                      % (n, "" if n == 1 else "s")}
 
 
 # Soundcharts' own career-stage words, on this product's three-step ladder.
