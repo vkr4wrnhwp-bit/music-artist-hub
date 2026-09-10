@@ -7599,6 +7599,107 @@ def create_app():
                                fan_count=len(mls.list_fans(user["id"])),
                                **ctx)
 
+    # --- Resellers: Street Banker's own back office ------------------------
+
+    def _owner_or_404():
+        """Owner accounts only. A 404 rather than a 403: nobody who is not
+        an owner needs to learn this address exists."""
+        user = current_user()
+        if user is None:
+            return None, login_required_redirect()
+        if not _is_owner_email(user.get("email")):
+            abort(404)
+        return user, None
+
+    def _partners_view(error=None):
+        rows = []
+        for p in partner_store.list_partners():
+            rows.append(dict(
+                p,
+                seats_used=partner_store.seats_used(p["id"]),
+                seat_limit=partner_store.seat_limit(p["id"]),
+                members=partner_store.list_members(p["id"]),
+            ))
+        return render_template("partners_admin.html", active_page="",
+                               partners=rows, roles=partner_store.ROLES,
+                               error=error, **build_dashboard_context())
+
+    @app.route("/partners")
+    def partners_admin():
+        _user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
+        return _partners_view()
+
+    @app.route("/partners", methods=["POST"])
+    def partners_create():
+        _user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
+        name = (request.form.get("name") or "").strip()
+        if not name:
+            return _partners_view("A reseller needs a name.")
+        slug = (request.form.get("slug") or "").strip()
+        domain = (request.form.get("domain") or "").strip()
+        pid = partner_store.create_partner(name, slug=slug or None,
+                                           domain=domain or None)
+        if pid is None:
+            # The store returns None for a taken slug or domain. Say which
+            # rather than "could not create", which sends nobody anywhere.
+            return _partners_view(
+                "That slug or domain already belongs to another reseller. "
+                "Both have to be unique, because both decide which tenant "
+                "an address resolves to.")
+        return redirect("/partners")
+
+    @app.route("/partners/<pid>/seats", methods=["POST"])
+    def partners_seats(pid):
+        _user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
+        if partner_store.get_partner(pid) is None:
+            abort(404)
+        partner_store.set_seat_limit(pid, request.form.get("seat_limit") or 0)
+        return redirect("/partners")
+
+    @app.route("/partners/<pid>/members", methods=["POST"])
+    def partners_add_member(pid):
+        _user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
+        if partner_store.get_partner(pid) is None:
+            abort(404)
+        email = (request.form.get("email") or "").strip().lower()
+        role = (request.form.get("role") or "viewer").strip()
+        if not email:
+            return _partners_view("A seat needs an email address.")
+        if role not in partner_store.ROLES:
+            return _partners_view("That is not a role this software has.")
+        # No account is created here. The seat waits for whoever holds that
+        # address to sign up, and claim_seats attaches it when they do -
+        # so a reseller can be set up before anybody has signed in.
+        # Idempotent per (partner, email): adding an address that already
+        # holds a seat changes its role rather than refusing, which is what
+        # typing a colleague's address into this box usually means.
+        partner_store.add_member(pid, email, email.split("@")[0], role)
+        return redirect("/partners")
+
+    @app.route("/partners/<pid>/status", methods=["POST"])
+    def partners_status(pid):
+        _user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
+        if partner_store.get_partner(pid) is None:
+            abort(404)
+        wanted = (request.form.get("status") or "").strip()
+        if wanted not in ("active", "suspended"):
+            return _partners_view("A reseller is either active or suspended.")
+        # Deliberately not a delete. Suspending closes the console and stops
+        # the domain resolving; the artists keep their accounts and their
+        # work, and the attachment survives so reactivating restores it.
+        partner_store.set_partner_status(pid, wanted)
+        return redirect("/partners")
+
     @app.route("/vault")
     def asset_vault():
         user = current_user()

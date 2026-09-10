@@ -28,10 +28,24 @@ import db as store
 
 @pytest.fixture(scope="module")
 def application():
+    """Flags set for this module only.
+
+    They used to be written straight into os.environ and never
+    taken back, so they leaked into every test that ran after -
+    which is how an unrelated navigation test came to pass on a
+    lane flag it had never heard of."""
+    import os as _os
+    keep = {}
     for flag in ("AUDIO_INTELLIGENCE_ENABLED", "LYRIC_SHEET_ENABLED"):
-        os.environ[flag] = "1"
+        keep[flag] = _os.environ.get(flag)
+        _os.environ[flag] = "1"
     import app as appmod
-    return appmod.app
+    yield appmod.app
+    for flag, was in keep.items():
+        if was is None:
+            _os.environ.pop(flag, None)
+        else:
+            _os.environ[flag] = was
 
 
 @pytest.fixture

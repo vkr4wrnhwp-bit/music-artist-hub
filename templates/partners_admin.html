@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{#- Street Banker's own back office for resellers.
+
+    Every function behind this page already existed in partner_store and
+    had no caller anywhere: create_partner, add_member, set_seat_limit,
+    set_partner_status. A reseller could be guarded, rostered, billed and
+    audited, and could not be created except by running Python against the
+    database - so the white-label product could not actually be sold.
+
+    Owner-only, and deliberately not part of the /partner blueprint: that
+    blueprint's guard resolves an existing tenant, and this is the page
+    that brings one into existence.
+-#}
+
+{% block title %}Resellers - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1000px] space-y-5">
+
+  {{ sb.plate("/static/img/closing-wide", [960, 1440, 1672],
+              "Street Banker · Back office", "Resellers",
+              "Partners who put their own name on this software. Creating one here is "
+              "what makes its domain resolve, its seats countable and its console "
+              "reachable — until then a reseller exists only in the database.",
+              position="center 45%") }}
+
+  {% if error %}
+    <div class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-gray-100">{{ error }}</div>
+  {% endif %}
+
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">Add a reseller</h2>
+    <p class="mt-2 text-sm text-gray-300">
+      The slug is the address their console answers on. A domain is optional —
+      without one they reach it at their slug under the platform domain, and
+      their own domain can be pointed at us later without anything here changing.
+    </p>
+    <form method="post" action="/partners" class="mt-3 grid gap-2 sm:grid-cols-3">
+      <label class="block">
+        <span class="sb-label text-gray-300">Name</span>
+        <input name="name" required maxlength="120" placeholder="Northwind Music Group"
+               class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+      </label>
+      <label class="block">
+        <span class="sb-label text-gray-300">Slug</span>
+        <input name="slug" maxlength="60" placeholder="northwind"
+               class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+      </label>
+      <label class="block">
+        <span class="sb-label text-gray-300">Their domain (optional)</span>
+        <input name="domain" maxlength="120" placeholder="app.northwind.com"
+               class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+      </label>
+      <div class="sm:col-span-3">
+        {{ sb.btn("Create reseller", variant="primary", type="submit") }}
+      </div>
+    </form>
+  </section>
+
+  {% if partners %}
+    {% for p in partners %}
+    <section class="sb-panel p-4">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 class="text-lg font-black text-sb-ink">{{ p.name }}</h2>
+          <p class="mt-0.5 text-xs text-gray-300">
+            <code>{{ p.slug }}</code>
+            {% if p.domain %} · {{ p.domain }}{% else %} · no domain of their own yet{% endif %}
+            · created {{ p.created_at[:10] }}
+          </p>
+        </div>
+        <span class="rounded px-2 py-0.5 text-xs font-bold uppercase {{ 'bg-green-500/15 text-green-400' if p.status == 'active' else 'bg-white/10 text-gray-300' }}">{{ p.status }}</span>
+      </div>
+
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        <div>
+          <p class="text-sm text-gray-300">
+            <strong class="text-sb-ink">{{ p.seats_used }}</strong> artist{{ '' if p.seats_used == 1 else 's' }} seated{% if p.seat_limit %} of {{ p.seat_limit }}{% else %} · no cap{% endif %}.
+            <strong class="text-sb-ink">{{ p.members|length }}</strong> seat{{ '' if p.members|length == 1 else 's' }} on their console.
+          </p>
+          {% if p.members %}
+          <ul class="mt-1.5 space-y-0.5 text-xs text-gray-300">
+            {% for m in p.members %}
+            <li>{{ m.email }} — <span class="font-bold text-sb-ink">{{ m.role }}</span>{% if not m.user_id %} · has not signed in yet{% endif %}</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="mt-1.5 text-xs text-gray-300">
+            Nobody can reach this console yet. Add an owner below.
+          </p>
+          {% endif %}
+        </div>
+
+        <div class="space-y-2">
+          <form method="post" action="/partners/{{ p.id }}/seats" class="flex items-end gap-2">
+            <label class="block flex-1">
+              <span class="sb-label text-gray-300">Seat cap (0 = no cap)</span>
+              <input name="seat_limit" type="number" min="0" value="{{ p.seat_limit }}"
+                     class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-gray-100 focus:outline-none">
+            </label>
+            {{ sb.btn("Set", variant="secondary", size="sm", type="submit") }}
+          </form>
+
+          <form method="post" action="/partners/{{ p.id }}/members" class="flex items-end gap-2">
+            <label class="block flex-1">
+              <span class="sb-label text-gray-300">Add a seat</span>
+              <input name="email" type="email" required placeholder="owner@northwind.com"
+                     class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-gray-100 focus:outline-none">
+            </label>
+            <select name="role" class="rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-gray-100 [color-scheme:dark]">
+              {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+            </select>
+            {{ sb.btn("Add", variant="secondary", size="sm", type="submit") }}
+          </form>
+
+          <form method="post" action="/partners/{{ p.id }}/status"
+                onsubmit="return confirm('{{ 'Suspend' if p.status == 'active' else 'Reactivate' }} {{ p.name }}? {{ 'Their domain stops resolving and their console closes. No account is deleted and no artist loses their work.' if p.status == 'active' else '' }}');">
+            <input type="hidden" name="status" value="{{ 'suspended' if p.status == 'active' else 'active' }}">
+            <button type="submit" class="sb-btn {{ 'sb-btn-danger' if p.status == 'active' else 'sb-btn-secondary' }} sb-btn-sm">
+              {{ 'Suspend this reseller' if p.status == 'active' else 'Reactivate' }}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <p class="mt-3 text-xs text-gray-300">
+        Their console: <a class="underline" href="/partner/">/partner/</a> — reachable by
+        anyone holding a seat above, on this address or on theirs.
+      </p>
+    </section>
+    {% endfor %}
+  {% else %}
+    <div class="rounded-2xl border border-dashed border-white/10 py-8 text-center text-sm text-gray-300">
+      No resellers yet. Everything on this deployment belongs to Street Banker.
+    </div>
+  {% endif %}
+
+  <p class="text-xs text-gray-300">
+    Suspending a reseller closes their console and stops their domain resolving.
+    It deletes nothing: their artists keep their accounts and their work, and the
+    accounts stay attached so reactivating puts everything back as it was.
+  </p>
+</div>
+{% endblock %}

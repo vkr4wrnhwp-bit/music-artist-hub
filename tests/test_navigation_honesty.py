@@ -138,10 +138,14 @@ def test_no_hub_description_promises_a_state_it_cannot_know():
 def test_the_audio_studio_is_not_badged_live_until_a_lane_is_on(monkeypatch):
     """Its lanes each need their own flag. The umbrella alone is not enough,
     and badging it live would promise what every lane would refuse."""
+    import audio_studio
+
     monkeypatch.setenv("AUDIO_INTELLIGENCE_ENABLED", "1")
-    for lane_flag in ("GLOBAL_RELEASE_PACK_ENABLED", "CAMPAIGN_AUDIO_TOOLKIT_ENABLED",
-                      "SOUND_EFFECTS_ENABLED", "STEM_SEPARATION_ENABLED",
-                      "VOICE_ISOLATION_ENABLED", "DUBBING_ENABLED"):
+    # Read the lanes rather than listing them. A hand-written list stops
+    # covering the thing it was written for the moment a lane is added -
+    # which is exactly what happened when the lyric sheet arrived and this
+    # test started passing on a flag it had never heard of.
+    for _key, _kind, lane_flag, _title, _note in audio_studio.LANES:
         monkeypatch.delenv(lane_flag, raising=False)
     assert "audio-studio" not in hubs.live_keys()
 
