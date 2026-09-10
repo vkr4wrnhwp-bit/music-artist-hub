@@ -15,8 +15,12 @@ import rollout_store as ros
 
 
 def _pts(value, full):
-    """Scale a value against a 'full marks' threshold to 0-10."""
-    if full <= 0:
+    """Scale a value against a 'full marks' threshold to 0-10.
+
+    A value of None means the thing was never measured, which scores
+    nothing rather than raising - a missing reading must not be able to
+    take down the page that carries the score."""
+    if full <= 0 or value is None:
         return 0
     return min(round(10 * value / full), 10)
 
@@ -26,8 +30,15 @@ def _pulse_momentum(user_id):
     Popularity 60 = full marks — realistic ceiling for an independent act."""
     if store.get_pulse_profile(user_id) is None:
         return 0
-    snaps = store.list_pulse_snapshots(user_id, limit=1)
-    return _pts((snaps[-1].get("popularity", 0) if snaps else 0), 60)
+    # The latest snapshot that actually carries a popularity. Spotify
+    # omits the field for some applications, and the snapshot stores
+    # that as NULL - `.get("popularity", 0)` does not help, because the
+    # key IS there, holding None. That is what 500'd every login: the
+    # score is read by the Command Center, which is where login lands.
+    snaps = store.list_pulse_snapshots(user_id, limit=30)
+    latest = next((s["popularity"] for s in reversed(snaps)
+                   if s["popularity"] is not None), None)   # oldest first, so scan back
+    return _pts(latest, 60)
 
 
 def calculate(user_id):
