@@ -48,6 +48,30 @@ def test_every_hub_href_resolves_to_a_real_route(application):
     assert not missing, "hub entries pointing nowhere: %s" % missing
 
 
+def test_every_command_center_module_resolves_to_a_real_route(application):
+    """The board's tiles come from Python, so the template scan below cannot
+    see them: `sb.module_card` always renders an <a href>, and the href is a
+    macro variable, not a literal in any file.
+
+    That blind spot is the whole point of this test. An audit read the tile
+    list, saw four routes it could not find a `@app.route` for, and called
+    them 404s; they are in fact registered by a loop at the bottom of the
+    preview section, which no grep for a decorator finds. The claim was
+    wrong, but nothing in the suite could have settled it either way -
+    `test_command_center_os.py` asserts each tile is *rendered*, never that
+    it *answers*. This settles it, and stays true when the loop is edited.
+    """
+    import command_center as cc
+
+    rules = {str(r) for r in application.url_map.iter_rules()}
+    patterned = [r for r in rules if "<" in r]
+    missing = [route for route, name, _blurb, _status, _disc in cc.MODULES
+               if route not in rules and not any(
+                   re.match("^" + re.sub(r"<[^>]+>", "[^/]+", rule) + "$", route)
+                   for rule in patterned)]
+    assert not missing, "board tiles pointing nowhere: %s" % missing
+
+
 def test_the_audio_studio_is_in_the_navigation():
     """Four of the eight Audio Intelligence products live only at
     /audio-studio. Without a hub entry they are reachable by URL alone."""
