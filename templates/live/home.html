@@ -26,19 +26,49 @@
     </form>
   </section>
 
+  {#- The working list is the sets in use. A retired set from last year's
+      tour sitting in it is noise at exactly the wrong moment, so the
+      archive is somewhere you go on purpose. -#}
+  {% if archived_n or showing_archived %}
+    <p class="text-sm text-gray-300">
+      {% if showing_archived %}
+        Showing {{ archived_n }} archived set{{ '' if archived_n == 1 else 's' }}.
+        <a class="underline" href="/live">Back to the ones in use</a>
+      {% else %}
+        <a class="underline" href="/live?archived=1">{{ archived_n }} archived set{{ '' if archived_n == 1 else 's' }}</a>
+        — kept whole, out of the way.
+      {% endif %}
+    </p>
+  {% endif %}
+
   {% if sets %}
     <section class="sb-panel p-4">
-      <h2 class="sb-label sb-label-gold">Your sets</h2>
-      {% call sb.table(["Set", "Venue", "Tempo", "Updated"]) %}
+      <h2 class="sb-label sb-label-gold">{{ "Archived sets" if showing_archived else "Your sets" }}</h2>
+      {% call sb.table(["Set", "Venue", "Tempo", "Updated", ""]) %}
         {% for s in sets %}
           <tr>
-            <td><a class="underline" href="{{ url_for('live.live_set', set_id=s.id) }}">{{ s.name }}</a></td>
+            <td>
+              {% if showing_archived %}{{ s.name }}
+              {% else %}<a class="underline" href="{{ url_for('live.live_set', set_id=s.id) }}">{{ s.name }}</a>{% endif %}
+            </td>
             <td>{{ s.venue or "&mdash;" }}</td>
             <td class="whitespace-nowrap">{{ s.tempo_bpm|round(0)|int }} BPM</td>
             <td class="whitespace-nowrap">{{ (s.updated_at or "")[:10] }}</td>
+            <td class="whitespace-nowrap">
+              <form method="post" action="{{ url_for('live.live_archive', set_id=s.id) }}"
+                    {% if not showing_archived %}onsubmit="return confirm('Archive “{{ s.name }}”? It leaves this list and keeps everything — every scene, stem, pad map and MIDI mapping. You can restore it.');"{% endif %}>
+                <input type="hidden" name="archived" value="{{ '0' if showing_archived else '1' }}">
+                {{ sb.btn("Restore" if showing_archived else "Archive",
+                          variant="secondary", size="sm", type="submit") }}
+              </form>
+            </td>
           </tr>
         {% endfor %}
       {% endcall %}
+    </section>
+  {% elif showing_archived %}
+    <section class="sb-panel p-4">
+      <p class="text-sm text-gray-300">Nothing archived.</p>
     </section>
   {% endif %}
 

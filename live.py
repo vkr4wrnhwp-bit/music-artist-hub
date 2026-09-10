@@ -116,8 +116,13 @@ def readiness():
 def live_home():
     _live()
     user = _user()
+    showing_archived = request.args.get("archived") == "1"
+    archived = lstore.list_sets(_partner(user), user["id"], archived=True)
     return render_template("live/home.html", active_page="live",
-                           sets=lstore.list_sets(_partner(user), user["id"]),
+                           sets=(archived if showing_archived
+                                 else lstore.list_sets(_partner(user), user["id"])),
+                           showing_archived=showing_archived,
+                           archived_n=len(archived),
                            readiness=readiness())
 
 
@@ -187,6 +192,30 @@ def live_settings(set_id):
 
 
 # --- scenes ------------------------------------------------------------------
+
+@bp.route("/live/<set_id>/archive", methods=["POST"])
+def live_archive(set_id):
+    """Put a set away, or bring it back.
+
+    Not a delete: a set is scenes, stems, pad maps and MIDI mappings built
+    against a particular room and rig, and that work is the reason the set
+    exists.
+
+    Looked up with include_archived, because every other page refuses an
+    archived set on purpose - and without this the restore button would
+    404 on exactly the sets it exists to bring back.
+    """
+    _live()
+    user = _user()
+    if lstore.get_set(_partner(user), user["id"], set_id,
+                      include_archived=True) is None:
+        abort(404)
+    wanted = request.form.get("archived") != "0"
+    lstore.archive_set(_partner(user), user["id"], set_id, archived=wanted)
+    if wanted:
+        return redirect(url_for("live.live_home"))
+    return redirect(url_for("live.live_set", set_id=set_id))
+
 
 @bp.route("/live/<set_id>/scene", methods=["POST"])
 def live_add_scene(set_id):

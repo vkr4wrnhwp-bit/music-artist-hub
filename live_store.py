@@ -192,20 +192,34 @@ def create_set(partner_id, user_id, name, venue="", show_date="", tempo_bpm=120.
     return sid
 
 
-def get_set(partner_id, user_id, set_id):
-    """Both keys required. A set id is not an authorisation."""
+def get_set(partner_id, user_id, set_id, include_archived=False):
+    """Both keys required. A set id is not an authorisation.
+
+    Archived sets are hidden by default, so every page that opens a set
+    keeps refusing one that has been put away. The restore path asks for
+    it explicitly - without that there is no way back, and archiving
+    would be a delete wearing a gentler word.
+    """
+    sql = ("SELECT * FROM live_sets WHERE id = ? AND partner_key = ?"
+           "  AND user_id = ?")
+    if not include_archived:
+        sql += " AND archived_at IS NULL"
     with get_db() as db:
-        return _row(db.execute(
-            "SELECT * FROM live_sets WHERE id = ? AND partner_key = ?"
-            "  AND user_id = ? AND archived_at IS NULL",
-            (set_id, _pk(partner_id), user_id)).fetchone())
+        return _row(db.execute(sql, (set_id, _pk(partner_id), user_id)).fetchone())
 
 
-def list_sets(partner_id, user_id, limit=100):
+def list_sets(partner_id, user_id, limit=100, archived=False):
+    """The sets in use, or the ones put away.
+
+    Either/or rather than both-with-a-flag-on-each: the working list is
+    what somebody opens before a show, and a retired set from last year's
+    tour sitting in it is noise at exactly the wrong moment.
+    """
+    where = "archived_at IS NOT NULL" if archived else "archived_at IS NULL"
     with get_db() as db:
         return [dict(r) for r in db.execute(
             "SELECT * FROM live_sets WHERE partner_key = ? AND user_id = ?"
-            "  AND archived_at IS NULL ORDER BY updated_at DESC LIMIT ?",
+            "  AND %s ORDER BY updated_at DESC LIMIT ?" % where,
             (_pk(partner_id), user_id, limit)).fetchall()]
 
 
@@ -228,12 +242,21 @@ def update_set(partner_id, user_id, set_id, **fields):
     return cur.rowcount > 0
 
 
-def archive_set(partner_id, user_id, set_id):
+def archive_set(partner_id, user_id, set_id, archived=True):
+    """Put a set away, or bring it back.
+
+    Never a delete. A set is scenes, stems, pad maps and MIDI mappings
+    somebody built against a room and a rig - the work is the point, and a
+    tour ending is when it starts being worth keeping rather than when it
+    stops. Restoring is the same call with archived=False, so there is no
+    second code path to keep in step.
+    """
+    stamp = _now() if archived else None
     with get_db() as db:
         cur = db.execute(
             "UPDATE live_sets SET archived_at = ?, updated_at = ?"
             " WHERE id = ? AND partner_key = ? AND user_id = ?",
-            (_now(), _now(), set_id, _pk(partner_id), user_id))
+            (stamp, _now(), set_id, _pk(partner_id), user_id))
     return cur.rowcount > 0
 
 
