@@ -69,6 +69,43 @@
     {% endif %}
   </section>
 
+  {#- What actually went out. The package used to be streamed and
+      forgotten: close the tab and nothing anywhere said a delivery had
+      happened, which is a poor answer to "what did we send them?" three
+      months later. -#}
+  {% if deliveries %}
+  <section class="sb-panel p-4">
+    <h2 class="sb-label sb-label-gold">Delivered</h2>
+    <p class="mt-2 text-sm text-gray-300">
+      Every package this project has produced, with the checksum of the bytes
+      that went out. A rebuild of an unchanged project keeps its own row and
+      says when it was made again, because it is the same delivery.
+    </p>
+    {% call sb.table(["Built", "File", "Size", "Checksum", "Rebuilt"]) %}
+      {% for d in deliveries %}
+      <tr>
+        <td class="whitespace-nowrap">{{ d.created_at[:16]|replace("T", " ") }}</td>
+        <td>{{ d.file_name }}</td>
+        <td class="whitespace-nowrap">{{ (d.byte_size or 0) // 1024 }} KB</td>
+        <td><code class="text-xs">{{ d.sha256[:12] }}</code></td>
+        <td class="whitespace-nowrap">
+          {%- if d.rebuilt_at %}{{ d.rebuilt_at[:16]|replace("T", " ") }}
+          {%- else %}&mdash;{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    {% endcall %}
+    {% if not deliveries[0].storage_key %}
+      <p class="mt-2 text-xs text-gray-300">
+        The record is kept; the zip itself is not filed on this deployment,
+        because no object storage is configured. Rebuild the package to get
+        the bytes again &mdash; the locked versions decide what it contains,
+        so an unchanged project rebuilds the same delivery.
+      </p>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <section class="sb-panel p-4">
     <h2 class="sb-label sb-label-gold">What is not connected yet</h2>
     <p class="mt-2 max-w-2xl text-sm text-gray-300">

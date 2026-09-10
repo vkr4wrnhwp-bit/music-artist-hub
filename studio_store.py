@@ -290,6 +290,32 @@ def init_studio():
             );
             CREATE INDEX IF NOT EXISTS idx_st_prov_project
                 ON studio_provenance(project_id, created_at);
+
+            -- One row per delivery package that was actually built. The zip
+            -- used to be streamed to the browser and forgotten: close the tab
+            -- and nothing anywhere said a delivery had ever happened. This is
+            -- that missing memory - which bytes went out, their checksum, how
+            -- big they were, who built them and when.
+            CREATE TABLE IF NOT EXISTS studio_deliveries (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                partner_key TEXT NOT NULL DEFAULT '',
+                user_id TEXT NOT NULL,
+                version_id TEXT NOT NULL DEFAULT '',
+                asset_id TEXT NOT NULL DEFAULT '',
+                file_name TEXT NOT NULL DEFAULT '',
+                object_key TEXT NOT NULL DEFAULT '',
+                storage_key TEXT NOT NULL DEFAULT '',
+                vault_file_id TEXT NOT NULL DEFAULT '',
+                content_key TEXT NOT NULL DEFAULT '',
+                sha256 TEXT NOT NULL DEFAULT '',
+                byte_size INTEGER NOT NULL DEFAULT 0,
+                built_by TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                rebuilt_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_st_deliv_project
+                ON studio_deliveries(project_id, created_at);
         """)
         return _migrate(db)
 
@@ -958,6 +984,129 @@ def build_package(partner_id, user_id, project_id, read_bytes):
     safe = "".join(ch if ch.isalnum() or ch in "-_" else "-"
                    for ch in (project["title"] or "project"))[:60] or "project"
     return buffer.getvalue(), "%s-delivery.zip" % safe
+
+
+# --- the delivery record -----------------------------------------------------
+
+# The prefix every package is stored under. R2 lifecycle rules match on a key
+# PREFIX, and every other caller of blob_store writes a FLAT name into one
+# namespace - vault_<uid>_<ts>.wav, epk_<uid>.jpg. A package dropped in beside
+# them could not be given an expiry rule without the same rule matching
+# somebody's master, so packages get a folder of their own.
+DELIVERY_PREFIX = "deliveries/"
+
+
+def delivery_object_key(user_id, project_id, file_name, content_key=""):
+    """deliveries/<user>/<project>/<name>-<fingerprint>.zip.
+
+    Never the flat namespace, and never one key for two different packages:
+    the fingerprint is taken from the locked versions the package holds, so
+    rebuilding an unchanged project overwrites its own object while locking a
+    new version writes a new one. Without it, a rebuild would silently replace
+    the bytes an older delivery row still names a checksum for.
+
+    blob_store._quote splits on "/" and percent-encodes each segment with the
+    slashes intact, so a key shaped like a path signs and stores as a path.
+    """
+    import hashlib as _hashlib
+
+    stem, _dot, ext = (file_name or "delivery.zip").rpartition(".")
+    if not stem:
+        stem, ext = "delivery", "zip"
+    if content_key:
+        stem = "%s-%s" % (stem, _hashlib.sha256(
+            content_key.encode("utf-8")).hexdigest()[:12])
+    safe = "".join(ch if (ch.isalnum() or ch in "-_.") else "-"
+                   for ch in "%s.%s" % (stem, ext or "zip"))[:150]
+    return "%s%s/%s/%s" % (DELIVERY_PREFIX, user_id, project_id,
+                           safe or "delivery.zip")
+
+
+def package_content_key(partner_id, user_id, project_id):
+    """What a package built right now would actually contain.
+
+    Two builds of an unchanged project are not byte-identical - the manifest
+    carries the moment it was generated - so their checksums differ and a
+    checksum cannot answer "is this the same delivery". The locked versions and
+    the checksums of their audio can, and they are the part that ships.
+    """
+    summary = project_summary(partner_id, user_id, project_id)
+    parts = []
+    for version in summary["versions"]:
+        if version["status"] != "locked":
+            continue
+        asset = get_studio_asset(partner_id, user_id, version["asset_id"])
+        parts.append("%s:%s" % (version["id"], (asset or {}).get("sha256") or ""))
+    return "|".join(sorted(parts))
+
+
+def record_delivery(partner_id, user_id, project_id, content_key, file_name,
+                    object_key, storage_key, sha256, byte_size, version_id="",
+                    asset_id="", vault_file_id="", built_by=""):
+    delivery_id = _uid()
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO studio_deliveries (id, project_id, partner_key, user_id,"
+            " version_id, asset_id, file_name, object_key, storage_key,"
+            " vault_file_id, content_key, sha256, byte_size, built_by, created_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (delivery_id, project_id, _pk(partner_id), user_id, version_id,
+             asset_id, file_name[:200], object_key[:300], storage_key[:300],
+             vault_file_id, content_key, sha256, int(byte_size),
+             built_by or user_id, _now()))
+    record_event(partner_id, project_id, asset_id, "delivery.package_stored",
+                 actor_id=built_by or user_id)
+    return delivery_id
+
+
+def record_rebuild(partner_id, project_id, delivery_id, storage_key, sha256,
+                   byte_size):
+    """The same delivery, re-materialised.
+
+    The bucket expires packages; the record does not expire with them. When
+    the bytes have gone and the locked versions have not changed, rebuilding
+    produces the same DELIVERY with a new checksum - the manifest is stamped
+    with a new moment - so the row keeps its identity and its original date
+    and says out loud that the file behind it was made again.
+    """
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE studio_deliveries SET storage_key = ?, sha256 = ?,"
+            " byte_size = ?, rebuilt_at = ? WHERE id = ? AND project_id = ?"
+            "   AND partner_key = ?",
+            (storage_key[:300], sha256, int(byte_size), _now(), delivery_id,
+             project_id, _pk(partner_id)))
+    return cur.rowcount > 0
+
+
+def find_delivery_by_content(partner_id, project_id, content_key):
+    """The delivery already recorded for this exact set of locked versions."""
+    if not content_key:
+        return None
+    with get_db() as db:
+        return _row(db.execute(
+            "SELECT * FROM studio_deliveries WHERE project_id = ?"
+            "  AND partner_key = ? AND content_key = ?"
+            " ORDER BY created_at DESC, rowid DESC LIMIT 1",
+            (project_id, _pk(partner_id), content_key)).fetchone())
+
+
+def list_deliveries(partner_id, project_id, limit=50):
+    with get_db() as db:
+        return [dict(r) for r in db.execute(
+            "SELECT * FROM studio_deliveries WHERE project_id = ?"
+            "  AND partner_key = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
+            (project_id, _pk(partner_id), limit)).fetchall()]
+
+
+def get_delivery(partner_id, user_id, project_id, delivery_id):
+    """Both the project and the account, the same rule as get_project: a
+    delivery id is not an authorisation to read somebody's master."""
+    with get_db() as db:
+        return _row(db.execute(
+            "SELECT * FROM studio_deliveries WHERE id = ? AND project_id = ?"
+            "  AND partner_key = ? AND user_id = ?",
+            (delivery_id, project_id, _pk(partner_id), user_id)).fetchone())
 
 
 # --- the team ----------------------------------------------------------------

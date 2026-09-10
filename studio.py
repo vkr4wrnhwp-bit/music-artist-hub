@@ -683,6 +683,8 @@ def studio_deliver(project_id):
                            checklist=checklist,
                            ready=all(c["ok"] for c in checklist
                                      if c["required"]),
+                           deliveries=sstore.list_deliveries(_partner(user),
+                                                             project_id),
                            readiness=studio_config.readiness())
 
 
@@ -705,13 +707,63 @@ def studio_package(project_id):
         return render_template(
             "studio/deliver.html", active_page="studio", room="deliver",
             project=project, summary=summary, checklist=checklist, ready=False,
+            deliveries=sstore.list_deliveries(_partner(user), project_id),
             readiness=studio_config.readiness(),
             error="Not yet: " + missing[0]["label"].lower() + "."), 400
 
     archive, name = sstore.build_package(_partner(user), user["id"], project_id,
                                          _read_asset_bytes)
+    _record_package(user, project_id, archive, name)
     return send_file(io.BytesIO(archive), mimetype="application/zip",
                      as_attachment=True, download_name=name)
+
+
+def _record_package(user, project_id, archive, name):
+    """Write down that this delivery happened, and file the bytes if we can.
+
+    Two builds of an unchanged project are not byte-identical - the
+    manifest carries the moment it was generated - so the checksum cannot
+    answer "is this the same delivery". The locked versions and their
+    audio checksums can, and that is what content_key holds: rebuilding
+    an unchanged project updates the delivery it already made rather than
+    inventing a second one.
+
+    Never fatal. A ledger write must not be able to stop somebody
+    receiving the package they asked for.
+    """
+    import hashlib
+
+    partner = _partner(user)
+    try:
+        digest = hashlib.sha256(archive).hexdigest()
+        content_key = sstore.package_content_key(partner, user["id"], project_id)
+        existing = sstore.find_delivery_by_content(partner, project_id, content_key)
+
+        storage_key = ""
+        if blob_store.configured():
+            object_key = sstore.delivery_object_key(user["id"], project_id, name,
+                                                    content_key)
+            try:
+                storage_key = blob_store.put(object_key, archive,
+                                             content_type="application/zip") or ""
+            except Exception:
+                # No bucket, no object - but the delivery still happened,
+                # and that is the half worth keeping.
+                storage_key = ""
+        else:
+            object_key = ""
+
+        if existing:
+            sstore.record_rebuild(partner, project_id, existing["id"],
+                                  storage_key or existing.get("storage_key") or "",
+                                  digest, len(archive))
+            return existing["id"]
+        return sstore.record_delivery(
+            partner, user["id"], project_id, content_key, name,
+            object_key, storage_key, digest, len(archive),
+            built_by=user["id"])
+    except Exception:
+        return None
 
 
 def _read_asset_bytes(asset):

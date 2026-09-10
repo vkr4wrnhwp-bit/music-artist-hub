@@ -264,3 +264,90 @@ def test_the_page_says_what_it_does_not_do_yet(uploaded):
         "/studio/session/%s/deliver" % uploaded["project_id"]).get_data(as_text=True)
     assert "What is not connected yet" in body
     assert "Distribution" in body
+
+
+# --- the delivery record -----------------------------------------------------
+#
+# Recovered 2026-09-10 from an abandoned worktree: the store layer had been
+# written and never called, so the zip was streamed and forgotten. Close
+# the tab and nothing anywhere said a delivery had happened — a poor answer
+# to "what did we send them?" three months later.
+
+def test_building_a_package_writes_down_that_it_happened(uploaded, application):
+    _ready(uploaded)
+    project_id = uploaded["project_id"]
+    with application.app_context():
+        assert sstore.list_deliveries(None, project_id) == []
+
+    response = uploaded["client"].post(
+        "/studio/session/%s/deliver/package" % project_id)
+    assert response.status_code == 200
+
+    with application.app_context():
+        rows = sstore.list_deliveries(None, project_id)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["sha256"], "the checksum of the bytes that went out"
+    assert row["byte_size"] == len(response.data)
+    assert row["file_name"].endswith(".zip")
+
+
+def test_rebuilding_an_unchanged_project_is_the_same_delivery(uploaded, application):
+    """Two builds are not byte-identical — the manifest carries the moment
+    it was generated — so a checksum cannot answer "is this the same
+    delivery". The locked versions and their audio checksums can."""
+    _ready(uploaded)
+    project_id = uploaded["project_id"]
+    first = uploaded["client"].post("/studio/session/%s/deliver/package" % project_id)
+    second = uploaded["client"].post("/studio/session/%s/deliver/package" % project_id)
+    assert first.status_code == second.status_code == 200
+
+    with application.app_context():
+        rows = sstore.list_deliveries(None, project_id)
+    assert len(rows) == 1, "a rebuild is not a second delivery"
+    assert rows[0]["rebuilt_at"], "and it says it was made again"
+
+
+def test_the_ledger_is_on_the_page(uploaded):
+    """A table nobody reads is not a record."""
+    _ready(uploaded)
+    project_id = uploaded["project_id"]
+    uploaded["client"].post("/studio/session/%s/deliver/package" % project_id)
+    page = uploaded["client"].get(
+        "/studio/session/%s/deliver" % project_id).get_data(as_text=True)
+    assert "Delivered" in page
+    assert "Checksum" in page
+
+
+def test_a_failed_ledger_write_never_costs_somebody_their_package(uploaded, monkeypatch):
+    """The package is what they asked for. Recording it is bookkeeping, and
+    bookkeeping must not be able to take the thing away."""
+    import studio_store as _ss
+    _ready(uploaded)
+    monkeypatch.setattr(_ss, "record_delivery",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("ledger down")))
+    response = uploaded["client"].post(
+        "/studio/session/%s/deliver/package" % uploaded["project_id"])
+    assert response.status_code == 200
+    assert response.mimetype == "application/zip"
+
+
+def test_a_package_is_never_written_into_the_flat_namespace(application):
+    """R2 lifecycle rules match on a key prefix, and every other caller
+    writes a flat name into one namespace. A package dropped beside them
+    could not be expired without the same rule matching somebody's master."""
+    with application.app_context():
+        key = sstore.delivery_object_key("u1", "p1", "Cold Corner-delivery.zip",
+                                         "v1:abc")
+    assert key.startswith("deliveries/")
+    assert key.count("/") >= 3
+
+
+def test_a_delivery_id_is_not_an_authorisation(application, uploaded):
+    _ready(uploaded)
+    project_id = uploaded["project_id"]
+    uploaded["client"].post("/studio/session/%s/deliver/package" % project_id)
+    with application.app_context():
+        row = sstore.list_deliveries(None, project_id)[0]
+        assert sstore.get_delivery(None, "somebody-else", project_id,
+                                   row["id"]) is None
