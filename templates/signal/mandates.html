@@ -8,6 +8,10 @@
     matched — and why the near-misses did not. Mandates are private to {{ org['name'] }}.
   </p>
 
+  {% if notice == 'mandate-needs-a-name' %}
+    <div class="sg-banner" role="status"><b>Not saved.</b> A mandate needs a name — it is how every board refers to it.</div>
+  {% endif %}
+
   {% if sg_can('mandate_edit') %}
     <details class="sg-card" style="margin-top:16px">
       <summary style="cursor:pointer;font-weight:600">+ New mandate</summary>
@@ -29,7 +33,13 @@
     <div class="sg-grid" style="margin-top:16px">
       {% for m in mandates %}
         <div class="sg-card">
-          <h3><a href="/signal/mandates/{{ m['id'] }}">{{ m['name'] }}</a></h3>
+          <h3>
+            <a href="/signal/mandates/{{ m['id'] }}">{{ m['name'] }}</a>
+            {%- if not m['active'] %} <span class="sg-pill">paused</span>{% endif %}
+          </h3>
+          {% if not m['active'] %}
+            <p class="sg-artist-meta">Paused, so Deal Ready does not filter by it. Everything it says is kept.</p>
+          {% endif %}
           <p>
             {% set c = m['criteria'] %}
             {% if c['genres'] %}{{ c['genres'] }}<br>{% endif %}
@@ -41,11 +51,40 @@
           <p style="margin-top:8px" class="sg-inline">
             <a class="sg-btn sg-btn--ghost sg-btn--small" href="/signal/deal-ready?mandate={{ m['id'] }}">Deal Ready</a>
             {% if sg_can('mandate_edit') %}
-              <form method="post" action="/signal/mandates/{{ m['id'] }}/delete">
+              {#- Pausing is what somebody usually means. Deleting a mandate
+                  breaks every link that refers to it by id, and there was no
+                  way to stop one applying short of that. -#}
+              <form method="post" action="/signal/mandates/{{ m['id'] }}/active">
+                <input type="hidden" name="active" value="{{ '0' if m['active'] else '1' }}">
+                <button class="sg-btn sg-btn--ghost sg-btn--small" type="submit">{{ 'Pause' if m['active'] else 'Resume' }}</button>
+              </form>
+              <form method="post" action="/signal/mandates/{{ m['id'] }}/delete"
+                    onsubmit="return confirm('Delete “{{ m['name'] }}”? Anything pointing at this mandate stops finding it. Pausing keeps it and takes it out of the boards.');">
                 <button class="sg-btn sg-btn--ghost sg-btn--small" type="submit">Delete</button>
               </form>
             {% endif %}
           </p>
+
+          {% if sg_can('mandate_edit') %}
+            {#- Prefilled from what it holds now, so an edit is a change
+                rather than a retype. Editing keeps the id every board and
+                the audit trail refer to; delete-and-recreate does not. -#}
+            <details style="margin-top:10px">
+              <summary style="cursor:pointer;font-weight:600">Edit this mandate</summary>
+              <form method="post" action="/signal/mandates/{{ m['id'] }}/edit" style="margin-top:10px">
+                <div class="sg-rail" style="margin:0">
+                  <label class="sg-field"><span>Name</span><input class="sg-input" name="name" required maxlength="120" value="{{ m['name'] }}"></label>
+                  <label class="sg-field"><span>Genres (comma separated)</span><input class="sg-input" name="genres" maxlength="200" value="{{ c['genres'] or '' }}"></label>
+                  <label class="sg-field"><span>Max monthly listeners</span><input class="sg-input" name="max_listeners" type="number" min="0" value="{{ c['max_listeners'] or '' }}"></label>
+                  <label class="sg-field"><span>Min SB Momentum</span><input class="sg-input" name="min_momentum" type="number" min="0" max="100" value="{{ c['min_momentum'] or '' }}"></label>
+                  <label class="sg-field"><span>Min Distribution Gap</span><input class="sg-input" name="min_gap" type="number" min="0" max="100" value="{{ c['min_gap'] or '' }}"></label>
+                  <label class="sg-field"><span>Territories</span><input class="sg-input" name="territories" maxlength="200" value="{{ c['territories'] or '' }}"></label>
+                  <input type="hidden" name="notes" value="{{ c['notes'] or '' }}">
+                  <button class="sg-btn" type="submit">Save changes</button>
+                </div>
+              </form>
+            </details>
+          {% endif %}
         </div>
       {% endfor %}
     </div>

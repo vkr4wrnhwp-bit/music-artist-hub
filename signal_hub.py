@@ -645,25 +645,73 @@ def _has_desk_seat(member):
 
 # --- mandates ---------------------------------------------------------------
 
+def _mandate_criteria():
+    """What a mandate is looking for, read off the form.
+
+    One reader for create and for edit. They used to be one code path
+    because there was only one; the moment editing existed they could
+    have drifted into accepting different fields, and a criterion you can
+    set and cannot change is worse than one you never had.
+    """
+    return {
+        "genres": (request.form.get("genres") or "").strip()[:200],
+        "max_listeners": (request.form.get("max_listeners") or "").strip()[:12],
+        "min_momentum": (request.form.get("min_momentum") or "").strip()[:6],
+        "min_gap": (request.form.get("min_gap") or "").strip()[:6],
+        "territories": (request.form.get("territories") or "").strip()[:200],
+        "notes": (request.form.get("notes") or "").strip()[:500],
+    }
+
+
+
 @bp.route("/mandates", methods=["GET", "POST"])
 @require("view")
 def mandates(org, member):
     if request.method == "POST":
         if not sstore.can(member, "mandate_edit"):
             abort(403)
-        criteria = {
-            "genres": (request.form.get("genres") or "").strip()[:200],
-            "max_listeners": (request.form.get("max_listeners") or "").strip()[:12],
-            "min_momentum": (request.form.get("min_momentum") or "").strip()[:6],
-            "min_gap": (request.form.get("min_gap") or "").strip()[:6],
-            "territories": (request.form.get("territories") or "").strip()[:200],
-            "notes": (request.form.get("notes") or "").strip()[:500],
-        }
         sstore.create_mandate(org["id"], request.form.get("name") or "Mandate",
-                              criteria, member["name"])
+                              _mandate_criteria(), member["name"])
         return redirect(url_for("signal.mandates"))
     return render_template("signal/mandates.html", **_ctx(
-        org, member, mandates=sstore.list_mandates(org["id"])))
+        org, member, mandates=sstore.list_mandates(org["id"]),
+        notice=(request.args.get("notice") or "")))
+
+
+@bp.route("/mandates/<mandate_id>/edit", methods=["POST"])
+@require("mandate_edit")
+def mandate_edit(org, member, mandate_id):
+    """Change a mandate rather than rebuild it.
+
+    Everything that references a mandate does so by id - the Deal Ready
+    filter, the audit trail - so delete-and-recreate silently breaks
+    those links. Editing keeps the id.
+    """
+    if sstore.get_mandate(org["id"], mandate_id) is None:
+        abort(404)
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        return redirect(url_for("signal.mandates", notice="mandate-needs-a-name"))
+    sstore.update_mandate(org["id"], mandate_id, name=name,
+                          criteria=_mandate_criteria())
+    return redirect(url_for("signal.mandates"))
+
+
+@bp.route("/mandates/<mandate_id>/active", methods=["POST"])
+@require("mandate_edit")
+def mandate_active(org, member, mandate_id):
+    """Take a mandate out of the boards without throwing it away.
+
+    Deal Ready filters by list_mandates(active_only=True), so pausing is
+    what somebody actually wants when a mandate is not what they are
+    hunting this month. Before this the only way to stop one applying was
+    to delete it.
+    """
+    if sstore.get_mandate(org["id"], mandate_id) is None:
+        abort(404)
+    sstore.update_mandate(org["id"], mandate_id,
+                          active=(request.form.get("active") == "1"))
+    return redirect(url_for("signal.mandates"))
 
 
 @bp.route("/mandates/<mandate_id>/delete", methods=["POST"])
