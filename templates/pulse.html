@@ -22,8 +22,13 @@
       caption carries the age of the figure: this read is cached for six
       hours, so calling it live would be a claim it cannot keep. -#}
   {% if metrics %}
-  <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-6" id="measured">
-    <h3 class="sb-label text-sb-gold">Audience — measured by {{ metrics.label }}</h3>
+  {#- The heading claims a measurement, so it must not stand when the read
+      failed. Falling back to what is stored is right; letting it read as
+      today's figure is not. -#}
+  <section class="rounded-2xl border {{ 'border-amber-500/40' if metrics.stale else 'border-white/10' }} bg-sb-surface-1 p-6" id="measured">
+    <h3 class="sb-label text-sb-gold">
+      {%- if metrics.stale %}Audience — last figures on file{% else %}Audience — measured by {{ metrics.label }}{% endif -%}
+    </h3>
     <div class="mt-3 flex flex-wrap gap-3">
       {{ sb.lcd(("{:,}".format(metrics.monthly_listeners) if metrics.monthly_listeners is not none else none), "monthly listeners", absent="Not measured") }}
       {{ sb.lcd(("{:,}".format(metrics.followers) if metrics.followers is not none else none), "followers", absent="Not measured") }}

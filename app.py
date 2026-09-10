@@ -2706,19 +2706,29 @@ def create_app():
         end = datetime.now(timezone.utc).date()
         start = end - timedelta(days=_METRICS_WINDOW_DAYS)
         pid = ""
+        refusal = ""
         if fetch:
             pid = _metrics_artist_id(prov, user_id, profile)
             if pid:
                 try:
                     rows = prov.get_artist_metrics(pid, start, end)
-                except Exception:
-                    rows = []            # degrade to what is already stored
+                except Exception as e:
+                    # Kept, not swallowed. Falling back to what is stored is
+                    # right; presenting it as a fresh reading is not, and
+                    # that is what the note used to do.
+                    rows = []
+                    refusal = str(e).strip() or "%s did not answer." % prov.label
                 by_day = {}
                 for r in rows:
                     by_day.setdefault(r["date"], {})[r["metric"]] = r["value"]
                 for day, vals in by_day.items():
+                    # None, not nought, for anything this provider did not
+                    # report. It measures listening; it says nothing about
+                    # Deezer, and writing 0 there claims a following of
+                    # nobody. The columns are nullable for exactly this.
                     store.record_pulse_snapshot(
-                        user_id, vals.get("spotify_followers") or 0, 0, 0,
+                        user_id, vals.get("spotify_followers"),
+                        vals.get("spotify_popularity"), None,
                         provider=prov.key, day=day,
                         monthly_listeners=vals.get("spotify_monthly_listeners"))
         snaps = store.list_pulse_snapshots(user_id, limit=_METRICS_WINDOW_DAYS + 5,
@@ -2728,7 +2738,8 @@ def create_app():
         latest = snaps[-1]
         listeners = next((s["monthly_listeners"] for s in reversed(snaps)
                           if s["monthly_listeners"] is not None), None)
-        followers = next((s["followers"] for s in reversed(snaps) if s["followers"]), None)
+        followers = next((s["followers"] for s in reversed(snaps)
+                          if s["followers"] is not None), None)
         hours = None
         cached_at = getattr(prov, "metrics_cached_at", None)
         if pid and cached_at is not None:
@@ -2738,7 +2749,13 @@ def create_app():
                 at = None
             if at is not None:
                 hours = int((datetime.now(timezone.utc) - at).total_seconds() // 3600)
-        if hours is None:
+        if refusal:
+            # The vendor's own words, and the age of what is on screen.
+            # Anything softer invites the figure to be read as current.
+            note = ("%s did not answer just now (%s). These are the last "
+                    "figures on file, from %s - not a reading taken today."
+                    % (prov.label, refusal, latest["day"]))
+        elif hours is None:
             note = "Measured by %s; the snapshot on file is from %s." % (
                 prov.label, latest["day"])
         elif hours < 1:
@@ -2750,6 +2767,7 @@ def create_app():
         return {"provider": prov.key, "label": prov.label,
                 "monthly_listeners": listeners, "followers": followers,
                 "as_of": latest["day"], "cached_hours": hours,
+                "stale": bool(refusal), "refusal": refusal,
                 "snapshots": snaps, "note": note}
 
     def _epk_real_stats(user_id):
@@ -7393,9 +7411,13 @@ def create_app():
             pulse = spotify.artist_pulse(profile["artist_id"])
             if pulse:
                 deezer = music_apis.deezer_artist_fans(pulse["name"])
-                store.record_pulse_snapshot(user["id"], pulse["followers"],
-                                            pulse["popularity"],
-                                            (deezer or {}).get("fans", 0))
+                # None when Deezer was not reached. `.get("fans", 0)` wrote
+                # a nought for an unanswered call, which claims a following
+                # of nobody - the same false reading the column was made
+                # nullable to stop.
+                store.record_pulse_snapshot(
+                    user["id"], pulse["followers"], pulse["popularity"],
+                    (deezer or {}).get("fans"))
         # Monthly listeners, which Spotify's own public API does not
         # carry, from whichever provider the registry has for CAP_METRICS.
         # None of this is required for the Spotify and Deezer blocks: with
