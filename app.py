@@ -7633,14 +7633,14 @@ def create_app():
                                partners=rows, roles=partner_store.ROLES,
                                error=error, **build_dashboard_context())
 
-    @app.route("/partners")
+    @app.route("/resellers")
     def partners_admin():
         _user, bounce = _owner_or_404()
         if bounce:
             return bounce
         return _partners_view()
 
-    @app.route("/partners", methods=["POST"])
+    @app.route("/resellers", methods=["POST"])
     def partners_create():
         _user, bounce = _owner_or_404()
         if bounce:
@@ -7659,9 +7659,9 @@ def create_app():
                 "That slug or domain already belongs to another reseller. "
                 "Both have to be unique, because both decide which tenant "
                 "an address resolves to.")
-        return redirect("/partners")
+        return redirect("/resellers")
 
-    @app.route("/partners/<pid>/seats", methods=["POST"])
+    @app.route("/resellers/<pid>/seats", methods=["POST"])
     def partners_seats(pid):
         _user, bounce = _owner_or_404()
         if bounce:
@@ -7669,9 +7669,9 @@ def create_app():
         if partner_store.get_partner(pid) is None:
             abort(404)
         partner_store.set_seat_limit(pid, request.form.get("seat_limit") or 0)
-        return redirect("/partners")
+        return redirect("/resellers")
 
-    @app.route("/partners/<pid>/members", methods=["POST"])
+    @app.route("/resellers/<pid>/members", methods=["POST"])
     def partners_add_member(pid):
         _user, bounce = _owner_or_404()
         if bounce:
@@ -7691,9 +7691,9 @@ def create_app():
         # holds a seat changes its role rather than refusing, which is what
         # typing a colleague's address into this box usually means.
         partner_store.add_member(pid, email, email.split("@")[0], role)
-        return redirect("/partners")
+        return redirect("/resellers")
 
-    @app.route("/partners/<pid>/artists", methods=["POST"])
+    @app.route("/resellers/<pid>/artists", methods=["POST"])
     def partners_attach(pid):
         """Put an existing account on a reseller's roster.
 
@@ -7727,9 +7727,9 @@ def create_app():
             return _partners_view(
                 "That roster is at its seat cap. Raise the cap, or take "
                 "somebody off before adding another.")
-        return redirect("/partners")
+        return redirect("/resellers")
 
-    @app.route("/partners/<pid>/artists/<uid>/remove", methods=["POST"])
+    @app.route("/resellers/<pid>/artists/<uid>/remove", methods=["POST"])
     def partners_detach(pid, uid):
         """Take an account off a roster. The account and everything in it
         survives: it goes back to being an ordinary Street Banker account."""
@@ -7739,9 +7739,9 @@ def create_app():
         if partner_store.get_partner(pid) is None:
             abort(404)
         partner_store.detach_user(pid, uid)
-        return redirect("/partners")
+        return redirect("/resellers")
 
-    @app.route("/partners/<pid>/status", methods=["POST"])
+    @app.route("/resellers/<pid>/status", methods=["POST"])
     def partners_status(pid):
         _user, bounce = _owner_or_404()
         if bounce:
@@ -7755,7 +7755,7 @@ def create_app():
         # the domain resolving; the artists keep their accounts and their
         # work, and the attachment survives so reactivating restores it.
         partner_store.set_partner_status(pid, wanted)
-        return redirect("/partners")
+        return redirect("/resellers")
 
     @app.route("/vault")
     def asset_vault():
