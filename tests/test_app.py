@@ -2791,18 +2791,48 @@ def test_artist_profile_and_vault():
     assert "Cover art" in vault and "Manage" in vault
 
 
-def test_admin_review_queue_label_only():
+def test_admin_review_is_owner_only_and_not_a_plan_anyone_can_buy(monkeypatch):
+    """The roster of every account on the deployment, by email address.
+
+    It was gated on `plan == "label"`, and a plan is not an identity:
+    /plan/switch hands out `label` for free while Stripe is unconfigured,
+    and the shared demo login - whose password /demo-access emails to
+    anyone who asks - holds it outright. Either route read every
+    customer's name and email. The gate is ownership now.
+    """
     import uuid as _uuid
     app_obj = create_app()
-    label_client = _ml_login(app_obj)   # demo account holds the Label plan
-    body = label_client.get("/admin/review").get_data(as_text=True)
-    assert "Review Queue" in body and "Synthwave Surfer" in body
-    # Artist-tier accounts cannot see the curation desk.
-    artist = app_obj.test_client()
-    artist.post("/signup", data={"name": "A", "email": "rq%s@x.com" % _uuid.uuid4().hex[:6],
-                                 "password": "secret1", "account_type": "artist"})
-    assert artist.get("/admin/review").status_code == 402
-    assert artist.get("/qualification").status_code == 200  # own score always visible
+    private = "private-%s@secret.example" % _uuid.uuid4().hex[:8]
+    stranger = app_obj.test_client()
+    stranger.post("/signup", data={"name": "Private Artist", "email": private,
+                                   "password": "secret1", "account_type": "artist"})
+
+    # 1. The shared demo login holds the Label plan.
+    demo = _ml_login(app_obj)
+    assert demo.get("/admin/review").status_code == 404, (
+        "the demo account is shared; it must not read real customers")
+
+    # 2. And so does anybody who asks for the tier.
+    buyer_email = "buyer-%s@x.com" % _uuid.uuid4().hex[:6]
+    buyer = app_obj.test_client()
+    buyer.post("/signup", data={"name": "B", "email": buyer_email,
+                                "password": "secret1", "account_type": "artist"})
+    buyer.post("/plan/switch", data={"plan": "label"})
+    page = buyer.get("/admin/review")
+    assert page.status_code == 404, "a 404, so the address is not confirmed either"
+    assert private not in page.get_data(as_text=True)
+    assert buyer.get("/qualification").status_code == 200  # own score always visible
+
+    # 3. Nothing offers the page to them, so the refusal is never met.
+    assert "/admin/review" not in buyer.get("/overview").get_data(as_text=True)
+
+    # 4. The owner still gets the roster. That is the page's whole job.
+    monkeypatch.setenv("OWNER_EMAILS", buyer_email)
+    owner_page = buyer.get("/admin/review")
+    assert owner_page.status_code == 200
+    body = owner_page.get_data(as_text=True)
+    assert "Artist accounts" in body and private in body
+    assert "/admin/review" in buyer.get("/overview").get_data(as_text=True)
 
 
 # --- Real royalty engine: statements power the money pages -----------------------

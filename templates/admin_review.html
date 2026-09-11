@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Review Queue - Street Banker{% endblock %}
+{% block title %}Artist accounts - Street Banker{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-[1100px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Curation Desk</div>
-    <h1 class="sb-h1 mt-1">Review Queue</h1>
+    <h1 class="sb-h1 mt-1">Artist accounts</h1>
     <p class="mt-1 max-w-2xl text-sm text-gray-300">Every artist account on the platform, ranked by qualification score. The score gets them seen — a person makes the call on placement, pitching support, and upstream review.</p>
+    <p class="mt-2 max-w-2xl text-sm text-sb-gold-bright">Owner only. This page carries other people's names and email addresses; it is not part of the Label plan and no artist or reseller seat can open it.</p>
   </div>
 
   {% if queue %}

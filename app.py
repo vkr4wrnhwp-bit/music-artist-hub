@@ -388,6 +388,11 @@ def _internal_tools():
     # exactly when it is refusing.
     if owner:
         out.append({"href": "/admin/audio", "label": "Audio Intelligence"})
+        # Named for what the page is. It used to sit under Label Services
+        # as "Review Queue - submissions awaiting review", which described
+        # the inbox rather than this, and put a roster of every customer's
+        # email behind a tier anyone could buy.
+        out.append({"href": "/admin/review", "label": "Artist accounts"})
     return out
 
 
@@ -8078,13 +8083,15 @@ def create_app():
 
     @app.route("/admin/review")
     def admin_review():
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        if (user.get("plan") or "artist") != "label":
-            return render_template("upgrade.html", required="label",
-                                   plans_list=plans.PLANS,
-                                   **build_dashboard_context()), 402
+        # Every non-fan account on the deployment, by name and email
+        # address. That is a cross-tenant read, so the gate is ownership
+        # and not a plan: `label` is a tier anybody can buy, /plan/switch
+        # hands it out for free while Stripe is unconfigured, and the
+        # shared demo login holds it - all three read every customer's
+        # email until 2026-09-10.
+        user, bail = _owner_or_404()
+        if bail:
+            return bail
         with store.get_db() as db:
             rows = db.execute(
                 "SELECT id, name, email, plan, created FROM users"

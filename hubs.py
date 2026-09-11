@@ -73,7 +73,11 @@ LABEL_GROUP = ("Label Services", [
     ("services", "/services", "M4 6h12v10H4z|M4 9h12M8 6V4h4v2", "Services", "Art Is War Records label services."),
     ("apparel", "/apparel", "M6 6l4-2 2 2 2-2 4 2-2 4h-1v6H9v-6H8L6 6z", "Apparel & Merch", "The store's own checkout, on the page you are on."),
     ("submit", "/submit", "M10 4v9M6 8l4-4 4 4|M4 15h12", "Submit Music", "Send music to the label desk."),
-    ("review", "/admin/review", "M4 5h12v10H4z|M7 9l2 2 4-4M4 8h12", "Review Queue", "Submissions awaiting review."),
+    # /admin/review is NOT here. It lists every account on the deployment
+    # by email address, so it is an owner tool rather than a label-plan
+    # feature, and it is offered from _internal_tools() in app.py beside
+    # the Operator Desk. The old entry also misdescribed it: it read
+    # "Submissions awaiting review", and submissions go to the inbox.
 ])
 COMMUNITY_GROUP = ("Community", [
     ("discover", "/discover", "M10 3a7 7 0 100 14 7 7 0 000-14z|M13 7l-2 4-4 2 2-4z", "Discover (Fans)", "Find artists to follow and support."),
@@ -125,7 +129,7 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "valuation", "links", "rollout", "artwork", "services", "submit",
              "inbox", "settings", "discover", "catalog", "command-center",
              "actions", "autopilot", "scores",
-             "vault", "review", "pulse", "team", "tax",
+             "vault", "pulse", "team", "tax",
              "income", "disputes", "fans", "portal",
              "tours", "passports", "stage-plot", "tour-board", "rack", "roster", "referrals",
              # Real registrations and real scan answers, or an honest "not
