@@ -213,6 +213,7 @@ import spotify_provider as spotify
 import artist_twin as twin
 import plans
 from network_config import (
+    blank_state as network_blank_state,
     get_network_data,
     get_profile,
     get_playlist,
@@ -225,8 +226,6 @@ from network_config import (
 )
 
 from royalty_data import (
-    add_split,
-    advance_claim,
     assess_advance_eligibility,
     estimate_catalog_value,
     get_action_center,
@@ -263,16 +262,11 @@ from royalty_data import (
     metadata_completion_score,
     money_left_on_table,
     registration_checklist_score,
-    reject_claim,
-    remove_split,
     royalty_progress,
-    set_connection_status,
-    set_fix_status,
     song_check_status,
     song_missing_issues,
     split_total_percentage,
     splits_fully_confirmed,
-    toggle_split_confirmed,
     total_royalties,
     upcoming_payout_total,
 )
@@ -482,45 +476,6 @@ def build_dashboard_context():
         "claims": claims,
         "catalog_value": catalog_value,
         "advance_eligibility": advance_eligibility,
-    }
-
-
-def build_song_detail(song_id):
-    song = get_song(song_id)
-    if song is None:
-        return None
-    song = live_song(song)
-    payouts = [p for p in get_recent_payouts() if p.song == song.title]
-    status = song_check_status(song)
-    return {
-        "id": song.id,
-        "title": song.title,
-        "isrc": song.isrc,
-        "iswc": song.iswc,
-        "upc": song.upc,
-        "master_owner": song.master_owner,
-        "writers": song.writers,
-        "producers": song.producers,
-        "publisher": song.publisher,
-        "lyrics_on_file": song.lyrics_on_file,
-        "alternate_titles": song.alternate_titles,
-        "total_earned": round(song.total_earned, 2),
-        "streams": song.streams,
-        "platform_earnings": song.platform_earnings,
-        "splits": [
-            {"collaborator": sp.collaborator, "role": sp.role, "percentage": sp.percentage, "confirmed": sp.confirmed}
-            for sp in song.splits
-        ],
-        "split_total": split_total_percentage(song),
-        "splits_confirmed": splits_fully_confirmed(song),
-        "monthly_trend": song.monthly_trend,
-        "check_status": status,
-        "missing_issues": song_missing_issues(song),
-        "metadata_score": round(metadata_completion_score(song) * 100),
-        "registration_score": round(registration_checklist_score(song) * 100),
-        "recent_payouts": [
-            {"platform": p.platform, "status": p.status, "amount": p.amount} for p in payouts
-        ],
     }
 
 
@@ -8712,10 +8667,36 @@ def create_app():
         store.delete_collab_request(user["id"], req_id)
         return redirect("/marketplace")
 
+    def _discover_state():
+        """This browser's likes and follows.
+
+        They used to be two module-level sets in discover_config, with
+        no user key at all: one process serves every account, so
+        account A liking a track drew a filled heart on account B's
+        page. The footer has always read "Likes & follows save for
+        your session" - the session is where they live now, so the
+        sentence is true.
+
+        The session and not a table, deliberately. The twelve tracks
+        are a fixture with illustrative play counts, and persisting a
+        like against an invented track would add a second false claim
+        on top of the one being fixed. If the feed ever becomes real
+        music, this is the seam to move.
+        """
+        return (set(session.get("discover_likes") or ()),
+                set(session.get("discover_follows") or ()))
+
+    def _keep_discover_state(likes, follows):
+        # Sorted lists, because the session is JSON on the way to a
+        # cookie and a set will not serialise.
+        session["discover_likes"] = sorted(likes)
+        session["discover_follows"] = sorted(follows)
+
     @app.route("/discover")
     def discover():
+        likes, follows = _discover_state()
         ctx = build_dashboard_context()
-        ctx["discover"] = get_discover_data(request.args)
+        ctx["discover"] = get_discover_data(request.args, likes, follows)
         # Real music search: iTunes catalog with artwork + 30s previews.
         q = (request.args.get("q") or "").strip()
         ctx["real_query"] = q
@@ -8724,20 +8705,49 @@ def create_app():
 
     @app.route("/discover/like/<track_id>", methods=["POST"])
     def discover_like_route(track_id):
-        res = like_track(track_id)
+        likes, follows = _discover_state()
+        res = like_track(track_id, likes)
         if res is None:
             return jsonify({"ok": False}), 404
+        _keep_discover_state(likes, follows)
         return jsonify({"ok": True, **res})
 
     @app.route("/discover/follow/<artist_id>", methods=["POST"])
     def discover_follow_route(artist_id):
-        return jsonify({"ok": True, **follow_artist(artist_id)})
+        likes, follows = _discover_state()
+        res = follow_artist(artist_id, follows)
+        _keep_discover_state(likes, follows)
+        return jsonify({"ok": True, **res})
+
+    def _network_state():
+        """This visitor's side of the sample directory.
+
+        The five collections behind the My Network tab - connections,
+        pitches, playlist submissions, booking enquiries and claimed
+        moments - were module-level in network_config with no user key.
+        One process, every account: A's pending connection rendered on
+        B's tab, and the serial number on a moment A claimed was shown to
+        everybody. templates/network.html calls this tab "private to
+        you".
+
+        The session, because the people being connected to are invented
+        (docs/PARKED_PAGES.md). The real outreach tracker on the same
+        page is a different thing entirely - it is in the database, keyed
+        by user_id, and is not touched here.
+        """
+        st = session.get("network")
+        if not isinstance(st, dict) or set(st) != set(network_blank_state()):
+            st = network_blank_state()
+        return st
+
+    def _keep_network_state(st):
+        session["network"] = st
 
     @app.route("/network")
     def network():
         user = current_user()
         ctx = build_dashboard_context()
-        ctx["network"] = get_network_data(request.args)
+        ctx["network"] = get_network_data(request.args, _network_state())
         ctx["outreach"] = store.list_outreach(user["id"]) if user else []
         ctx["outreach_stages"] = store.OUTREACH_STAGES
         return render_template("network.html", active_page="network", **ctx)
@@ -8780,12 +8790,12 @@ def create_app():
 
     @app.route("/network/playlist/<playlist_id>")
     def network_playlist(playlist_id):
-        pl = get_playlist(playlist_id)
+        pl = get_playlist(playlist_id, _network_state())
         if pl is None:
             return redirect(url_for("network"))
         ctx = build_dashboard_context()
         ctx["playlist"] = pl
-        ctx["curator"] = get_profile(pl["curator_id"])
+        ctx["curator"] = get_profile(pl["curator_id"], _network_state())
         return render_template("network_playlist.html", active_page="network", **ctx)
 
     @app.route("/network/playlist/<playlist_id>/submit", methods=["POST"])
@@ -8794,16 +8804,19 @@ def create_app():
         if user is None:
             return login_required_redirect()
         data = request.get_json(silent=True) or {}
-        entry = submit_to_playlist(playlist_id, data.get("song"), data.get("message"))
+        st = _network_state()
+        entry = submit_to_playlist(playlist_id, data.get("song"),
+                                   data.get("message"), st)
         if entry is None:
             return jsonify({"ok": False, "error": "This playlist isn't accepting submissions, or no track was selected."}), 400
         # A record of what this account sent, filed to this account.
+        _keep_network_state(st)
         store.add_inbox("playlist_submission", entry, user_id=user["id"])
         return jsonify({"ok": True})
 
     @app.route("/network/<profile_id>")
     def network_profile(profile_id):
-        profile = get_profile(profile_id)
+        profile = get_profile(profile_id, _network_state())
         if profile is None:
             return redirect(url_for("network"))
         ctx = build_dashboard_context()
@@ -8812,17 +8825,22 @@ def create_app():
 
     @app.route("/network/<profile_id>/connect", methods=["POST"])
     def network_connect_route(profile_id):
-        status = network_connect_action(profile_id)
+        st = _network_state()
+        status = network_connect_action(profile_id, st)
         if status is None:
             return jsonify({"ok": False}), 404
+        _keep_network_state(st)
         return jsonify({"ok": True, "status": status})
 
     @app.route("/network/<profile_id>/pitch", methods=["POST"])
     def network_pitch_route(profile_id):
         data = request.get_json(silent=True) or {}
-        entry = network_pitch_action(profile_id, data.get("message"), data.get("song"))
+        st = _network_state()
+        entry = network_pitch_action(profile_id, data.get("message"),
+                                     data.get("song"), st)
         if entry is None:
             return jsonify({"ok": False}), 404
+        _keep_network_state(st)
         return jsonify({"ok": True})
 
     @app.route("/network/<profile_id>/enquire", methods=["POST"])
@@ -8831,15 +8849,18 @@ def create_app():
         if user is None:
             return login_required_redirect()
         data = request.get_json(silent=True) or {}
-        entry = enquire_show(profile_id, data.get("city"), data.get("date"), data.get("message"))
+        st = _network_state()
+        entry = enquire_show(profile_id, data.get("city"), data.get("date"),
+                             data.get("message"), st)
         if entry is None:
             return jsonify({"ok": False, "error": "This profile isn't taking booking enquiries."}), 400
+        _keep_network_state(st)
         store.add_inbox("booking_enquiry", entry, user_id=user["id"])
         return jsonify({"ok": True})
 
     @app.route("/network/moment/<moment_id>")
     def network_moment(moment_id):
-        moment = get_moment(moment_id)
+        moment = get_moment(moment_id, _network_state())
         if moment is None:
             return redirect(url_for("network"))
         ctx = build_dashboard_context()
@@ -8848,9 +8869,11 @@ def create_app():
 
     @app.route("/network/moment/<moment_id>/claim", methods=["POST"])
     def network_claim_route(moment_id):
-        serial = claim_moment(moment_id)
+        st = _network_state()
+        serial = claim_moment(moment_id, st)
         if serial is None:
             return jsonify({"ok": False}), 404
+        _keep_network_state(st)
         return jsonify({"ok": True, "serial": serial})
 
     @app.route("/fan-label")
@@ -10351,96 +10374,6 @@ def create_app():
             "findings": [asdict(f) for f in findings],
         })
 
-    @app.route("/connections/<platform_id>/connect", methods=["POST"])
-    def connect_platform(platform_id):
-        entry = set_connection_status(platform_id, "connected")
-        if entry is None:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "status": entry.status})
-
-    @app.route("/connections/<platform_id>/disconnect", methods=["POST"])
-    def disconnect_platform(platform_id):
-        entry = set_connection_status(platform_id, "not_connected")
-        if entry is None:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "status": entry.status})
-
-    @app.route("/songs/<song_id>")
-    def song_detail(song_id):
-        detail = build_song_detail(song_id)
-        if detail is None:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "song": detail})
-
-    @app.route("/songs/<song_id>/splits", methods=["POST"])
-    def add_split_route(song_id):
-        data = request.get_json(silent=True) or {}
-        collaborator = (data.get("collaborator") or "").strip()
-        role = (data.get("role") or "").strip()
-        try:
-            percentage = float(data.get("percentage"))
-        except (TypeError, ValueError):
-            return jsonify({"ok": False, "error": "Invalid percentage"}), 400
-        if not collaborator or not role or percentage <= 0:
-            return jsonify({"ok": False, "error": "Missing required fields"}), 400
-        splits = add_split(song_id, collaborator, role, percentage)
-        if splits is None:
-            return jsonify({"ok": False}), 404
-        song = live_song(get_song(song_id))
-        return jsonify({
-            "ok": True,
-            "splits": [asdict(s) for s in splits],
-            "split_total": split_total_percentage(song),
-        })
-
-    @app.route("/songs/<song_id>/splits/<int:index>/remove", methods=["POST"])
-    def remove_split_route(song_id, index):
-        splits = remove_split(song_id, index)
-        if splits is None:
-            return jsonify({"ok": False}), 404
-        song = live_song(get_song(song_id))
-        return jsonify({
-            "ok": True,
-            "splits": [asdict(s) for s in splits],
-            "split_total": split_total_percentage(song),
-        })
-
-    @app.route("/songs/<song_id>/splits/<int:index>/toggle", methods=["POST"])
-    def toggle_split_route(song_id, index):
-        splits = toggle_split_confirmed(song_id, index)
-        if splits is None:
-            return jsonify({"ok": False}), 404
-        song = live_song(get_song(song_id))
-        return jsonify({
-            "ok": True,
-            "splits": [asdict(s) for s in splits],
-            "split_total": split_total_percentage(song),
-            "splits_confirmed": splits_fully_confirmed(song),
-        })
-
-    @app.route("/claims/<claim_id>/advance", methods=["POST"])
-    def advance_claim_route(claim_id):
-        new_status = advance_claim(claim_id, get_platform_catalog())
-        if new_status is None:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "status": new_status})
-
-    @app.route("/claims/<claim_id>/reject", methods=["POST"])
-    def reject_claim_route(claim_id):
-        new_status = reject_claim(claim_id, get_platform_catalog())
-        if new_status is None:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "status": new_status})
-
-    @app.route("/fixes/<item_id>/status", methods=["POST"])
-    def update_fix_status(item_id):
-        data = request.get_json(silent=True) or {}
-        status = data.get("status")
-        result = set_fix_status(item_id, status)
-        if result is None:
-            return jsonify({"ok": False}), 400
-        return jsonify({"ok": True, "status": result})
-
     @app.route("/reports/<report_id>/generate", methods=["POST"])
     def generate_report_route(report_id):
         user = current_user()
@@ -10473,18 +10406,6 @@ def create_app():
             body, mimetype="text/csv",
             headers={"Content-Disposition":
                      'attachment; filename="%s"' % filename})
-
-    @app.route("/alerts/<alert_id>/resolve", methods=["POST"])
-    def resolve_alert(alert_id):
-        balances = get_platform_balances()
-        payouts = get_recent_payouts()
-        kpis = get_kpis()
-        catalog = get_platform_catalog()
-        alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog)
-        alert = next((a for a in alerts if a.id == alert_id), None)
-        if alert is None:
-            return jsonify({"ok": False}), 404
-        return jsonify({"ok": True, "message": alert.resolution_message})
 
     @app.after_request
     def _mark_sandbox(response):

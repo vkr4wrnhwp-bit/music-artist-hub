@@ -3,9 +3,10 @@ Config-driven data for the fan-facing Discover section.
 
 A music-fan experience (the "Continue as a Fan" side): browse new music by
 genre and mood, see trending tracks, new releases, artist spotlights, and
-featured playlists. Likes and follows are held in module-level session
-state (reset on restart). Tracks reference real network artists and
-catalog titles; play counts and cover gradients are illustrative.
+featured playlists. Likes and follows belong to the caller's session and
+are passed in; this module keeps no state of its own. Tracks reference
+real network artists and catalog titles; play counts and cover gradients
+are illustrative.
 """
 
 import os
@@ -41,32 +42,36 @@ _TRACKS = [
     {"id": "tr-12", "title": "Backstreet Gold", "artist": "Milo Tran", "artist_id": "milo-tran", "genre": "Hip-Hop", "mood": "energetic", "plays": 210000, "from": "#7c2d12", "to": "#18181b", "new": True},
 ]
 
-# --- Session state (reset on restart) ---------------------------------------
-_likes = set()      # track ids
-_follows = set()    # artist ids
+# Likes and follows are NOT held here.
+#
+# They were: two module-level sets, `_likes` and `_follows`, with no user
+# key. One process serves every account, so one visitor's like rendered
+# as everybody's - account A liked tr-1 and account B's page drew the
+# heart filled. The page has always said "Likes & follows save for your
+# session"; the caller now passes the session's own sets in, which makes
+# that sentence true instead of aspirational.
+#
+# The functions below mutate the set they are handed and never reach for
+# state of their own. That is the whole guard: there is nothing module
+# level left to share.
 
 
-def reset_discover_state():
-    _likes.clear()
-    _follows.clear()
-
-
-def like_track(track_id):
+def like_track(track_id, likes):
     if not any(t["id"] == track_id for t in _TRACKS):
         return None
-    if track_id in _likes:
-        _likes.discard(track_id)
-        return {"liked": False, "count": len(_likes)}
-    _likes.add(track_id)
-    return {"liked": True, "count": len(_likes)}
+    if track_id in likes:
+        likes.discard(track_id)
+        return {"liked": False, "count": len(likes)}
+    likes.add(track_id)
+    return {"liked": True, "count": len(likes)}
 
 
-def follow_artist(artist_id):
-    if artist_id in _follows:
-        _follows.discard(artist_id)
-        return {"following": False, "count": len(_follows)}
-    _follows.add(artist_id)
-    return {"following": True, "count": len(_follows)}
+def follow_artist(artist_id, follows):
+    if artist_id in follows:
+        follows.discard(artist_id)
+        return {"following": False, "count": len(follows)}
+    follows.add(artist_id)
+    return {"following": True, "count": len(follows)}
 
 
 def _fmt_plays(n):
@@ -77,16 +82,18 @@ def _fmt_plays(n):
     return str(n)
 
 
-def _decorate_track(t):
-    return {**t, "liked": t["id"] in _likes, "plays_fmt": _fmt_plays(t["plays"])}
+def _decorate_track(t, likes):
+    return {**t, "liked": t["id"] in likes, "plays_fmt": _fmt_plays(t["plays"])}
 
 
-def get_discover_data(args=None):
+def get_discover_data(args=None, likes=None, follows=None):
     args = args or {}
+    likes = likes if likes is not None else set()
+    follows = follows if follows is not None else set()
     genre = args.get("genre") or "All"
     mood = args.get("mood") or "All"
 
-    tracks = [_decorate_track(t) for t in _TRACKS]
+    tracks = [_decorate_track(t, likes) for t in _TRACKS]
     filtered = tracks
     if genre != "All":
         filtered = [t for t in filtered if t["genre"] == genre]
@@ -109,7 +116,7 @@ def get_discover_data(args=None):
                            "avatar": "/static/img/discover/av-%s.jpg" % t["artist_id"]
                            if os.path.exists(os.path.join("static", "img", "discover",
                                                           "av-%s.jpg" % t["artist_id"])) else None,
-                           "following": t["artist_id"] in _follows,
+                           "following": t["artist_id"] in follows,
                            "initials": "".join(p[0] for p in t["artist"].split()[:2]).upper()})
     spotlights = spotlights[:6]
 
@@ -124,8 +131,8 @@ def get_discover_data(args=None):
             "tracks": len(_TRACKS),
             "genres": len(genre_counts),
             "new": len(new_releases),
-            "likes": len(_likes),
-            "follows": len(_follows),
+            "likes": len(likes),
+            "follows": len(follows),
         },
         "result_count": len(filtered),
     }

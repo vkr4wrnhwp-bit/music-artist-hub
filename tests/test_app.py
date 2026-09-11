@@ -377,21 +377,6 @@ def test_royalties_page_matches_tracking_dashboard():
     assert 'id="export-btn"' in body
 
 
-def test_resolve_alert_returns_result_message():
-    client = _demo()
-    response = client.post("/alerts/pending-negotiation/resolve")
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["ok"] is True
-    assert data["message"]
-
-
-def test_resolve_unknown_alert_returns_404():
-    client = _demo()
-    response = client.post("/alerts/not-a-real-id/resolve")
-    assert response.status_code == 404
-
-
 def test_connections_true_status_board(monkeypatch):
     monkeypatch.setenv("SPOTIFY_CLIENT_ID", "cid")
     monkeypatch.setenv("SPOTIFY_CLIENT_SECRET", "csec")
@@ -445,27 +430,6 @@ def test_scan_endpoint_returns_findings():
     assert data["total_estimated"] > 0
     required = {"id", "source", "issue_type", "estimated_value", "confidence", "recommended_action"}
     assert required <= set(data["findings"][0].keys())
-
-
-def test_connect_and_disconnect_platform():
-    client = _demo()
-    try:
-        response = client.post("/connections/youtube-music/connect")
-        assert response.status_code == 200
-        assert response.get_json() == {"ok": True, "status": "connected"}
-        assert "YouTube Music" in [b.platform for b in get_platform_balances()]
-
-        response = client.post("/connections/youtube-music/disconnect")
-        assert response.status_code == 200
-        assert "YouTube Music" not in [b.platform for b in get_platform_balances()]
-    finally:
-        reset_connection_state()
-
-
-def test_connect_unknown_platform_returns_404():
-    client = _demo()
-    response = client.post("/connections/not-a-platform/connect")
-    assert response.status_code == 404
 
 
 def test_catalog_page_matches_control_center():
@@ -529,121 +493,11 @@ def test_sidebar_shows_the_users_real_plan_not_the_mock_one():
         "the hardcoded $%s payout is rendering again" % mock["next_payout"]
 
 
-def test_song_detail_endpoint_returns_full_payload():
-    client = _demo()
-    response = client.get("/songs/midnight-drive")
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["ok"] is True
-    song = data["song"]
-    required = {
-        "isrc", "iswc", "upc", "master_owner", "splits", "platform_earnings",
-        "check_status", "missing_issues", "recent_payouts", "metadata_score",
-        "registration_score",
-    }
-    assert required <= set(song.keys())
-    assert song["title"] == "Midnight Drive"
-
-
-def test_song_detail_unknown_id_returns_404():
-    client = _demo()
-    response = client.get("/songs/not-a-real-song")
-    assert response.status_code == 404
-
-
 def test_royalties_includes_payout_calendar():
     client = _demo()
     body = client.get("/royalties").get_data(as_text=True)
     assert "Payout Calendar" in body
     assert "Upcoming total" in body
-
-
-def test_advance_claim_route():
-    client = _demo()
-    try:
-        response = client.post("/claims/youtube-music-uncollected/advance")
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data["ok"] is True
-        assert data["status"] == "Needs Info"
-    finally:
-        reset_claim_state()
-
-
-def test_reject_claim_route():
-    client = _demo()
-    try:
-        response = client.post("/claims/youtube-music-uncollected/reject")
-        assert response.status_code == 200
-        assert response.get_json() == {"ok": True, "status": "Rejected"}
-    finally:
-        reset_claim_state()
-
-
-def test_advance_unknown_claim_returns_404():
-    client = _demo()
-    response = client.post("/claims/not-a-real-claim/advance")
-    assert response.status_code == 404
-
-
-def test_add_split_route():
-    client = _demo()
-    try:
-        response = client.post(
-            "/songs/midnight-drive/splits",
-            json={"collaborator": "New Collaborator", "role": "Mixer", "percentage": 15.0},
-        )
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data["ok"] is True
-        assert len(data["splits"]) == 4
-        assert data["split_total"] == 115.0
-    finally:
-        reset_split_state()
-
-
-def test_add_split_missing_fields_returns_400():
-    client = _demo()
-    response = client.post("/songs/midnight-drive/splits", json={"collaborator": "", "role": "Mixer", "percentage": 10.0})
-    assert response.status_code == 400
-
-
-def test_add_split_unknown_song_returns_404():
-    client = _demo()
-    response = client.post(
-        "/songs/not-a-real-song/splits",
-        json={"collaborator": "X", "role": "Writer", "percentage": 100.0},
-    )
-    assert response.status_code == 404
-
-
-def test_remove_split_route():
-    client = _demo()
-    try:
-        client.post("/songs/midnight-drive/splits", json={"collaborator": "Temp", "role": "Mixer", "percentage": 10.0})
-        response = client.post("/songs/midnight-drive/splits/3/remove")
-        assert response.status_code == 200
-        data = response.get_json()
-        assert len(data["splits"]) == 3
-    finally:
-        reset_split_state()
-
-
-def test_toggle_split_route():
-    client = _demo()
-    try:
-        response = client.post("/songs/neon-dreams/splits/1/toggle")
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data["splits"][1]["confirmed"] is True
-    finally:
-        reset_split_state()
-
-
-def test_toggle_split_unknown_song_returns_404():
-    client = _demo()
-    response = client.post("/songs/not-a-real-song/splits/0/toggle")
-    assert response.status_code == 404
 
 
 def test_base_includes_collapsible_section_script():
@@ -1147,8 +1001,6 @@ def test_real_smart_link_redirect_and_click():
 
 def test_inbox_persists_submissions():
     import uuid
-    from network_config import reset_network_state
-    reset_network_state()
     client = create_app().test_client()
     assert client.get("/inbox").status_code == 302  # requires login
     client.post("/signup", data={"name": "I", "email": "i%s@example.com" % uuid.uuid4().hex[:8], "password": "secret1"})
@@ -1159,7 +1011,6 @@ def test_inbox_persists_submissions():
     # Both are records of what this account sent, so they file under Sent.
     assert "Midnight Drive" in body and "Chicago" in body
     assert "Sent" in body
-    reset_network_state()
 
 
 def test_tier5_and_community_pages_render_and_nav():
@@ -1335,21 +1186,20 @@ def test_landing_links_to_label_services():
 
 
 def test_network_directory_filters_and_sort():
-    from network_config import get_network_data, reset_network_state
-    reset_network_state()
+    from network_config import blank_state, get_network_data
     client = _demo()
     assert client.get("/network").status_code == 200
     # Role filter narrows results to that role only.
-    data = get_network_data({"role": "Producer"})
+    data = get_network_data({"role": "Producer"}, blank_state())
     assert data["people"] and all(p["role"] == "Producer" for p in data["people"])
     # Genre filter.
-    house = get_network_data({"genre": "House"})
+    house = get_network_data({"genre": "House"}, blank_state())
     assert all("House" in p["genres"] for p in house["people"])
     # Name sort is alphabetical.
-    names = [p["name"] for p in get_network_data({"sort": "name"})["people"]]
+    names = [p["name"] for p in get_network_data({"sort": "name"}, blank_state())["people"]]
     assert names == sorted(names, key=str.lower)
     # Search matches location/role/genre text.
-    assert get_network_data({"q": "berlin"})["result_count"] >= 1
+    assert get_network_data({"q": "berlin"}, blank_state())["result_count"] >= 1
 
 
 def test_network_profile_and_playlist_pages():
@@ -1363,8 +1213,6 @@ def test_network_profile_and_playlist_pages():
 
 
 def test_network_connect_pitch_submit_flows():
-    from network_config import reset_network_state
-    reset_network_state()
     client = _demo()
     assert client.post("/network/kilo-byte/connect").get_json()["status"] == "Pending"
     assert client.post("/network/nope/connect").status_code == 404
@@ -1376,24 +1224,18 @@ def test_network_connect_pitch_submit_flows():
     # My Network reflects the connection + submission.
     my = client.get("/network?tab=my").get_data(as_text=True)
     assert "Kilo Byte" in my and "Late Night Synth" in my
-    reset_network_state()
 
 
 def test_network_shows_and_booking():
-    from network_config import reset_network_state
-    reset_network_state()
     client = _demo()
     assert client.get("/network?tab=shows").status_code == 200
     assert "Tour Dates" in client.get("/network/nova-reign").get_data(as_text=True)
     # Enquire works for booking profiles, rejected for non-booking.
     assert client.post("/network/nova-reign/enquire", json={"city": "Chicago"}).get_json()["ok"]
     assert client.post("/network/vera-sound/enquire", json={"city": "X"}).status_code == 400
-    reset_network_state()
 
 
 def test_network_moments_and_claim():
-    from network_config import reset_network_state, get_moment
-    reset_network_state()
     client = _demo()
     assert client.get("/network?tab=moments").status_code == 200
     body = client.get("/network/moment/mo-1").get_data(as_text=True)
@@ -1404,14 +1246,14 @@ def test_network_moments_and_claim():
     # Claim marks it owned.
     resp = client.post("/network/moment/mo-1/claim")
     assert resp.get_json()["serial"] == "SB-1-0001"
-    assert get_moment("mo-1")["claimed"] is True
+    # Read the claim off My Network: the moment page prints the serial
+    # either way, and its inline script says "Owned" whatever the state.
+    assert "SB-1-0001" in client.get("/network?tab=my").get_data(as_text=True)
     assert client.post("/network/moment/nope/claim").status_code == 404
-    reset_network_state()
 
 
 def test_discover_page_and_filters():
-    from discover_config import get_discover_data, reset_discover_state
-    reset_discover_state()
+    from discover_config import get_discover_data
     client = _demo()
     assert client.get("/discover").status_code == 200
     assert 'href="/discover"' in client.get("/discover").get_data(as_text=True)  # fan-world sidebar
@@ -1424,15 +1266,12 @@ def test_discover_page_and_filters():
 
 
 def test_discover_like_and_follow():
-    from discover_config import reset_discover_state
-    reset_discover_state()
     client = _demo()
     r = client.post("/discover/like/tr-1").get_json()
     assert r["liked"] is True and r["count"] == 1
     assert client.post("/discover/like/tr-1").get_json()["liked"] is False  # toggles off
     assert client.post("/discover/like/nope").status_code == 404
     assert client.post("/discover/follow/nova-reign").get_json()["following"] is True
-    reset_discover_state()
 
 
 def test_epk_editable_savable_real():
@@ -3409,12 +3248,6 @@ def test_catalog_data_config_shapes():
     assert data["publishers"] and data["splits"] and data["recently_added"]
     assert data["registered_pct"] == 82.7
     assert data["health"]["total"] == 76
-
-
-def test_update_fix_status_invalid_status_returns_400():
-    client = _demo()
-    response = client.post("/fixes/some-id/status", json={"status": "NotAStatus"})
-    assert response.status_code == 400
 
 
 def test_generate_report_route():

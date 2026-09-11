@@ -151,20 +151,24 @@ _MOMENTS = [
      "from": "#7f1d1d", "to": "#18181b", "edition_n": 3, "edition_total": 30, "price": 30, "hours_left": 2},
 ]
 
-# --- Session state (resets on restart) --------------------------------------
-_connections = {}   # profile_id -> status ("Pending" | "Connected")
-_pitches = []       # {profile_id, message, song}
-_submissions = []   # {playlist_id, song, message, status}
-_bookings = []      # {profile_id, city, date, message}
-_claimed = {}       # moment_id -> serial owned by "you"
+# --- One visitor's own outreach ---------------------------------------------
+#
+# These five were module-level: _connections, _pitches, _submissions,
+# _bookings and _claimed, with no user key. One process serves every
+# account, so account A connecting to a profile put that connection on
+# account B's My Network tab, and a moment A claimed showed A's serial
+# number to everyone. templates/network.html says this tab is "private
+# to you"; it now is.
+#
+# The caller holds it and passes it in. The directory itself is sample
+# profiles (docs/PARKED_PAGES.md), so what is kept here is the visitor's
+# side of an interaction with invented people - session-shaped, not
+# something to put in the database.
 
 
-def reset_network_state():
-    _connections.clear()
-    _pitches.clear()
-    _submissions.clear()
-    _bookings.clear()
-    _claimed.clear()
+def blank_state():
+    return {"connections": {}, "pitches": [], "submissions": [],
+            "bookings": [], "claimed": {}}
 
 
 def _serial(moment):
@@ -177,107 +181,109 @@ def _decorate_show(s):
             "owner_role": owner["role"] if owner else ""}
 
 
-def _decorate_moment(m):
+def _decorate_moment(m, st):
     owner = next((x for x in _PROFILES if x["id"] == m["owner_id"]), None)
     expires = (datetime.now() + timedelta(hours=m["hours_left"])).isoformat()
     return {**m, "owner_name": owner["name"] if owner else "—",
             "owner_initials": _initials(owner["name"]) if owner else "?",
             "serial": _serial(m), "expires_iso": expires,
-            "claimed": m["id"] in _claimed}
+            "claimed": m["id"] in st["claimed"]}
 
 
 def get_shows():
     return sorted((_decorate_show(s) for s in _SHOWS), key=lambda s: s["date"])
 
 
-def get_moments():
-    return [_decorate_moment(m) for m in _MOMENTS]
+def get_moments(st):
+    return [_decorate_moment(m, st) for m in _MOMENTS]
 
 
-def get_moment(moment_id):
+def get_moment(moment_id, st):
     m = next((x for x in _MOMENTS if x["id"] == moment_id), None)
-    return _decorate_moment(m) if m else None
+    return _decorate_moment(m, st) if m else None
 
 
-def enquire_show(profile_id, city, date, message):
+def enquire_show(profile_id, city, date, message, st):
     if profile_id not in _BOOKING:
         return None
     entry = {"profile_id": profile_id, "city": (city or "").strip(),
              "date": (date or "").strip(), "message": (message or "").strip()}
-    _bookings.append(entry)
+    st["bookings"].append(entry)
     return entry
 
 
-def claim_moment(moment_id):
+def claim_moment(moment_id, st):
     m = next((x for x in _MOMENTS if x["id"] == moment_id), None)
     if m is None:
         return None
-    _claimed[moment_id] = _serial(m)
-    return _claimed[moment_id]
+    st["claimed"][moment_id] = _serial(m)
+    return st["claimed"][moment_id]
 
 
-def _decorate(p):
+def _decorate(p, st):
     return {**p, "initials": _initials(p["name"]),
-            "connection": _connections.get(p["id"]),
+            "connection": st["connections"].get(p["id"]),
             "booking": p["id"] in _BOOKING,
             "playlist_count": len(p.get("playlists", []))}
 
 
-def get_profile(profile_id):
+def get_profile(profile_id, st):
     p = next((x for x in _PROFILES if x["id"] == profile_id), None)
     if p is None:
         return None
-    prof = _decorate(p)
-    prof["playlists_full"] = [_decorate_playlist(pl) for pl in _PLAYLISTS if pl["curator_id"] == p["id"]]
+    prof = _decorate(p, st)
+    prof["playlists_full"] = [_decorate_playlist(pl, st)
+                              for pl in _PLAYLISTS if pl["curator_id"] == p["id"]]
     prof["shows"] = [_decorate_show(s) for s in _SHOWS if s["profile_id"] == p["id"]]
     return prof
 
 
-def _decorate_playlist(pl):
+def _decorate_playlist(pl, st):
     curator = next((x for x in _PROFILES if x["id"] == pl["curator_id"]), None)
-    submitted = any(s["playlist_id"] == pl["id"] for s in _submissions)
+    submitted = any(x["playlist_id"] == pl["id"] for x in st["submissions"])
     return {**pl, "curator_name": curator["name"] if curator else "—", "submitted": submitted}
 
 
-def get_playlist(playlist_id):
+def get_playlist(playlist_id, st):
     pl = next((x for x in _PLAYLISTS if x["id"] == playlist_id), None)
-    return _decorate_playlist(pl) if pl else None
+    return _decorate_playlist(pl, st) if pl else None
 
 
-def connect(profile_id):
+def connect(profile_id, st):
     if not any(x["id"] == profile_id for x in _PROFILES):
         return None
-    _connections[profile_id] = "Pending"
-    return _connections[profile_id]
+    st["connections"][profile_id] = "Pending"
+    return st["connections"][profile_id]
 
 
-def pitch(profile_id, message, song):
+def pitch(profile_id, message, song, st):
     if not any(x["id"] == profile_id for x in _PROFILES):
         return None
     entry = {"profile_id": profile_id, "message": (message or "").strip(), "song": (song or "").strip()}
-    _pitches.append(entry)
+    st["pitches"].append(entry)
     return entry
 
 
-def submit_to_playlist(playlist_id, song, message):
+def submit_to_playlist(playlist_id, song, message, st):
     pl = next((x for x in _PLAYLISTS if x["id"] == playlist_id), None)
     if pl is None or not pl["accepting"] or not (song or "").strip():
         return None
     entry = {"playlist_id": playlist_id, "song": song.strip(),
              "message": (message or "").strip(), "status": "Submitted"}
-    _submissions.append(entry)
+    st["submissions"].append(entry)
     return entry
 
 
-def get_network_data(args=None):
+def get_network_data(args=None, st=None):
     args = args or {}
+    st = st if st is not None else blank_state()
     q = (args.get("q") or "").strip().lower()
     role = args.get("role") or "All"
     genre = args.get("genre") or "All"
     sort = args.get("sort") or "followers"
     tab = args.get("tab") or "directory"
 
-    people = [_decorate(p) for p in _PROFILES]
+    people = [_decorate(p, st) for p in _PROFILES]
     if role != "All":
         people = [p for p in people if p["role"] == role]
     if genre != "All":
@@ -293,8 +299,8 @@ def get_network_data(args=None):
     else:
         people.sort(key=lambda p: p["followers"], reverse=True)
 
-    connected_ids = set(_connections)
-    my_connections = [_decorate(p) for p in _PROFILES if p["id"] in connected_ids]
+    connected_ids = set(st["connections"])
+    my_connections = [_decorate(p, st) for p in _PROFILES if p["id"] in connected_ids]
 
     return {
         "summary": {
@@ -302,20 +308,20 @@ def get_network_data(args=None):
             "roles": len({p["role"] for p in _PROFILES}),
             "playlists": len(_PLAYLISTS),
             "accepting": sum(1 for pl in _PLAYLISTS if pl["accepting"]),
-            "connections": len(_connections),
+            "connections": len(st["connections"]),
             "shows": len(_SHOWS),
             "moments": len(_MOMENTS),
         },
         "tab": tab,
         "people": people,
-        "playlists": [_decorate_playlist(pl) for pl in _PLAYLISTS],
+        "playlists": [_decorate_playlist(pl, st) for pl in _PLAYLISTS],
         "shows": get_shows(),
-        "moments": get_moments(),
+        "moments": get_moments(st),
         "my_connections": my_connections,
-        "my_bookings": [{**b, "name": next((x["name"] for x in _PROFILES if x["id"] == b["profile_id"]), b["profile_id"])} for b in _bookings],
-        "my_moments": [_decorate_moment(m) for m in _MOMENTS if m["id"] in _claimed],
-        "pitches": [{**pt, "name": next((x["name"] for x in _PROFILES if x["id"] == pt["profile_id"]), pt["profile_id"])} for pt in _pitches],
-        "submissions": [{**s, "playlist_name": next((x["name"] for x in _PLAYLISTS if x["id"] == s["playlist_id"]), s["playlist_id"])} for s in _submissions],
+        "my_bookings": [{**b, "name": next((x["name"] for x in _PROFILES if x["id"] == b["profile_id"]), b["profile_id"])} for b in st["bookings"]],
+        "my_moments": [_decorate_moment(m, st) for m in _MOMENTS if m["id"] in st["claimed"]],
+        "pitches": [{**pt, "name": next((x["name"] for x in _PROFILES if x["id"] == pt["profile_id"]), pt["profile_id"])} for pt in st["pitches"]],
+        "submissions": [{**s, "playlist_name": next((x["name"] for x in _PLAYLISTS if x["id"] == s["playlist_id"]), s["playlist_id"])} for s in st["submissions"]],
         "roles": ["All"] + ROLES,
         "genres": ["All"] + GENRES,
         "sorts": SORTS,
