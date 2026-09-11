@@ -2,3 +2,19 @@ __pycache__/
 *.pyc
 .pytest_cache/
 test-results/
+
+# Node build residue at paths this repository no longer tracks.
+#
+# mx-lab/ and reach-app/ carry their own .gitignore. masterclip-os/ used to as
+# well, and that file was deleted along with the vendored tree when the product
+# moved to its own repository — which left the path uncovered rather than gone.
+# A fresh clone never has the directory, but an existing working copy still
+# holds whatever was built there: node_modules, dist, and a local .env that is
+# no longer ignored by anything. Same story for demo-video/, whose own
+# ignore rules left with the pull request that proposed it.
+#
+# Neither path should ever be tracked here again. Ignoring them keeps a stale
+# checkout one `git add -A` further away from committing a gigabyte of
+# dependencies, rendered video, or a developer's environment file.
+/masterclip-os/
+/demo-video/
