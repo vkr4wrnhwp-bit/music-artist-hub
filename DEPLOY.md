@@ -93,10 +93,12 @@ It is gone: the product lives at
 and that repository carries its own `render.yaml`, declaring the same
 `masterclip` service with the same disk and the same env vars.
 
-**If you already run `masterclip` from this blueprint, nothing breaks when you
-sync.** An earlier draft of this section said Render "may suspend or delete" a
-service you remove from a blueprint, and told you to detach it first. That was
-wrong on both counts, and following it would have been the riskier path.
+**If you already run `masterclip` from this blueprint, the services and their
+disks survive the sync — but their next build from this repository cannot.**
+Two earlier drafts of this section each got part of this wrong. The first said
+Render "may suspend or delete" a service you remove from a blueprint and sent
+you to a detach control that does not exist. The second corrected that and
+overshot, promising that nothing breaks at all.
 
 Render's [Blueprint documentation](https://render.com/docs/infrastructure-as-code)
 is explicit: *"Syncing a Blueprint never deletes an existing resource. This is
@@ -111,10 +113,32 @@ simply no longer managed by this blueprint. The 5 GB disk is untouched. There
 is also no "detach from Blueprint" control in a service's Settings to look for;
 removing the definition from `render.yaml` *is* the detachment.
 
-Migrate at your leisure:
+**What blueprint membership does not govern is auto-deploy.** That is a
+per-service setting bound to the connected repository and branch, and it
+outlives the service's departure from the blueprint. Both orphaned services
+still carry the build filters they were last synced with:
 
-1. Sync this blueprint (merging is enough — auto-deploy is on). `masterclip`
-   keeps running, unmanaged.
+| Service | `buildFilter.paths` | builds from |
+|---|---|---|
+| `masterclip` | `masterclip-os/**` | `rootDir: masterclip-os` |
+| `holeshot-tuner` | `fuel-map-tool/**` | `staticPublishPath: fuel-map-tool` |
+
+The commit that removes them from this blueprint also deletes 473 non-markdown
+files under exactly those paths. So each filter matches, each service is queued
+for a deploy, and each deploy checks out a commit where its root directory no
+longer exists and fails. The running instance is unaffected — Render keeps the
+last successful deploy serving, and the disk with it — but from then until the
+migration finishes, neither service can be rebuilt from this repository, and
+any later deploy trigger (an env var edit, "Clear build cache & deploy") fails
+the same way. Expect the failure emails.
+
+Migrate at your leisure, but do step 1 deliberately:
+
+1. **Before merging**, open each of `masterclip` and `holeshot-tuner` →
+   **Settings → Build & Deploy → Auto-Deploy → No**, or disconnect the
+   repository. This is the control that matters, and it is the one the earlier
+   drafts never mentioned. If you have already merged, set it now and ignore
+   the failed builds; nothing is damaged by them.
 2. Create a new Blueprint from the `masterclip-os` repository. Its `render.yaml`
    declares the same `masterclip` service, the same `masterclip-data` disk at
    the same `/var/data`, and the same environment variables, plus a
@@ -125,8 +149,10 @@ Migrate at your leisure:
    generate its **own** `SESSION_SECRET` and `ASSET_SIGNING_SECRET`: nothing
    stored breaks, but any media link already handed out stops resolving, since
    that secret is what signs them.
-4. Delete `holeshot-tuner` in the dashboard whenever you like. It is a static
-   site with no server-side data.
+4. Delete `holeshot-tuner` in the dashboard. It is a static site with no
+   server-side data, so nothing is lost — and until it is gone or its
+   auto-deploy is off, it keeps trying and failing to build a directory this
+   repository no longer has.
 
 If you have **not** deployed `masterclip` yet, none of this applies — just
 deploy it from its own repository whenever you want it.
