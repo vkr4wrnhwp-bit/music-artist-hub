@@ -3,7 +3,11 @@
 # One workflow per product, each filtered to that product's paths, so a change
 # to REACH or TRACE does not run this suite and this suite does not gate their
 # pull requests. render.yaml is in the filter because tests/ contains the
-# blueprint guards, which are the only tests that read it.
+# blueprint guards, which are the only tests that read it — and so are the
+# three paths those guards forbid, which is why a workflow named for the
+# royalty dashboard watches masterclip-os/ and fuel-map-tool/. They have no
+# product of their own to be tested by, and the alternative is a guard that
+# only ever runs on changes that were never going to trip it.
 #
 # The path lists are duplicated between the two triggers rather than shared by
 # a YAML anchor: the Actions workflow parser does not resolve anchors.
@@ -23,6 +27,14 @@ on:
       - pyproject.toml
       - render.yaml
       - .github/workflows/royalty-sweep.yml
+      # The paths tests/test_deployment_blueprint.py exists to keep empty.
+      # A guard that is not triggered by the change it guards against is not a
+      # guard: re-adding masterclip-os/ or fuel-map-tool/ matches no other
+      # workflow's filter, so without these lines that pull request would run
+      # no CI at all and merge green past the test written to stop it.
+      - masterclip-os/**
+      - fuel-map-tool/**
+      - reach-app/render.yaml
   pull_request:
     paths:
       - app.py
@@ -35,6 +47,14 @@ on:
       - pyproject.toml
       - render.yaml
       - .github/workflows/royalty-sweep.yml
+      # The paths tests/test_deployment_blueprint.py exists to keep empty.
+      # A guard that is not triggered by the change it guards against is not a
+      # guard: re-adding masterclip-os/ or fuel-map-tool/ matches no other
+      # workflow's filter, so without these lines that pull request would run
+      # no CI at all and merge green past the test written to stop it.
+      - masterclip-os/**
+      - fuel-map-tool/**
+      - reach-app/render.yaml
 
 jobs:
   test:

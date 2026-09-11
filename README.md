@@ -74,9 +74,10 @@ while the live service kept shipping without it.
 One product, one repository. `tests/test_deployment_blueprint.py` fails if the
 directory or its service comes back.
 
-### One thing to carry across first: `APPLY-TO-MASTERCLIP-OS.patch`
+### The fix that was stranded here has landed upstream
 
-The second failure above left a real fix stranded. `isSandboxProvider()` read
+The second failure above left a real fix stranded in the copy. `isSandboxProvider()`
+read
 
 ```ts
 return providerId === 'mock' || this.rt.config.isSandbox
@@ -86,23 +87,15 @@ return providerId === 'mock' || this.rt.config.isSandbox
 enforce, so under `MASTERCLIP_MODE=sandbox` — the default, and what the
 blueprint deploys — every real-provider request skipped the live-spend cap, the
 approval gate and both price denials, and was then ledgered as sandbox so the
-cap never counted it afterwards either. It was fixed in the copy that lived
-here and never reached the product, which still ships the original line.
+cap never counted it afterwards either. Sandbox mode disabled the guard rails
+instead of refusing the work.
 
-That fix, its regression test and the risk-register entries are in
-`APPLY-TO-MASTERCLIP-OS.patch` at the repository root. Apply it upstream:
+It is fixed in the product now, as
+[masterclip-os#28](https://github.com/vkr4wrnhwp-bit/masterclip-os/pull/28): the
+predicate is a pure fact about the provider, exported as `isFreeProvider()` so
+it can be tested, with a regression test that asserts a request so classified is
+actually refused. Restoring the old expression fails three of its four cases.
 
-```bash
-git clone https://github.com/vkr4wrnhwp-bit/masterclip-os
-cd masterclip-os
-git checkout -b sandbox-posture
-git am /path/to/APPLY-TO-MASTERCLIP-OS.patch
-pnpm install && npx vitest run packages/runtime/test/sandbox-posture.test.ts
-git push -u origin sandbox-posture
-```
-
-It was built against `5ce21aa` and applies cleanly there; the test passes (4/4)
-and the whole workspace typechecks. Restoring the old expression fails three of
-the four cases, so the regression cannot come back quietly. **Delete this patch
-file once it has landed upstream** — it is a hand-off artifact, not part of
-this repository.
+`APPLY-TO-MASTERCLIP-OS.patch` carried that fix across and has been deleted —
+it was a hand-off artifact, and a patch file that duplicates merged upstream
+work is the same second copy this whole change exists to remove.

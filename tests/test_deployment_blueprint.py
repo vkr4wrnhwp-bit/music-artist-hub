@@ -26,6 +26,7 @@ the standalone worksheet retired, so a `fuel-map-tool/` directory reappearing
 means the fork is back.
 """
 
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -37,7 +38,40 @@ def _blueprint(path):
     return yaml.safe_load((ROOT / path).read_text())
 
 
+def _is_tracked(path):
+    """Whether git tracks anything at `path`.
+
+    The guards below ask this rather than `Path.exists()`, because the thing
+    they forbid is a copy *committed to this repository* — not a directory
+    lying around in someone's checkout. Those are not the same question, and
+    the difference is not academic: deleting masterclip-os/ took its
+    .gitignore with it, so every working copy that had ever built the vendored
+    tree kept ~364 MB of node_modules, dist and a local .env at that path. An
+    existence check calls that "masterclip-os/ is back" and fails a clean
+    tree, which teaches people that a red suite is normal. This check passes,
+    and still fails the moment a single file is actually committed there.
+    """
+    result = subprocess.run(
+        ["git", "ls-files", "--", path],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:  # not a git work tree (an export, a tarball)
+        return (ROOT / path).exists()
+    return bool(result.stdout.strip())
+
+
 def test_every_product_has_a_service():
+    declared = [s["name"] for s in _blueprint("render.yaml")["services"]]
+    # Before the set comparison, not after: keying services by name collapses a
+    # duplicate definition into one entry, so a second `trace` block declared
+    # halfway down the file would satisfy every assertion in this module while
+    # Render read two conflicting definitions of the same service.
+    assert len(declared) == len(set(declared)), (
+        f"render.yaml declares a service twice: {sorted(declared)}"
+    )
     services = {s["name"]: s for s in _blueprint("render.yaml")["services"]}
     assert set(services) == {
         "trace",
@@ -68,7 +102,7 @@ def test_reach_has_no_second_service_definition():
     from it. It is the same shape as the masterclip directory above, one size
     down: a second copy of an active config, kept honest by hand.
     """
-    assert not (ROOT / "reach-app" / "render.yaml").exists(), (
+    assert not _is_tracked("reach-app/render.yaml"), (
         "reach-app/render.yaml is back. The root blueprint declares the `reach` "
         "service and is the only file Render reads; reach-app/README.md "
         "documents standing REACH up without a blueprint at all."
@@ -84,7 +118,7 @@ def test_masterclip_is_not_vendored_back():
     a cost-control fix ended up in the copy while the live service shipped
     without it. If this fails, delete the directory rather than the test.
     """
-    assert not (ROOT / "masterclip-os").exists(), (
+    assert not _is_tracked("masterclip-os"), (
         "masterclip-os/ is back. It belongs to "
         "github.com/vkr4wrnhwp-bit/masterclip-os, which deploys from its own "
         "render.yaml; a copy here can only drift from it."
@@ -105,7 +139,7 @@ def test_holeshot_tuner_is_not_vendored_back():
     smooth, interpolate, undo/redo, air density and condition presets — so a
     standalone copy has nothing to add and everything to drift from.
     """
-    assert not (ROOT / "fuel-map-tool").exists(), (
+    assert not _is_tracked("fuel-map-tool"), (
         "fuel-map-tool/ is back. Fuel and ignition map editing lives in "
         "mx-lab/ (TRACE); see mx-lab/packages/domain/src/mapEditing.ts"
     )
