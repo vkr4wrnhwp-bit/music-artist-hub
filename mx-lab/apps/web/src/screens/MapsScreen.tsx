@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  appendAudit, checkCompatibility, diffRevisions, diffTrims, exceedsEnvelope,
-  transitionRevision, type MapRevision,
+  appendAudit, applyToCells, checkCompatibility, computeAir, DEFAULT_AIR, diffRevisions,
+  diffTrims, exceedsEnvelope, interpolateCells, MAP_PRESETS, PRESET_DISCLAIMER, presetTable,
+  smoothCells, transitionRevision,
+  type AirConditions, type CellEnvelope, type CellRef, type MapRevision,
 } from '@mxlab/domain';
 import { nav, useApp } from '../state';
 import { download, Drawer, fmtSigned, heatColor, Help, inkFor, Panel, Pill, Prov, themeHeat, useThemeVersion } from '../ui';
@@ -124,6 +126,33 @@ export function MapWorkspace({ revId }: { revId: string }) {
   const [showDiff, setShowDiff] = useState(false);
   const [advOpen, setAdvOpen] = useState(false);
   const [checkBikeId, setCheckBikeId] = useState(db.bikes[0]?.id ?? '');
+  const [dragging, setDragging] = useState(false);
+  /** Whether the current drag left the cell it began on — see the cell's onClick. */
+  const dragMoved = useRef(false);
+  const [focus, setFocus] = useState<[number, number]>([0, 0]);
+  const [air, setAir] = useState<AirConditions>(DEFAULT_AIR);
+  const [note, setNote] = useState('');
+
+  // Undo history is per-visit and per-revision: it holds snapshots of this
+  // revision's tables, not of the whole database, so it can never resurrect an
+  // edit someone else made to something else while this screen was open.
+  const undoStack = useRef<Record<string, number[][]>[]>([]);
+  const redoStack = useRef<Record<string, number[][]>[]>([]);
+  const [histVer, setHistVer] = useState(0);
+  useEffect(() => {
+    undoStack.current = [];
+    redoStack.current = [];
+    setHistVer((v) => v + 1);
+  }, [revId]);
+
+  // A drag that ends anywhere — including outside the grid, or outside the
+  // window — still has to end, or the next hover keeps painting a selection.
+  useEffect(() => {
+    if (!dragging) return;
+    const stop = () => setDragging(false);
+    window.addEventListener('mouseup', stop);
+    return () => window.removeEventListener('mouseup', stop);
+  }, [dragging]);
 
   if (!revision || !user) return <p>Revision not found.</p>;
   const map = db.maps.find((m) => m.id === revision.mapId)!;
@@ -145,29 +174,170 @@ export function MapWorkspace({ revId }: { revId: string }) {
   );
 
   const key = (r: number, c: number) => `${r},${c}`;
-  const clickCell = (r: number, c: number, shift: boolean) => {
-    if (shift && anchor) {
-      const [r0, r1] = [Math.min(anchor[0], r), Math.max(anchor[0], r)];
-      const [c0, c1] = [Math.min(anchor[1], c), Math.max(anchor[1], c)];
-      const next = new Set<string>();
-      for (let ri = r0; ri <= r1; ri++) for (let ci = c0; ci <= c1; ci++) next.add(key(ri, ci));
+  const cellEnvelope: CellEnvelope = {
+    allowedMin: tableDef.allowedMin,
+    allowedMax: tableDef.allowedMax,
+    precision: tableDef.precision,
+  };
+  /** Keyboard step: the smallest increment the button row already offers. */
+  const nudge = tableDef.precision > 0 ? 0.5 : 1;
+
+  const rangeTo = (r: number, c: number): Set<string> => {
+    if (!anchor) return new Set([key(r, c)]);
+    const [r0, r1] = [Math.min(anchor[0], r), Math.max(anchor[0], r)];
+    const [c0, c1] = [Math.min(anchor[1], c), Math.max(anchor[1], c)];
+    const next = new Set<string>();
+    for (let ri = r0; ri <= r1; ri++) for (let ci = c0; ci <= c1; ci++) next.add(key(ri, ci));
+    return next;
+  };
+
+  const clickCell = (r: number, c: number, shift: boolean, toggle = false) => {
+    setFocus([r, c]);
+    if (toggle) {
+      // Ctrl/Cmd-click picks cells that are not a rectangle — a whole RPM row
+      // plus one cell up top, say.
+      const next = new Set(sel);
+      if (next.has(key(r, c))) next.delete(key(r, c)); else next.add(key(r, c));
+      setAnchor([r, c]);
       setSel(next);
+    } else if (shift && anchor) {
+      setSel(rangeTo(r, c));
     } else {
       setAnchor([r, c]);
       setSel(new Set([key(r, c)]));
     }
   };
 
-  const applyToSel = (fn: (v: number) => number) => {
+  const selCells = (): CellRef[] =>
+    [...sel].map((k) => {
+      const [r, c] = k.split(',').map(Number);
+      return [r, c] as CellRef;
+    });
+
+  const snapshot = (): Record<string, number[][]> =>
+    Object.fromEntries(Object.entries(revision.tables).map(([k, g]) => [k, g.map((row) => row.slice())]));
+
+  const pushHistory = () => {
+    undoStack.current.push(snapshot());
+    if (undoStack.current.length > 100) undoStack.current.shift();
+    redoStack.current = [];
+    setHistVer((v) => v + 1);
+  };
+
+  const restore = (tables: Record<string, number[][]>) => {
     update((d) => {
       const rev = d.mapRevisions.find((x) => x.id === revId)!;
-      const g = rev.tables[tableDef.id];
-      const targets = sel.size ? [...sel].map((k) => k.split(',').map(Number)) : [];
-      for (const [r, c] of targets) {
-        const nv = Math.min(tableDef.allowedMax, Math.max(tableDef.allowedMin, fn(g[r][c])));
-        g[r][c] = +nv.toFixed(tableDef.precision);
-      }
+      rev.tables = tables;
     });
+  };
+
+  const undo = () => {
+    const prev = undoStack.current.pop();
+    if (!prev) return;
+    redoStack.current.push(snapshot());
+    restore(prev);
+    setHistVer((v) => v + 1);
+    setNote('');
+  };
+
+  const redo = () => {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current.push(snapshot());
+    restore(next);
+    setHistVer((v) => v + 1);
+    setNote('');
+  };
+
+  const writeTable = (next: number[][]) => {
+    pushHistory();
+    update((d) => {
+      const rev = d.mapRevisions.find((x) => x.id === revId)!;
+      rev.tables[tableDef.id] = next;
+    });
+  };
+
+  const applyToSel = (fn: (v: number) => number) => {
+    const cells = selCells();
+    if (!cells.length) return;
+    writeTable(applyToCells(grid, cells, (v) => fn(v), cellEnvelope));
+    setNote('');
+  };
+
+  const doSmooth = () => {
+    const cells = selCells();
+    if (!cells.length) return;
+    writeTable(smoothCells(grid, cells, cellEnvelope));
+    setNote('');
+  };
+
+  const doInterpolate = () => {
+    const next = interpolateCells(grid, selCells(), cellEnvelope);
+    if (!next) {
+      setNote('Interpolate needs a region at least 2×2 — it fills from the four corners.');
+      return;
+    }
+    writeTable(next);
+    setNote('');
+  };
+
+  const applyPreset = (preset: (typeof MAP_PRESETS)[number]) => {
+    const next: Record<string, number[][]> = {};
+    for (const td of map.tableDefs) {
+      const ax = map.axes.find((a) => a.id === td.xAxisId);
+      const ay = map.axes.find((a) => a.id === td.yAxisId);
+      if (!ax || !ay) continue;
+      const table = presetTable(preset, td, ax, ay);
+      if (table) next[td.id] = table;
+    }
+    const ids = Object.keys(next);
+    if (!ids.length) {
+      setNote('That preset says nothing about any offset table on this map.');
+      return;
+    }
+    pushHistory();
+    update((d) => {
+      const rev = d.mapRevisions.find((x) => x.id === revId)!;
+      for (const id of ids) rev.tables[id] = next[id];
+    });
+    setNote(`Replaced ${ids.join(' and ')} with “${preset.name}”. ${PRESET_DISCLAIMER}`);
+  };
+
+  // The undo stacks are refs, so React does not re-render when they change and
+  // the buttons below would stay stuck on their initial disabled state.
+  // `histVer` is bumped on every history change purely to force that render.
+  void histVer;
+  const canUndo = undoStack.current.length > 0;
+  const canRedo = redoStack.current.length > 0;
+
+  const onGridKey = (e: React.KeyboardEvent) => {
+    const [fr, fc] = focus;
+    const rows = grid.length;
+    const cols = grid[0]?.length ?? 0;
+    const move = (dr: number, dc: number) => {
+      const r = Math.min(rows - 1, Math.max(0, fr + dr));
+      const c = Math.min(cols - 1, Math.max(0, fc + dc));
+      setFocus([r, c]);
+      if (e.shiftKey && anchor) setSel(rangeTo(r, c));
+      else { setAnchor([r, c]); setSel(new Set([key(r, c)])); }
+      e.preventDefault();
+    };
+    switch (e.key) {
+      case 'ArrowUp': return move(-1, 0);
+      case 'ArrowDown': return move(1, 0);
+      case 'ArrowLeft': return move(0, -1);
+      case 'ArrowRight': return move(0, 1);
+      default: break;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+      return;
+    }
+    if (!editable) return;
+    if (e.key === '+' || e.key === '=') { applyToSel((v) => v + nudge); e.preventDefault(); return; }
+    if (e.key === '-' || e.key === '_') { applyToSel((v) => v - nudge); e.preventDefault(); return; }
+    if (e.key === '0') { applyToSel(() => 0); e.preventDefault(); }
   };
 
   const doTransition = (to: MapRevision['state'], note?: string) => {
@@ -244,7 +414,7 @@ export function MapWorkspace({ revId }: { revId: string }) {
               Grids are <b>data-driven</b> from the verified ECU definition — axes, ranges, and precision
               are never assumed. Warm adds ({tableDef.unit === '%' ? 'richer' : 'advance'}), cool removes.
             </Help>
-            <div className="tbl-scroll">
+            <div className="tbl-scroll" onKeyDown={onGridKey}>
               <table className="mapgrid">
                 <thead>
                   <tr>
@@ -265,8 +435,30 @@ export function MapWorkspace({ revId }: { revId: string }) {
                           <td key={c}>
                             <button
                               className={`mcell ${sel.has(key(r, c)) ? 'sel' : ''}`}
-                              style={{ background: bg, color: inkFor(bg) }}
-                              onClick={(e) => clickCell(r, c, e.shiftKey)}
+                              style={{
+                                background: bg,
+                                color: inkFor(bg),
+                                outline: focus[0] === r && focus[1] === c ? '2px solid var(--accent)' : undefined,
+                              }}
+                              onMouseDown={(e) => {
+                                setDragging(true);
+                                dragMoved.current = false;
+                                clickCell(r, c, e.shiftKey, e.ctrlKey || e.metaKey);
+                              }}
+                              onMouseEnter={() => {
+                                if (!dragging) return;
+                                dragMoved.current = true;
+                                setFocus([r, c]);
+                                setSel(rangeTo(r, c));
+                              }}
+                              // Mouse selection is handled on mousedown so a drag can paint a
+                              // region. A real click would then re-fire here and collapse that
+                              // region back to one cell, so it is ignored — except when the
+                              // click came from the keyboard (detail 0), which has no mousedown.
+                              onClick={(e) => {
+                                if (dragMoved.current) { dragMoved.current = false; return; }
+                                if (e.detail === 0) clickCell(r, c, e.shiftKey, e.ctrlKey || e.metaKey);
+                              }}
                               title={`${yAxis.breakpoints[r]} ${yAxis.unit} · ${xAxis.breakpoints[c]}${xAxis.unit}`}
                             >
                               {shown === 0 ? '0' : fmtSigned(shown, tableDef.precision)}
@@ -300,13 +492,96 @@ export function MapWorkspace({ revId }: { revId: string }) {
                   if (Number.isFinite(n)) applyToSel((v) => v * (1 + n / 100));
                 }}>% change…</button>
                 <button className="btn small" disabled={!sel.size} onClick={() => applyToSel(() => 0)}>Zero</button>
-                <span className="hint">{sel.size ? `${sel.size} cells — shift-click extends the region` : 'Click a cell; shift-click to select a region'}</span>
+                <button className="btn small" disabled={!sel.size} onClick={doSmooth}
+                  title="Replace each selected cell with the average of its 3×3 neighbourhood">Smooth</button>
+                <button className="btn small" disabled={sel.size < 4} onClick={doInterpolate}
+                  title="Fill the selected region from its four corner cells">Interpolate</button>
+                <button className="btn small ghost" disabled={!canUndo} onClick={undo}>Undo</button>
+                <button className="btn small ghost" disabled={!canRedo} onClick={redo}>Redo</button>
+                <span className="hint">
+                  {sel.size
+                    ? `${sel.size} cells — drag to paint, shift for a region, ${navigator.platform.startsWith('Mac') ? '⌘' : 'ctrl'}-click to add one`
+                    : 'Click or drag to select; arrow keys move, + and − nudge, 0 zeroes'}
+                </span>
               </div>
             ) : (
               <p className="hint" style={{ marginTop: 12 }}>
                 {revision.state === 'DRAFT' ? 'Your role cannot edit drafts.' : `Read-only — cells are locked outside DRAFT (state: ${revision.state.replaceAll('_', ' ')}).`}
               </p>
             )}
+            {note && <p className="hint" style={{ marginTop: 10 }}>{note}</p>}
+          </Panel>
+
+          {editable && (
+            <Panel title="Condition presets">
+              <Help id="presets">
+                A preset replaces every offset table on this map with a starting shape for a
+                condition. It is resampled onto <b>this ECU definition&rsquo;s own axes</b>, so the
+                shape lands where the throttle actually is rather than where another bike&rsquo;s
+                grid happened to put it.
+              </Help>
+              <p className="hint" style={{ marginTop: 0 }}>{PRESET_DISCLAIMER}</p>
+              <div className="btn-row">
+                {MAP_PRESETS.map((p) => (
+                  <button key={p.id} className="btn small" title={p.blurb} onClick={() => applyPreset(p)}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </Panel>
+          )}
+
+          <Panel title="Air density">
+            <Help id="air">
+              Density altitude is what the engine actually feels. It is recorded and suggested
+              here, never applied: the numbers below are a starting point to weigh against a plug
+              reading, not a value TRACE writes into a table.
+            </Help>
+            <div className="cols">
+              <label>Elevation
+                <span className="btn-row">
+                  <input type="number" value={air.elevation}
+                    onChange={(e) => setAir({ ...air, elevation: Number(e.target.value) })} />
+                  <select value={air.elevationUnit}
+                    onChange={(e) => setAir({ ...air, elevationUnit: e.target.value as AirConditions['elevationUnit'] })}>
+                    <option value="ft">ft</option><option value="m">m</option>
+                  </select>
+                </span>
+              </label>
+              <label>Temperature
+                <span className="btn-row">
+                  <input type="number" value={air.temperature}
+                    onChange={(e) => setAir({ ...air, temperature: Number(e.target.value) })} />
+                  <select value={air.temperatureUnit}
+                    onChange={(e) => setAir({ ...air, temperatureUnit: e.target.value as AirConditions['temperatureUnit'] })}>
+                    <option value="F">°F</option><option value="C">°C</option>
+                  </select>
+                </span>
+              </label>
+              <label>Humidity (%)
+                <input type="number" min={0} max={100} value={air.humidityPct}
+                  onChange={(e) => setAir({ ...air, humidityPct: Number(e.target.value) })} />
+              </label>
+              <label>Altimeter (inHg)
+                <input type="number" step={0.01} value={air.baroInHg}
+                  onChange={(e) => setAir({ ...air, baroInHg: Number(e.target.value) })} />
+              </label>
+            </div>
+            {(() => {
+              const a = computeAir(air);
+              return (
+                <div className="tbl-scroll" style={{ marginTop: 12 }}>
+                  <table className="data">
+                    <tbody>
+                      <tr><th>Density altitude</th><td className="num mono">{a.densityAltitudeFt.toLocaleString()} ft</td></tr>
+                      <tr><th>Density ratio</th><td className="num mono">{a.densityRatio.toFixed(3)}</td></tr>
+                      <tr><th>Suggested fuel trim</th><td className="num mono">{fmtSigned(a.suggestedFuelTrimPct, 1)}%</td></tr>
+                      <tr><th>Suggested ignition</th><td className="num mono">{fmtSigned(a.suggestedIgnitionOffsetDeg, 0)}°</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </Panel>
 
           {parent && (showDiff || diff.length > 0) && (

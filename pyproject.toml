@@ -3,13 +3,12 @@
 # remain the entry points.
 #
 # The other products in this repository are separate applications with their
-# own configuration and their own CI jobs: mx-lab (TRACE), fuel-map-tool and
-# reach-app (REACH). They are excluded here rather than linted or collected by
-# accident.
+# own configuration and their own CI jobs: mx-lab (TRACE) and reach-app
+# (REACH). They are excluded here rather than linted or collected by accident.
 
 [tool.ruff]
 target-version = "py312"
-extend-exclude = ["mx-lab", "fuel-map-tool", "reach-app"]  # separate products
+extend-exclude = ["mx-lab", "reach-app"]  # separate products
 
 [tool.ruff.lint]
 # Ruff's default rules: pycodestyle errors plus pyflakes. These catch genuine
