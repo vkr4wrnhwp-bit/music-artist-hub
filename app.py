@@ -9679,14 +9679,28 @@ def create_app():
         return jsonify({"ok": ok})
 
     def _backup_allowed(user):
-        """Full-database export: never for the shared demo accounts. A real
-        label-tier account qualifies, or whoever OWNER_EMAIL names."""
+        """Full-database export: owners only.
+
+        This zip is every account on the deployment - names, email
+        addresses, statements, fans - so it cannot hang off a tier. It
+        used to qualify any `label` account, and /plan/switch sets that
+        tier directly whenever Stripe is unconfigured, so a fresh signup
+        could take the whole database. Same shape as the /admin/review
+        leak, with a larger payload.
+
+        OWNER_EMAIL (singular) is still honoured: it named exactly this
+        capability before _is_owner_email existed, and dropping it would
+        lock a live deployment out of its own backups. It is not read
+        anywhere else, so it grants the export and nothing more.
+        """
         if user is None:
             return False
-        owner_email = (os.environ.get("OWNER_EMAIL") or "").lower()
-        if owner_email and user["email"].lower() == owner_email:
+        if _is_demo_email(user["email"]):        # the shared logins, never
+            return False
+        if _is_owner_email(user.get("email")):
             return True
-        return (user.get("plan") or "") == "label" and not _is_demo_email(user["email"])
+        legacy = (os.environ.get("OWNER_EMAIL") or "").strip().lower()
+        return bool(legacy) and (user["email"] or "").lower() == legacy
 
     @app.route("/settings")
     def settings():

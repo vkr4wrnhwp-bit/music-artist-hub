@@ -3722,31 +3722,59 @@ def test_drop_notifications(monkeypatch):
 
 
 def test_backup_download(monkeypatch):
+    """The whole database in one zip, so the gate is who you are.
+
+    It used to qualify any account holding the `label` tier. That tier is
+    self-serve: /plan/switch writes it directly whenever Stripe is
+    unconfigured, so signing up was enough to download every other
+    account's name, email, statements and fans.
+    """
     import io as _io
+    import uuid as _uuid
     import zipfile
-    import db as store_mod
     app_obj = create_app()
+
+    # Somebody's real data has to be in the archive for the refusals below
+    # to mean anything.
+    bystander = "bystander-%s@secret.example" % _uuid.uuid4().hex[:8]
+    app_obj.test_client().post("/signup", data={
+        "name": "Bystander", "email": bystander, "password": "secret1"})
+
     # The shared demo account must NOT be able to exfiltrate the database.
     demo = _demo(app_obj)
     assert demo.get("/backup").status_code == 404
     assert "Download backup" not in demo.get("/settings").get_data(as_text=True)
-    # A real label-tier account can.
-    owner = app_obj.test_client()
-    owner.post("/signup", data={"name": "Owner", "email": "real-owner@example.net",
-                                "password": "ownerpass1"})
-    store_mod.set_user_plan(
-        store_mod.get_user_by_email("real-owner@example.net")["id"], "label")
-    assert "Download backup" in owner.get("/settings").get_data(as_text=True)
-    r = owner.get("/backup")
+
+    # Neither may an account that helps itself to the top tier.
+    buyer_email = "buyer-%s@example.net" % _uuid.uuid4().hex[:6]
+    buyer = app_obj.test_client()
+    buyer.post("/signup", data={"name": "B", "email": buyer_email,
+                                "password": "buyerpass1"})
+    buyer.post("/plan/switch", data={"plan": "label"})
+    assert buyer.get("/backup").status_code == 404
+    assert buyer.post("/backup/run").status_code == 404
+    # And it is not offered, so the refusal is never met.
+    assert "Download backup" not in buyer.get("/settings").get_data(as_text=True)
+
+    # An owner still gets it. That is the point of the page.
+    monkeypatch.setenv("OWNER_EMAILS", buyer_email)
+    assert "Download backup" in buyer.get("/settings").get_data(as_text=True)
+    r = buyer.get("/backup")
     assert r.status_code == 200 and r.mimetype == "application/zip"
     names = zipfile.ZipFile(_io.BytesIO(r.data)).namelist()
     assert "streetbanker.db" in names
-    # OWNER_EMAIL opens the door for any tier.
-    monkeypatch.setenv("OWNER_EMAIL", "cheap-owner@example.net")
-    cheap = app_obj.test_client()
-    cheap.post("/signup", data={"name": "C", "email": "cheap-owner@example.net",
-                                "password": "cheappass1"})
-    assert cheap.get("/backup").status_code == 200
+
+    # OWNER_EMAIL, singular, named this capability before _is_owner_email
+    # existed. A live deployment relying on it keeps its backups.
+    monkeypatch.delenv("OWNER_EMAILS", raising=False)
+    legacy_email = "legacy-%s@example.net" % _uuid.uuid4().hex[:6]
+    monkeypatch.setenv("OWNER_EMAIL", legacy_email)
+    legacy = app_obj.test_client()
+    legacy.post("/signup", data={"name": "L", "email": legacy_email,
+                                 "password": "legacypass1"})
+    assert legacy.get("/backup").status_code == 200
+    # but it does not hand over the rest of the owner's tooling.
+    assert legacy.get("/admin/review").status_code == 404
 
 
 def test_homepage_distribution_links():
