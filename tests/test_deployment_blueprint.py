@@ -51,14 +51,21 @@ def _is_tracked(path):
     tree, which teaches people that a red suite is normal. This check passes,
     and still fails the moment a single file is actually committed there.
     """
-    result = subprocess.run(
-        ["git", "ls-files", "--", path],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:  # not a git work tree (an export, a tarball)
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--", path],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        # No git binary at all — a source zip, or a slim image that ships
+        # none. `check=False` does not cover this: subprocess raises before
+        # there is a returncode to inspect, so catching only the non-zero exit
+        # missed half of the very case this fallback is here for.
+        return (ROOT / path).exists()
+    if result.returncode != 0:  # git present, but not a work tree
         return (ROOT / path).exists()
     return bool(result.stdout.strip())
 
