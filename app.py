@@ -171,11 +171,6 @@ from artwork_config import (get_artwork_data, suggest_from_prompt,
 from links_config import get_links_data, create_smart_link
 from funding_config import get_funding_data
 from disputes_config import get_disputes_data, advance_dispute
-from notifications_config import (
-    get_notifications_data,
-    mark_notification_read,
-    mark_all_read,
-)
 from search_config import search as global_search
 from billing_config import get_billing_data
 from benchmark_config import get_benchmark_data
@@ -183,7 +178,6 @@ from capital_config import get_capital_data
 from label_config import get_label_data, get_service, BRAND as LABEL_BRAND
 from community_config import (
     get_marketplace_data,
-    post_request,
     get_fan_label_data,
     vote_demo,
     get_fan_dashboard_data,
@@ -8876,17 +8870,31 @@ def create_app():
         _keep_network_state(st)
         return jsonify({"ok": True, "serial": serial})
 
+    def _fan_label_votes():
+        """Which demos this browser has voted for.
+
+        community_config held the three demos in a list and incremented
+        their counts in place, so one visitor's vote raised the number
+        every other account saw and the tally drifted from its seed for
+        the life of the process. The counts are placeholders - the page
+        says so twice - which is the reason they must not accumulate: an
+        invented number that moves reads as a measured one.
+        """
+        return set(session.get("fan_label_votes") or ())
+
     @app.route("/fan-label")
     def fan_label():
         ctx = build_dashboard_context()
-        ctx["fan_label"] = get_fan_label_data()
+        ctx["fan_label"] = get_fan_label_data(_fan_label_votes())
         return render_template("fan_label.html", active_page="fan-label", **ctx)
 
     @app.route("/fan-label/vote/<demo_id>", methods=["POST"])
     def fan_label_vote(demo_id):
-        votes = vote_demo(demo_id)
+        voted = _fan_label_votes()
+        votes = vote_demo(demo_id, voted)
         if votes is None:
             return jsonify({"ok": False}), 404
+        session["fan_label_votes"] = sorted(voted)
         return jsonify({"ok": True, "votes": votes})
 
     @app.route("/fans")
@@ -9264,26 +9272,21 @@ def create_app():
 
     @app.route("/notifications")
     def notifications():
-        ctx = build_dashboard_context()
+        # Signed in is the only way anyone arrives: plan_gate sends an
+        # anonymous request for this path to /login before it gets here.
+        # The old `if user:` had an else branch rendering a showcase feed
+        # out of notifications_config, plus /notifications/<id>/read and
+        # /notifications/read-all writing a module-level set of read ids
+        # shared by every account. No user in any state could reach any
+        # of it - notifications_real.html has no mark-read control - so
+        # it went with the rest of the shared-state family.
         user = current_user()
-        if user:
-            items = store.list_notifications(user["id"])
-            store.mark_notifications_read(user["id"])  # viewing clears the badge
-            return render_template("notifications_real.html", active_page="notifications",
-                                   items=items, **ctx)
-        ctx["notifications_data"] = get_notifications_data()
-        return render_template("notifications.html", active_page="notifications", **ctx)
-
-    @app.route("/notifications/<notification_id>/read", methods=["POST"])
-    def notification_read_route(notification_id):
-        mark_notification_read(notification_id)
-        return jsonify({"ok": True})
-
-    @app.route("/notifications/read-all", methods=["POST"])
-    def notifications_read_all_route():
-        ids = [n["id"] for n in get_notifications_data()["notifications"]]
-        mark_all_read(ids)
-        return jsonify({"ok": True})
+        if user is None:
+            return login_required_redirect()
+        items = store.list_notifications(user["id"])
+        store.mark_notifications_read(user["id"])  # viewing clears the badge
+        return render_template("notifications_real.html", active_page="notifications",
+                               items=items, **build_dashboard_context())
 
     @app.route("/tax")
     def tax():

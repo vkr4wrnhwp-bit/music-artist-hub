@@ -164,3 +164,41 @@ def test_discover_config_holds_no_state_of_its_own():
             and not n.startswith("__")]
     assert bare == [], (
         "discover_config grew module-level mutable state again: %s" % bare)
+
+
+def test_a_fan_label_vote_is_one_visitors_vote(app_obj):
+    """The counts are placeholders, so they must not drift.
+
+    community_config incremented the demo list in place: one visitor's
+    vote raised the number every account saw, and the tally wandered
+    away from its seed for the life of the process. An invented number
+    that moves reads as a measured one.
+    """
+    mine, theirs = _account(app_obj), _account(app_obj)
+    seed = 214                                   # demo-1, community_config._DEMOS
+
+    assert mine.post("/fan-label/vote/demo-1").get_json()["votes"] == seed + 1
+    assert mine.post("/fan-label/vote/demo-1").get_json()["votes"] == seed + 1, (
+        "a second press is still one vote, not a counter to run up")
+    assert theirs.post("/fan-label/vote/demo-1").get_json()["votes"] == seed + 1, (
+        "their vote counts from the seed, not from mine")
+    assert theirs.post("/fan-label/vote/nope").status_code == 404
+
+
+def test_the_second_notifications_page_is_gone(app_obj):
+    """An anonymous showcase feed nobody could reach, with two endpoints
+    writing a set of read ids shared by every account."""
+    rules = {r.rule for r in app_obj.url_map.iter_rules()}
+    assert "/notifications" in rules, "the real, per-account page stays"
+    assert "/notifications/<notification_id>/read" not in rules
+    assert "/notifications/read-all" not in rules
+
+
+def test_community_config_holds_no_vote_state():
+    import community_config
+
+    bare = [n for n, v in vars(community_config).items()
+            if isinstance(v, (set, dict)) and not n.isupper()
+            and not n.startswith("__")]
+    assert bare == [], (
+        "community_config grew module-level mutable state again: %s" % bare)

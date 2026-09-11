@@ -74,41 +74,35 @@ def get_marketplace_data():
 
 # ---- Fan Label --------------------------------------------------------------
 
-_fan_label_seeded = False
-_demos = []
+# The three demos and their placeholder vote counts. A constant: `_demos`
+# was a module-level list whose counts were incremented in place, so one
+# visitor's vote raised the number every other account saw, and the
+# tally drifted away from the seed for the life of the process.
+#
+# The counts are invented (docs/PARKED_PAGES.md says so, and the page
+# says so twice), which is exactly why they must not accumulate: a made
+# up number that moves looks like a measured one.
+_DEMOS = (
+    {"id": "demo-1", "art": "/static/img/fanlabel/midnight-tape.jpg", "title": "Midnight Tape", "artist": "Nova Reign", "votes": 214},
+    {"id": "demo-2", "art": "/static/img/fanlabel/chrome-hearts.jpg", "title": "Chrome Hearts", "artist": "Kilo Byte", "votes": 158},
+    {"id": "demo-3", "art": "/static/img/fanlabel/afterglow.jpg", "title": "Afterglow", "artist": "Lila Rose", "votes": 97},
+)
 
 
-def _seed_demos():
-    return [
-        {"id": "demo-1", "art": "/static/img/fanlabel/midnight-tape.jpg", "title": "Midnight Tape", "artist": "Nova Reign", "votes": 214},
-        {"id": "demo-2", "art": "/static/img/fanlabel/chrome-hearts.jpg", "title": "Chrome Hearts", "artist": "Kilo Byte", "votes": 158},
-        {"id": "demo-3", "art": "/static/img/fanlabel/afterglow.jpg", "title": "Afterglow", "artist": "Lila Rose", "votes": 97},
-    ]
+def vote_demo(demo_id, voted):
+    """Record this visitor's vote and return the count they now see.
+
+    Idempotent: a second press is still one vote, rather than a counter
+    somebody can run up. `voted` is the caller's own set of demo ids.
+    """
+    d = next((x for x in _DEMOS if x["id"] == demo_id), None)
+    if d is None:
+        return None
+    voted.add(demo_id)
+    return d["votes"] + 1
 
 
-def _ensure_fan_label():
-    global _demos, _fan_label_seeded
-    if not _fan_label_seeded:
-        _demos = _seed_demos()
-        _fan_label_seeded = True
-
-
-def reset_fan_label_state():
-    global _fan_label_seeded
-    _fan_label_seeded = False
-    _ensure_fan_label()
-
-
-def vote_demo(demo_id):
-    _ensure_fan_label()
-    for d in _demos:
-        if d["id"] == demo_id:
-            d["votes"] += 1
-            return d["votes"]
-    return None
-
-
-def get_fan_label_data():
+def get_fan_label_data(voted=None):
     """Fan Label demonstration data.
 
     There is no fan-fund table behind this yet - no campaign to create,
@@ -117,7 +111,7 @@ def get_fan_label_data():
     so; do not drop it when the real fund lands, flip it to False only
     once these numbers come from actual backers.
     """
-    _ensure_fan_label()
+    voted = voted if voted is not None else set()
     raised = 18400
     goal = 25000
     milestones = [
@@ -126,7 +120,10 @@ def get_fan_label_data():
         {"label": "Showcase event", "amount": 20000, "unlocked": False},
         {"label": "Tour support", "amount": 25000, "unlocked": False},
     ]
-    demos = sorted(_demos, key=lambda d: d["votes"], reverse=True)
+    demos = sorted(
+        ({**d, "votes": d["votes"] + (1 if d["id"] in voted else 0),
+          "voted": d["id"] in voted} for d in _DEMOS),
+        key=lambda d: d["votes"], reverse=True)
     return {
         "is_sample": True,
         "raised": raised,

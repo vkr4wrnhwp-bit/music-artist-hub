@@ -876,16 +876,23 @@ def test_disputes_real_tracker():
                for n in store_mod.list_notifications(uid))
 
 
-def test_notifications_page_and_mark_read():
-    from notifications_config import reset_notifications_state
-    reset_notifications_state()
+def test_notifications_page_is_the_accounts_own():
+    """One page, from the database, keyed by user_id.
+
+    There used to be a second one: an anonymous branch rendering a
+    showcase feed out of notifications_config, with /read and /read-all
+    writing a module-level set of ids shared by every account. Nobody
+    could reach it - plan_gate redirects anonymous requests here to
+    /login, and the signed-in template has no mark-read control - so it
+    was deleted rather than user-keyed.
+    """
     client = _demo()
     body = client.get("/notifications").get_data(as_text=True)
     assert "Notifications" in body
     assert 'href="/notifications"' in body
-    assert client.post("/notifications/ntf-sys-welcome/read").get_json()["ok"]
-    assert client.post("/notifications/read-all").get_json()["ok"]
-    reset_notifications_state()
+    # Viewing is what clears the badge; there is no mark-read endpoint.
+    assert client.post("/notifications/ntf-sys-welcome/read").status_code == 404
+    assert client.post("/notifications/read-all").status_code == 404
 
 
 def test_global_search_finds_songs_and_sources():
@@ -1113,14 +1120,12 @@ def test_marketplace_post_flow():
 
 
 def test_fan_label_vote_flow():
-    from community_config import reset_fan_label_state, get_fan_label_data
-    reset_fan_label_state()
+    from community_config import get_fan_label_data
     before = {d["id"]: d["votes"] for d in get_fan_label_data()["demos"]}
     client = _demo()
     resp = client.post("/fan-label/vote/demo-1")
     assert resp.status_code == 200 and resp.get_json()["votes"] == before["demo-1"] + 1
     assert client.post("/fan-label/vote/nope").status_code == 404
-    reset_fan_label_state()
 
 
 def test_fan_dashboard_content():
