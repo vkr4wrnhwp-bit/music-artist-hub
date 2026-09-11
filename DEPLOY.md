@@ -3,9 +3,11 @@
 Three separate products live here. They share nothing but the repository and
 `render.yaml`, which deploys all of them in one Blueprint apply.
 
-MASTERCLIP OS and Holeshot Tuner are **not** among them any more. It has its own repository and
-its own blueprint — see [Moving MASTERCLIP OS off this blueprint](#moving-masterclip-os-off-this-blueprint)
-below, which matters if you already have it deployed from here. Holeshot Tuner
+MASTERCLIP OS and Holeshot Tuner are **not** among them any more. MASTERCLIP OS
+has its own repository and its own blueprint — see
+[Moving MASTERCLIP OS off this blueprint](#moving-masterclip-os-off-this-blueprint)
+below if you already have it deployed from here. Syncing is safe either way;
+that section says what Render does and does not do to a service you remove. Holeshot Tuner
 is simply gone: its map editing is a screen inside TRACE now, so if you have a
 `holeshot-tuner` service running, delete it after this blueprint is synced.
 Nothing is lost with it — the worksheet held no server-side data.
@@ -91,21 +93,40 @@ It is gone: the product lives at
 and that repository carries its own `render.yaml`, declaring the same
 `masterclip` service with the same disk and the same env vars.
 
-**If you already run `masterclip` from this blueprint, read this before syncing.**
-The service belongs to *this* Blueprint today. Removing it from `render.yaml`
-means the next sync no longer manages it, and Render may suspend or delete it —
-taking the 5 GB disk with it, which is the SQLite database and every rendered
-clip. Do not sync this repo's blueprint and hope.
+**If you already run `masterclip` from this blueprint, nothing breaks when you
+sync.** An earlier draft of this section said Render "may suspend or delete" a
+service you remove from a blueprint, and told you to detach it first. That was
+wrong on both counts, and following it would have been the riskier path.
 
-Migrate deliberately instead:
+Render's [Blueprint documentation](https://render.com/docs/infrastructure-as-code)
+is explicit: *"Syncing a Blueprint never deletes an existing resource. This is
+true even if you remove a resource definition from your Blueprint file, or if
+you disconnect your Blueprint from Render entirely."* It calls this a safeguard
+against exactly the accident that section was afraid of. Deleting a
+blueprint-managed resource takes two deliberate steps — remove it from the
+blueprint **and** delete it in the dashboard.
 
-1. In the Render dashboard, open the `masterclip` service → **Settings** →
-   detach it from this Blueprint (or delete the Blueprint's link to it) so it
-   survives as a standalone service.
-2. Create a new Blueprint from the `masterclip-os` repository. Point it at the
-   existing service if Render offers to adopt it; otherwise let it create a new
-   one and move the disk contents across before deleting the old service.
-3. Only then sync this repository's blueprint.
+So syncing this repository leaves `masterclip` and `holeshot-tuner` running,
+simply no longer managed by this blueprint. The 5 GB disk is untouched. There
+is also no "detach from Blueprint" control in a service's Settings to look for;
+removing the definition from `render.yaml` *is* the detachment.
+
+Migrate at your leisure:
+
+1. Sync this blueprint (merging is enough — auto-deploy is on). `masterclip`
+   keeps running, unmanaged.
+2. Create a new Blueprint from the `masterclip-os` repository. Its `render.yaml`
+   declares the same `masterclip` service, the same `masterclip-data` disk at
+   the same `/var/data`, and the same environment variables, plus a
+   `WEBHOOK_SECRET`.
+3. If Render offers to adopt the running service, take it — the disk and its
+   database come along untouched. If it instead creates a second service, copy
+   `/var/data` across before deleting the old one, and expect the new service to
+   generate its **own** `SESSION_SECRET` and `ASSET_SIGNING_SECRET`: nothing
+   stored breaks, but any media link already handed out stops resolving, since
+   that secret is what signs them.
+4. Delete `holeshot-tuner` in the dashboard whenever you like. It is a static
+   site with no server-side data.
 
 If you have **not** deployed `masterclip` yet, none of this applies — just
 deploy it from its own repository whenever you want it.
