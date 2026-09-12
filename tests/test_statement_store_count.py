@@ -40,5 +40,6 @@ def test_the_tile_says_both_numbers():
     body = client.get("/statements").get_data(as_text=True)
     assert "2 stores across 4 payee lines" in body
     assert "4 sources" not in body
+    assert "missing sources" not in body, "the gap tile counts stores, and says so"
     track_line = body[body.index("Hungry Gods"):][:400]
     assert "2 stores" in track_line, "the per-track count is stores too"

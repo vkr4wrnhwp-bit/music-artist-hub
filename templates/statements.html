@@ -87,7 +87,7 @@
     <div class="rounded-2xl border border-amber-500/15 bg-sb-surface-1 p-5">
       <div class="sb-label text-gray-300">Coverage Gaps (est.)</div>
       <div class="mt-2 text-2xl font-bold tabular-nums text-sb-ink">${{ "{:,.2f}".format(a.gap_estimate_total) }}</div>
-      <div class="mt-1 text-xs text-gray-300 font-medium">{{ a.coverage_gaps | length }} tracks missing sources</div>
+      <div class="mt-1 text-xs text-gray-300 font-medium">{{ a.coverage_gaps | length }} track{{ "" if a.coverage_gaps|length == 1 else "s" }} paid by some stores and not others</div>
     </div>
     <div class="rounded-2xl border {{ 'border-red-500/20' if a.unmatched_revenue > 0 else 'border-white/5' }} bg-sb-surface-1 p-5">
       <div class="sb-label text-gray-300">Unmatched Revenue</div>
