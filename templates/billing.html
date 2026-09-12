@@ -91,7 +91,11 @@
         {% if p.current %}
         <button type="button" disabled class="sb-btn sb-btn-secondary sb-btn-sm mt-4 w-full">Your plan</button>
         {% else %}
-        <button type="button" class="sb-btn sb-btn-secondary sb-btn-sm mt-4 w-full">Choose {{ p.name }}</button>
+        <form method="post" action="/plan/switch" class="mt-4">
+          {#- billing_config names the bottom tier "free"; plans.py calls it "artist". -#}
+          <input type="hidden" name="plan" value="{{ 'artist' if p.id == 'free' else p.id }}">
+          <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm w-full">Choose {{ p.name }}</button>
+        </form>
         {% endif %}
       </div>
       {% endfor %}
