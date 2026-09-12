@@ -141,8 +141,24 @@ def analyze(rows):
         key=lambda x: x["amount"], reverse=True)
 
     # Cross-source coverage gaps (estimate): a titled track missing from
-    # sources where other tracks earn. Estimated at the track's own average
-    # per-source earnings for each missing source.
+    # sources where other tracks earn.
+    #
+    # This used to be the track's own AVERAGE per-source earnings times
+    # the COUNT of missing sources, which treats every store as equally
+    # valuable. On a real Symphonic report the biggest source was 50.3%
+    # of all earnings and the smallest was 0.0001%, so a missing Qobuz
+    # (JPY) listing was valued the same as a missing Spotify one. The
+    # page then told the artist they might be owed $3,079 against $3,278
+    # earned - 94% - when weighting by each store's actual share says
+    # about 3%. That is a number a label takes apart in the first
+    # meeting, and with the letter feature it would have gone to a
+    # distributor in writing.
+    #
+    # Now: this track is X% of the catalogue's money, so on a store it is
+    # missing from it would have earned roughly X% of what that store
+    # paid overall. Bounded by construction - a track present only on a
+    # negligible store cannot extrapolate to a fortune, which the
+    # coverage-ratio alternative does.
     all_sources = set(sources)
     findings = []
     for title, per_source in tracks.items():
@@ -151,8 +167,9 @@ def analyze(rows):
         missing = all_sources - set(per_source)
         if not missing or len(all_sources) < 2:
             continue
-        avg = sum(per_source.values()) / len(per_source)
-        est = round(avg * len(missing), 2)
+        track_total = sum(per_source.values())
+        share = (track_total / total) if total else 0
+        est = round(share * sum(sources[s] for s in missing), 2)
         if est <= 0:
             continue
         findings.append({

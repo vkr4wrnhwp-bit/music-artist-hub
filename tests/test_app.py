@@ -1076,9 +1076,14 @@ def test_statement_engine_math():
     a = analyze(parsed["rows"])
     assert a["total"] == 35.0
     assert a["by_source"][0]["source"] in ("Apple", "Spotify")
-    # B earns on Spotify but not Apple -> one coverage gap, est = B's avg (5).
+    # B earns on Spotify but not Apple -> one coverage gap. B is 5 of the
+    # catalogue's 35, so 14.3% of it; Apple paid 20 overall; B would have
+    # earned roughly 14.3% of that. The old rule was B's own average
+    # times the COUNT of missing stores, which valued a missing Apple the
+    # same as a missing anything - on a real report that read 94% of
+    # earnings as recoverable when the honest figure was 3%.
     assert a["coverage_gaps"][0]["title"] == "B"
-    assert a["coverage_gaps"][0]["estimated_value"] == 5.0
+    assert a["coverage_gaps"][0]["estimated_value"] == round(5 / 35 * 20, 2)
     assert parse_statement("no,amount,columns\nx,y,z\n")["error"]
 
 

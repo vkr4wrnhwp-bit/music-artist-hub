@@ -143,7 +143,10 @@ def build(user_id):
 
     for gap in analysis["coverage_gaps"]:
         missing = gap["missing_sources"]
-        per_source = round(gap["estimated_value"] / max(len(missing), 1), 2)
+        share_note = ("about %.1f%% of your catalogue's earnings this period"
+                      % (100.0 * sum(t["amount"] for t in analysis["by_track"]
+                                     if t["title"] == gap["title"])
+                         / analysis["total"])) if analysis["total"] else ""
         corroborating = sources_per_track.get(gap["title"], 1)
         findings.append({
             "id": "gap-%s" % _slug(gap["title"]),
@@ -154,11 +157,14 @@ def build(user_id):
             "track": gap["title"],
             "issue_type": "Coverage gap",
             "detail": ('"%s" earns on %d source%s and shows nothing from %s. '
-                       "Estimated at $%.2f per missing source, this track's "
-                       "own per-source average. An estimate, not a guarantee."
+                       "This track is %s, so the estimate is that share of "
+                       "what those stores paid overall - not a flat average "
+                       "per store, which valued a missing Qobuz listing like "
+                       "a missing Spotify one. An estimate, not a guarantee, "
+                       "and not yet checked against the stores themselves."
                        % (gap["title"], corroborating,
                           "" if corroborating == 1 else "s",
-                          ", ".join(missing), per_source)),
+                          ", ".join(missing), share_note or "a share of the catalogue")),
             "amount": gap["estimated_value"],
             "action": _GAP_ACTION,
             "case_title": "Coverage gap: %s" % gap["title"],
