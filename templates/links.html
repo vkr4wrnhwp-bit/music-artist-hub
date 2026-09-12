@@ -129,6 +129,10 @@
           <div class="text-sm font-bold sb-num text-sb-ink">{{ "{:,}".format(link.clicks) }}</div>
           <div class="text-xs text-gray-300 font-medium">real clicks</div>
         </div>
+        <form method="post" action="/links/legacy/{{ link.slug }}/delete" class="shrink-0"
+              onsubmit="return confirm('Take down /l/{{ link.slug }}? Anyone holding the link lands nowhere from now on.');">
+          <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm" aria-label="Take down /l/{{ link.slug }}">Take down</button>
+        </form>
       </div>
       {% endfor %}
     </div>

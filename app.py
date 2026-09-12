@@ -3450,6 +3450,16 @@ def create_app():
         mls.update_campaign(cid, campaign["user_id"], {"status": "draft"})
         return redirect("/links/%s/edit" % cid)
 
+    @app.route("/links/legacy/<slug>/delete", methods=["POST"])
+    def legacy_link_delete(slug):
+        """The older single-target smart links (/l/<slug>) listed on /links
+        had no control at all. Scoped to the account in the DELETE."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_db_link(user["id"], slug)
+        return redirect("/links")
+
     @app.route("/links/<cid>/archive", methods=["POST"])
     def ml_archive(cid):
         campaign, err = _ml_owned(cid)

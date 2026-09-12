@@ -1431,6 +1431,17 @@ def get_db_links(user_id):
     return [_link_row(dict(r)) for r in rows]
 
 
+def delete_db_link(user_id, slug):
+    """One legacy smart link and its click log, only if it is this
+    account's. The table audit of 2026-09-12 found smart_links written
+    and never deleted; /links listed them with no way to take one down."""
+    with get_db() as db:
+        cur = db.execute("DELETE FROM smart_links WHERE slug = ? AND user_id = ?", (slug, user_id))
+        if cur.rowcount:
+            db.execute("DELETE FROM link_clicks WHERE slug = ?", (slug,))
+    return cur.rowcount > 0
+
+
 def get_db_link(slug):
     with get_db() as db:
         row = db.execute("SELECT * FROM smart_links WHERE slug = ?", (slug,)).fetchone()
