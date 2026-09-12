@@ -4050,6 +4050,71 @@ def clear_notifications(user_id):
     with get_db() as db:
         db.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
 
+
+# --- Account deletion ------------------------------------------------------------
+
+USER_KEY_COLUMNS = ("user_id", "owner_user_id")
+
+
+def _tables_keyed_by_user(db):
+    """Every (table, column) that names an account, read from the schema.
+
+    Not a hand-kept list: 58 tables carry user_id today, the audio tables
+    say owner_user_id, and the next feature adds another. A list that has
+    to be remembered is how an account gets "deleted" and its statements
+    stay behind.
+    """
+    out = []
+    for (table,) in db.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+            " AND name NOT LIKE 'sqlite_%'").fetchall():
+        cols = [r[1] for r in db.execute('PRAGMA table_info("%s")' % table).fetchall()]
+        for key in USER_KEY_COLUMNS:
+            if key in cols:
+                out.append((table, key))
+    return out
+
+
+def stored_keys_for_user(user_id):
+    """The bucket objects this account's rows point at - collected BEFORE
+    the rows go, because afterwards nothing remembers them."""
+    import blob_store
+    prefix = blob_store.PREFIX
+    keys = set()
+    with get_db() as db:
+        for table, key in _tables_keyed_by_user(db):
+            cols = [r[1] for r in db.execute('PRAGMA table_info("%s")' % table).fetchall()]
+            for col in cols:
+                try:
+                    rows = db.execute(
+                        'SELECT DISTINCT "%s" FROM "%s" WHERE "%s" = ? AND "%s" LIKE ?'
+                        % (col, table, key, col), (user_id, prefix + "%")).fetchall()
+                except Exception:      # noqa: BLE001 - a non-text column
+                    continue
+                for (value,) in rows:
+                    if isinstance(value, str) and value.startswith(prefix):
+                        keys.add(value[len(prefix):])
+    return sorted(keys)
+
+
+def delete_user_everything(user_id):
+    """Remove the account and every row that names it. Returns a count of
+    rows removed per table, for the record.
+
+    One transaction: either the whole account goes or none of it does.
+    The users row is last, so a failure part-way cannot leave a login
+    that owns nothing.
+    """
+    removed = {}
+    with get_db() as db:
+        for table, key in _tables_keyed_by_user(db):
+            cur = db.execute('DELETE FROM "%s" WHERE "%s" = ?' % (table, key), (user_id,))
+            if cur.rowcount:
+                removed[table] = removed.get(table, 0) + cur.rowcount
+        cur = db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        removed["users"] = cur.rowcount
+    return removed
+
 # --- Documents vault -----------------------------------------------------------
 
 def add_document(user_id, filename, path, doc_type, note="", track=""):

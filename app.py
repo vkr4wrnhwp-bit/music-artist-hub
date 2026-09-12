@@ -10007,6 +10007,7 @@ def create_app():
                                can_backup=_backup_allowed(current_user()),
                                backup_state=_backup_state(),
                                saved=request.args.get("saved"),
+                               deleted=request.args.get("deleted"),
                                **build_dashboard_context())
 
     @app.route("/settings/profile", methods=["POST"])
@@ -10033,6 +10034,46 @@ def create_app():
             return redirect("/settings?saved=empty#account-profile")
         store.set_user_name(user["id"], name)
         return redirect("/settings?saved=1#account-profile")
+
+    @app.route("/account/delete", methods=["POST"])
+    def account_delete():
+        """Delete the signed-in account and everything filed under it.
+
+        Reported live: Settings had no way to leave. The confirmation is
+        the account's own email address typed back, not a checkbox - this
+        is the one action on the site that cannot be undone, and the
+        backup is the operator's, not the artist's.
+
+        Two refusals, both said on the page: an owner account (deleting it
+        locks the operator out of their own deployment - remove it from
+        OWNER_EMAILS first) and an account with a live Stripe subscription
+        (no cancel call exists here yet; a deleted login that keeps
+        billing is worse than a refusal, so Billing comes first).
+
+        Bucket objects are deleted best-effort AFTER the rows commit; a
+        bucket that will not answer does not resurrect the account.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        typed = (request.form.get("confirm") or "").strip().lower()
+        if typed != (user.get("email") or "").strip().lower():
+            return redirect("/settings?deleted=mismatch#delete-account")
+        if _is_owner_email(user.get("email")):
+            return redirect("/settings?deleted=owner#delete-account")
+        if user.get("stripe_subscription_id"):
+            return redirect("/settings?deleted=billing#delete-account")
+
+        keys = store.stored_keys_for_user(user["id"])
+        store.delete_user_everything(user["id"])
+        session.clear()
+        if keys and blob_store.configured():
+            for key in keys:
+                try:
+                    blob_store.delete(key)
+                except Exception:          # noqa: BLE001 - rows are gone; do not fail the goodbye
+                    pass
+        return redirect("/login?deleted=1")
 
     def _snapshot_zip():
         """The archive itself: a consistent database copy plus uploads.

@@ -4,6 +4,9 @@
 
 {% block console %}
         <h1 class="lsr-title">Sign in</h1>
+        {% if request.args.get('deleted') == '1' %}
+          <p class="lsr-support" role="status">Your account has been deleted. Nothing of it is left on this site.</p>
+        {% endif %}
         <p class="lsr-support">Your releases, royalties, fans and catalog &mdash; one desk.</p>
 
         {% include "partials/login_session_recall.html" %}
