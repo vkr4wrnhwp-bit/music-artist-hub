@@ -1148,6 +1148,30 @@ def provider_usage(days=30):
     return out
 
 
+def provider_failures(days=30, limit=12):
+    """What actually went wrong, grouped, newest first.
+
+    provider_usage() gives an error rate; a rate alone says "57%" and
+    leaves the operator guessing between a bad key, a lapsed plan, a rate
+    limit and one endpoint that never worked. The detail column has held
+    the answer since the table was created - it was just never shown.
+
+    Rows are grouped by (provider, capability, detail) so a call that
+    fails the same way forty times reads as one line with a count, and
+    the newest occurrence is kept so a failure from March does not look
+    current. The detail is whatever the adapter raised, truncated at 300
+    characters on write; it is shown as recorded, never summarised.
+    """
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT provider, capability, detail, COUNT(*) AS n, MAX(created_at) AS last_at "
+            "FROM signal_provider_runs WHERE ok = 0 AND created_at >= ? "
+            "GROUP BY provider, capability, detail ORDER BY last_at DESC LIMIT ?",
+            (since, int(limit))).fetchall()
+    return [_row(r) for r in rows]
+
+
 def data_freshness():
     """When each shared table was last written. Drives the staleness banner.
 

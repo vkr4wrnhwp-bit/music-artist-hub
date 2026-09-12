@@ -815,6 +815,7 @@ def _render_data_sources(org, member, **extra):
     real_n = sstore.count_artists_not_seeded_by(reg.mock.key)
     ctx = dict(
         health=reg.health(), usage=sstore.provider_usage(),
+        failures=sstore.provider_failures(),
         freshness=sstore.data_freshness(), counts=sstore.counts(),
         capability_labels=providers.CAPABILITY_LABELS,
         preferred=[(cap, (reg.for_capability(cap).label if reg.for_capability(cap) else "none"))

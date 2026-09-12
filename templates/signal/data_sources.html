@@ -218,6 +218,26 @@
     <div class="sg-empty">No provider calls recorded yet.</div>
   {% endif %}
 
+  {% if failures %}
+    <h2 class="sg-h2">Why calls failed — last 30 days</h2>
+    <p class="sg-note">Each line is one way a provider failed, as the adapter reported it, with how many times and when it last happened. An error rate is a number; this is the reason.</p>
+    <div class="sg-table-wrap"><table class="sg-table" data-testid="provider-failures">
+      <thead><tr><th scope="col">Provider</th><th scope="col">Call</th>
+        <th scope="col">What it said</th><th scope="col" class="sg-num">Times</th><th scope="col">Last</th></tr></thead>
+      <tbody>
+        {% for f in failures %}
+          <tr>
+            <td>{{ f['provider'] }}</td>
+            <td>{{ capability_labels.get(f['capability'], f['capability']) or '—' }}</td>
+            <td>{{ f['detail'] or 'no detail recorded' }}</td>
+            <td class="sg-num">{{ f['n'] }}</td>
+            <td class="sg-num">{{ f['last_at'][:16].replace('T', ' ') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  {% endif %}
+
   <h2 class="sg-h2">Freshness</h2>
   <div class="sg-table-wrap"><table class="sg-table">
     <thead><tr><th scope="col">Table</th><th scope="col" class="sg-num">Rows</th><th scope="col">Last written</th><th scope="col">State</th></tr></thead>
