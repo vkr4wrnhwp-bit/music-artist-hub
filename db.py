@@ -733,6 +733,11 @@ def init_db():
                 deadline TEXT NOT NULL DEFAULT '',
                 updated TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS notification_mutes (
+                user_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                PRIMARY KEY (user_id, kind)
+            );
             CREATE TABLE IF NOT EXISTS notifications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -4058,8 +4063,47 @@ def clear_royalty_goal(user_id):
 
 # --- Notifications -------------------------------------------------------------
 
+# What the app actually raises, and how each reads on Settings. Settings
+# used to offer "weekly summary email", "payout received" and "new song
+# detected" toggles saved to localStorage - features the app does not
+# have, switches nothing read. These are the kinds notify() is called with.
+NOTIFICATION_KINDS = (
+    ("fan", "Fans", "A fan signs up through one of your links"),
+    ("statement", "Statements", "A statement upload is read into your account"),
+    ("recovery", "Recovery", "A finding, a case update, a letter sent"),
+    ("campaign", "Smart links", "A campaign goes live or changes"),
+    ("rollout", "Rollouts", "A rollout plan is generated"),
+    ("release_risk", "Release risk", "A release inside 14 days still has open checks"),
+    ("network", "Network", "Booking enquiries and Network activity"),
+    ("pitch", "Press", "A pitch is sent or answered"),
+    ("tour", "Tour", "Changes on a tour you are on"),
+    ("team", "Team", "Invites and membership changes"),
+    ("billing", "Billing", "Plan and payment events"),
+    ("system", "Everything else", "Anything the app needs to tell you"),
+)
+
+
+def muted_kinds(user_id):
+    with get_db() as db:
+        rows = db.execute("SELECT kind FROM notification_mutes WHERE user_id = ?",
+                          (user_id,)).fetchall()
+    return {r["kind"] for r in rows}
+
+
+def set_muted_kinds(user_id, kinds):
+    known = {k for k, _l, _d in NOTIFICATION_KINDS}
+    with get_db() as db:
+        db.execute("DELETE FROM notification_mutes WHERE user_id = ?", (user_id,))
+        for kind in sorted(set(kinds) & known):
+            db.execute("INSERT INTO notification_mutes (user_id, kind) VALUES (?, ?)",
+                       (user_id, kind))
+
+
 def notify(user_id, kind, title, body="", link=""):
     with get_db() as db:
+        if db.execute("SELECT 1 FROM notification_mutes WHERE user_id = ? AND kind = ?",
+                      (user_id, kind)).fetchone():
+            return
         db.execute(
             "INSERT INTO notifications (user_id, kind, title, body, link, created)"
             " VALUES (?,?,?,?,?,?)",

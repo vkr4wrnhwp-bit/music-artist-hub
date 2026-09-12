@@ -10070,9 +10070,24 @@ def create_app():
         legacy = (os.environ.get("OWNER_EMAIL") or "").strip().lower()
         return bool(legacy) and (user["email"] or "").lower() == legacy
 
+    @app.route("/settings/notifications", methods=["POST"])
+    def settings_notifications():
+        """Which kinds of notification this account wants. A kind whose box
+        is unticked is muted: notify() drops it before it is written."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        wanted = set(request.form.getlist("kind"))
+        muted = [k for k, _l, _d in store.NOTIFICATION_KINDS if k not in wanted]
+        store.set_muted_kinds(user["id"], muted)
+        return redirect("/settings?saved=notifications#notification-preferences")
+
     @app.route("/settings")
     def settings():
+        user = current_user()
         return render_template("settings.html", active_page="settings",
+                               notification_kinds=store.NOTIFICATION_KINDS,
+                               muted_kinds=(store.muted_kinds(user["id"]) if user else set()),
                                can_backup=_backup_allowed(current_user()),
                                backup_state=_backup_state(),
                                saved=request.args.get("saved"),

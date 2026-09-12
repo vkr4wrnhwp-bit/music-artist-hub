@@ -485,12 +485,14 @@ def test_the_plan_is_changed_in_billing_not_in_a_dropdown():
 def test_settings_includes_notification_preferences_ui():
     client = _demo()
     body = client.get("/settings").get_data(as_text=True)
+    # The panel used to offer "weekly summary email" and "new song detected"
+    # - features the app does not have - saved to localStorage, which nothing
+    # read. It lists the kinds notify() actually raises now, on the account.
     assert "Notification Preferences" in body
-    assert 'id="notification-list"' in body
-    assert "High severity leak alerts" in body
-    assert "Weekly summary email" in body
-    assert 'data-key="leak_high"' in body
-    assert 'data-key="new_song_detected"' in body
+    assert 'action="/settings/notifications"' in body
+    assert 'name="kind" value="fan"' in body
+    assert "Weekly summary email" not in body
+    assert 'data-key="new_song_detected"' not in body
 
 
 def test_scan_endpoint_returns_findings():

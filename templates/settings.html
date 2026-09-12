@@ -92,41 +92,22 @@
 
       <section id="notification-preferences" class="rounded-2xl border border-sb-gold/20 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
         <h2 class="sb-label text-sb-ink-2">Notification Preferences</h2>
-        <p class="mt-1 text-sm text-gray-300">Choose what you want to be notified about. Saved on this device.</p>
-        <div id="notification-list" class="mt-4 space-y-2">
-          <div class="px-1 text-xs font-bold uppercase tracking-[0.25em] text-gray-300">Severity alerts</div>
-          {% for key, label, detail, tip in [
-            ('leak_high', 'High severity leak alerts', 'Urgent issues like sync failures or expired logins', 'A connected source stopped reporting or a login expired — money can go missing until it is fixed.'),
-            ('leak_medium', 'Medium severity leak alerts', 'Uncollected royalties above $250', 'A royalty lane shows income you have not collected yet, above $250.'),
-            ('leak_low', 'Low severity leak alerts', 'Minor or low-value issues', 'Small gaps worth batching up rather than chasing one by one.'),
-          ] %}
-          <div class="notification-row flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5" data-key="{{ key }}">
-            <div class="min-w-0">
-              <div class="flex items-center gap-1.5 text-sm font-semibold">{{ label }}
-                <span class="cursor-help text-xs text-gray-300 font-medium" title="{{ tip }}">ⓘ</span>
-              </div>
-              <div class="text-xs text-gray-300">{{ detail }}</div>
-            </div>
-            <button type="button" class="notification-toggle-btn nswitch shrink-0" role="switch" aria-label="Toggle {{ label }}"></button>
-          </div>
+        <p class="mt-1 text-sm text-gray-300">Which kinds of event land on your <a href="/notifications" class="underline">Notifications</a> page. Saved on your account.</p>
+        {% if saved == 'notifications' %}<p class="mt-2 text-xs font-semibold text-green-400">Saved.</p>{% endif %}
+        <form method="post" action="/settings/notifications" class="mt-4 space-y-2">
+          {% for key, label, detail in notification_kinds %}
+          <label class="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5">
+            <span class="min-w-0">
+              <span class="block text-sm font-semibold">{{ label }}</span>
+              <span class="block text-xs text-gray-300">{{ detail }}</span>
+            </span>
+            <input type="checkbox" name="kind" value="{{ key }}" class="h-4 w-4 shrink-0 accent-[var(--sb-gold-bright)]"{% if key not in muted_kinds %} checked{% endif %}>
+          </label>
           {% endfor %}
-          <div class="px-1 pt-2 text-xs font-bold uppercase tracking-[0.25em] text-gray-300">Digests &amp; activity</div>
-          {% for key, label, detail, tip in [
-            ('weekly_summary', 'Weekly summary email', 'A recap of royalties, leaks, and catalog value', 'One email a week; everything else stays in the app.'),
-            ('payout_received', 'Payout received', 'A platform confirms a payout has landed', 'Fires when a payout actually lands, not when it is scheduled.'),
-            ('new_song_detected', 'New song detected', 'A new recording shows up in a connected catalog', 'Catches releases that appear under your name so you can claim them fast.'),
-          ] %}
-          <div class="notification-row flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5" data-key="{{ key }}">
-            <div class="min-w-0">
-              <div class="flex items-center gap-1.5 text-sm font-semibold">{{ label }}
-                <span class="cursor-help text-xs text-gray-300 font-medium" title="{{ tip }}">ⓘ</span>
-              </div>
-              <div class="text-xs text-gray-300">{{ detail }}</div>
-            </div>
-            <button type="button" class="notification-toggle-btn nswitch shrink-0" role="switch" aria-label="Toggle {{ label }}"></button>
+          <div class="pt-2">
+            <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm">Save preferences</button>
           </div>
-          {% endfor %}
-        </div>
+        </form>
       </section>
     </div>
 
@@ -229,35 +210,5 @@
 
 {% block scripts %}
 <script>
-  const NOTIFICATIONS_KEY = "royaltySweep.notifications";
-  const DEFAULT_NOTIFICATIONS = {
-    leak_high: true, leak_medium: true, leak_low: false,
-    weekly_summary: true, payout_received: true, new_song_detected: false,
-  };
-
-  function loadNotifications() {
-    try {
-      const raw = localStorage.getItem(NOTIFICATIONS_KEY);
-      const saved = raw ? JSON.parse(raw) : {};
-      return { ...DEFAULT_NOTIFICATIONS, ...saved };
-    } catch (err) { return { ...DEFAULT_NOTIFICATIONS }; }
-  }
-
-  function renderNotificationRow(row, enabled) {
-    const btn = row.querySelector(".notification-toggle-btn");
-    btn.classList.toggle("on", !!enabled);
-    btn.setAttribute("aria-checked", enabled ? "true" : "false");
-  }
-
-  const notifications = loadNotifications();
-  document.querySelectorAll(".notification-row").forEach((row) => {
-    const key = row.dataset.key;
-    renderNotificationRow(row, notifications[key]);
-    row.querySelector(".notification-toggle-btn").addEventListener("click", () => {
-      notifications[key] = !notifications[key];
-      renderNotificationRow(row, notifications[key]);
-      localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
-    });
-  });
 </script>
 {% endblock %}
