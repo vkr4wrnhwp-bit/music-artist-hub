@@ -100,56 +100,87 @@ def _spotify_url_for_isrc(isrc):
     return (url or None), (None if url else "Spotify returned no link")
 
 
-def availability(isrc):
-    """Which platforms carry this recording.
+# The stores this can ask, and nothing else. Odesli would have answered
+# for thirty platforms from one call; its public API now returns
+# 401 PUBLIC_API_ACCESS_DEPRECATED, permanently. So each store is asked
+# directly, and only these two can be:
+#
+#   Deezer   free, exact by ISRC, verified against a real recording
+#   Spotify  exact by ISRC, needs the app's own credentials
+#
+# Everything else reports as unchecked. That is a thin answer and an
+# honest one - and Deezer happens to be where the first real finding on
+# this catalogue was, so it is not a token.
+CHECKABLE = ("deezer", "spotify")
 
-    Returns {"ok": bool, "links": {platform: url}, "why": str}. `ok` False
-    means nothing was established - which is different from an empty
-    `links`, and the caller must not flatten the two.
+
+def availability(isrc):
+    """Which stores carry this recording, asked one at a time.
+
+    {"ok": bool, "links": {platform: url}, "absent": [platform],
+     "why": str}. `ok` False means nothing at all was established, which
+    is different from an empty `links`, and the caller must not flatten
+    the two: a store that answered "no" and a store that could not be
+    reached lead to different letters.
     """
+    isrc = (isrc or "").strip().upper().replace("-", "")
+    if not isrc:
+        return {"ok": False, "links": {}, "absent": [],
+                "why": "no ISRC on the statement row"}
+
+    links, absent, unknown = {}, [], []
+
+    present, detail = music_apis.deezer_has_isrc(isrc)
+    if present is True:
+        links["deezer"] = detail
+    elif present is False:
+        absent.append("deezer")
+    else:
+        unknown.append("Deezer (%s)" % detail)
+
     url, why = _spotify_url_for_isrc(isrc)
-    if not url:
-        return {"ok": False, "links": {}, "why": why}
-    found = music_apis.odesli_lookup(url)
-    if not found:
-        # Spotify has it, so at minimum that is known.
-        return {"ok": True, "links": {"spotify": url},
-                "why": "only Spotify could be checked; the link service did not answer",
-                "partial": True}
-    return {"ok": True, "links": found.get("links") or {}, "why": "",
-            "title": found.get("title") or "", "artist": found.get("artist") or "",
-            "page": found.get("page") or ""}
+    if url:
+        links["spotify"] = url
+    elif "not in Spotify's catalogue" in (why or ""):
+        absent.append("spotify")
+    else:
+        unknown.append("Spotify (%s)" % why)
+
+    if not links and not absent:
+        return {"ok": False, "links": {}, "absent": [],
+                "why": "; ".join(unknown) or "no store could be asked"}
+    return {"ok": True, "links": links, "absent": absent,
+            "why": "; ".join(unknown)}
 
 
 def check_gap(isrc, missing_sources):
-    """Sort a gap's missing stores into the two conversations, plus the
-    ones nobody can answer.
+    """Sort a gap's silent stores into the three answers.
 
-    `carried` is the important list: the store has the recording and the
-    statement shows nothing from it. `absent` is a delivery question.
-    `unchecked` is neither, and stays visible so a letter cannot quietly
-    imply it was checked.
+    `carried` is the one worth a letter: the store lists the recording and
+    the statement shows nothing from it. `absent` is a delivery question
+    and mentions no money. `unchecked` is neither, and stays visible so a
+    letter cannot imply a check that never ran - which covers most stores,
+    because only Deezer and Spotify can be asked at all.
     """
     result = availability(isrc)
     out = {"ok": result["ok"], "why": result.get("why") or "",
-           "partial": bool(result.get("partial")),
            "carried": [], "absent": [], "unchecked": [],
-           "title": result.get("title") or "", "page": result.get("page") or ""}
+           "title": "", "page": ""}
     if not result["ok"]:
         out["unchecked"] = sorted(missing_sources)
         return out
 
     links = result["links"]
+    answered_no = set(result.get("absent") or ())
     for source in sorted(missing_sources):
         platform = platform_for(source)
-        if platform is None:
+        if platform is None or platform not in CHECKABLE:
+            # Not a catalogue, or a catalogue nothing here can query.
             out["unchecked"].append(source)
         elif platform in links:
             out["carried"].append({"source": source, "url": links[platform]})
-        elif out["partial"]:
-            # Only Spotify was established, so silence about the rest is
-            # ignorance rather than absence.
-            out["unchecked"].append(source)
-        else:
+        elif platform in answered_no:
             out["absent"].append(source)
+        else:
+            out["unchecked"].append(source)
     return out

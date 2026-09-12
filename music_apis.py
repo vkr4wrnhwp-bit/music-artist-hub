@@ -105,6 +105,44 @@ def odesli_lookup(source_url):
 DEEZER_TTL = 30 * 24 * 3600   # ISRC/UPC assignments never change
 
 
+def deezer_has_isrc(isrc):
+    """Does Deezer's catalogue carry this exact recording?
+
+    (True|False|None, detail). None means the question was not answered -
+    a network failure or an unreadable reply - and must never be reported
+    as absence: a bad afternoon at Deezer would otherwise generate a
+    letter claiming a track was never delivered.
+
+    Their free endpoint is unambiguous, which is what makes it usable
+    here: a real track object, or {"error": {"code": 800, "message": "no
+    data"}}. No key, no quota to burn.
+    """
+    isrc = (isrc or "").strip().upper().replace("-", "")
+    if not isrc:
+        return None, "no ISRC on the statement row"
+    key = "deezer-isrc:" + isrc
+    data = store.cache_get(key, DEEZER_TTL)
+    if data is None:
+        try:
+            data = _fetch_json("https://api.deezer.com/track/isrc:" + isrc)
+        except Exception as exc:                               # noqa: BLE001
+            return None, "Deezer did not answer (%s)" % (str(exc)[:60] or "no detail")
+        store.cache_set(key, data)
+    if not isinstance(data, dict):
+        return None, "Deezer sent something unreadable"
+    error = data.get("error") or {}
+    if error:
+        # 800 / "no data" is a real answer: they do not have it. Anything
+        # else is their problem, not evidence about the recording.
+        if str(error.get("code")) == "800":
+            return False, "not in Deezer's catalogue"
+        return None, "Deezer refused (%s)" % str(error.get("message") or error)[:60]
+    link = (data.get("link") or "").strip()
+    if not link:
+        return None, "Deezer answered without a track link"
+    return True, link
+
+
 def deezer_track_metadata(title, artist):
     """Industry identifiers for a track from Deezer's free API: ISRC, and
     the album's UPC, label, release date. Returns a dict or None."""

@@ -4,117 +4,126 @@ The coverage finding says a track earned on some stores and not others.
 That supports two different letters, and sending the wrong one costs an
 artist credibility they will need later:
 
-  the store does not carry it  -> ask the distributor to deliver it
-  the store carries it and you -> ask the distributor to account for it
-  were paid nothing
+  the store carries it and paid  -> ask the distributor to account for it
+  you nothing
+  the store does not carry it    -> ask them to deliver it
 
-So the stores get asked. The rule this file holds is that "we could not
-check" never degrades into "it is not there" - not when the ISRC is
-missing, not when Spotify is unconfigured, not when the link service
-times out, and not for a source that is not a catalogue at all.
+So the stores get asked. Only two can be: Deezer, free and exact by
+ISRC, and Spotify, exact by ISRC with the app's own credentials. Odesli
+would have answered for thirty platforms from one call - its public API
+now returns 401 PUBLIC_API_ACCESS_DEPRECATED, permanently - so
+everything else reports as unchecked.
+
+The rule this file holds is that "could not check" never degrades into
+"it is not there": not when the ISRC is missing, not when a store times
+out, not when a store is not a catalogue at all, and not when it is a
+catalogue nothing here can query.
 """
 import pytest
 
 import coverage_check as cc
 
-
-class _Stub:
-    """Stands in for the two vendors, so the logic is testable without a
-    network and without credentials."""
-
-    def __init__(self, url="https://open.spotify.com/track/abc", links=None,
-                 odesli=True):
-        self.url, self.links, self.odesli = url, links or {}, odesli
-
-    def spotify(self, isrc):
-        return (self.url, None) if self.url else (None, "not in Spotify's catalogue")
-
-    def lookup(self, url):
-        if not self.odesli:
-            return None
-        return {"title": "Hungry Gods", "artist": "King 810",
-                "page": "https://song.link/x", "links": self.links}
+ISRC = "GBWUL2686921"
 
 
 @pytest.fixture
-def stubbed(monkeypatch):
-    def _apply(stub):
-        monkeypatch.setattr(cc, "_spotify_url_for_isrc", stub.spotify)
-        monkeypatch.setattr(cc.music_apis, "odesli_lookup", stub.lookup)
-        return stub
+def stores(monkeypatch):
+    """Stand in for both vendors, so the sorting logic is testable with no
+    network and no credentials."""
+    def _apply(deezer=(True, "https://www.deezer.com/track/1"),
+               spotify=("https://open.spotify.com/track/1", None)):
+        monkeypatch.setattr(cc.music_apis, "deezer_has_isrc",
+                            lambda isrc: deezer)
+        monkeypatch.setattr(cc, "_spotify_url_for_isrc", lambda isrc: spotify)
     return _apply
 
 
-def test_a_store_that_carries_it_is_the_finding_worth_a_letter(stubbed):
-    """Present on the store, absent from the money."""
-    stubbed(_Stub(links={"spotify": "https://open.spotify.com/track/abc",
-                         "appleMusic": "https://music.apple.com/x",
-                         "deezer": "https://deezer.com/x"}))
-    out = cc.check_gap("GBRKQ2454700", ["Apple Music", "Deezer"])
+def test_a_store_that_carries_it_is_the_finding_worth_a_letter(stores):
+    stores()
+    out = cc.check_gap(ISRC, ["Deezer", "Spotify"])
     assert out["ok"]
-    carried = {c["source"] for c in out["carried"]}
-    assert carried == {"Apple Music", "Deezer"}
+    assert {c["source"] for c in out["carried"]} == {"Deezer", "Spotify"}
     assert out["absent"] == [] and out["unchecked"] == []
 
 
-def test_a_store_that_does_not_carry_it_is_a_delivery_question(stubbed):
-    stubbed(_Stub(links={"spotify": "https://open.spotify.com/track/abc"}))
-    out = cc.check_gap("GBRKQ2454700", ["Apple Music", "Deezer"])
+def test_a_store_that_answers_no_is_a_delivery_question(stores):
+    stores(deezer=(False, "not in Deezer's catalogue"),
+           spotify=(None, "not in Spotify's catalogue under that ISRC"))
+    out = cc.check_gap(ISRC, ["Deezer", "Spotify"])
     assert out["carried"] == []
-    assert out["absent"] == ["Apple Music", "Deezer"]
+    assert out["absent"] == ["Deezer", "Spotify"]
 
 
-def test_a_source_that_is_not_a_catalogue_is_never_called_absent(stubbed):
+def test_a_store_that_could_not_be_reached_is_not_called_absent(stores):
+    """A bad afternoon at Deezer must not produce a letter claiming the
+    recording was never delivered."""
+    stores(deezer=(None, "Deezer did not answer (timed out)"))
+    out = cc.check_gap(ISRC, ["Deezer"])
+    assert out["absent"] == []
+    assert out["unchecked"] == ["Deezer"]
+    assert "did not answer" in out["why"]
+
+
+def test_a_store_nothing_here_can_query_reports_as_unchecked(stores):
+    """Anghami, Audiomack, Pandora, TikTok and the rest are real stores
+    with no route to ask them. That is unchecked, never absent."""
+    stores()
+    out = cc.check_gap(ISRC, ["Anghami", "Audiomack", "Pandora", "TikTok",
+                              "iHeartRadio", "NetEase"])
+    assert out["absent"] == []
+    assert out["carried"] == []
+    assert len(out["unchecked"]) == 6
+
+
+def test_a_source_that_is_not_a_catalogue_is_never_called_absent(stores):
     """SoundExchange is a society, Audible Magic licenses background
-    music, Qobuz (JPY) is a currency split of a store nobody can query.
-    Saying "not on the store" about any of them would be an invention."""
-    stubbed(_Stub(links={"spotify": "https://open.spotify.com/track/abc"}))
-    out = cc.check_gap("GBRKQ2454700", [
-        "SoundExchange: Sirius XM Radio, Inc", "Audible Magic: Music Choice",
-        "Facebook / Instagram", "Qobuz (JPY)"])
+    music, Facebook is a licensing deal. None is a shop with a search box."""
+    stores()
+    out = cc.check_gap(ISRC, ["SoundExchange: Sirius XM Radio, Inc",
+                              "Audible Magic: Music Choice",
+                              "Facebook / Instagram", "Twitch: DJ Program"])
     assert out["absent"] == []
     assert len(out["unchecked"]) == 4
 
 
 def test_no_isrc_means_unchecked_not_absent(monkeypatch):
     monkeypatch.setattr(cc.spotify_provider, "pulse_configured", lambda: True)
-    out = cc.check_gap("", ["Apple Music", "Deezer"])
+    out = cc.check_gap("", ["Deezer", "Spotify"])
     assert out["ok"] is False
     assert out["absent"] == [] and out["carried"] == []
-    assert out["unchecked"] == ["Apple Music", "Deezer"]
+    assert out["unchecked"] == ["Deezer", "Spotify"]
     assert "no ISRC" in out["why"]
 
 
-def test_spotify_unconfigured_means_unchecked_not_absent(monkeypatch):
-    monkeypatch.setattr(cc.spotify_provider, "pulse_configured", lambda: False)
-    out = cc.check_gap("GBRKQ2454700", ["Apple Music"])
+def test_neither_store_answering_establishes_nothing(stores):
+    stores(deezer=(None, "Deezer did not answer"),
+           spotify=(None, "Spotify is not connected on this deployment"))
+    out = cc.check_gap(ISRC, ["Deezer", "Spotify", "Anghami"])
     assert out["ok"] is False
-    assert out["absent"] == []
+    assert out["absent"] == [] and out["carried"] == []
+    assert sorted(out["unchecked"]) == ["Anghami", "Deezer", "Spotify"]
+
+
+def test_one_store_answering_is_enough_to_report_that_one(stores):
+    """Deezer needs no key, so it answers on a deployment with no Spotify
+    credentials - and that is where the first real finding on this
+    catalogue came from."""
+    stores(spotify=(None, "Spotify is not connected on this deployment"))
+    out = cc.check_gap(ISRC, ["Deezer", "Spotify"])
+    assert out["ok"] is True
+    assert [c["source"] for c in out["carried"]] == ["Deezer"]
+    assert out["unchecked"] == ["Spotify"]
     assert "not connected" in out["why"]
 
 
-def test_the_link_service_failing_does_not_empty_the_catalogue(stubbed):
-    """Odesli down means we know about Spotify and nothing else. Every
-    other store has to read unchecked, or an outage would generate a
-    letter claiming a track is on no platform at all."""
-    stubbed(_Stub(odesli=False))
-    out = cc.check_gap("GBRKQ2454700", ["Apple Music", "Deezer", "TIDAL"])
-    assert out["ok"] is True and out["partial"] is True
-    assert out["absent"] == []
-    assert out["unchecked"] == ["Apple Music", "Deezer", "TIDAL"]
-
-
 def test_the_same_store_under_four_names_asks_one_question():
-    """A single report carries YouTube Streaming, YouTube Content ID,
-    YouTube Shorts and YouTube Audio Tier. All four are the same
-    catalogue question."""
-    for name in ("YouTube Streaming", "YouTube Content ID", "YouTube Shorts",
+    for name in ("YouTube Streaming", "YouTube Shorts", "YouTube Content ID",
                  "YouTube Audio Tier", "YouTube Publishing: Shorts"):
         assert cc.platform_for(name) == "youtube", name
 
 
 def test_sources_that_cannot_be_checked_are_reported_as_such():
     for name in ("SoundExchange: Sirius XM Radio, Inc",
-                 "Audible Magic: Medianet - Securus", "Qobuz (USA)",
-                 "Facebook / Instagram", "Twitch: DJ Program"):
+                 "Audible Magic: Medianet - Securus", "Facebook / Instagram",
+                 "Twitch: DJ Program", "SoundTrack Your Brand"):
         assert cc.platform_for(name) is None, name
