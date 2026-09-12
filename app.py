@@ -144,6 +144,15 @@ from passport_config import get_passport_config, completeness as passport_comple
 from closing_config import get_closing_config
 from release_signal import get_release_signal_config
 import capability_status
+# How many bytes of bucket objects one backup archive will carry. A
+# catalogue of masters runs to gigabytes and a download that never
+# finishes is not a backup, so anything past this is NAMED in
+# OBJECTS.csv rather than dropped in silence. Module scope so a test
+# can lower it rather than allocating two gigabytes to prove the
+# skip path works.
+BACKUP_BLOB_BUDGET = 2 * 1024 * 1024 * 1024
+
+import blob_inventory
 import blob_store
 import stemsplit_provider as stemsplit
 import hours_engine
@@ -10019,6 +10028,42 @@ def create_app():
                 for fname in files:
                     full = os.path.join(root, fname)
                     z.write(full, "uploads/" + os.path.relpath(full, UPLOADS_DIR))
+
+            # Objects in the bucket. With R2 configured, blob_store.save
+            # returns "r2:<key>" and does NOT also write to disk, so the
+            # walk above finds nothing and this zip carried the database
+            # alone - while Settings promised "accounts, members, fans,
+            # statements, and uploads".
+            #
+            # A manifest is written whether or not the objects fit, so the
+            # archive always says what exists rather than only what it
+            # managed to include. A backup that quietly omits things is
+            # how somebody discovers at restore time that it stopped
+            # working months ago.
+            manifest = ["key,bytes,in_this_archive"]
+            if blob_store.configured():
+                budget = BACKUP_BLOB_BUDGET
+                with store.get_db() as _db:
+                    keys = blob_inventory.stored_keys(_db)
+                for key in keys:
+                    data = None
+                    try:
+                        data = blob_store.fetch(blob_store.PREFIX + key)
+                    except Exception:
+                        data = None
+                    if data is None:
+                        manifest.append("%s,,fetch failed" % key)
+                        continue
+                    if len(data) > budget:
+                        manifest.append("%s,%d,skipped - archive size limit"
+                                        % (key, len(data)))
+                        continue
+                    z.writestr("objects/" + key, data)
+                    budget -= len(data)
+                    manifest.append("%s,%d,yes" % (key, len(data)))
+            else:
+                manifest.append(",,object storage is not configured on this deployment")
+            z.writestr("OBJECTS.csv", "\n".join(manifest) + "\n")
         os.unlink(snap.name)
         buf.seek(0)
         return buf

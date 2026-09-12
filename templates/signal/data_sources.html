@@ -164,14 +164,31 @@
       out.textContent = "Asking " + key + "\u2026";
       fetch("/signal/admin/probe/" + encodeURIComponent(key),
             {method: "POST", credentials: "same-origin"})
-        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          /* A non-JSON reply means the request never reached the handler -
+             a redirect to sign-in, a proxy page, a 500. Reading the status
+             is the difference between "the vendor refused" and "the
+             request did not arrive", which need opposite fixes. */
+          return r.text().then(function (body) {
+            try {
+              return JSON.parse(body);
+            } catch (err) {
+              return {ok: null,
+                      detail: "The request did not reach the server (HTTP "
+                              + r.status + "). " + body.slice(0, 120)};
+            }
+          });
+        })
         .then(function (d) {
           var mark = d.ok === true ? "\u2713 " : (d.ok === false ? "\u2717 " : "\u2014 ");
           out.textContent = mark + (d.detail || "");
           btn.disabled = false;
         })
         .catch(function () {
-          out.textContent = "The test could not be sent from this browser.";
+          /* Was "The test could not be sent from this browser", which
+             blamed the browser for whatever had actually gone wrong. */
+          out.textContent = "The request failed before the server answered - "
+                          + "network, or the page needs reloading.";
           btn.disabled = false;
         });
     });

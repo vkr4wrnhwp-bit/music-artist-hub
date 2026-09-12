@@ -158,7 +158,12 @@
       {% if can_backup %}
       <section class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">
         <h2 class="sb-label text-sb-gold-bright">Backup</h2>
-        <p class="mt-1 text-sm text-gray-300">Download everything — accounts, members, fans, statements, and uploads — as one zip. Keep a copy somewhere safe; a backup you don't have is a backup that doesn't exist.</p>
+        {#- This said "and uploads" while the zip walked local disk only,
+            which with object storage configured holds none of them. It
+            does carry them now, and OBJECTS.csv lists every stored file
+            with whether it made it in - so the archive states what it
+            believes exists rather than only what it managed to include. -#}
+        <p class="mt-1 text-sm text-gray-300">Download everything — accounts, members, fans, statements, and your uploaded files — as one zip. Inside, <span class="font-semibold text-gray-100">OBJECTS.csv</span> lists every stored file and whether this archive carries it, so you can see what is in there rather than assuming. Keep a copy somewhere safe; a backup you don't have is a backup that doesn't exist.</p>
         <a href="/backup" class="sb-btn sb-btn-primary mt-3">Download backup</a>
 
         <div class="mt-4 border-t border-white/10 pt-4">
