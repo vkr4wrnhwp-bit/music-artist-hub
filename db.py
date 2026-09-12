@@ -945,6 +945,14 @@ def init_db():
             db.execute("ALTER TABLE statement_rows ADD COLUMN territory TEXT NOT NULL DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: the recording's own identifier. A coverage gap can
+        # only be checked against a store's catalogue by an exact id -
+        # matching on title alone breaks on remixes, live versions and
+        # features, and a wrong match becomes a wrong claim in a letter.
+        try:
+            db.execute("ALTER TABLE statement_rows ADD COLUMN isrc TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         # Migration: universal-link metadata on smart links.
         try:
             db.execute("ALTER TABLE smart_links ADD COLUMN meta TEXT")
@@ -1318,9 +1326,11 @@ def save_statement(user_id, filename, rows):
             (statement_id, user_id, filename, _now(), len(rows), total),
         )
         db.executemany(
-            "INSERT INTO statement_rows (statement_id, title, source, amount, period, territory) VALUES (?,?,?,?,?,?)",
+            "INSERT INTO statement_rows (statement_id, title, source, amount,"
+            " period, territory, isrc) VALUES (?,?,?,?,?,?,?)",
             [(statement_id, r.get("title"), r.get("source"), r["amount"],
-              r.get("period"), r.get("territory") or "") for r in rows],
+              r.get("period"), r.get("territory") or "", r.get("isrc") or "")
+             for r in rows],
         )
     return statement_id
 

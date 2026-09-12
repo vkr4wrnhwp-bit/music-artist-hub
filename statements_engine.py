@@ -29,6 +29,13 @@ _PERIOD_COLS = {"period", "date", "month", "statement period", "sales period",
                 "reporting period", "sale month", "accounting period"}
 _TERRITORY_COLS = {"territory", "country", "region", "market", "country code",
                    "country of sale", "sales territory"}
+# The recording's own identifier. Worth capturing even though nothing
+# needed it until now: a coverage gap can only be CHECKED against a
+# store's catalogue by an exact identifier. Matching on a title alone
+# fails on remixes, live versions, features and anything with a comma in
+# it, and a wrong match here becomes a wrong claim in a letter.
+_ISRC_COLS = {"isrc", "isrc code", "isrc_code", "recording isrc",
+              "track isrc", "isrc/upc"}
 
 
 def _match(headers, aliases):
@@ -75,6 +82,7 @@ def parse_statement(data, filename="statement.csv"):
     col_amount = _match(headers, _AMOUNT_COLS)
     col_period = _match(headers, _PERIOD_COLS)
     col_territory = _match(headers, _TERRITORY_COLS)
+    col_isrc = _match(headers, _ISRC_COLS)
     if not col_amount:
         return {"rows": [], "columns": {}, "skipped": 0,
                 "error": "Couldn't find an amount/revenue column. Headers seen: " + ", ".join(headers)}
@@ -91,12 +99,15 @@ def parse_statement(data, filename="statement.csv"):
             "amount": amount,
             "period": (raw.get(col_period) or "").strip() if col_period else "",
             "territory": (raw.get(col_territory) or "").strip() if col_territory else "",
+            "isrc": ((raw.get(col_isrc) or "").strip().upper().replace("-", "")
+                     if col_isrc else ""),
         })
 
     return {
         "rows": rows,
         "columns": {"title": col_title, "source": col_source, "amount": col_amount,
-                    "period": col_period, "territory": col_territory},
+                    "period": col_period, "territory": col_territory,
+                    "isrc": col_isrc},
         "skipped": skipped,
         "error": None if rows else "No usable rows found.",
     }
