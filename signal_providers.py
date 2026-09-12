@@ -968,6 +968,80 @@ class SongstatsAdapter(_EnvProvider):
         out.sort(key=lambda x: (x["metric"], x["date"]))
         return out
 
+    # -- tracks --
+    #
+    # Which stores carry one recording. Songstats covers far more of them
+    # than anything free does, which matters because a coverage gap can
+    # only be turned into a letter once somebody knows whether the store
+    # actually has the track.
+    #
+    # The parse is deliberately tolerant and deliberately pessimistic. The
+    # response shape could not be confirmed before writing this: the key
+    # lives on the deployment rather than in a development shell, and
+    # their documentation site serves no readable content. What IS
+    # confirmed is the endpoint - /enterprise/v1/tracks/info?isrc=
+    # answers 403 to a bad key rather than 404, so the path exists.
+    #
+    # So several plausible shapes are accepted, and anything unrecognised
+    # returns NO platforms plus the top-level keys that came back, which
+    # the ISRC diagnostic prints. A shape this cannot read costs coverage
+    # and never produces a wrong answer, because the caller treats "no
+    # platforms" as unchecked rather than as absent.
+    _PLATFORM_KEYS = ("links", "platforms", "external_links", "sources",
+                      "platform_links", "urls")
+
+    def track_platforms(self, isrc):
+        """({platform: url}, note). Empty dict means nothing was learned."""
+        isrc = (isrc or "").strip().upper().replace("-", "")
+        if not isrc:
+            return {}, "no ISRC"
+        if not self.configured():
+            return {}, "Songstats is not configured on this deployment"
+        try:
+            payload = self._get("/tracks/info", isrc=isrc) or {}
+        except ProviderError as exc:
+            return {}, str(exc)[:160]
+        if not isinstance(payload, dict):
+            return {}, "Songstats sent something unreadable"
+
+        # Their envelope might be the track itself or wrap it.
+        track = payload
+        for wrapper in ("track", "data", "result"):
+            inner = payload.get(wrapper)
+            if isinstance(inner, dict):
+                track = inner
+                break
+            if isinstance(inner, list) and inner and isinstance(inner[0], dict):
+                track = inner[0]
+                break
+
+        found = {}
+        for key in self._PLATFORM_KEYS:
+            block = track.get(key)
+            if isinstance(block, dict):
+                for name, value in block.items():
+                    url = value if isinstance(value, str) else (
+                        value.get("url") or value.get("link") or ""
+                        if isinstance(value, dict) else "")
+                    if url:
+                        found[str(name).strip().lower()] = url
+            elif isinstance(block, list):
+                for item in block:
+                    if not isinstance(item, dict):
+                        continue
+                    name = (item.get("source") or item.get("platform")
+                            or item.get("name") or "")
+                    url = item.get("url") or item.get("link") or ""
+                    if name and url:
+                        found[str(name).strip().lower()] = url
+            if found:
+                return found, ""
+
+        # Nothing recognised. Report the shape so it can be read off a
+        # diagnostic instead of guessed at a second time.
+        return {}, "unrecognised shape; top-level keys: %s" % ", ".join(
+            sorted(str(k) for k in list(track)[:12])) or "none"
+
 
 class ChartmetricAdapter(_EnvProvider):
     key = "chartmetric"

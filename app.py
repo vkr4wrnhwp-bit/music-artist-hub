@@ -185,6 +185,7 @@ from community_config import (
     get_fan_dashboard_data,
 )
 from discover_config import get_discover_data, like_track, follow_artist
+import coverage_check
 import music_apis
 from music_apis import (itunes_search, odesli_lookup, ordered_platform_links,
                         deezer_track_metadata, musicbrainz_credits, press_mentions)
@@ -7082,6 +7083,42 @@ def create_app():
                                # page looks like it ignored it.
                                opened=request.args.get("opened", ""),
                                **build_dashboard_context())
+
+    @app.route("/isrc/diag")
+    def isrc_diag():
+        """What each store says about one recording, and what it could not say.
+
+        Exists because the Songstats response shape could not be confirmed
+        while writing the lookup: the key is on the deployment rather than
+        in a development shell, and their documentation site serves no
+        readable content. Rather than guess twice, the parser reports the
+        top-level keys it did not recognise and this prints them - so the
+        real shape is read off production once and fixed precisely.
+
+        Owner only, and no value from any credential appears in the reply.
+        """
+        user, bail = _owner_or_404()
+        if bail:
+            return bail
+        isrc = (request.args.get("isrc") or "").strip()
+        if not isrc:
+            rows = store.get_statement_rows(user["id"])
+            isrc = next((r["isrc"] for r in rows if r["isrc"]), "")
+        report = {
+            "isrc": isrc or None,
+            "deezer": None,
+            "songstats": None,
+            "sorted": None,
+        }
+        if isrc:
+            present, detail = music_apis.deezer_has_isrc(isrc)
+            report["deezer"] = {"carries_it": present, "detail": detail}
+            links, note = coverage_check._songstats_links(isrc)
+            report["songstats"] = {"platforms": sorted(links), "note": note}
+            report["sorted"] = coverage_check.check_gap(
+                isrc, ["Deezer", "Spotify", "Anghami", "Pandora",
+                       "SoundExchange: Sirius XM Radio, Inc"])
+        return jsonify(report)
 
     @app.route("/royalty-recovery/cases/<case_id>/delete", methods=["POST"])
     def recovery_case_delete(case_id):

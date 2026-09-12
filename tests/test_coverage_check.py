@@ -127,3 +127,47 @@ def test_sources_that_cannot_be_checked_are_reported_as_such():
                  "Audible Magic: Medianet - Securus", "Facebook / Instagram",
                  "Twitch: DJ Program", "SoundTrack Your Brand"):
         assert cc.platform_for(name) is None, name
+
+
+def test_songstats_widens_what_can_be_asked(monkeypatch):
+    """It answers for stores nothing else here can reach, so those stop
+    reading as unchecked."""
+    monkeypatch.setattr(cc, "_songstats_links",
+                        lambda isrc: ({"anghami": "https://anghami/x",
+                                       "pandora": "https://pandora/x"}, ""))
+    monkeypatch.setattr(cc.music_apis, "deezer_has_isrc",
+                        lambda isrc: (True, "https://deezer/x"))
+    monkeypatch.setattr(cc, "_spotify_url_for_isrc",
+                        lambda isrc: (None, "Spotify is not connected"))
+    out = cc.check_gap(ISRC, ["Anghami", "Pandora", "Deezer", "NetEase"])
+    carried = {c["source"] for c in out["carried"]}
+    assert carried == {"Anghami", "Pandora", "Deezer"}
+    assert out["unchecked"] == ["NetEase"], "still unreachable, still honest"
+
+
+def test_an_unreadable_songstats_reply_costs_coverage_not_correctness(monkeypatch):
+    """Its response shape could not be confirmed before the lookup was
+    written. A shape the parser cannot read must yield NO platforms - which
+    sorts as unchecked - rather than an absence nobody established."""
+    monkeypatch.setattr(cc, "_songstats_links",
+                        lambda isrc: ({}, "unrecognised shape; top-level keys: a, b"))
+    monkeypatch.setattr(cc.music_apis, "deezer_has_isrc",
+                        lambda isrc: (True, "https://deezer/x"))
+    monkeypatch.setattr(cc, "_spotify_url_for_isrc",
+                        lambda isrc: (None, "Spotify is not connected"))
+    out = cc.check_gap(ISRC, ["Anghami", "Deezer"])
+    assert [c["source"] for c in out["carried"]] == ["Deezer"]
+    assert out["absent"] == [], "an unreadable reply is not an absence"
+    assert out["unchecked"] == ["Anghami"]
+    assert "unrecognised shape" in out["why"], "and it says what it saw"
+
+
+def test_songstats_naming_a_store_we_do_not_map_is_reported_not_swallowed(monkeypatch):
+    monkeypatch.setattr(cc, "_songstats_links", cc._songstats_links)
+    import signal_providers as sp
+    monkeypatch.setattr(sp.SongstatsAdapter, "track_platforms",
+                        lambda self, isrc: ({"some_new_dsp": "https://x"}, ""))
+    links, note = cc._songstats_links(ISRC)
+    assert links == {}
+    assert "does not map" in note and "some_new_dsp" in note
+

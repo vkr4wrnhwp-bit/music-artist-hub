@@ -113,6 +113,41 @@ def _spotify_url_for_isrc(isrc):
 # this catalogue was, so it is not a token.
 CHECKABLE = ("deezer", "spotify")
 
+# Songstats answers for far more stores than the two above, so when it is
+# configured it widens what can be asked. Its response shape is not yet
+# confirmed (see SongstatsAdapter.track_platforms), and an unreadable
+# answer yields no platforms - which the sorting below treats as
+# unchecked, never as absent. So a wrong guess costs coverage and cannot
+# produce a false claim.
+SONGSTATS_ALIASES = {
+    "spotify": "spotify", "apple_music": "appleMusic", "apple": "appleMusic",
+    "itunes": "itunes", "deezer": "deezer", "tidal": "tidal",
+    "amazon": "amazonMusic", "amazon_music": "amazonMusic",
+    "youtube": "youtube", "youtube_music": "youtube", "pandora": "pandora",
+    "soundcloud": "soundcloud", "audiomack": "audiomack",
+    "anghami": "anghami", "napster": "napster", "tiktok": "tiktok",
+    "boomplay": "boomplay", "jiosaavn": "jiosaavn", "netease": "netease",
+    "yandex": "yandex", "line_music": "lineMusic", "qobuz": "qobuz",
+}
+
+
+def _songstats_links(isrc):
+    """({platform: url}, note) from Songstats, or empty when it cannot say."""
+    try:
+        import signal_providers as sp
+        found, note = sp.SongstatsAdapter().track_platforms(isrc)
+    except Exception as exc:                                   # noqa: BLE001
+        return {}, "Songstats: %s" % (str(exc)[:80] or "no detail")
+    out = {}
+    for name, url in (found or {}).items():
+        platform = SONGSTATS_ALIASES.get(name)
+        if platform:
+            out[platform] = url
+    if found and not out:
+        return {}, "Songstats named only stores this does not map: %s" % (
+            ", ".join(sorted(found)[:8]))
+    return out, note
+
 
 def availability(isrc):
     """Which stores carry this recording, asked one at a time.
@@ -129,6 +164,12 @@ def availability(isrc):
                 "why": "no ISRC on the statement row"}
 
     links, absent, unknown = {}, [], []
+
+    # Songstats first when available: one call, many stores.
+    songstats, note = _songstats_links(isrc)
+    links.update(songstats)
+    if note:
+        unknown.append(note)
 
     present, detail = music_apis.deezer_has_isrc(isrc)
     if present is True:
@@ -172,9 +213,12 @@ def check_gap(isrc, missing_sources):
 
     links = result["links"]
     answered_no = set(result.get("absent") or ())
+    # A store Songstats reported on is answerable for this recording even
+    # though it is not directly queryable.
+    checkable = set(CHECKABLE) | set(links)
     for source in sorted(missing_sources):
         platform = platform_for(source)
-        if platform is None or platform not in CHECKABLE:
+        if platform is None or platform not in checkable:
             # Not a catalogue, or a catalogue nothing here can query.
             out["unchecked"].append(source)
         elif platform in links:
