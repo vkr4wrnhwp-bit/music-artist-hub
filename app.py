@@ -9382,7 +9382,8 @@ def create_app():
             events.append({"date": c["release_date"], "kind": "release",
                            "lane": c["title"], "title": c["title"],
                            "detail": "%s release day" % (c.get("release_type") or "single"),
-                           "href": "/links/%s" % c["id"],
+                           # /links/<id> has no page; the campaign lives at /edit.
+                           "href": "/links/%s/edit" % c["id"],
                            "status": c["status"]})
             try:
                 days_left = (date.fromisoformat(c["release_date"][:10])

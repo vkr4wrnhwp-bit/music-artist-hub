@@ -59,3 +59,23 @@ def test_nothing_left_links_at_the_old_anchors():
             if needle in text:
                 hits.append((path, needle))
     assert hits == []
+
+
+def test_a_calendar_event_links_at_a_page_that_exists(application):
+    """The route walk followed the scheduler's release-day event to
+    /links/<id>, which has no page - the campaign lives at /links/<id>/edit."""
+    import links_store as mls
+    from datetime import date, timedelta
+    email = "cal-%s@example.net" % uuid.uuid4().hex[:10]
+    client = application.test_client()
+    client.post("/signup", data={"name": "Cal", "email": email, "password": PASSWORD})
+    client.post("/login", data={"email": email, "password": PASSWORD})
+    with application.app_context():
+        uid = store.get_user_by_email(email)["id"]
+        cid = mls.create_campaign(uid, "cal-%s" % uuid.uuid4().hex[:6],
+                                  {"title": "Event Drop",
+                                   "release_date": (date.today() + timedelta(days=9)).isoformat()})
+    body = client.get("/releases/autopilot?view=calendar").get_data(as_text=True)
+    assert 'href="/links/%s/edit"' % cid in body
+    assert 'href="/links/%s"' % cid not in body
+    assert client.get("/links/%s/edit" % cid).status_code == 200
