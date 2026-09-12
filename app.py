@@ -3454,6 +3454,12 @@ def create_app():
             return err
         mls.update_campaign(cid, campaign["user_id"],
                             {"status": "draft", "archived_at": store._now()})
+        # Release Autopilot offers this too now; it sends the artist back
+        # to the desk rather than to the links list. Only a local path is
+        # honoured - never an address somebody else put in a form.
+        nxt = request.form.get("next") or ""
+        if nxt.startswith("/") and not nxt.startswith("//"):
+            return redirect(nxt)
         return redirect("/links")
 
     @app.route("/links/<cid>/duplicate", methods=["POST"])
@@ -3620,7 +3626,7 @@ def create_app():
                     "reds": summary["reds"], "alerts": alerts[:4],
                     "flow": [("Track Passport", "/tracks"),
                              ("Clean Release", "/releases/autopilot#clean"),
-                             ("Schedule", "/releases/autopilot#calendar"),
+                             ("Schedule", "/releases/autopilot?view=calendar"),
                              ("Smart Link", "/links"),
                              ("Rollout", "/rollout-studio"),
                              ("Pulse", "/pulse")]}
@@ -4275,7 +4281,13 @@ def create_app():
         cal = _release_calendar(user["id"], request.args.get("preset") or "off",
                                 keep_args={"campaign": request.args.get("campaign") or "",
                                            "days": request.args.get("days") or ""})
+        # ?view=calendar puts the scheduler first and alone. The Calendar
+        # tab used to be an anchor to the section at the foot of this same
+        # page, which read as "the tab jumps to the bottom and nothing
+        # opens". A tab is a view; an anchor is not.
         return render_template("release_autopilot.html", active_page="autopilot",
+                               view=("calendar" if request.args.get("view") == "calendar"
+                                     else "autopilot"),
                                cal=cal,
                                campaigns=campaigns, c=campaign, checks=checks,
                                open_checks=[ck for ck in checks if not ck[1]],
@@ -9452,11 +9464,11 @@ def create_app():
             months[-1]["events"].append(e)
         # Preset links keep the desk's own arguments (campaign, days) so a
         # milestone overlay never loses the release it was read beside.
-        base = {k: v for k, v in (keep_args or {}).items() if v}
+        base = {"view": "calendar"}
+        base.update({k: v for k, v in (keep_args or {}).items() if v})
         def _href(key):
             q = dict(base, preset=key) if key != "off" else dict(base)
-            return ("/releases/autopilot?%s#calendar" % urllib.parse.urlencode(q)
-                    if q else "/releases/autopilot#calendar")
+            return "/releases/autopilot?%s" % urllib.parse.urlencode(q)
         preset_links = [("off", "Off", _href("off"), preset == "off")] + [
             (key, label, _href(key), preset == key)
             for key, (label, _days) in _SCHED_PRESETS.items()]
@@ -9474,7 +9486,7 @@ def create_app():
         if current_user() is None:
             return login_required_redirect()
         qs = request.query_string.decode("utf-8", "replace")
-        return redirect("/releases/autopilot" + ("?" + qs if qs else "") + "#calendar")
+        return redirect("/releases/autopilot?view=calendar" + ("&" + qs if qs else ""))
 
     @app.route("/releases/calendar.ics")
     def releases_ics():

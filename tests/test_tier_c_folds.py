@@ -207,9 +207,9 @@ def test_the_startup_link_joins_rows_from_before_the_merge(artist):
 def test_the_scheduler_forwards_into_the_desk_and_keeps_its_arguments(artist):
     c = artist["client"]
     r = c.get("/releases")
-    assert r.status_code == 302 and r.headers["Location"].endswith("/releases/autopilot#calendar")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/releases/autopilot?view=calendar")
     r = c.get("/releases?preset=blitz")
-    assert r.headers["Location"].endswith("/releases/autopilot?preset=blitz#calendar")
+    assert r.headers["Location"].endswith("/releases/autopilot?view=calendar&preset=blitz")
     assert appmod.app.test_client().get("/releases").status_code == 302   # login wall
 
 
@@ -224,13 +224,16 @@ def test_the_calendar_renders_inside_the_desk_with_the_campaign_kept(artist):
     assert 'id="calendar"' in body and "Release Scheduler" in body
     assert "Calendar Kept" in body and "Foundation" in body
     # Preset links carry the desk's own arguments, and the .ics link its URL.
-    assert 'href="/releases/autopilot?campaign=%s&amp;days=30&amp;preset=blitz#calendar"' % cid in body
-    assert 'href="/releases/autopilot?campaign=%s&amp;days=30#calendar"' % cid in body
+    assert 'href="/releases/autopilot?view=calendar&amp;campaign=%s&amp;days=30&amp;preset=blitz"' % cid in body
+    assert 'href="/releases/autopilot?view=calendar&amp;campaign=%s&amp;days=30"' % cid in body
     assert 'href="/releases/calendar.ics?preset=standard"' in body
     ics = c.get("/releases/calendar.ics?preset=standard")
     assert ics.status_code == 200 and "Calendar Kept" in ics.get_data(as_text=True)
-    # One shell: the strip lights the desk, and the calendar tab points at the section.
-    assert 'href="/releases/autopilot#calendar"' in body
+    # One shell: the strip lights the desk, and the calendar tab is a view of
+    # its own - it used to be an anchor to the foot of this same page, which
+    # read as "the tab jumps to the bottom" (2026-09-12).
+    assert 'href="/releases/autopilot?view=calendar"' in body
+    assert 'href="/releases/autopilot#calendar"' not in body
 
 
 # --- Merge 3: Documents into Vault -------------------------------------------

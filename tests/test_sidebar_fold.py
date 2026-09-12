@@ -134,7 +134,7 @@ def test_every_parked_page_still_answers_and_says_it_is_parked(demo):
 # section of the front that now holds its data. The bookmark still lands
 # on a page with the strip; only the hop changed.
 MERGED = {"/tracks": "/catalog#passports",
-          "/releases": "/releases/autopilot#calendar",
+          "/releases": "/releases/autopilot?view=calendar",
           "/documents": "/vault#contracts"}
 
 

@@ -8,7 +8,8 @@
 {% endblock %}
 
 {% block content %}
-{{ sb.subnav([("/releases/autopilot", "Autopilot"), ("/releases/autopilot#calendar", "Calendar")], "/releases/autopilot") }}
+{{ sb.subnav([("/releases/autopilot", "Autopilot"), ("/releases/autopilot?view=calendar", "Calendar")],
+             "/releases/autopilot?view=calendar" if view == "calendar" else "/releases/autopilot") }}
 {#- One release in; the whole desk reads from it. This page absorbed Clean
     Release: both rendered the same twelve checks against the same campaign,
     so the checks live here once, the arc / plan / kit around them, and the
@@ -19,6 +20,9 @@
             position="center 55%") }}
 
 <div class="rd">
+{% if view == "calendar" %}
+  {% include "_release_calendar.html" %}
+{% else %}
 
   {#- THE STRIP: the one knob (which release) and the numbers that matter. -#}
   <section class="rd-strip" aria-label="Release">
@@ -34,6 +38,17 @@
         <a class="rd-link" href="/l/{{ c.slug }}" target="_blank" rel="noopener">/l/{{ c.slug }}</a>
       {% endif %}
     </form>
+    {% if c %}
+      {#- Archiving takes the release off this desk and the calendar; the
+          smart link and its fans stay, and /links lists it under archived.
+          There is no delete on purpose: fans signed up through this link
+          and their records are the artist's, not the campaign's. -#}
+      <form method="post" action="/links/{{ c.id }}/archive" class="rd-archive"
+            onsubmit="return confirm('Archive {{ c.title | e }}? It leaves this desk and the calendar. The link and its fans stay.');">
+        <input type="hidden" name="next" value="/releases/autopilot">
+        {{ sb.btn("Archive this release", variant="secondary", size="sm", type="submit") }}
+      </form>
+    {% endif %}
     {% if c %}
       <div class="rd-readouts">
         {% if days_left is none %}
@@ -278,6 +293,7 @@
   {% endif %}
 
   {% include "_release_calendar.html" %}
+{% endif %}
 </div>
 {% endblock %}
 

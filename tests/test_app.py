@@ -748,7 +748,7 @@ def test_tier2_pages_render_and_are_in_nav():
     assert client.get("/documents", follow_redirects=True).status_code == 200
     # The calendar is a section of Release Autopilot; the old URL forwards.
     r = client.get("/releases")
-    assert r.status_code == 302 and r.headers["Location"].endswith("/releases/autopilot#calendar")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/releases/autopilot?view=calendar")
     assert client.get("/releases", follow_redirects=True).status_code == 200
     assert 'href="/vault"' in nav and 'href="/releases/autopilot"' in nav
     # Conflicts is parked off the sidebar (docs/PARKED_PAGES.md); it answers.
@@ -5026,7 +5026,7 @@ def test_release_scheduler_lanes_warnings_presets_ics():
     # there and keeps its query string.
     r = client.get("/releases?preset=standard")
     assert r.status_code == 302
-    assert r.headers["Location"].endswith("/releases/autopilot?preset=standard#calendar")
+    assert r.headers["Location"].endswith("/releases/autopilot?view=calendar&preset=standard")
     page = client.get("/releases/autopilot").get_data(as_text=True)
     assert 'id="calendar"' in page and "Release Scheduler" in page
     # Date-math lead-time warnings: amber under 21 days, red under 7,
