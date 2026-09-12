@@ -90,15 +90,38 @@ def _signal_rows():
     return sorted(rows, key=lambda r: (not r["on"], r["name"]))
 
 
-# Flags the app reads that do not live in audio_policy.FLAGS, so the
-# audio section never showed them. LYRIC_SHEET_ENABLED in particular was
-# set on this deployment and absent from the page, which is the exact
-# failure this page exists to prevent.
-OTHER_FLAGS = [
-    ("LYRIC_SHEET_ENABLED", "Pulling the words up off a master in Audio Studio."),
-    ("LIVE_LAB_ENABLED", "Live Lab: the set list, the stems and the stage view."),
-    ("STUDIO_V1_ENABLED", "The Studio session surface."),
-]
+# Flags outside audio_policy.FLAGS, which the audio section never showed.
+#
+# These do NOT share that tuple's rule. audio_policy says plainly that an
+# unset flag is OFF, so a deployment gains a surface deliberately. Live
+# Lab and Studio are the opposite: both are ON unless a deployment turns
+# them off, because both work and hiding them behind a variable nobody
+# had been told about only meant the owner could not find his own rig.
+#
+# Reading them with audio_policy.flag() reported Live Lab and Studio as
+# Off on a deployment where both were running. So each one is asked of
+# the module that owns it, which is the same lesson the Signal rows
+# taught: the authority answers, this page does not re-derive.
+def _other_flags():
+    import audio_policy as _ap
+    import live as _live
+    import studio_config as _studio
+
+    return [
+        {"name": "Lyric sheet", "on": _try(lambda: _ap.flag("LYRIC_SHEET_ENABLED")),
+         "env": ["LYRIC_SHEET_ENABLED"], "flag": True,
+         "unlocks": "Pulling the words up off a master in Audio Studio. "
+                    "Off unless set, like the rest of the audio lanes."},
+        {"name": "Live Lab", "on": _try(_live.enabled),
+         "env": ["LIVE_LAB_ENABLED"], "flag": True,
+         "unlocks": "The set list, the stems and the stage view. ON unless "
+                    "LIVE_LAB_ENABLED is set to 0 - an empty reading here "
+                    "means running, not missing."},
+        {"name": "Studio", "on": _try(_studio.enabled),
+         "env": ["STUDIO_V1_ENABLED", "STUDIO_ENABLED"], "flag": True,
+         "unlocks": "The Studio session surface. ON unless explicitly "
+                    "switched off, and either variable name turns it off."},
+    ]
 
 
 def _flags():
@@ -221,12 +244,7 @@ def _groups():
                  proof="reports the key length and whether it carries stray "
                        "quotes or whitespace - the three things that "
                        "silently break a pasted secret"),
-        ] + _flags() + [
-            dict(name=label.replace("_ENABLED", "").replace("_", " ").capitalize(),
-                 on=audio_policy.flag(label), env=[label], flag=True,
-                 unlocks=why)
-            for label, why in OTHER_FLAGS
-        ]),
+        ] + _flags() + _other_flags()),
         ("Live and tour", "Ticket counts, venues and maps.", [
             dict(name="Eventbrite", on=_try(eventbrite_provider.configured),
                  env=["EVENTBRITE_TOKEN"],

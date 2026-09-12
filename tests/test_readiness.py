@@ -231,3 +231,41 @@ def test_a_signal_provider_needs_its_flag_as_well_as_its_key(monkeypatch):
 
     monkeypatch.setenv("SONGSTATS_ENABLED", "1")
     assert _row("Songstats")["on"] is True
+
+
+def test_a_default_on_flag_is_not_reported_off_when_unset(monkeypatch):
+    """Not every flag is off until set, and assuming so was wrong twice.
+
+    audio_policy.FLAGS genuinely are: an unset flag is OFF there, so a
+    deployment gains a surface deliberately. Live Lab and Studio are the
+    reverse - both are ON unless a deployment sets the variable to 0,
+    because both work and hiding them behind a variable nobody had been
+    told about only meant the owner could not find his own rig.
+
+    Reading them with audio_policy.flag() reported both as Off on a
+    deployment where both were running, which would have sent somebody
+    to the dashboard to switch on what was already on. Each is asked of
+    the module that owns it now.
+    """
+    monkeypatch.delenv("LIVE_LAB_ENABLED", raising=False)
+    monkeypatch.delenv("STUDIO_V1_ENABLED", raising=False)
+    monkeypatch.delenv("STUDIO_ENABLED", raising=False)
+    assert _row("Live Lab")["on"] is True, "unset means running for Live Lab"
+    assert _row("Studio")["on"] is True, "and for Studio"
+
+    monkeypatch.setenv("LIVE_LAB_ENABLED", "0")
+    assert _row("Live Lab")["on"] is False, "an explicit 0 does switch it off"
+
+    # And the audio lanes keep the opposite rule.
+    monkeypatch.delenv("LYRIC_SHEET_ENABLED", raising=False)
+    assert _row("Lyric sheet")["on"] is False, "unset means off for a lane"
+
+
+def test_each_flag_row_agrees_with_the_module_that_owns_it():
+    """The page must not hold a second opinion about a flag."""
+    import live as live_mod
+    import studio_config
+
+    assert _row("Live Lab")["on"] is bool(live_mod.enabled())
+    assert _row("Studio")["on"] is bool(studio_config.enabled())
+
