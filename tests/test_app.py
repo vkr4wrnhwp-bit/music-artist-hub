@@ -6110,7 +6110,7 @@ def test_backup_run_is_gated_and_records_every_outcome(monkeypatch):
     monkeypatch.setenv("BACKUP_S3_SECRET", "sekrit")
     # A wrong token gets no further than no token at all.
     assert anon.post("/backup/run",
-                     headers={"X-Backup-Token": "wrong"}).status_code in (302, 404)
+                     headers={"X-Backup-Token": "wrong"}).status_code == 403
     # And the right token must get PAST the login wall, or a scheduler
     # would be redirected to /login and the backup would never run.
     probe = anon.post("/backup/run", headers={"X-Backup-Token": "s3cr3t-token"})
