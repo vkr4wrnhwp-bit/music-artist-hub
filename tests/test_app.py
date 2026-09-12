@@ -744,7 +744,7 @@ def test_tier2_pages_render_and_are_in_nav():
     # both answer, and their fronts are in the nav.
     # Contracts are a section of the Vault; the old URL forwards.
     r = client.get("/documents")
-    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault?view=contracts")
     assert client.get("/documents", follow_redirects=True).status_code == 200
     # The calendar is a section of Release Autopilot; the old URL forwards.
     r = client.get("/releases")

@@ -43,7 +43,7 @@ def _upload_doc(client, name="split.pdf", doc_type="Split Agreement", track=""):
 def test_the_documents_page_is_the_contracts_section_of_the_vault():
     client = _fresh_client()
     r = client.get("/documents")
-    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault?view=contracts")
 
 
 def test_empty_vault_shows_no_invented_completeness():

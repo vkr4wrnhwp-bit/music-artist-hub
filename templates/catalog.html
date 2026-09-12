@@ -30,7 +30,16 @@
 {% endmacro %}
 
 {% block content %}
-{{ sb.subnav([("/catalog", "Catalog"), ("/catalog#passports", "Track Passports")], "/catalog") }}
+{{ sb.subnav([("/catalog", "Catalog"), ("/catalog?view=passports", "Track Passports")],
+             "/catalog?view=passports" if view == "passports" else "/catalog") }}
+{#- A tab is a view. "Track Passports" used to be an anchor to a section at
+    the foot of this page, which read as "the tab jumps to the bottom and
+    nothing opens" (2026-09-12). -#}
+{% if view == "passports" %}
+<div class="mx-auto max-w-[1100px] space-y-5">
+  {% if catalog_user %}{% include "_catalog_passports.html" %}{% endif %}
+</div>
+{% else %}
 <style>
   /* The remove control is revealed by hover, which a touch screen cannot
      do - so on a device with no hover it is simply always there. Keeping
@@ -574,6 +583,7 @@
     </form>
   </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

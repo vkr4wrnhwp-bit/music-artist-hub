@@ -43,7 +43,7 @@ def artist(application):
 def test_the_track_list_forwards_to_the_catalog_section(artist):
     r = artist["client"].get("/tracks")
     assert r.status_code == 302
-    assert r.headers["Location"].endswith("/catalog#passports")
+    assert r.headers["Location"].endswith("/catalog?view=passports")
     r = appmod.app.test_client().get("/tracks")
     assert r.status_code == 302 and "/login" in r.headers["Location"]
 
@@ -145,7 +145,7 @@ def test_removing_from_either_side_removes_the_song(artist):
     c.post("/catalog/add", json={"title": "Gone Two", "artist": "Tier C"})
     ct = [t for t in store.get_catalog_tracks(artist["uid"]) if t["title"] == "Gone Two"][0]
     r = c.post("/tracks/%s/delete" % ct["passport_track_id"])
-    assert r.status_code == 302 and r.headers["Location"].endswith("/catalog#passports")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/catalog?view=passports")
     assert not [t for t in store.get_catalog_tracks(artist["uid"]) if t["title"] == "Gone Two"]
 
 
@@ -247,9 +247,9 @@ def _doc(client, name="split.pdf", doc_type="Split Agreement", track="", where="
 
 def test_the_documents_page_forwards_to_the_contracts_section(artist):
     r = artist["client"].get("/documents")
-    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault?view=contracts")
     body = artist["client"].get("/vault").get_data(as_text=True)
-    assert 'id="contracts"' in body and 'href="/vault#contracts"' in body
+    assert 'id="contracts"' in body and 'href="/vault?view=contracts"' in body
     assert "Nothing stored yet" in body and "No recordings named yet" in body
 
 
@@ -285,7 +285,7 @@ def test_an_upload_from_the_contracts_section_lands_in_one_store(artist):
     import db as store
     c = artist["client"]
     r = _doc(c, name="producer.pdf", doc_type="Producer Agreement")
-    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault?view=contracts")
     docs = [d for d in store.list_documents(artist["uid"]) if d["filename"] == "producer.pdf"]
     assert len(docs) == 1
     vrows = [v for v in store.list_vault_files(artist["uid"], include_documents=True)
@@ -297,7 +297,7 @@ def test_an_upload_from_the_contracts_section_lands_in_one_store(artist):
     assert body.count('aria-label="Delete producer.pdf"') == 1 and "Producer Agreement" in body
     # The old address still files a document, into the same store.
     r = _doc(c, name="feature.pdf", doc_type="Feature Agreement", where="/documents")
-    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault?view=contracts")
     assert [v for v in store.list_vault_files(artist["uid"], include_documents=True)
             if v["label"] == "feature.pdf"]
     # A bad extension is refused on the vault page, with the reason.
@@ -314,7 +314,7 @@ def test_deleting_from_either_side_removes_the_document_and_its_file(artist):
     a, b = docs["gone-a.pdf"], docs["gone-b.pdf"]
     assert c.get(a["path"]).status_code == 200 and c.get(b["path"]).status_code == 200
     r = c.post("/documents/%s/delete" % a["id"])
-    assert r.status_code == 302 and r.headers["Location"].endswith("/vault#contracts")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/vault?view=contracts")
     c.post("/vault/%s/delete" % b["vault_file_id"])
     names = {d["filename"] for d in store.list_documents(artist["uid"])}
     assert "gone-a.pdf" not in names and "gone-b.pdf" not in names

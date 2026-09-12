@@ -2046,6 +2046,7 @@ def create_app():
                                     "date_added": (t.get("added") or "")[:10],
                                     "status": "Registered" if (t.get("meta") or {}).get("isrc") else "Pending"}
                                    for t in tracks[:5]]
+        ctx["view"] = "passports" if request.args.get("view") == "passports" else "catalog"
         return render_template("catalog.html", active_page="catalog", **ctx)
 
     def _passport_section(user, my_tracks):
@@ -2127,8 +2128,10 @@ def create_app():
     def _discogs_back(user, track_id):
         """Where a lookup lands: the catalog section for a plan that has
         the Catalog page, the passports page for one that has not."""
-        base, _hash, frag = _passports_home(user).partition("#")
-        return "%s?discogs=%s#%s" % (base, track_id, frag or "passports")
+        home = _passports_home(user)
+        if "?" in home:                       # the catalog's passports view
+            return "%s&discogs=%s" % (home, track_id)
+        return "%s?discogs=%s#passports" % (home, track_id)
 
     def _discogs_query(row):
         """What this song would be looked up by: the artist and title, plus
@@ -4920,7 +4923,7 @@ def create_app():
         if user is None:
             return login_required_redirect()
         if plans.allowed(user.get("plan") or "artist", plans.required_tier("/catalog")):
-            return redirect("/catalog#passports")
+            return redirect("/catalog?view=passports")
         ctx = build_dashboard_context()
         ctx["my_tracks"] = store.get_catalog_tracks(user["id"])
         ctx.update(_passport_section(user, ctx["my_tracks"]))
@@ -4938,7 +4941,7 @@ def create_app():
         """Where the passport forms land: the catalog section for a plan
         that has the Catalog page, the passports page for one that has not."""
         if plans.allowed(user.get("plan") or "artist", plans.required_tier("/catalog")):
-            return "/catalog#passports"
+            return "/catalog?view=passports"
         return "/tracks"
 
     @app.route("/tracks/import", methods=["POST"])
@@ -8168,6 +8171,8 @@ def create_app():
         contracts_allowed = plans.allowed(user.get("plan") or "artist",
                                           plans.required_tier("/documents"))
         return render_template("vault.html", active_page="vault", items=items,
+                               view=("contracts" if request.args.get("view") == "contracts"
+                                     else "files"),
                                contracts_allowed=contracts_allowed,
                                contracts_tier=plans.required_tier("/documents"),
                                documents_view=(documents_engine.build(user["id"])
@@ -9319,7 +9324,7 @@ def create_app():
                                    plans_list=plans.PLANS,
                                    **build_dashboard_context()), 402
         if request.method != "POST":
-            return redirect("/vault#contracts")
+            return redirect("/vault?view=contracts")
         f = request.files.get("document")
         if f is None or not f.filename:
             return _render_vault(user, doc_error="Choose a file to upload.")
@@ -9336,7 +9341,7 @@ def create_app():
                            doc_type if doc_type in _DOC_TYPES else "Other",
                            (request.form.get("note") or "").strip(),
                            (request.form.get("track") or "").strip())
-        return redirect("/vault#contracts")
+        return redirect("/vault?view=contracts")
 
     @app.route("/documents/<doc_id>/delete", methods=["POST"])
     @app.route("/vault/documents/<doc_id>/delete", methods=["POST"])
@@ -9348,7 +9353,7 @@ def create_app():
         if path and (blob_store.is_remote(path)
                      or path.startswith(("/uploads/doc_", "/uploads/vault_"))):
             blob_store.remove(path, uploads_dir=UPLOADS_DIR)
-        return redirect("/vault#contracts")
+        return redirect("/vault?view=contracts")
 
     @app.route("/identifiers")
     def identifiers():
