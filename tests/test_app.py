@@ -535,9 +535,13 @@ def test_catalog_right_column_and_recently_added():
 
 
 def test_catalog_includes_add_release_and_filters():
+    """The add-release control used to be a modal that announced a release
+    "created" and stored nothing; it is a link to the passports view now,
+    where the add-track form carries the release field (2026-09-12)."""
     client = _demo()
     body = client.get("/catalog").get_data(as_text=True)
-    assert 'id="add-release-modal"' in body
+    assert 'id="add-release-modal"' not in body
+    assert "Add a track" in body and 'href="/catalog?view=passports"' in body
     assert 'id="status-filter"' in body
     assert 'id="genre-filter"' in body
     assert 'id="source-filter"' in body
