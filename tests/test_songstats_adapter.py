@@ -127,3 +127,70 @@ def test_soundcharts_still_wins_the_capabilities_they_share():
     and playlists with nothing announcing it."""
     keys = [a.key for a in sp.ProviderRegistry().adapters]
     assert keys.index("soundcharts") < keys.index("songstats")
+
+
+# --- tracks: the two-hop lookup -----------------------------------------------
+
+ISRC = "GBWUL2686921"
+
+
+def _two_hop(search=None, info=None, monkeypatch=None):
+    """A fetch that answers the search and the info hops by URL."""
+    def fetch(url):
+        if "/tracks/search" in url and "q=" in url:
+            return search
+        if "/tracks/info" in url and "songstats_track_id=" in url:
+            return info
+        return {}          # the probe's other guesses: answered, empty
+    return sp.SongstatsAdapter(fetch=fetch)
+
+
+@pytest.fixture
+def keyed(monkeypatch):
+    monkeypatch.setenv("SONGSTATS_ENABLED", "1")
+    monkeypatch.setenv("SONGSTATS_API_KEY", "k")
+
+
+SEARCH_HIT = {"result": "success", "results": [
+    {"songstats_track_id": "st_1", "title": "Hungry Gods",
+     "artists": [{"name": "King 810"}], "site_url": "https://songstats/x"}]}
+
+
+def test_the_lookup_is_search_then_info_and_the_isrc_must_match(keyed):
+    info = {"result": {"isrc": "GBWUL2686921",
+                       "links": {"anghami": "https://anghami/x", "pandora": "https://pandora/x"}}}
+    links, note = _two_hop(SEARCH_HIT, info).track_platforms(ISRC)
+    assert links == {"anghami": "https://anghami/x", "pandora": "https://pandora/x"}
+    assert note == ""
+
+
+def test_a_match_that_states_another_isrc_is_not_used(keyed):
+    info = {"result": {"isrc": "USXX12345678", "links": {"anghami": "https://anghami/other"}}}
+    links, note = _two_hop(SEARCH_HIT, info).track_platforms(ISRC)
+    assert links == {}
+    assert "Hungry Gods by King 810" in note and "USXX12345678" in note and "not used" in note
+
+
+def test_a_match_that_states_no_isrc_is_reported_not_trusted(keyed):
+    """A wrong recording's stores, in a letter to a distributor, is the
+    one thing this must never produce. Until the info payload is known
+    to carry the code, a nameless match is a note, not a finding."""
+    info = {"result": {"links": {"anghami": "https://anghami/x"}}}
+    links, note = _two_hop(SEARCH_HIT, info).track_platforms(ISRC)
+    assert links == {}
+    assert "did not state its ISRC" in note
+
+
+def test_no_search_hit_is_a_plain_note(keyed):
+    links, note = _two_hop({"result": "success", "results": []}, {}).track_platforms(ISRC)
+    assert links == {} and "found no track" in note
+
+
+def test_the_probe_records_the_second_hop(keyed):
+    info = {"result": {"isrc": "GBWUL2686921", "links": {}}}
+    out = _two_hop(SEARCH_HIT, info).probe_track(ISRC)
+    hop = [e for e in out if e["path"].startswith("/tracks/search?q")][0]
+    assert hop["songstats_track_id"] == "st_1"
+    assert hop["matched_title"] == "Hungry Gods" and hop["matched_artists"] == "King 810"
+    assert hop["stated_isrc"] == "GBWUL2686921"
+    assert "info_result_keys" in hop

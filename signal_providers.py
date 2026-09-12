@@ -1046,21 +1046,109 @@ class SongstatsAdapter(_EnvProvider):
                 entry["type"] = type(payload).__name__
             entry["answered"] = True
             out.append(entry)
+        # The two-hop lookup the live probe of 2026-09-12 pointed at:
+        # /tracks/search?q=<isrc> answers with a songstats_track_id, and
+        # /tracks/info wants that id. Recorded with what it matched and
+        # which keys the info carries, so the ISRC rule below can be
+        # judged against the real shape rather than guessed.
+        hop = {"path": "/tracks/search?q -> /tracks/info?songstats_track_id"}
+        try:
+            track_id, title, artists, note = self._track_from_search(isrc)
+            hop.update({"matched_title": title, "matched_artists": artists})
+            if not track_id:
+                hop["error"] = note
+            else:
+                hop["songstats_track_id"] = track_id
+                info = self._get("/tracks/info", songstats_track_id=track_id)
+                if isinstance(info, dict):
+                    hop["info_top_level_keys"] = sorted(str(k) for k in list(info)[:14])
+                    for wrapper in ("track", "data", "result", "track_info"):
+                        inner = info.get(wrapper)
+                        if isinstance(inner, dict):
+                            hop["info_%s_keys" % wrapper] = sorted(str(k) for k in list(inner)[:20])
+                    hop["stated_isrc"] = self._isrc_in(self._unwrap(info)) or ""
+                hop["answered"] = True
+        except ProviderError as exc:
+            hop["error"] = str(exc)[:140]
+        out.append(hop)
         return out
 
+    @staticmethod
+    def _unwrap(payload):
+        """The track itself, whether the envelope wraps it or is it."""
+        track = payload
+        for wrapper in ("track", "data", "result"):
+            inner = payload.get(wrapper)
+            if isinstance(inner, dict):
+                return inner
+            if isinstance(inner, list) and inner and isinstance(inner[0], dict):
+                return inner[0]
+        return track
+
+    @staticmethod
+    def _isrc_in(track):
+        """The ISRC the payload states for this track, normalised, or ""."""
+        for holder in (track, track.get("track_info") if isinstance(track.get("track_info"), dict) else {}):
+            for key in ("isrc", "isrcs"):
+                value = holder.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip().upper().replace("-", "")
+                if isinstance(value, list):
+                    for v in value:
+                        if isinstance(v, str) and v.strip():
+                            return v.strip().upper().replace("-", "")
+        return ""
+
+    def _track_from_search(self, isrc):
+        """(songstats_track_id, title, artists, note) for the first match.
+
+        Songstats has no ISRC parameter; its search takes the code as the
+        query and answers with the track's own id. What it matched is
+        returned beside the id so the caller can say so.
+        """
+        payload = self._get("/tracks/search", q=isrc) or {}
+        results = payload.get("results") if isinstance(payload, dict) else None
+        if not isinstance(results, list) or not results or not isinstance(results[0], dict):
+            return "", "", "", "Songstats found no track for %s" % isrc
+        first = results[0]
+        artists = first.get("artists")
+        if isinstance(artists, list):
+            artists = ", ".join((a.get("name") or "") if isinstance(a, dict) else str(a)
+                                for a in artists)
+        return (str(first.get("songstats_track_id") or ""), str(first.get("title") or ""),
+                str(artists or ""), "")
+
     def track_platforms(self, isrc):
-        """({platform: url}, note). Empty dict means nothing was learned."""
+        """({platform: url}, note). Empty dict means nothing was learned.
+
+        Two hops, and a rule: the info payload has to state the ISRC we
+        asked about. A search by code that lands on a different recording
+        would otherwise turn into "Anghami carries it" about the wrong
+        song, in a letter to a distributor - the one thing this must never
+        do. A payload that states no ISRC is reported, not trusted.
+        """
         isrc = (isrc or "").strip().upper().replace("-", "")
         if not isrc:
             return {}, "no ISRC"
         if not self.configured():
             return {}, "Songstats is not configured on this deployment"
         try:
-            payload = self._get("/tracks/info", isrc=isrc) or {}
+            track_id, title, artists, note = self._track_from_search(isrc)
+            if not track_id:
+                return {}, note
+            payload = self._get("/tracks/info", songstats_track_id=track_id) or {}
         except ProviderError as exc:
             return {}, str(exc)[:160]
         if not isinstance(payload, dict):
             return {}, "Songstats sent something unreadable"
+        who = "%s by %s" % (title or "an untitled track", artists or "an unnamed artist")
+        stated = self._isrc_in(self._unwrap(payload))
+        if not stated:
+            return {}, ("Songstats matched %s but did not state its ISRC, so it was not used"
+                        % who)
+        if stated != isrc:
+            return {}, ("Songstats matched %s, whose ISRC is %s, not %s; not used"
+                        % (who, stated, isrc))
 
         # Their envelope might be the track itself or wrap it.
         track = payload
