@@ -9539,6 +9539,25 @@ def create_app():
         return render_template("notifications_real.html", active_page="notifications",
                                items=items, **build_dashboard_context())
 
+    @app.route("/notifications/<int:notification_id>/dismiss", methods=["POST"])
+    def notification_dismiss(notification_id):
+        """Reported live: a notification, once read, could never be removed.
+        Scoped to the account in the DELETE itself, so a guessed id belonging
+        to somebody else removes nothing."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_notification(user["id"], notification_id)
+        return redirect(url_for("notifications"))
+
+    @app.route("/notifications/clear", methods=["POST"])
+    def notifications_clear():
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.clear_notifications(user["id"])
+        return redirect(url_for("notifications"))
+
     @app.route("/tax")
     def tax():
         user = current_user()

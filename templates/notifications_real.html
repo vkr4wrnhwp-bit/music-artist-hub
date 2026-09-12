@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Notifications - Street Banker{% endblock %}
 
@@ -17,16 +18,23 @@
   </div>
 
   {% if items %}
+  <form method="post" action="{{ url_for('notifications_clear') }}" class="flex justify-end"
+        onsubmit="return confirm('Clear every notification? They do not come back.');">
+    {{ sb.btn("Clear all", variant="secondary", size="sm", type="submit") }}
+  </form>
   <div class="space-y-2">
     {% for n in items %}
-    <a href="{{ n.link or '#' }}" class="flex items-start gap-3 rounded-xl border {{ 'border-sb-gold/30 bg-sb-surface-2' if not n.is_read else 'border-white/5 bg-sb-surface-1 opacity-75' }} p-4 transition-colors hover:border-sb-gold/50">
+    <div class="flex items-start gap-3 rounded-xl border {{ 'border-sb-gold/30 bg-sb-surface-2' if not n.is_read else 'border-white/5 bg-sb-surface-1 opacity-75' }} p-4 transition-colors hover:border-sb-gold/50">
       <span class="mt-0.5 shrink-0 rounded-md px-2 py-1 text-xs font-bold uppercase {{ kind_tone.get(n.kind, 'bg-white/10 text-gray-300') }}">{{ n.kind }}</span>
-      <span class="min-w-0 flex-1">
+      <a href="{{ n.link or '#' }}" class="min-w-0 flex-1">
         <span class="block text-sm font-semibold text-gray-100">{{ n.title }}</span>
         {% if n.body %}<span class="block text-xs text-gray-300">{{ n.body }}</span>{% endif %}
-      </span>
+      </a>
       <span class="shrink-0 text-xs sb-num text-gray-300 font-medium">{{ n.created[:16].replace('T', ' ') }}</span>
-    </a>
+      <form method="post" action="{{ url_for('notification_dismiss', notification_id=n.id) }}" class="shrink-0">
+        {{ sb.btn("Dismiss", variant="secondary", size="sm", type="submit", aria_label="Dismiss: " ~ n.title) }}
+      </form>
+    </div>
     {% endfor %}
   </div>
   {% else %}

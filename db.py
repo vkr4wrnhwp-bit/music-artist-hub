@@ -4037,6 +4037,19 @@ def mark_notifications_read(user_id):
     with get_db() as db:
         db.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (user_id,))
 
+
+def delete_notification(user_id, notification_id):
+    """One row, and only if it is this account's. Returns whether a row went."""
+    with get_db() as db:
+        cur = db.execute("DELETE FROM notifications WHERE id = ? AND user_id = ?",
+                         (int(notification_id), user_id))
+    return cur.rowcount > 0
+
+
+def clear_notifications(user_id):
+    with get_db() as db:
+        db.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+
 # --- Documents vault -----------------------------------------------------------
 
 def add_document(user_id, filename, path, doc_type, note="", track=""):
