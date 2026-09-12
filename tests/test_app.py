@@ -365,16 +365,23 @@ def test_overview_includes_earnings_trend():
 
 
 def test_royalties_page_matches_tracking_dashboard():
+    """The page's furniture, which is true in every state.
+
+    The tile NAMES are deliberately not asserted here. They depend on
+    whether the account has statements: an account with its own uploads
+    gets tiles built from them, and only the showcase account with none
+    gets the illustrative four. This test used the shared demo login,
+    which other tests upload statements to, so asserting "Payouts
+    Received" made it pass or fail on the order the suite happened to
+    run in. tests/test_royalties_page.py covers both states explicitly.
+    """
     client = _demo()
     body = client.get("/royalties").get_data(as_text=True)
     assert "Track every royalty stream in one place." in body
-    assert "Total Royalties" in body
-    assert "Payouts Received" in body
-    assert "Pending Payouts" in body
-    assert "Platforms Connected" in body
     assert "Royalties by Source" in body
     assert 'id="royaltiesChart"' in body
     assert 'id="export-btn"' in body
+    assert 'id="royalties-range"' in body
 
 
 def test_connections_true_status_board(monkeypatch):

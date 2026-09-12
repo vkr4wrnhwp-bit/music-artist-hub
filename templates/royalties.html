@@ -12,9 +12,6 @@
 
 <div class="mx-auto max-w-6xl space-y-6">
 
-  {% set band_mode = 'royalties' %}
-  {% include "_real_royalty_band.html" %}
-
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
       <h1 class="sb-h1">Royalties</h1>
@@ -23,16 +20,24 @@
     <div class="flex flex-wrap items-center gap-2">
       <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-sb-surface-1 px-3 py-2 text-sm text-gray-200">
         <svg class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v3M13 2v3"/></svg>
-        <select id="royalties-range" class="bg-transparent font-medium focus:outline-none [color-scheme:dark]">
-          <option>This month</option>
-          <option>Last 3 months</option>
-          <option>Last 6 months</option>
+        {#- Was "This month / Last 3 months / Last 6 months" with no
+            listener anywhere: three options that did nothing on a money
+            page. A statement period is a label the distributor chose, not
+            a rolling window this app can compute, so it lists the ones on
+            file. -#}
+        <select id="royalties-range" class="bg-transparent font-medium focus:outline-none [color-scheme:dark]"
+                {{ 'disabled' if not roy_periods }}>
+          <option value="">{{ 'All periods' if roy_periods else 'No statements yet' }}</option>
+          {% for p in roy_periods %}
+          <option value="{{ p }}" {{ 'selected' if roy_period == p }}>{{ p }}</option>
+          {% endfor %}
         </select>
       </div>
       <select id="platform-filter" class="rounded-lg border border-white/10 bg-sb-surface-1 px-3 py-2 text-sm text-gray-200 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
         <option value="all">All Platforms</option>
-        {% for row in ov.by_source %}
-        <option value="{{ row.name }}">{{ row.name }}</option>
+        {% for row in (real_royalty.by_source if real_royalty else ov.by_source) %}
+        {% set nm = row.source if real_royalty else row.name %}
+        <option value="{{ nm }}">{{ nm }}</option>
         {% endfor %}
       </select>
       <button type="button" id="export-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
@@ -42,6 +47,12 @@
     </div>
   </div>
 
+  {% set band_mode = 'royalties' %}
+  {% include "_real_royalty_band.html" %}
+
+  {% if roy %}
+  {% include "partials/royalty_tiles.html" %}
+  {% elif is_showcase %}
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
     <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
       <div class="sb-label text-gray-300">Total Royalties</div>
@@ -94,6 +105,16 @@
       </div>
     </a>
   </div>
+  {% else %}
+  {#- No statements and not the showcase: the honest answer is that
+      nothing has been uploaded, not four tiles of somebody else's
+      numbers. -#}
+  <div class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">
+    <div class="sb-label text-sb-gold-bright">Nothing to report yet</div>
+    <p class="mt-2 max-w-2xl text-sm text-gray-200">This page reads your own distributor and PRO statements. Upload one and the figures here are yours - earnings by store, by track, and by period.</p>
+    <a href="/statements" class="sb-btn sb-btn-primary mt-3 inline-block">Upload a statement</a>
+  </div>
+  {% endif %}
 
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
     <section id="royalties-by-source" class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
@@ -141,6 +162,27 @@
         <h2 class="sb-label text-gray-300">Earnings Trend</h2>
       </div>
       <div class="mt-3"><canvas id="royaltiesChart" height="150"></canvas></div>
+      {#- ov.this_month, ov.last_month and ov.growth come from
+          royalty_data's invented earnings trend, which is not gated on the
+          showcase account - so a real artist saw "$3,200.00 this month"
+          and "up 14.3%" under a chart of their own uploaded figures. The
+          artist's own periods go here instead. -#}
+      {% if roy %}
+      <div class="mt-4 grid gap-2 border-t border-white/5 pt-4 text-center {{ 'grid-cols-3' if roy.change is not none else 'grid-cols-2' }}">
+        {% for label, value in roy.trend[:2] %}
+        <div>
+          <div class="text-lg font-bold tabular-nums">${{ "{:,.2f}".format(value) }}</div>
+          <div class="text-xs uppercase tracking-widest text-gray-300 font-medium">{{ label }}</div>
+        </div>
+        {% endfor %}
+        {% if roy.change is not none %}
+        <div>
+          <div class="text-lg font-bold {{ 'text-green-400' if roy.change >= 0 else 'text-red-400' }} tabular-nums">{{ '↑' if roy.change >= 0 else '↓' }} {{ "%.1f"|format(roy.change|abs) }}%</div>
+          <div class="text-xs uppercase tracking-widest text-gray-300 font-medium">Change</div>
+        </div>
+        {% endif %}
+      </div>
+      {% elif is_showcase %}
       <div class="mt-4 grid grid-cols-3 gap-2 border-t border-white/5 pt-4 text-center">
         <div>
           <div class="text-lg font-bold tabular-nums">${{ "{:,.2f}".format(ov.this_month) }}</div>
@@ -155,9 +197,16 @@
           <div class="text-xs uppercase tracking-widest text-gray-300 font-medium">Growth</div>
         </div>
       </div>
+      {% endif %}
     </section>
   </div>
 
+  {% if is_showcase %}
+  {#- Every figure in this calendar is invented - the payout dates and
+      amounts for The MLC, BMI, ASCAP and SoundExchange are fixtures.
+      Street Banker has no payout schedule to read, so a real account
+      gets nothing here rather than a plausible fiction about money
+      arriving on a date. -#}
   <section id="payout-calendar" class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
     <div class="flex items-center justify-between">
       <h2 class="sb-label text-gray-300">Payout Calendar</h2>
@@ -184,6 +233,7 @@
       {% endfor %}
     </div>
   </section>
+  {% endif %}
 </div>
 {% endblock %}
 
@@ -213,6 +263,17 @@
       },
     },
   });
+
+  // The period picker reloads with the chosen period; the route filters
+  // the statement rows and every figure on the page follows.
+  (function () {
+    var range = document.getElementById("royalties-range");
+    if (!range || range.disabled) return;
+    range.addEventListener("change", function (e) {
+      var v = e.target.value;
+      window.location.search = v ? "?period=" + encodeURIComponent(v) : "";
+    });
+  })();
 
   document.getElementById("platform-filter").addEventListener("change", (e) => {
     const val = e.target.value;

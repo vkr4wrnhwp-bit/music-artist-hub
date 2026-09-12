@@ -1,0 +1,47 @@
+{#- The four tiles at the top of /royalties, for an account with its own
+    statements.
+
+    What they replace: Total Royalties from `balances` (gated on the
+    showcase account, so $0.00), beside a change percentage from an
+    invented earnings trend, "Payouts Received" from invented payout
+    rows, and a count of connected platforms nobody had connected. Zero
+    with "up 14.3% vs last month" next to it is not internally coherent,
+    and it sat directly above the artist's own by-source table.
+
+    Payouts are not here because Street Banker has no payout schedule -
+    no table, no feed, no distributor API. Two questions this page can
+    actually answer take that slot. -#}
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
+    <div class="sb-label text-gray-300">Reported earnings</div>
+    <div class="mt-3 text-2xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(roy.total) }}</div>
+    <div class="mt-1 text-xs text-gray-300">From {{ "{:,}".format(roy.rows) }} statement rows you uploaded.</div>
+  </div>
+
+  <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
+    <div class="sb-label text-gray-300">Change on the period before</div>
+    {% if roy.change is not none %}
+    <div class="mt-3 text-2xl font-bold tracking-tight tabular-nums {{ 'text-green-400' if roy.change >= 0 else 'text-red-400' }}">{{ '+' if roy.change >= 0 else '' }}{{ "%.1f"|format(roy.change) }}%</div>
+    <div class="mt-1 text-xs text-gray-300">{{ roy.trend[0][0] }} against {{ roy.trend[1][0] }}.</div>
+    {% else %}
+    {#- One period cannot be compared to anything, and more than two would
+        need the periods sorted chronologically rather than by label. -#}
+    <div class="mt-3 text-2xl font-bold tracking-tight text-gray-300">Not measured</div>
+    <div class="mt-1 text-xs text-gray-300">{{ 'Upload a second period to compare.' if roy.periods < 2 else 'Shown when exactly two periods are on file.' }}</div>
+    {% endif %}
+  </div>
+
+  <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
+    <div class="sb-label text-gray-300">Stores that paid you</div>
+    <div class="mt-3 text-2xl font-bold tracking-tight tabular-nums">{{ roy.sources }}</div>
+    <div class="mt-1 text-xs text-gray-300">Named on your statements, not a connection count.</div>
+  </div>
+
+  <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
+    <div class="sb-label text-gray-300">Periods on file</div>
+    <div class="mt-3 text-2xl font-bold tracking-tight tabular-nums">{{ roy.periods }}</div>
+    <div class="mt-1 text-xs text-gray-300">
+      {% if roy.trend %}{{ roy.trend | map(attribute=0) | join(', ') }}{% else %}Upload a statement to begin.{% endif %}
+    </div>
+  </div>
+</div>

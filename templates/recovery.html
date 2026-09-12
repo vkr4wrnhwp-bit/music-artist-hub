@@ -13,6 +13,18 @@
     <p class="mt-1 max-w-2xl text-sm text-gray-200">Every finding on this page is computed from the statements you uploaded. Nothing is sampled, assumed, or carried over from another account.</p>
   </div>
 
+  {#- "Create recovery action" used to redirect back here and say nothing,
+      so the action was made and the page looked unchanged. -#}
+  {% if request.args.get('action') %}
+  <div class="rounded-2xl border border-green-500/30 bg-green-500/10 px-4 py-3">
+    <div class="text-sm font-bold text-green-400">Action created</div>
+    <p class="mt-1 text-sm text-gray-200">
+      &ldquo;{{ request.args.get('action') }}&rdquo; is on your
+      <a href="/actions" class="font-semibold text-sb-gold-bright underline">Actions</a> list.
+    </p>
+  </div>
+  {% endif %}
+
   {# The MLC, per ISRC, on request. Shown whether or not statements exist:
      a registry gap needs no statement to be real. #}
   {% if mlc %}

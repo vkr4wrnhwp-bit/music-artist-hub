@@ -1833,10 +1833,68 @@ def create_app():
     def dashboard():
         return redirect("/overview")
 
+    def _royalty_tiles(summary):
+        """The four tiles at the top of /royalties, from the account's own
+        statements.
+
+        They used to come from get_royalties_overview(), which takes five
+        inputs of which only `balances` was gated on the showcase account.
+        So a real artist saw "Total Royalties $0.00" - correct, balances
+        were empty - beside "up 14.3% vs last month" from an invented
+        earnings trend, "Payouts Received $720.40" from invented payout
+        rows, and a calendar of payouts from The MLC, BMI, ASCAP and
+        SoundExchange that nobody had scheduled. Zero with a growth rate
+        beside it is not even internally coherent, and it sat directly
+        under the real by-source table built from their own upload.
+
+        Payouts are absent on purpose. Street Banker has no payout
+        schedule - no table, no feed, no distributor API - so there is
+        nothing honest to put in that tile. Two tiles this page CAN
+        answer take its place: how many stores paid, and how many periods
+        are on file.
+        """
+        if not summary:
+            return None
+        trend = summary.get("monthly_trend") or []
+        # build_royalty_summary sorts periods by their label, which for
+        # "JUN-26"/"MAY-26" is alphabetical rather than chronological, so
+        # the newest is not reliably last. Change is only offered when
+        # exactly two periods make the comparison unambiguous.
+        change = None
+        if len(trend) == 2:
+            latest, previous = trend[0][1], trend[1][1]
+            if previous:
+                change = round((latest - previous) / previous * 100, 1)
+        return {
+            "total": summary.get("total") or 0.0,
+            "change": change,
+            "periods": summary.get("period_count") or 0,
+            "sources": summary.get("source_count") or 0,
+            "rows": summary.get("row_count") or 0,
+            "trend": trend,
+        }
+
     @app.route("/royalties")
     def royalties():
+        # The period control used to read "This month / Last 3 months /
+        # Last 6 months" and had no listener anywhere - three options that
+        # did nothing, on a money page. It lists the periods actually on
+        # file now and filters to one, because a statement period is a
+        # label a distributor chose ("JUN-26"), not a rolling window this
+        # app can compute.
+        user = current_user()
+        rows = store.get_statement_rows(user["id"]) if user else []
+        periods = sorted({(r["period"] or "").strip() for r in rows if r["period"]})
+        chosen = (request.args.get("period") or "").strip()
+        if chosen and chosen in periods:
+            rows = [r for r in rows if (r["period"] or "").strip() == chosen]
+        else:
+            chosen = ""
+        summary = build_royalty_summary(rows) if rows else None
         return render_template("royalties.html", active_page="royalties",
-                               real_royalty=_real_royalty(),
+                               real_royalty=summary,
+                               roy=_royalty_tiles(summary),
+                               roy_periods=periods, roy_period=chosen,
                                **build_dashboard_context())
 
     @app.route("/catalog")
@@ -4028,10 +4086,21 @@ def create_app():
         if user is None:
             return login_required_redirect()
         f = request.form
-        cc.create_action(user["id"], (f.get("title") or "").strip()[:200],
+        title = (f.get("title") or "").strip()[:200]
+        cc.create_action(user["id"], title,
                          category=f.get("category") or "general", priority="high",
                          description=(f.get("description") or "").strip())
-        return redirect(request.referrer or "/command-center")
+        # It used to redirect to the referrer and say nothing, so pressing
+        # "Create recovery action" put you back on the page you were
+        # already on with no sign anything had happened - the action was
+        # created and invisible. Back to the same page, because an artist
+        # reviewing findings usually creates several, but carrying a
+        # confirmation and a way to the thing that was made.
+        back = request.referrer or "/command-center"
+        mark = "&" if "?" in back.split("#")[0] else "?"
+        head, _, frag = back.partition("#")
+        target = "%s%saction=%s" % (head, mark, urllib.parse.quote(title[:60]))
+        return redirect(target + (("#" + frag) if frag else ""))
 
     def _release_checks(user, campaign):
         """Clean-release + autopilot share one derived checklist."""

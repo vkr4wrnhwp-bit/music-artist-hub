@@ -154,6 +154,12 @@ def build(user_id):
             "basis": "Estimate",
             "confidence": "Medium" if corroborating >= 2 else "Low",
             "source": ", ".join(missing),
+            # The LIST, not a string to be split apart again later.
+            # "SoundExchange: Live365 Broadcaster, LLC" contains the very
+            # separator the round trip used, so the breakdown below split
+            # that one store into "SoundExchange: Live365 Broadcaster" and
+            # "LLC" and reported money against both.
+            "missing": list(missing),
             "track": gap["title"],
             "issue_type": "Coverage gap",
             "detail": ('"%s" earns on %d source%s and shows nothing from %s. '
@@ -181,12 +187,30 @@ def build(user_id):
 
     # Where the missing money sits. Unattributed rows are filed under the
     # source that paid them; gaps under the source that is silent.
+    # A gap's estimate is apportioned across the silent stores by what
+    # those stores actually pay, not split equally between them. The equal
+    # split put the same figure against every source a finding named -
+    # eight unrelated stores all reading $117.28 on one real report, which
+    # looks like a computed result and is an artefact of the division.
+    store_pay = {row["source"]: row["amount"] for row in analysis["by_source"]}
+
     by_source = {}
     for f in findings:
-        for name in (f["source"].split(", ") if f["kind"] == "coverage_gap"
-                     else [f["source"]]):
-            share = (f["amount"] / len(f["source"].split(", "))
-                     if f["kind"] == "coverage_gap" else f["amount"])
+        names = f.get("missing") if f["kind"] == "coverage_gap" else [f["source"]]
+        names = [n for n in (names or []) if n]
+        if not names:
+            continue
+        weights = [max(store_pay.get(n, 0.0), 0.0) for n in names]
+        pool = sum(weights)
+        for name, weight in zip(names, weights):
+            if f["kind"] != "coverage_gap":
+                share = f["amount"]
+            elif pool > 0:
+                share = f["amount"] * weight / pool
+            else:
+                # Nothing known about what any of them pays: an equal
+                # split is the only defensible answer, and it is rare.
+                share = f["amount"] / len(names)
             bucket = by_source.setdefault(name, {"source": name, "amount": 0.0,
                                                  "actual": 0.0, "estimated": 0.0})
             bucket["amount"] += share
