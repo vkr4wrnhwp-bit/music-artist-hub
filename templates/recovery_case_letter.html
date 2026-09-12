@@ -25,10 +25,14 @@
 
   <section class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">
     <div class="grid gap-3 sm:grid-cols-2">
-      <div>
-        <div class="sb-label text-gray-300">To</div>
-        <div class="mt-1 text-sm font-semibold text-gray-100">{{ letter.to }}</div>
-      </div>
+      {#- Editable. Symphonic is only this account's distributor today, and
+          a fixed recipient is wrong the moment a track is on a different
+          deal, sub-published, or the letter is going to a label or a PRO
+          instead. -#}
+      <label class="block text-xs text-sb-ink-2">To
+        <input id="letter-to" name="to" type="text" value="{{ letter.to }}" maxlength="80"
+               class="mt-1 w-full rounded-md border border-white/15 bg-black/40 px-3 py-2 text-sm text-gray-100 focus:border-sb-gold focus:outline-none">
+      </label>
       <div>
         <div class="sb-label text-gray-300">Recording</div>
         <div class="mt-1 text-sm font-semibold text-gray-100">
@@ -63,7 +67,7 @@
     </p>
     <form method="post" action="/royalty-recovery/cases/{{ case.id }}/sent" class="mt-3 flex flex-wrap items-end gap-2">
       <label class="block text-xs text-sb-ink-2">Sent to
-        <input name="to" type="text" value="{{ letter.to }}" maxlength="80"
+        <input id="sent-to" name="to" type="text" value="{{ letter.to }}" maxlength="80"
                class="mt-1 w-56 rounded-md border border-white/15 bg-black/40 px-3 py-2 text-sm text-gray-100 focus:border-sb-gold focus:outline-none">
       </label>
       <button class="sb-btn sb-btn-primary">I have sent this</button>
@@ -74,6 +78,15 @@
 
 {% block scripts %}
 <script>
+  /* Whoever the letter is addressed to is who the record should name, so
+     the recipient field drives the one in "Once you have sent it". */
+  (function () {
+    var to = document.getElementById("letter-to");
+    var sent = document.getElementById("sent-to");
+    if (!to || !sent) return;
+    to.addEventListener("input", function () { sent.value = to.value; });
+  })();
+
   document.getElementById("copy-letter").addEventListener("click", async () => {
     const subject = document.getElementById("letter-subject").value;
     const body = document.getElementById("letter-body").value;

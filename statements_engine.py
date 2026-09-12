@@ -46,6 +46,39 @@ _ISRC_COLS = {"isrc", "isrc code", "isrc_code", "recording isrc",
               "track isrc", "isrc/upc"}
 
 
+_MONTHS = ("jan", "feb", "mar", "apr", "may", "jun",
+           "jul", "aug", "sep", "oct", "nov", "dec")
+
+
+def period_year(period):
+    """The calendar year a statement period belongs to, or "" if unknown.
+
+    Distributors write periods however they like, and the Tax Center took
+    the first four characters as the year. That works for "2026-06" and
+    fails silently for Symphonic's "JUN-26", which yields "JUN-" - so a
+    real catalogue's entire income was filed under "Undated", with the
+    $600 reporting threshold evaluated against a bucket that meant nothing.
+
+    Two-digit years read as 20xx. Royalty statements are recent by
+    nature, and a 1926 pressing is not what anybody is uploading.
+    """
+    import re as _re
+
+    text = (period or "").strip().lower()
+    if not text:
+        return ""
+    four = _re.search(r"(19|20)\d{2}", text)
+    if four:
+        return four.group(0)
+    months = "|".join(_MONTHS)
+    two = _re.search(r"(?:^|[^a-z])(?:" + months + r")[a-z]*[^0-9]{0,3}(\d{2})(?![0-9])", text)
+    if two:
+        return "20" + two.group(1)
+    bare = _re.fullmatch(r"(\d{2})", text)
+    if bare:
+        return "20" + bare.group(1)
+    return ""
+
 def _match(headers, aliases):
     for h in headers:
         if h.lower().strip() in aliases:

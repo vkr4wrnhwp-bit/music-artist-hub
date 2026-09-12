@@ -128,7 +128,8 @@ import tour_store
 import artist_identity
 import artist_os
 import hubs as hub_defs
-from statements_engine import (analyze as analyze_statement, parse_statement,
+from statements_engine import (
+period_year,analyze as analyze_statement, parse_statement,
                                build_royalty_summary)
 
 from landing_config import get_landing_config
@@ -9537,9 +9538,12 @@ def create_app():
         rows = store.get_statement_rows(user["id"])
         years = {}
         for r in rows:
-            year = (r.get("period") or "")[:4]
-            if not (len(year) == 4 and year.isdigit()):
-                year = "Undated"
+            # Was (period or "")[:4], which reads "JUN-" out of Symphonic's
+            # "JUN-26" and files a whole catalogue under "Undated" - with
+            # the $600 threshold then evaluated against a bucket that means
+            # nothing. statements_engine.period_year knows the shapes
+            # distributors actually write.
+            year = period_year(r.get("period")) or "Undated"
             y = years.setdefault(year, {"total": 0.0, "sources": {}, "rows": 0})
             y["total"] += r["amount"]
             y["rows"] += 1
