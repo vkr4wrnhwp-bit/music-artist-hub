@@ -73,6 +73,76 @@ def test_a_licence_is_signed_once_by_the_other_side():
         assert store.get_beat_licence_by_token(licence["token"])["signed_by"] == "Ava Kane"
 
 
+def test_a_revoked_licence_cannot_be_signed_by_going_round_the_form():
+    """Revocation was cosmetic, and /cleared repeated the lie.
+
+    sign_beat_licence guarded `status != 'signed'`, which admits
+    'revoked'. The public page did the right thing - hid the form, said
+    "It can no longer be signed here" - and a plain POST to the same
+    address put the row back to signed. A label checking /cleared, the
+    page whose entire job is being checkable by somebody with no
+    account, then saw the beat as licensed.
+
+    So this test does not use the form. It posts.
+    """
+    app_obj = create_app()
+    producer, _ = _account(app_obj, "Producer")
+    with app_obj.app_context():
+        beat = _beat(producer, "Revoked Type Beat")
+        producer.post("/beats/" + beat["id"], data={
+            "action": "licence", "licensee_name": "Ava Kane",
+            "licensee_email": "ava@artist.com", "licence_type": "exclusive",
+            "territory": "Worldwide", "term": "perpetual", "fee": "900",
+            "producer_split": "50", "terms": "One commercial release."})
+        licence = store.list_beat_licences(beat["id"])[0]
+        producer.post("/beats/" + beat["id"], data={
+            "action": "revoke", "licence_id": licence["id"]})
+        assert store.get_beat_licence_by_token(
+            licence["token"])["status"] == "revoked"
+
+    stranger = app_obj.test_client()
+    page = stranger.get("/licence/" + licence["token"]).get_data(as_text=True)
+    assert "This licence was revoked" in page
+    assert "Sign licence" not in page, "the form is gone"
+
+    stranger.post("/licence/" + licence["token"],
+                  data={"signed_by": "Bypasser"})
+    with app_obj.app_context():
+        after = store.get_beat_licence_by_token(licence["token"])
+        assert after["status"] == "revoked", "and posting anyway changes nothing"
+        assert not after["signed_by"]
+        # The document a label checks must not have moved either.
+        summary = producers.beat_summary(beat["id"])
+    assert not summary["signed"] and not summary["exclusive"]
+    cleared = stranger.get("/cleared/" + beat["id"]).get_data(as_text=True)
+    assert "Bypasser" not in cleared
+
+
+def test_an_expired_licence_says_so_and_is_equally_closed():
+    """The other status the old guard let through, and it said nothing
+    at all - the form simply vanished with no explanation."""
+    app_obj = create_app()
+    producer, _ = _account(app_obj, "Producer")
+    with app_obj.app_context():
+        beat = _beat(producer, "Expired Type Beat")
+        producer.post("/beats/" + beat["id"], data={
+            "action": "licence", "licensee_name": "Ava Kane",
+            "licensee_email": "ava@artist.com", "licence_type": "lease",
+            "territory": "Worldwide", "term": "1 year", "fee": "100",
+            "producer_split": "50", "terms": "Non-exclusive."})
+        licence = store.list_beat_licences(beat["id"])[0]
+        store.set_beat_licence_status(_uid(producer), licence["id"], "expired")
+
+    stranger = app_obj.test_client()
+    page = stranger.get("/licence/" + licence["token"]).get_data(as_text=True)
+    assert "This licence has expired" in page
+    assert "Sign licence" not in page
+    stranger.post("/licence/" + licence["token"], data={"signed_by": "Late"})
+    with app_obj.app_context():
+        assert store.get_beat_licence_by_token(
+            licence["token"])["status"] == "expired"
+
+
 def test_the_cleared_page_answers_three_ways():
     """Cleared, not listed, and no-list-yet. The third is the one that
     matters: a producer who has not written the list has not thereby

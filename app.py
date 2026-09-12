@@ -229,7 +229,8 @@ from royalty_data import (
     platform_logo_key,
     recent_payout_rows,
     get_recovery_summary,
-    generate_report,
+    report_type,
+    record_generated_report,
     get_catalog_value_tracker,
     get_claims,
     get_dashboard_story,
@@ -6908,6 +6909,7 @@ def create_app():
                 licence = store.get_beat_licence_by_token(token)
         return render_template("licence_public.html", licence=licence,
                                just_signed=signed,
+                               signable=store.SIGNABLE_LICENCE_STATUSES,
                                type_label=producers.licence_label(
                                    licence["licence_type"]))
 
@@ -9029,9 +9031,28 @@ def create_app():
         offer = next((o for o in data["offers"] if o["id"] == offer_id), None)
         if offer is None:
             return jsonify({"ok": False, "error": "Unknown offer."}), 400
-        # Simulated only: record interest and return a reference. No money
-        # moves and no application is actually submitted.
-        reference = "REQ-" + offer_id.split("-")[-1].upper() + "-" + datetime.today().strftime("%Y%m%d")
+        # No money moves and no application is submitted - the lenders on
+        # this page are examples, and the page says so. What the page also
+        # said was that requesting "records interest", and nothing was
+        # written anywhere: the reference was assembled and returned and
+        # the request dropped. It is recorded now, against the account
+        # that made it, so the sentence is true and the artist can see
+        # later what they asked about.
+        #
+        # The reference took offer_id.split("-")[-1], so offer-royalty-
+        # advance and offer-catalog-advance both produced REQ-ADVANCE-
+        # <date> - two different requests, one reference. It uses the
+        # whole id now.
+        reference = "REQ-%s-%s" % (
+            offer_id.replace("offer-", "", 1).upper().replace("-", ""),
+            datetime.today().strftime("%Y%m%d"))
+        store.notify(user["id"], "recovery",
+                     "Funding interest recorded: %s" % offer["name"],
+                     "Reference %s. Nothing was submitted to a lender - the "
+                     "providers on this page are examples - and no money "
+                     "moves. This is your own note that you looked at it."
+                     % reference,
+                     "/funding")
         return jsonify({"ok": True, "reference": reference, "offer": offer["name"]})
 
     _DOC_TYPES = ["Split Agreement", "Producer Agreement", "Feature Agreement",
@@ -10385,13 +10406,21 @@ def create_app():
         # Build it for real before claiming it exists. When there is no
         # data the honest answer is the reason, not a header-row file -
         # an empty "Missing Money Report" reads as "nothing is missing".
-        report = generate_report(report_id, user["id"])
-        if report is None:
+        #
+        # That was the intent; the order was wrong. The history row went
+        # in first, carrying a filename assembled from the id and today's
+        # date, and only then was the builder asked whether it could make
+        # anything. Six refusals on an account with no statements still
+        # produced six entries under "Recently Generated", every one of
+        # them a 404 on download. So: check the id, build, and only file
+        # what exists - under the name the builder gave it.
+        if report_type(report_id) is None:
             return jsonify({"ok": False, "error": "Unknown report."}), 404
         filename, body, reason = report_builder.build(report_id, user["id"])
         if filename is None:
             return jsonify({"ok": False, "error": reason}), 200
-        report = {**report, "filename": filename, "rows": body.count("\n") - 1,
+        report = record_generated_report(report_id, user["id"], filename)
+        report = {**report, "rows": body.count("\n") - 1,
                   "download": "/reports/%s/download" % report_id}
         return jsonify({"ok": True, "report": report})
 

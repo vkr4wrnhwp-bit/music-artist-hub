@@ -3023,12 +3023,29 @@ def get_beat_licence_by_token(token):
     return dict(row) if row else None
 
 
+# The only states a licence can be signed FROM. Everything else in
+# producers.LICENCE_STATUSES is a finished state, and a finished licence
+# is not a form.
+SIGNABLE_LICENCE_STATUSES = ("draft", "sent")
+
+
 def sign_beat_licence(token, signed_by):
+    """Sign a licence that is still awaiting signature.
+
+    The guard used to read `status != 'signed'`, which admits 'revoked'
+    and 'expired'. Revocation was therefore cosmetic: the public page
+    correctly hid the form and said "It can no longer be signed here",
+    and a plain POST to the same address set the row back to signed -
+    after which /cleared, the page a label or distributor checks, showed
+    the beat as licensed. The refusal the page promises is enforced
+    here, where it cannot be skipped by not using the form.
+    """
     with get_db() as db:
         cur = db.execute(
             "UPDATE beat_licences SET status = 'signed', signed_by = ?,"
-            " signed_at = ? WHERE token = ? AND status != 'signed'",
-            (signed_by[:120], _now(), token))
+            " signed_at = ? WHERE token = ? AND status IN (%s)"
+            % ",".join("?" * len(SIGNABLE_LICENCE_STATUSES)),
+            (signed_by[:120], _now(), token) + SIGNABLE_LICENCE_STATUSES)
         return bool(cur.rowcount)
 
 

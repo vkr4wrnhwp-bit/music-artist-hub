@@ -24,7 +24,7 @@
 
     <!-- Clearance status -->
     <div class="mt-5 rounded-2xl border border-white/10 bg-black/40 p-4">
-      <div class="sb-label text-gray-300">Clearance</div>
+      <div class="sb-label text-gray-300">Clearance &mdash; as stated by the rights holder</div>
       <div class="mt-2 flex flex-wrap gap-2">
         {% for label, status in [('Master', p.master_status), ('Publishing', p.publishing_status)] %}
         <span class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold {{ 'border-green-500/30 bg-green-500/10 text-green-400' if status == 'cleared' else ('border-amber-500/30 bg-amber-500/10 text-amber-400' if status == 'pending' else 'border-white/10 text-gray-300') }}">
@@ -36,6 +36,15 @@
         <span class="rounded-lg bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep px-3 py-1.5 text-xs font-black uppercase text-sb-on-gold">One-Stop</span>
         {% endif %}
       </div>
+      {# These two come from dropdowns on the artist's own form. Nothing
+         here is checked against the Clean Release lockbox, the splits
+         documents or the Metadata Passport, and a supervisor clearing a
+         sync needs to know which of those they are looking at. #}
+      <p class="mt-2 text-xs text-gray-300">
+        Supplied by {{ p.artist_name or 'the rights holder' }}, not verified by
+        {{ brand.name if brand and brand.name else 'Street Banker' }}.
+        Ask for the underlying paperwork before you licence.
+      </p>
       {% if p.ownership_note %}<p class="mt-2 text-xs text-gray-300">{{ p.ownership_note }}</p>{% endif %}
     </div>
 
@@ -66,7 +75,7 @@
     </div>
 
     <footer class="mt-auto pt-10 text-center">
-      <span class="sb-label text-gray-300">Cleared &amp; served by <span class="text-sb-gold-bright">Street Banker</span></span>
+      <span class="sb-label text-gray-300">Served by <span class="text-sb-gold-bright"{% if brand and brand.accent %} style="color: {{ brand.accent }}"{% endif %}>{{ brand.name if brand and brand.name else 'Street Banker' }}</span></span>
     </footer>
   </main>
 

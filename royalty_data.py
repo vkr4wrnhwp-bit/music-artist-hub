@@ -1372,17 +1372,37 @@ def get_report_history(user_id):
     return list(_report_history.get(user_id) or [])
 
 
-def generate_report(report_id, user_id):
-    match = next((r for r in REPORT_TYPES if r["id"] == report_id), None)
+def report_type(report_id):
+    """The definition, or None for an id that is not a report.
+
+    Split out of generate_report so a caller can check the id BEFORE
+    deciding whether anything was produced. The two used to be one
+    function that also wrote the history row, which is how /reports came
+    to list six files that every one of them 404s: the row went in with
+    an invented filename, and only then was the builder asked whether
+    the file could be made at all. On an account with no statements the
+    builder answered "no" six times and the page listed six reports.
+    """
+    return next((r for r in REPORT_TYPES if r["id"] == report_id), None)
+
+
+def record_generated_report(report_id, user_id, filename):
+    """File a report that actually exists, under the name it was given.
+
+    Called only after the builder has returned bytes. `filename` is the
+    builder's, not a guess assembled from the id and today's date - the
+    download serves what the builder makes, so anything else here would
+    describe a file nobody can fetch.
+    """
+    match = report_type(report_id)
     if match is None:
         return None
-    generated_at = date.today()
     report = {
         "id": report_id,
         "label": match["label"],
         "format": match["format"],
-        "generated_at": generated_at.isoformat(),
-        "filename": f"{report_id}-{generated_at.strftime('%Y%m%d')}.{match['format'].lower()}",
+        "generated_at": date.today().isoformat(),
+        "filename": filename,
     }
     if user_id:
         rows = _report_history.setdefault(user_id, [])

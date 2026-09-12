@@ -799,9 +799,28 @@ def test_funding_quotes_a_range_once_statements_exist():
     ok = client.post("/funding/request",
                      json={"offer_id": "offer-royalty-advance"})
     assert ok.status_code == 200 and ok.get_json()["ok"]
-    assert ok.get_json()["reference"].startswith("REQ-")
+    royalty_ref = ok.get_json()["reference"]
+    assert royalty_ref.startswith("REQ-")
     bad = client.post("/funding/request", json={"offer_id": "nope"})
     assert bad.status_code == 400
+
+    # "Requesting an offer records interest" - it has to actually record.
+    # The route used to assemble the reference, return it, and drop the
+    # request on the floor.
+    notes = [n for n in _store.list_notifications(_u["id"])
+             if "Funding interest recorded" in n["title"]]
+    assert notes, "the page says it records interest and nothing was written"
+    assert royalty_ref in notes[0]["body"]
+    assert "Nothing was submitted to a lender" in notes[0]["body"]
+
+    # Two different offers, two different references. Both advances used
+    # to collapse to REQ-ADVANCE-<date> because the reference took only
+    # the last dash-separated word of the offer id.
+    catalog_ref = client.post(
+        "/funding/request",
+        json={"offer_id": "offer-catalog-advance"}).get_json()["reference"]
+    assert catalog_ref != royalty_ref, (
+        "two offers produced one reference: %s" % royalty_ref)
 
 
 def test_funding_offers_derive_from_advance():
@@ -3000,6 +3019,14 @@ def test_sync_clearance_pack_flow():
     assert "Private Sync Pack" in public and "118 BPM" in public
     assert "One-Stop" in public and public.count("<audio") == 2
     assert "noindex" in public
+    # The badge is awarded by two dropdowns on the artist's own form, and
+    # nothing checks them against the lockbox, the splits or the passport.
+    # A supervisor clearing a sync has to be able to tell which they are
+    # looking at, so the page attributes the statement and does not put
+    # the word "Cleared" next to the platform's name.
+    assert "as stated by the rights holder" in public
+    assert "Supplied by Test Artist, not verified by" in public
+    assert "Cleared &amp; served by" not in public
     src = re.search(r'src="(/uploads/sync_[^"]+)"', public).group(1)
     assert anon.get(src).status_code == 200
     # License request lands in inbox and notifies the owner.
@@ -3274,6 +3301,48 @@ def test_generate_report_route():
         assert got.get_data(as_text=True).strip(), "download was empty"
     else:
         assert data.get("error"), "refused without saying why"
+
+
+def test_a_refused_report_is_not_listed_as_generated():
+    """The defect report_builder's own docstring says was fixed.
+
+    generate_report() filed the history row BEFORE the builder was asked
+    whether the file could be made, with a filename invented from the id
+    and today's date. On an account with no statements every one of the
+    six reports refused with an honest reason - and /reports then listed
+    all six under "Recently Generated", each 404ing on download.
+
+    A fresh account has uploaded nothing, so every build must refuse.
+    """
+    import uuid
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "reports-%s@example.net" % uuid.uuid4().hex[:10]
+    client.post("/signup", data={
+        "name": "R", "password": "secret1", "email": email})
+    client.post("/plan/switch", data={"plan": "pro"})
+
+    refused = 0
+    for report_id in ("royalty-report", "missing-money", "investor-snapshot"):
+        data = client.post("/reports/%s/generate" % report_id).get_json()
+        if data["ok"]:                       # it had data after all
+            got = client.get(data["report"]["download"])
+            assert got.status_code == 200, "listed a file that will not download"
+            continue
+        refused += 1
+        assert data.get("error"), "refused without saying why"
+    assert refused, "expected a fresh account to have nothing to report on"
+
+    # Read the log itself, not the page: the catalogue of report TYPES
+    # carries the same ids in its markup, so a substring search there
+    # matches whether or not anything was ever generated.
+    import db as store_mod
+    import royalty_data
+    with app_obj.app_context():
+        uid = store_mod.get_user_by_email(email)["id"]
+    assert royalty_data.get_report_history(uid) == [], (
+        "a build that refused still filed a row: %r"
+        % royalty_data.get_report_history(uid))
 
 
 def test_generate_report_unknown_id_returns_404():

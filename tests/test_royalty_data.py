@@ -47,7 +47,8 @@ from royalty_data import (
     total_royalties,
     upcoming_payout_total,
     complete_registration_step,
-    generate_report,
+    report_type,
+    record_generated_report,
     get_available_reports,
     get_report_history,
     get_catalog_value_tracker,
@@ -735,20 +736,28 @@ def test_get_available_reports_have_ids_and_labels():
     assert all("id" in r and "label" in r for r in reports)
 
 
-def test_generate_report_returns_metadata():
-    report = generate_report("royalty-report", "rd-metadata-user")
+def test_a_report_is_filed_under_the_name_the_builder_gave_it():
+    """The history row used to be written before anything was built, with
+    a filename assembled from the id and today's date. Now it takes the
+    builder's own name, so the log cannot describe a file the download
+    route will not serve."""
+    report = record_generated_report("royalty-report", "rd-metadata-user",
+                                     "royalty-report-actual.csv")
     assert report["id"] == "royalty-report"
-    assert report["filename"].startswith("royalty-report-")
+    assert report["filename"] == "royalty-report-actual.csv"
 
 
-def test_generate_report_unknown_id_returns_none():
-    assert generate_report("not-a-report", "rd-metadata-user") is None
+def test_recording_an_unknown_report_returns_none():
+    assert record_generated_report("not-a-report", "rd-metadata-user",
+                                   "x.csv") is None
+    assert report_type("not-a-report") is None
+    assert report_type("royalty-report")["id"] == "royalty-report"
 
 
 def test_report_history_is_one_accounts_own_and_is_required():
     """The log is keyed by account, so generating as one is invisible to
     the other. A call site that forgets whose log it wants raises."""
-    generate_report("royalty-report", "rd-owner")
+    record_generated_report("royalty-report", "rd-owner", "royalty-report.csv")
     assert any(r["id"] == "royalty-report" for r in get_report_history("rd-owner"))
     assert get_report_history("rd-other") == []
     with pytest.raises(TypeError):

@@ -21,6 +21,11 @@
       <div class="text-sm font-black uppercase text-red-400">This licence was revoked</div>
       <p class="mt-1 text-xs text-gray-200">It can no longer be signed here. Speak to {{ licence.producer_name }} before using the beat.</p>
     </div>
+    {% elif licence.status == 'expired' %}
+    <div class="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-4">
+      <div class="text-sm font-black uppercase text-amber-400">This licence has expired</div>
+      <p class="mt-1 text-xs text-gray-200">It can no longer be signed here. Ask {{ licence.producer_name }} for a new one.</p>
+    </div>
     {% elif licence.status == 'signed' %}
     <div class="mt-6 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-4">
       <div class="text-sm font-black uppercase text-green-400">{{ 'Signed — you are done' if just_signed else 'Signed' }}</div>
@@ -52,7 +57,11 @@
       {% endif %}
     </section>
 
-    {% if licence.status not in ('signed', 'revoked') %}
+    {# The store is the authority: db.SIGNABLE_LICENCE_STATUSES. Listing
+       the finished states here instead would drift from it, which is how
+       a revoked licence stayed signable by POST while this page said it
+       was not. #}
+    {% if licence.status in signable %}
     <form method="post" class="mt-6 rounded-2xl border border-sb-gold/40 bg-sb-surface-2 p-5">
       <h2 class="sb-label text-sb-gold-bright">Sign it</h2>
       <p class="mt-2 text-xs text-gray-200">
