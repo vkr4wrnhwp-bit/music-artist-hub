@@ -132,7 +132,13 @@
   <!-- Coverage gaps -->
   <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
     <h2 class="sb-label text-gray-300">Coverage Gaps — Money Likely Missing</h2>
-    <p class="mt-1 text-sm text-gray-300">Tracks earning on some sources but absent from others in your own data. Estimates use each track's average per-source earnings.</p>
+    {#- This sentence described the OLD estimator - a track's average
+        per-source earnings times the count of missing stores - which valued
+        a missing Qobuz (JPY) listing like a missing Spotify one and read
+        94% of a real catalogue's earnings as recoverable. The numbers
+        changed; this had not, so the page explained a method it no longer
+        used. -#}
+    <p class="mt-1 text-sm text-gray-300">Tracks earning on some stores and absent from others in your own data. A track worth a given share of your catalogue would earn roughly that share of what a store pays, so the estimate is weighted by what each silent store actually paid you — not split evenly between them. Stores you already earn on under another name are not counted, and a society like SoundExchange is never treated as a delivery gap.</p>
     <div class="mt-4 space-y-2">
       {% for g in a.coverage_gaps %}
       <div class="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5">
