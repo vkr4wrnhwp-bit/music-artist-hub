@@ -29,6 +29,7 @@ import re
 
 import music_apis
 import spotify_provider
+import store_identity
 
 # Statement source names as distributors write them, mapped to the
 # platform keys Odesli answers with. Matching is done on a normalised
@@ -62,6 +63,11 @@ def platform_for(source):
     service are not catalogues anybody can search, and saying "not on
     the store" about one of those would be an invention.
     """
+    # Normalise through store_identity first, so this module and the gap
+    # logic cannot disagree about which store a report line names. A
+    # second prefix list is a second opinion waiting to drift.
+    if not store_identity.is_deliverable(store_identity.store_of(source)):
+        return None
     name = re.sub(r"[^a-z0-9 ]", " ", (source or "").lower()).strip()
     for prefix, platform in _PLATFORM_BY_PREFIX:
         if name.startswith(prefix):

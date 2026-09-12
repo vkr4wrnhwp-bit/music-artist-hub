@@ -16,6 +16,7 @@ import csv
 import io
 
 import catalog_value
+import store_identity
 
 # Header aliases -> canonical fields. Compared lowercased/stripped.
 _TITLE_COLS = {"title", "track", "track title", "song", "song title", "track_name",
@@ -121,6 +122,8 @@ def analyze(rows):
     total = round(sum(r["amount"] for r in rows), 2)
     sources = {}
     tracks = {}
+    store_totals = {}
+    track_stores = {}
     unmatched = 0.0
     periods = set()
 
@@ -131,6 +134,14 @@ def analyze(rows):
             unmatched += r["amount"]
         tracks.setdefault(title, {}).setdefault(r["source"], 0)
         tracks[title][r["source"]] += r["amount"]
+        # The delivery question is per STORE. A report names revenue
+        # lines - six of Hungry Gods' twenty-seven "missing" sources were
+        # tiers of Amazon, Qobuz and YouTube, all three of which it was
+        # already earning on.
+        store = store_identity.store_of(r["source"])
+        store_totals[store] = store_totals.get(store, 0) + r["amount"]
+        track_stores.setdefault(title, {}).setdefault(store, 0)
+        track_stores[title][store] += r["amount"]
         if r["period"]:
             periods.add(r["period"])
 
@@ -159,17 +170,21 @@ def analyze(rows):
     # paid overall. Bounded by construction - a track present only on a
     # negligible store cannot extrapolate to a fortune, which the
     # coverage-ratio alternative does.
-    all_sources = set(sources)
+    # Only stores a recording is actually DELIVERED to. A society and a
+    # licensing arrangement collect on use; nothing is delivered to them,
+    # so their absence is not evidence of anything and reporting it as a
+    # gap is a false alarm an artist would send to a distributor.
+    all_stores = {st for st in store_totals if store_identity.is_deliverable(st)}
     findings = []
-    for title, per_source in tracks.items():
+    for title, per_store in track_stores.items():
         if title == "(no title)":
             continue
-        missing = all_sources - set(per_source)
-        if not missing or len(all_sources) < 2:
+        missing = all_stores - set(per_store)
+        if not missing or len(all_stores) < 2:
             continue
-        track_total = sum(per_source.values())
+        track_total = sum(per_store.values())
         share = (track_total / total) if total else 0
-        est = round(share * sum(sources[s] for s in missing), 2)
+        est = round(share * sum(store_totals[st] for st in missing), 2)
         if est <= 0:
             continue
         findings.append({
