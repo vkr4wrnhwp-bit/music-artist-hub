@@ -21,8 +21,15 @@ import store_identity
 # Header aliases -> canonical fields. Compared lowercased/stripped.
 _TITLE_COLS = {"title", "track", "track title", "song", "song title", "track_name",
                "trackname", "song_name", "release title", "asset title", "work title"}
+# The Statements page claims exports from Symphonic, DistroKid, TuneCore,
+# ASCAP, BMI and The MLC all work. Only Symphonic had ever been tried.
+# CD Baby calls the store "Partner", which matched nothing - every row
+# would have landed under "Unknown source", leaving income-by-store empty
+# and the coverage analysis unable to see a second store at all.
 _SOURCE_COLS = {"source", "platform", "store", "dsp", "retailer", "service",
-                "store name", "channel", "distributor", "society"}
+                "store name", "channel", "distributor", "society",
+                "partner", "outlet", "vendor", "storefront", "shop",
+                "provider", "dsp name", "sales channel", "delivery channel"}
 _AMOUNT_COLS = {"amount", "revenue", "earnings", "royalty", "royalties", "net",
                 "net revenue", "net earnings", "payable", "total", "usd",
                 "amount due", "net amount", "earnings (usd)", "royalty amount"}
