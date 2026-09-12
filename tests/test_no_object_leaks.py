@@ -90,7 +90,11 @@ def test_no_template_dot_accesses_a_dict_method_name():
     import os
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    pattern = re.compile(r"\{\{[^}]*?[a-z_][a-z0-9_]*\.(%s)" % "|".join(RESERVED),
+    # A call - {{ tone.get(key) }} - renders the value and is fine; only the
+    # bare name - {{ tone.get }} - renders the method. The lookahead keeps
+    # the calls out. (Until 2026-09-12 the \b were literal backspace bytes
+    # and this pattern matched nothing at all.)
+    pattern = re.compile(r"\{\{[^}]*?\b[a-z_][a-z0-9_]*\.(%s)\b(?!\s*\()" % "|".join(RESERVED),
                          re.IGNORECASE)
     offenders = []
     for path in glob.glob(os.path.join(root, "templates", "**", "*.html"),
