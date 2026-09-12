@@ -24,6 +24,22 @@ ACTION_PRIORITIES = ["high", "medium", "low"]
 ACTION_STATUSES = ["new", "in_progress", "complete", "dismissed"]
 
 
+def _cut(text, limit):
+    """Shorten at a word boundary and say so. A description that ends
+    "SoundExchange: Sirius XM Radio, Inc, Sound" was cut mid-word by a
+    plain slice (seen on the Action Center, 2026-09-12)."""
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    head = text[:limit - 2]
+    for sep in (", ", " "):
+        at = head.rfind(sep)
+        if at > limit // 2:
+            head = head[:at]
+            break
+    return head.rstrip(" ,;:") + " …"
+
+
 def create_action(user_id, title, category="general", priority="medium",
                   description="", entity_type="", entity_id="", due_date=""):
     aid = uuid.uuid4().hex
@@ -36,7 +52,7 @@ def create_action(user_id, title, category="general", priority="medium",
             (aid, user_id, title[:200],
              category if category in ACTION_CATEGORIES else "general",
              priority if priority in ACTION_PRIORITIES else "medium",
-             description[:600], entity_type[:40], entity_id[:64],
+             _cut(description, 600), entity_type[:40], entity_id[:64],
              due_date[:10], now, now))
     return aid
 
