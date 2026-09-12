@@ -1169,7 +1169,16 @@ def provider_failures(days=30, limit=12):
             "FROM signal_provider_runs WHERE ok = 0 AND created_at >= ? "
             "GROUP BY provider, capability, detail ORDER BY last_at DESC LIMIT ?",
             (since, int(limit))).fetchall()
-    return [_row(r) for r in rows]
+    out = []
+    for r in rows:
+        d = _row(r)
+        # Recorded as "ProviderError: Soundcharts 500: ...". The page shows
+        # what the provider said, not the exception class in front of it.
+        head, sep, rest = (d.get("detail") or "").partition(": ")
+        if sep and head.isidentifier() and head.endswith(("Error", "Exception", "Refusal")):
+            d["detail"] = rest
+        out.append(d)
+    return out
 
 
 def data_freshness():

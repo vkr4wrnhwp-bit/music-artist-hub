@@ -53,8 +53,9 @@ def test_the_same_failure_many_times_is_one_line_with_a_count(flask_app):
         sstore.record_provider_run("sc-test", "metrics", True, 80, 0)
         rows = [r for r in sstore.provider_failures() if r["provider"] == "sc-test"]
     by_detail = {r["detail"]: r for r in rows}
-    assert by_detail["ProviderError: Soundcharts 429: Too Many Requests"]["n"] == 3
-    assert by_detail["ProviderError: Soundcharts 403: plan does not include releases"]["n"] == 1
+    # shown as the provider said it, without the exception class in front
+    assert by_detail["Soundcharts 429: Too Many Requests"]["n"] == 3
+    assert by_detail["Soundcharts 403: plan does not include releases"]["n"] == 1
     assert len(rows) == 2, "the successful call is not a failure"
 
 

@@ -6090,7 +6090,9 @@ def test_backup_run_is_gated_and_records_every_outcome(monkeypatch):
     # Anonymous with no token at all: the login wall takes it, which is
     # the right answer — there is nothing here for a stranger.
     anon = app_obj.test_client()
-    assert anon.post("/backup/run").status_code in (302, 404)
+    # A scheduler with no token is told so - 403 with the reason - rather
+    # than redirected to /login, which a cron log reads as success (2026-09-12).
+    assert anon.post("/backup/run").status_code == 403
 
     # Configured target but no credentials -> honest 503, not a fake success.
     for k in ("BACKUP_S3_ENDPOINT", "BACKUP_S3_BUCKET",
