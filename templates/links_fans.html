@@ -64,6 +64,7 @@
           <th class="py-2 pr-4 text-right font-medium">Captures</th>
           <th class="py-2 pr-4 font-medium">First Campaign</th>
           <th class="py-2 font-medium">Last Active</th>
+          <th class="py-2"><span class="sr-only">Remove</span></th>
         </tr>
       </thead>
       <tbody>
@@ -83,6 +84,12 @@
           <td class="py-3 pr-4 text-right sb-num text-gray-200">{{ f.total_captures }}</td>
           <td class="py-3 pr-4 text-xs text-gray-300 font-medium">{{ campaign_titles.get(f.first_campaign_id, '—') }}</td>
           <td class="py-3 text-xs sb-num text-gray-300 font-medium">{{ f.updated[:10] }}</td>
+          <td class="py-3 pl-3 text-right">
+            <form method="post" action="/links/fans/{{ f.id }}/delete"
+                  onsubmit="return confirm('Remove {{ f.email | e }} and their consent records? This cannot be undone.');">
+              <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm" aria-label="Remove {{ f.email }}">Remove</button>
+            </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

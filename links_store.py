@@ -288,6 +288,23 @@ def get_fan(fan_id):
     return dict(row) if row else None
 
 
+def delete_fan(user_id, fan_id):
+    """Remove one fan and everything that names them - consents and the
+    events they generated - only if the fan belongs to this account.
+
+    A person who asked to be forgotten is forgotten from the consent log
+    too: keeping "they consented" about somebody whose record is gone is
+    not a record of consent, it is the thing they asked to have removed.
+    Returns whether a fan row went.
+    """
+    with get_db() as db:
+        cur = db.execute("DELETE FROM ml_fans WHERE id = ? AND user_id = ?", (fan_id, user_id))
+        if cur.rowcount:
+            db.execute("DELETE FROM ml_consents WHERE fan_id = ?", (fan_id,))
+            db.execute("DELETE FROM ml_events WHERE fan_id = ?", (fan_id,))
+    return cur.rowcount > 0
+
+
 def list_fans(user_id, query=""):
     q = "SELECT * FROM ml_fans WHERE user_id = ?"
     args = [user_id]

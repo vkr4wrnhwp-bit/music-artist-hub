@@ -8686,6 +8686,17 @@ def create_app():
             shopify_customers.token()
         return redirect("/links/fans?imp=reconnected#import")
 
+    @app.route("/links/fans/<fan_id>/delete", methods=["POST"])
+    def ml_fan_delete(fan_id):
+        """The fans page said "manage or delete records in the Fan CRM" and
+        the Fan CRM had no such control (route walk, 2026-09-12). Scoped
+        to the account in the DELETE itself."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        mls.delete_fan(user["id"], fan_id)
+        return redirect("/links/fans?removed=1")
+
     @app.route("/links/fans/export.csv")
     def ml_fans_export():
         user = current_user()
