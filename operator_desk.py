@@ -470,6 +470,27 @@ def file_upload(me, lead_id):
                         if lead_id else url_for("desk.files")))
 
 
+@bp.route("/files/<file_id>/delete", methods=["POST"])
+@require("file_upload")
+def file_delete(me, file_id):
+    """Files could be uploaded to the desk and never removed (route
+    audit, 2026-09-12). Whoever may upload may remove; the bytes go
+    best-effort after the record, so a bucket that will not answer does
+    not keep a file on the list that nobody can open."""
+    record = desk_store.delete_file(me, file_id)
+    if record is None:
+        abort(404)
+    path = record["file_path"]
+    try:
+        if blob_store.is_remote(path):
+            blob_store.delete(path[len(blob_store.PREFIX):])
+        elif path.startswith(DESK_PREFIX):
+            os.remove(os.path.join(_desk_dir(), path[len(DESK_PREFIX):]))
+    except Exception:                      # noqa: BLE001 - the record is gone; that is the promise
+        pass
+    return redirect(request.form.get("back") or url_for("desk.files"))
+
+
 @bp.route("/files/<file_id>/download")
 @require("view")
 def file_download(me, file_id):

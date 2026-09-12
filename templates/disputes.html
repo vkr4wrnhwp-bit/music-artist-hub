@@ -61,6 +61,10 @@
         <select data-id="{{ d.id }}" class="dispute-status rounded-lg border px-2.5 py-1.5 text-xs font-bold focus:outline-none {{ 'border-green-500/40 text-green-400' if d.status == 'resolved' else ('border-red-500/40 text-red-400' if d.status == 'rejected' else 'border-sb-gold/40 text-sb-gold-bright') }}">
           {% for st in statuses %}<option value="{{ st }}" {{ 'selected' if st == d.status }}>{{ st|capitalize }}</option>{% endfor %}
         </select>
+        <form method="post" action="/disputes/{{ d.id }}/delete" class="shrink-0"
+              onsubmit="return confirm('Remove this dispute from the log? This cannot be undone.');">
+          <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm" aria-label="Remove dispute with {{ d.platform }}">Remove</button>
+        </form>
       </div>
       {% endfor %}
     </div>

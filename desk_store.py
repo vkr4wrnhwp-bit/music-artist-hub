@@ -734,6 +734,19 @@ def add_file(actor, file_name, file_path, file_type, category,
     return file_id
 
 
+def delete_file(actor, file_id):
+    """Remove the record; the caller removes the bytes. Returns the
+    record that went, so the caller knows where the bytes were."""
+    record = get_file(file_id)
+    if record is None:
+        return None
+    with get_db() as db:
+        db.execute("DELETE FROM desk_files WHERE id = ?", (file_id,))
+    log_activity(actor, "file_deleted", "file", file_id,
+                 {"name": record["file_name"], "lead": record.get("lead_id") or ""})
+    return record
+
+
 def get_file(file_id):
     with get_db() as db:
         row = db.execute("SELECT * FROM desk_files WHERE id = ?",

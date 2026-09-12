@@ -8357,6 +8357,16 @@ def create_app():
             abort(404)
         return campaign, None
 
+    @app.route("/rollout-studio/<cid>/delete", methods=["POST"])
+    def rollout_delete(cid):
+        """A rollout, its posts and its assets. The smart-link campaign it
+        was linked to is a separate thing and stays."""
+        campaign, err = _ro_owned(cid)
+        if err:
+            return err
+        ros.delete_campaign(cid, campaign["user_id"])
+        return redirect("/rollout-studio")
+
     def _ro_post_attribution(campaign):
         """Per-post visits/clicks/fans pulled from ml_events via each
         post's Links variant."""
@@ -10030,6 +10040,14 @@ def create_app():
         store.add_dispute(user["id"], platform, dtype,
                           (request.form.get("description") or "").strip(), amount)
         return jsonify({"ok": True})
+
+    @app.route("/disputes/<dispute_id>/delete", methods=["POST"])
+    def dispute_delete(dispute_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_dispute(user["id"], dispute_id)
+        return redirect("/disputes")
 
     @app.route("/disputes/<dispute_id>/status", methods=["POST"])
     def dispute_status(dispute_id):

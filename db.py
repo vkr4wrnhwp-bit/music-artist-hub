@@ -3819,6 +3819,15 @@ def list_disputes(user_id):
     return [dict(r) for r in rows]
 
 
+def delete_dispute(user_id, dispute_id):
+    """A dispute logged by mistake could only be moved between four
+    statuses, never removed (route audit, 2026-09-12)."""
+    with get_db() as db:
+        cur = db.execute("DELETE FROM disputes WHERE id = ? AND user_id = ?",
+                         (dispute_id, user_id))
+    return cur.rowcount > 0
+
+
 def set_dispute_status(user_id, dispute_id, status):
     with get_db() as db:
         cur = db.execute(

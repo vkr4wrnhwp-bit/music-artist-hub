@@ -49,6 +49,18 @@ def list_campaigns(user_id):
     return [_row(r) for r in rows]
 
 
+def delete_campaign(cid, user_id):
+    """The rollout and everything filed under it - posts and assets -
+    only if it belongs to this account. Rollouts could be created and
+    generated and never removed (route audit, 2026-09-12)."""
+    with get_db() as db:
+        cur = db.execute("DELETE FROM ro_campaigns WHERE id = ? AND user_id = ?", (cid, user_id))
+        if cur.rowcount:
+            db.execute("DELETE FROM ro_posts WHERE campaign_id = ?", (cid,))
+            db.execute("DELETE FROM ro_assets WHERE campaign_id = ?", (cid,))
+    return cur.rowcount > 0
+
+
 def set_status(cid, status):
     with get_db() as db:
         db.execute("UPDATE ro_campaigns SET status = ?, updated = ? WHERE id = ?",

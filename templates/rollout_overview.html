@@ -16,6 +16,10 @@
       <a href="/rollout-studio/{{ c.id }}/performance" class="sb-btn sb-btn-secondary">Performance</a>
       <a href="/rollout-studio/{{ c.id }}/socials" class="sb-btn sb-btn-secondary">Socials</a>
       <a href="/rollout-studio" class="sb-btn sb-btn-secondary">← All</a>
+      <form method="post" action="/rollout-studio/{{ c.id }}/delete"
+            onsubmit="return confirm('Delete this rollout and every post in it? The smart link it points at stays.');">
+        <button type="submit" class="sb-btn sb-btn-secondary">Delete rollout</button>
+      </form>
     </div>
   </div>
 
