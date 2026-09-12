@@ -990,6 +990,64 @@ class SongstatsAdapter(_EnvProvider):
     _PLATFORM_KEYS = ("links", "platforms", "external_links", "sources",
                       "platform_links", "urls")
 
+    # Candidate ways to ask "which stores carry this recording". Tried in
+    # order by probe_track() until one answers 200.
+    #
+    # /tracks/info?isrc= returns 404 "Entity not found" against a real
+    # ISRC with a valid key, so the path exists and the lookup key is
+    # wrong. Their artist endpoints take songstats_artist_id rather than a
+    # name, so the track ones most likely want a songstats_track_id that
+    # has to be resolved first - which is what the search variants are
+    # for.
+    TRACK_PROBES = (
+        ("/tracks/info", {"isrc": "%s"}),
+        ("/tracks/search", {"isrc": "%s"}),
+        ("/tracks/search", {"q": "%s"}),
+        ("/tracks/search", {"query": "%s"}),
+        ("/tracks/stats", {"isrc": "%s"}),
+        ("/tracks/info", {"songstats_track_id": "%s"}),
+    )
+
+    def probe_track(self, isrc):
+        """Try each candidate lookup and report what came back.
+
+        Diagnostic only - nothing in the recovery or letter path calls
+        this. It exists so the working endpoint is found in one round trip
+        against the real API instead of one guess per deploy.
+        """
+        isrc = (isrc or "").strip().upper().replace("-", "")
+        out = []
+        if not isrc:
+            return [{"error": "no ISRC given"}]
+        if not self.configured():
+            return [{"error": "Songstats is not configured on this deployment"}]
+        for path, template in self.TRACK_PROBES:
+            params = {k: (v % isrc if "%s" in v else v)
+                      for k, v in template.items()}
+            entry = {"path": path, "params": sorted(params)}
+            try:
+                payload = self._get(path, **params)
+            except ProviderError as exc:
+                entry["error"] = str(exc)[:140]
+                out.append(entry)
+                continue
+            if isinstance(payload, dict):
+                entry["top_level_keys"] = sorted(str(k) for k in list(payload)[:14])
+                # One level down, where a links block would sit.
+                for wrapper in ("track", "data", "result", "tracks", "results"):
+                    inner = payload.get(wrapper)
+                    if isinstance(inner, dict):
+                        entry["%s_keys" % wrapper] = sorted(
+                            str(k) for k in list(inner)[:14])
+                    elif isinstance(inner, list) and inner and isinstance(inner[0], dict):
+                        entry["%s_0_keys" % wrapper] = sorted(
+                            str(k) for k in list(inner[0])[:14])
+            else:
+                entry["type"] = type(payload).__name__
+            entry["answered"] = True
+            out.append(entry)
+        return out
+
     def track_platforms(self, isrc):
         """({platform: url}, note). Empty dict means nothing was learned."""
         isrc = (isrc or "").strip().upper().replace("-", "")

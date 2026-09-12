@@ -1147,6 +1147,22 @@ def create_app():
         )
         return render_template("statements.html", active_page="statements", **ctx)
 
+    @app.route("/statements/<statement_id>/delete", methods=["POST"])
+    def statement_delete(statement_id):
+        """Remove an upload and its rows.
+
+        Needed for a reason worth stating: the ISRC column arrived after
+        some statements were already uploaded, so those rows carry no
+        ISRC and the store check has nothing to look up. Re-uploading is
+        the fix, and without a delete that would double every figure on
+        the money pages.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_statement(user["id"], statement_id)
+        return redirect("/statements?removed=1")
+
     # --- Spotify pre-save OAuth (env-gated; notify-me fallback otherwise) ------
 
     def _send_release_emails(campaign):
@@ -7118,6 +7134,15 @@ def create_app():
             report["sorted"] = coverage_check.check_gap(
                 isrc, ["Deezer", "Spotify", "Anghami", "Pandora",
                        "SoundExchange: Sirius XM Radio, Inc"])
+            # ?probe=1 tries every candidate Songstats lookup and reports
+            # which one answers, plus the keys it sent back. /tracks/info
+            # with a raw ISRC returns "Entity not found" against a valid
+            # key, so the path is right and the lookup key is not - and
+            # one round trip against the real API settles which, rather
+            # than one guess per deploy.
+            if request.args.get("probe"):
+                import signal_providers as sp
+                report["songstats_probe"] = sp.SongstatsAdapter().probe_track(isrc)
         return jsonify(report)
 
     @app.route("/royalty-recovery/cases/<case_id>/delete", methods=["POST"])

@@ -1331,6 +1331,28 @@ def list_users():
 
 # --- Statements --------------------------------------------------------------
 
+def delete_statement(user_id, statement_id):
+    """Remove one upload and every row that came from it.
+
+    There was no way to, which mattered more than it looks: a statement
+    uploaded before the ISRC column existed carries no ISRC, and the only
+    way to fix that is to upload it again - which without a delete would
+    double the earnings the money pages report. Scoped to the owner, so a
+    guessed id removes nothing.
+    """
+    with get_db() as db:
+        owned = db.execute(
+            "SELECT id FROM statements WHERE id = ? AND user_id = ?",
+            (statement_id, user_id)).fetchone()
+        if not owned:
+            return False
+        db.execute("DELETE FROM statement_rows WHERE statement_id = ?",
+                   (statement_id,))
+        db.execute("DELETE FROM statements WHERE id = ? AND user_id = ?",
+                   (statement_id, user_id))
+        return True
+
+
 def save_statement(user_id, filename, rows):
     statement_id = uuid.uuid4().hex
     total = round(sum(r["amount"] for r in rows), 2)
