@@ -188,7 +188,8 @@ def analyze(rows):
     by_source = sorted(({"source": s, "amount": round(a, 2)} for s, a in sources.items()),
                        key=lambda x: x["amount"], reverse=True)
     by_track = sorted(
-        ({"title": t, "amount": round(sum(m.values()), 2), "sources": len(m)} for t, m in tracks.items()),
+        ({"title": t, "amount": round(sum(m.values()), 2), "sources": len(m),
+          "stores": len(track_stores.get(t, {}))} for t, m in tracks.items()),
         key=lambda x: x["amount"], reverse=True)
 
     # Cross-source coverage gaps (estimate): a titled track missing from
@@ -238,6 +239,10 @@ def analyze(rows):
         "total": total,
         "row_count": len(rows),
         "source_count": len(sources),
+        # 49 report lines from Symphonic are 29 stores: YouTube alone
+        # arrives as Streaming, Shorts, Content ID and Audio Tier. The
+        # page says both, so "49 sources" stops reading as 49 shops.
+        "store_count": len(store_identity.group(sources)),
         "period_count": len(periods),
         "by_source": by_source,
         "by_track": by_track[:15],
