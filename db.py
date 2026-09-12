@@ -1167,6 +1167,22 @@ def create_user(email, name, password_hash):
     return user_id
 
 
+def set_user_name(user_id, name):
+    """The artist or display name, which is the one identity field an
+    account can safely change about itself.
+
+    Email is deliberately not here: it is the sign-in credential and the
+    address every reset and invite goes to, so changing it belongs to a
+    verified flow rather than to a settings form that returns "Saved".
+    """
+    name = (name or "").strip()[:120]
+    if not name:
+        return False
+    with get_db() as db:
+        cur = db.execute("UPDATE users SET name = ? WHERE id = ?", (name, user_id))
+        return bool(cur.rowcount)
+
+
 def set_user_plan(user_id, plan):
     with get_db() as db:
         db.execute("UPDATE users SET plan = ? WHERE id = ?", (plan, user_id))

@@ -398,14 +398,81 @@ def test_settings_links_to_connections_page():
     assert 'href="/connections"' in body
 
 
-def test_settings_includes_account_profile_ui():
-    client = _demo()
+def test_the_catalog_filter_offers_only_this_accounts_releases():
+    """A brand-new account was offered four albums it does not own.
+
+    The /catalog route zeroes tracks, releases, songwriters, publishers
+    and splits for a real account, but release_filter_options was built
+    from the same sample data and was not zeroed with them - so the
+    dropdown beside the search listed The Collection Vol. 1, Survival
+    Mode, Kings Don't Sleep and Digital Souls, by the fictional Synthwave
+    Surfer, on an empty catalog.
+    """
+    import uuid
+
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "catalog-%s@example.net" % uuid.uuid4().hex[:10]
+    client.post("/signup", data={"name": "King 810", "email": email,
+                                 "password": "catalogpass1"})
+    # /catalog is plan-gated and answers 402 to a fresh artist account,
+    # which is why the filter renders for nobody until there is a plan.
+    client.post("/plan/switch", data={"plan": "pro"})
+    # The full catalog view, filter and all, renders once the account has
+    # a track - which is the state the dropdown was found in.
+    client.post("/catalog/add", json={"title": "Braveheart"})
+    body = client.get("/catalog").get_data(as_text=True)
+    assert "release-filter" in body, "the filter renders for a stocked catalog"
+    assert "All Releases" in body
+    for invented in ("The Collection Vol. 1", "Survival Mode",
+                     "Kings Don't Sleep", "Digital Souls"):
+        assert invented not in body, (
+            "%s was offered to an account that does not own it" % invented)
+
+
+def test_account_profile_shows_the_account_and_not_a_persona():
+    """The fields are labelled as the artist's own, so they must be.
+
+    The form pre-filled a hardcoded DEFAULT_PROFILE - "Synthwave Surfer",
+    artist@streetbanker.io, plan "Pro" - into an artist's own name, email
+    and plan, sitting beside a badge rendering their REAL plan. Saving
+    wrote localStorage under "royaltySweep.profile", which nothing
+    server-side has ever read, and flashed "Saved".
+    """
+    import uuid
+    import db as store_mod
+
+    app_obj = create_app()
+    client = app_obj.test_client()
+    email = "profile-%s@example.net" % uuid.uuid4().hex[:10]
+    client.post("/signup", data={"name": "King 810", "email": email,
+                                 "password": "profilepass1"})
     body = client.get("/settings").get_data(as_text=True)
     assert "Account Profile" in body
-    assert 'id="profile-form"' in body
-    assert 'id="profile-name"' in body
-    assert 'id="profile-email"' in body
-    assert 'id="profile-plan"' in body
+    assert "King 810" in body and email in body
+    assert "Synthwave Surfer" not in body
+    assert "artist@streetbanker.io" not in body
+    assert "royaltySweep.profile" not in body, "the localStorage persona is gone"
+
+    # Saving changes the account, not a key in this browser.
+    client.post("/settings/profile", data={"name": "King 810 (official)"})
+    with app_obj.app_context():
+        assert store_mod.get_user_by_email(email)["name"] == "King 810 (official)"
+    assert "King 810 (official)" in client.get("/settings").get_data(as_text=True)
+
+    # An empty name is refused rather than silently blanking the account.
+    client.post("/settings/profile", data={"name": "   "})
+    with app_obj.app_context():
+        assert store_mod.get_user_by_email(email)["name"] == "King 810 (official)"
+
+
+def test_the_plan_is_changed_in_billing_not_in_a_dropdown():
+    """The old form offered Free/Pro/Label and wrote none of them."""
+    client = _demo()
+    body = client.get("/settings").get_data(as_text=True)
+    assert 'id="profile-plan"' not in body
+    assert "Change plan in Billing" in body
+    assert 'href="/billing"' in body
 
 
 def test_settings_includes_notification_preferences_ui():
@@ -1080,13 +1147,49 @@ def test_insights_computed_from_real_data():
     assert "Uncollected royalty streams" in body and "Mechanical" in body
 
 
-def test_benchmark_uses_real_metrics():
+def test_benchmark_never_shows_another_catalogue_as_yours():
+    """The "you" column is the whole page, and it was somebody else's.
+
+    Four of the five values came from royalty_data.get_songs(), the
+    five-song demo catalogue, so a brand-new account rendered
+    "Total streams - You: 11,990,000". The page asserted the opposite in
+    three places, including its own footnote.
+
+    The test this replaces asserted streams == sum(get_songs()), which
+    is to say it held the bug in place as the specification.
+    """
     from benchmark_config import get_benchmark_data
     from royalty_data import get_songs
-    data = get_benchmark_data()
-    streams = next(m for m in data["metrics"] if m["label"] == "Total streams")
-    assert streams["you"] == sum(s.streams for s in get_songs())
-    assert data["summary"]["ahead"] + data["summary"]["behind"] == data["summary"]["metrics"]
+
+    demo_streams = sum(s.streams for s in get_songs())
+    demo_size = len(get_songs())
+
+    data = get_benchmark_data([])          # an account that uploaded nothing
+    for metric in data["metrics"]:
+        assert metric["you"] is None, (
+            "%s reported a figure for an account with no statements: %r"
+            % (metric["label"], metric["you"]))
+        assert metric["measured"] is False
+        assert metric["diff_pct"] is None, "no comparison without a number"
+    assert data["summary"]["measured"] == 0
+    values = [m["you"] for m in data["metrics"]]
+    assert demo_streams not in values and demo_size not in values
+
+    # With real statements the account's own numbers appear, and streams
+    # stay absent because nothing in the app measures them.
+    rows = [{"amount": 120.0, "source": "Spotify", "title": "Braveheart",
+             "period": "2026-01"},
+            {"amount": 80.0, "source": "Apple Music", "title": "Vendettas",
+             "period": "2026-02"}]
+    data = get_benchmark_data(rows)
+    by_label = {m["label"]: m for m in data["metrics"]}
+    assert by_label["Catalog earnings"]["you"] == 200.0
+    assert by_label["Catalog size"]["you"] == 2
+    assert by_label["Total streams"]["you"] is None, (
+        "statements record earnings, not plays")
+    assert data["summary"]["measured"] == 4
+    assert (data["summary"]["ahead"] + data["summary"]["behind"]
+            == data["summary"]["measured"])
 
 
 def test_marketplace_post_flow():

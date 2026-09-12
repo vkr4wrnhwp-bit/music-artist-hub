@@ -1948,6 +1948,14 @@ def create_app():
                                             for m in ("Jan", "Feb", "Mar", "Apr", "May")]}
             c["tracks"], c["releases"], c["songwriters"] = [], [], []
             c["publishers"], c["splits"] = [], []
+            # The filter beside the search is built from the same sample
+            # releases and was NOT zeroed with the rest, so a brand-new
+            # account with an empty catalog got a dropdown offering four
+            # albums by the fictional Synthwave Surfer. It follows the
+            # account's own releases now, which is an empty list until
+            # they have some.
+            c["release_filter_options"] = (
+                ["All Releases"] + [r["title"] for r in c["releases"]])
             c["recently_added"] = [{"id": t["id"], "title": t["title"], "type": "Single",
                                     "date_added": (t.get("added") or "")[:10],
                                     "status": "Registered" if (t.get("meta") or {}).get("isrc") else "Pending"}
@@ -9766,7 +9774,33 @@ def create_app():
         return render_template("settings.html", active_page="settings",
                                can_backup=_backup_allowed(current_user()),
                                backup_state=_backup_state(),
+                               saved=request.args.get("saved"),
                                **build_dashboard_context())
+
+    @app.route("/settings/profile", methods=["POST"])
+    def settings_profile():
+        """Save the display name, for real.
+
+        The form used to call preventDefault() and write localStorage
+        under "royaltySweep.profile", which nothing server-side has ever
+        read - and it pre-filled DEFAULT_PROFILE, so an artist with no
+        localStorage saw "Synthwave Surfer" and artist@streetbanker.io in
+        fields labelled as their own account, next to a badge rendering
+        their REAL plan. Changing anything and pressing Save changed
+        nothing and said "Saved".
+
+        Only the name is writable. Email is the sign-in credential and
+        the address every reset goes to, so it is shown and not edited
+        here; the plan is billing's to change, and the page links there.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        name = (request.form.get("name") or "").strip()
+        if not name:
+            return redirect("/settings?saved=empty#account-profile")
+        store.set_user_name(user["id"], name)
+        return redirect("/settings?saved=1#account-profile")
 
     def _snapshot_zip():
         """The archive itself: a consistent database copy plus uploads.
