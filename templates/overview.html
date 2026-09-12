@@ -92,8 +92,12 @@
             <circle id="goal-ring" cx="60" cy="60" r="50" fill="none" stroke="#79B473" stroke-width="10" stroke-linecap="round" stroke-dasharray="314.16"/>
           </svg>
           <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+            {% if goal %}
             <div id="goal-ring-pct" class="text-lg font-bold tabular-nums">{{ goal_pct|round|int }}%</div>
             <div id="goal-ring-label" class="text-xs leading-tight text-gray-300 font-medium">of ${{ "{:,.0f}".format(goal) }} goal</div>
+            {% else %}
+            <div id="goal-ring-label" class="text-xs leading-tight text-gray-300 font-medium">No goal set</div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -101,8 +105,12 @@
         <div id="goal-bar" class="h-2 rounded-full bg-sb-gold"></div>
       </div>
       <div class="mt-2 flex items-center justify-between text-xs text-gray-300">
-        <span>Goal: <span id="goal-amount-label">${{ "{:,.0f}".format(goal) }}</span></span>
+        {% if goal %}
+        <span>Goal: <span id="goal-amount-label">${{ "{:,.0f}".format(goal) }}</span>{% if goal_row and goal_row.deadline %} by {{ goal_row.deadline }}{% endif %}</span>
         <span id="goal-remaining-label">${{ "{:,.2f}".format(remaining) }} to go</span>
+        {% else %}
+        <span>Set a target and this ring fills against what your statements report.</span>
+        {% endif %}
       </div>
     </section>
 
@@ -376,28 +384,30 @@
 <div id="goal-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
   <div class="w-full max-w-sm rounded-2xl border border-white/10 bg-sb-surface-1 p-6">
     <h3 class="text-sm font-semibold tracking-tight">Set Royalty Goal</h3>
-    <p class="mt-1 text-xs text-gray-300">Target your royalty collections. Saved on this device.</p>
-    <form id="goal-form" class="mt-4 space-y-4">
+    <p class="mt-1 text-xs text-gray-300">Target your royalty collections. Saved on your account.</p>
+    <form id="goal-form" method="post" action="/overview/goal" class="mt-4 space-y-4">
       <label class="block text-xs text-gray-300">
         Target amount ($)
-        <input id="goal-amount" type="number" min="1" step="0.01" required
+        <input id="goal-amount" name="amount" type="number" min="1" step="0.01" required
+               value="{{ goal_row.amount if goal_row else '' }}"
                class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
       </label>
       <label class="block text-xs text-gray-300">
         Goal type
-        <select id="goal-type"
+        <select id="goal-type" name="kind"
                 class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
-          <option value="monthly">Monthly</option>
-          <option value="yearly" selected>Yearly</option>
-          <option value="project">Project</option>
+          <option value="monthly"{% if goal_row and goal_row.kind == 'monthly' %} selected{% endif %}>Monthly</option>
+          <option value="yearly"{% if not goal_row or goal_row.kind == 'yearly' %} selected{% endif %}>Yearly</option>
+          <option value="project"{% if goal_row and goal_row.kind == 'project' %} selected{% endif %}>Project</option>
         </select>
       </label>
       <label class="block text-xs text-gray-300">
         Deadline (optional)
-        <input id="goal-deadline" type="date"
+        <input id="goal-deadline" name="deadline" type="date" value="{{ goal_row.deadline if goal_row else '' }}"
                class="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
       </label>
       <div class="flex justify-end gap-2 pt-2">
+        {% if goal_row %}<button type="submit" name="clear" value="1" formnovalidate class="sb-btn sb-btn-secondary sb-btn-sm">Remove goal</button>{% endif %}
         <button type="button" id="goal-cancel" class="sb-btn sb-btn-secondary sb-btn-sm">Cancel</button>
         <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm">Save Goal</button>
       </div>
@@ -434,36 +444,21 @@
 {% block scripts %}
 <script>
   const TOTAL = {{ total | round(2) }};
-  const DEFAULT_GOAL = {{ goal | round(2) }};
-  const GOAL_KEY = "royaltySweep.goal";
+  const GOAL = {{ goal | round(2) }};
   const trend = {{ months | tojson }};
 
-  function renderGoalCard() {
-    let goal = DEFAULT_GOAL;
-    try {
-      const saved = JSON.parse(localStorage.getItem(GOAL_KEY) || "null");
-      if (saved && saved.amount > 0) goal = saved.amount;
-    } catch (err) {}
-    const pct = goal > 0 ? Math.min(TOTAL / goal, 1) : 0;
-    const remaining = Math.max(goal - TOTAL, 0);
+  // The goal lives on the account (royalty_goals); the ring is drawn from
+  // the same figures the server rendered, nothing read from this browser.
+  (function renderGoalCard() {
+    const pct = GOAL > 0 ? Math.min(TOTAL / GOAL, 1) : 0;
     const ring = document.getElementById("goal-ring");
     ring.setAttribute("stroke-dashoffset", String(314.16 * (1 - pct)));
     ring.setAttribute("stroke", pct >= 0.75 ? "#79B473" : (pct >= 0.4 ? "#E8B950" : "#E05C4A"));
-    document.getElementById("goal-ring-pct").textContent = Math.round(pct * 100) + "%";
-    document.getElementById("goal-ring-label").textContent = "of $" + Math.round(goal).toLocaleString() + " goal";
     document.getElementById("goal-bar").style.width = (pct * 100) + "%";
-    document.getElementById("goal-amount-label").textContent = "$" + Math.round(goal).toLocaleString();
-    document.getElementById("goal-remaining-label").textContent = fmtMoney(remaining) + " to go";
-  }
-  renderGoalCard();
+  })();
 
   const goalModal = document.getElementById("goal-modal");
   function openGoalModal() {
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(GOAL_KEY) || "null"); } catch (err) {}
-    document.getElementById("goal-amount").value = saved && saved.amount ? saved.amount : DEFAULT_GOAL;
-    document.getElementById("goal-type").value = saved && saved.type ? saved.type : "yearly";
-    document.getElementById("goal-deadline").value = saved && saved.deadline ? saved.deadline : "";
     goalModal.classList.remove("hidden");
     goalModal.classList.add("flex");
     document.getElementById("goal-amount").focus();
@@ -476,19 +471,6 @@
   document.getElementById("goal-cancel").addEventListener("click", closeGoalModal);
   goalModal.addEventListener("click", (e) => { if (e.target === goalModal) closeGoalModal(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeGoalModal(); });
-  document.getElementById("goal-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const amount = parseFloat(document.getElementById("goal-amount").value);
-    if (!(amount > 0)) return;
-    localStorage.setItem(GOAL_KEY, JSON.stringify({
-      amount: amount,
-      type: document.getElementById("goal-type").value,
-      deadline: document.getElementById("goal-deadline").value || null,
-    }));
-    closeGoalModal();
-    renderGoalCard();
-  });
-
   const HEALTH_SCORE = {{ overview_health.score }};
   const healthNeedle = document.getElementById("health-needle");
   healthNeedle.setAttribute("transform", "rotate(" + ((HEALTH_SCORE / 100) * 180 - 90) + " 50 54)");

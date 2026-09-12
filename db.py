@@ -726,6 +726,13 @@ def init_db():
                 updated TEXT NOT NULL,
                 completed_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS royalty_goals (
+                user_id TEXT PRIMARY KEY,
+                amount REAL NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'yearly',
+                deadline TEXT NOT NULL DEFAULT '',
+                updated TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS notifications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -4017,6 +4024,37 @@ def _decode_payload(raw):
     if isinstance(raw, dict):
         return raw
     return {"payload": raw} if raw not in (None, "") else {}
+
+# --- Royalty goal ---------------------------------------------------------------
+
+GOAL_KINDS = ("monthly", "yearly", "project")
+
+
+def get_royalty_goal(user_id):
+    """The account's own target, or None. There is no default: the
+    overview used to show every account "$25,000" from royalty_data and
+    let "Edit Goal" save to the browser's localStorage, so the figure was
+    invented and the edit never followed the artist to another device."""
+    with get_db() as db:
+        row = db.execute("SELECT * FROM royalty_goals WHERE user_id = ?", (user_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def set_royalty_goal(user_id, amount, kind="yearly", deadline=""):
+    kind = kind if kind in GOAL_KINDS else "yearly"
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO royalty_goals (user_id, amount, kind, deadline, updated)"
+            " VALUES (?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET"
+            " amount = excluded.amount, kind = excluded.kind,"
+            " deadline = excluded.deadline, updated = excluded.updated",
+            (user_id, float(amount), kind, (deadline or "")[:10], _now()))
+
+
+def clear_royalty_goal(user_id):
+    with get_db() as db:
+        db.execute("DELETE FROM royalty_goals WHERE user_id = ?", (user_id,))
+
 
 # --- Notifications -------------------------------------------------------------
 

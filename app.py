@@ -1843,6 +1843,15 @@ def create_app():
         rr = _real_royalty()
         showcase = _session_is_demo()
         balances = get_platform_balances() if showcase else []
+        ctx = build_dashboard_context()
+        # The account's own goal, or none. build_dashboard_context still
+        # carries royalty_data's $25,000 for the showcase; a real account
+        # gets what it set, and "no goal yet" rather than a number it
+        # never chose.
+        goal_row = store.get_royalty_goal(user["id"]) if user is not None and not showcase else None
+        if not showcase:
+            ctx["goal"] = goal_row["amount"] if goal_row else 0
+        ctx["goal_row"] = goal_row
         return render_template("overview.html", active_page="command-center",
                                since_visit=(since_engine.build(user["id"], since)
                                             if user is not None
@@ -1855,7 +1864,28 @@ def create_app():
                                recovery_view=(recovery_engine.build(user["id"])
                                               if user is not None
                                               and not showcase else None),
-                               **build_dashboard_context())
+                               **ctx)
+
+    @app.route("/overview/goal", methods=["POST"])
+    def overview_goal():
+        """Save the royalty goal on the account. It used to go to
+        localStorage - "Saved on this device" - so it never followed the
+        artist to their phone, and the ring showed a $25,000 nobody set."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if request.form.get("clear") == "1":
+            store.clear_royalty_goal(user["id"])
+            return redirect("/overview")
+        try:
+            amount = float(request.form.get("amount") or "")
+        except ValueError:
+            amount = 0.0
+        if amount <= 0:
+            return redirect("/overview?goal=invalid")
+        store.set_royalty_goal(user["id"], amount, request.form.get("kind") or "yearly",
+                               request.form.get("deadline") or "")
+        return redirect("/overview")
 
     @app.route("/dashboard")
     def dashboard():
