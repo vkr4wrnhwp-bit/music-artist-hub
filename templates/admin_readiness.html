@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{#- What this deployment can do, in one place.
+
+    The page exists because "is it live?" was previously answered by
+    opening six unrelated diagnostics and inferring the rest. Two things
+    it must never do: print a credential, and let a present key read as a
+    working integration. Rows carry variable NAMES, and anything with a
+    real round trip behind it links that probe and says what it proves.
+-#}
+
+{% block title %}Readiness - Street Banker{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-[1100px]">
+  {{ sb.plate("/static/img/closing-wide", [960, 1440, 1672],
+              "Street Banker · Back office", "Readiness",
+              "What this deployment can actually do. Set a value in the Render "
+              "dashboard and reload — nothing here needs a deploy.",
+              alt="") }}
+
+  <div class="mt-5 rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">
+    <div class="flex flex-wrap items-baseline gap-3">
+      <span class="sb-num text-3xl font-black text-sb-gold-bright">{{ ready_live }}</span>
+      <span class="text-sm text-gray-200">of {{ ready_total }} switched on</span>
+    </div>
+    <p class="mt-2 max-w-3xl text-sm text-gray-200">
+      A key being present is not the same as an integration working. These
+      readings are presence checks: they prove somebody typed a value, not
+      that the vendor accepts it, that the account has quota, or that a
+      sending domain is verified. Rows with a <span class="font-semibold text-sb-gold-bright">Prove it</span>
+      link run a real round trip — use those before believing a green row.
+    </p>
+    <p class="mt-2 text-sm text-gray-300">No values are shown on this page, only names.</p>
+  </div>
+
+  {% for g in groups %}
+  <section class="mt-5 rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 class="sb-label text-sb-gold">{{ g.title }}</h2>
+      <span class="sb-num text-xs font-bold {{ 'text-green-400' if g.live == g.total else ('text-gray-300' if g.live == 0 else 'text-amber-300') }}">{{ g.live }}/{{ g.total }}</span>
+    </div>
+    <p class="mt-1 text-sm text-gray-300">{{ g.blurb }}</p>
+
+    <div class="mt-4 space-y-2.5">
+      {% for r in g.rows %}
+      <div class="rounded-xl border {{ 'border-green-500/20' if r.on else 'border-white/10' }} bg-white/5 p-3.5">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <span class="h-2 w-2 shrink-0 rounded-full {{ 'bg-green-500' if r.on else 'bg-gray-600' }}"></span>
+          <span class="text-sm font-bold text-gray-100">{{ r.name }}</span>
+          <span class="rounded-full border px-2 py-0.5 text-xs font-bold uppercase {{ 'border-green-500/25 bg-green-500/10 text-green-400' if r.on else 'border-white/15 text-gray-300' }}">
+            {% if r.on %}{{ 'On' if r.flag else 'Configured' }}{% else %}{{ 'Off' if r.flag else 'Not set' }}{% endif %}
+          </span>
+          {% if r.probe %}
+          <a href="{{ r.probe }}" class="ml-auto shrink-0 text-xs font-semibold text-sb-gold-bright underline">Prove it</a>
+          {% endif %}
+        </div>
+
+        {% if r.unlocks %}
+        <p class="mt-2 text-sm text-gray-200">{{ r.unlocks }}</p>
+        {% endif %}
+        {% if r.caution %}
+        <p class="mt-2 border-l-2 border-amber-500/40 pl-3 text-sm text-amber-200">{{ r.caution }}</p>
+        {% endif %}
+        {% if r.probe %}
+        <p class="mt-1 text-xs text-gray-300">{{ r.probe }} — {{ r.proof }}.</p>
+        {% endif %}
+
+        <div class="mt-2 flex flex-wrap gap-1.5">
+          {% for name in r.env %}
+          <code class="rounded border border-white/10 bg-black/40 px-1.5 py-0.5 text-xs text-gray-200">{{ name }}</code>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+
+  <p class="mt-6 text-xs text-gray-300">
+    Set these in the Render dashboard, on the service, under Environment.
+    They are read at request time, so a value takes effect on the next page
+    load without a deploy.
+  </p>
+</div>
+{% endblock %}

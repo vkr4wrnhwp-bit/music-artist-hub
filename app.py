@@ -22,6 +22,7 @@ import board
 import lights_store
 import operator_desk
 import audio_admin
+import readiness
 import audio_providers
 import audio_studio
 import audio_store
@@ -382,6 +383,7 @@ def _internal_tools():
         # the inbox rather than this, and put a roster of every customer's
         # email behind a tier anyone could buy.
         out.append({"href": "/admin/review", "label": "Artist accounts"})
+        out.append({"href": "/admin/readiness", "label": "Readiness"})
     return out
 
 
@@ -10503,6 +10505,13 @@ def create_app():
     # predicate as every other internal surface; no name lives in code.
     audio_admin.init(app, is_owner_email=_is_owner_email,
                      current_user=current_user)
+    # One page answering "what can this deployment actually do", because
+    # the answer was previously spread across six unrelated diagnostics
+    # and 73 environment variables.
+    readiness.init(app, is_owner_email=_is_owner_email,
+                   current_user=current_user,
+                   login_redirect=login_required_redirect,
+                   context=build_dashboard_context)
     # The artist-facing lanes: dubbing, campaign audio, stems, voice vault.
     # Every lane is off until its own flag is set, and the page says so per
     # lane rather than hiding what the product does.
