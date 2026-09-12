@@ -7434,11 +7434,21 @@ def create_app():
         # Owned engagement, folded in from /stats: counts from the artist's
         # own tracked smart links. First-party, so it shows whether or not
         # Spotify is configured.
+        # The events written are "page_view" and "service_click" - see the
+        # track() calls on the public link page. This read "pageview" and
+        # "click", which nothing writes, so the tile showed 0 for every
+        # account no matter how much traffic a link took, under copy
+        # saying "Counted from your own tracked smart links".
+        #
+        # The Partner Portal already summed both spellings, so the
+        # mismatch was known there and never carried back here. Both are
+        # summed for the same reason: it costs nothing and a row written
+        # under an older spelling still counts.
         clicks = pageviews = presaves = 0
         for c in mls.list_campaigns(user["id"]):
             n = mls.event_counts(c["id"])
-            pageviews += n.get("pageview", 0)
-            clicks += n.get("click", 0)
+            pageviews += n.get("page_view", 0) + n.get("pageview", 0)
+            clicks += n.get("service_click", 0) + n.get("click", 0)
             ps = store.count_spotify_presaves(c["id"])
             presaves += ps.get("pending", 0) + ps.get("completed", 0)
         return render_template("pulse.html", active_page="pulse",
