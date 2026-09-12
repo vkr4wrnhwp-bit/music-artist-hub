@@ -118,6 +118,37 @@ def test_it_links_the_probes_that_actually_prove_something(app_obj, monkeypatch)
     assert "not the same as an integration working" in body
 
 
+def test_a_setup_check_is_not_offered_as_proof():
+    """The first draft of this page said /mail/diag "sends a real
+    message" and /presave/diag "checks the OAuth round trip". Neither
+    does: one asks Resend read-only about domain verification, the other
+    reports which variables the process can see. A page built to stop a
+    presence check reading as proof must not make that mistake itself.
+
+    So the two are separated in the data, and the link text follows: only
+    a row that really calls the vendor says "Prove it".
+    """
+    real, shape = [], []
+    for group in readiness.report():
+        for row in group["rows"]:
+            if row.get("probe"):
+                (real if row.get("roundtrip") else shape).append(row["name"])
+    assert "Object storage (R2)" in real, "the R2 check is a genuine round trip"
+    assert "Spotify" in shape, "/presave/diag reads variables, it does not sign in"
+    assert "Stem splitting" in shape, "that one inspects the key, not the vendor"
+    for group in readiness.report():
+        for row in group["rows"]:
+            if row.get("probe"):
+                assert row["proof"].strip(), "%s links a probe and does not say what it does" % row["name"]
+
+
+def test_the_page_marks_the_two_kinds_differently(app_obj, monkeypatch):
+    client = _owner(app_obj, monkeypatch)
+    body = client.get("/admin/readiness").get_data(as_text=True)
+    assert "Prove it" in body and "Check the setup" in body
+    assert "never tells you the vendor agreed" in body
+
+
 def test_every_row_says_what_it_switches_on():
     """A row an owner cannot act on is decoration. Flags are exempt: the
     lane names are the explanation."""

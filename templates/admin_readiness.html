@@ -29,8 +29,11 @@
       A key being present is not the same as an integration working. These
       readings are presence checks: they prove somebody typed a value, not
       that the vendor accepts it, that the account has quota, or that a
-      sending domain is verified. Rows with a <span class="font-semibold text-sb-gold-bright">Prove it</span>
-      link run a real round trip — use those before believing a green row.
+      sending domain is verified. A <span class="font-semibold text-sb-gold-bright">Prove it</span>
+      link calls the vendor for real — use it before believing a green row.
+      <span class="font-semibold text-gray-100">Check the setup</span> is weaker:
+      it reports what this process can see, which catches a misspelt name or a
+      pasted key with a stray quote, but never tells you the vendor agreed.
     </p>
     <p class="mt-2 text-sm text-gray-300">No values are shown on this page, only names.</p>
   </div>
@@ -53,7 +56,7 @@
             {% if r.on %}{{ 'On' if r.flag else 'Configured' }}{% else %}{{ 'Off' if r.flag else 'Not set' }}{% endif %}
           </span>
           {% if r.probe %}
-          <a href="{{ r.probe }}" class="ml-auto shrink-0 text-xs font-semibold text-sb-gold-bright underline">Prove it</a>
+          <a href="{{ r.probe }}" class="ml-auto shrink-0 text-xs font-semibold {{ 'text-sb-gold-bright' if r.roundtrip else 'text-gray-200' }} underline">{{ 'Prove it' if r.roundtrip else 'Check the setup' }}</a>
           {% endif %}
         </div>
 
