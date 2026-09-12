@@ -354,6 +354,12 @@ def studio():
         safety_warning=works.safety_warning(),
         any_on=any(lane["on"] for lane in lanes),
         stem_variations=STEM_VARIATIONS,
+        # Which lanes take a recording is a fact about the work, held once
+        # in WORK_KINDS. The template used to carry its own list of three,
+        # and the lyric sheet - a lane that is nothing without a recording
+        # - was not on it, so Start submitted with no file.
+        source_kinds=sorted(kind for kind, (_c, _l, needs)
+                            in works.WORK_KINDS.items() if needs),
         voices=voices,
         voice_options=[(v["voice_id"],
                         v["name"] + (" - " + v["detail"] if v.get("detail") else ""))
@@ -394,6 +400,13 @@ def studio_new():
             rights_status="confirmed" if request.form.get("rights") == "1"
             else "unconfirmed",
             retention_days=audio_retention.retention_days(None, "source"))
+
+    if works.WORK_KINDS[kind][2] and source_asset_id is None:
+        # Refused here, before an item exists, rather than creating one
+        # with nothing in it. The only thing that item could ever show was
+        # a Delete button.
+        return _refuse("This needs a recording. Choose the audio file "
+                       "first, then Start.")
 
     # One item per piece of work. A dub is one language each - the provider
     # runs one project per target language - so "es, fr" becomes two items

@@ -295,7 +295,13 @@ def submit_work(work_id, partner_id=None, member=None, adapter_key=None):
         raise WorkRefusal(reason, "rights_required")
 
     if needs_source and not work.get("source_asset_id"):
-        raise WorkRefusal("This needs a source recording.", "no_source")
+        # Recorded, like the two refusals above it. This one was raised
+        # without set_status, so the item sat in "draft" for ever and its
+        # page had nothing to say - the refusal panel keys on "refused".
+        reason = "This needs a source recording."
+        set_status(work_id, "refused", partner_id, refusal_code="no_source",
+                   refusal_reason=reason)
+        raise WorkRefusal(reason, "no_source")
 
     request = _build_request(work, capability, ap, partner_id)
 

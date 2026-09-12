@@ -97,7 +97,7 @@
                   enctype="multipart/form-data" class="asx-form">
               <input type="hidden" name="lane" value="{{ lane.key }}">
 
-              {% if lane.kind in ("dubbing", "stem_separation", "voice_isolation") %}
+              {% if lane.kind in source_kinds %}
                 <label class="asx-field">
                   <span>Recording</span>
                   <input type="file" name="file" accept="audio/*" required>
