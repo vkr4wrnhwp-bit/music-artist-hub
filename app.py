@@ -3799,6 +3799,15 @@ def create_app():
         if user is None:
             if _is_public_path(request.path) or _valid_backup_token():
                 return None
+            if request.path == "/backup/run" and request.method == "POST":
+                # A scheduler cannot follow a redirect to /login, and the
+                # first nightly run proved that a 302 reads as success in
+                # a cron log: Render printed "Redirecting..." and marked
+                # the run green. The failure has to be a failure.
+                why = ("BACKUP_TOKEN is not configured on the server"
+                       if not os.environ.get("BACKUP_TOKEN")
+                       else "the token presented did not match BACKUP_TOKEN")
+                return jsonify({"ok": False, "error": why}), 403
             return redirect(url_for("login", next=request.path))
         tier = plans.required_tier(request.path)
         if tier and not plans.allowed(user.get("plan") or "artist", tier):
