@@ -945,6 +945,20 @@ def init_db():
             db.execute("ALTER TABLE statement_rows ADD COLUMN territory TEXT NOT NULL DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: what was actually DONE about a case, and when.
+        #
+        # The status ladder offered "Mark Submitted", "Won - record
+        # payout" and "Lost" the moment a case existed, so an artist
+        # could mark a case submitted having sent nothing. That is
+        # self-reported state of exactly the kind this product keeps
+        # removing elsewhere: a case is submitted because a letter went
+        # out or a document was filed, not because a button was pressed.
+        for column in ("evidence_kind", "evidence_detail", "evidence_at"):
+            try:
+                db.execute("ALTER TABLE recovery_cases ADD COLUMN %s TEXT"
+                           " NOT NULL DEFAULT ''" % column)
+            except sqlite3.OperationalError:
+                pass  # column already exists
         # Migration: the recording's own identifier. A coverage gap can
         # only be checked against a store's catalogue by an exact id -
         # matching on title alone breaks on remixes, live versions and
@@ -4169,6 +4183,36 @@ def list_recovery_cases(user_id):
             " estimated_amount DESC, updated DESC",
             (user_id,)).fetchall()
     return [dict(r) for r in rows]
+
+
+def record_case_evidence(user_id, case_id, kind, detail):
+    """File what was done about a case, and move it to submitted.
+
+    `kind` is "letter" or "document". The status change is a consequence
+    of the evidence rather than a button of its own, so a case cannot
+    read as submitted with nothing behind it.
+    """
+    kind = (kind or "").strip().lower()
+    if kind not in ("letter", "document"):
+        return False
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE recovery_cases SET evidence_kind = ?, evidence_detail = ?,"
+            " evidence_at = ?, status = CASE WHEN status = 'open'"
+            " THEN 'submitted' ELSE status END, updated = ?"
+            " WHERE id = ? AND user_id = ?",
+            (kind, (detail or "").strip()[:300], _now(), _now(),
+             case_id, user_id))
+        return bool(cur.rowcount)
+
+
+def delete_recovery_case(user_id, case_id):
+    """Remove a case. Scoped to the owner, so a guessed id deletes nothing."""
+    with get_db() as db:
+        cur = db.execute(
+            "DELETE FROM recovery_cases WHERE id = ? AND user_id = ?",
+            (case_id, user_id))
+        return bool(cur.rowcount)
 
 
 def get_recovery_case(user_id, case_id):

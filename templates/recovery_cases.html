@@ -77,27 +77,53 @@
       {% if c.evidence_doc_id and docs.get(c.evidence_doc_id) %}
       <a href="{{ docs[c.evidence_doc_id].path }}" target="_blank" class="mt-1.5 inline-block text-xs font-semibold text-sb-gold-bright hover:underline">📎 {{ docs[c.evidence_doc_id].filename }}</a>
       {% endif %}
+      {%- set has_evidence = c.evidence_at or c.evidence_doc_id -%}
+      {% if c.evidence_at %}
+      <p class="mt-1.5 text-xs text-green-400">{{ c.evidence_detail }} &middot; {{ c.evidence_at[:10] }}</p>
+      {% endif %}
+
       {% if c.status not in ('won', 'lost') %}
+      {#- The outcome controls used to appear the moment a case existed,
+          so a case could be marked Submitted, Won or Lost having had
+          nothing sent and nothing filed. An outcome is only meaningful
+          once the case was actually taken up with somebody, so until
+          there is a letter or a document this offers the two things
+          that CREATE that evidence. -#}
+      {% if not has_evidence %}
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <a href="/royalty-recovery/cases/{{ c.id }}/letter" class="sb-btn sb-btn-primary sb-btn-sm">Draft the letter</a>
+        {% if doc_list %}
+        <form method="post" class="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="case_id" value="{{ c.id }}">
+          <select name="evidence_doc_id" class="rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-gray-200 [color-scheme:dark] font-medium">
+            <option value="">Attach a document…</option>
+            {% for d in doc_list %}<option value="{{ d.id }}">{{ d.filename }}</option>{% endfor %}
+          </select>
+          <button name="status" value="{{ c.status }}" class="sb-btn sb-btn-secondary sb-btn-sm">Attach</button>
+        </form>
+        {% endif %}
+        <span class="text-xs text-gray-300">An outcome opens up once something has been sent or filed.</span>
+      </div>
+      {% else %}
       <form method="post" class="mt-3 flex flex-wrap items-center gap-2">
         <input type="hidden" name="case_id" value="{{ c.id }}">
-        {% if c.status == 'open' %}
-        <button name="status" value="submitted" class="rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-400 hover:bg-blue-500/20">Mark Submitted</button>
-        {% endif %}
         {% if c.status == 'submitted' %}
         <button name="status" value="waiting" class="sb-btn sb-btn-secondary sb-btn-sm">Waiting on Response</button>
         {% endif %}
         <input name="payout_result" type="number" step="0.01" placeholder="Paid $" class="w-24 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-gray-100 placeholder-gray-300 focus:outline-none font-medium">
         <button name="status" value="won" class="rounded-md border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-bold text-green-400 hover:bg-green-500/20">Won — record payout</button>
         <button name="status" value="lost" class="sb-btn sb-btn-danger sb-btn-sm">Lost</button>
-        {% if doc_list %}
-        <select name="evidence_doc_id" class="rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-gray-200 [color-scheme:dark] font-medium">
-          <option value="">Attach evidence…</option>
-          {% for d in doc_list %}<option value="{{ d.id }}">{{ d.filename }}</option>{% endfor %}
-        </select>
-        <button name="status" value="{{ c.status }}" class="sb-btn sb-btn-secondary sb-btn-sm">Attach</button>
-        {% endif %}
+        <a href="/royalty-recovery/cases/{{ c.id }}/letter" class="text-xs font-semibold text-sb-gold-bright underline">Letter</a>
       </form>
       {% endif %}
+      {% endif %}
+
+      {#- There was no way to remove a case, so one opened by mistake sat
+          in the pipeline total for ever. -#}
+      <form method="post" action="/royalty-recovery/cases/{{ c.id }}/delete" class="mt-2"
+            onsubmit="return confirm('Delete this case? The finding behind it stays on the Recovery page.');">
+        <button class="text-xs font-semibold text-gray-300 underline hover:text-red-400">Delete this case</button>
+      </form>
     </div>
     {% endfor %}
   </div>

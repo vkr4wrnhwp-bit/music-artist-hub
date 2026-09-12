@@ -42,6 +42,7 @@ import signal_hub
 import press_desk
 import tour_os
 import producers
+import distributor_letter
 import recovery_engine
 import recovery_mlc
 import report_builder
@@ -7081,6 +7082,65 @@ def create_app():
                                # page looks like it ignored it.
                                opened=request.args.get("opened", ""),
                                **build_dashboard_context())
+
+    @app.route("/royalty-recovery/cases/<case_id>/delete", methods=["POST"])
+    def recovery_case_delete(case_id):
+        """Remove a case. There was no way to, so a case opened by
+        mistake stayed in the pipeline total for ever."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_recovery_case(user["id"], case_id)
+        return redirect("/royalty-recovery/cases?deleted=1")
+
+    @app.route("/royalty-recovery/cases/<case_id>/letter")
+    def recovery_case_letter(case_id):
+        """The draft to send the distributor about this case.
+
+        Drafted, never sent: a letter about money goes from the artist's
+        own address under their own name. What the app can do is assemble
+        the evidence and get the wording right.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        case = store.get_recovery_case(user["id"], case_id)
+        if case is None:
+            abort(404)
+        # The track this case is about, and what the stores said when
+        # asked - if they were asked at all. An unchecked case gets the
+        # letter that says so rather than a confident one.
+        view = recovery_engine.build(user["id"])
+        finding = next((f for f in view["findings"]
+                        if f.get("case_title") == case["title"]), None)
+        rows = store.get_statement_rows(user["id"])
+        track = (finding or {}).get("track") or ""
+        isrc = next((r["isrc"] for r in rows
+                     if (r["title"] or "").strip() == track and r["isrc"]), "")
+        periods = sorted({(r["period"] or "").strip() for r in rows if r["period"]})
+        letter = distributor_letter.draft(
+            artist=user.get("name") or "", track=track,
+            period=", ".join(periods), check=None,
+            estimate=(finding or {}).get("amount"), isrc=isrc)
+        return render_template("recovery_case_letter.html", case=case,
+                               letter=letter, track=track, isrc=isrc,
+                               **build_dashboard_context())
+
+    @app.route("/royalty-recovery/cases/<case_id>/sent", methods=["POST"])
+    def recovery_case_sent(case_id):
+        """Record that the letter actually went out.
+
+        This is what moves a case to submitted. The old page offered
+        "Mark Submitted" against nothing at all, so a case could read as
+        submitted with no letter and no document behind it.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        to = (request.form.get("to") or "the distributor").strip()[:80]
+        store.record_case_evidence(user["id"], case_id, "letter",
+                                   "Letter sent to %s" % to)
+        return redirect("/royalty-recovery/cases?sent=1#case-%s" % case_id)
 
     @app.route("/royalty-recovery/cases/from-finding", methods=["POST"])
     def case_from_finding():
