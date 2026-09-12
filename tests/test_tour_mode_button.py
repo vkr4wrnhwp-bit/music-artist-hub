@@ -48,6 +48,7 @@ def test_the_header_button_posts_somewhere_that_answers(owner):
 
 def test_auto_hands_the_decision_back_to_the_dates(owner):
     owner.post("/tours/%s/mode" % owner._tour, data={"mode": "live"})
+    assert ts.get_tour(owner._tour)["mode_override"] == "live", "the precondition, so this bites"
     owner.post("/tours/%s/mode" % owner._tour, data={"mode": "auto"})
     assert ts.get_tour(owner._tour)["mode_override"] == ""
 
@@ -63,5 +64,8 @@ def test_a_stranger_cannot_flip_it(owner, flask_app):
                                 "email": "tmode-o-%s@example.net" % uuid.uuid4().hex[:8]})
     other.post("/login", data={"email": "nobody", "password": PASSWORD})
     r = other.post("/tours/%s/mode" % owner._tour, data={"mode": "live"})
-    assert r.status_code in (302, 403, 404)
+    assert r.status_code == 404, "a tour you are not on does not confirm it exists"
     assert ts.get_tour(owner._tour)["mode_override"] == ""
+    # and the owner's own post still lands, so the 404 above was about the stranger
+    owner.post("/tours/%s/mode" % owner._tour, data={"mode": "planning"})
+    assert ts.get_tour(owner._tour)["mode_override"] == "planning"
