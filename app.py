@@ -10559,6 +10559,16 @@ def create_app():
                                creative_outputs=CREATIVE_OUTPUTS,
                                brand=BRAND_MEMORY)
 
+    @app.route("/artist-twin/history/<generation_id>/delete", methods=["POST"])
+    def artist_twin_forget(generation_id):
+        """Saved Generations was a list that only grew (table audit,
+        2026-09-12): twin_generations had inserts and nothing else."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.delete_twin_generation(user["id"], generation_id)
+        return redirect("/artist-twin#history")
+
     @app.route("/artist-twin/start")
     def artist_twin_start():
         """The public Artist Twin entry.

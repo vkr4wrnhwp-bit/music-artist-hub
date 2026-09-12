@@ -4472,6 +4472,14 @@ def save_twin_generation(user_id, kind, output, sources_used):
     return gen_id
 
 
+def delete_twin_generation(user_id, generation_id):
+    """One saved generation, only if it is this account's."""
+    with get_db() as db:
+        cur = db.execute("DELETE FROM twin_generations WHERE id = ? AND user_id = ?",
+                         (generation_id, user_id))
+    return cur.rowcount > 0
+
+
 def list_twin_generations(user_id, limit=20):
     with get_db() as db:
         rows = db.execute(

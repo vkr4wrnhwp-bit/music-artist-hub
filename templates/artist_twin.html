@@ -91,14 +91,20 @@
       {% endif %}
 
       {% if history %}
-      <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+      <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5" id="history">
         <h2 class="sb-label text-gray-300">Saved Generations</h2>
         <div class="mt-3 space-y-2">
           {% for g in history[:8] %}
           <details class="rounded-lg border border-white/5 bg-white/5 px-3 py-2">
             <summary class="cursor-pointer text-xs font-bold text-gray-200">{{ dict(twin.OUTPUT_TYPES).get(g.kind, g.kind) }} <span class="ml-2 font-normal sb-num text-gray-300">{{ g.created[:16].replace('T', ' ') }}</span></summary>
             <p class="mt-2 whitespace-pre-line text-xs leading-relaxed text-gray-200">{{ g.output }}</p>
-            <div class="mt-1 text-xs text-gray-300 font-medium">Sources: {{ g.sources_used or 'account name only' }}</div>
+            <div class="mt-1 flex items-center justify-between gap-3 text-xs text-gray-300 font-medium">
+              <span>Sources: {{ g.sources_used or 'account name only' }}</span>
+              <form method="post" action="/artist-twin/history/{{ g.id }}/delete"
+                    onsubmit="return confirm('Remove this saved generation?');">
+                <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm" aria-label="Remove generation from {{ g.created[:16].replace('T', ' ') }}">Remove</button>
+              </form>
+            </div>
           </details>
           {% endfor %}
         </div>
