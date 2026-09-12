@@ -1394,6 +1394,26 @@ def calendar(user, tour, viewer, tour_id):
         add_open=(not days) or request.args.get("add") == "1", **cal))
 
 
+@bp.route("/tours/<tour_id>/mode", methods=["POST"])
+@require_tour("edit")
+def tour_mode_set(user, tour, viewer, tour_id):
+    """The Planning view / Live view button in every tour page's header.
+
+    The shell has posted here since the header was built, and nothing
+    answered: the template check of 2026-09-12 found the action with no
+    route, so the button was a 404 on every tour. The override column and
+    tour_mode()'s reading of it already existed; this is the missing hop.
+    "auto" clears the override and lets the dates decide again.
+    """
+    wanted = (request.form.get("mode") or "").strip()
+    if wanted not in ("live", "planning", "auto"):
+        return _back("/tours/%s" % tour_id)
+    ts.update_tour(tour_id, {"mode_override": "" if wanted == "auto" else wanted})
+    ts.log_change(tour_id, tour["user_id"], _actor(viewer), "tour", tour_id,
+                  tour["name"], "mode", tour.get("mode_override") or "auto", wanted, "info")
+    return _back("/tours/%s" % tour_id)
+
+
 @bp.route("/tours/<tour_id>/days/add", methods=["POST"])
 @require_tour("edit", "schedule")
 def day_add(user, tour, viewer, tour_id):
