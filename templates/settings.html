@@ -101,7 +101,7 @@
               <span class="block text-sm font-semibold">{{ label }}</span>
               <span class="block text-xs text-gray-300">{{ detail }}</span>
             </span>
-            <input type="checkbox" name="kind" value="{{ key }}" class="h-4 w-4 shrink-0 accent-[var(--sb-gold-bright)]"{% if key not in muted_kinds %} checked{% endif %}>
+            <input type="checkbox" name="kind" value="{{ key }}" class="h-4 w-4 shrink-0" style="accent-color: var(--sb-gold-bright)"{% if key not in muted_kinds %} checked{% endif %}>
           </label>
           {% endfor %}
           <div class="pt-2">

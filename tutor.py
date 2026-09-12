@@ -71,8 +71,11 @@ STAGES = [
         ("release_date", "Give it a release date",
          "A date turns a song into a plan. The scheduler, the rollout "
          "tools and the countdown all key off it — two weeks out or more "
-         "gives the promotion tools room to work.",
-         "/releases", "Open the scheduler"),
+         "gives the promotion tools room to work. The date lives on the "
+         "campaign: open it and edit.",
+         # Not /releases: that is the calendar view now, which shows dates
+         # and sets none - a step must land where it can be done.
+         "/links", "Open your campaigns"),
         ("publish", "Publish the campaign",
          "Until it is published, the smart link is a draft only you can "
          "see. Publishing is what makes it real.",

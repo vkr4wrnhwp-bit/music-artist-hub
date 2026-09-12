@@ -52,7 +52,7 @@ def test_an_unticked_kind_is_dropped_before_it_is_written(artist):
         store.notify(artist._uid, "recovery", "A finding", "", "/recovery")
     assert _titles(artist) == ["A finding"]
     body = artist.get("/settings").get_data(as_text=True)
-    assert 'value="fan" class="h-4 w-4 shrink-0 accent-[var(--sb-gold-bright)]">' in body, "fan reads unticked"
+    assert 'value="fan" class="h-4 w-4 shrink-0" style="accent-color: var(--sb-gold-bright)">' in body, "fan reads unticked"
 
 
 def test_ticking_it_again_lets_it_through(artist):
