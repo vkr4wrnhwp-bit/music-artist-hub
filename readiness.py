@@ -43,8 +43,62 @@ def _try(fn, default=False):
         return default
 
 
+def _call(fn, default):
+    """_try answers a yes/no. This one hands back whatever the callable
+    returned, for the providers that report a dict."""
+    try:
+        return fn()
+    except Exception:
+        return default
+
+
 def _present(*names):
     return all((os.environ.get(n) or "").strip() for n in names)
+
+
+def _signal_rows():
+    """Every Signal provider, from the registry rather than from memory.
+
+    Two things were wrong when these rows were written by hand. The
+    Soundcharts row named SOUNDCHARTS_ID and SOUNDCHARTS_TOKEN, neither
+    of which the app reads - the real pair is SOUNDCHARTS_APP_ID and
+    SOUNDCHARTS_API_KEY, or SOUNDCHARTS_CLIENT_ID and
+    SOUNDCHARTS_CLIENT_SECRET for OAuth. And every adapter needs its own
+    *_ENABLED flag as well as a key, which the hand-written rows ignored
+    entirely, so a provider with a key and no flag read as "Configured"
+    while Signal was not calling it.
+
+    The registry cannot drift from the adapters, so it is asked instead.
+    """
+    import signal_providers as sp
+
+    rows = []
+    for provider in sp.registry().all_providers():
+        keys = list(getattr(provider, "env_keys", ()) or ())
+        oauth = list(getattr(provider, "oauth_keys", ()) or ())
+        flag = getattr(provider, "env_flag", "")
+        if not (keys or oauth or flag):
+            continue          # the demo universe and other no-credential ones
+        health = _call(provider.health_check, {}) or {}
+        rows.append({
+            "name": provider.label,
+            "on": bool(health.get("configured")),
+            "env": ([flag] if flag else []) + keys + oauth,
+            "unlocks": health.get("detail") or "",
+            "signal": True,
+        })
+    return sorted(rows, key=lambda r: (not r["on"], r["name"]))
+
+
+# Flags the app reads that do not live in audio_policy.FLAGS, so the
+# audio section never showed them. LYRIC_SHEET_ENABLED in particular was
+# set on this deployment and absent from the page, which is the exact
+# failure this page exists to prevent.
+OTHER_FLAGS = [
+    ("LYRIC_SHEET_ENABLED", "Pulling the words up off a master in Audio Studio."),
+    ("LIVE_LAB_ENABLED", "Live Lab: the set list, the stems and the stage view."),
+    ("STUDIO_V1_ENABLED", "The Studio session surface."),
+]
 
 
 def _flags():
@@ -116,9 +170,15 @@ def _groups():
                          "secret. A rotated or revoked secret still reads as "
                          "live - confirm deliveries in the Stripe dashboard."),
         ]),
-        ("Music data", "Where the numbers on Pulse and Signal come from.", [
+        ("Signal providers",
+         "Read from the registry, which knows the flag AND the key. Every "
+         "adapter needs its own *_ENABLED flag set as well as credentials - "
+         "a key on its own is not enough, and these rows used to miss that.",
+         _signal_rows()),
+        ("Pulse and pre-save", "Spotify's own credentials, separate from the "
+         "Signal adapter above.", [
             dict(name="Spotify",
-                 on=_try(spotify_provider.configured),
+                 on=_try(__import__("spotify_provider").configured),
                  env=["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET",
                       "SPOTIFY_REDIRECT_URI"],
                  unlocks="Follower and popularity readings on Pulse, and the "
@@ -127,25 +187,11 @@ def _groups():
                  probe="/presave/diag",
                  proof="reports which Spotify variables this process can "
                        "see. It does not attempt an OAuth exchange"),
-            dict(name="Songstats", on=_present("SONGSTATS_API_KEY"),
-                 env=["SONGSTATS_API_KEY"],
-                 unlocks="Streaming and playlist history in Signal."),
-            dict(name="Soundcharts",
-                 on=_present("SOUNDCHARTS_ID", "SOUNDCHARTS_TOKEN"),
-                 env=["SOUNDCHARTS_ID", "SOUNDCHARTS_TOKEN"],
-                 unlocks="The same capabilities as Songstats. One provider "
-                         "serves each capability, chosen by preference order.",
-                 probe="/signal/admin/data-sources", roundtrip=True,
-                 proof="names which adapter serves each capability, and its "
-                       "Test connection button calls the vendor for real"),
-            dict(name="YouTube", on=_present("YOUTUBE_API_KEY"),
-                 env=["YOUTUBE_API_KEY"],
-                 unlocks="Video counts on Pulse and in Signal."),
-            dict(name="Chartmetric", on=_present("CHARTMETRIC_TOKEN"),
-                 env=["CHARTMETRIC_TOKEN"],
-                 unlocks="Audience and playlist data in Signal."),
         ]),
-        ("Rights", "Registration and fingerprinting.", [
+        ("Rights",
+         "Registration and fingerprinting in the catalog and the fingerprints "
+         "desk. These are the keys those surfaces read directly - Signal's own "
+         "use of the same vendors is the section above, and needs its flags.", [
             dict(name="The MLC", on=_present("MLC_USERNAME", "MLC_PASSWORD"),
                  env=["MLC_USERNAME", "MLC_PASSWORD"],
                  unlocks="Matching a work, filling ISWC and publisher from a "
@@ -175,7 +221,12 @@ def _groups():
                  proof="reports the key length and whether it carries stray "
                        "quotes or whitespace - the three things that "
                        "silently break a pasted secret"),
-        ] + _flags()),
+        ] + _flags() + [
+            dict(name=label.replace("_ENABLED", "").replace("_", " ").capitalize(),
+                 on=audio_policy.flag(label), env=[label], flag=True,
+                 unlocks=why)
+            for label, why in OTHER_FLAGS
+        ]),
         ("Live and tour", "Ticket counts, venues and maps.", [
             dict(name="Eventbrite", on=_try(eventbrite_provider.configured),
                  env=["EVENTBRITE_TOKEN"],

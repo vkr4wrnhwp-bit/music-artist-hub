@@ -50,13 +50,19 @@ def test_a_missing_key_reads_as_missing(monkeypatch):
 
 
 def test_a_present_key_reads_as_configured(monkeypatch):
+    # Both halves: a Signal adapter is its flag AND its credentials. This
+    # test used to set only the key and expect a green row, which is the
+    # assumption that made four providers read as in service when Signal
+    # was not calling them.
     monkeypatch.setenv(KEY, "sk-whatever")
+    monkeypatch.setenv("SONGSTATS_ENABLED", "1")
     assert _row("Songstats")["on"] is True
 
 
 def test_an_empty_value_is_not_a_key(monkeypatch):
     """Render keeps a variable with an empty value, and the old provider
     checks that used bool(os.environ.get(...)) would call that set."""
+    monkeypatch.setenv("SONGSTATS_ENABLED", "1")     # the flag is not the gap
     monkeypatch.setenv(KEY, "   ")
     assert _row("Songstats")["on"] is False
 
@@ -158,3 +164,70 @@ def test_every_row_says_what_it_switches_on():
                 continue
             assert row["unlocks"].strip(), "%s says nothing" % row["name"]
             assert row["env"], "%s names no variable" % row["name"]
+
+
+def test_every_variable_named_is_one_the_app_actually_reads():
+    """The guard that was missing, and the bug that proved it necessary.
+
+    The Soundcharts row named SOUNDCHARTS_ID and SOUNDCHARTS_TOKEN. The
+    app reads neither - the real pair is SOUNDCHARTS_APP_ID and
+    SOUNDCHARTS_API_KEY, or the OAuth pair. So the row read "Not set" on
+    a deployment where Soundcharts was configured, and told the owner to
+    set two variables nothing would ever look at. A readiness page that
+    invents a name is worse than no page: it sends somebody to the
+    dashboard to type something with no effect.
+
+    A name is only counted if it appears as its own quoted string in a
+    non-test module. SOUNDCHARTS_TOKEN passed a substring check because
+    SOUNDCHARTS_TOKEN_URL exists, which is how the first sweep missed it.
+    """
+    import os
+
+    # ONE dirname: readiness.py sits at the repo root, so two would walk
+    # the directory ABOVE it - which on this machine holds every sibling
+    # worktree, and turned a two-second test into a ten-minute one.
+    repo = os.path.dirname(os.path.abspath(readiness.__file__))
+    blob = []
+    for root, dirs, files in os.walk(repo):
+        dirs[:] = [d for d in dirs
+                   if d not in (".git", "tests", "__pycache__", "tools",
+                                "node_modules", "static", "templates")]
+        for name in files:
+            if name.endswith(".py") and name != "readiness.py":
+                try:
+                    with open(os.path.join(root, name), encoding="utf-8",
+                              errors="ignore") as fh:
+                        blob.append(fh.read())
+                except OSError:
+                    pass
+    source = chr(10).join(blob)
+
+    unknown = []
+    for group in readiness.report():
+        for row in group["rows"]:
+            for var in row["env"]:
+                # The name has to appear as its own quoted string. A plain
+                # substring search passes SOUNDCHARTS_TOKEN on the strength
+                # of SOUNDCHARTS_TOKEN_URL, which is how the first sweep
+                # for this missed it.
+                quoted = ['"' + var + '"', "'" + var + "'"]
+                if not any(q in source for q in quoted):
+                    unknown.append("%s -> %s" % (row["name"], var))
+    assert not unknown, (
+        "the page names variables the app never reads: %s" % unknown)
+
+
+def test_a_signal_provider_needs_its_flag_as_well_as_its_key(monkeypatch):
+    """A key on its own does not put a provider into service.
+
+    Every Signal adapter is gated on its own *_ENABLED flag too. The
+    hand-written rows checked only the key, so a provider read
+    "Configured" while Signal was not calling it at all.
+    """
+    monkeypatch.setenv("SONGSTATS_API_KEY", "sk-real-looking")
+    monkeypatch.delenv("SONGSTATS_ENABLED", raising=False)
+    assert _row("Songstats")["on"] is False, (
+        "a key with no flag is not a provider in service")
+
+    monkeypatch.setenv("SONGSTATS_ENABLED", "1")
+    assert _row("Songstats")["on"] is True
