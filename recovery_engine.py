@@ -89,10 +89,17 @@ def finding_key(kind, fact=""):
     return "recovery:%s:%s" % (kind, _slug(fact)) if fact else "recovery:%s" % kind
 
 
-def build(user_id):
-    """The whole /recovery page for one account. Never seed data."""
-    rows = store.get_statement_rows(user_id) if user_id else []
-    analysis = statements_engine.analyze(rows) if rows else None
+def build(user_id, rows=None, analysis=None):
+    """The whole /recovery page for one account. Never seed data.
+
+    `rows` and `analysis` may be passed by a caller that already read
+    them - the Statements page draws its gap cards from these findings
+    and should not read 48,000 rows a second time to do it.
+    """
+    if rows is None:
+        rows = store.get_statement_rows(user_id) if user_id else []
+    if analysis is None:
+        analysis = statements_engine.analyze(rows) if rows else None
     cases = store.list_recovery_cases(user_id) if user_id else []
     case_view = {
         "all": cases,

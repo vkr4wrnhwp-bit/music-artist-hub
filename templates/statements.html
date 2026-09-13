@@ -1,164 +1,330 @@
 {% extends "base.html" %}
 {% import "_sb.html" as sb %}
+{% import "_gear.html" as gear %}
 
 {% block title %}Statements - Royalty Sweep{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/meters.css?v=2">
+  <link rel="stylesheet" href="/static/css/statements.css?v=1">
+{% endblock %}
 
+{#- THE STATEMENTS DESK - approved from the numbered mockup of 2026-09-13.
+    Every figure is computed from the uploaded rows by statements_engine
+    and read into this shape by statements_desk; an estimate is tagged
+    as one, a store nobody asked stays dashed, and a reading nobody took
+    is never drawn as zero. -#}
 {% set a = analysis %}
+{% set d = desk %}
 
 {% block content %}
-<div class="mx-auto max-w-[1200px] space-y-5">
-  <div>
-    <h1 class="sb-h1">Statements</h1>
-    <p class="mt-1 text-sm text-gray-300">Upload your distributor / PRO / MLC statement CSVs — we run real recovery analysis on your actual numbers.</p>
-  </div>
+{% call sb.plate("/static/img/sweep-wide", [900, 1400, 1672],
+                 "Street Banker · Royalty Sweep", "Statements",
+                 "Your distributor, PRO and MLC statements, read line by line. Every figure on this page is computed from the files you uploaded; an estimate is marked as one.",
+                 position="center 40%") %}
+  {% if a %}<a href="/reports/royalty-report/download.csv" class="sb-btn sb-btn-secondary">Download CSV</a>{% endif %}
+  <a href="#intake" class="sb-btn sb-btn-primary">Upload a statement</a>
+{% endcall %}
 
-  <!-- Upload -->
-  <section class="rounded-2xl border border-amber-500/15 bg-sb-surface-1 p-5">
-    <h2 class="sb-label text-gray-300">Upload a Statement</h2>
-    <p class="mt-1 text-sm text-gray-300">CSV exports from Symphonic, DistroKid, TuneCore, ASCAP, BMI, The MLC, and most services work — we auto-detect the columns.</p>
-    {% if error %}
-    <div class="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">{{ error }}</div>
-    {% endif %}
-    <form method="post" enctype="multipart/form-data" class="mt-4 flex flex-wrap items-center gap-3">
-      <input type="file" name="statement" accept=".csv,text/csv"
-             class="text-xs text-gray-300 file:mr-3 file:rounded-md file:border file:border-amber-500/30 file:bg-amber-500/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-amber-400 hover:file:bg-amber-500/20 file:border-solid file:cursor-pointer">
-      <button type="submit" class="sb-btn sb-btn-secondary">Upload &amp; Analyze</button>
-    </form>
-    {% if drop_box %}
-    <div class="mt-4 rounded-xl border border-sb-gold/30 bg-sb-gold/[0.06] p-4">
-      <div class="sb-label text-sb-gold-bright">Your statement drop-box</div>
-      <p class="mt-1 text-xs text-gray-300">Forward statement emails (or set an auto-forward rule for your distributor's emails) to this address — CSV attachments parse into your account automatically:</p>
-      <div class="mt-2 flex flex-wrap items-center gap-2">
-        <code id="drop-box-addr" class="rounded-lg bg-black/40 px-3 py-2 text-xs font-bold text-sb-gold-bright">{{ drop_box }}</code>
-        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('drop-box-addr').textContent); this.textContent='Copied ✓'; setTimeout(() => this.textContent='Copy', 1500);" class="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-gray-200 hover:bg-white/10">Copy</button>
-        <button type="button" id="dropbox-test-btn" class="sb-btn sb-btn-secondary sb-btn-sm">Send test statement</button>
-      </div>
-      <p id="dropbox-test-msg" class="mt-2 hidden text-xs font-medium"></p>
-      <script>
-        document.getElementById("dropbox-test-btn").addEventListener("click", async (e) => {
-          e.target.disabled = true;
-          const msg = document.getElementById("dropbox-test-msg");
-          const res = await fetch("/statements/dropbox-test", { method: "POST" });
-          const data = await res.json();
-          msg.classList.remove("hidden");
-          if (data.ok) {
-            msg.className = "mt-2 text-xs text-green-400";
-            msg.textContent = "Test statement emailed to your drop-box — it should appear under uploads within a minute. Refresh to check.";
-          } else {
-            msg.className = "mt-2 text-xs text-red-400";
-            msg.textContent = data.error || "Could not send.";
-            e.target.disabled = false;
-          }
-        });
-      </script>
-    </div>
-    {% endif %}
-    {% if request.args.get('removed') %}
-    <p class="mt-2 text-xs font-semibold text-green-400">Upload removed. Every figure on the money pages now excludes it.</p>
-    {% endif %}
-    {% if uploads %}
-    {#- Each upload can be removed. It could not be, which mattered more
-        than it looks: a statement uploaded before the ISRC column existed
-        carries no ISRC, so the store check has nothing to look up, and
-        the only fix is to upload it again - which without a delete would
-        double every figure on the money pages. -#}
-    <div class="mt-4 space-y-1.5">
-      {% for u in uploads %}
-      <div class="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
-        <span class="text-xs text-gray-300 font-medium">{{ u.filename }} · {{ u.row_count }} rows · ${{ "{:,.2f}".format(u.total) }}</span>
-        <form method="post" action="/statements/{{ u.id }}/delete" class="ml-auto"
-              onsubmit="return confirm('Remove {{ u.filename }} and its {{ u.row_count }} rows? Every figure computed from it changes.');">
-          <button class="text-xs font-semibold text-gray-300 underline hover:text-red-400">Remove</button>
+<div class="sd mx-auto max-w-[1200px]">
+
+  {#- 1 · INTAKE: upload and the drop-box, one row. -#}
+  <section id="intake" aria-labelledby="sd-intake-h">
+    <h2 id="sd-intake-h" class="sd-h">Intake <span class="sub">— upload, or forward statement emails to your drop-box</span></h2>
+    <div class="sd-intake">
+      <div class="sd-panel">
+        <div class="sbm-lbl"><span>Upload a statement</span></div>
+        <p class="sd-note">CSV exports from Symphonic, DistroKid, TuneCore, ASCAP, BMI and The MLC. Columns are detected automatically.</p>
+        {% if error %}<div class="sd-error" role="alert">{{ error }}</div>{% endif %}
+        <form method="post" enctype="multipart/form-data" class="sd-field">
+          <input type="file" name="statement" accept=".csv,text/csv" aria-label="Statement CSV"
+                 class="file:mr-3 file:rounded-md file:border file:border-solid file:border-amber-500/30 file:bg-amber-500/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-amber-400 file:cursor-pointer hover:file:bg-amber-500/20">
+          <button type="submit" class="sb-btn sb-btn-primary sb-btn-sm">Upload &amp; analyse</button>
         </form>
+        {% if request.args.get('removed') %}
+        <p class="sd-ok">Upload removed. Every figure on the money pages now excludes it.</p>
+        {% endif %}
+        {% if uploads %}
+        {#- Each upload can be removed: a statement uploaded before the ISRC
+            column existed carries no ISRC, so the store check has nothing to
+            look up, and the only fix is to upload it again - which without
+            a delete would double every figure on the money pages. -#}
+        <ul class="sd-files">
+          {% for u in uploads %}
+          <li class="sd-file-row">
+            <span>{{ u.filename }}</span>
+            <span class="num">{{ "{:,}".format(u.row_count) }} rows</span>
+            <span class="num">${{ "{:,.2f}".format(u.total) }}</span>
+            <span class="acts">
+              <span class="ok">Read</span>{% if u.via == "email" %}<span class="via">· drop-box</span>{% endif %}
+              <span class="via">·</span>
+              <form method="post" action="/statements/{{ u.id }}/delete"
+                    onsubmit="return confirm('Remove {{ u.filename }} and its {{ u.row_count }} rows? Every figure computed from it changes.');">
+                <button class="sd-link">Remove</button>
+              </form>
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+
+      <div class="sd-panel">
+        <div class="sbm-lbl"><span>Your statement drop-box</span></div>
+        {% if drop_box %}
+        <p class="sd-note">Forward statement emails here, or set an auto-forward rule for your distributor's emails. CSV attachments are read into your account automatically.</p>
+        <div class="sd-addr">
+          <b id="drop-box-addr">{{ drop_box }}</b>
+          <button type="button" id="drop-box-copy" class="sb-btn sb-btn-secondary sb-btn-sm">Copy</button>
+          <button type="button" id="dropbox-test-btn" class="sb-btn sb-btn-secondary sb-btn-sm">Send a test</button>
+        </div>
+        <p id="dropbox-test-msg" class="sd-note" hidden></p>
+        <p class="sd-note">
+          {%- if d and d.last_received -%}
+            Last received: {{ d.last_received.filename }}, {{ d.last_received.uploaded[:10] }}.
+          {%- else -%}
+            Last received: nothing yet. The first forwarded statement will show here with its filename and the date it arrived.
+          {%- endif -%}
+        </p>
+        <script>
+          document.getElementById("drop-box-copy").addEventListener("click", (e) => {
+            navigator.clipboard.writeText(document.getElementById("drop-box-addr").textContent);
+            e.target.textContent = "Copied";
+            setTimeout(() => { e.target.textContent = "Copy"; }, 1500);
+          });
+          document.getElementById("dropbox-test-btn").addEventListener("click", async (e) => {
+            e.target.disabled = true;
+            const msg = document.getElementById("dropbox-test-msg");
+            const res = await fetch("/statements/dropbox-test", { method: "POST" });
+            const data = await res.json();
+            msg.hidden = false;
+            if (data.ok) {
+              msg.textContent = "Test statement emailed to your drop-box. It should appear under uploads within a minute; refresh to check.";
+            } else {
+              msg.textContent = data.error || "Could not send.";
+              e.target.disabled = false;
+            }
+          });
+        </script>
+        {% else %}
+        <p class="sd-note">Email forwarding is not set up on this service, so statements are uploaded by hand. When an inbound address is configured, it appears here.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {% if a and d %}
+  {#- 2 · THE MONEY BRIDGE: four readings, each tagged actual, estimate or
+      from-your-rows. The instrument anatomy is Artist Pulse's. -#}
+  <section aria-labelledby="sd-bridge-h">
+    <h2 id="sd-bridge-h" class="sd-h">What the statements say <span class="sub">— four readings, each marked actual or estimate</span></h2>
+    <div class="sbm-bridge" id="statements-bridge">
+      {% for i in d.instruments %}
+      <div class="sbm-frame" style="{{ gear.alu_style() }}">
+        <div class="sbm-inst" data-instrument="{{ i.key }}">
+          <div class="sbm-lbl"><span>{{ i.label }}</span><span class="sd-tag {{ i.tag }}">{{ i.tag_text }}</span></div>
+          <div class="sbm-read">
+            <span class="sbm-v">{% if i.est %}<span class="sd-approx" aria-label="about">≈ </span>{% endif %}{{ i.shown }}</span>
+            <span class="sbm-d {{ i.delta_tone }}">{{ i.delta_text }}</span>
+          </div>
+          {% if i.spark %}
+          {% set sp = i.spark %}
+          <svg class="sbm-spark" viewBox="0 0 {{ sp.width }} {{ sp.height }}" preserveAspectRatio="none" role="img"
+               aria-label="{{ i.label }} by period: {{ i.spark_first }} to {{ i.spark_last }}">
+            <path class="fill" d="{{ sp.area }}"/>
+            <path class="line" d="{{ sp.line }}"/>
+            <circle class="dot" cx="{{ sp.end[0] }}" cy="{{ sp.end[1] }}" r="3"/>
+          </svg>
+          <div class="sbm-spark-cap" aria-hidden="true"><span>{{ i.spark_first }}</span><span class="end">{{ i.spark_last }}</span></div>
+          {% elif i.cells %}
+          <div class="sd-cells" aria-hidden="true">{% for c in i.cells %}<i{% if not c.lit %} class="off"{% endif %}></i>{% endfor %}</div>
+          <p class="sd-inst-note" style="min-height:0">{{ i.note }}</p>
+          {% else %}
+          <p class="sd-inst-note">{{ i.note }}</p>
+          {% endif %}
+          <div class="sbm-prov">{% for p in i.prov %}{% if loop.first %}<b>{{ p }}</b>{% else %}<span>· {{ p }}</span>{% endif %}{% endfor %}</div>
+        </div>
       </div>
       {% endfor %}
     </div>
-    {% endif %}
   </section>
 
-  {% if a %}
-  <!-- Real findings -->
-  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Reported Earnings</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums text-green-400">${{ "{:,.2f}".format(a.total) }}</div>
-      <div class="mt-1 text-xs text-gray-300 font-medium">{{ "{:,}".format(a.row_count) }} rows · {{ a.store_count }} store{{ "" if a.store_count == 1 else "s" }} across {{ a.source_count }} payee line{{ "" if a.source_count == 1 else "s" }}</div>
-    </div>
-    <div class="rounded-2xl border border-amber-500/15 bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Coverage Gaps (est.)</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums text-sb-ink">${{ "{:,.2f}".format(a.gap_estimate_total) }}</div>
-      <div class="mt-1 text-xs text-gray-300 font-medium">{{ a.coverage_gaps | length }} track{{ "" if a.coverage_gaps|length == 1 else "s" }} paid by some stores and not others</div>
-    </div>
-    <div class="rounded-2xl border {{ 'border-red-500/20' if a.unmatched_revenue > 0 else 'border-white/5' }} bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Unmatched Revenue</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums {{ 'text-red-400' if a.unmatched_revenue > 0 else 'text-gray-300' }}">${{ "{:,.2f}".format(a.unmatched_revenue) }}</div>
-      <div class="mt-1 text-xs text-gray-300 font-medium">Rows with no track title</div>
-    </div>
-    <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Periods Covered</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums">{{ a.period_count }}</div>
-      <div class="mt-1 text-xs text-gray-300 font-medium"><a href="/reports/royalty-report/download.csv" class="font-semibold text-amber-400 hover:underline">Download CSV ↓</a></div>
-    </div>
-  </div>
-
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-    <!-- By source -->
-    <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <h2 class="sb-label text-gray-300">Earnings by Source</h2>
-      <div class="mt-4 space-y-3">
-        {% set max_src = a.by_source[0].amount if a.by_source else 1 %}
-        {% for s in a.by_source %}
-        {{ sb.meter(s.source, s.amount, max_src, shown="$" ~ "{:,.2f}".format(s.amount)) }}
-        {% endfor %}
-      </div>
-    </section>
-
-    <!-- Top tracks -->
-    <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <h2 class="sb-label text-gray-300">Top Tracks</h2>
-      <div class="mt-3 space-y-2">
-        {% for t in a.by_track %}
-        <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2">
-          <span class="w-5 shrink-0 text-center text-xs font-bold text-gray-300">{{ loop.index }}</span>
-          <span class="min-w-0 flex-1 truncate text-sm {{ 'italic text-gray-300' if t.title == '(no title)' else 'font-semibold text-gray-100' }}">{{ t.title }}</span>
-          <span class="shrink-0 text-xs text-gray-300 font-medium">{{ t.stores }} store{{ '' if t.stores == 1 else 's' }}</span>
-          <span class="shrink-0 text-sm font-bold sb-num text-sb-ink">${{ "{:,.2f}".format(t.amount) }}</span>
+  {#- 5 · WHERE THE MONEY CAME FROM: by store, payee lines folded under it. -#}
+  <section aria-labelledby="sd-ladder-h">
+    <h2 id="sd-ladder-h" class="sd-h">Where the money came from <span class="sub">— by store, with its payee lines folded under it</span></h2>
+    <div class="sd-panel">
+      <div class="sd-ladder">
+        {% for s in d.ladder.rows %}
+        <div class="sd-store{{ ' is-society' if not s.deliverable }}" data-store="{{ s.store }}">
+          {{ sb.meter(s.store, s.amount, d.ladder.top, shown="$" ~ "{:,.2f}".format(s.amount)) }}
+          {% if s.line_count > 1 or not s.deliverable %}
+          <div class="sd-store-detail">
+            {% if s.line_count > 1 %}<span class="sd-chip">{{ s.line_count }} lines</span>{% endif %}
+            {% if not s.deliverable %}<span class="sd-chip soc">licensing, not a store</span>{% endif %}
+            {% if s.line_names %}<span>{{ s.line_names | join(", ") }}</span>{% endif %}
+          </div>
+          {% endif %}
         </div>
         {% endfor %}
       </div>
-    </section>
-  </div>
-
-  <!-- Coverage gaps -->
-  <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-    <h2 class="sb-label text-gray-300">Coverage Gaps — Money Likely Missing</h2>
-    {#- This sentence described the OLD estimator - a track's average
-        per-source earnings times the count of missing stores - which valued
-        a missing Qobuz (JPY) listing like a missing Spotify one and read
-        94% of a real catalogue's earnings as recoverable. The numbers
-        changed; this had not, so the page explained a method it no longer
-        used. -#}
-    <p class="mt-1 text-sm text-gray-300">Tracks earning on some stores and absent from others in your own data. A track worth a given share of your catalogue would earn roughly that share of what a store pays, so the estimate is weighted by what each silent store actually paid you — not split evenly between them. Stores you already earn on under another name are not counted, and a society like SoundExchange is never treated as a delivery gap.</p>
-    <div class="mt-4 space-y-2">
-      {% for g in a.coverage_gaps %}
-      <div class="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5">
-        <span class="min-w-0 flex-1">
-          <span class="block truncate text-sm font-semibold text-gray-100">{{ g.title }}</span>
-          <span class="block text-xs text-gray-300 font-medium">Missing from: {{ g.missing_sources | join(', ') }}</span>
-        </span>
-        <span class="shrink-0 text-sm font-bold sb-num text-sb-ink">~${{ "{:,.2f}".format(g.estimated_value) }}</span>
+      {% if d.ladder.tail %}
+      <details class="sd-more">
+        <summary>{{ d.ladder.tail | length }} more stores · ${{ "{:,.2f}".format(d.ladder.tail_amount) }} together</summary>
+        <div class="sd-ladder">
+          {% for s in d.ladder.tail %}
+          <div class="sd-store{{ ' is-society' if not s.deliverable }}" data-store="{{ s.store }}">
+            {{ sb.meter(s.store, s.amount, d.ladder.top, shown="$" ~ "{:,.2f}".format(s.amount)) }}
+            {% if s.line_count > 1 or not s.deliverable %}
+            <div class="sd-store-detail">
+              {% if s.line_count > 1 %}<span class="sd-chip">{{ s.line_count }} lines</span>{% endif %}
+              {% if not s.deliverable %}<span class="sd-chip soc">licensing, not a store</span>{% endif %}
+              {% if s.line_names %}<span>{{ s.line_names | join(", ") }}</span>{% endif %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+      <div class="sd-key">
+        <span><b>Bars</b> are share of the largest store.</span>
+        <span><b>Lines</b> is how many payee lines the statement reports the store under.</span>
+        <span><b>Licensing, not a store</b> — a society or a licensing deal is never counted as a place a track could be missing from.</span>
       </div>
+    </div>
+  </section>
+
+  {#- 6 · TRACKS: what each earned, and on how many of the stores. -#}
+  <section aria-labelledby="sd-tracks-h">
+    <h2 id="sd-tracks-h" class="sd-h">Tracks <span class="sub">— what each earned, and on how many of your stores</span></h2>
+    <div class="sd-tablewrap">
+      <table class="sd-table">
+        <thead><tr><th>#</th><th>Track</th><th class="num">Earned</th><th class="num">Stores</th><th>Coverage</th></tr></thead>
+        <tbody>
+          {% for t in d.tracks[:5] %}
+          <tr{% if t.gap is not none %} class="has-gap"{% endif %}>
+            <td class="num">{{ t.rank }}</td>
+            <td><span class="{{ 'untitled' if t.untitled else 'title' }}">{{ t.title }}</span>{% if t.gap is not none %}<a class="gap-tag" href="#gap-{{ t.slug }}">gap ≈ ${{ "{:,.2f}".format(t.gap) }} ↓</a>{% endif %}</td>
+            <td class="num">${{ "{:,.2f}".format(t.amount) }}</td>
+            <td class="num">{{ t.stores }} of {{ t.of }}</td>
+            <td><span class="sd-dots" role="img" aria-label="{{ t.stores }} of {{ t.of }} stores">{% for on in t.dots %}<i{% if not on %} class="off"{% endif %}></i>{% endfor %}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if d.tracks | length > 5 %}
+        <tbody id="sd-track-rest" hidden>
+          {% for t in d.tracks[5:] %}
+          <tr{% if t.gap is not none %} class="has-gap"{% endif %}>
+            <td class="num">{{ t.rank }}</td>
+            <td><span class="{{ 'untitled' if t.untitled else 'title' }}">{{ t.title }}</span>{% if t.gap is not none %}<a class="gap-tag" href="#gap-{{ t.slug }}">gap ≈ ${{ "{:,.2f}".format(t.gap) }} ↓</a>{% endif %}</td>
+            <td class="num">${{ "{:,.2f}".format(t.amount) }}</td>
+            <td class="num">{{ t.stores }} of {{ t.of }}</td>
+            <td><span class="sd-dots" role="img" aria-label="{{ t.stores }} of {{ t.of }} stores">{% for on in t.dots %}<i{% if not on %} class="off"{% endif %}></i>{% endfor %}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tbody id="sd-track-fold">
+          <tr class="fold"><td colspan="5">… {{ d.tracks | length - 5 }} more tracks · <button type="button" class="sd-link" id="sd-track-more">show all {{ d.tracks | length }}</button></td></tr>
+        </tbody>
+        <script>
+          document.getElementById("sd-track-more").addEventListener("click", () => {
+            document.getElementById("sd-track-rest").hidden = false;
+            document.getElementById("sd-track-fold").hidden = true;
+          });
+        </script>
+        {% endif %}
+      </table>
+    </div>
+  </section>
+
+  {#- 7 · COVERAGE GAPS: checked against the stores before anybody writes.
+      Each silent store is a chip in one of three states; dashed means
+      nobody asked, and is never read as missing. -#}
+  <section aria-labelledby="sd-gaps-h" id="gaps">
+    <h2 id="sd-gaps-h" class="sd-h">Coverage gaps <span class="sub">— checked against the stores themselves before you write to anyone</span></h2>
+    {% if request.args.get('checked') == 'no-isrc' %}
+    <p class="sd-error" role="status">That track's rows carry no ISRC, so no store could be asked. Upload a statement with an ISRC column.</p>
+    {% elif request.args.get('checked') %}
+    <p class="sd-ok" role="status">Stores checked. The chips below show what each one said.</p>
+    {% endif %}
+    {% if d.gaps.count %}
+    <div class="sd-gaps">
+      {% for g in d.gaps.featured %}
+      <article class="sd-gap" id="gap-{{ g.slug }}" data-gap="{{ g.slug }}">
+        <div>
+          <h3>{{ g.title }}</h3>
+          <p class="sd-note">Earns on {{ g.earns_on }} store{{ "" if g.earns_on == 1 else "s" }}; nothing reported from {{ g.silent }} other{{ "" if g.silent == 1 else "s" }} where the rest of your catalogue earns.</p>
+          <div class="sd-stores">
+            {% for c in g.chips %}
+            {% if c.state == "carried" and c.url %}<a class="sd-st carried" href="{{ c.url }}" target="_blank" rel="noopener">{{ c.source }} · carries it</a>
+            {% elif c.state == "carried" %}<span class="sd-st carried">{{ c.source }} · carries it</span>
+            {% elif c.state == "absent" %}<span class="sd-st absent">{{ c.source }} · not listed</span>
+            {% else %}<span class="sd-st unchecked">{{ c.source }}</span>{% endif %}
+            {% endfor %}
+          </div>
+          {% if loop.first %}
+          <div class="sd-key">
+            <span><b>Carries it</b> — the store lists this recording and paid nothing: ask the distributor to account for it.</span>
+            <span><b>Not listed</b> — the store does not carry it: ask for delivery.</span>
+            <span><b>Dashed</b> — could not be checked; never read as missing.</span>
+          </div>
+          {% endif %}
+        </div>
+        <div class="sd-est"><span class="sd-approx" aria-label="about">≈ </span>${{ "{:,.2f}".format(g.amount) }}<small>estimate · {{ g.confidence | lower }} confidence</small></div>
+        <div class="sd-acts">
+          {% if g.letter_href %}
+          <a class="sb-btn sb-btn-primary sb-btn-sm" href="{{ g.letter_href }}">Draft the letter</a>
+          <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/royalty-recovery/cases#case-{{ g.case_id }}">Case open</a>
+          {% else %}
+          <form method="post" action="/royalty-recovery/cases/from-finding">
+            <input type="hidden" name="case_key" value="{{ g.case_key }}">
+            <input type="hidden" name="title" value="{{ g.case_title }}">
+            <input type="hidden" name="category" value="{{ g.case_category }}">
+            <input type="hidden" name="amount" value="{{ g.amount }}">
+            <input type="hidden" name="notes" value="{{ g.detail }} {{ g.action }}.">
+            <button class="sb-btn sb-btn-primary sb-btn-sm">Create a recovery case</button>
+          </form>
+          {% endif %}
+          {% if g.isrc and (g.askable or g.checked) %}
+          <form method="post" action="/statements/gaps/check">
+            <input type="hidden" name="title" value="{{ g.title }}">
+            <button class="sb-btn sb-btn-secondary sb-btn-sm">{{ "Check the stores again" if g.checked else "Check the stores" }}</button>
+          </form>
+          {% endif %}
+          <span class="sd-checknote">{{ g.check_note }}{% if not g.letter_href %} The letter is drafted from the case.{% endif %}</span>
+        </div>
+      </article>
       {% endfor %}
-      {% if not a.coverage_gaps %}
-      <div class="rounded-xl border border-dashed border-white/10 py-6 text-center text-xs text-gray-300">No cross-source gaps detected in this data — clean coverage.</div>
+
+      {% if d.gaps.tail %}
+      <details class="sd-more">
+        <summary>{{ d.gaps.tail | length }} more gap{{ "" if d.gaps.tail | length == 1 else "s" }}{% if d.gaps.tail_under_floor %} worth less than a dollar each{% endif %}</summary>
+        <div class="sd-tail">
+          {% for g in d.gaps.tail %}
+          <div class="sd-tail-row" id="gap-{{ g.slug }}">
+            <span class="k">{{ g.title }}<small>Earns on {{ g.earns_on }} store{{ "" if g.earns_on == 1 else "s" }}; silent on {{ g.silent }}. {{ g.check_note }}</small></span>
+            <span class="v"><span class="sd-approx" aria-label="about">≈ </span>${{ "{:,.2f}".format(g.amount) }}</span>
+            {% if g.isrc and (g.askable or g.checked) %}
+            <form method="post" action="/statements/gaps/check">
+              <input type="hidden" name="title" value="{{ g.title }}">
+              <button class="sb-btn sb-btn-secondary sb-btn-sm">{{ "Check again" if g.checked else "Check" }}</button>
+            </form>
+            {% else %}<span></span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </details>
       {% endif %}
     </div>
-    <p class="mt-3 text-xs text-gray-300 font-medium">Totals, sources, tracks, and unmatched revenue are computed directly from your uploads. Gap values are estimates for prioritization, not guarantees.</p>
+    {% else %}
+    <div class="sd-empty"><b>No coverage gaps in this data</b><p>Every named track earns on every store where the rest of your catalogue earns. That is a real result on real rows, not a claim about stores you have not uploaded.</p></div>
+    {% endif %}
+    <p class="sd-note">The estimate weights each silent store by what it actually paid you across the catalogue, so a missing Qobuz listing is not valued like a missing Spotify one. Totals, stores and tracks are computed directly from your uploads; gap values order your attention and guarantee nothing.</p>
   </section>
+
   {% else %}
-  <section class="rounded-2xl border border-dashed border-white/10 py-14 text-center">
-    <div class="text-sm font-semibold text-gray-200">No statements yet</div>
-    <p class="mx-auto mt-1 max-w-md text-xs text-gray-300">Upload your first CSV above. Export one from your distributor or PRO dashboard — Symphonic, ASCAP, BMI, and The MLC all offer CSV statements.</p>
+  <section class="sd-empty">
+    <b>No statements yet</b>
+    <p>Upload your first CSV above. Export one from your distributor or PRO dashboard: Symphonic, ASCAP, BMI and The MLC all offer CSV statements.</p>
   </section>
   {% endif %}
 </div>

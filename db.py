@@ -79,6 +79,14 @@ def init_db():
                 amount REAL NOT NULL,
                 period TEXT
             );
+            CREATE TABLE IF NOT EXISTS gap_checks (
+                user_id TEXT NOT NULL,
+                track_key TEXT NOT NULL,
+                isrc TEXT NOT NULL DEFAULT '',
+                result TEXT NOT NULL,
+                checked TEXT NOT NULL,
+                PRIMARY KEY (user_id, track_key)
+            );
             CREATE TABLE IF NOT EXISTS smart_links (
                 slug TEXT PRIMARY KEY,
                 user_id TEXT,
@@ -979,6 +987,13 @@ def init_db():
             db.execute("ALTER TABLE statement_rows ADD COLUMN isrc TEXT NOT NULL DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: where a statement came from. The drop-box panel
+        # says "last received" and has to know which upload was received
+        # rather than chosen.
+        try:
+            db.execute("ALTER TABLE statements ADD COLUMN via TEXT NOT NULL DEFAULT 'upload'")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         # Migration: universal-link metadata on smart links.
         try:
             db.execute("ALTER TABLE smart_links ADD COLUMN meta TEXT")
@@ -1365,13 +1380,14 @@ def delete_statement(user_id, statement_id):
         return True
 
 
-def save_statement(user_id, filename, rows):
+def save_statement(user_id, filename, rows, via="upload"):
     statement_id = uuid.uuid4().hex
     total = round(sum(r["amount"] for r in rows), 2)
     with get_db() as db:
         db.execute(
-            "INSERT INTO statements (id, user_id, filename, uploaded, row_count, total) VALUES (?,?,?,?,?,?)",
-            (statement_id, user_id, filename, _now(), len(rows), total),
+            "INSERT INTO statements (id, user_id, filename, uploaded, row_count, total, via)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (statement_id, user_id, filename, _now(), len(rows), total, via or "upload"),
         )
         db.executemany(
             "INSERT INTO statement_rows (statement_id, title, source, amount,"
@@ -1389,6 +1405,31 @@ def get_statements(user_id):
             "SELECT * FROM statements WHERE user_id = ? ORDER BY uploaded DESC", (user_id,)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def save_gap_check(user_id, track_key, isrc, result):
+    """What the stores said about one gap, kept so the page can show it
+    without asking again on every view - and so a letter drafted later
+    reads the same answer the artist saw."""
+    with get_db() as db:
+        db.execute(
+            "INSERT OR REPLACE INTO gap_checks (user_id, track_key, isrc, result, checked)"
+            " VALUES (?,?,?,?,?)",
+            (user_id, track_key, isrc or "", json.dumps(result), _now()))
+
+
+def get_gap_checks(user_id):
+    """{track_key: {"isrc", "checked", "result"}} for this account."""
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM gap_checks WHERE user_id = ?", (user_id,)).fetchall()
+    out = {}
+    for r in rows:
+        try:
+            result = json.loads(r["result"])
+        except (TypeError, ValueError):
+            result = {}
+        out[r["track_key"]] = {"isrc": r["isrc"], "checked": r["checked"], "result": result}
+    return out
 
 
 def get_statement_rows(user_id, statement_id=None):

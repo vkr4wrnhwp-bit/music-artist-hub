@@ -37,6 +37,8 @@ a.sbm-frame:focus-visible { outline: none; box-shadow: var(--sb-focus); }
 .sbm-spark .dot { fill: var(--sb-gold-bright); }
 .sbm-spark text { font-family: var(--sb-text); font-size: 12px; font-weight: 600; fill: var(--sb-ink-3); }
 .sbm-spark text.end { fill: var(--sb-gold-bright); }
+.sbm-spark-cap { display: flex; justify-content: space-between; gap: 8px; margin-top: -4px; font-size: 12px; font-weight: 600; color: var(--sb-ink-3); font-variant-numeric: tabular-nums; }
+.sbm-spark-cap .end { color: var(--sb-gold-bright); }
 .sbm-spark .flatline { stroke: var(--sb-line-strong); stroke-width: 1; stroke-dasharray: 4 4; }
 .sbm-noline { height: 44px; display: grid; align-items: center; font-size: 12px; color: var(--sb-ink-3); }
 

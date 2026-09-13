@@ -469,9 +469,8 @@
           <path class="line" d="{{ sp.line }}"/>
           {%- if sp.gap_tail %}<path class="tail" d="{{ sp.gap_tail }}"/>{% endif %}
           <circle class="dot" cx="{{ sp.end[0] }}" cy="{{ sp.end[1] }}" r="3"/>
-          <text x="3" y="{{ sp.height - 3 }}">{{ i.spark_first }}</text>
-          <text class="end" x="{{ sp.width - 3 }}" y="12" text-anchor="end">{{ i.spark_last }}</text>
         </svg>
+        <div class="sbm-spark-cap" aria-hidden="true"><span>{{ i.spark_first }}</span><span class="end">{{ i.spark_last }}</span></div>
       {%- elif i.history %}
         <div class="sbm-noline">Not enough history for a line yet.</div>
       {%- else %}

@@ -1076,7 +1076,7 @@ def test_statements_upload_and_real_findings():
     body = client.get("/statements").get_data(as_text=True)
     assert "273.15" in body            # real total
     assert "12.40" in body             # unmatched revenue detected
-    assert "Coverage Gaps" in body     # Neon Dreams missing Apple Music
+    assert "Coverage gaps" in body     # Neon Dreams missing Apple Music
     # Real CSV export includes the uploaded rows.
     csv_out = client.get("/reports/royalty-report/download.csv")
     assert csv_out.status_code == 200 and "Midnight Drive" in csv_out.get_data(as_text=True)

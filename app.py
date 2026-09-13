@@ -1091,7 +1091,8 @@ def create_app():
         parsed = parse_statement(data, filename)
         if parsed["error"]:
             return parsed["error"]
-        store.save_statement(user_id, filename, parsed["rows"])
+        store.save_statement(user_id, filename, parsed["rows"],
+                             via="email" if via == "email" else "upload")
         finding = analyze_statement(parsed["rows"])
         tag = (" (via email drop-box)" if via == "email" else "")
         if finding and (finding["unmatched_revenue"] or finding["coverage_gaps"]):
@@ -1155,7 +1156,45 @@ def create_app():
             [{"title": r["title"], "source": r["source"], "amount": r["amount"], "period": r["period"]}
              for r in rows]
         )
+        # The desk: the four readings, the store ladder, the track table
+        # and the gap cards with what the stores said when last asked.
+        ctx["desk"] = None
+        if ctx["analysis"]:
+            import statements_desk
+            view = recovery_engine.build(user["id"], rows=rows, analysis=ctx["analysis"])
+            ctx["desk"] = statements_desk.build(
+                ctx["analysis"], rows, ctx["uploads"], view["findings"],
+                store.get_gap_checks(user["id"]), store.list_recovery_cases(user["id"]))
         return render_template("statements.html", active_page="statements", **ctx)
+
+    @app.route("/statements/gaps/check", methods=["POST"])
+    def statements_gap_check():
+        """Ask the stores about one gap and keep the answer.
+
+        Runs on a press, not on a page view: it is a round of network
+        calls, and the answer is kept so the page and the letter read the
+        same one. A track whose rows carry no ISRC cannot be asked about
+        and is sent back saying so, never checked by title.
+        """
+        import statements_desk
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        title = (request.form.get("title") or "").strip()
+        rows = store.get_statement_rows(user["id"])
+        analysis = analyze_statement(rows) if rows else None
+        gap = next((g for g in (analysis or {}).get("coverage_gaps", [])
+                    if g["title"] == title), None)
+        if gap is None:
+            abort(404)
+        key = statements_desk.slug(title)
+        isrc = next((r["isrc"] for r in rows
+                     if (r["title"] or "").strip() == title and r["isrc"]), "")
+        if not isrc:
+            return redirect("/statements?checked=no-isrc#gap-%s" % key)
+        store.save_gap_check(user["id"], key, isrc,
+                             coverage_check.check_gap(isrc, gap["missing_sources"]))
+        return redirect("/statements?checked=%s#gap-%s" % (key, key))
 
     @app.route("/statements/<statement_id>/delete", methods=["POST"])
     def statement_delete(statement_id):
@@ -7257,9 +7296,14 @@ def create_app():
         isrc = next((r["isrc"] for r in rows
                      if (r["title"] or "").strip() == track and r["isrc"]), "")
         periods = sorted({(r["period"] or "").strip() for r in rows if r["period"]})
+        # The stores' answer, if the artist asked them from the Statements
+        # page: a letter about a store that carries the recording can say
+        # so; one about an unchecked store must not.
+        import statements_desk
+        stored = store.get_gap_checks(user["id"]).get(statements_desk.slug(track)) if track else None
         letter = distributor_letter.draft(
             artist=user.get("name") or "", track=track,
-            period=", ".join(periods), check=None,
+            period=", ".join(periods), check=(stored or {}).get("result"),
             estimate=(finding or {}).get("amount"), isrc=isrc)
         return render_template("recovery_case_letter.html", case=case,
                                letter=letter, track=track, isrc=isrc,
