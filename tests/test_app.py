@@ -2779,7 +2779,9 @@ def test_money_pages_use_real_statement_data():
     assert "Midnight Drive" in body
     # Royalties: the stream columns, and the tracks period against period.
     body = client.get("/royalties").get_data(as_text=True)
-    assert "By stream" in body and "Tracks, 2026-04 against 2026-05" in body and "200.75" in body
+    assert "By stream" in body and "Tracks, 2026-04 against 2026-05" in body
+    tracks = body.split('id="tracks"')[1].split("</section>")[0]
+    assert "Midnight Drive" in tracks and "$120.50" in tracks and "$80.25" in tracks, "each period, not a total"
     # Recovery: unmatched + coverage-gap findings with action buttons.
     body = client.get("/recovery").get_data(as_text=True)
     assert "Unattributed revenue" in body and "12.40" in body
@@ -4609,8 +4611,8 @@ def test_ecosystem_hubs():
     assert "Light Studio" in desk and "real DMX" in desk.lower() or "DMX" in desk
     assert artist.get("/desk/nope").status_code == 404
     money = artist.get("/desk/money").get_data(as_text=True)
-    # Money Queue is a tab of Royalty Lanes now; the desk shows the front.
-    assert "Royalty Lanes" in money and "Valuation" in money
+    # Royalty Lanes folded into Royalties (2026-09-13); the desk shows the front.
+    assert "Royalties" in money and "Valuation" in money and "Royalty Lanes" not in money
     # Fan world keeps its simple nav — no hub machinery.
     fan = app_obj.test_client()
     fan.post("/login", data={"email": "demo-fan@streetbanker.io", "password": "sweep"})
