@@ -81,7 +81,11 @@ def test_a_heartbeat_from_an_old_daemon_reads_not_reported_for_the_rack_fields()
     sb.arm(dev["id"], USER)
     sb.heartbeat(sb.get_device(dev["id"]), {"ok": True, "detail": "fine"}, software_version="daemon-0.1")
     s = rack.status(sid, USER)
-    assert s["network"]["state"] == "online" and s["network"]["heartbeat_age_s"] <= 1, "just now; a second may tick between the beat and the read"
+    # "just now": the beat and the read are two SQLite round trips apart,
+    # and under a full-suite run on a busy machine that has taken more
+    # than the one second this used to allow (gate 99, 2026-09-12). The
+    # claim is online-and-fresh, not sub-second.
+    assert s["network"]["state"] == "online" and s["network"]["heartbeat_age_s"] <= 15, "just now"
     assert s["software_version"] == "daemon-0.1" and s["last_update"] == rack.NOT_REPORTED
     assert s["console"]["connected"] is True, "an old daemon's health ok is its console link"
     assert s["armed"] is True and s["lamps"] == []
