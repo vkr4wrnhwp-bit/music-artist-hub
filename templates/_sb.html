@@ -332,15 +332,20 @@
 {# A measured value against a ceiling. `value` and `ceiling` must both be
    real; pass value=none when there is nothing measured and say why in
    `absent`. #}
-{% macro meter(label, value, ceiling=none, tone="", shown=none, absent="Not measured") -%}
+{% macro meter(label, value, ceiling=none, tone="", shown=none, absent="Not measured", part=none) -%}
   {%- set known = value is not none and ceiling is not none and ceiling > 0 -%}
   <div class="sb-meter-row">
     <span class="sb-meter-val" style="text-align:left;">{{ label }}</span>
     {%- if known %}
       {%- set pct = ((100 * value / ceiling) | round | int) -%}
       <span class="sb-meter {{ 'sb-meter--' ~ tone if tone }}"
-            role="img" aria-label="{{ label }}: {{ shown if shown is not none else value }}">
+            role="img" aria-label="{{ label }}: {{ shown if shown is not none else value }}{% if part %} (actual {{ '$' ~ '{:,.2f}'.format(part) }}){% endif %}">
         <span class="sb-meter-fill" style="--sb-meter-fill: {{ [pct, 100] | min }}%;"></span>
+        {#- `part` is the portion of the value that is actual rather than
+            estimated, drawn over the fill in the good tone - so one bar
+            can carry money on the statement and a guess about the rest
+            without pretending they are the same thing. -#}
+        {%- if part %}<span class="sb-meter-part" style="--sb-meter-part: {{ [((100 * part / ceiling) | round | int), 100] | min }}%;"></span>{% endif %}
       </span>
       <span class="sb-meter-val">{{ shown if shown is not none else value }}</span>
     {%- else %}

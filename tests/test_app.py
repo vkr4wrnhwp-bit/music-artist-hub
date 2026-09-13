@@ -2851,7 +2851,7 @@ def test_money_pages_use_real_statement_data():
     body = client.get("/recovery").get_data(as_text=True)
     assert "Unattributed revenue" in body and "12.40" in body
     assert "Neon Dreams" in body and "Apple Music" in body
-    assert "Create recovery action" in body
+    assert "Open case" in body
     # The showcase's hardcoded figures are nowhere near this account.
     assert "3,301.38" not in body and "Ready to Claim" not in body
     # Valuation: annualized signal with the honesty disclaimer.

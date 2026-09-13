@@ -1,0 +1,20 @@
+{#- The MLC on the Recovery page: per ISRC, on request. Shown whether or
+    not statements exist - a registry gap needs no statement to be real.
+    The sweep itself is the shared _mlc_sweep.html (claim meters). -#}
+  <section id="mlc" aria-labelledby="rv-mlc-h">
+    <h2 id="rv-mlc-h" class="rv-h">The MLC, by ISRC <span class="sub">— every passport ISRC against the public registry, when you press the button</span></h2>
+    <div class="rv-panel">
+      <div class="rv-mlc-head">
+        <p class="rv-note" style="margin:0">{% if mlc.on %}Each work is drawn as how much of it is claimed. Gold is claimed; the striped remainder is the share nobody has claimed; a dashed bar means The MLC has no work linked to that recording at all. The money beside a gap is what the title has already earned on your statements, never what The MLC owes. Nothing is registered or claimed on your behalf.{% else %}Not connected. With The MLC's Public Search API login set, this checks every ISRC on your Track Passports against the registry. Until then nothing on this page is a registration status.{% endif %}</p>
+        {% if mlc.on %}
+        <form method="post" action="/recovery/mlc">
+          <button class="sb-btn sb-btn-secondary sb-btn-sm"{% if not mlc.ready %} disabled title="No ISRC on any Track Passport yet"{% endif %}>Check {{ mlc.ready|length }} ISRC{{ '' if mlc.ready|length == 1 else 's' }} at The MLC</button>
+        </form>
+        {% endif %}
+      </div>
+      {% if mlc_note %}<p class="mt-2 text-xs text-amber-300">{{ mlc_note }}</p>{% endif %}
+      {% if mlc.on %}
+        {% include "_mlc_sweep.html" %}
+      {% endif %}
+    </div>
+  </section>

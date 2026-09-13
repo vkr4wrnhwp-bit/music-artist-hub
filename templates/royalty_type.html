@@ -2,6 +2,9 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}{{ rt.label }} - Street Banker{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/recovery.css?v=1">
+{% endblock %}
 
 {% block content %}
 {{ sb.subnav([("/publishing", "Publishing"), ("/mechanicals", "Mechanicals"), ("/neighboring-rights", "Neighboring rights"), ("/territories", "By market")], request.path) }}

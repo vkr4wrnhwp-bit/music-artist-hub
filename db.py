@@ -4395,7 +4395,8 @@ def open_case_for_finding(user_id, key, fields):
 
 
 def update_recovery_case(user_id, case_id, fields):
-    allowed = ("status", "notes", "deadline", "evidence_doc_id", "payout_result")
+    allowed = ("status", "notes", "deadline", "evidence_doc_id", "payout_result",
+               "estimated_amount", "category")
     sets, vals = [], []
     for key in allowed:
         if key in fields:

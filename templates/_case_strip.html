@@ -1,0 +1,87 @@
+{#- THE CASE STRIP - approved from the Recovery mockup of 2026-09-13 (5).
+
+    A case is added or edited here, in the page's own flow, two rows tall,
+    never in a panel that pushes the page around. Expects:
+      strip_case   the case dict, or none for a new case
+      strip_next   where the form returns to (this page, with the strip open)
+      strip_close  where the close control goes
+      doc_list     documents that can be attached as evidence
+      categories, statuses
+    Won and Lost are only offered once a letter has been sent or a
+    document filed - an outcome is meaningful only after the case was
+    actually taken up with somebody. -#}
+{%- set c = strip_case -%}
+{%- set has_evidence = c and (c.evidence_at or c.evidence_doc_id) -%}
+<section class="rv-case" id="case-strip" aria-label="{{ 'Case: ' ~ c.title if c else 'New case' }}">
+  <a class="x" href="{{ strip_close }}" aria-label="Close">×</a>
+  <form method="post" action="/royalty-recovery/cases">
+    <input type="hidden" name="next" value="{{ strip_next }}">
+    {% if c %}<input type="hidden" name="case_id" value="{{ c.id }}">{% endif %}
+    <div class="r1">
+      <div class="who">
+        {% if c %}
+        <b>{{ c.title }}</b>
+        <small>{{ c.category.replace('_', ' ') | capitalize }} · opened {{ c.created[:10] }}{% if c.estimated_amount %} · estimate ${{ "{:,.2f}".format(c.estimated_amount) }}{% endif %}
+          {%- for s in c.rail %} {{ '→' if not loop.first }} <span{% if s.now %} class="now"{% endif %}>{{ s.label | lower }}</span>{% endfor %}</small>
+        {% else %}
+        <div class="rv-f"><label for="cs-title">New case</label><input id="cs-title" name="title" required placeholder="What is owed, and by whom"></div>
+        {% endif %}
+      </div>
+      {% if c %}
+      <div class="rv-f"><label for="cs-status">Status</label>
+        <select id="cs-status" name="status">
+          {% for s in statuses %}{% if s in ('won', 'lost') and not has_evidence %}{% else %}<option value="{{ s }}"{% if s == c.status %} selected{% endif %}>{{ s | capitalize }}</option>{% endif %}{% endfor %}
+        </select></div>
+      {% else %}
+      <div class="rv-f"><label for="cs-category">Category</label>
+        <select id="cs-category" name="category">{% for cat in categories %}<option value="{{ cat }}">{{ cat.replace('_', ' ') | capitalize }}</option>{% endfor %}</select></div>
+      {% endif %}
+      <div class="rv-f"><label for="cs-est">Estimate</label><input id="cs-est" name="estimated_amount" type="number" step="0.01" min="0" value="{{ c.estimated_amount if c and c.estimated_amount else '' }}" placeholder="0.00"></div>
+      <div class="rv-f"><label for="cs-due">Deadline</label><input id="cs-due" name="deadline" type="date" value="{{ c.deadline if c and c.deadline else '' }}"></div>
+      <div class="rv-acts">
+        {% if c %}
+        <a class="sb-btn sb-btn-primary sb-btn-sm" href="/royalty-recovery/cases/{{ c.id }}/letter">Draft the letter</a>
+        {% else %}
+        <button class="sb-btn sb-btn-primary sb-btn-sm">Open case</button>
+        {% endif %}
+      </div>
+    </div>
+    <div class="r2">
+      <div class="rv-f"><label for="cs-notes">Notes</label><input id="cs-notes" name="notes" value="{{ c.notes if c and c.notes else '' }}" maxlength="600" placeholder="What happened, and what you asked for"></div>
+      <div class="rv-f"><label for="cs-doc">Evidence</label>
+        <select id="cs-doc" name="evidence_doc_id">
+          <option value="">{% if c and c.evidence_doc_id %}Keep the attached document{% else %}Attach a document…{% endif %}</option>
+          {% for d in doc_list %}<option value="{{ d.id }}">{{ d.filename }}</option>{% endfor %}
+        </select></div>
+      <div class="rv-acts">
+        {% if c and has_evidence and c.status not in ('won', 'lost') %}
+        <input name="payout_result" type="number" step="0.01" min="0" placeholder="Paid $" aria-label="Amount paid" style="width:92px;padding:7px 9px;border-radius:var(--sb-r-control);border:1px solid var(--sb-line-strong);background:var(--sb-ground);color:var(--sb-ink);font:inherit;font-size:13px">
+        {% endif %}
+        {% if c %}<button class="sb-btn sb-btn-secondary sb-btn-sm">Save</button>{% endif %}
+      </div>
+    </div>
+  </form>
+  <div class="foot">
+    {% if c and not has_evidence and c.status not in ('won', 'lost') %}
+    <form method="post" action="/royalty-recovery/cases/{{ c.id }}/sent" class="rv-acts" style="align-items:center;gap:8px">
+      <input type="hidden" name="next" value="{{ strip_next }}">
+      <input name="to" placeholder="Sent to (e.g. Symphonic)" aria-label="Sent to" maxlength="80" style="padding:5px 8px;border-radius:var(--sb-r-control);border:1px solid var(--sb-line-strong);background:var(--sb-ground);color:var(--sb-ink);font:inherit;font-size:12px">
+      <button class="sb-btn sb-btn-secondary sb-btn-sm">Mark the letter sent</button>
+      <span>Won and Lost open up once a letter has been sent or a document filed. Nothing here sends anything.</span>
+    </form>
+    {% elif c and c.evidence_at %}
+    <span>{{ c.evidence_detail }} · {{ c.evidence_at[:10] }}. Nothing here sends anything.</span>
+    {% elif c %}
+    <span>A document is filed against this case, so an outcome can be recorded.</span>
+    {% else %}
+    <span>Findings on the Recovery page open cases with one press, with the amount and notes filled in.</span>
+    {% endif %}
+    {% if c %}
+    <form method="post" action="/royalty-recovery/cases/{{ c.id }}/delete"
+          onsubmit="return confirm('Delete this case? The finding behind it stays on the Recovery page.');">
+      <input type="hidden" name="next" value="{{ strip_close }}">
+      <button class="rv-link">Delete this case</button>
+    </form>
+    {% endif %}
+  </div>
+</section>

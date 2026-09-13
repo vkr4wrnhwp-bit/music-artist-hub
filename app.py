@@ -1190,11 +1190,15 @@ def create_app():
         key = statements_desk.slug(title)
         isrc = next((r["isrc"] for r in rows
                      if (r["title"] or "").strip() == title and r["isrc"]), "")
+        back = _safe_next(request.form.get("next"), "/statements")
+        on_recovery = back.startswith("/recovery")
         if not isrc:
-            return redirect("/statements?checked=no-isrc#gap-%s" % key)
+            return redirect("/recovery?checked=no-isrc#findings" if on_recovery
+                            else "/statements?checked=no-isrc#gap-%s" % key)
         store.save_gap_check(user["id"], key, isrc,
                              coverage_check.check_gap(isrc, gap["missing_sources"]))
-        return redirect("/statements?checked=%s#gap-%s" % (key, key))
+        return redirect("/recovery?checked=%s#findings" % key if on_recovery
+                        else "/statements?checked=%s#gap-%s" % (key, key))
 
     @app.route("/statements/<statement_id>/delete", methods=["POST"])
     def statement_delete(statement_id):
@@ -2395,16 +2399,55 @@ def create_app():
                                integrations=integrations, unavailable=unavailable,
                                **build_dashboard_context())
 
+    def _safe_next(value, default):
+        """A same-site path to return to, or the default. A form pressed
+        from the Recovery page goes back to Recovery; one pressed on the
+        case desk stays there. Never an absolute URL."""
+        v = (value or "").strip()
+        return v if v.startswith("/") and not v.startswith("//") else default
+
+    def _strip_case(user_id, case_id):
+        """The case the strip edits, with its rail, or None."""
+        import recovery_desk
+        case = store.get_recovery_case(user_id, case_id) if case_id else None
+        if case:
+            case["rail"] = recovery_desk.rail(case)
+        return case
+
     @app.route("/recovery")
     def recovery():
         # One page for every account, including the showcase - the demo
         # has real statements now, so it is scanned by the same engine
         # rather than shown a hardcoded copy of what a scan looks like.
+        #
+        # The desk (recovery_desk) lays the engine's findings out by
+        # basis, with the store checks and the case desk read alongside.
+        import recovery_desk
         user = current_user()
+        rv = mlc = desk = strip_case = None
+        doc_list = []
+        if user:
+            rows = store.get_statement_rows(user["id"])
+            analysis = analyze_statement(rows) if rows else None
+            rv = recovery_engine.build(user["id"], rows=rows, analysis=analysis)
+            mlc = recovery_mlc.state(user["id"])
+            cases = store.list_recovery_cases(user["id"])
+            isrc_by_title = {}
+            for r in rows:
+                title = (r["title"] or "").strip()
+                if title and r["isrc"] and title not in isrc_by_title:
+                    isrc_by_title[title] = r["isrc"]
+            desk = recovery_desk.build(rv, analysis, rows, store.get_statements(user["id"]),
+                                       mlc, store.get_gap_checks(user["id"]), cases, isrc_by_title)
+            strip_case = _strip_case(user["id"], request.args.get("case"))
+            doc_list = store.list_documents(user["id"]) if strip_case else []
         return render_template(
             "recovery.html", active_page="recovery",
-            recovery_view=recovery_engine.build(user["id"]) if user else None,
-            mlc=recovery_mlc.state(user["id"]) if user else None,
+            recovery_view=rv, mlc=mlc, desk=desk,
+            strip_case=strip_case,
+            strip_next=("/recovery?case=%s#case-strip" % strip_case["id"]) if strip_case else "/recovery",
+            strip_close="/recovery#findings",
+            doc_list=doc_list, categories=_CASE_CATEGORIES, statuses=_CASE_STATUSES,
             mlc_note={"off": "The MLC is not connected on this service.",
                       "none": "No Track Passport carries an ISRC yet, so there is nothing to ask about."
                       }.get(request.args.get("mlc") or "", ""),
@@ -7182,6 +7225,15 @@ def create_app():
                         fields["payout_result"] = float(f["payout_result"])
                     except ValueError:
                         pass
+                if f.get("estimated_amount"):
+                    try:
+                        fields["estimated_amount"] = max(0.0, float(f["estimated_amount"]))
+                    except ValueError:
+                        pass
+                if "deadline" in f:
+                    fields["deadline"] = (f.get("deadline") or "").strip()[:10]
+                if f.get("category") in _CASE_CATEGORIES:
+                    fields["category"] = f["category"]
                 store.update_recovery_case(user["id"], f["case_id"], fields)
                 case = store.get_recovery_case(user["id"], f["case_id"])
                 if case and f.get("status") == "won":
@@ -7197,16 +7249,23 @@ def create_app():
                     "confidence": f.get("confidence") or "medium",
                     "deadline": (f.get("deadline") or "").strip(),
                     "notes": (f.get("notes") or "").strip()})
-            return redirect("/royalty-recovery/cases")
+            return redirect(_safe_next(f.get("next"), "/royalty-recovery/cases"))
         cases = store.list_recovery_cases(user["id"])
         recovered = sum(c.get("payout_result") or 0 for c in cases if c["status"] == "won")
         pipeline = sum(c["estimated_amount"] for c in cases
                        if c["status"] in ("open", "submitted", "waiting"))
         docs = {d["id"]: d for d in store.list_documents(user["id"])}
+        # The strip: ?new=1 opens it empty, ?case=<id> opens it on a case.
+        strip_case = _strip_case(user["id"], request.args.get("case"))
+        strip_open = bool(strip_case) or bool(request.args.get("new"))
         return render_template("recovery_cases.html", active_page="cases",
                                cases=cases, recovered=recovered, pipeline=pipeline,
                                docs=docs, doc_list=list(docs.values()),
                                categories=_CASE_CATEGORIES, statuses=_CASE_STATUSES,
+                               strip_case=strip_case, strip_open=strip_open,
+                               strip_next=("/royalty-recovery/cases?case=%s#case-strip" % strip_case["id"])
+                               if strip_case else "/royalty-recovery/cases",
+                               strip_close="/royalty-recovery/cases",
                                # What the press that arrived here did. A press
                                # that changed nothing has to say so, or the
                                # page looks like it ignored it.
@@ -7269,7 +7328,7 @@ def create_app():
         if user is None:
             return login_required_redirect()
         store.delete_recovery_case(user["id"], case_id)
-        return redirect("/royalty-recovery/cases?deleted=1")
+        return redirect(_safe_next(request.form.get("next"), "/royalty-recovery/cases?deleted=1"))
 
     @app.route("/royalty-recovery/cases/<case_id>/letter")
     def recovery_case_letter(case_id):
@@ -7323,7 +7382,8 @@ def create_app():
         to = (request.form.get("to") or "the distributor").strip()[:80]
         store.record_case_evidence(user["id"], case_id, "letter",
                                    "Letter sent to %s" % to)
-        return redirect("/royalty-recovery/cases?sent=1#case-%s" % case_id)
+        return redirect(_safe_next(request.form.get("next"),
+                                   "/royalty-recovery/cases?sent=1#case-%s" % case_id))
 
     @app.route("/royalty-recovery/cases/from-finding", methods=["POST"])
     def case_from_finding():
@@ -7353,6 +7413,8 @@ def create_app():
                 "estimated_amount": f.get("amount") or 0,
                 "confidence": "high" if f.get("category") == "unmatched" else "medium",
                 "notes": (f.get("notes") or "").strip()})
+        if _safe_next(f.get("next"), "").startswith("/recovery"):
+            return redirect("/recovery?opened=%s&case=%s#case-strip" % (opened, case_id))
         return redirect("/royalty-recovery/cases?opened=%s#case-%s" % (opened, case_id))
 
     @app.route("/deal-room", methods=["GET", "POST"])

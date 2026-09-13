@@ -479,6 +479,14 @@ details.asx-open[open] .asx-when-closed { display: none; }
   transition: width var(--sb-slow) var(--sb-ease);
 }
 
+/* the actual portion of a mixed bar, over the fill, in the good tone */
+.sb-meter-part {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: var(--sb-meter-part, 0%);
+  background: var(--sb-good);
+}
+
 .sb-meter::after {
   content: "";
   position: absolute;
