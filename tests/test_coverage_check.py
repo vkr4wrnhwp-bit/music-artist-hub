@@ -133,7 +133,7 @@ def test_songstats_widens_what_can_be_asked(monkeypatch):
     """It answers for stores nothing else here can reach, so those stop
     reading as unchecked."""
     monkeypatch.setattr(cc, "_songstats_links",
-                        lambda isrc: ({"anghami": "https://anghami/x",
+                        lambda isrc, **kw: ({"anghami": "https://anghami/x",
                                        "pandora": "https://pandora/x"}, ""))
     monkeypatch.setattr(cc.music_apis, "deezer_has_isrc",
                         lambda isrc: (True, "https://deezer/x"))
@@ -150,7 +150,7 @@ def test_an_unreadable_songstats_reply_costs_coverage_not_correctness(monkeypatc
     written. A shape the parser cannot read must yield NO platforms - which
     sorts as unchecked - rather than an absence nobody established."""
     monkeypatch.setattr(cc, "_songstats_links",
-                        lambda isrc: ({}, "unrecognised shape; top-level keys: a, b"))
+                        lambda isrc, **kw: ({}, "unrecognised shape; top-level keys: a, b"))
     monkeypatch.setattr(cc.music_apis, "deezer_has_isrc",
                         lambda isrc: (True, "https://deezer/x"))
     monkeypatch.setattr(cc, "_spotify_url_for_isrc",
@@ -166,8 +166,26 @@ def test_songstats_naming_a_store_we_do_not_map_is_reported_not_swallowed(monkey
     monkeypatch.setattr(cc, "_songstats_links", cc._songstats_links)
     import signal_providers as sp
     monkeypatch.setattr(sp.SongstatsAdapter, "track_platforms",
-                        lambda self, isrc: ({"some_new_dsp": "https://x"}, ""))
+                        lambda self, isrc, **kw: ({"some_new_dsp": "https://x"}, ""))
     links, note = cc._songstats_links(ISRC)
     assert links == {}
     assert "does not map" in note and "some_new_dsp" in note
 
+
+
+def test_spotify_resolves_the_isrc_to_the_id_songstats_is_asked_with(monkeypatch):
+    """The exact chain: the code names the track, Spotify names the id,
+    Songstats is asked by that id - no search by code involved."""
+    asked = {}
+    monkeypatch.setattr(cc, "_spotify_url_for_isrc",
+                        lambda isrc: ("https://open.spotify.com/track/5153euQCxTD7EzkAoXhfb7?si=abc", None))
+    monkeypatch.setattr(cc.music_apis, "deezer_has_isrc", lambda isrc: (None, "skipped"))
+
+    def fake(isrc, spotify_track_id=""):
+        asked["id"] = spotify_track_id
+        return {"anghami": "https://anghami/x"}, ""
+    monkeypatch.setattr(cc, "_songstats_links", fake)
+    out = cc.availability(ISRC)
+    assert asked["id"] == "5153euQCxTD7EzkAoXhfb7"
+    assert out["links"]["anghami"] == "https://anghami/x" and out["links"]["spotify"]
+    assert cc.spotify_track_id_for(ISRC) == "5153euQCxTD7EzkAoXhfb7"

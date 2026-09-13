@@ -131,11 +131,21 @@ SONGSTATS_ALIASES = {
 }
 
 
-def _songstats_links(isrc):
+def spotify_track_id_for(isrc):
+    """Spotify's id for this ISRC, or "". Spotify resolves the code itself,
+    so the id is an exact key - which is what Songstats is asked with."""
+    url, _why = _spotify_url_for_isrc(isrc)
+    if not url or "/track/" not in url:
+        return ""
+    return url.rsplit("/track/", 1)[1].split("?")[0].split("/")[0].strip()
+
+
+def _songstats_links(isrc, spotify_track_id=""):
     """({platform: url}, note) from Songstats, or empty when it cannot say."""
     try:
         import signal_providers as sp
-        found, note = sp.SongstatsAdapter().track_platforms(isrc)
+        found, note = sp.SongstatsAdapter().track_platforms(
+            isrc, spotify_track_id=spotify_track_id)
     except Exception as exc:                                   # noqa: BLE001
         return {}, "Songstats: %s" % (str(exc)[:80] or "no detail")
     out = {}
@@ -165,8 +175,20 @@ def availability(isrc):
 
     links, absent, unknown = {}, [], []
 
-    # Songstats first when available: one call, many stores.
-    songstats, note = _songstats_links(isrc)
+    # Spotify first: exact by ISRC, and its id is the key Songstats is
+    # asked with next - an exact chain rather than a search by code.
+    url, why = _spotify_url_for_isrc(isrc)
+    spotify_id = ""
+    if url:
+        links["spotify"] = url
+        spotify_id = url.rsplit("/track/", 1)[1].split("?")[0].split("/")[0] if "/track/" in url else ""
+    elif "not in Spotify's catalogue" in (why or ""):
+        absent.append("spotify")
+    else:
+        unknown.append("Spotify (%s)" % why)
+
+    # Songstats: one call, many stores.
+    songstats, note = _songstats_links(isrc, spotify_track_id=spotify_id)
     links.update(songstats)
     if note:
         unknown.append(note)
@@ -178,14 +200,6 @@ def availability(isrc):
         absent.append("deezer")
     else:
         unknown.append("Deezer (%s)" % detail)
-
-    url, why = _spotify_url_for_isrc(isrc)
-    if url:
-        links["spotify"] = url
-    elif "not in Spotify's catalogue" in (why or ""):
-        absent.append("spotify")
-    else:
-        unknown.append("Spotify (%s)" % why)
 
     if not links and not absent:
         return {"ok": False, "links": {}, "absent": [],

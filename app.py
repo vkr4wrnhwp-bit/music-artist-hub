@@ -7203,7 +7203,9 @@ def create_app():
         if isrc:
             present, detail = music_apis.deezer_has_isrc(isrc)
             report["deezer"] = {"carries_it": present, "detail": detail}
-            links, note = coverage_check._songstats_links(isrc)
+            spotify_id = coverage_check.spotify_track_id_for(isrc)
+            report["spotify_track_id"] = spotify_id or None
+            links, note = coverage_check._songstats_links(isrc, spotify_track_id=spotify_id)
             report["songstats"] = {"platforms": sorted(links), "note": note}
             report["sorted"] = coverage_check.check_gap(
                 isrc, ["Deezer", "Spotify", "Anghami", "Pandora",
@@ -7216,7 +7218,8 @@ def create_app():
             # than one guess per deploy.
             if request.args.get("probe"):
                 import signal_providers as sp
-                report["songstats_probe"] = sp.SongstatsAdapter().probe_track(isrc)
+                report["songstats_probe"] = sp.SongstatsAdapter().probe_track(
+                    isrc, spotify_track_id=spotify_id)
         return jsonify(report)
 
     @app.route("/royalty-recovery/cases/<case_id>/delete", methods=["POST"])

@@ -139,7 +139,7 @@ def _two_hop(search=None, info=None, monkeypatch=None):
     def fetch(url):
         if "/tracks/search" in url and "q=" in url:
             return search
-        if "/tracks/info" in url and "songstats_track_id=" in url:
+        if "/tracks/info" in url and ("songstats_track_id=" in url or "spotify_track_id=" in url):
             return info
         return {}          # the probe's other guesses: answered, empty
     return sp.SongstatsAdapter(fetch=fetch)
@@ -188,9 +188,27 @@ def test_no_search_hit_is_a_plain_note(keyed):
 
 def test_the_probe_records_the_second_hop(keyed):
     info = {"result": {"isrc": "GBWUL2686921", "links": {}}}
-    out = _two_hop(SEARCH_HIT, info).probe_track(ISRC)
-    hop = [e for e in out if e["path"].startswith("/tracks/search?q")][0]
+    out = _two_hop(SEARCH_HIT, info).probe_track(ISRC, spotify_track_id="5153")
+    hop = [e for e in out if e["path"] == "/tracks/search?q"][0]
     assert hop["songstats_track_id"] == "st_1"
     assert hop["matched_title"] == "Hungry Gods" and hop["matched_artists"] == "King 810"
-    assert hop["stated_isrc"] == "GBWUL2686921"
-    assert "info_result_keys" in hop
+    # the fixed guess list also asks /tracks/info?songstats_track_id= with the
+    # bare ISRC; the follow-up with the found id is the last such entry
+    by_id = [e for e in out if e["path"] == "/tracks/info" and e["params"] == ["songstats_track_id"]][-1]
+    assert by_id["stated_isrc"] == "GBWUL2686921" and "result_keys" in by_id
+    by_spotify = [e for e in out if e["path"] == "/tracks/info" and e["params"] == ["spotify_track_id"]]
+    assert by_spotify and by_spotify[0]["answered"]
+
+
+def test_a_spotify_id_is_an_exact_key_and_needs_no_stated_isrc(keyed):
+    """ISRC -> Spotify -> Songstats is exact at every hop, so the payload
+    reached by Spotify's id is trusted without naming the code."""
+    info = {"result": {"links": {"anghami": "https://anghami/x"}}}
+    links, note = _two_hop({"results": []}, info).track_platforms(ISRC, spotify_track_id="5153")
+    assert links == {"anghami": "https://anghami/x"} and note == ""
+
+
+def test_without_a_spotify_id_the_search_rule_still_holds(keyed):
+    info = {"result": {"links": {"anghami": "https://anghami/x"}}}
+    links, note = _two_hop(SEARCH_HIT, info).track_platforms(ISRC)
+    assert links == {} and "did not state its ISRC" in note

@@ -1008,7 +1008,7 @@ class SongstatsAdapter(_EnvProvider):
         ("/tracks/info", {"songstats_track_id": "%s"}),
     )
 
-    def probe_track(self, isrc):
+    def probe_track(self, isrc, spotify_track_id=""):
         """Try each candidate lookup and report what came back.
 
         Diagnostic only - nothing in the recovery or letter path calls
@@ -1051,26 +1051,52 @@ class SongstatsAdapter(_EnvProvider):
         # /tracks/info wants that id. Recorded with what it matched and
         # which keys the info carries, so the ISRC rule below can be
         # judged against the real shape rather than guessed.
-        hop = {"path": "/tracks/search?q -> /tracks/info?songstats_track_id"}
+        hop = {"path": "/tracks/search?q"}
+        track_id = ""
         try:
             track_id, title, artists, note = self._track_from_search(isrc)
             hop.update({"matched_title": title, "matched_artists": artists})
-            if not track_id:
-                hop["error"] = note
-            else:
+            if track_id:
                 hop["songstats_track_id"] = track_id
-                info = self._get("/tracks/info", songstats_track_id=track_id)
-                if isinstance(info, dict):
-                    hop["info_top_level_keys"] = sorted(str(k) for k in list(info)[:14])
-                    for wrapper in ("track", "data", "result", "track_info"):
-                        inner = info.get(wrapper)
-                        if isinstance(inner, dict):
-                            hop["info_%s_keys" % wrapper] = sorted(str(k) for k in list(inner)[:20])
-                    hop["stated_isrc"] = self._isrc_in(self._unwrap(info)) or ""
                 hop["answered"] = True
+            else:
+                hop["error"] = note
         except ProviderError as exc:
             hop["error"] = str(exc)[:140]
         out.append(hop)
+        # Every key the second hop might take, with the ids actually held:
+        # the search's own id, and Spotify's, which the ISRC resolved to
+        # exactly (the live probe of 2026-09-12 found /tracks/info refusing
+        # the search's id too). Whichever answers with links is the lookup.
+        followups = []
+        if track_id:
+            followups += [(p, "songstats_track_id", track_id) for p in
+                          ("/tracks/info", "/tracks/stats", "/tracks/historic_stats", "/tracks/links")]
+            followups += [("/tracks/info", "id", track_id), ("/tracks/info", "track_id", track_id)]
+        if spotify_track_id:
+            followups += [(p, "spotify_track_id", spotify_track_id) for p in
+                          ("/tracks/info", "/tracks/stats", "/tracks/links")]
+        for path, key, value in followups:
+            entry = {"path": path, "params": [key]}
+            try:
+                info = self._get(path, **{key: value})
+            except ProviderError as exc:
+                entry["error"] = str(exc)[:140]
+                out.append(entry)
+                continue
+            entry["answered"] = True
+            if isinstance(info, dict):
+                entry["top_level_keys"] = sorted(str(k) for k in list(info)[:14])
+                for wrapper in ("track", "data", "result", "track_info", "results"):
+                    inner = info.get(wrapper)
+                    if isinstance(inner, dict):
+                        entry["%s_keys" % wrapper] = sorted(str(k) for k in list(inner)[:20])
+                    elif isinstance(inner, list) and inner and isinstance(inner[0], dict):
+                        entry["%s_0_keys" % wrapper] = sorted(str(k) for k in list(inner[0])[:20])
+                entry["stated_isrc"] = self._isrc_in(self._unwrap(info)) or ""
+                found, _note = self._links_from(self._unwrap(info))
+                entry["platforms"] = sorted(found)[:12]
+            out.append(entry)
         return out
 
     @staticmethod
@@ -1118,49 +1144,8 @@ class SongstatsAdapter(_EnvProvider):
         return (str(first.get("songstats_track_id") or ""), str(first.get("title") or ""),
                 str(artists or ""), "")
 
-    def track_platforms(self, isrc):
-        """({platform: url}, note). Empty dict means nothing was learned.
-
-        Two hops, and a rule: the info payload has to state the ISRC we
-        asked about. A search by code that lands on a different recording
-        would otherwise turn into "Anghami carries it" about the wrong
-        song, in a letter to a distributor - the one thing this must never
-        do. A payload that states no ISRC is reported, not trusted.
-        """
-        isrc = (isrc or "").strip().upper().replace("-", "")
-        if not isrc:
-            return {}, "no ISRC"
-        if not self.configured():
-            return {}, "Songstats is not configured on this deployment"
-        try:
-            track_id, title, artists, note = self._track_from_search(isrc)
-            if not track_id:
-                return {}, note
-            payload = self._get("/tracks/info", songstats_track_id=track_id) or {}
-        except ProviderError as exc:
-            return {}, str(exc)[:160]
-        if not isinstance(payload, dict):
-            return {}, "Songstats sent something unreadable"
-        who = "%s by %s" % (title or "an untitled track", artists or "an unnamed artist")
-        stated = self._isrc_in(self._unwrap(payload))
-        if not stated:
-            return {}, ("Songstats matched %s but did not state its ISRC, so it was not used"
-                        % who)
-        if stated != isrc:
-            return {}, ("Songstats matched %s, whose ISRC is %s, not %s; not used"
-                        % (who, stated, isrc))
-
-        # Their envelope might be the track itself or wrap it.
-        track = payload
-        for wrapper in ("track", "data", "result"):
-            inner = payload.get(wrapper)
-            if isinstance(inner, dict):
-                track = inner
-                break
-            if isinstance(inner, list) and inner and isinstance(inner[0], dict):
-                track = inner[0]
-                break
-
+    def _links_from(self, track):
+        """({platform: url}, note) read off one track payload."""
         found = {}
         for key in self._PLATFORM_KEYS:
             block = track.get(key)
@@ -1187,6 +1172,59 @@ class SongstatsAdapter(_EnvProvider):
         # diagnostic instead of guessed at a second time.
         return {}, "unrecognised shape; top-level keys: %s" % ", ".join(
             sorted(str(k) for k in list(track)[:12])) or "none"
+
+    def track_platforms(self, isrc, spotify_track_id=""):
+        """({platform: url}, note). Empty dict means nothing was learned.
+
+        Two ways in, in order of trust:
+
+        1. By Spotify's own track id, when the caller has already resolved
+           the ISRC through Spotify. That chain is exact end to end - the
+           code named the track, Spotify named the id - so the payload
+           needs no further proof of identity.
+        2. By search, with a rule: the info payload has to state the ISRC
+           we asked about. A search by code that lands on a different
+           recording would otherwise turn into "Anghami carries it" about
+           the wrong song, in a letter to a distributor - the one thing
+           this must never do. A payload that states no ISRC is reported,
+           not trusted.
+        """
+        isrc = (isrc or "").strip().upper().replace("-", "")
+        if not isrc:
+            return {}, "no ISRC"
+        if not self.configured():
+            return {}, "Songstats is not configured on this deployment"
+        by_spotify = ""
+        if spotify_track_id:
+            try:
+                payload = self._get("/tracks/info", spotify_track_id=spotify_track_id) or {}
+            except ProviderError as exc:
+                by_spotify = "by Spotify id: %s" % str(exc)[:120]
+            else:
+                if isinstance(payload, dict) and payload:
+                    found, note = self._links_from(self._unwrap(payload))
+                    if found:
+                        return found, ""
+                    by_spotify = "by Spotify id: %s" % (note or "no links in the payload")
+        try:
+            track_id, title, artists, note = self._track_from_search(isrc)
+            if not track_id:
+                return {}, "; ".join(x for x in (by_spotify, note) if x)
+            payload = self._get("/tracks/info", songstats_track_id=track_id) or {}
+        except ProviderError as exc:
+            return {}, "; ".join(x for x in (by_spotify, str(exc)[:160]) if x)
+        if not isinstance(payload, dict):
+            return {}, "Songstats sent something unreadable"
+        who = "%s by %s" % (title or "an untitled track", artists or "an unnamed artist")
+        stated = self._isrc_in(self._unwrap(payload))
+        if not stated:
+            return {}, ("Songstats matched %s but did not state its ISRC, so it was not used"
+                        % who)
+        if stated != isrc:
+            return {}, ("Songstats matched %s, whose ISRC is %s, not %s; not used"
+                        % (who, stated, isrc))
+
+        return self._links_from(self._unwrap(payload))
 
 
 class ChartmetricAdapter(_EnvProvider):
