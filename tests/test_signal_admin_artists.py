@@ -240,9 +240,16 @@ def test_the_owner_s_own_acts_are_suggested_as_links_not_lookups(flask_app):
     import tour_store
     fake = _mock_universe()
     client, user, _ = _user(flask_app, "Kit Owner")
-    tour_store.create_tour(user["id"], {"name": "Fall run", "artist_name": "Devora"})
-    tour_store.create_tour(user["id"], {"name": "Spring run", "artist_name": "devora"})
-    tour_store.create_tour(user["id"], {"name": "Side gig", "artist_name": "Night Owls & Co"})
+    # Suggestions read the tours newest-first by start date, and keep the
+    # first spelling they meet. Two tours created in the same second tie on
+    # `created`, so the spelling that wins was down to SQLite - and gate 101
+    # saw "devora" win. Dated tours make the order the test relies on real.
+    tour_store.create_tour(user["id"], {"name": "Fall run", "artist_name": "Devora",
+                                        "start_date": "2026-11-01"})
+    tour_store.create_tour(user["id"], {"name": "Spring run", "artist_name": "devora",
+                                        "start_date": "2026-10-01"})
+    tour_store.create_tour(user["id"], {"name": "Side gig", "artist_name": "Night Owls & Co",
+                                        "start_date": "2026-09-01"})
     body = client.get("/signal/admin/data-sources").get_data(as_text=True)
     assert "Suggested: your own acts" in body
     assert 'href="/signal/admin/find?q=Devora"' in body
