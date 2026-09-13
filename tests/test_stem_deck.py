@@ -87,7 +87,7 @@ def test_there_is_still_something_without_javascript():
 def test_the_stylesheet_build_moved_so_the_deck_is_styled():
     """The deck's rules are new; a cached stylesheet has none of them."""
     base = _read("templates/base.html")
-    assert "app-chrome.css?v=7" in base
+    assert "app-chrome.css?v=8" in base   # v8: the meter grew a `part` fill
 
 
 def test_every_shell_asks_for_the_same_stylesheet_build():

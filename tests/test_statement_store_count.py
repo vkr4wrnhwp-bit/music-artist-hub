@@ -38,7 +38,10 @@ def test_the_tile_says_both_numbers():
     client.post("/statements", data={"statement": (io.BytesIO(CSV.encode()), "jun.csv")},
                 content_type="multipart/form-data")
     body = client.get("/statements").get_data(as_text=True)
-    assert "2 stores across 4 payee lines" in body
+    # The tile is an instrument now (2026-09-13): the count is the reading
+    # and the payee lines are its chip. Both numbers, still side by side.
+    inst = body.split('data-instrument="stores"')[1][:600]
+    assert '<span class="sbm-v">2</span>' in inst and "across 4 payee lines" in inst
     assert "4 sources" not in body
     assert "missing sources" not in body, "the gap tile counts stores, and says so"
     track_line = body[body.index("Hungry Gods"):][:400]
