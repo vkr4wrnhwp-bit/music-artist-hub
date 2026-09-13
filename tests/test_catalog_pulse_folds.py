@@ -281,9 +281,9 @@ def test_monthly_listeners_come_from_the_registry_and_carry_their_age(artist, me
     body = artist["client"].get("/pulse").get_data(as_text=True)
     section = body.split('id="measured"')[1].split("</section>")[0]
     assert "measured by FakeCharts" in body
-    assert '<span class="sb-lcd-v">42,100</span>' in section
+    assert '<span class="sbm-v">42,100</span>' in section
     assert "monthly listeners" in section
-    assert '<span class="sb-lcd-v">8,800</span>' in section
+    assert '<span class="sbm-v">8,800</span>' in section, "the provider's follower reading is on the bridge"
     assert "Measured by FakeCharts, 3 hours ago." in section
     assert "Not measured" not in section
 

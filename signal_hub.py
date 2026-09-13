@@ -422,6 +422,7 @@ def artist(org, member, artist_id):
     rec = scoring.recommend(artist_id, features=features)
     tab = request.args.get("tab") or "overview"
     momentum_expl = (scores.get(scoring.MOMENTUM) or {}).get("explanation") or {}
+    dial = scoring.momentum_dial(momentum_expl)
     events, events_provider, events_source = (_live_events(artist_id) if tab == "events"
                                               else (None, "", ""))
     return render_template("signal/artist.html", **_ctx(
@@ -434,6 +435,9 @@ def artist(org, member, artist_id):
         dist_evidence=sstore.list_evidence("artist", artist_id, sstore.CLAIM_DISTRIBUTOR),
         distribution=scoring.current_distribution(sstore.list_releases(artist_id)),
         momentum_expl=momentum_expl,
+        gauge=dial["gauge"], momentum_caption=dial["caption"],
+        momentum_inputs=dial["inputs"], momentum_receipt=dial["receipt"],
+        cohort_average=scoring.cohort_average(a, scoring.MOMENTUM),
         cohort=scoring.cohort_of(a),
         percentile=scoring.cohort_percentile(a, (scores.get(scoring.MOMENTUM) or {}).get("value") or 0,
                                              scoring.MOMENTUM),

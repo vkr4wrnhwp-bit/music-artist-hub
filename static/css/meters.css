@@ -1,0 +1,103 @@
+/* METERS - the growth-signal instruments (Artist Pulse) and the momentum
+ * half-dial (Signal). Approved from the "Growth Signals Meter Bridge"
+ * mockup, 2026-09-13: flat instruments, each in its own thin brushed
+ * frame with air between them; modern sans throughout; a reading that
+ * was never taken stays dark and says so.
+ *
+ * Tokens only - the design-system lock reads this file. Type sits on the
+ * 12px floor; radii are the system's three. */
+
+.sbm-bridge { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+
+/* the frame is the Rack's brushed face (background from _gear.alu_style),
+ * worn thin: 3.5px of it around a black face */
+.sbm-frame { border-radius: var(--sb-r-panel); padding: 3.5px; box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .7); }
+.sbm-inst { position: relative; height: 100%; border-radius: var(--sb-r-control); padding: 12px 12px 10px; display: grid; gap: 8px; align-content: start;
+            background: var(--sb-ground); box-shadow: inset 0 0 0 1px #000000; color: var(--sb-ink); text-decoration: none;
+            transition: transform var(--sb-fast), box-shadow var(--sb-fast); }
+a.sbm-frame:hover .sbm-inst, a.sbm-frame:focus-visible .sbm-inst { transform: translateY(-1px); }
+a.sbm-frame { display: block; color: inherit; text-decoration: none; }
+a.sbm-frame:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+
+.sbm-lbl { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+           font-family: var(--sb-text); font-weight: 600; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--sb-ink-2); }
+.sbm-read { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.sbm-v { font-family: var(--sb-display); font-size: 30px; font-weight: 800; letter-spacing: -.02em; line-height: 1; color: var(--sb-ink); font-variant-numeric: tabular-nums; }
+.sbm-v.is-none { font-size: 14px; font-weight: 600; letter-spacing: 0; color: var(--sb-ink-3); }
+.sbm-scale { font-size: 13px; color: var(--sb-ink-3); }
+.sbm-d { font-size: 12px; font-weight: 700; padding: 2px 6px; border-radius: var(--sb-r-control); font-variant-numeric: tabular-nums; }
+.sbm-d.up { color: var(--sb-good); background: var(--sb-good-wash); }
+.sbm-d.down { color: var(--sb-crit); background: var(--sb-crit-wash); }
+.sbm-d.flat { color: var(--sb-ink-3); background: var(--sb-surface-3); }
+
+.sbm-spark { width: 100%; height: 44px; display: block; }
+.sbm-spark .fill { fill: var(--sb-gold); fill-opacity: .18; }
+.sbm-spark .line { fill: none; stroke: var(--sb-gold-bright); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.sbm-spark .tail { fill: none; stroke: var(--sb-ink-3); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.sbm-spark .dot { fill: var(--sb-gold-bright); }
+.sbm-spark text { font-family: var(--sb-text); font-size: 12px; font-weight: 600; fill: var(--sb-ink-3); }
+.sbm-spark text.end { fill: var(--sb-gold-bright); }
+.sbm-spark .flatline { stroke: var(--sb-line-strong); stroke-width: 1; stroke-dasharray: 4 4; }
+.sbm-noline { height: 44px; display: grid; align-items: center; font-size: 12px; color: var(--sb-ink-3); }
+
+/* range rail: where today sits between the 28-day low and high */
+.sbm-rail { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 12px; font-weight: 500; color: var(--sb-ink-3); font-variant-numeric: tabular-nums; }
+.sbm-rail-track { position: relative; height: 4px; border-radius: var(--sb-r-pill); background: var(--sb-surface-3); }
+.sbm-rail-fill { position: absolute; top: 0; bottom: 0; border-radius: var(--sb-r-pill); background: linear-gradient(90deg, var(--sb-gold-deep), var(--sb-gold-bright)); }
+.sbm-rail-dot { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: var(--sb-r-pill); background: var(--sb-gold-bright); transform: translate(-50%, -50%);
+                box-shadow: 0 0 0 3px var(--sb-ground), 0 0 8px var(--sb-gold-line); }
+.sbm-rail-dot.is-low { background: var(--sb-crit); box-shadow: 0 0 0 3px var(--sb-ground), 0 0 8px var(--sb-crit-line); }
+.sbm-rail.is-dashed .sbm-rail-track { background: transparent; border-top: 1px dashed var(--sb-line-strong); height: 0; }
+
+.sbm-prov { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 12px; color: var(--sb-ink-3); border-top: 1px solid var(--sb-line); padding-top: 7px; }
+.sbm-prov b { color: var(--sb-ink-2); font-weight: 600; }
+.sbm-prov .good { color: var(--sb-good); } .sbm-prov .crit { color: var(--sb-crit); } .sbm-prov .warn { color: var(--sb-warn); }
+
+.sbm-lamp { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; white-space: nowrap; }
+.sbm-lamp::before { content: ""; width: 8px; height: 8px; border-radius: var(--sb-r-pill); background: currentColor; box-shadow: 0 0 6px currentColor; }
+.sbm-lamp.fresh { color: var(--sb-good); }
+.sbm-lamp.stale { color: var(--sb-warn); }
+.sbm-lamp.none { color: var(--sb-ink-3); }
+.sbm-lamp.none::before { box-shadow: none; background: var(--sb-line-strong); }
+
+/* the momentum half-dial and its receipt */
+.sbm-mom { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; padding: 18px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+           background: linear-gradient(180deg, var(--sb-surface-2), var(--sb-surface-1)); }
+@media (max-width: 760px) { .sbm-mom { grid-template-columns: 1fr; } }
+.sbm-gauge { display: grid; place-items: center; gap: 4px; align-content: center; }
+.sbm-gauge svg { width: 100%; max-width: 300px; height: auto; display: block; }
+.sbm-gauge .track { fill: none; stroke: var(--sb-ground); stroke-width: 22; stroke-linecap: round; }
+.sbm-gauge .measurable { fill: none; stroke: var(--sb-surface-3); stroke-width: 18; stroke-linecap: round; }
+.sbm-gauge .tail { fill: none; stroke: var(--sb-line-strong); stroke-width: 18; stroke-linecap: round; stroke-dasharray: 4 5; }
+.sbm-gauge .value { fill: none; stroke: var(--sb-gold); stroke-width: 18; stroke-linecap: round; }
+.sbm-gauge .penalty { fill: none; stroke: var(--sb-crit); stroke-width: 18; stroke-linecap: round; opacity: .9; }
+.sbm-gauge .end { fill: var(--sb-ground); stroke: var(--sb-ink); stroke-width: 3; }
+.sbm-gauge text { font-family: var(--sb-text); font-size: 12px; font-weight: 600; fill: var(--sb-ink-3); }
+.sbm-big { text-align: center; margin-top: -6px; }
+.sbm-big b { display: block; font-family: var(--sb-display); font-size: 52px; font-weight: 800; letter-spacing: -.03em; line-height: 1; color: var(--sb-ink); font-variant-numeric: tabular-nums; }
+.sbm-big span { display: block; max-width: 30ch; margin: 6px auto 0; font-size: 12.5px; line-height: 1.4; color: var(--sb-ink-2); }
+
+.sbm-receipt { margin-top: 12px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-control); background: var(--sb-ground); overflow: hidden; }
+.sbm-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline; padding: 9px 12px; border-top: 1px solid var(--sb-line); font-size: 13px; }
+.sbm-row:first-child { border-top: 0; }
+.sbm-row .k { color: var(--sb-ink-2); }
+.sbm-row .k small { display: block; color: var(--sb-ink-3); font-size: 12px; margin-top: 2px; }
+.sbm-row .v { font-size: 15px; font-variant-numeric: tabular-nums; color: var(--sb-ink); min-width: 56px; text-align: right; font-weight: 700; }
+.sbm-row.penalty { background: linear-gradient(90deg, var(--sb-crit-wash), transparent 60%); }
+.sbm-row.penalty .v { color: var(--sb-crit); }
+
+.sbm-comp { display: grid; gap: 7px; }
+.sbm-comp-row { display: grid; grid-template-columns: minmax(120px, 160px) 1fr 44px 40px; gap: 10px; align-items: center; font-size: 13px; }
+.sbm-comp-row .k { color: var(--sb-ink); }
+.sbm-comp-row .k small { display: block; color: var(--sb-ink-3); font-size: 12px; }
+.sbm-bar { position: relative; height: 9px; border-radius: var(--sb-r-control); background: var(--sb-ground); border: 1px solid #000000; overflow: hidden; }
+.sbm-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--sb-gold-deep), var(--sb-gold-bright)); }
+.sbm-bar.is-none { border: 1px dashed var(--sb-line-strong); background: transparent; }
+.sbm-comp-row .w, .sbm-comp-row .v { font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; color: var(--sb-ink-2); }
+.sbm-comp-row .v { color: var(--sb-ink); font-weight: 700; }
+.sbm-comp-head { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--sb-ink-3); font-weight: 600; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .sbm-rail-dot { animation: sbm-pop .5s cubic-bezier(.2, .8, .3, 1.2) both; }
+  @keyframes sbm-pop { from { transform: translate(-50%, -50%) scale(.4); } }
+}

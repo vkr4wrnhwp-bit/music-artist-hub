@@ -85,30 +85,25 @@
     <p class="sg-note">{{ rec['disclaimer'] }}</p>
 
   {% elif tab == 'momentum' %}
-    <div class="sg-expl">
-      <b>SB Momentum {{ momentum_expl['score'] }}</b> — version {{ score_version }}, cohort {{ cohort }}.
-      <table class="sg-contrib">
-        <thead><tr><th scope="col">Input</th><th scope="col">Value</th><th scope="col">Weight</th><th scope="col">Points</th><th scope="col"><span class="sg-sr">Bar</span></th></tr></thead>
-        <tbody>
-        {% for name, c in momentum_expl['contributions'].items() %}
-          <tr>
-            <td>{{ name|replace('_', ' ')|capitalize }}</td>
-            <td>{{ c['value'] }}</td><td>{{ (c['weight'] * 100)|round|int }}%</td><td>{{ c['points'] }}</td>
-            <td><span class="sb-meter sb-meter--sm" role="img" aria-label="{{ c['value'] }} of 100"><span class="sb-meter-fill" style="--sb-meter-fill: {{ c['value'] }}%;"></span></span></td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-      {% if momentum_expl['anomaly_penalty'] %}
-        <p style="margin-top:10px">{{ sb.lamp("Anomaly penalty −" ~ momentum_expl['anomaly_penalty'], "warn") }}</p>
-        <ul class="sg-list">{% for r in momentum_expl['anomaly_reasons'] %}<li>{{ r }}</li>{% endfor %}</ul>
-        <p class="sg-note">Risk indicators, not an accusation. Each one names the metric that triggered it.</p>
-      {% endif %}
-      {% if momentum_expl['missing'] %}
-        <p class="sg-note">Not available for this artist: {{ momentum_expl['missing']|join(', ') }}.
-          The score is renormalised over the inputs that were available ({{ (momentum_expl['coverage'] * 100)|round|int }}% of the weight), never padded with zeroes.</p>
-      {% endif %}
+    {#- The half-dial and its receipt (mockup 2026-09-13): the lit track is
+        only as long as the share of the score that could be measured, the
+        red segment is the anomaly adjustment, and the score is shown once. -#}
+    <div class="sbm-mom">
+      {{ sb.momentum_gauge(gauge, momentum_expl['score']|round|int, momentum_caption) }}
+      <div>
+        {{ sb.comp_rows(momentum_inputs) }}
+        {{ sb.receipt(momentum_receipt) }}
+      </div>
     </div>
+    {% if momentum_expl['anomaly_reasons'] %}
+      <ul class="sg-list" style="margin-top:10px">{% for r in momentum_expl['anomaly_reasons'] %}<li>{{ r }}</li>{% endfor %}</ul>
+      <p class="sg-note">Risk indicators, not an accusation. Each one names the metric that triggered it.</p>
+    {% endif %}
+    {% if momentum_expl['missing'] %}
+      <p class="sg-note">Not available for this artist: {{ momentum_expl['missing']|join(', ') }}. The score is based on the inputs that were available; nothing is filled in for the rest.</p>
+    {% endif %}
+    <p class="sg-note">Score version {{ score_version }}, measured against {{ cohort }}.
+      {%- if cohort_average is not none %} Similar artists in this cohort average {{ cohort_average }}.{% endif %}</p>
 
   {% elif tab == 'releases' %}
     {% if releases %}

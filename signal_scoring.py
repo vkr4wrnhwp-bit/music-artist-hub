@@ -661,6 +661,74 @@ def cohort_percentile(artist, value, score_key):
     return int(round(below / float(len(peers)) * 100))
 
 
+def cohort_average(artist, score_key):
+    """The mean of this score across the artist's own cohort, as an integer,
+    or None with fewer than three comparable acts on file. Shown in plain
+    words beside the score: "Similar artists in this cohort average 54."."""
+    cohort = cohort_of(artist)
+    peers = []
+    for other in sstore.list_artists(limit=1000):
+        if cohort_of(other) != cohort:
+            continue
+        s = sstore.latest_scores(other["id"]).get(score_key)
+        if s:
+            peers.append(float(s["value"]))
+    if len(peers) < 3:
+        return None
+    return int(round(sum(peers) / len(peers)))
+
+
+# What each momentum input measures, in the words the dial shows beside
+# its bar. Kept next to the weights so the two cannot drift apart.
+MOMENTUM_INPUT_NOTES = {
+    "velocity": "listener growth, 28d",
+    "acceleration": "growth of the growth",
+    "cross_platform": "moves on more than one platform",
+    "city_expansion": "new cities in the top 20",
+    "fan_conversion": "followers per listener",
+    "release_reaction": "lift after the last release",
+    "playlist_durability": "reach that outlives the add",
+    "catalog_consistency": "needs release history",
+}
+
+
+def momentum_dial(expl):
+    """Everything the half-dial and its receipt draw, from one explanation.
+
+    {"gauge": meters.gauge(...), "caption": "Based on 7 of 8 measured inputs.",
+     "inputs": [{"label","small","value","weight"}], "receipt": [rows]}
+    A missing explanation draws an empty dial rather than a false one.
+    """
+    import meters
+    expl = expl or {}
+    contributions = expl.get("contributions") or {}
+    missing = expl.get("missing") or []
+    total = len(MOMENTUM_WEIGHTS)
+    measured = total - len([m for m in missing if m in MOMENTUM_WEIGHTS]) if missing else len(contributions) or total
+    measured = max(0, min(total, measured))
+    score = float(expl.get("score") or 0)
+    base = expl.get("base_before_penalty")
+    penalty = float(expl.get("anomaly_penalty") or 0)
+    inputs = []
+    for key, weight in MOMENTUM_WEIGHTS.items():
+        c = contributions.get(key)
+        inputs.append({"label": key.replace("_", " ").capitalize(),
+                       "small": MOMENTUM_INPUT_NOTES.get(key, ""),
+                       "value": (int(round(c["value"])) if c else None),
+                       "weight": ("%.2f" % weight).lstrip("0")})
+    receipt = [{"label": "Measured inputs, weighted", "small": "", "tone": "",
+                "value": int(round(base)) if base is not None else int(round(score))}]
+    if penalty:
+        reasons = expl.get("anomaly_reasons") or []
+        receipt.append({"label": "Anomaly adjustment", "tone": "crit",
+                        "small": ("; ".join(reasons) + ". Withheld until the increase is sustained.") if reasons
+                                 else "Withheld until the increase is sustained.",
+                        "value": "-%d" % int(round(penalty))})
+    return {"gauge": meters.gauge(score, expl.get("coverage", 1.0), base),
+            "caption": "Based on %d of %d measured inputs." % (measured, total),
+            "inputs": inputs, "receipt": receipt}
+
+
 # --- opportunity recommendation ---------------------------------------------
 
 def recommend(artist_id, scores=None, features=None):

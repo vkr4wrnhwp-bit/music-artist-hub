@@ -7727,7 +7727,10 @@ def create_app():
             clicks += n.get("service_click", 0) + n.get("click", 0)
             ps = store.count_spotify_presaves(c["id"])
             presaves += ps.get("pending", 0) + ps.get("completed", 0)
+        import pulse_signals
+        instruments = pulse_signals.build(pulse, metrics, youtube, deezer, snaps) if profile else []
         return render_template("pulse.html", active_page="pulse",
+                               instruments=instruments,
                                pulse_configured=spotify.pulse_configured(),
                                profile=profile, pulse=pulse, deezer=deezer,
                                metrics=metrics, youtube=youtube,

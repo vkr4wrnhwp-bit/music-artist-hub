@@ -2,6 +2,7 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}Artist Pulse - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/meters.css?v=1">{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-[1000px] space-y-5">
@@ -16,24 +17,36 @@
     {% endif %}
   </div>
 
-  {#- Monthly listeners and followers, measured by whichever provider the
-      registry has for CAP_METRICS. Spotify's own public API does not
-      carry monthly listeners, which is why this page never had it. The
-      caption carries the age of the figure: this read is cached for six
-      hours, so calling it live would be a claim it cannot keep. -#}
-  {% if metrics %}
-  {#- The heading claims a measurement, so it must not stand when the read
-      failed. Falling back to what is stored is right; letting it read as
-      today's figure is not. -#}
-  <section class="rounded-2xl border {{ 'border-amber-500/40' if metrics.stale else 'border-white/10' }} bg-sb-surface-1 p-6" id="measured">
-    <h3 class="sb-label text-sb-gold">
-      {%- if metrics.stale %}Audience — last figures on file{% else %}Audience — measured by {{ metrics.label }}{% endif -%}
-    </h3>
-    <div class="mt-3 flex flex-wrap gap-3">
-      {{ sb.lcd(("{:,}".format(metrics.monthly_listeners) if metrics.monthly_listeners is not none else none), "monthly listeners", absent="Not measured") }}
-      {{ sb.lcd(("{:,}".format(metrics.followers) if metrics.followers is not none else none), "followers", absent="Not measured") }}
+  {#- THE METER BRIDGE - one instrument per growth signal: the reading,
+      where it came from and when, and whether it moved. Built by
+      pulse_signals.build from what is on file; a reading nobody took stays
+      dark and says "Not measured", never 0. The section keeps the id
+      "measured" when a real metrics provider answered, because that id is
+      the promise that these are measured figures and the mock must never
+      stand behind it. -#}
+  {% if profile and instruments %}
+  {%- set measured = instruments | selectattr("source", "equalto", "provider") | list %}
+  {%- set platform = instruments | rejectattr("source", "equalto", "provider") | list %}
+  {% if metrics and measured %}
+  <section id="measured" class="rounded-2xl border {{ 'border-amber-500/40' if metrics.stale else 'border-white/10' }} bg-sb-surface-1 p-5">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h3 class="sb-label text-sb-gold">{% if metrics.stale %}Audience — last figures on file{% else %}Audience — measured by {{ metrics.label }}{% endif %}</h3>
+      <span class="text-xs text-gray-300 font-medium">Each instrument shows a reading — monthly listeners, followers — who measured it and when, and how it moved over 28 days.</span>
+    </div>
+    <div class="sbm-bridge mt-4">
+      {% for i in measured %}{{ sb.instrument(i) }}{% endfor %}
     </div>
     <p class="mt-3 text-xs text-gray-300 font-medium">{{ metrics.note }} Monthly listeners are a 28-day rolling figure, so the line moves slowly by design.</p>
+  </section>
+  {% endif %}
+  <section id="pulse-bridge" class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h3 class="sb-label text-sb-gold">Platform readings</h3>
+      <span class="text-xs text-gray-300 font-medium">Read from each platform's own public numbers. A platform that offers none stays dark.</span>
+    </div>
+    <div class="sbm-bridge mt-4">
+      {% for i in platform %}{{ sb.instrument(i) }}{% endfor %}
+    </div>
   </section>
   {% endif %}
 
@@ -47,7 +60,6 @@
   <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-6" id="youtube">
     <h3 class="sb-label text-sb-gold">YouTube{% if youtube.channel_title %} — {{ youtube.channel_title }}{% endif %}</h3>
     <div class="mt-3 flex flex-wrap gap-3">
-      {{ sb.lcd(("{:,}".format(youtube.subscribers) if youtube.subscribers is not none else none), "subscribers", absent="Not measured") }}
       {{ sb.lcd(("{:,}".format(youtube.views) if youtube.views is not none else none), "total views", absent="Not measured") }}
     </div>
     <p class="mt-3 text-xs text-gray-300 font-medium">{{ youtube.note }}
@@ -106,33 +118,6 @@
       {% if pulse.url %}<a href="{{ pulse.url }}" target="_blank" rel="noopener" class="ml-auto rounded-lg border border-[#1DB954]/50 bg-[#1DB954]/10 px-4 py-2 text-xs font-bold text-[#1DB954] hover:bg-[#1DB954]/20">Open on Spotify ↗</a>{% endif %}
     </div>
 
-    <div class="mt-6 grid gap-4 sm:grid-cols-3">
-      <div class="rounded-xl border border-white/10 bg-black/40 p-4">
-        <div class="sb-label text-gray-300">Spotify Followers</div>
-        {#- Spotify omits these for some apps. An omitted number is not a
-            zero, and "0 followers" beside a name is a wrong claim about
-            the artist - so say nothing was measured instead. -#}
-        <div class="mt-1 text-3xl font-black tabular-nums text-sb-ink">{% if pulse.followers is not none %}{{ "{:,}".format(pulse.followers) }}{% else %}<span class="text-lg font-bold text-gray-300">Not measured</span>{% endif %}</div>
-      </div>
-      <div class="rounded-xl border border-white/10 bg-black/40 p-4">
-        <div class="sb-label text-gray-300">Popularity Score</div>
-        {% if pulse.popularity is not none %}
-        <div class="mt-1 flex items-baseline gap-1.5"><span class="text-3xl font-black tabular-nums">{{ pulse.popularity }}</span><span class="text-sm text-gray-300">/100</span></div>
-        <div class="mt-2">{{ sb.meter("Popularity", pulse.popularity, 100, shown=pulse.popularity ~ "/100") }}</div>
-        {% else %}
-        <div class="mt-1 text-lg font-bold text-gray-300">Not measured</div>
-        <div class="mt-2">{{ sb.meter("Popularity", none, 100, absent="Not measured") }}</div>
-        {% endif %}
-      </div>
-      <div class="rounded-xl border border-white/10 bg-black/40 p-4">
-        <div class="sb-label text-gray-300">Deezer Fans</div>
-        {% if deezer %}
-        <div class="mt-1 text-3xl font-black tabular-nums">{{ "{:,}".format(deezer.fans) }}</div>
-        {% else %}
-        <div class="mt-1 text-sm text-gray-300">No Deezer match found for this name.</div>
-        {% endif %}
-      </div>
-    </div>
   </section>
 
   {% if pulse.top_tracks %}
@@ -219,7 +204,7 @@
   <!-- Peer watch: public numbers for artists you pin -->
   <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-6">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h3 class="sb-label text-sb-gold">Peer Watch</h3>
+      <h3 class="sb-label text-sb-gold">Peer Watch <span class="font-normal normal-case tracking-normal text-gray-300">— how this artist compares with artists you pin</span></h3>
       <span class="text-xs text-gray-300 font-medium">Public Spotify numbers, snapshotted whenever this page loads — pin up to 3</span>
     </div>
     {% if peers %}

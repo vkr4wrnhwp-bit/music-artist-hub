@@ -435,3 +435,116 @@
     {%- endfor %}
   </nav>
 {%- endmacro %}
+
+
+{#- ====================================================================
+    METERS - the growth-signal instruments and the momentum half-dial.
+    Approved from the "Growth Signals Meter Bridge" mockup (2026-09-13).
+    Geometry comes from meters.py / pulse_signals.py; these only draw.
+    Styled by static/css/meters.css. ==================================== -#}
+{% import "_gear.html" as gear %}
+
+{% macro instrument(i, href=none) -%}
+  {%- set tag = "a" if href else "div" -%}
+  <{{ tag }}{% if href %} href="{{ href }}"{% endif %} class="sbm-frame" style="{{ gear.alu_style() }}">
+    <div class="sbm-inst" data-signal="{{ i.key }}">
+      <div class="sbm-lbl"><span>{{ i.label }}</span><span class="sbm-lamp {{ i.state }}">{{ i.lamp }}</span></div>
+      <div class="sbm-read">
+        {%- if i.shown is not none %}
+          <span class="sbm-v">{{ i.shown }}</span>{% if i.scale %}<span class="sbm-scale">{{ i.scale }}</span>{% endif %}
+          {%- if i.delta28 is not none %}
+            <span class="sbm-d {{ 'up' if i.delta28 > 0.05 else ('down' if i.delta28 < -0.05 else 'flat') }}">{{ "{:+.1f}".format(i.delta28) }}% · 28d</span>
+          {%- else %}
+            <span class="sbm-d flat">{{ "no history" if not i.history else "not enough history" }}</span>
+          {%- endif %}
+        {%- else %}
+          <span class="sbm-v is-none">Not measured</span>
+        {%- endif %}
+      </div>
+      {%- if i.spark %}
+        {%- set sp = i.spark %}
+        <svg class="sbm-spark" viewBox="0 0 {{ sp.width }} {{ sp.height }}" preserveAspectRatio="none" role="img"
+             aria-label="{{ i.label }}, {{ sp.total }} days: {{ sp.first }} to {{ sp.last }}{% if i.missing_days %} ({{ i.missing_days }} of {{ sp.total }} days not measured){% endif %}">
+          <path class="fill" d="{{ sp.area }}"/>
+          <path class="line" d="{{ sp.line }}"/>
+          {%- if sp.gap_tail %}<path class="tail" d="{{ sp.gap_tail }}"/>{% endif %}
+          <circle class="dot" cx="{{ sp.end[0] }}" cy="{{ sp.end[1] }}" r="3"/>
+          <text x="3" y="{{ sp.height - 3 }}">{{ i.spark_first }}</text>
+          <text class="end" x="{{ sp.width - 3 }}" y="12" text-anchor="end">{{ i.spark_last }}</text>
+        </svg>
+      {%- elif i.history %}
+        <div class="sbm-noline">Not enough history for a line yet.</div>
+      {%- else %}
+        <svg class="sbm-spark" viewBox="0 0 200 44" preserveAspectRatio="none" role="img" aria-label="{{ i.label }}: current total only, no history">
+          <line class="flatline" x1="0" y1="22" x2="200" y2="22"/>
+          {%- if i.shown is not none %}<circle class="dot" cx="200" cy="22" r="3"/>{% endif %}
+        </svg>
+      {%- endif %}
+      {%- if i.rail_pos is not none %}
+        {%- set left = 0 if i.rail_pos >= 50 else i.rail_pos %}
+        {%- set width = i.rail_pos if i.rail_pos >= 50 else (50 - i.rail_pos) %}
+        <div class="sbm-rail" role="img" aria-label="28-day range {{ i.low_short }} to {{ i.high_short }}">
+          <span>{{ i.low_short }}</span>
+          <span class="sbm-rail-track"><i class="sbm-rail-fill" style="left:{{ left }}%;width:{{ width }}%"></i><b class="sbm-rail-dot{{ ' is-low' if i.rail_pos == 0 and i.low != i.high }}" style="left:{{ i.rail_pos }}%"></b></span>
+          <span>{{ i.high_short }}</span>
+        </div>
+      {%- else %}
+        <div class="sbm-rail is-dashed" role="img" aria-label="no 28-day range yet"><span>—</span><span class="sbm-rail-track"></span><span>—</span></div>
+      {%- endif %}
+      <div class="sbm-prov">
+        {%- if i.provider %}<b>{{ i.provider }}</b>{% endif %}
+        {%- if i.as_of %}<span>· {{ i.as_of }}</span>{% endif %}
+        {%- if i.delta7 is not none %}<span>· 7d <span class="{{ 'good' if i.delta7 > 0 else ('crit' if i.delta7 < 0 else '') }}">{{ "{:+.1f}".format(i.delta7) }}%</span></span>{% endif %}
+        {%- if i.detail %}<span>· {{ i.detail }}</span>{% endif %}
+      </div>
+    </div>
+  </{{ tag }}>
+{%- endmacro %}
+
+{% macro momentum_gauge(g, score, caption) -%}
+  <div class="sbm-gauge">
+    <svg viewBox="0 0 300 175" role="img" aria-label="SB Momentum {{ score }} of 100. {{ caption }}">
+      <path class="track" d="{{ g.track }}"/>
+      {%- if g.measurable %}<path class="measurable" d="{{ g.measurable }}"/>{% endif %}
+      {%- if g.tail %}<path class="tail" d="{{ g.tail }}"/>{% endif %}
+      {%- if g.value %}<path class="value" d="{{ g.value }}"/>{% endif %}
+      {%- if g.penalty %}<path class="penalty" d="{{ g.penalty }}"/>{% endif %}
+      {%- for pt, label in g.ticks %}
+        {%- if label == "50" %}<text x="{{ pt[0] }}" y="{{ pt[1] - 16 }}" text-anchor="middle">{{ label }}</text>
+        {%- elif label == "0" %}<text x="{{ pt[0] - 6 }}" y="{{ pt[1] + 22 }}">{{ label }}</text>
+        {%- else %}<text x="{{ pt[0] + 6 }}" y="{{ pt[1] + 22 }}" text-anchor="end">{{ label }}</text>{% endif %}
+      {%- endfor %}
+      <circle class="end" cx="{{ g.end[0] }}" cy="{{ g.end[1] }}" r="7"/>
+    </svg>
+    <div class="sbm-big"><b>{{ score }}</b><span>{{ caption }}</span></div>
+  </div>
+{%- endmacro %}
+
+{% macro receipt(rows) -%}
+  <div class="sbm-receipt">
+    {%- for r in rows %}
+      <div class="sbm-row{{ ' penalty' if r.tone == 'crit' }}">
+        <span class="k">{{ r.label }}{% if r.small %}<small>{{ r.small }}</small>{% endif %}</span>
+        <span class="v">{{ r.value }}</span>
+      </div>
+    {%- endfor %}
+  </div>
+{%- endmacro %}
+
+{% macro comp_rows(rows) -%}
+  <div class="sbm-comp">
+    <div class="sbm-comp-row sbm-comp-head"><span>Input</span><span>Contribution</span><span class="w">wt</span><span class="v">val</span></div>
+    {%- for r in rows %}
+      <div class="sbm-comp-row">
+        <span class="k">{{ r.label }}{% if r.small %}<small>{{ r.small }}</small>{% endif %}</span>
+        {%- if r.value is not none %}
+          <span class="sbm-bar" role="img" aria-label="{{ r.label }}: {{ r.value }} of 100"><i style="width:{{ r.value }}%"></i></span>
+        {%- else %}
+          <span class="sbm-bar is-none" role="img" aria-label="{{ r.label }}: not available"></span>
+        {%- endif %}
+        <span class="w">{{ r.weight }}</span>
+        <span class="v">{{ r.value if r.value is not none else "n/a" }}</span>
+      </div>
+    {%- endfor %}
+  </div>
+{%- endmacro %}
