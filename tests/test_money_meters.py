@@ -17,8 +17,9 @@ import pytest
 import app as appmod
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MONEY = ("overview", "royalties", "royalty_type", "statements", "recovery",
-         "valuation", "tax", "territories", "revenue_os", "capital_score",
+# royalty_type and territories folded into royalties (2026-09-13).
+MONEY = ("overview", "royalties", "statements", "recovery",
+         "valuation", "tax", "revenue_os", "capital_score",
          "spend_optimizer")
 
 

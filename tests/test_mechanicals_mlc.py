@@ -51,7 +51,11 @@ def _connect(monkeypatch, fake=None):
     monkeypatch.setattr(providers, "mlc_adapter", lambda: adapter)
 
 
-def test_without_the_login_the_page_says_so_on_both_income_branches(monkeypatch):
+def test_the_income_branches_fold_into_royalties_and_the_registry_stays_on_recovery(monkeypatch):
+    """Mechanicals, Publishing and Neighboring rights are one Royalties
+    page now (owner, 2026-09-13); the MLC section lives on Recovery, and
+    without the login it says so and nothing on it is a registration
+    status."""
     for k in ("MLC_ENABLED", "MLC_USERNAME", "MLC_PASSWORD"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setattr(providers, "mlc_adapter", lambda: providers.MLCAdapter(
@@ -59,44 +63,45 @@ def test_without_the_login_the_page_says_so_on_both_income_branches(monkeypatch)
     app_obj = create_app()
     for with_statement in (True, False):
         client, user = _artist(app_obj, with_statement)
-        page = client.get("/mechanicals").get_data(as_text=True)
-        assert 'id="mlc"' in page and "Registration at The MLC" in page and "Not connected" in page
+        for old in ("/mechanicals", "/publishing", "/neighboring-rights"):
+            r = client.get(old)
+            assert r.status_code == 302 and r.headers["Location"].endswith("/royalties#streams"), old
+        page = client.get("/recovery").get_data(as_text=True)
+        assert 'id="mlc"' in page and "Not connected" in page
         assert "at The MLC</button>" not in page
-    # Publishing and neighbouring rights do not carry it: it is a mechanical question.
-    assert 'id="mlc"' not in client.get("/publishing").get_data(as_text=True)
-    assert 'id="mlc"' not in client.get("/neighboring-rights").get_data(as_text=True)
 
 
-def test_the_sweep_runs_from_here_comes_back_here_and_shows_the_earnings(monkeypatch):
+def test_the_sweep_runs_on_recovery_and_the_mechanical_row_on_royalties_reads_it(monkeypatch):
     _connect(monkeypatch)
     app_obj = create_app()
     client, user = _artist(app_obj)
     night = _track(client, user, "Night Drive", isrc="USAIW2600123")
     ghost = _track(client, user, "Ghost", isrc="USXXX9999999")
     _track(client, user, "Static", isrc="USAIW2600777")
-    page = client.get("/mechanicals").get_data(as_text=True)
-    assert "Check 3 ISRCs at The MLC" in page and 'name="next" value="/mechanicals"' in page
-    assert "No check run yet" in page
+    body = client.get("/royalties").get_data(as_text=True)
+    mech = body.split('data-stream-row="mechanical"')[1].split('data-stream-row=')[0]
+    assert "$57.50" in mech and "The MLC" in mech, "45 + 12.50 of mechanical income on file"
+    assert 'href="/recovery#mlc"' in mech
 
     r = client.post("/recovery/mlc", data={"next": "/mechanicals"})
-    assert r.status_code == 302 and r.headers["Location"].endswith("/mechanicals#mlc")
-    page = client.get("/mechanicals").get_data(as_text=True)
+    assert r.status_code == 302 and r.headers["Location"].endswith("/recovery#mlc")
+    page = client.get("/recovery").get_data(as_text=True)
     assert "1 fully claimed" in page and "1 partly claimed" in page and "1 no work linked" in page
-    assert "earning $45.00 here" in page and "earning $12.50 here" in page
-    assert page.count("earning $") == 2, "Static earns nothing in this stream and says nothing"
     assert 'href="/tracks/%s#mlc"' % ghost["id"] in page and 'href="/tracks/%s#mlc"' % night["id"] in page
     assert 'value="Unmatched at The MLC: Ghost (USXXX9999999)"' in page
-    assert "The same sweep on Recovery" in page
-    # It is the same sweep Recovery shows.
-    assert "1 no work linked" in client.get("/recovery").get_data(as_text=True)
+    # The stream row on Royalties reads the same sweep.
+    body = client.get("/royalties").get_data(as_text=True)
+    mech = body.split('data-stream-row="mechanical"')[1].split('data-stream-row=')[0]
+    assert "1 work unregistered" in mech and "1 partly claimed" in mech
 
 
-def test_the_return_path_only_knows_the_two_pages(monkeypatch):
+def test_the_return_path_only_knows_recovery(monkeypatch):
+    """Mechanicals folded into Royalties (2026-09-13), so the sweep has one home."""
     _connect(monkeypatch)
     app_obj = create_app()
     client, user = _artist(app_obj, with_statement=False)
     r = client.post("/recovery/mlc", data={"next": "https://evil.example/phish"})
     assert r.headers["Location"].endswith("/recovery?mlc=none#mlc")
     r = client.post("/recovery/mlc", data={"next": "/mechanicals"})
-    assert r.headers["Location"].endswith("/mechanicals?mlc=none#mlc")
-    assert "nothing to ask about" in client.get("/mechanicals?mlc=none").get_data(as_text=True)
+    assert r.headers["Location"].endswith("/recovery?mlc=none#mlc")
+    assert "nothing to ask about" in client.get("/recovery?mlc=none").get_data(as_text=True)

@@ -52,13 +52,11 @@ HUBS = [
     ("money", "Royalty Sweep & Banking", "The money side — find it, claim it, value it, and keep the books straight.", [
         # Overview is a tab of the Command Center front (2026-09-07: "overview
         # and command center need to be in the same window"). Same URL.
-        ("royalties", "/royalties", "M4 7l6-3 6 3v6l-6 3-6-3z|M4 7l6 3 6-3M10 10v6", "Royalties", "Income by source from your statements."),
+        ("royalties", "/royalties", "M4 7l6-3 6 3v6l-6 3-6-3z|M4 7l6 3 6-3M10 10v6", "Royalties", "Every stream, lane, store, track and market from your statements - one page."),
         ("statements", "/statements", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 9h5M8 12h5M8 15h3M10 3v4h4", "Statements", "Upload or email statements; rows become data."),
         ("recovery", "/recovery", "M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3l2 2", "Recovery", "Findings pulled from your own uploads."),
-        ("royalty-lanes", "/royalty-lanes", "M3 5h14|M3 9h14|M3 13h14|M3 17h9", "Royalty Lanes", "Nine income lanes per song, and the queue of what to claim."),
         ("cases", "/royalty-recovery/cases", "M4 5h12v10H4z|M4 8h12M8 5V3h4v2M10 11v2", "Recovery Cases", "Tracked claims from open to paid."),
         ("disputes", "/disputes", "M10 3l7 4v5c0 3-3 5-7 5s-7-2-7-5V7z|M10 8v3M10 13v0", "Disputes", "Log and track conflicts on your catalog."),
-        ("income", "/publishing", "M5 4h7a2 2 0 012 2v10H7a2 2 0 00-2 2V4z|M14 6h1a1 1 0 011 1v11a2 2 0 00-2-2", "Income by type", "Publishing, mechanical, neighboring and by market — one view, four cuts."),
         ("valuation", "/valuation", "M10 3l6 4v6l-6 4-6-4V7z|M10 8v4", "Valuation", "Catalog value from your real history."),
         ("revenue-os", "/revenue-os", "M4 16V4h12v12z|M7 13V9M10 13V7M13 13v-3", "Revenue OS", "Income structure across your whole operation."),
         ("deals", "/deal-room", "M7 9l3-3 3 3M10 6v8|M4 16h12M4 4h4M12 4h4", "Deals", "The Deal Room, the simulator and your sync packs."),
@@ -135,7 +133,7 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              # Real registrations and real scan answers, or an honest "not
              # connected" when the console has no token. Nothing invented.
              "fingerprints",
-             "lights", "royalty-lanes", "certified",
+             "lights", "certified",
              "press-desk", "deals",
              # Real apps on their own services, opened in a new tab - not
              # previews of anything.

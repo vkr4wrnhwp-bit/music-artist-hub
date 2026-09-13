@@ -7,6 +7,7 @@
  * 12px floor; radii are the system's three. */
 
 .rv { display: grid; gap: 28px; }
+.rv > * { min-width: 0; }
 .rv-h { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 10px;
         font-family: var(--sb-text); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--sb-gold); }
 .rv-h .sub { color: var(--sb-ink-3); text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 13px; }

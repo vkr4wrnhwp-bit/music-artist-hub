@@ -377,11 +377,13 @@ def test_royalties_page_matches_tracking_dashboard():
     """
     client = _demo()
     body = client.get("/royalties").get_data(as_text=True)
-    assert "Track every royalty stream in one place." in body
-    assert "Royalties by Source" in body
-    assert 'id="royaltiesChart"' in body
-    assert 'id="export-btn"' in body
-    assert 'id="royalties-range"' in body
+    # One page where there were three (2026-09-13). With statements on
+    # file the desk renders; without, the page says so - either way no
+    # chart and no invented tile.
+    assert "Royalties" in body
+    assert ("By stream" in body and 'id="royalties-range"' in body and 'id="export-btn"' in body) \
+        or "Nothing to report yet" in body
+    assert 'id="royaltiesChart"' not in body
 
 
 def test_connections_true_status_board(monkeypatch):
@@ -573,11 +575,13 @@ def test_sidebar_shows_the_users_real_plan_not_the_mock_one():
         "the hardcoded $%s payout is rendering again" % mock["next_payout"]
 
 
-def test_royalties_includes_payout_calendar():
+def test_royalties_has_no_payout_calendar_for_anybody():
+    """Street Banker has no payout rail; the calendar was invented and is
+    gone for every account, the showcase included (2026-09-13)."""
     client = _demo()
     body = client.get("/royalties").get_data(as_text=True)
-    assert "Payout Calendar" in body
-    assert "Upcoming total" in body
+    assert "Payout Calendar" not in body
+    assert "Upcoming total" not in body
 
 
 def test_base_includes_collapsible_section_script():
@@ -735,107 +739,36 @@ def _rtype_client(app_obj, email):
     return client
 
 
-def test_publishing_page_real_classification():
+def test_income_by_type_lives_on_the_one_royalties_page():
+    """Publishing, Mechanicals, Neighboring rights and By market folded
+    into Royalties (owner, 2026-09-13): the old URLs land on the section,
+    and the section carries the same real classification."""
     client = _rtype_client(create_app(), "rt-pub@example.net")
-    body = client.get("/publishing").get_data(as_text=True)
-    assert "Performance / Publishing" in body
-    assert "ASCAP" in body and "$120.00" in body
-    assert "Spotify" not in body.split("By source")[1][:600]  # streams stay out
-
-
-def test_tier2_pages_render_and_are_in_nav():
-    client = _demo()
-    nav = client.get("/overview").get_data(as_text=True)
-    # Documents is a tab of Vault and the calendar a tab of Releases now;
-    # both answer, and their fronts are in the nav.
-    # Contracts are a section of the Vault; the old URL forwards.
-    r = client.get("/documents")
-    assert r.status_code == 302 and r.headers["Location"].endswith("/vault?view=contracts")
-    assert client.get("/documents", follow_redirects=True).status_code == 200
-    # The calendar is a section of Release Autopilot; the old URL forwards.
-    r = client.get("/releases")
-    assert r.status_code == 302 and r.headers["Location"].endswith("/releases/autopilot?view=calendar")
-    assert client.get("/releases", follow_redirects=True).status_code == 200
-    assert 'href="/vault"' in nav and 'href="/releases/autopilot"' in nav
-    # Conflicts is parked off the sidebar (docs/PARKED_PAGES.md); it answers.
-    assert client.get("/conflicts").status_code == 200
-    # Ecosystem Hub model: five collapsible hubs plus Account, on every page.
-    for hub in ("command", "studio", "launch", "stage", "money", "account"):
-        assert 'data-hub="%s"' % hub in nav
-    promote_nav = client.get("/links").get_data(as_text=True)
-    for hub in ("launch", "money"):
-        assert 'data-hub="%s"' % hub in promote_nav
-
-
-def test_identifiers_page_content():
-    # /identifiers is folded into the catalog; the codes sit by their records.
-    body = _demo().get("/catalog").get_data(as_text=True)
-    assert "Identifiers" in body
-    assert "ISRC" in body and "ISWC" in body and "UPC" in body
-
-
-def test_conflicts_page_content():
-    body = _demo().get("/conflicts").get_data(as_text=True)
-    assert "Rights Conflict Center" in body
-
-
-def test_releases_real_calendar():
-    import links_store as mls
-    app_obj = create_app()
-    client = _demo(app_obj)
-    client.post("/links/new", data={"title": "Calendar Drop",
-                                    "release_date": "2031-03-15",
-                                    "dest_spotify": "https://open.spotify.com/track/x"})
-    # The scheduler is the Calendar section of Release Autopilot now.
-    body = client.get("/releases", follow_redirects=True).get_data(as_text=True)
-    assert "Release Scheduler" in body and 'id="calendar"' in body
-    assert "2031-03" in body and "Calendar Drop" in body   # real campaign date
-    assert "release day" in body
-    assert "Readiness Checklist" not in body               # old mock gone
-
-
-def test_the_deleted_sample_pages_forward_to_real_ones():
-    """Owner decision, 2026-09-05: the four SAMPLE pages were hardcoded demo
-    data with no real counterpart, so they went. Bookmarks land somewhere
-    true: the page that holds the real version of what they showed."""
-    client = _demo()
-    for old, new in (("/registration", "/tracks"), ("/sync", "/sync/clearance-packs"),
-                     ("/audience", "/pulse"), ("/playlists", "/press-desk")):
+    for old, anchor in (("/publishing", "#streams"), ("/neighboring-rights", "#streams"),
+                        ("/mechanicals", "#streams"), ("/territories", "#markets")):
         r = client.get(old)
-        assert r.status_code == 302 and r.headers["Location"].endswith(new), old
-    nav = client.get("/links").get_data(as_text=True)
-    for old in ("/registration", "/sync", "/audience", "/playlists"):
-        assert 'href="%s"' % old not in nav, old
-
-
-def test_neighboring_rights_page_real():
-    client = _rtype_client(create_app(), "rt-nb@example.net")
-    body = client.get("/neighboring-rights").get_data(as_text=True)
-    assert "Neighboring Rights" in body
-    assert "SoundExchange" in body and "$60.00" in body
-
-
-def test_territories_page_real():
-    client = _rtype_client(create_app(), "rt-terr@example.net")
-    body = client.get("/territories").get_data(as_text=True)
-    assert "Territories" in body
-    assert "US" in body and "$620.00" in body      # Spotify + ASCAP both US
-    assert "GB" in body and "$60.00" in body
-    assert "no imputed geography" in body
-
-
-def test_mechanicals_page_real():
-    client = _rtype_client(create_app(), "rt-mech@example.net")
-    body = client.get("/mechanicals").get_data(as_text=True)
-    assert "Mechanical" in body
-    assert "The MLC" in body and "$45.00" in body
-    # Empty stream shows honest guidance for a fresh account with no uploads.
+        assert r.status_code == 302 and r.headers["Location"].endswith("/royalties" + anchor), old
+    body = client.get("/royalties").get_data(as_text=True)
+    streams = body.split('id="streams"')[1].split("</section>")[0]
+    pub = streams.split('data-stream-row="publishing"')[1].split('data-stream-row=')[0]
+    assert "Performance / publishing" in pub and "ASCAP" in pub and "$120.00" in pub
+    assert "Spotify" not in pub, "streams stay out of the publishing row"
+    nb = streams.split('data-stream-row="neighboring"')[1].split('data-stream-row=')[0]
+    assert "SoundExchange" in nb and "$60.00" in nb
+    mech = streams.split('data-stream-row="mechanical"')[1].split('data-stream-row=')[0]
+    assert "The MLC" in mech and "$45.00" in mech
+    markets = body.split('id="markets"')[1].split("</section>")[0]
+    assert "US" in markets and "$620.00" in markets      # Spotify + ASCAP both US
+    assert "GB" in markets and "$60.00" in markets
+    assert "no imputed geography" in markets
+    # A fresh account with no uploads is told there is nothing to report,
+    # not shown a stream ledger built from nothing.
     fresh = create_app().test_client()
     fresh.post("/signup", data={"name": "F", "email": "rt-fresh@example.net",
                                 "password": "rtpass1"})
     fresh.post("/plan/switch", data={"plan": "pro"})
-    body = fresh.get("/mechanicals").get_data(as_text=True)
-    assert "that's the finding" in body and "The MLC pays" in body
+    body = fresh.get("/royalties").get_data(as_text=True)
+    assert "Nothing to report yet" in body and "The MLC pays" not in body
 
 
 def test_funding_quotes_nothing_without_income():
@@ -2844,9 +2777,9 @@ def test_money_pages_use_real_statement_data():
     body = client.get("/overview").get_data(as_text=True)
     assert "Your Real Numbers" in body and "273.15" in body and "12.40" in body
     assert "Midnight Drive" in body
-    # Royalties: source bars, monthly trend, top tracks.
+    # Royalties: the stream columns, and the tracks period against period.
     body = client.get("/royalties").get_data(as_text=True)
-    assert "By Source" in body and "Monthly Trend" in body and "200.75" in body
+    assert "By stream" in body and "Tracks, 2026-04 against 2026-05" in body and "200.75" in body
     # Recovery: unmatched + coverage-gap findings with action buttons.
     body = client.get("/recovery").get_data(as_text=True)
     assert "Unattributed revenue" in body and "12.40" in body
@@ -4499,8 +4432,9 @@ def test_os_p3_lanes_and_queue():
     app_obj = create_app()
     artist = _demo(app_obj)
     artist.post("/tracks/add", data={"title": "Queue Song"})
-    lanes_page = artist.get("/royalty-lanes").get_data(as_text=True)
-    assert "Royalty Lanes" in lanes_page and "Queue Song" in lanes_page
+    assert artist.get("/royalty-lanes").headers["Location"].endswith("/royalties#lanes")
+    lanes_page = artist.get("/royalties").get_data(as_text=True)
+    assert "Lanes, by track" in lanes_page and "Queue Song" in lanes_page
     queue_page = artist.get("/money-queue").get_data(as_text=True)
     assert "Missing Money Action Queue" in queue_page
     assert "Queue Song" in queue_page and "Fix this" in queue_page

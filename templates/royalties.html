@@ -1,300 +1,242 @@
 {% extends "base.html" %}
 {% import "_sb.html" as sb %}
-{% block head_scripts %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endblock %}
-{% import "landing/_cards.html" as logos %}
+{% import "_gear.html" as gear %}
 
 {% block title %}Royalties - Royalty Sweep{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/meters.css?v=2">
+  <link rel="stylesheet" href="/static/css/royalties.css?v=1">
+{% endblock %}
+
+{#- THE ROYALTIES DESK - approved from the numbered mockup of 2026-09-13.
+    One page where there were three: Royalties, Royalty Lanes and Income
+    by type. Every figure follows the period control; a stream with
+    nothing on file is a statement nobody uploaded, never money that does
+    not exist. Payouts are absent on purpose: Street Banker has no payout
+    rail, and every payout figure the old page showed was invented. -#}
+{% set d = desk %}
+
+{%- macro move_row(e, top) %}
+        <div class="ry-mv-r">
+          <span class="k">{{ e.key }}</span>
+          <span class="bars">
+            <span class="bar a" role="img" aria-label="{{ e.key }}, first period ${{ "{:,.2f}".format(e.a) }}"><i style="--ry-w: {{ ((100 * e.a / top) | round | int) if top else 0 }}%"></i></span>
+            <span class="bar b" role="img" aria-label="{{ e.key }}, second period ${{ "{:,.2f}".format(e.b) }}"><i style="--ry-w: {{ ((100 * e.b / top) | round | int) if top else 0 }}%"></i></span>
+          </span>
+          <span class="amt">${{ "{:,.2f}".format(e.amount) }}</span>
+          <span class="dl {{ e.tone }}">{{ e.delta_text }}</span>
+        </div>
+{%- endmacro %}
 
 {% block content %}
-{% set ov = royalties_overview %}
-{% set s = ov.summary %}
-{% set tmax = (earnings_trend | map(attribute=1) | max) if earnings_trend else 1 %}
+{% call sb.plate("/static/img/sweep-wide", [900, 1400, 1672],
+                 "Street Banker · Royalty Sweep", "Royalties",
+                 "Everything your statements paid, by stream, by store, by track and by market, and every stream that should be paying and is not. One page where there were three.",
+                 position="center 40%") %}
+  {% if d %}<a href="/reports/royalty-report/download.csv" id="export-btn" class="sb-btn sb-btn-secondary">Download CSV</a>{% endif %}
+  <a href="/statements#intake" class="sb-btn sb-btn-primary">Upload a statement</a>
+{% endcall %}
+{{ sb.subnav([("/royalties", "Royalties"), ("/money-queue", "Money queue")], "/royalties") }}
 
-<div class="mx-auto max-w-6xl space-y-6">
+<div class="ry mx-auto max-w-[1200px]">
 
-  <div class="flex flex-wrap items-end justify-between gap-4">
-    <div>
-      <h1 class="sb-h1">Royalties</h1>
-      <p class="mt-1 text-sm text-gray-300">Track every royalty stream in one place.</p>
-    </div>
-    <div class="flex flex-wrap items-center gap-2">
-      <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-sb-surface-1 px-3 py-2 text-sm text-gray-200">
-        <svg class="h-4 w-4 text-gray-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v3M13 2v3"/></svg>
-        {#- Was "This month / Last 3 months / Last 6 months" with no
-            listener anywhere: three options that did nothing on a money
-            page. A statement period is a label the distributor chose, not
-            a rolling window this app can compute, so it lists the ones on
-            file. -#}
-        <select id="royalties-range" class="bg-transparent font-medium focus:outline-none [color-scheme:dark]"
-                {{ 'disabled' if not roy_periods }}>
-          <option value="">{{ 'All periods' if roy_periods else 'No statements yet' }}</option>
-          {% for p in roy_periods %}
-          <option value="{{ p }}" {{ 'selected' if roy_period == p }}>{{ p }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <select id="platform-filter" class="rounded-lg border border-white/10 bg-sb-surface-1 px-3 py-2 text-sm text-gray-200 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
-        <option value="all">All Platforms</option>
-        {% for row in (real_royalty.by_source if real_royalty else ov.by_source) %}
-        {% set nm = row.source if real_royalty else row.name %}
-        <option value="{{ nm }}">{{ nm }}</option>
-        {% endfor %}
-      </select>
-      <button type="button" id="export-btn" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/20">
-        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M4 16h12"/></svg>
-        Export
-      </button>
-    </div>
-  </div>
+  {% if not d %}
+  <section class="ry-empty">
+    <b>Nothing to report yet</b>
+    <p>Upload a statement and this page reads it: what each stream paid, which lanes are collecting, how every store and track moved between periods, and where the money came from. Nothing here is sampled or estimated from anybody else's catalogue.</p>
+    <a href="/statements#intake" class="sb-btn sb-btn-primary" style="margin-top:12px">Upload a statement</a>
+  </section>
 
-  {% set band_mode = 'royalties' %}
-  {% include "_real_royalty_band.html" %}
-
-  {% if roy %}
-  {% include "partials/royalty_tiles.html" %}
-  {% elif is_showcase %}
-  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-    <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Total Royalties</div>
-      <div class="mt-3 flex items-end justify-between gap-2">
-        <div>
-          <div class="text-2xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(s.total_royalties) }}</div>
-          <div class="mt-1 text-xs font-semibold {{ 'text-green-400' if s.total_change >= 0 else 'text-red-400' }}">{{ '↑' if s.total_change >= 0 else '↓' }} {{ "%.1f"|format(s.total_change|abs) }}% <span class="text-gray-300">vs last month</span></div>
-        </div>
-        <svg viewBox="0 0 80 32" class="h-8 w-20 shrink-0" preserveAspectRatio="none">
-          {% set pts = [] %}
-          {% for _, v in earnings_trend %}{% set _ = pts.append('%s,%s'|format((loop.index0 / (earnings_trend|length - 1) * 80)|round(1), (32 - (v / tmax * 28) - 2)|round(1))) %}{% endfor %}
-          <polyline points="{{ pts | join(' ') }}" fill="none" stroke="#E8B950" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-    </div>
-
-    <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Payouts Received</div>
-      <div class="mt-3 flex items-center justify-between gap-2">
-        <div>
-          <div class="text-2xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(s.payouts_received) }}</div>
-          <div class="mt-1 text-xs font-semibold {{ 'text-green-400' if s.payouts_change >= 0 else 'text-red-400' }}">{{ '↑' if s.payouts_change >= 0 else '↓' }} {{ "%.1f"|format(s.payouts_change|abs) }}% <span class="text-gray-300">vs last month</span></div>
-        </div>
-        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-green-500/30 text-green-400">
-          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7"/><path d="M10 6v8M8 8a2 2 0 012-1.5c1 0 2 .6 2 1.5s-1 1.3-2 1.3-2 .5-2 1.4.9 1.4 2 1.4a2 2 0 002-1" stroke-linecap="round"/></svg>
-        </span>
-      </div>
-    </div>
-
-    <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Pending Payouts</div>
-      <div class="mt-3 flex items-center justify-between gap-2">
-        <div>
-          <div class="text-2xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(s.pending_payouts) }}</div>
-          <div class="mt-1 text-xs text-amber-400">{{ s.pending_count }} upcoming</div>
-        </div>
-        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-amber-500/30 text-amber-400">
-          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2" stroke-linecap="round"/></svg>
-        </span>
-      </div>
-    </div>
-
-    <a href="/connections" class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5 transition-colors hover:border-amber-500/25">
-      <div class="sb-label text-gray-300">Platforms Connected</div>
-      <div class="mt-3 flex items-center justify-between gap-2">
-        <div class="text-2xl font-bold tracking-tight tabular-nums">{{ s.sources_connected }} / {{ s.total_sources }}</div>
-        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-green-500/30 text-green-400">
-          <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1"/></svg>
-        </span>
-      </div>
-    </a>
-  </div>
   {% else %}
-  {#- No statements and not the showcase: the honest answer is that
-      nothing has been uploaded, not four tiles of somebody else's
-      numbers. -#}
-  <div class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">
-    <div class="sb-label text-sb-gold-bright">Nothing to report yet</div>
-    <p class="mt-2 max-w-2xl text-sm text-gray-200">This page reads your own distributor and PRO statements. Upload one and the figures here are yours - earnings by store, by track, and by period.</p>
-    <a href="/statements" class="sb-btn sb-btn-primary mt-3 inline-block">Upload a statement</a>
-  </div>
-  {% endif %}
 
-  <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-    <section id="royalties-by-source" class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <h2 class="sb-label text-gray-300">Royalties by Source</h2>
-      <div class="mt-4 overflow-x-auto">
-        <table class="w-full text-left text-sm">
-          <thead>
-            <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-300 font-medium">
-              <th class="pb-2 font-medium">Source</th>
-              <th class="pb-2 text-right font-medium">Earned</th>
-              <th class="pb-2 text-right font-medium">Change</th>
-              <th class="pb-2 pl-6 font-medium">% of Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in ov.by_source %}
-            <tr class="source-row border-b border-white/5 last:border-0" data-source="{{ row.name }}">
-              <td class="py-2.5">
-                <div class="flex items-center gap-2.5">
-                  {{ logos.platform_logo(row.logo, 'h-7 w-7') }}
-                  <span class="font-semibold text-gray-100">{{ row.name }}</span>
-                </div>
-              </td>
-              <td class="py-2.5 text-right font-semibold sb-num">${{ "{:,.2f}".format(row.earned) }}</td>
-              <td class="py-2.5 text-right text-xs font-semibold {{ 'text-green-400' if row.change_pct >= 0 else 'text-red-400' }} tabular-nums">{{ '↑' if row.change_pct >= 0 else '↓' }} {{ "%.1f"|format(row.change_pct|abs) }}%</td>
-              <td class="py-2.5 pl-6">
-                <div class="flex items-center gap-2">
-                  {#- The primitive rather than the macro: a table cell has its own
-                      label column, so the row grid would only add a blank one. -#}
-                  <span class="sb-meter sb-meter--sm hidden flex-1 sm:block" role="img"
-                        aria-label="{{ row.name }}: {{ row.pct_of_total }}% of total"><span class="sb-meter-fill" style="--sb-meter-fill: {{ row.pct_of_total }}%;"></span></span>
-                  <span class="sb-meter-val w-8 shrink-0">{{ row.pct_of_total }}%</span>
-                </div>
-              </td>
-            </tr>
+  {#- 1 · THE PERIOD: one control for the whole page. -#}
+  <section aria-labelledby="ry-period-h">
+    <h2 id="ry-period-h" class="ry-h">The period <span class="sub">— one control for the whole page; every figure below follows it</span></h2>
+    <div class="ry-top">
+      <div class="facts">{% for f in d.facts %}<span>{{ f }}</span>{% endfor %}</div>
+      <form method="get" class="ry-seg" action="/royalties">
+        <label class="sr-only" for="royalties-range">Statement period</label>
+        <select id="royalties-range" name="period" onchange="this.form.submit()">
+          <option value="">All periods</option>
+          {% for p in d.periods %}<option value="{{ p }}"{% if p == d.chosen %} selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+        <noscript><button class="sb-btn sb-btn-secondary sb-btn-sm">Show</button></noscript>
+      </form>
+    </div>
+  </section>
+
+  {#- 2 · THE INSTRUMENTS: reported, by stream (stood up), lanes. -#}
+  <section aria-labelledby="ry-inst-h">
+    <h2 id="ry-inst-h" class="ry-h">What the money says <span class="sub">— reported, by stream, by lane, and what the catalogue signals</span></h2>
+    <div class="sbm-bridge ry-bridge" id="royalties-bridge">
+      <div class="sbm-frame" style="{{ gear.alu_style() }}">
+        <div class="sbm-inst" data-instrument="earnings">
+          <div class="sbm-lbl"><span>Reported earnings</span><span class="ry-tag actual">actual</span></div>
+          <div class="sbm-read"><span class="sbm-v">{{ d.earnings.shown }}</span><span class="sbm-d {{ d.earnings.delta_tone }}">{{ d.earnings.delta_text }}</span></div>
+          {% if d.earnings.spark %}
+          {% set sp = d.earnings.spark %}
+          <svg class="sbm-spark" viewBox="0 0 {{ sp.width }} {{ sp.height }}" preserveAspectRatio="none" role="img" aria-label="Reported earnings by period: {{ d.earnings.spark_first }} to {{ d.earnings.spark_last }}">
+            <path class="fill" d="{{ sp.area }}"/><path class="line" d="{{ sp.line }}"/><circle class="dot" cx="{{ sp.end[0] }}" cy="{{ sp.end[1] }}" r="3"/>
+          </svg>
+          <div class="sbm-spark-cap" aria-hidden="true"><span>{{ d.earnings.spark_first }}</span><span class="end">{{ d.earnings.spark_last }}</span></div>
+          {% else %}
+          <p class="ry-inst-note">{{ d.earnings.note }}</p>
+          {% endif %}
+          <div class="sbm-prov">{% for p in d.earnings.prov if p %}{% if loop.first %}<b>{{ p }}</b>{% else %}<span>· {{ p }}</span>{% endif %}{% endfor %}</div>
+        </div>
+      </div>
+
+      <div class="sbm-frame wide" style="{{ gear.alu_style() }}">
+        <div class="sbm-inst" data-instrument="streams">
+          <div class="sbm-lbl"><span>By stream</span><span style="display:flex;gap:4px"><span class="ry-tag actual">actual</span><span class="ry-tag derived">classified from your rows</span></span></div>
+          <div class="ry-cols" role="img" aria-label="{% for c in d.streams.cols %}{{ c.label }} {{ c.shown if c.on_file else 'nothing on file' }}{{ '; ' if not loop.last }}{% endfor %}">
+            {% for c in d.streams.cols %}
+            <div class="ry-col" data-stream="{{ c.key }}">
+              <div class="val{{ ' quiet' if not c.on_file }}">{{ c.shown }}<small>{{ c.sub }}</small></div>
+              <div class="bar{{ ' none' if not c.on_file }}">{% if c.on_file %}<i style="--ry-h: {{ c.height }}%"></i>{% endif %}</div>
+            </div>
             {% endfor %}
-          </tbody>
-        </table>
+          </div>
+          <div class="ry-colkey">{% for c in d.streams.cols %}<span>{{ c.label.split(' /')[0] }}</span>{% endfor %}</div>
+          <div class="sbm-prov"><b>Classified by source name</b><span>· a dashed column is a stream no uploaded statement carries, which is not the same as no money</span>{% if d.streams.other %}<span>· ${{ "{:,.2f}".format(d.streams.other) }} unclassified, listed below</span>{% endif %}</div>
+        </div>
       </div>
-      <a href="/connections" class="mt-4 block rounded-md border border-white/10 py-2.5 text-center text-xs font-semibold text-amber-400 transition-colors hover:bg-white/5">View All Sources</a>
-    </section>
 
-    <section id="earnings-trend" class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <div class="flex items-center justify-between">
-        <h2 class="sb-label text-gray-300">Earnings Trend</h2>
-      </div>
-      <div class="mt-3"><canvas id="royaltiesChart" height="150"></canvas></div>
-      {#- ov.this_month, ov.last_month and ov.growth come from
-          royalty_data's invented earnings trend, which is not gated on the
-          showcase account - so a real artist saw "$3,200.00 this month"
-          and "up 14.3%" under a chart of their own uploaded figures. The
-          artist's own periods go here instead. -#}
-      {% if roy %}
-      <div class="mt-4 grid gap-2 border-t border-white/5 pt-4 text-center {{ 'grid-cols-3' if roy.change is not none else 'grid-cols-2' }}">
-        {% for label, value in roy.trend[:2] %}
-        <div>
-          <div class="text-lg font-bold tabular-nums">${{ "{:,.2f}".format(value) }}</div>
-          <div class="text-xs uppercase tracking-widest text-gray-300 font-medium">{{ label }}</div>
+      <div class="sbm-frame" style="{{ gear.alu_style() }}">
+        <div class="sbm-inst" data-instrument="lanes">
+          <div class="sbm-lbl"><span>Lanes</span><span class="ry-tag derived">counted</span></div>
+          <div class="sbm-read"><span class="sbm-v">{{ d.lanes.paying }}<span class="ry-approx" style="font-size:18px"> of {{ d.lanes.of }}</span></span><span class="sbm-d flat">lanes show money</span></div>
+          <div class="ry-cells" aria-hidden="true" style="grid-template-columns:repeat({{ d.lanes.of }},1fr)">{% for on in d.lanes.cells %}<i{% if on %} class="on"{% endif %}></i>{% endfor %}</div>
+          <p class="ry-inst-note">{{ d.lanes.note }}</p>
+          <div class="sbm-prov">{% if d.lanes.rows %}<b>Est. missing <span class="ry-approx">≈</span> ${{ "{:,.2f}".format(d.lanes.missing_est) }}</b><span>· a share of your own earnings</span>{% else %}<b>No Track Passports</b><span>· <a href="/catalog">add one</a> and the lanes read against it</span>{% endif %}</div>
         </div>
-        {% endfor %}
-        {% if roy.change is not none %}
-        <div>
-          <div class="text-lg font-bold {{ 'text-green-400' if roy.change >= 0 else 'text-red-400' }} tabular-nums">{{ '↑' if roy.change >= 0 else '↓' }} {{ "%.1f"|format(roy.change|abs) }}%</div>
-          <div class="text-xs uppercase tracking-widest text-gray-300 font-medium">Change</div>
-        </div>
-        {% endif %}
-      </div>
-      {% elif is_showcase %}
-      <div class="mt-4 grid grid-cols-3 gap-2 border-t border-white/5 pt-4 text-center">
-        <div>
-          <div class="text-lg font-bold tabular-nums">${{ "{:,.2f}".format(ov.this_month) }}</div>
-          <div class="text-xs uppercase tracking-widest text-gray-300 font-medium">Total this month</div>
-        </div>
-        <div>
-          <div class="text-lg font-bold tabular-nums">${{ "{:,.2f}".format(ov.last_month) }}</div>
-          <div class="text-xs uppercase tracking-widest text-gray-300 font-medium">Last month</div>
-        </div>
-        <div>
-          <div class="text-lg font-bold {{ 'text-green-400' if ov.growth >= 0 else 'text-red-400' }} tabular-nums">{{ '↑' if ov.growth >= 0 else '↓' }} {{ "%.1f"|format(ov.growth|abs) }}%</div>
-          <div class="text-xs uppercase tracking-widest text-gray-300 font-medium">Growth</div>
-        </div>
-      </div>
-      {% endif %}
-    </section>
-  </div>
-
-  {% if is_showcase %}
-  {#- Every figure in this calendar is invented - the payout dates and
-      amounts for The MLC, BMI, ASCAP and SoundExchange are fixtures.
-      Street Banker has no payout schedule to read, so a real account
-      gets nothing here rather than a plausible fiction about money
-      arriving on a date. -#}
-  <section id="payout-calendar" class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-    <div class="flex items-center justify-between">
-      <h2 class="sb-label text-gray-300">Payout Calendar</h2>
-      <div class="flex items-center gap-4">
-        <span class="text-xs text-gray-300 font-medium">Upcoming total <span class="font-semibold text-amber-400">${{ "%.2f"|format(upcoming_payout_total) }}</span></span>
-        <a href="/reports" class="inline-flex items-center gap-1 text-xs font-semibold text-amber-400 hover:underline">View Full Calendar
-          <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.3 5.3a1 1 0 011.4 0l4 4a1 1 0 010 1.4l-4 4a1 1 0 11-1.4-1.4L10.6 10 7.3 6.7a1 1 0 010-1.4z" clip-rule="evenodd"/></svg>
-        </a>
       </div>
     </div>
-    <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-      {% for p in payout_calendar[:6] %}
-      {% set confirmed = p.status in ('Paid', 'Processing') %}
-      <div class="rounded-xl border border-white/5 bg-white/5 p-3">
-        <div class="flex items-center gap-2">
-          {{ logos.platform_logo(logo_key(p.source), 'h-6 w-6') }}
-          <span class="truncate text-xs font-semibold text-gray-100">{{ p.source }}</span>
-        </div>
-        <div class="mt-2 text-xs uppercase tracking-widest text-gray-300 font-medium">{{ 'Distribution Window' if p.status == 'Processing' else 'Estimated Payout' }}</div>
-        <div class="mt-0.5 text-xs text-gray-300">{{ p.pay_date.strftime('%b %d, %Y') }}</div>
-        <div class="mt-1 text-sm font-bold sb-num">${{ "{:,.2f}".format(p.amount) }}</div>
-        <span class="mt-2 inline-block rounded-full border px-2 py-0.5 text-xs font-semibold {{ 'border-green-500/30 text-green-400' if confirmed else 'border-amber-500/30 text-amber-400' }}">{{ 'Confirmed' if confirmed else 'Estimated' }}</span>
+  </section>
+
+  {#- 4 · BY STREAM: the ledger that replaces the four Income-by-type tabs. -#}
+  <section aria-labelledby="ry-streams-h" id="streams">
+    <h2 id="ry-streams-h" class="ry-h">By stream <span class="sub">— what each stream paid, who pays it, and what to do when it is silent</span></h2>
+    <div class="ry-ledger">
+      {% for s in d.streams.ledger %}
+      <div class="ry-row" data-stream-row="{{ s.key }}">
+        <div class="t">{{ s.label }}<small>{{ s.who }}</small></div>
+        <div class="what">{{ s.what }}</div>
+        {% if s.on_file %}<div class="amt">${{ "{:,.2f}".format(s.amount) }}<small>{{ s.lines }} line{{ '' if s.lines == 1 else 's' }} · on file</small></div>
+        {% else %}<div class="amt quiet">nothing on file</div>{% endif %}
+        <div class="act"><span class="ry-lamp {{ s.tone }}">{{ s.lamp }}</span>{% if s.action %}<a class="sb-btn {{ 'sb-btn-primary' if s.tone == 'crit' else 'sb-btn-secondary' }} sb-btn-sm" href="{{ s.href }}">{{ s.action }}</a>{% endif %}</div>
       </div>
       {% endfor %}
+    </div>
+    <p class="ry-note">Streams are classified from the source name on each row, the way Income by type did it. A stream with nothing on file is not a stream that paid nothing; it is a statement nobody has uploaded yet, and the row says which. Registration at The MLC is checked on <a href="/recovery#mlc">Recovery</a>.</p>
+  </section>
+
+  {#- 5 · LANES, BY TRACK: Royalty Lanes, merged. -#}
+  <section aria-labelledby="ry-lanes-h" id="lanes">
+    <h2 id="ry-lanes-h" class="ry-h">Lanes, by track <span class="sub">— nine ways a recording can be paid, read against the rows for each track</span></h2>
+    {% if d.lanes.rows %}
+    <div class="ry-tablewrap">
+      <table class="ry-table">
+        <thead><tr><th>Track</th>{% for key, label in d.lanes.labels %}<th class="c">{{ label.split(' /')[0].split(' (')[0] }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for r in d.lanes.rows[:5] %}
+          <tr><td><a href="/tracks/{{ r.id }}">{{ r.title }}</a></td>{% for c in r.cells %}<td class="c"><i class="ry-dot {{ c.dot }}" role="img" aria-label="{{ c.key }}: {{ c.word }}" title="{{ c.word }}"></i></td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+        {% if d.lanes.rows | length > 5 %}
+        <tbody id="ry-lanes-rest" hidden>
+          {% for r in d.lanes.rows[5:] %}
+          <tr><td><a href="/tracks/{{ r.id }}">{{ r.title }}</a></td>{% for c in r.cells %}<td class="c"><i class="ry-dot {{ c.dot }}" role="img" aria-label="{{ c.key }}: {{ c.word }}" title="{{ c.word }}"></i></td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+        <tbody id="ry-lanes-fold"><tr class="fold"><td colspan="{{ d.lanes.of + 1 }}">… {{ d.lanes.rows | length - 5 }} more tracks · <button type="button" class="ry-link" id="ry-lanes-more">show all {{ d.lanes.rows | length }}</button></td></tr></tbody>
+        <script>
+          document.getElementById("ry-lanes-more").addEventListener("click", () => {
+            document.getElementById("ry-lanes-rest").hidden = false;
+            document.getElementById("ry-lanes-fold").hidden = true;
+          });
+        </script>
+        {% endif %}
+        <tfoot><tr><td>Est. missing</td>{% for f in d.lanes.footer %}<td class="c">{% if f.estimate %}<span class="ry-approx">≈</span> ${{ "{:,.2f}".format(f.estimate) }}<small>{{ f.share }}</small>{% else %}—{% if f.key in ('sync', 'fan_sales') %}<small>no evidence</small>{% endif %}{% endif %}</td>{% endfor %}</tr></tfoot>
+      </table>
+    </div>
+    <div class="ry-key"><span><i class="ry-dot claimed"></i> <b>Paying or connected</b> — a row on your statements, or a registration on the passport, names this lane for this track.</span><span><i class="ry-dot action"></i> <b>Needs a registration</b> — the lane exists for every released track and nothing on file carries it.</span><span><i class="ry-dot missing"></i> <b>No evidence</b> — sync and fan sales only exist when you make them; silence is not a gap.</span><span>Estimates are a share of your own earnings at typical lane shares, shown with the share. They order the registrations; they promise nothing. <a href="/money-queue">The queue of what to claim →</a></span></div>
+    {% else %}
+    <div class="ry-panel"><p class="ry-note" style="margin:0">No Track Passports yet. The lanes read each recording's passport against your statements; <a href="/catalog">add a track</a> and every lane is scored for it.</p></div>
+    {% endif %}
+  </section>
+
+  {#- 6 · BY STORE, PERIOD AGAINST PERIOD. -#}
+  <section aria-labelledby="ry-stores-h" id="stores">
+    <h2 id="ry-stores-h" class="ry-h">By store{% if d.stores.enough %}, {{ d.stores.a }} against {{ d.stores.b }}{% endif %} <span class="sub">— the ladder Statements draws, but as movement</span></h2>
+    <div class="ry-panel">
+      {% if d.stores.enough %}
+      <div class="ry-mv">
+        {% for e in d.stores.rows %}{{ move_row(e, d.stores.top) }}{% endfor %}
+        {% if d.stores.tail %}
+        <details class="ry-more">
+          <summary>{{ d.stores.tail.count }} more store{{ '' if d.stores.tail.count == 1 else 's' }} · ${{ "{:,.2f}".format(d.stores.tail.amount) }} together · <span class="dl {{ d.stores.tail.tone }}">{{ d.stores.tail.delta_text }}</span></summary>
+          <div class="ry-mv">{% for e in d.stores.tail.rows %}{{ move_row(e, d.stores.top) }}{% endfor %}</div>
+        </details>
+        {% endif %}
+      </div>
+      <div class="ry-key"><span><i class="sw a"></i><b>{{ d.stores.a }}</b></span><span><i class="sw b"></i><b>{{ d.stores.b }}</b></span><span>Bars are share of the largest store in either period. Per-store movement is where a store change shows first.</span></div>
+      {% else %}
+      <p class="ry-note" style="margin:0">{% if d.chosen %}The earliest period on file has nothing before it to move from.{% else %}One period on file. Upload a second statement period and each store shows one period against the next.{% endif %} The full store ladder is on <a href="/statements">Statements</a>.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {#- 7 · TRACKS, PERIOD AGAINST PERIOD. -#}
+  <section aria-labelledby="ry-tracks-h" id="tracks">
+    <h2 id="ry-tracks-h" class="ry-h">Tracks{% if d.tracks.enough %}, {{ d.tracks.a }} against {{ d.tracks.b }}{% endif %} <span class="sub">— what each earned in each period, and the change</span></h2>
+    <div class="ry-panel">
+      {% if d.tracks.enough %}
+      <div class="ry-tk">
+        <div class="r head"><span></span><span>Track</span><span class="num">{{ d.tracks.a }}</span><span class="num">{{ d.tracks.b }}</span><span class="num">Change</span></div>
+        {% for e in d.tracks.rows %}
+        <div class="r"><span class="rank">{{ loop.index }}</span><span class="name">{{ e.key }}</span><span class="num">${{ "{:,.2f}".format(e.a) }}</span><span class="num">${{ "{:,.2f}".format(e.b) }}</span><span class="dl {{ e.tone }}">{{ e.delta_text }}</span></div>
+        {% endfor %}
+        {% if d.tracks.tail %}
+        <details class="ry-more">
+          <summary>{{ d.tracks.tail.count }} more track{{ '' if d.tracks.tail.count == 1 else 's' }} · ${{ "{:,.2f}".format(d.tracks.tail.amount) }} together</summary>
+          <div class="ry-tk">{% for e in d.tracks.tail.rows %}<div class="r"><span class="rank">{{ loop.index + d.tracks.rows | length }}</span><span class="name">{{ e.key }}</span><span class="num">${{ "{:,.2f}".format(e.a) }}</span><span class="num">${{ "{:,.2f}".format(e.b) }}</span><span class="dl {{ e.tone }}">{{ e.delta_text }}</span></div>{% endfor %}</div>
+        </details>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="ry-note" style="margin:0">{% if d.chosen %}The earliest period on file has nothing before it to move from.{% else %}One period on file. With a second, each track shows one period against the next; with a third they become lines.{% endif %}</p>
+      {% endif %}
+      <p class="ry-note">Coverage and the gap per track stay on <a href="/statements">Statements</a>, where the store check lives. Here a track is read over time.</p>
+    </div>
+  </section>
+
+  {#- 8 · MARKETS, AND THE CATALOGUE SIGNAL. -#}
+  <section aria-labelledby="ry-markets-h" id="markets">
+    <h2 id="ry-markets-h" class="ry-h">By market, and the catalogue signal <span class="sub">— where the money came from, and what the run rate says</span></h2>
+    <div class="ry-mk">
+      <div class="ry-panel">
+        <div class="sbm-lbl"><span>By market</span><span class="ry-tag actual">actual</span></div>
+        {% if d.markets.rows %}
+        <p class="ry-note" style="margin-top:6px">Read from the territory column on {{ "{:,}".format(d.markets.covered) }} of {{ "{:,}".format(d.markets.total_rows) }} rows. Rows without one are not drawn — no imputed geography.</p>
+        <div class="space-y-2" style="margin-top:10px">
+          {% for m in d.markets.rows %}{{ sb.meter(m.code, m.amount, d.markets.top, shown="$" ~ "{:,.2f}".format(m.amount)) }}{% endfor %}
+          {% if d.markets.tail %}{{ sb.meter("%d more markets" % d.markets.tail.count, d.markets.tail.amount, d.markets.top, shown="$" ~ "{:,.2f}".format(d.markets.tail.amount)) }}{% endif %}
+        </div>
+        {% else %}
+        <p class="ry-note">No territory column on these rows, so nothing is drawn — no imputed geography. Symphonic and most distributors include one; a PRO statement usually does not.</p>
+        {% endif %}
+      </div>
+      <div class="sbm-frame" style="{{ gear.alu_style() }}">
+        <div class="sbm-inst" data-instrument="signal">
+          <div class="sbm-lbl"><span>Catalogue signal</span><span class="ry-tag estimate">estimate</span></div>
+          <div class="sbm-read"><span class="sbm-v">${{ "{:,.0f}".format(d.signal.annualized) }}</span><span class="sbm-d flat">annualised run rate</span></div>
+          <p class="ry-inst-note">{{ d.signal.months }} month{{ '' if d.signal.months == 1 else 's' }}' average, times twelve. A conservative independent-catalogue band on that run rate is ${{ "{:,.0f}".format(d.signal.low) }} – ${{ "{:,.0f}".format(d.signal.high) }}, from one shared multiple the press kit and the <a href="/valuation">valuation page</a> also use.</p>
+          <div class="sbm-prov"><b>A signal, not a valuation</b><span>· not financial advice</span><span>· payouts are not shown because Street Banker has no payout rail</span></div>
+        </div>
+      </div>
     </div>
   </section>
   {% endif %}
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  const royaltiesTrend = {{ earnings_trend | tojson }};
-
-  new Chart(document.getElementById("royaltiesChart"), {
-    type: "line",
-    data: {
-      labels: royaltiesTrend.map((p) => p[0]),
-      datasets: [{
-        data: royaltiesTrend.map((p) => p[1]),
-        borderColor: "#E8B950",
-        backgroundColor: "rgba(234,179,8,0.08)",
-        fill: true, tension: 0.35, pointBackgroundColor: "#E8B950", pointRadius: 3,
-      }],
-    },
-    options: {
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: "#91836A", font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.04)" } },
-        y: {
-          ticks: { color: "#91836A", font: { size: 10 }, callback: (v) => v >= 1000 ? "$" + (v/1000).toFixed(v % 1000 ? 1 : 0) + "K" : "$" + v },
-          grid: { color: "rgba(255,255,255,0.04)" },
-        },
-      },
-    },
-  });
-
-  // The period picker reloads with the chosen period; the route filters
-  // the statement rows and every figure on the page follows.
-  (function () {
-    var range = document.getElementById("royalties-range");
-    if (!range || range.disabled) return;
-    range.addEventListener("change", function (e) {
-      var v = e.target.value;
-      window.location.search = v ? "?period=" + encodeURIComponent(v) : "";
-    });
-  })();
-
-  document.getElementById("platform-filter").addEventListener("change", (e) => {
-    const val = e.target.value;
-    document.querySelectorAll(".source-row").forEach((row) => {
-      row.classList.toggle("hidden", val !== "all" && row.dataset.source !== val);
-    });
-  });
-
-  document.getElementById("export-btn").addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
-    const original = btn.innerHTML;
-    btn.disabled = true;
-    btn.textContent = "Exporting...";
-    try {
-      const res = await fetch("/reports/royalty-report/generate", { method: "POST" });
-      const data = await res.json();
-      btn.textContent = data.ok ? "Exported ✓" : "Export";
-    } catch (err) {
-      btn.textContent = "Export";
-    }
-    setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1800);
-  });
-</script>
 {% endblock %}

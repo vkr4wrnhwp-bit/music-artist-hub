@@ -147,8 +147,9 @@ def test_the_pages_that_draw_charts_still_load_chart_js():
     # Valuation and Recovery draw their own bars from the artist's
     # statement months now - no Chart.js, so nothing to keep in step.
     # Streaming Stats folded into Artist Pulse, which draws its own SVG;
-    # Audience was deleted with the other SAMPLE pages.
-    for name in ("royalties", "overview"):
+    # Audience was deleted with the other SAMPLE pages. Royalties draws
+    # its own instruments since the desk (2026-09-13).
+    for name in ("overview",):
         s = io.open(os.path.join(HERE, "templates", name + ".html"),
                     encoding="utf8").read()
         assert "new Chart(" in s, name

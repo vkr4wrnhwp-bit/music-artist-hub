@@ -71,7 +71,7 @@ def test_the_figures_are_the_accounts_own(artist):
 
     assert "$450.00" in body, "150 + 300 from their own two statements"
     assert "Reported earnings" in body
-    assert "Stores that paid you" in body
+    assert "By store" in body
     for invented in INVENTED:
         assert invented not in body, invented
 
@@ -114,8 +114,13 @@ def test_an_unknown_period_falls_back_rather_than_emptying_the_page(artist):
     assert "$300.00" in body, "an unrecognised period shows everything"
 
 
-def test_the_platform_filter_offers_stores_that_actually_paid(artist):
+def test_the_stores_named_are_the_ones_that_actually_paid(artist):
+    """The platform filter fed a chart that is gone (2026-09-13); the
+    stores now appear as movement between periods, and with one period
+    on file the page says so instead of drawing a filter for nothing."""
+    _upload(artist, "may.csv", MAY)
     _upload(artist, "jun.csv", JUN)
     body = artist.get("/royalties").get_data(as_text=True)
-    assert '<option value="Spotify"' in body
-    assert '<option value="Apple Music"' in body
+    stores = body.split('id="stores"')[1].split("</section>")[0]
+    assert "Spotify" in stores and "Apple Music" in stores
+    assert '<option value="Spotify"' not in body, "no filter for a chart that no longer exists"

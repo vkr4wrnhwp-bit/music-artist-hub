@@ -1,0 +1,122 @@
+/* ROYALTIES - the desk approved from the numbered mockup of 2026-09-13.
+ * One page where there were three. The by-stream instrument stands its
+ * four readings up as columns; the streams are a ledger; the lanes are a
+ * dot matrix; stores and tracks are drawn as movement between periods.
+ *
+ * Tokens only - the design-system lock reads this file. Type sits on the
+ * 12px floor; radii are the system's three. */
+
+.ry { display: grid; gap: 28px; }
+.ry > * { min-width: 0; }   /* a wide table scrolls in its box; it never widens the page */
+.ry-h { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 10px;
+        font-family: var(--sb-text); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--sb-gold); }
+.ry-h .sub { color: var(--sb-ink-3); text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 13px; }
+.ry-panel { position: relative; padding: 16px; border-radius: var(--sb-r-panel); background: var(--sb-surface-1); border: 1px solid var(--sb-line-strong); }
+.ry-note { margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--sb-ink-2); max-width: 80ch; }
+.ry-tag { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: var(--sb-r-pill); white-space: nowrap; }
+.ry-tag.actual { color: var(--sb-good); background: var(--sb-good-wash); }
+.ry-tag.estimate { color: var(--sb-warn); background: var(--sb-warn-wash); }
+.ry-tag.derived { color: var(--sb-info); background: var(--sb-info-wash); }
+.ry-approx { color: var(--sb-ink-3); font-weight: 600; }
+.ry-inst-note { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--sb-ink-2); min-height: 44px; }
+.ry-link { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--sb-gold-bright); text-decoration: underline; cursor: pointer; }
+.ry-empty { padding: 40px 16px; text-align: center; border: 1px dashed var(--sb-line-strong); border-radius: var(--sb-r-panel); }
+.ry-empty b { display: block; font-size: 14px; color: var(--sb-ink); }
+.ry-empty p { margin: 6px auto 0; max-width: 60ch; font-size: 13px; color: var(--sb-ink-2); }
+
+/* 1 · the period control and the scan facts */
+.ry-top { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; padding: 12px 16px; border-radius: var(--sb-r-panel); background: var(--sb-surface-2); border: 1px solid var(--sb-line-strong); }
+.ry-top .facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--sb-ink); font-weight: 600; }
+.ry-seg { display: flex; align-items: center; gap: 8px; }
+.ry-seg select { padding: 6px 10px; border-radius: var(--sb-r-control); border: 1px solid var(--sb-line-strong); background: var(--sb-ground); color: var(--sb-gold-bright); font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color-scheme: dark; }
+.ry-seg select:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+@media (max-width: 640px) { .ry-top { grid-template-columns: 1fr; } }
+
+/* 2 · instruments: four across, the stream columns spanning two */
+.ry-bridge { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .ry-bridge { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .ry-bridge { grid-template-columns: 1fr; } }
+.ry-bridge .sbm-frame.wide { grid-column: span 2; }
+@media (max-width: 520px) { .ry-bridge .sbm-frame.wide { grid-column: span 1; } }
+.ry-cells { display: grid; gap: 3px; }
+.ry-cells i { height: 8px; border-radius: var(--sb-r-control); background: var(--sb-surface-3); }
+.ry-cells i.on { background: var(--sb-gold); }
+.ry-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-items: end; height: 150px; padding: 0 4px; border-bottom: 1px solid var(--sb-line-strong); }
+.ry-col { display: grid; grid-template-rows: auto 1fr; gap: 6px; height: 100%; align-items: end; text-align: center; }
+.ry-col .val { font-family: var(--sb-display); font-size: 16px; font-weight: 800; line-height: 1; color: var(--sb-ink); font-variant-numeric: tabular-nums; }
+.ry-col .val.quiet { color: var(--sb-ink-3); }
+.ry-col .val small { display: block; font-family: var(--sb-text); font-size: 12px; color: var(--sb-ink-3); font-weight: 600; margin-top: 3px; }
+.ry-col .bar { position: relative; width: 100%; height: 100%; border-radius: var(--sb-r-control) var(--sb-r-control) 0 0; background: var(--sb-ground); border: 1px solid #000000; border-bottom: 0; overflow: hidden; }
+.ry-col .bar i { position: absolute; left: 0; right: 0; bottom: 0; height: var(--ry-h, 0%); background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold-deep)); }
+.ry-col .bar.none { border-style: dashed; border-color: var(--sb-line-strong); background: transparent; }
+.ry-col .bar.none::after { content: "nothing on file"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: var(--sb-ink-3); padding: 0 4px; line-height: 1.2; text-align: center; }
+.ry-colkey { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 6px 4px 0; text-align: center; font-size: 12px; color: var(--sb-ink-3); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+@media (max-width: 520px) { .ry-cols { height: 120px; } }
+
+/* 4 · the streams ledger */
+.ry-ledger { border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel); background: var(--sb-surface-1); overflow: hidden; }
+.ry-row { display: grid; grid-template-columns: 210px 1fr 130px auto; gap: 12px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--sb-line); font-size: 13px; }
+.ry-row:first-child { border-top: 0; }
+@media (max-width: 760px) { .ry-row { grid-template-columns: 1fr auto; } .ry-row .what, .ry-row .act { grid-column: 1 / -1; } }
+.ry-row .t { font-weight: 700; color: var(--sb-ink); }
+.ry-row .t small { display: block; font-weight: 400; color: var(--sb-ink-3); font-size: 12px; }
+.ry-row .what { color: var(--sb-ink-2); font-size: 12.5px; line-height: 1.45; }
+.ry-row .amt { text-align: right; font-weight: 800; font-size: 15px; white-space: nowrap; color: var(--sb-ink); font-variant-numeric: tabular-nums; }
+.ry-row .amt small { display: block; font-size: 12px; font-weight: 600; color: var(--sb-ink-3); letter-spacing: .06em; text-transform: uppercase; }
+.ry-row .amt.quiet { color: var(--sb-ink-3); font-weight: 600; font-size: 13px; }
+.ry-row .act { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.ry-lamp { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; white-space: nowrap; }
+.ry-lamp::before { content: ""; width: 8px; height: 8px; border-radius: var(--sb-r-pill); background: currentColor; box-shadow: 0 0 6px currentColor; }
+.ry-lamp.good { color: var(--sb-good); } .ry-lamp.warn { color: var(--sb-warn); } .ry-lamp.crit { color: var(--sb-crit); }
+.ry-lamp.none { color: var(--sb-ink-3); } .ry-lamp.none::before { box-shadow: none; background: var(--sb-line-strong); }
+
+/* 5 · the lanes matrix */
+.ry-tablewrap { overflow-x: auto; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel); background: var(--sb-surface-1); }
+.ry-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ry-table th { text-align: left; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--sb-ink-3); padding: 8px 8px; border-bottom: 1px solid var(--sb-line-strong); font-weight: 600; white-space: nowrap; }
+.ry-table th.c, .ry-table td.c { text-align: center; }
+.ry-table td { padding: 8px 8px; border-bottom: 1px solid var(--sb-line); vertical-align: middle; color: var(--sb-ink); }
+.ry-table td a { color: inherit; font-weight: 700; text-decoration: none; } .ry-table td a:hover { color: var(--sb-gold-bright); }
+.ry-table tr:last-child td { border-bottom: 0; }
+.ry-table .fold td { color: var(--sb-ink-3); }
+.ry-table tfoot td { background: var(--sb-surface-2); font-weight: 700; border-top: 1px solid var(--sb-line-strong); font-variant-numeric: tabular-nums; }
+.ry-table tfoot td small { display: block; font-weight: 600; color: var(--sb-ink-3); font-size: 12px; }
+.ry-dot { display: inline-block; width: 12px; height: 12px; border-radius: var(--sb-r-pill); vertical-align: middle; }
+.ry-dot.claimed { background: var(--sb-gold-bright); box-shadow: 0 0 5px var(--sb-gold-line); }
+.ry-dot.missing { border: 1px dashed var(--sb-ink-3); }
+.ry-dot.action { background: var(--sb-warn); }
+.ry-dot.review { background: var(--sb-info); }
+.ry-dot.na { width: 8px; height: 2px; border-radius: 0; background: var(--sb-line-strong); }
+.ry-key { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--sb-ink-3); }
+.ry-key b { color: var(--sb-ink-2); font-weight: 600; }
+.ry-key .sw { display: inline-block; width: 14px; height: 6px; border-radius: var(--sb-r-control); margin-right: 5px; vertical-align: middle; }
+.ry-key .sw.a { background: var(--sb-gold-deep); } .ry-key .sw.b { background: var(--sb-gold-bright); }
+
+/* 6 · by store and 7 · by track, as movement */
+.ry-mv { display: grid; gap: 10px; }
+.ry-mv-r { display: grid; grid-template-columns: 150px 1fr 90px 76px; gap: 10px; align-items: center; font-size: 13px; }
+@media (max-width: 560px) { .ry-mv-r { grid-template-columns: 1fr 80px 64px; } .ry-mv-r .bars { grid-column: 1 / -1; } }
+.ry-mv-r .k { color: var(--sb-ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ry-mv-r .bars { display: grid; gap: 3px; }
+.ry-mv-r .bar { position: relative; height: 7px; border-radius: var(--sb-r-control); background: var(--sb-ground); border: 1px solid #000000; overflow: hidden; display: block; }
+.ry-mv-r .bar i { position: absolute; inset: 0 auto 0 0; width: var(--ry-w, 0%); }
+.ry-mv-r .bar.a i { background: var(--sb-gold-deep); } .ry-mv-r .bar.b i { background: var(--sb-gold-bright); }
+.ry-mv-r .amt { text-align: right; font-weight: 700; color: var(--sb-ink); font-variant-numeric: tabular-nums; }
+.dl { text-align: right; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dl.up { color: var(--sb-good); } .dl.down { color: var(--sb-crit); } .dl.flat { color: var(--sb-ink-3); }
+.ry-more { margin-top: 4px; }
+.ry-more summary { cursor: pointer; font-size: 13px; color: var(--sb-gold-bright); font-weight: 600; }
+.ry-more summary:focus-visible { outline: none; box-shadow: var(--sb-focus); border-radius: var(--sb-r-control); }
+.ry-more > div { margin-top: 10px; }
+.ry-tk { display: grid; gap: 7px; }
+.ry-tk .r { display: grid; grid-template-columns: 24px 1fr 90px 90px 76px; gap: 10px; align-items: center; font-size: 13px; }
+@media (max-width: 560px) { .ry-tk .r { grid-template-columns: 20px 1fr 70px 70px 60px; gap: 6px; } }
+.ry-tk .rank { color: var(--sb-ink-3); text-align: right; }
+.ry-tk .name { font-weight: 700; color: var(--sb-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ry-tk .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--sb-ink); }
+.ry-tk .head { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--sb-ink-3); font-weight: 600; }
+.ry-tk .head .num { color: var(--sb-ink-3); }
+
+/* 8 · markets and the catalogue signal */
+.ry-mk { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 760px) { .ry-mk { grid-template-columns: 1fr; } }

@@ -21,9 +21,11 @@ PARKED = {"/capital": "Simulated demo", "/benchmark": "illustrative",
           "/funding": "illustrative", "/conflicts": "Disputes",
           "/fan-label": "placeholders", "/network": "sample profiles"}
 FOLDED = {
-    "/publishing": "income", "/mechanicals": "income", "/neighboring-rights": "income",
-    "/territories": "income",
-    "/money-queue": "royalty-lanes",
+    # Income by type and Royalty Lanes folded into the one Royalties page
+    # (owner, 2026-09-13); the queue keeps its page under it.
+    "/publishing": "royalties", "/mechanicals": "royalties", "/neighboring-rights": "royalties",
+    "/territories": "royalties", "/royalty-lanes": "royalties",
+    "/money-queue": "royalties",
     "/trust-score": "scores", "/insights": "scores", "/qualification": "scores",
     "/sync/deal-simulator": "deals", "/sync/clearance-packs": "deals", "/deal-room": "deals",
     "/epk": "press-desk", "/artist-profile": "press-desk",
@@ -51,12 +53,15 @@ def test_the_sidebar_is_thirty_seven_entries():
     # 38 with the ACRCloud desk (2026-09-09): it registered a blueprint at
     # /fingerprints and was in no navigation at all, so the only way in was
     # to type the URL.
-    assert len(_entries()) == 38
+    # 36 after Royalty Lanes and Income by type folded into Royalties
+    # (owner, 2026-09-13: "royalties, royalty lanes and income by type need
+    # to merge in to one").
+    assert len(_entries()) == 36
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():
     hrefs = {it[1] for it in _entries()}
-    for href in list(PARKED) + [h for h in FOLDED if h not in ("/publishing", "/qualification", "/deal-room", "/fans")]:
+    for href in list(PARKED) + [h for h in FOLDED if h not in ("/qualification", "/deal-room", "/fans")]:
         if href in ("/releases",):
             continue          # /releases is the calendar's URL; the front is /releases/autopilot
         assert href not in hrefs, href
@@ -64,9 +69,9 @@ def test_nothing_parked_or_folded_is_a_sidebar_entry():
     for key in ("capital", "benchmark", "funding", "conflicts", "epk", "profile", "mechanicals",
                 "neighboring", "territories", "money-queue", "trust-score", "insights",
                 "connections", "deal-simulator", "sync-packs", "releases", "documents", "tracks",
-                "fan-label", "fan-club-admin", "network", "overview"):
+                "fan-label", "fan-club-admin", "network", "overview", "income", "royalty-lanes"):
         assert key not in keys, key
-    for key in ("income", "scores", "deals", "royalty-lanes", "press-desk", "reports"):
+    for key in ("royalties", "scores", "deals", "press-desk", "reports"):
         assert key in keys, key
     community = {it[0] for it in hubs.COMMUNITY_GROUP[1]} | {it[0] for it in hubs.ACCOUNT_GROUP[1]}
     assert "fans" in community and "fan-label" not in community and "fan-club-admin" not in community
@@ -110,7 +115,7 @@ def test_the_acr_desk_highlights_itself_not_beats():
 
 def test_the_fronts_are_live_and_reports_is_no_longer_a_sample():
     live = set(hubs.live_keys())
-    for key in ("income", "scores", "deals", "royalty-lanes", "press-desk", "reports", "fans"):
+    for key in ("royalties", "scores", "deals", "press-desk", "reports", "fans"):
         assert key in live, key
     for gone in ("capital", "benchmark", "funding", "conflicts", "fan-label", "fan-club-admin"):
         assert gone not in live
@@ -135,7 +140,11 @@ def test_every_parked_page_still_answers_and_says_it_is_parked(demo):
 # on a page with the strip; only the hop changed.
 MERGED = {"/tracks": "/catalog?view=passports",
           "/releases": "/releases/autopilot?view=calendar",
-          "/documents": "/vault?view=contracts"}
+          "/documents": "/vault?view=contracts",
+          # Royalty Lanes and Income by type are sections of Royalties (2026-09-13).
+          "/royalty-lanes": "/royalties#lanes", "/publishing": "/royalties#streams",
+          "/mechanicals": "/royalties#streams", "/neighboring-rights": "/royalties#streams",
+          "/territories": "/royalties#markets"}
 
 
 def test_every_folded_page_answers_and_carries_its_strip(demo):

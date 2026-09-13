@@ -1934,47 +1934,6 @@ def create_app():
     def dashboard():
         return redirect("/overview")
 
-    def _royalty_tiles(summary):
-        """The four tiles at the top of /royalties, from the account's own
-        statements.
-
-        They used to come from get_royalties_overview(), which takes five
-        inputs of which only `balances` was gated on the showcase account.
-        So a real artist saw "Total Royalties $0.00" - correct, balances
-        were empty - beside "up 14.3% vs last month" from an invented
-        earnings trend, "Payouts Received $720.40" from invented payout
-        rows, and a calendar of payouts from The MLC, BMI, ASCAP and
-        SoundExchange that nobody had scheduled. Zero with a growth rate
-        beside it is not even internally coherent, and it sat directly
-        under the real by-source table built from their own upload.
-
-        Payouts are absent on purpose. Street Banker has no payout
-        schedule - no table, no feed, no distributor API - so there is
-        nothing honest to put in that tile. Two tiles this page CAN
-        answer take its place: how many stores paid, and how many periods
-        are on file.
-        """
-        if not summary:
-            return None
-        trend = summary.get("monthly_trend") or []
-        # build_royalty_summary sorts periods by their label, which for
-        # "JUN-26"/"MAY-26" is alphabetical rather than chronological, so
-        # the newest is not reliably last. Change is only offered when
-        # exactly two periods make the comparison unambiguous.
-        change = None
-        if len(trend) == 2:
-            latest, previous = trend[0][1], trend[1][1]
-            if previous:
-                change = round((latest - previous) / previous * 100, 1)
-        return {
-            "total": summary.get("total") or 0.0,
-            "change": change,
-            "periods": summary.get("period_count") or 0,
-            "sources": summary.get("source_count") or 0,
-            "rows": summary.get("row_count") or 0,
-            "trend": trend,
-        }
-
     @app.route("/royalties")
     def royalties():
         # The period control used to read "This month / Last 3 months /
@@ -1983,19 +1942,27 @@ def create_app():
         # file now and filters to one, because a statement period is a
         # label a distributor chose ("JUN-26"), not a rolling window this
         # app can compute.
+        #
+        # One page where there were three (2026-09-13): Royalty Lanes and
+        # Income by type are read here too, laid out by royalties_desk.
+        import royalties_desk
         user = current_user()
-        rows = store.get_statement_rows(user["id"]) if user else []
-        periods = sorted({(r["period"] or "").strip() for r in rows if r["period"]})
+        rows_all = store.get_statement_rows(user["id"]) if user else []
+        periods = royalties_desk.order_periods(
+            (r["period"] or "").strip() for r in rows_all if r["period"])
         chosen = (request.args.get("period") or "").strip()
         if chosen and chosen in periods:
-            rows = [r for r in rows if (r["period"] or "").strip() == chosen]
+            rows = [r for r in rows_all if (r["period"] or "").strip() == chosen]
         else:
-            chosen = ""
-        summary = build_royalty_summary(rows) if rows else None
+            chosen, rows = "", rows_all
+        desk = None
+        if rows:
+            desk = royalties_desk.build(
+                rows_all, rows, store.get_statements(user["id"]), chosen,
+                store.list_os_tracks(user["id"]), _os_ctx(user["id"]),
+                mlc=recovery_mlc.state(user["id"]))
         return render_template("royalties.html", active_page="royalties",
-                               real_royalty=summary,
-                               roy=_royalty_tiles(summary),
-                               roy_periods=periods, roy_period=chosen,
+                               desk=desk, roy_periods=periods, roy_period=chosen,
                                **build_dashboard_context())
 
     @app.route("/catalog")
@@ -2460,7 +2427,7 @@ def create_app():
         if user is None:
             return login_required_redirect()
         import signal_providers as sp
-        back = "/mechanicals" if request.form.get("next") == "/mechanicals" else "/recovery"
+        back = "/recovery"          # Mechanicals folded into Royalties (2026-09-13); the sweep lives here
         if not sp.mlc_adapter().configured():
             return redirect(back + "?mlc=off#mlc")
         if not recovery_mlc.candidates(user["id"])[0]:
@@ -5228,18 +5195,9 @@ def create_app():
 
     @app.route("/royalty-lanes")
     def royalty_lanes():
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        tracks = store.list_os_tracks(user["id"])
-        ctx = _os_ctx(user["id"])
-        rows = [{"t": t, "lanes": artist_os.lane_grid(t, ctx)} for t in tracks]
-        claimed = len([l for r in rows for l in r["lanes"] if l["state"] == "claimed"])
-        missing_est = round(sum(l["estimate"] or 0 for r in rows for l in r["lanes"]), 2)
-        return render_template("royalty_lanes.html", active_page="royalty-lanes",
-                               rows=rows, lanes=artist_os.LANES,
-                               claimed=claimed, missing_est=missing_est, ctx=ctx,
-                               **build_dashboard_context())
+        """Folded into Royalties (owner, 2026-09-13): the nine lanes per
+        track are the matrix on that page. The queue keeps its own page."""
+        return redirect("/royalties#lanes")
 
     @app.route("/money-queue")
     def money_queue():
@@ -8899,27 +8857,17 @@ def create_app():
         link["platform_count"] = len((meta or {}).get("links", {}))
         return jsonify({"ok": True, "link": link})
 
-    def _royalty_type_page(bucket, active):
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        rt = royalty_types.type_report(user["id"], bucket)
-        mlc = None
-        if bucket == "mechanical":
-            mlc = recovery_mlc.attach_earnings(recovery_mlc.state(user["id"]), rt.get("top_tracks"))
-        return render_template("royalty_type.html", active_page=active, rt=rt, mlc=mlc,
-                               mlc_note={"off": "The MLC is not connected on this service.",
-                                         "none": "No Track Passport carries an ISRC yet, so there is nothing to ask about."
-                                         }.get(request.args.get("mlc") or "", ""),
-                               **build_dashboard_context())
-
+    # Income by type - Publishing, Mechanicals, Neighboring rights and By
+    # market - folded into Royalties (owner, 2026-09-13): the four stream
+    # pages are the stream columns and the ledger there, By market is the
+    # markets panel, and the MLC registry check lives on Recovery.
     @app.route("/publishing")
     def publishing():
-        return _royalty_type_page("publishing", "income")
+        return redirect("/royalties#streams")
 
     @app.route("/neighboring-rights")
     def neighboring_rights():
-        return _royalty_type_page("neighboring", "income")
+        return redirect("/royalties#streams")
 
     @app.route("/sync")
     def sync():
@@ -8930,16 +8878,11 @@ def create_app():
 
     @app.route("/territories")
     def territories():
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        return render_template("territories.html", active_page="income",
-                               tr=royalty_types.territory_report(user["id"]),
-                               **build_dashboard_context())
+        return redirect("/royalties#markets")
 
     @app.route("/mechanicals")
     def mechanicals():
-        return _royalty_type_page("mechanical", "income")
+        return redirect("/royalties#streams")
 
     @app.route("/insights")
     def insights():
