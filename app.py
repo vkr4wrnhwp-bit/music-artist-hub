@@ -5228,7 +5228,7 @@ def create_app():
                 tour_income = round(
                     tour_income + touring.settlement_totals(st)["walk"], 2)
                 tour_settled += 1
-        return render_template("money_queue.html", active_page="royalty-lanes",
+        return render_template("money_queue.html", active_page="royalties",
                                queue=queue, est_total=est_total,
                                criticals=criticals, ctx=ctx,
                                tour_income=tour_income,
