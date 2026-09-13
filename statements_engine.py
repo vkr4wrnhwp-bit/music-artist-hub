@@ -245,9 +245,13 @@ def analyze(rows):
         "store_count": len(store_identity.group(sources)),
         "period_count": len(periods),
         "by_source": by_source,
-        "by_track": by_track[:15],
+        # Every track, not the first fifteen: the cap here made a 40-track
+        # catalogue read as "15 tracks" on three pages and put 15 into the
+        # benchmark as the catalogue size. Pages fold their own long tails.
+        "by_track": by_track,
+        "track_count": sum(1 for t in tracks if t != "(no title)"),
         "unmatched_revenue": round(unmatched, 2),
-        "coverage_gaps": findings[:15],
+        "coverage_gaps": findings,
         "gap_estimate_total": round(sum(f["estimated_value"] for f in findings), 2),
     }
 
