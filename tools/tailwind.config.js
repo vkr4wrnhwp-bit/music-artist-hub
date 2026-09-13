@@ -162,7 +162,7 @@ module.exports = {
            width axis gives headings an expanded, institutional stance. */
         sans: ["Archivo", "Helvetica Neue", "Arial", "system-ui", "sans-serif"],
         display: ["Archivo", "Helvetica Neue", "Arial", "system-ui", "sans-serif"],
-        mono: ["IBM Plex Mono", "SFMono-Regular", "Consolas", "Liberation Mono", "monospace"],
+        mono: ["Archivo", "Helvetica Neue", "Arial", "system-ui", "sans-serif"],  // no monospace: owner ruling 2026-09-13
       },
 
       /* Eight steps, 12px floor. The old scale ran 9px to 24px; this one

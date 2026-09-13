@@ -84,7 +84,7 @@
     /* --- type --- */
     --sb-display: 'Archivo', 'Helvetica Neue', Arial, system-ui, sans-serif;
     --sb-text: 'Archivo', 'Helvetica Neue', Arial, system-ui, sans-serif;
-    --sb-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    --sb-mono: 'Archivo', 'Helvetica Neue', Arial, system-ui, sans-serif;  /* no monospace: owner ruling 2026-09-13 - it read as typewriter text. The name stays so 196 readers need no edit; machine values keep tabular numerals instead. */
 
     /* --- radius: two values, plus pill --- */
     --sb-r-control: 6px;
