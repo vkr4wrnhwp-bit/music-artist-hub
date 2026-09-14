@@ -4015,6 +4015,13 @@ def create_app():
         those, a delete button's fetch followed the refusal redirect to a
         200 page, read it as success and took the row off the screen
         (owner, on staging, 2026-09-14: "you can delete things")."""
+        # A page form asks for HTML first; a script call asks for anything
+        # (fetch() sends Accept: */*). On staging a Remove button's form
+        # still got the JSON answer as a white page (owner, 2026-09-14), so
+        # the Accept header decides before anything else does.
+        accept = (request.headers.get("Accept") or "").strip().lower()
+        if accept.startswith("text/html"):
+            return False
         mode = (request.headers.get("Sec-Fetch-Mode") or "").lower()
         dest = (request.headers.get("Sec-Fetch-Dest") or "").lower()
         return (request.is_json

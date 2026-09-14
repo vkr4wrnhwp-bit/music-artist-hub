@@ -165,5 +165,12 @@ def test_a_page_scripts_delete_gets_a_refusal_it_can_read(world):
     assert r.status_code == 403 and r.get_json()["ok"] is False
     r = demo.post("/statements/%s/delete" % sid, headers={"Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"})
     assert r.status_code == 302 and "demo=readonly" in r.headers["Location"], "a page form is still bounced back"
+    # Chrome's own form submission, whatever else rides on it: the Accept header names HTML first
+    chrome = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+              "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty", "Referer": "http://localhost/statements"}
+    r = demo.post("/statements/%s/delete" % sid, headers=chrome)
+    assert r.status_code == 302 and r.headers["Location"].endswith("/statements?demo=readonly"), "never JSON to a page"
+    r = demo.post("/statements/%s/delete" % sid, headers={"Accept": "*/*", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"})
+    assert r.status_code == 403 and r.get_json()["ok"] is False, "a fetch() default"
     with app_obj.app_context():
         assert len(store.get_statements(store.get_user_by_email(demo._email)["id"])) == 1
