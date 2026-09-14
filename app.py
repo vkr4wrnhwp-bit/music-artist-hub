@@ -4009,10 +4009,20 @@ def create_app():
                        "Start your own account to do this.")
 
     def _wants_json():
+        """A script call, as opposed to a page form. Browsers stamp every
+        fetch() with Sec-Fetch-Mode cors/same-origin and Sec-Fetch-Dest empty,
+        and a form submission with navigate/document - without reading
+        those, a delete button's fetch followed the refusal redirect to a
+        200 page, read it as success and took the row off the screen
+        (owner, on staging, 2026-09-14: "you can delete things")."""
+        mode = (request.headers.get("Sec-Fetch-Mode") or "").lower()
+        dest = (request.headers.get("Sec-Fetch-Dest") or "").lower()
         return (request.is_json
                 or request.path.endswith(".json")
                 or request.accept_mimetypes.best == "application/json"
-                or request.headers.get("X-Requested-With") == "XMLHttpRequest")
+                or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+                or mode in ("cors", "same-origin", "no-cors")
+                or dest == "empty")
 
     @app.before_request
     def demo_lock_gate():

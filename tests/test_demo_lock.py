@@ -149,3 +149,21 @@ def test_the_sample_pages_and_billing_leave_the_locked_menu(world):
     assert demo.get("/billing").status_code == 200, "reachable, just not offered"
     # the owner's own menu is untouched
     assert 'href="/billing"' in owner.get("/command-center").get_data(as_text=True).split("</aside>")[0]
+
+
+def test_a_page_scripts_delete_gets_a_refusal_it_can_read(world):
+    """A delete button that calls fetch() sends no JSON and no XHR header,
+    only the browser's Sec-Fetch-* stamps. It used to follow the refusal
+    redirect to a 200 page, read that as success and remove the row on
+    screen (owner, staging, 2026-09-14). It gets a 403 it can read."""
+    app_obj, owner, demo = world
+    assert _upload(demo).status_code == 302
+    with app_obj.app_context():
+        sid = store.get_statements(store.get_user_by_email(demo._email)["id"])[0]["id"]
+    owner.post("/admin/demo-lock", data={"email": demo._email, "action": "lock"})
+    r = demo.post("/statements/%s/delete" % sid, headers={"Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"})
+    assert r.status_code == 403 and r.get_json()["ok"] is False
+    r = demo.post("/statements/%s/delete" % sid, headers={"Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"})
+    assert r.status_code == 302 and "demo=readonly" in r.headers["Location"], "a page form is still bounced back"
+    with app_obj.app_context():
+        assert len(store.get_statements(store.get_user_by_email(demo._email)["id"])) == 1
