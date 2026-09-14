@@ -312,7 +312,7 @@
              "star"     if "/releases" in route else
              "check"    if ("/certified" in route or "/metadata" in route or "/ai-rights" in route) else
              "studio" %}
-        {{ sb.module_card(name, note=blurb, href=route, icon=sb.icons(ikey), state=status, disc=disc) }}
+        {{ sb.module_card(name, note=blurb, href=route, icon=sb.icons(ikey), state=status, disc=disc, compact=true) }}
       {% endfor %}
     </div>
     {% endfor %}

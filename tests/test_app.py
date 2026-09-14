@@ -2767,7 +2767,7 @@ def test_money_pages_use_real_statement_data():
     client.post("/plan/switch", data={"plan": "pro"})
     # Before any upload: honest sample-data nudge.
     body = client.get("/overview").get_data(as_text=True)
-    assert "Sample data below" in body and "Upload a statement" in body
+    assert "Nothing to read yet" in body and "Upload a statement" in body
     csv_data = (b"Track Title,Store,Net Revenue,Sales Period\n"
                 b"Midnight Drive,Spotify,120.50,2026-04\n"
                 b"Midnight Drive,Apple Music,80.25,2026-05\n"

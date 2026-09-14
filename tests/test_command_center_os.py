@@ -51,10 +51,12 @@ def test_the_windows_are_grouped_like_the_sidebar_with_a_lamp_only_for_previews(
     assert os_.count('sb-lamp sb-lamp--warn">preview</span>') == len(previews)
     assert os_.count("sb-mod--preview") == len(previews)
     assert "Preview — not wired up yet" not in body, "the sentence became a lamp"
-    # The caveat is the window's own, small, beneath the note.
-    assert '<p class="sb-mod-disc">Estimates only' in os_ and "not legal advice" in os_
-    # The note rides on hover in full.
+    # Icon and title only on the board (owner, 2026-09-14: "keep that section
+    # tight looking"); the note and the window's own caveat ride on hover.
+    assert "sb-mod-note" not in os_ and "sb-mod-disc" not in os_
+    assert "Estimates only" in os_ and "not legal advice" in os_, "the caveat is still there, on hover"
     assert 'title="Campaigns, pre-saves, fan capture, variants, QR, attribution."' in os_
+    assert "<h4 class=\"sb-mod-title\">TOUR</h4>" in os_
 
 
 def test_unlisted_routes_are_still_on_the_board():

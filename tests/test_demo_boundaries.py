@@ -60,9 +60,15 @@ def test_a_lookalike_address_cannot_take_a_paid_plan_free(monkeypatch):
 
 def test_a_new_account_sees_none_of_the_seeded_overview_sections():
     app_obj = create_app()
-    body = _fresh(app_obj).get("/overview").get_data(as_text=True)
+    fresh = _fresh(app_obj)
+    fresh.post("/plan/switch", data={"plan": "pro"})      # /overview is a Pro page; an Artist plan gets the upgrade card
+    r = fresh.get("/overview")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
     for seeded in ("Recent Payouts", "Royalty Health Score", "Action Center", "$250.00"):
         assert seeded not in body, seeded
+    # and no zero dollars standing in for a figure nobody measured
+    assert "$0.00" not in body and "Nothing tracked yet" in body and "Sample data below" not in body
     showcase = _showcase(app_obj).get("/overview").get_data(as_text=True)
     for seeded in ("Recent Payouts", "Royalty Health Score", "Action Center"):
         assert seeded in showcase, seeded
