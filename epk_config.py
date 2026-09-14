@@ -244,16 +244,46 @@ def real_stats(statement_rows, track_count, metrics=None):
     return stats
 
 
+def real_top_tracks(statement_rows, limit=5):
+    """The kit's top tracks from the artist's own statements: title and
+    what it earned, no stream count, because a statement carries money
+    and not plays. (tracks, strongest store) - both empty with no rows."""
+    if not statement_rows:
+        return [], ""
+    import statements_engine
+    import store_identity
+    a = statements_engine.analyze([
+        {"title": r.get("title"), "source": r.get("source"),
+         "amount": r.get("amount") or 0, "period": r.get("period")}
+        for r in statement_rows])
+    if not a:
+        return [], ""
+    tracks = [{"title": t["title"], "streams": None, "streams_compact": "",
+               "earned": t["amount"], "owner": ""}
+              for t in a["by_track"] if t["title"] != "(no title)"][:limit]
+    stores = {}
+    for s in a["by_source"]:
+        store = store_identity.store_of(s["source"])
+        stores[store] = stores.get(store, 0) + s["amount"]
+    top = max(stores, key=stores.get) if stores else ""
+    return tracks, top
+
+
 def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None,
                  tour_dates=None, stats_override=None, demo=False,
-                 bandsintown_profile=None, tour_source=""):
+                 bandsintown_profile=None, tour_source="",
+                 top_tracks_override=None, top_platform_override=None):
     """`demo` decides whose profile the kit starts from. Defaults to
     False so a caller that forgets it gets the safe, empty one rather
     than silently handing a real artist the invented identity.
     `tour_source` names where the dates came from ("tour" for the
     artist's own TOUR, "bandsintown" for that listing) so the page can
     say so."""
-    songs = get_songs()
+    # The seeded catalogue is the showcase's. A real account's top
+    # tracks and strongest store come from its statements (the
+    # overrides below) or are simply absent - never five recordings
+    # belonging to nobody under this artist's name (2026-09-14).
+    songs = get_songs() if demo else []
     total_streams = sum(s.streams for s in songs)
     total_earned = sum(s.total_earned for s in songs)
 
@@ -262,7 +292,7 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
     for s in songs:
         for platform, amount in (s.platform_earnings or {}).items():
             platform_totals[platform] = platform_totals.get(platform, 0) + amount
-    top_platform = max(platform_totals, key=platform_totals.get) if platform_totals else "Spotify"
+    top_platform = max(platform_totals, key=platform_totals.get) if platform_totals else ("Spotify" if demo else "")
 
     top_tracks = sorted(songs, key=lambda s: s.streams, reverse=True)[:5]
     top_tracks = [
@@ -275,6 +305,10 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         }
         for s in top_tracks
     ]
+    if top_tracks_override is not None:
+        top_tracks = top_tracks_override
+    if top_platform_override is not None:
+        top_platform = top_platform_override
 
     stats = [
         {"label": "Total Streams", "value": _fmt_compact(total_streams), "sub": "All platforms, all time"},

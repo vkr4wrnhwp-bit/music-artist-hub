@@ -1172,8 +1172,8 @@ def _tz_guess():
 
 
 def _is_demo(user):
-    email = (user or {}).get("email") or ""
-    return email == "demo@streetbanker.io" or (email.startswith("demo-") and email.endswith("@streetbanker.io"))
+    import demo_accounts
+    return demo_accounts.is_demo_email((user or {}).get("email"))
 
 
 @bp.route("/tours/new", methods=["POST"])

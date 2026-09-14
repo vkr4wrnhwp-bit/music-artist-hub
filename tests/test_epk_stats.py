@@ -186,11 +186,15 @@ def test_the_demo_showcase_keeps_its_sample_strip_when_it_measures_nothing(
     assert "Sample metrics" in body and "Not measured" not in body
 
 
-def test_an_empty_real_account_keeps_the_sample_strip_but_labels_it(artist):
-    """The editor is the artist's own workspace, so the demo strip still
-    stands in there - as long as the banner under it says so."""
+def test_an_empty_real_account_gets_not_measured_not_the_sample_strip(artist):
+    """The editor used to keep the demo strip with a banner under it. The
+    owner's ruling of 2026-09-14 - "anyone new sees no data" - ends that:
+    a real account with nothing measured reads "Not measured" in every
+    slot, and the sample catalogue's five recordings never appear under
+    its name. The showcase alone keeps the sample strip."""
     body = artist["client"].get("/epk").get_data(as_text=True)
-    assert "Sample figures" in body
+    assert "Sample figures" not in body and "Not measured" in body
+    assert "Midnight Drive" not in body
 
 
 # --- the figures themselves -------------------------------------------------------

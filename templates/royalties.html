@@ -5,7 +5,7 @@
 {% block title %}Royalties - Royalty Sweep{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/meters.css?v=2">
-  <link rel="stylesheet" href="/static/css/royalties.css?v=1">
+  <link rel="stylesheet" href="/static/css/royalties.css?v=2">
 {% endblock %}
 
 {#- THE ROYALTIES DESK - approved from the numbered mockup of 2026-09-13.
@@ -55,6 +55,13 @@
     <div class="ry-top">
       <div class="facts">{% for f in d.facts %}<span>{{ f }}</span>{% endfor %}</div>
       <form method="get" class="ry-seg" action="/royalties">
+        {% if d.roster | length > 1 %}
+        <label class="sr-only" for="royalties-artist">Artist</label>
+        <select id="royalties-artist" name="artist" onchange="this.form.submit()">
+          <option value="">Whole roster</option>
+          {% for a in d.roster %}<option value="{{ a.name }}"{% if a.name == d.artist %} selected{% endif %}>{{ a.name }}</option>{% endfor %}
+        </select>
+        {% elif d.artist %}<input type="hidden" name="artist" value="{{ d.artist }}">{% endif %}
         <label class="sr-only" for="royalties-range">Statement period</label>
         <select id="royalties-range" name="period" onchange="this.form.submit()">
           <option value="">All periods</option>
@@ -64,6 +71,26 @@
       </form>
     </div>
   </section>
+
+  {#- 1b · THE ROSTER: only when the statements name more than one act. -#}
+  {% if d.roster | length > 1 %}
+  <section aria-labelledby="ry-roster-h" id="artists">
+    <h2 id="ry-roster-h" class="ry-h">The roster <span class="sub">— {{ d.roster | length }} artists in the statements on file; each one's share of everything reported. Pick one and the whole page follows.</span></h2>
+    <div class="ry-panel">
+      <div class="ry-ro">
+        {% for a in d.roster %}
+        <div class="ry-ro-r{% if a.name == d.artist %} on{% endif %}">
+          {{ sb.meter(a.name, a.amount, a.top, tone=("good" if a.name == d.artist else ""), shown="$" ~ "{:,.2f}".format(a.amount)) }}
+          <span class="ry-ro-n">{{ a.tracks }} track{{ '' if a.tracks == 1 else 's' }} · {{ a.pct }}%</span>
+          {% if a.name == d.artist %}<a class="ry-ro-go" href="/royalties{% if d.chosen %}?period={{ d.chosen | urlencode }}{% endif %}">Whole roster</a>
+          {% else %}<a class="ry-ro-go" href="/royalties?artist={{ a.name | urlencode }}{% if d.chosen %}&amp;period={{ d.chosen | urlencode }}{% endif %}">Read {{ a.name }}</a>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <p class="ry-note">Shares are of the whole roster's reported money across every period on file, whatever period is chosen above. A row with no artist named on the statement belongs to nobody here and is left out of the shares.</p>
+    </div>
+  </section>
+  {% endif %}
 
   {#- 2 · THE INSTRUMENTS: reported, by stream (stood up), lanes. -#}
   <section aria-labelledby="ry-inst-h">

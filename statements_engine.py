@@ -44,6 +44,14 @@ _TERRITORY_COLS = {"territory", "country", "region", "market", "country code",
 # it, and a wrong match here becomes a wrong claim in a letter.
 _ISRC_COLS = {"isrc", "isrc code", "isrc_code", "recording isrc",
               "track isrc", "isrc/upc"}
+# Whose recording the row is. A label's export carries every act on the
+# roster in one file (2026-09-14: "it has multiple artists so it would be
+# a label view"), and the Royalties desk reads one act at a time from it.
+# A single artist's export usually has the column too; then every row
+# names them and nothing changes.
+_ARTIST_COLS = {"artist", "artist name", "artist_name", "artistname",
+                "track artist", "release artist", "primary artist",
+                "main artist", "performer", "act"}
 
 
 _MONTHS = ("jan", "feb", "mar", "apr", "may", "jun",
@@ -124,6 +132,7 @@ def parse_statement(data, filename="statement.csv"):
     col_period = _match(headers, _PERIOD_COLS)
     col_territory = _match(headers, _TERRITORY_COLS)
     col_isrc = _match(headers, _ISRC_COLS)
+    col_artist = _match(headers, _ARTIST_COLS)
     if not col_amount:
         return {"rows": [], "columns": {}, "skipped": 0,
                 "error": "Couldn't find an amount/revenue column. Headers seen: " + ", ".join(headers)}
@@ -142,13 +151,14 @@ def parse_statement(data, filename="statement.csv"):
             "territory": (raw.get(col_territory) or "").strip() if col_territory else "",
             "isrc": ((raw.get(col_isrc) or "").strip().upper().replace("-", "")
                      if col_isrc else ""),
+            "artist": (raw.get(col_artist) or "").strip() if col_artist else "",
         })
 
     return {
         "rows": rows,
         "columns": {"title": col_title, "source": col_source, "amount": col_amount,
                     "period": col_period, "territory": col_territory,
-                    "isrc": col_isrc},
+                    "isrc": col_isrc, "artist": col_artist},
         "skipped": skipped,
         "error": None if rows else "No usable rows found.",
     }
@@ -166,9 +176,16 @@ def analyze(rows):
     track_stores = {}
     unmatched = 0.0
     periods = set()
+    artists = {}
 
     for r in rows:
         sources[r["source"]] = sources.get(r["source"], 0) + r["amount"]
+        act = (r.get("artist") or "").strip()
+        if act:
+            slot = artists.setdefault(act, {"amount": 0.0, "titles": set()})
+            slot["amount"] += r["amount"]
+            if r["title"]:
+                slot["titles"].add(r["title"])
         title = r["title"] or "(no title)"
         if not r["title"]:
             unmatched += r["amount"]
@@ -251,6 +268,15 @@ def analyze(rows):
         "by_track": by_track,
         "track_count": sum(1 for t in tracks if t != "(no title)"),
         "unmatched_revenue": round(unmatched, 2),
+        # The roster, when the export names one: each act's money and how
+        # many of its titles earned. Rows without an artist column are
+        # not an act; a one-artist export yields one entry.
+        "by_artist": sorted(
+            ({"artist": a, "amount": round(v["amount"], 2), "tracks": len(v["titles"]),
+              "share": round(v["amount"] / total, 4) if total else 0.0}
+             for a, v in artists.items()),
+            key=lambda x: x["amount"], reverse=True),
+        "artist_count": len(artists),
         "coverage_gaps": findings,
         "gap_estimate_total": round(sum(f["estimated_value"] for f in findings), 2),
     }

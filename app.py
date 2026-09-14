@@ -41,6 +41,7 @@ import partner_store
 import signal_hub
 import press_desk
 import tour_os
+import demo_accounts
 import producers
 import distributor_letter
 import recovery_engine
@@ -342,10 +343,7 @@ def _session_is_demo():
         return False
     # _is_demo_email lives inside create_app(), so it is out of scope
     # here. Same rule, stated once more rather than reached for.
-    email = (user["email"] or "").strip().lower()
-    return (email == "demo@streetbanker.io"
-            or (email.startswith("demo-")
-                and email.endswith("@streetbanker.io")))
+    return demo_accounts.is_demo_email(user["email"])
 
 
 def _internal_tools():
@@ -406,7 +404,10 @@ def build_dashboard_context():
     # catalogue of five recordings with ISRCs belonging to nobody.
     demo = _session_is_demo()
     balances = get_platform_balances() if demo else []
-    payouts = get_recent_payouts()
+    # The seeded payouts and the leak alerts built on them rendered on a
+    # fresh account's Overview as five paid rows and an action feed
+    # (scout of 2026-09-14). The showcase keeps them; nobody else does.
+    payouts = get_recent_payouts() if demo else []
     kpis = get_kpis()
     total = total_royalties(balances) if demo else 0.0
     goal = get_royalty_goal()
@@ -427,7 +428,7 @@ def build_dashboard_context():
     ]
     payout_calendar = get_payout_calendar()
     claims = get_claims(catalog)
-    alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog)
+    alerts = get_royalty_leak_alerts(balances, payouts, kpis, catalog) if demo else []
     smart_recommendations = get_smart_recommendations(alerts, songs)
     missing_findings = get_missing_royalty_findings(catalog)
 
@@ -463,7 +464,7 @@ def build_dashboard_context():
         "account": _account_with_user(get_account()),
         "overview_health": get_overview_health(catalog, songs),
         "action_center": get_action_center(alerts, payouts),
-        "recent_payout_rows": recent_payout_rows(),
+        "recent_payout_rows": recent_payout_rows() if demo else [],
         "royalties_overview": get_royalties_overview(
             balances, catalog, payout_calendar, earnings_trend, recent_payout_rows()
         ),
@@ -640,12 +641,7 @@ def create_app():
     store.init_db()
     # Seed one demo account per tier so partners can tour exactly what each
     # plan buys. All share the demo password; DEMO_PASSWORD rotates them all.
-    _DEMO_ACCOUNTS = [
-        ("demo@streetbanker.io", "Synthwave Surfer", "label"),
-        ("demo-pro@streetbanker.io", "Synthwave Surfer (Pro)", "pro"),
-        ("demo-artist@streetbanker.io", "Synthwave Surfer (Artist)", "artist"),
-        ("demo-fan@streetbanker.io", "Demo Fan", "fan"),
-    ]
+    _DEMO_ACCOUNTS = demo_accounts.ACCOUNTS
     for _email, _name, _plan in _DEMO_ACCOUNTS:
         if store.get_user_by_email(_email) is None:
             store.create_user(_email, _name, generate_password_hash("sweep"))
@@ -758,9 +754,7 @@ def create_app():
         """
         email = (request.form.get("demo_workspace") or "").strip().lower()
         password = request.form.get("demo_password") or ""
-        allowed = {"demo@streetbanker.io", "demo-pro@streetbanker.io",
-                   "demo-artist@streetbanker.io", "demo-fan@streetbanker.io"}
-        if email not in allowed:
+        if not demo_accounts.is_demo_email(email):
             return redirect("/login")
         user = store.get_user_by_email(email)
         if user and check_password_hash(user["password_hash"], password):
@@ -1948,6 +1942,15 @@ def create_app():
         import royalties_desk
         user = current_user()
         rows_all = store.get_statement_rows(user["id"]) if user else []
+        # A label's export names every act on the roster. One act can be
+        # put in scope (2026-09-14) and every figure on the page follows
+        # it, the way every figure already follows the period.
+        roster = royalties_desk.roster(rows_all)
+        act = (request.args.get("artist") or "").strip()
+        if act and any(a["name"] == act for a in roster):
+            rows_all = [r for r in rows_all if (r.get("artist") or "").strip() == act]
+        else:
+            act = ""
         periods = royalties_desk.order_periods(
             (r["period"] or "").strip() for r in rows_all if r["period"])
         chosen = (request.args.get("period") or "").strip()
@@ -1960,7 +1963,7 @@ def create_app():
             desk = royalties_desk.build(
                 rows_all, rows, store.get_statements(user["id"]), chosen,
                 store.list_os_tracks(user["id"]), _os_ctx(user["id"]),
-                mlc=recovery_mlc.state(user["id"]))
+                mlc=recovery_mlc.state(user["id"]), artist=act, roster_rows=roster)
         return render_template("royalties.html", active_page="royalties",
                                desk=desk, roy_periods=periods, roy_period=chosen,
                                **build_dashboard_context())
@@ -2623,11 +2626,13 @@ def create_app():
                                   overrides=overrides, photo=photo, assets=assets,
                                   tour_dates=tour, bandsintown_profile=bit,
                                   tour_source=tour_source,
-                                  # None, not [] - with nothing real the
-                                  # editor keeps the sample strip, which
-                                  # the banner under it labels as such.
-                                  stats_override=((_epk_real_stats(user["id"]) or None)
+                                  # A real account's editor shows what was
+                                  # measured or "Not measured" - the sample
+                                  # strip is the showcase's alone (2026-09-14).
+                                  stats_override=(_epk_stats_for(user["id"], _is_demo_email(user["email"]))
                                                   if user else None),
+                                  top_tracks_override=(_epk_real_tracks(user["id"])[0] if user and not _is_demo_email(user["email"]) else None),
+                                  top_platform_override=(_epk_real_tracks(user["id"])[1] if user and not _is_demo_email(user["email"]) else None),
                                   demo=_is_demo_email(user["email"]))
         return render_template("epk.html", active_page="press-desk", **ctx)
 
@@ -2903,6 +2908,20 @@ def create_app():
                 "stale": bool(refusal), "refusal": refusal,
                 "snapshots": snaps, "note": note}
 
+    def _epk_real_tracks(user_id):
+        """(top tracks, strongest store) from the account's own statements,
+        for all three doors of the kit. Empty with nothing on file."""
+        try:
+            return epk_config.real_top_tracks(store.get_statement_rows(user_id))
+        except Exception:
+            return [], ""
+
+    def _epk_stats_for(user_id, demo):
+        """The kit's headline strip: measured figures, or "Not measured" in
+        every slot. Only the showcase keeps its sample strip."""
+        real = _epk_real_stats(user_id)
+        return real or (None if demo else epk_config.not_measured_stats())
+
     def _epk_real_stats(user_id):
         """Headline figures for a press kit, from the artist's own data.
 
@@ -2959,7 +2978,9 @@ def create_app():
                             # building. The showcase keeps its sample strip,
                             # which the page labels as samples.
                             stats_override=(real or (None if _demo_owner
-                                                     else epk_config.not_measured_stats())))
+                                                     else epk_config.not_measured_stats())),
+                            top_tracks_override=(None if _demo_owner else _epk_real_tracks(prof["user_id"])[0]),
+                            top_platform_override=(None if _demo_owner else _epk_real_tracks(prof["user_id"])[1]))
         return render_template("epk_public.html", e=data, slug=slug, shopify=shopify_buy.context())
 
     @app.route("/epk/share", methods=["POST"])
@@ -3041,6 +3062,8 @@ def create_app():
                             stats_override=(_epk_real_stats(share["user_id"])
                                             or (None if _demo_owner
                                                 else epk_config.not_measured_stats())),
+                            top_tracks_override=(None if _demo_owner else _epk_real_tracks(share["user_id"])[0]),
+                            top_platform_override=(None if _demo_owner else _epk_real_tracks(share["user_id"])[1]),
                             demo=_demo_owner)
         viewer = current_user()
         if viewer is None or viewer["id"] != share["user_id"]:
@@ -3923,8 +3946,7 @@ def create_app():
         return redirect(homes[world])
 
     def _is_demo_email(email):
-        return (email == "demo@streetbanker.io"
-                or (email.startswith("demo-") and email.endswith("@streetbanker.io")))
+        return demo_accounts.is_demo_email(email)
 
     @app.context_processor
     def _acting_as():
@@ -10165,7 +10187,65 @@ def create_app():
                                backup_state=_backup_state(),
                                saved=request.args.get("saved"),
                                deleted=request.args.get("deleted"),
+                               reset=request.args.get("reset"),
+                               granted=request.args.get("granted"),
+                               granted_to=request.args.get("to"),
+                               is_owner=bool(user and _is_owner_email(user.get("email"))),
                                **build_dashboard_context())
+
+    @app.route("/account/reset", methods=["POST"])
+    def account_reset():
+        """Empty the signed-in account and keep the login.
+
+        The owner asked for it (2026-09-14) to hand a demo account their
+        label's statements and start their own login blank. Same
+        confirmation as deleting - the address typed back - and one
+        refusal: fans paying this account through Stripe for its fan
+        club, because dropping those rows would leave the subscriptions
+        charging with no record of who pays whom.
+
+        The plan, the seats other people gave this account and the
+        drop-box address survive; everything filed under the account
+        goes, children first, and the bucket objects after the rows.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        typed = (request.form.get("confirm") or "").strip().lower()
+        if typed != (user.get("email") or "").strip().lower():
+            return redirect("/settings?reset=mismatch#start-over")
+        if store.fan_club_subscriptions(user["id"]):
+            return redirect("/settings?reset=fans#start-over")
+        keys = store.stored_keys_for_user(user["id"])
+        store.reset_user_data(user["id"])
+        if keys and blob_store.configured():
+            for key in keys:
+                try:
+                    blob_store.delete(key)
+                except Exception:          # noqa: BLE001 - rows are gone; do not fail the reset
+                    pass
+        return redirect("/settings?reset=1#start-over")
+
+    @app.route("/admin/plan", methods=["POST"])
+    def admin_plan():
+        """An owner sets the plan on any account by address.
+
+        The one card-free way to put a demo account on Pro or Label
+        without leaning on the showcase wildcard (closed 2026-09-14) or a
+        Render shell. Owner only, 404 to everybody else.
+        """
+        user, bail = _owner_or_404()
+        if bail:
+            return bail
+        email = (request.form.get("email") or "").strip().lower()
+        plan = (request.form.get("plan") or "").strip().lower()
+        target = store.get_user_by_email(email) if email else None
+        if target is None:
+            return redirect("/settings?granted=unknown#grant-plan")
+        if plan not in plans.TIER_RANK:
+            return redirect("/settings?granted=badplan#grant-plan")
+        store.set_user_plan(target["id"], plan)
+        return redirect("/settings?granted=%s&to=%s#grant-plan" % (plan, urllib.parse.quote(email)))
 
     @app.route("/settings/profile", methods=["POST"])
     def settings_profile():

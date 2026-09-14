@@ -120,3 +120,14 @@
 /* 8 · markets and the catalogue signal */
 .ry-mk { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
 @media (max-width: 760px) { .ry-mk { grid-template-columns: 1fr; } }
+
+/* 1b - the roster: a label's acts, one meter each, the act in scope lit. */
+.ry-ro { display: grid; gap: 8px; }
+.ry-ro-r { display: grid; grid-template-columns: 1fr 120px 130px; gap: 10px; align-items: center; padding: 6px 8px; border-radius: var(--sb-r-control); border: 1px solid transparent; }
+.ry-ro-r.on { border-color: var(--sb-line-strong); background: var(--sb-surface-2); }
+.ry-ro-r .sb-meter-row { min-width: 0; }
+.ry-ro-n { font-size: 12px; color: var(--sb-ink-3); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ry-ro-go { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--sb-gold-bright); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ry-ro-go:hover { text-decoration: underline; }
+.ry-ro-go:focus-visible { outline: none; box-shadow: var(--sb-focus); border-radius: var(--sb-r-control); }
+@media (max-width: 640px) { .ry-ro-r { grid-template-columns: 1fr; } .ry-ro-n, .ry-ro-go { text-align: left; } }

@@ -306,6 +306,18 @@ def markets(rows, limit=5):
     }
 
 
+def roster(rows_all):
+    """Every act the statements on file name, largest first, with its
+    share of everything reported. Empty when no row carries an artist -
+    the Royalties page then reads as one artist's, which it is."""
+    a = statements_engine.analyze(rows_all) if rows_all else None
+    acts = list((a or {}).get("by_artist") or [])
+    top = acts[0]["amount"] if acts else 0
+    return [{"name": x["artist"], "amount": x["amount"], "tracks": x["tracks"],
+             "share": x["share"], "pct": int(round(100 * x["share"])), "top": top}
+            for x in acts]
+
+
 def signal(summary):
     if not summary:
         return None
@@ -317,9 +329,13 @@ def signal(summary):
 
 # --- the whole desk ---------------------------------------------------------------
 
-def build(rows_all, rows, uploads, chosen, os_tracks, os_ctx, mlc=None):
-    """rows_all: every statement row on file; rows: the rows in scope
-    (one period, or all). chosen: the period label or ""."""
+def build(rows_all, rows, uploads, chosen, os_tracks, os_ctx, mlc=None,
+          artist="", roster_rows=None):
+    """rows_all: every statement row on file (already narrowed to one
+    act when `artist` is set); rows: the rows in scope (one period, or
+    all). chosen: the period label or "". roster_rows: the whole
+    roster, read from every row before the act filter, so the page can
+    offer the other acts while one is in scope."""
     if not rows:
         return None
     analysis = statements_engine.analyze(rows)
@@ -342,4 +358,6 @@ def build(rows_all, rows, uploads, chosen, os_tracks, os_ctx, mlc=None):
         "tracks": movement(rows_all, periods, lambda r: (r.get("title") or "").strip(), chosen=chosen),
         "markets": markets(rows),
         "signal": signal(summary),
+        "artist": artist or "",
+        "roster": list(roster_rows or []),
     }

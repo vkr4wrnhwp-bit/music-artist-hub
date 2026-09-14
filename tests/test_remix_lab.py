@@ -385,7 +385,7 @@ def test_signed_in_the_page_lives_inside_the_shell():
     client.post("/login", data={"email": email, "password": "rl-pass-123"})
     page = client.get("/remix-lab").get_data(as_text=True)
     assert 'class="sbrl-body sbrl-in-app"' in page and "data-no-collapse" in page
-    assert page.count("<main") == 1 and '<main class="flex-1' in page      # the shell's main, once
+    assert page.count("<main") == 1 and '<main id="sb-main" class="flex-1' in page      # the shell's main, once
     assert "Run a free royalty sweep" not in page and 'href="/login"' not in page
     for pinned in ('id="sbrl-form"', 'id="sbrl-hero-streak"', "Rights confirmation", "Start a remix brief",
                    'id="sbrl-config"', "remix-lab.js?v=4"):

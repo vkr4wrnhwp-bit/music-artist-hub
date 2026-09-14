@@ -667,7 +667,9 @@ def test_epk_sidebar_and_export():
 def test_epk_data_config_shapes():
     from epk_config import get_epk_data
     from catalog_config import get_account
-    data = get_epk_data(get_account(), {"mid": 296400.0})
+    # The seeded catalogue is the showcase's (2026-09-14): a real account
+    # gets its own statements or nothing, so the shape is checked as demo.
+    data = get_epk_data(get_account(), {"mid": 296400.0}, demo=True)
     assert data["name"] == get_account()["name"]
     assert len(data["stats"]) == 4
     assert data["top_tracks"]

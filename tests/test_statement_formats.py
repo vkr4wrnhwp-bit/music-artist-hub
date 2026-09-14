@@ -97,3 +97,32 @@ def test_an_export_with_no_amount_column_is_refused_with_its_headers():
     parsed = se.parse_statement("Track,Store,Units\nHungry Gods,Spotify,900\n")
     assert parsed["error"] and "amount" in parsed["error"].lower()
     assert "Units" in parsed["error"], "the refusal names what it saw"
+
+
+def test_the_artist_is_kept_where_the_export_names_one():
+    """A label's export carries every act on the roster in one file
+    (2026-09-14). The column is read where it exists and left blank -
+    never guessed from the filename or the account - where it does not."""
+    for service in ("DistroKid", "TuneCore"):
+        row = se.parse_statement(FORMATS[service])["rows"][0]
+        assert row["artist"] == "Artist", service
+    for service in ("Symphonic", "CD Baby", "The MLC", "ASCAP", "BMI"):
+        row = se.parse_statement(FORMATS[service])["rows"][0]
+        assert row["artist"] == "", "%s names no artist and must not invent one" % service
+
+
+def test_a_roster_export_is_read_per_act():
+    label = ("Reporting Period,Artist,Track Title,Digital Service Provider,Royalty ($US)\n"
+             "JUN-26,Hungry Gods,Narrow,Spotify,60\n"
+             "JUN-26,Hungry Gods,Wide,Deezer,40\n"
+             "JUN-26,Hellhounds,Howl,Spotify,100\n"
+             "JUN-26,,Orphan,Spotify,20\n")
+    parsed = se.parse_statement(label)
+    assert parsed["columns"]["artist"] == "Artist"
+    a = se.analyze(parsed["rows"])
+    assert a["artist_count"] == 2
+    assert [(x["artist"], x["amount"], x["tracks"]) for x in a["by_artist"]] == [
+        ("Hungry Gods", 100.0, 2), ("Hellhounds", 100.0, 1)]
+    assert a["by_artist"][0]["share"] == round(100 / 220, 4)
+    one = se.analyze(se.parse_statement(FORMATS["Symphonic"])["rows"])
+    assert one["artist_count"] == 0 and one["by_artist"] == []

@@ -172,3 +172,45 @@ def test_the_sidebar_lists_royalties_once_and_the_folded_pages_not_at_all():
     assert "/royalties" in hrefs
     for gone in ("/royalty-lanes", "/publishing", "/mechanicals", "/territories"):
         assert gone not in hrefs, gone
+
+
+# --- the roster ---------------------------------------------------------
+
+ROSTER = ("Reporting Period,Artist,Track Title,Digital Service Provider,Territory,Royalty ($US)\n"
+          "MAY-26,Hungry Gods,Narrow,Spotify,US,300\n"
+          "MAY-26,Hellhounds,Howl,Spotify,GB,100\n"
+          "JUN-26,Hungry Gods,Narrow,Spotify,US,330\n"
+          "JUN-26,Hungry Gods,Wide,Deezer,US,70\n"
+          "JUN-26,Hellhounds,Howl,Spotify,GB,120\n")
+
+
+def test_a_label_export_offers_the_roster_and_one_act_puts_the_whole_page_in_scope(artist):
+    _upload(artist, "label.csv", ROSTER)
+    body = artist.get("/royalties").get_data(as_text=True)
+    assert 'id="royalties-artist"' in body and "Whole roster" in body
+    assert 'id="artists"' in body and "2 artists in the statements on file" in body
+    assert 'aria-label="Hungry Gods: $700.00"' in body and 'aria-label="Hellhounds: $220.00"' in body
+    assert "2 tracks · 76%" in body and "1 track · 24%" in body
+    assert '<span class="sbm-v">$920.00</span>' in body
+    assert "Read Hellhounds" in body and "Read Hungry Gods" in body
+
+    one = artist.get("/royalties?artist=Hellhounds").get_data(as_text=True)
+    assert '<span class="sbm-v">$220.00</span>' in one and "$920.00" not in one
+    assert "Wide" not in one and "Howl" in one
+    assert '<option value="Hellhounds" selected>' in one
+    assert "Whole roster</a>" in one, "the act in scope offers the way back"
+    assert 'href="/royalties?artist=Hungry%20Gods"' in one
+
+    both = artist.get("/royalties?artist=Hellhounds&period=JUN-26").get_data(as_text=True)
+    assert '<span class="sbm-v">$120.00</span>' in both
+    assert 'aria-label="Hungry Gods: $700.00"' in both, "the roster shares stay whole-roster"
+
+    unknown = artist.get("/royalties?artist=Nobody").get_data(as_text=True)
+    assert '<span class="sbm-v">$920.00</span>' in unknown, "an unknown act is the whole roster"
+
+
+def test_one_artist_on_file_gets_no_roster_control(artist):
+    _upload(artist, "may.csv", MAY)
+    body = artist.get("/royalties").get_data(as_text=True)
+    assert 'id="royalties-artist"' not in body and 'id="artists"' not in body
+    assert "Whole roster" not in body

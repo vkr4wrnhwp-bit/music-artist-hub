@@ -987,6 +987,13 @@ def init_db():
             db.execute("ALTER TABLE statement_rows ADD COLUMN isrc TEXT NOT NULL DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: whose recording each row is, from a label export
+        # that carries the whole roster (2026-09-14). Rows saved before
+        # this stay blank; re-uploading the statement fills them.
+        try:
+            db.execute("ALTER TABLE statement_rows ADD COLUMN artist TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         # Migration: where a statement came from. The drop-box panel
         # says "last received" and has to know which upload was received
         # rather than chosen.
@@ -1391,9 +1398,10 @@ def save_statement(user_id, filename, rows, via="upload"):
         )
         db.executemany(
             "INSERT INTO statement_rows (statement_id, title, source, amount,"
-            " period, territory, isrc) VALUES (?,?,?,?,?,?,?)",
+            " period, territory, isrc, artist) VALUES (?,?,?,?,?,?,?,?)",
             [(statement_id, r.get("title"), r.get("source"), r["amount"],
-              r.get("period"), r.get("territory") or "", r.get("isrc") or "")
+              r.get("period"), r.get("territory") or "", r.get("isrc") or "",
+              r.get("artist") or "")
              for r in rows],
         )
     return statement_id
@@ -4240,6 +4248,130 @@ def stored_keys_for_user(user_id):
     return sorted(keys)
 
 
+# --- start over -----------------------------------------------------------
+# Tables that name the account but are its standing, not its working data.
+# A reset leaves them alone so the login, the plan, the seats other people
+# gave it and the drop-box address all survive the wipe.
+RESET_KEEPS = frozenset({
+    "users", "ingest_tokens", "roster_members", "team_members",
+    "audio_usage", "audio_consent", "signal_members", "partner_members",
+    "partner_audit", "desk_activity",
+})
+# Rows the account owns under a column the generic user_id sweep never read.
+RESET_EXTRA_KEYS = (
+    ("club_members", "artist_id"), ("club_drops", "artist_id"),
+    ("tour_board_replies", "from_user_id"), ("beat_licences", "producer_id"),
+    ("hours_submissions", "owner_id"), ("board_threads", "poster_id"),
+    ("board_messages", "from_user_id"), ("studio_comments", "author_id"),
+)
+# Rows that belong to the account only through a parent row. Each entry is
+# (child, child column, parent, parent column, parent's user column); the
+# child goes before the parent so nothing is orphaned. The delete sweep
+# used to skip every one of these - 48,000 statement rows outlived the
+# statements they belonged to.
+RESET_CHILDREN = (
+    ("statement_rows", "statement_id", "statements", "id", "user_id"),
+    ("link_clicks", "slug", "smart_links", "slug", "user_id"),
+    ("epk_share_events", "token", "epk_shares", "token", "user_id"),
+    ("onesheet_views", "token", "onesheet_shares", "token", "user_id"),
+    ("beat_clearances", "beat_id", "beats", "id", "user_id"),
+    ("ml_destinations", "campaign_id", "ml_campaigns", "id", "user_id"),
+    ("ml_events", "campaign_id", "ml_campaigns", "id", "user_id"),
+    ("ml_variants", "campaign_id", "ml_campaigns", "id", "user_id"),
+    ("spotify_presaves", "campaign_id", "ml_campaigns", "id", "user_id"),
+    ("ml_consents", "fan_id", "ml_fans", "id", "user_id"),
+    ("ro_assets", "campaign_id", "ro_campaigns", "id", "user_id"),
+    ("ro_posts", "campaign_id", "ro_campaigns", "id", "user_id"),
+    ("light_remote_cmds", "code", "light_remotes", "code", "user_id"),
+    ("passport_contacts", "passport_id", "passports", "id", "user_id"),
+    ("passport_personnel", "passport_id", "passports", "id", "user_id"),
+    ("passport_inputs", "passport_id", "passports", "id", "user_id"),
+    ("passport_outputs", "passport_id", "passports", "id", "user_id"),
+    ("passport_playback", "passport_id", "passports", "id", "user_id"),
+    ("passport_equipment", "passport_id", "passports", "id", "user_id"),
+    ("passport_cues", "passport_id", "passports", "id", "user_id"),
+    ("passport_documents", "passport_id", "passports", "id", "user_id"),
+    ("stage_presence", "show_id", "tour_shows", "id", "user_id"),
+    ("stage_locks", "show_id", "tour_shows", "id", "user_id"),
+    ("studio_analysis", "project_id", "studio_projects", "id", "user_id"),
+    ("studio_findings", "project_id", "studio_projects", "id", "user_id"),
+    ("studio_approvals", "project_id", "studio_projects", "id", "user_id"),
+    ("studio_provenance", "project_id", "studio_projects", "id", "user_id"),
+    ("tour_vip_sales", "tour_id", "tours", "id", "user_id"),
+    ("tour_vip_links", "tour_id", "tours", "id", "user_id"),
+    ("tour_lineup", "tour_id", "tours", "id", "user_id"),
+    ("tour_show_calls", "tour_id", "tours", "id", "user_id"),
+    ("board_messages", "thread_id", "board_threads", "id", "poster_id"),
+    ("audio_transcripts", "audio_asset_id", "audio_assets", "id", "owner_user_id"),
+)
+# Grandchildren: the parent is itself a child above, so the owner is two
+# hops away. Deleted first, by the same chain.
+RESET_GRANDCHILDREN = (
+    ("audio_transcript_segments", "transcript_id", "audio_transcripts", "id",
+     "audio_asset_id", "audio_assets", "id", "owner_user_id"),
+    ("audio_transcript_speakers", "transcript_id", "audio_transcripts", "id",
+     "audio_asset_id", "audio_assets", "id", "owner_user_id"),
+)
+
+
+def _table_names(db):
+    return {r[0] for r in db.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
+
+
+def _wipe_account_rows(db, user_id, keep=()):
+    """Delete every row the account owns, children first, inside the
+    caller's transaction. Returns {table: rows removed}. Tables that a
+    deployment has not created are skipped; a wrong column name is not
+    forgiven, because a wipe that silently misses a table is the bug
+    this exists to end."""
+    names = _table_names(db)
+    removed = {}
+    for child, ccol, parent, pcol, mid_col, grand, gcol, ucol in RESET_GRANDCHILDREN:
+        if child in names and parent in names and grand in names:
+            cur = db.execute(
+                'DELETE FROM "%s" WHERE "%s" IN (SELECT "%s" FROM "%s" WHERE "%s" IN '
+                '(SELECT "%s" FROM "%s" WHERE "%s" = ?))'
+                % (child, ccol, pcol, parent, mid_col, gcol, grand, ucol), (user_id,))
+            removed[child] = removed.get(child, 0) + cur.rowcount
+    for child, ccol, parent, pcol, ucol in RESET_CHILDREN:
+        if child in names and parent in names:
+            cur = db.execute(
+                'DELETE FROM "%s" WHERE "%s" IN (SELECT "%s" FROM "%s" WHERE "%s" = ?)'
+                % (child, ccol, pcol, parent, ucol), (user_id,))
+            removed[child] = removed.get(child, 0) + cur.rowcount
+    for table, key in RESET_EXTRA_KEYS:
+        if table in names:
+            cur = db.execute('DELETE FROM "%s" WHERE "%s" = ?' % (table, key), (user_id,))
+            removed[table] = removed.get(table, 0) + cur.rowcount
+    for table, key in _tables_keyed_by_user(db):
+        if table in keep:
+            continue
+        cur = db.execute('DELETE FROM "%s" WHERE "%s" = ?' % (table, key), (user_id,))
+        removed[table] = removed.get(table, 0) + cur.rowcount
+    return removed
+
+
+def fan_club_subscriptions(user_id):
+    """Fans paying this account through Stripe for its fan club. A wipe
+    that dropped these rows would leave the subscriptions charging with
+    no record of who is paying whom, so a reset refuses while any exist."""
+    with get_db() as db:
+        if "club_members" not in _table_names(db):
+            return 0
+        return db.execute(
+            "SELECT COUNT(*) FROM club_members WHERE artist_id = ? AND status = 'active'"
+            " AND COALESCE(stripe_subscription_id, '') != ''", (user_id,)).fetchone()[0]
+
+
+def reset_user_data(user_id):
+    """Empty the account and keep the login: every row the account owns
+    goes, the users row and the standing in RESET_KEEPS stay. Returns a
+    count per table, for the record. One transaction."""
+    with get_db() as db:
+        return _wipe_account_rows(db, user_id, keep=RESET_KEEPS)
+
+
 def delete_user_everything(user_id):
     """Remove the account and every row that names it. Returns a count of
     rows removed per table, for the record.
@@ -4250,6 +4382,10 @@ def delete_user_everything(user_id):
     """
     removed = {}
     with get_db() as db:
+        # Children and the columns the user_id sweep cannot see go first,
+        # so a deleted account leaves no statement rows, click logs or
+        # consents behind under a parent that no longer exists.
+        removed.update(_wipe_account_rows(db, user_id, keep=("users",)))
         for table, key in _tables_keyed_by_user(db):
             cur = db.execute('DELETE FROM "%s" WHERE "%s" = ?' % (table, key), (user_id,))
             if cur.rowcount:
