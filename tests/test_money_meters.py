@@ -60,3 +60,12 @@ def test_the_capital_score_factors_read_out_of_twenty(demo):
     if body.count("/20") == 0:            # a page state with no factors
         pytest.skip("no factors rendered for this account")
     assert re.search(r'aria-label="[^"]+: \d+/20"', body)
+
+
+def test_the_money_desks_carry_no_photograph():
+    """Owner, 2026-09-14: the stock header pictures come off Statements,
+    Royalties and Recovery while they are replaced. The plate band stays."""
+    for name in ("statements", "royalties", "recovery"):
+        s = _tpl(name)
+        assert "sb.plate(none," in s, name
+        assert "/static/img/" not in s.split("{% endcall %}")[0], name

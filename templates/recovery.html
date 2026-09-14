@@ -54,10 +54,9 @@
 {% block content %}
 {#- The plate is the owner's own photograph (2026-09-13): the crew walking to the
     plane with the Company road case. -#}
-{% call sb.plate("/static/img/company-wide", [900, 1400, 1672],
+{% call sb.plate(none, [900, 1400, 1672],
                  "Street Banker · Royalty Sweep", "Recovery",
-                 "Money the scan found on your own rows, sorted by how sure it is: paid without a name, silent on a store, or unregistered at the registry. Every finding says what it is before it says what it is worth.",
-                 position="center 55%", alt="The crew walking out to the plane at night, a road case marked Company by Street Banker rolling with them") %}
+                 "Money the scan found on your own rows, sorted by how sure it is: paid without a name, silent on a store, or unregistered at the registry. Every finding says what it is before it says what it is worth.") %}
   {% if rv and rv.has_data %}<a href="/reports/recovery.csv" class="sb-btn sb-btn-secondary">Download CSV</a>{% endif %}
   <a href="/royalty-recovery/cases" class="sb-btn sb-btn-primary">Open the case desk</a>
 {% endcall %}

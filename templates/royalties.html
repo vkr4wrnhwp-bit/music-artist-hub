@@ -29,10 +29,9 @@
 {%- endmacro %}
 
 {% block content %}
-{% call sb.plate("/static/img/sweep-wide", [900, 1400, 1672],
+{% call sb.plate(none, [900, 1400, 1672],
                  "Street Banker · Royalty Sweep", "Royalties",
-                 "Everything your statements paid, by stream, by store, by track and by market, and every stream that should be paying and is not. One page where there were three.",
-                 position="center 40%") %}
+                 "Everything your statements paid, by stream, by store, by track and by market, and every stream that should be paying and is not. One page where there were three.") %}
   {% if d %}<a href="/reports/royalty-report/download.csv" id="export-btn" class="sb-btn sb-btn-secondary">Download CSV</a>{% endif %}
   <a href="/statements#intake" class="sb-btn sb-btn-primary">Upload a statement</a>
 {% endcall %}
