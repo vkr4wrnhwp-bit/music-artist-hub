@@ -23,7 +23,10 @@ def _label(period):
 
 
 def _period_span(rows):
-    periods = sorted({(r.get("period") or "").strip() for r in rows if r.get("period")})
+    # Calendar order, not name order: sorted() put "JUN-26" before "MAY-26"
+    # and the live scan strip read "JUN-26 – MAY-26" (walk of 2026-09-14).
+    import royalties_desk
+    periods = royalties_desk.order_periods((r.get("period") or "").strip() for r in rows if r.get("period"))
     if not periods:
         return ""
     if len(periods) == 1:

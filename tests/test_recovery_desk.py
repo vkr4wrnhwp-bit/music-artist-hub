@@ -15,6 +15,13 @@ import recovery_desk as desk
 
 # --- the builder ----------------------------------------------------------
 
+def test_the_scan_strip_writes_the_period_span_in_calendar_order():
+    rows = [{"period": "JUN-26", "title": "a", "amount": 1}, {"period": "MAY-26", "title": "a", "amount": 1}]
+    rv = {"row_count": 2, "period_count": 2}
+    out = desk.scan(rv, {"store_count": 1}, rows, [], None, {})
+    assert "2 periods · MAY-26 – JUN-26" in out["facts"]
+
+
 def test_the_three_bases_stand_side_by_side_and_a_zero_is_dashed_not_hidden():
     rv = {"actual_unattributed": 0.0, "estimated_gaps": 26.56, "_unattributed_rows": 0}
     cols = desk.stake(rv, {"amount": 412.30, "works": 2, "checked": "2026-09-12"}, 15)
