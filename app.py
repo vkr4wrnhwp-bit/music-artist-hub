@@ -42,6 +42,7 @@ import signal_hub
 import press_desk
 import tour_os
 import demo_accounts
+import page_switches
 import producers
 import distributor_letter
 import recovery_engine
@@ -3681,6 +3682,20 @@ def create_app():
         nav, label, community, account = (hub_defs.nav_hubs(), hub_defs.LABEL_GROUP,
                                           hub_defs.COMMUNITY_GROUP, hub_defs.ACCOUNT_GROUP)
         palette = _palette_for(current_user())
+        # The owner's switchboard: a hidden page leaves the menu and the
+        # palette for everyone but an owner, who keeps it badged Hidden.
+        off = _page_hidden()
+        me = current_user()
+        page_hidden = set()
+        if off:
+            if me and _is_owner_email(me.get("email")):
+                page_hidden = off
+            else:
+                nav = hub_defs.without(nav, off)
+                label, community, account = (
+                    (g_[0], [it for it in g_[1] if it[0] not in off])
+                    for g_ in (label, community, account))
+                palette = [e for e in palette if e["key"] not in off]
         if _demo_locked_account():
             # A shared demo hides the Sample pages and Billing. The
             # routes stay reachable; the sidebar and the palette do not
@@ -3694,6 +3709,7 @@ def create_app():
         return {"hubs_nav": nav, "hubs_label": label,
                 "hubs_community": community,
                 "hubs_account": account,
+                "page_hidden": page_hidden,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
                 "hub_icons": hub_defs.HUB_ICONS,
                 # Flag-aware: a page whose engine is on must not be
@@ -3706,7 +3722,7 @@ def create_app():
                 # offered artist tooling it would only be refused at, and
                 # the whole point of the fan shell is that those pages are
                 # not part of their world.
-                "command_index": _palette_for(current_user())}
+                "command_index": palette}
 
     @app.route("/desk/<hub_key>")
     def hub_desk(hub_key):
@@ -3716,6 +3732,9 @@ def create_app():
         hub = hub_defs.get_hub(hub_key)
         if hub is None:
             abort(404)
+        off = _page_hidden()
+        if off and not _is_owner_email(user.get("email")):
+            hub = dict(hub, modules=[m for m in hub["modules"] if m[0] not in off])
         # The Command desk tiles carry live micro-dashboards — every number
         # below comes from the same engines that power the full pages.
         desk = {}
@@ -4008,6 +4027,42 @@ def create_app():
             if ref.query:
                 back += "?" + "&".join(p for p in ref.query.split("&") if not p.startswith("demo="))
         return redirect(back + ("&" if "?" in back else "?") + "demo=readonly")
+
+    def _page_hidden():
+        """The pages switched off, read once per request."""
+        if not hasattr(g, "_page_hidden"):
+            g._page_hidden = page_switches.hidden_keys()
+        return g._page_hidden
+
+    @app.before_request
+    def page_switch_gate():
+        """A page the owner switched off bounces everyone but an owner to
+        the Command Center, with the page's name so the note can say
+        which. Pages under it go with it (see page_switches)."""
+        if request.path.startswith("/static/"):
+            return None
+        hidden = _page_hidden()
+        if not hidden:
+            return None
+        hit = page_switches.hidden_for_path(request.path, hidden)
+        if not hit:
+            return None
+        user = current_user()
+        if user and _is_owner_email(user.get("email")):
+            return None
+        return redirect("/command-center?off=" + urllib.parse.quote(hit["label"]))
+
+    @app.route("/admin/pages", methods=["POST"])
+    def admin_pages():
+        """The owner's switchboard: every sidebar page live or hidden,
+        saved at once, live for everybody else on the next request.
+        Owner only, 404 to everybody else."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        live = set(request.form.getlist("live"))
+        page_switches.set_hidden(page_switches.known_keys() - live)
+        return redirect("/settings?pages=saved#page-switches")
 
     @app.context_processor
     def _demo_lock_context():
@@ -10295,10 +10350,25 @@ def create_app():
                                granted_why=request.args.get("why"),
                                demo_lock_msg=request.args.get("demo_lock"),
                                demo_lock_to=request.args.get("to"),
+                               pages_msg=request.args.get("pages"),
+                               page_groups=_page_groups() if user and _is_owner_email(user.get("email")) else [],
+                               page_hidden_now=(page_switches.hidden_keys()
+                                                if user and _is_owner_email(user.get("email")) else set()),
+                               page_protected=page_switches.PROTECTED,
                                demo_locked_accounts=(store.list_demo_locked()
                                                      if user and _is_owner_email(user.get("email")) else []),
                                is_owner=bool(user and _is_owner_email(user.get("email"))),
                                **build_dashboard_context())
+
+    def _page_groups():
+        """The switchboard's rows, grouped by hub in sidebar order."""
+        groups, order = {}, []
+        for name, key, href, label in page_switches.entries():
+            if name not in groups:
+                groups[name] = []
+                order.append(name)
+            groups[name].append((key, href, label, page_switches.is_external(href)))
+        return [(name, groups[name]) for name in order]
 
     @app.route("/account/reset", methods=["POST"])
     def account_reset():
