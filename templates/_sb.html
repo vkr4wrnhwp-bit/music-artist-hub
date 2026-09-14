@@ -302,10 +302,13 @@
    optional call block lands on the right as the page's actions. #}
 {% macro plate(stem, widths, eyebrow, title, support=none, position="center 40%", alt="") -%}
   <section class="sb-plate" aria-labelledby="sb-plate-title">
-    <img class="sb-plate-img" src="{{ stem }}-{{ widths[-1] }}.jpg"
+    {#- stem=none: the band without a photograph. The owner is replacing
+        the stock pictures (2026-09-14), so a page can drop its image and
+        keep the plate. -#}
+    {% if stem %}<img class="sb-plate-img" src="{{ stem }}-{{ widths[-1] }}.jpg"
          srcset="{% for w in widths %}{{ stem }}-{{ w }}.jpg {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"
          sizes="(min-width: 1024px) 1100px, 100vw" alt="{{ alt }}" loading="eager" decoding="async"
-         style="object-position: {{ position }};">
+         style="object-position: {{ position }};">{% endif %}
     <span class="sb-plate-veil" aria-hidden="true"></span>
     <div class="sb-plate-inner">
       <p class="sb-plate-eyebrow">{{ eyebrow }}</p>

@@ -259,3 +259,14 @@ def test_a_statement_that_arrived_by_email_is_the_last_received(artist, monkeypa
     body = artist.get("/statements").get_data(as_text=True)
     assert "Last received: nothing yet" not in body
     assert "forwarded.csv" in body and "drop-box" in body
+
+
+def test_the_header_has_no_photograph_and_one_upload_control(artist, monkeypatch):
+    """Two "Upload a statement" doors sat a hand-span apart (plate button
+    and the intake form under it) and the stock photograph is being
+    replaced (owner, 2026-09-14). One form, no image, the band stays."""
+    _drop_box(monkeypatch)
+    body = artist.get("/statements").get_data(as_text=True)
+    assert 'class="sb-plate"' in body and 'class="sb-plate-img"' not in body
+    assert body.count('name="statement"') == 1
+    assert 'href="#intake"' not in body

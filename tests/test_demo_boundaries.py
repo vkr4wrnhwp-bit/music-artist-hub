@@ -111,3 +111,53 @@ def test_the_owner_grants_a_plan_by_address_and_nobody_else_can(monkeypatch):
     assert "granted=badplan" in r.headers["Location"]
     with app_obj.app_context():
         assert store.get_user_by_email(target._email)["plan"] == "label"
+
+
+def test_a_granted_plan_is_announced_by_email_and_in_the_app(monkeypatch):
+    """Owner, 2026-09-14: "we do need it to send a email saying they have
+    access now to a plan". The mail goes through the one mailer, names
+    the plan, carries the plan's own feature list and a sign-in link,
+    and replies go to the owner. The page says "on its way" only when
+    the service accepted it; unconfigured, it says so instead."""
+    import email_provider as emailer
+    app_obj = create_app()
+    owner = _fresh(app_obj)
+    target = _fresh(app_obj)
+    monkeypatch.setenv("OWNER_EMAILS", owner._email)
+    monkeypatch.setenv("RESEND_API_KEY", "re_test")
+    monkeypatch.setenv("EMAIL_FROM", "Street Banker <hello@mail.example.net>")
+    sent = []
+    monkeypatch.setattr(emailer, "_http", lambda url, payload, headers: sent.append(payload) or {"id": "em1"})
+    r = owner.post("/admin/plan", data={"email": target._email, "plan": "pro"})
+    assert "granted=pro" in r.headers["Location"] and "emailed=1" in r.headers["Location"]
+    assert len(sent) == 1
+    mail = sent[0]
+    assert mail["to"] == [target._email] and mail["reply_to"] == owner._email
+    assert mail["subject"] == "You have Street Banker Pro access"
+    assert "Pro</strong> plan" in mail["html"] and "/login" in mail["html"]
+    assert "Royalty Sweep: statements, recovery, catalog" in mail["html"]
+    assert "No card was charged" in mail["html"]
+    with app_obj.app_context():
+        notes = store.list_notifications(store.get_user_by_email(target._email)["id"])
+    assert any(n["title"] == "You have Pro access" for n in notes)
+    body = owner.get("/settings?granted=pro&to=%s&emailed=1" % target._email).get_data(as_text=True)
+    assert "An email telling them is on its way" in body
+
+    # the service refuses: the page says so, the grant stands
+    def refuse(url, payload, headers):
+        raise RuntimeError("domain not verified")
+    monkeypatch.setattr(emailer, "_http", refuse)
+    r = owner.post("/admin/plan", data={"email": target._email, "plan": "label"})
+    assert "emailed=0" in r.headers["Location"]
+    with app_obj.app_context():
+        assert store.get_user_by_email(target._email)["plan"] == "label"
+    body = owner.get("/settings?granted=label&to=%s&emailed=0&why=domain%%20not%%20verified" % target._email).get_data(as_text=True)
+    assert "could not be delivered: domain not verified" in body
+
+    # nothing configured (staging): no attempt, and the page says so
+    monkeypatch.delenv("RESEND_API_KEY")
+    monkeypatch.setattr(emailer, "_http", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not send")))
+    r = owner.post("/admin/plan", data={"email": target._email, "plan": "artist"})
+    assert "emailed=off" in r.headers["Location"]
+    body = owner.get("/settings?granted=artist&to=%s&emailed=off" % target._email).get_data(as_text=True)
+    assert "Email is not set up on this deployment" in body

@@ -17,12 +17,10 @@
 {% set d = desk %}
 
 {% block content %}
-{% call sb.plate("/static/img/sweep-wide", [900, 1400, 1672],
+{% call sb.plate(none, [900, 1400, 1672],
                  "Street Banker · Royalty Sweep", "Statements",
-                 "Your distributor, PRO and MLC statements, read line by line. Every figure on this page is computed from the files you uploaded; an estimate is marked as one.",
-                 position="center 40%") %}
+                 "Your distributor, PRO and MLC statements, read line by line. Every figure on this page is computed from the files you uploaded; an estimate is marked as one.") %}
   {% if a %}<a href="/reports/royalty-report/download.csv" class="sb-btn sb-btn-secondary">Download CSV</a>{% endif %}
-  <a href="#intake" class="sb-btn sb-btn-primary">Upload a statement</a>
 {% endcall %}
 
 <div class="sd mx-auto max-w-[1200px]">

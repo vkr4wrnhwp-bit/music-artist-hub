@@ -167,3 +167,14 @@ def test_the_page_says_what_it_cannot_check(owner):
     """The honest cost, stated where somebody is about to publish."""
     page = owner.get("/homepage").get_data(as_text=True)
     assert "Nothing checks whether what you write is true" in page
+
+
+def test_settings_shows_the_owner_the_way_in(application, owner):
+    """The editor had no link anywhere - the owner asked what had happened
+    to it (2026-09-14). Settings names it for owners and nobody else."""
+    assert 'href="/homepage"' in owner.get("/settings").get_data(as_text=True)
+    stranger = application.test_client()
+    email = "not-owner-%s@example.net" % uuid.uuid4().hex[:8]
+    stranger.post("/signup", data={"name": "N", "email": email, "password": PASSWORD})
+    stranger.post("/login", data={"email": email, "password": PASSWORD})
+    assert 'href="/homepage"' not in stranger.get("/settings").get_data(as_text=True)

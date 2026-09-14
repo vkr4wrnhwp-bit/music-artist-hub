@@ -10190,6 +10190,8 @@ def create_app():
                                reset=request.args.get("reset"),
                                granted=request.args.get("granted"),
                                granted_to=request.args.get("to"),
+                               granted_mail=request.args.get("emailed"),
+                               granted_why=request.args.get("why"),
                                is_owner=bool(user and _is_owner_email(user.get("email"))),
                                **build_dashboard_context())
 
@@ -10245,7 +10247,67 @@ def create_app():
         if plan not in plans.TIER_RANK:
             return redirect("/settings?granted=badplan#grant-plan")
         store.set_user_plan(target["id"], plan)
-        return redirect("/settings?granted=%s&to=%s#grant-plan" % (plan, urllib.parse.quote(email)))
+        # The account is told twice: a notification inside the app, and
+        # an email (owner, 2026-09-14: "we do need it to send a email
+        # saying they have access now to a plan"). The page reports what
+        # the email did - on its way, could not be delivered, or not set
+        # up on this deployment - and never says "sent" on a guess.
+        emailed, why = _grant_plan_notify(user, target, plan)
+        return redirect("/settings?granted=%s&to=%s&emailed=%s%s#grant-plan"
+                        % (plan, urllib.parse.quote(email), emailed,
+                           ("&why=" + urllib.parse.quote(why[:160])) if why else ""))
+
+    def _grant_plan_email_html(owner_name, target_email, plan):
+        """The access email. Same wrapped style as the password reset and
+        the team invite; plain standard English; the plan's own blurb and
+        feature list from plans.PLANS, so the mail cannot drift from the
+        Billing page."""
+        import html as _html
+        name = plans.PLAN_NAMES.get(plan, plan.title())
+        blurb, includes = "", []
+        for key, _n, _price, b, inc in plans.PLANS:
+            if key == plan:
+                blurb, includes = b, list(inc)
+        items = "".join("<li>%s</li>" % _html.escape(i) for i in includes)
+        return (
+            '<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">'
+            "<h2>You have %s access</h2>"
+            "<p><strong>%s</strong> has put your Street Banker account (%s) on the "
+            "<strong>%s</strong> plan. %s</p>"
+            "%s"
+            '<p><a href="%s" style="display:inline-block;background:#E8B950;color:#14100A;'
+            'font-weight:bold;padding:12px 24px;border-radius:10px;text-decoration:none;">'
+            "Sign in</a></p>"
+            '<p style="color:#91836A;font-size:12px;">No card was charged and nothing renews. '
+            "If you were not expecting this, reply to this email.</p></div>"
+            % (_html.escape(name), _html.escape(owner_name or "The owner"),
+               _html.escape(target_email), _html.escape(name), _html.escape(blurb),
+               ("<p>What is open now:</p><ul>%s</ul>" % items) if items else "",
+               public_url("/login")))
+
+    def _grant_plan_notify(owner, target, plan):
+        """Tell the account. Returns (state, reason): state is "1" when
+        the email service accepted the mail, "0" when it refused (reason
+        holds the vendor's words), "off" when this deployment cannot send
+        - no key, the sandbox, or the shared test sender that delivers
+        only to the operator's own inbox. The in-app notification is
+        posted whatever the email does."""
+        name = plans.PLAN_NAMES.get(plan, plan.title())
+        store.notify(target["id"], "billing", "You have %s access" % name,
+                     "%s put this account on the %s plan. Everything in it is open."
+                     % (owner.get("name") or "The owner", name), "/command-center")
+        if not emailer.configured():
+            return "off", "Email is not set up on this deployment."
+        if emailer.using_shared_test_sender():
+            return "off", "The email sender is still the shared test address, which only delivers to the operator."
+        ok = emailer.send(target["email"],
+                          "You have Street Banker %s access" % name,
+                          _grant_plan_email_html(owner.get("name"), target["email"], plan),
+                          reply_to=owner.get("email") or None)
+        if ok:
+            return "1", ""
+        return "0", emailer.last_send_error() or "The email service refused it."
+
 
     @app.route("/settings/profile", methods=["POST"])
     def settings_profile():
