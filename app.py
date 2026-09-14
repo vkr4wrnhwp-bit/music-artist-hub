@@ -3883,7 +3883,8 @@ def create_app():
         when a token is actually configured. The route re-checks; this is
         not a way in, it is a way past the redirect."""
         token = os.environ.get("BACKUP_TOKEN") or ""
-        if not token or request.path != "/backup/run":
+        # The same token lets the same scheduler reach the reminders run.
+        if not token or request.path not in ("/backup/run", "/reminders/run"):
             return False
         presented = (request.headers.get("X-Backup-Token")
                      or request.form.get("token") or "")
@@ -8468,7 +8469,61 @@ def create_app():
                                documents_per_track_types=documents_engine.PER_TRACK_TYPES,
                                documents_catalog_types=documents_engine.CATALOG_TYPES,
                                doc_types=_DOC_TYPES, doc_error=doc_error,
+                               doc_terms=_document_terms_view(user["id"]),
+                               terms_saved=request.args.get("terms"),
                                **build_dashboard_context())
+
+    def _document_terms_view(user_id):
+        """{document_id: {terms, status}} for the contracts section."""
+        import contract_reminders
+        out = {}
+        for doc_id, terms in store.get_document_terms(user_id).items():
+            out[doc_id] = {"terms": terms, "status": contract_reminders.status(terms)}
+        return out
+
+    @app.route("/vault/documents/<doc_id>/terms", methods=["POST"])
+    def document_terms(doc_id):
+        """The renewal date and notice period a person types on a
+        contract's row. Nobody has read the document; the row says so."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        renews_on = (request.form.get("renews_on") or "").strip()[:10]
+        if renews_on:
+            try:
+                datetime.strptime(renews_on, "%Y-%m-%d")
+            except ValueError:
+                return redirect("/vault?view=contracts&terms=baddate#doc-%s" % doc_id)
+        try:
+            notice_days = max(0, min(365, int(request.form.get("notice_days") or 0)))
+        except ValueError:
+            notice_days = 0
+        ok = store.set_document_terms(user["id"], doc_id, renews_on, notice_days,
+                                      request.form.get("auto_renews") == "1",
+                                      (request.form.get("terms_note") or "").strip())
+        if not ok:
+            abort(404)
+        return redirect("/vault?view=contracts&terms=saved#doc-%s" % doc_id)
+
+    @app.route("/reminders/run", methods=["POST"])
+    def reminders_run():
+        """Fire the contract reminders that are due today.
+
+        Meant for the same scheduler that runs the nightly backup,
+        presenting BACKUP_TOKEN; an owner can also trigger it, so it is
+        testable without waiting for a schedule.
+        """
+        import contract_reminders
+        token = os.environ.get("BACKUP_TOKEN") or ""
+        presented = (request.headers.get("X-Backup-Token")
+                     or request.form.get("token") or "")
+        by_token = bool(token) and hmac.compare_digest(presented, token)
+        user = current_user()
+        if not (by_token or (user and _is_owner_email(user.get("email")))):
+            abort(404)
+        result = contract_reminders.run(emailer=emailer, public_url=public_url)
+        store.set_kv("reminders_last_run", json.dumps(result))
+        return jsonify({"ok": True, "run": result})
 
     VAULT_KINDS = ("cover_art", "master", "stems", "press_photo", "video", "file")
     VAULT_EXTS = ("png", "jpg", "jpeg", "webp", "gif", "wav", "mp3", "flac",

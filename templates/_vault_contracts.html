@@ -20,6 +20,8 @@
       <a href="/plan" class="ml-2 font-bold text-sb-gold-bright hover:underline">See plans →</a>
     </div>
     {% else %}
+    {% if terms_saved == 'saved' %}<p class="mt-3 text-xs font-semibold text-green-400">Renewal dates saved. Reminders follow them.</p>
+    {% elif terms_saved == 'baddate' %}<p class="mt-3 text-xs font-semibold text-amber-300">That renewal date could not be read. Use the date picker.</p>{% endif %}
     <h3 class="sb-label mt-4 text-gray-200">Add to your vault</h3>
     {% if doc_error %}<div class="mt-2 text-xs font-semibold text-red-400">{{ doc_error }}</div>{% endif %}
     <form method="post" action="/vault/documents" enctype="multipart/form-data" class="mt-3 grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
@@ -41,7 +43,7 @@
     {% if dv.docs %}
     <div class="mt-4 space-y-2">
       {% for d in dv.docs %}
-      <div class="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-black/30 px-3 py-2.5 text-xs">
+      <div class="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 bg-black/30 px-3 py-2.5 text-xs" id="doc-{{ d.id }}">
         <input type="checkbox" class="vault-pick h-3.5 w-3.5 shrink-0 accent-sb-gold" value="{{ d.path }}" aria-label="Select {{ d.filename }} for download">
         <span class="rounded bg-sb-gold/15 px-1.5 py-0.5 text-xs font-bold uppercase text-sb-gold-bright">{{ d.doc_type }}</span>
         <a href="{{ d.path | media_url }}" target="_blank" class="min-w-0 flex-1 truncate font-semibold text-gray-100 hover:underline">{{ d.filename }}</a>
@@ -51,6 +53,28 @@
         <form method="post" action="/vault/documents/{{ d.id }}/delete" class="shrink-0">
           <button class="text-gray-200 hover:text-red-400" title="Delete" aria-label="Delete {{ d.filename }}">✕</button>
         </form>
+        {#- Renewal terms, typed by a person (2026-09-14). The app reminds at
+            90, 30 and 7 days before the notice deadline and on the day, in
+            the app and by email where one can be sent. Nobody has read the
+            document, and the row says so. -#}
+        {% set dt = doc_terms.get(d.id) if doc_terms is defined else none %}
+        <details class="w-full">
+          <summary class="cursor-pointer text-gray-200">
+            {% if dt and dt.status %}<span class="font-semibold {{ 'text-sb-gold-bright' if dt.status.phase == 'open' else 'text-amber-300' }}">{{ dt.status.sentence }}</span> <span class="text-gray-300">Reminders at 90, 30 and 7 days before the notice date, and on the day.</span>
+            {% else %}<span class="font-semibold">Renewal: not set.</span> <span class="text-gray-300">Type the renewal date and notice period and the app reminds you.</span>{% endif %}
+          </summary>
+          <form method="post" action="/vault/documents/{{ d.id }}/terms" class="mt-2 grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+            <input type="date" name="renews_on" value="{{ dt.terms.renews_on if dt else '' }}" aria-label="Renewal date for {{ d.filename }}" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
+            <input type="number" name="notice_days" min="0" max="365" value="{{ dt.terms.notice_days if dt else 30 }}" aria-label="Notice period in days for {{ d.filename }}" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100">
+            <select name="auto_renews" aria-label="Does {{ d.filename }} auto-renew" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
+              <option value="0"{% if not (dt and dt.terms.auto_renews) %} selected{% endif %}>Ends unless renewed</option>
+              <option value="1"{% if dt and dt.terms.auto_renews %} selected{% endif %}>Auto-renews</option>
+            </select>
+            <input name="terms_note" value="{{ dt.terms.note if dt else '' }}" placeholder="Note (e.g. 12-month term, 60 days notice)" aria-label="Renewal note for {{ d.filename }}" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300">
+            <button class="sb-btn sb-btn-secondary sb-btn-sm">Save dates</button>
+          </form>
+          <p class="mt-1 text-gray-300">The notice period is the days before renewal by which you must act. These dates are what you typed; nobody has read the document.</p>
+        </details>
       </div>
       {% endfor %}
     </div>

@@ -1091,6 +1091,25 @@ def init_db():
             db.execute("ALTER TABLE documents ADD COLUMN vault_file_id TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Contract terms, typed on the row (2026-09-14): the renewal date and
+        # the notice period, and which reminders have gone out for them.
+        db.execute("""CREATE TABLE IF NOT EXISTS document_terms (
+                document_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                renews_on TEXT NOT NULL DEFAULT '',
+                notice_days INTEGER NOT NULL DEFAULT 0,
+                auto_renews INTEGER NOT NULL DEFAULT 0,
+                note TEXT NOT NULL DEFAULT '',
+                updated TEXT NOT NULL
+            )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS document_reminders (
+                document_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                milestone INTEGER NOT NULL,
+                how TEXT NOT NULL DEFAULT 'notified',
+                sent_at TEXT NOT NULL,
+                PRIMARY KEY (document_id, milestone)
+            )""")
         # Migration (2026-09-09): which provider measured a pulse
         # snapshot. The table held one row per user per day, implicitly
         # Spotify's, so a second metrics provider answering about the
@@ -4165,6 +4184,7 @@ NOTIFICATION_KINDS = (
     ("tour", "Tour", "Changes on a tour you are on"),
     ("team", "Team", "Invites and membership changes"),
     ("billing", "Billing", "Plan and payment events"),
+    ("contract", "Contracts", "A renewal or notice deadline you set on a contract is near"),
     ("system", "Everything else", "Anything the app needs to tell you"),
 )
 
@@ -4452,6 +4472,60 @@ def list_documents(user_id):
     return [dict(r) for r in rows]
 
 
+def set_document_terms(user_id, doc_id, renews_on, notice_days, auto_renews, note=""):
+    """The renewal terms a person typed on a contract's row. A changed
+    renewal date starts the reminders over; the old ones are forgotten."""
+    with get_db() as db:
+        owned = db.execute("SELECT 1 FROM documents WHERE id = ? AND user_id = ?",
+                           (doc_id, user_id)).fetchone()
+        if owned is None:
+            return False
+        before = db.execute("SELECT renews_on, notice_days FROM document_terms WHERE document_id = ?",
+                            (doc_id,)).fetchone()
+        db.execute(
+            "INSERT INTO document_terms (document_id, user_id, renews_on, notice_days, auto_renews, note, updated)"
+            " VALUES (?,?,?,?,?,?,?) ON CONFLICT(document_id) DO UPDATE SET renews_on=excluded.renews_on,"
+            " notice_days=excluded.notice_days, auto_renews=excluded.auto_renews, note=excluded.note,"
+            " updated=excluded.updated",
+            (doc_id, user_id, (renews_on or "")[:10], int(notice_days or 0), 1 if auto_renews else 0,
+             (note or "")[:300], _now()))
+        if before is None or before["renews_on"] != (renews_on or "")[:10] \
+                or int(before["notice_days"]) != int(notice_days or 0):
+            db.execute("DELETE FROM document_reminders WHERE document_id = ?", (doc_id,))
+    return True
+
+
+def get_document_terms(user_id):
+    """{document_id: terms} for the account."""
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM document_terms WHERE user_id = ?", (user_id,)).fetchall()
+    return {r["document_id"]: dict(r) for r in rows}
+
+
+def list_document_terms():
+    """Every contract with terms, joined to its document and its owner's
+    address, for the daily run."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT t.*, d.filename, d.doc_type, d.track, u.email"
+            " FROM document_terms t JOIN documents d ON d.id = t.document_id"
+            " JOIN users u ON u.id = t.user_id WHERE t.renews_on != ''").fetchall()
+    return [dict(r) for r in rows]
+
+
+def reminders_sent(doc_id):
+    with get_db() as db:
+        rows = db.execute("SELECT milestone FROM document_reminders WHERE document_id = ?",
+                          (doc_id,)).fetchall()
+    return {int(r["milestone"]) for r in rows}
+
+
+def mark_reminder_sent(user_id, doc_id, milestone, how="notified"):
+    with get_db() as db:
+        db.execute("INSERT OR REPLACE INTO document_reminders (document_id, user_id, milestone, how, sent_at)"
+                   " VALUES (?,?,?,?,?)", (doc_id, user_id, int(milestone), how, _now()))
+
+
 def delete_document(user_id, doc_id):
     with get_db() as db:
         row = db.execute("SELECT path FROM documents WHERE id = ? AND user_id = ?",
@@ -4461,6 +4535,8 @@ def delete_document(user_id, doc_id):
         db.execute("DELETE FROM documents WHERE id = ? AND user_id = ?", (doc_id, user_id))
         db.execute("DELETE FROM vault_files WHERE document_id = ? AND user_id = ?",
                    (doc_id, user_id))
+        db.execute("DELETE FROM document_terms WHERE document_id = ?", (doc_id,))
+        db.execute("DELETE FROM document_reminders WHERE document_id = ?", (doc_id,))
     return row["path"]
 
 # --- Recovery cases + deal room --------------------------------------------------

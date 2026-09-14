@@ -57,7 +57,10 @@ Read-only, cached in `api_cache`.
 **Gate:** `BACKUP_S3_ENDPOINT/BUCKET/KEY/SECRET` · **Absent:** no off-box copy
 
 SigV4 implemented in pure Python — no boto3. `/backup/run` is exempt from
-the login wall via `BACKUP_TOKEN` so a cron job can reach it.
+the login wall via `BACKUP_TOKEN` so a cron job can reach it. So is
+`POST /reminders/run` (contract renewal reminders, `contract_reminders.py`):
+the same nightly job can call both, one after the other, with the same
+token in `X-Backup-Token`.
 
 ### ffmpeg — `convert_engine.py`
 **Gate:** binary on `PATH` · **Absent:** WAV and AIFF only, in-browser
