@@ -22,7 +22,6 @@ because all three would be claims about a number nobody has.
 """
 
 import statements_engine
-from royalty_data import estimate_catalog_value, get_earnings_trend
 
 
 def _pct_diff(you, peer):

@@ -47,8 +47,11 @@ def capital_score(user_id):
     else:
         verdict = "Too early — keep stacking data"
 
-    # Illustrative advance band: 0.8-1.5x the annualized income on record.
-    annualized = total_income * (12 / max(len(periods), 1)) if periods else 0.0
+    # Illustrative advance band: 0.8-1.5x the annualized income on record,
+    # by the one rule every money page reads (dated money over the
+    # periods it covers; undated money is not spread across months).
+    import statements_engine
+    annualized = statements_engine.annualize(rows)["annualized"]
     band = ((round(annualized * 0.8), round(annualized * 1.5))
             if annualized > 0 else None)
 

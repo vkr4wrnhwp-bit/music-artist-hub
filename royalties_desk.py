@@ -23,25 +23,11 @@ _MONTHS = ("jan", "feb", "mar", "apr", "may", "jun",
            "jul", "aug", "sep", "oct", "nov", "dec")
 
 
-def period_key(label):
-    """(year, month) for ordering, for the ways distributors write a
-    period: "2026-05", "MAY-26", "May 2026", "2026/05". Unknown shapes
-    sort last, in the order they were written."""
-    text = (label or "").strip().lower()
-    m = re.match(r"^(\d{4})[-/](\d{1,2})", text)
-    if m:
-        return (int(m.group(1)), int(m.group(2)))
-    for i, mon in enumerate(_MONTHS, 1):
-        if text.startswith(mon):
-            year = re.search(r"(\d{4}|\d{2})\b", text[3:])
-            if year:
-                y = int(year.group(1))
-                return (y if y > 99 else 2000 + y, i)
-    return (9999, 0)
-
-
-def order_periods(labels):
-    return sorted(set(labels), key=lambda p: (period_key(p), p))
+# The period helpers moved to the statement engine (2026-09-14) so the
+# run rate, the trend and this desk all order a distributor's labels the
+# same way. Kept here by name: recovery_desk and the tests read them.
+period_key = statements_engine.period_key
+order_periods = statements_engine.order_periods
 
 
 def _fmt_list(names):

@@ -46,15 +46,10 @@ MULTIPLES = catalog_value.MULTIPLES
 
 
 def _monthly(rows):
-    """Tracked revenue per statement period, oldest first."""
-    totals = {}
-    for r in rows:
-        period = (r.get("period") or "").strip()
-        if not period:
-            continue
-        totals[period] = totals.get(period, 0) + (r.get("amount") or 0)
-    return [{"period": p, "amount": round(a, 2)}
-            for p, a in sorted(totals.items())]
+    """Tracked revenue per statement period, oldest first - in calendar
+    order, from the one annualiser every money page reads."""
+    return [{"period": p, "amount": a}
+            for p, a in statements_engine.annualize(rows)["monthly"]]
 
 
 def _drivers(user_id, view):
@@ -129,13 +124,15 @@ def build(user_id):
                 "value": {"low": 0, "mid": 0, "high": 0}, "multiples": MULTIPLES,
                 "forecast": [], "drivers": [], "thin": True}
 
-    monthly = _monthly(rows)
+    run = statements_engine.annualize(rows)
+    monthly = [{"period": p, "amount": a} for p, a in run["monthly"]]
     amounts = [m["amount"] for m in monthly]
     # Rows with no period still count as tracked revenue, but they cannot
-    # be placed in a month, so the run rate is built from the months.
-    months = len(amounts)
-    monthly_avg = round(sum(amounts) / months, 2) if months else 0.0
-    annualized = round(monthly_avg * 12, 2)
+    # be placed in a month, so the run rate is built from the months -
+    # the same rule Statements and Capital apply (statements_engine.annualize).
+    months = run["months"]
+    monthly_avg = round(run["dated_total"] / months, 2) if months else 0.0
+    annualized = run["annualized"]
 
     view = {
         "has_data": True,

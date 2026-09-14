@@ -14,6 +14,7 @@ computable findings on the artist's own numbers:
 
 import csv
 import io
+import re
 
 import catalog_value
 import store_identity
@@ -109,6 +110,64 @@ def _to_amount(raw):
         return round(float(s), 4)
     except ValueError:
         return None
+
+
+def period_key(label):
+    """(year, month) for ordering, for the ways distributors write a
+    period: "2026-05", "MAY-26", "May 2026", "2026/05". Unknown shapes
+    sort last, in the order they were written."""
+    text = (label or "").strip().lower()
+    m = re.match(r"^(\d{4})[-/](\d{1,2})", text)
+    if m:
+        return (int(m.group(1)), int(m.group(2)))
+    for i, mon in enumerate(_MONTHS, 1):
+        if text.startswith(mon):
+            year = re.search(r"(\d{4}|\d{2})\b", text[3:])
+            if year:
+                y = int(year.group(1))
+                return (y if y > 99 else 2000 + y, i)
+    return (9999, 0)
+
+
+def order_periods(labels):
+    return sorted(set(labels), key=lambda p: (period_key(p), p))
+
+
+def annualize(rows):
+    """The one run rate every money page reads.
+
+    Three pages used to annualise the same statements three ways
+    (2026-09-14): Statements and Capital divided EVERY dollar, undated
+    rows included, by the count of dated periods; Valuation averaged the
+    dated months and left undated money out. The same account could show
+    two run rates, and the Command Center's recorded valuation came from
+    a third path. This is the rule now:
+
+      dated money only, over the distinct periods it covers, times 12.
+
+    Undated money is real and is reported beside the run rate; it is
+    never spread across months it may not belong to. The months come
+    back in calendar order whatever the distributor wrote ("JUN-26" after
+    "MAY-26"), because a trend drawn in alphabetical order lies.
+    """
+    monthly, undated = {}, 0.0
+    for r in rows or []:
+        period = (r.get("period") or "").strip()
+        amount = float(r.get("amount") or 0)
+        if period:
+            monthly[period] = monthly.get(period, 0.0) + amount
+        else:
+            undated += amount
+    periods = order_periods(monthly)
+    months = len(periods)
+    dated = round(sum(monthly.values()), 2)
+    return {
+        "annualized": round(dated / months * 12, 2) if months else 0.0,
+        "months": months,
+        "dated_total": dated,
+        "undated_total": round(undated, 2),
+        "monthly": [(p, round(monthly[p], 2)) for p in periods],
+    }
 
 
 def parse_statement(data, filename="statement.csv"):
@@ -289,19 +348,14 @@ def build_royalty_summary(rows):
     result = analyze(rows)
     if result is None:
         return None
-    monthly = {}
-    for r in rows:
-        if r["period"]:
-            monthly[r["period"]] = monthly.get(r["period"], 0) + r["amount"]
-    trend = [(p, round(a, 2)) for p, a in sorted(monthly.items())]
-    result["monthly_trend"] = trend[-12:]
-    # Valuation signal: annualize the average tracked month, apply the
-    # conservative independent-catalog multiple range. The band itself is
-    # catalog_value's to decide - this used to hardcode a second copy of
-    # 3/4/5, and epk_config.real_stats reads the answer straight onto a
-    # press kit.
-    months = max(len(monthly), 1)
-    annualized = round(result["total"] / months * 12, 2)
-    result["annualized"] = annualized
-    result["valuation"] = catalog_value.band(annualized)
+    # One run rate (annualize) and one calendar order for the trend. The
+    # band itself is catalog_value's to decide - this used to hardcode a
+    # second copy of 3/4/5, and epk_config.real_stats reads the answer
+    # straight onto a press kit.
+    run = annualize(rows)
+    result["monthly_trend"] = run["monthly"][-12:]
+    result["annualized"] = run["annualized"]
+    result["annualized_months"] = run["months"]
+    result["undated_revenue"] = run["undated_total"]
+    result["valuation"] = catalog_value.band(run["annualized"])
     return result
