@@ -77,6 +77,13 @@ def _fake_fetch(calls, deny=()):
                     "page": {"offset": 0, "limit": 2, "total": 3,
                              "next": "/api/v2/artist/%s/audience/spotify?startDate=%s&endDate=%s&offset=2&limit=2"
                                      % (BILLIE, q.get("startDate"), q.get("endDate"))}}
+        if p.startswith("/api/v2/artist/%s/audience/" % BILLIE):
+            # Entry plans: Instagram answers, the other two are not in the plan.
+            if p.endswith("/instagram"):
+                return {"items": [{"date": "2020-10-01T00:00:00+00:00", "followerCount": 124000000},
+                                  {"date": "2020-10-08T00:00:00+00:00", "followerCount": 124103562}],
+                        "page": {"offset": 0, "limit": 100, "next": None, "total": 2}}
+            raise providers.ProviderError("Soundcharts 403: Endpoint not included in your plan")
         if p == "/api/v2/artist/%s/streaming/spotify" % BILLIE:
             return {"items": [
                 {"date": "2020-10-10T00:00:00+00:00", "value": 40948759, "cityPlots": _plots("2020-10-10", [
@@ -192,7 +199,7 @@ def test_a_blank_search_is_empty_and_free(sc):
 
 def test_the_artist_carries_the_measured_listener_count(sc):
     a = sc.get_artist(BILLIE)
-    assert a["monthly_listeners"] == 78313841, "Spotify's figure from current stats, not Pandora's"
+    assert a["monthly_listeners"] == 40948759, "the newest point of the listening series"
     assert a["website"] == "http://www.billieeilish.com/" and a["isni"] == "000000046748058X"
     assert a["socials"] == {"instagram": "", "tiktok": "", "youtube": ""}
 
@@ -287,8 +294,10 @@ def test_playlists_social_and_events_keep_to_what_is_measured(sc):
     assert pls[0]["editorial"] is False and pls[0]["followers"] == 120000
     assert all(p["estimated_streams"] is None for p in pls), "they do not measure it; nor do we"
     social = {s["platform"]: s for s in sc.get_social_activity(BILLIE, date(2020, 1, 1), date(2020, 2, 1))}
-    assert social["instagram"]["followers"] == 124103562
-    assert social["instagram"]["change_28d_pct"] is None and social["instagram"]["change_7d_pct"] == -0.01
+    assert social["instagram"]["followers"] == 124103562 and social["instagram"]["as_of"] == "2020-10-08"
+    assert social["instagram"]["change_7d_pct"] == 0.08, "two measured ends, seven days apart"
+    assert social["instagram"]["change_28d_pct"] is None, "no point four weeks back: not measured"
+    assert "tiktok" not in social and "youtube" not in social, "refused by the plan: absent, never zero"
     events = sc.get_events(BILLIE)
     assert [e["city"] for e in events] == ["Inglewood"], "2016 is not upcoming"
     assert events[0]["venue"] == "The Forum" and events[0]["date"] == "2099-03-01"
@@ -660,3 +669,39 @@ def test_a_pair_that_is_also_refused_reports_their_words_and_does_not_latch(monk
         a.search_artists("billie")
     assert "401" in str(e.value) and "Invalid credentials" in str(e.value)
     assert a._pair_instead is False, "a shape that also failed is not remembered"
+
+
+def test_no_premium_endpoint_is_called_on_an_entry_plan(monkeypatch, kv):
+    """Owner, 2026-09-14: the $50 Starter plan. Their entry plans refuse
+    /current/stats; the adapter must not ask for it anywhere."""
+    monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
+    monkeypatch.setenv("SOUNDCHARTS_APP_ID", "id")
+    monkeypatch.setenv("SOUNDCHARTS_API_KEY", "key")
+    calls = []
+    a = providers.SoundchartsAdapter(fetch=_fake_fetch(calls))
+    a.get_artist(BILLIE)
+    a.get_social_activity(BILLIE, date(2020, 9, 1), date(2020, 10, 10))
+    a.get_artist_metrics(BILLIE, date(2020, 10, 1), date(2020, 10, 10))
+    a.get_artist_cities(BILLIE, date(2020, 9, 1), date(2020, 10, 10))
+    a.get_playlist_activity(BILLIE, date(2020, 9, 1), date(2020, 10, 10))
+    a.get_events(BILLIE)
+    assert not any("current/stats" in u for u in calls), calls
+
+
+def test_a_plan_refusal_is_remembered_for_a_day(monkeypatch, kv):
+    """A 403 is the account's answer, not the network's. On a metered
+    plan it is asked once a day, not once a page view; a 500 is still
+    never kept (see test_a_failed_call_is_not_cached)."""
+    monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
+    monkeypatch.setenv("SOUNDCHARTS_APP_ID", "id")
+    monkeypatch.setenv("SOUNDCHARTS_API_KEY", "key")
+    calls = []
+    a = providers.SoundchartsAdapter(fetch=_fake_fetch(calls, deny=("/streaming/spotify/listening",)))
+    for _ in range(3):
+        a.get_artist_metrics(BILLIE, date(2020, 10, 1), date(2020, 10, 10))
+    listening = [u for u in calls if "/streaming/spotify/listening" in u]
+    assert len(listening) == 1, "asked once; the refusal was remembered"
+    real_now = providers._utcnow()
+    monkeypatch.setattr(providers, "_utcnow", lambda: real_now + timedelta(hours=24, seconds=1))
+    a.get_artist_metrics(BILLIE, date(2020, 10, 1), date(2020, 10, 10))
+    assert len([u for u in calls if "/streaming/spotify/listening" in u]) == 2, "asked again after a day"

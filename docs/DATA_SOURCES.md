@@ -52,11 +52,13 @@ refuses everywhere else, so demo mode is all-or-nothing.
 
 1. `MUSICBRAINZ_ENABLED=1` + `MUSICBRAINZ_CONTACT` — free, immediate, real.
 2. ~~`BANDSINTOWN_APP_ID`~~ — Bandsintown declined the application (2026-09-07); TOUR is the dates source instead.
-3. Soundcharts — the adapter exists and is sandbox-verified. A plan must
-   include: artist search + metadata, current stats, streaming audience
-   (listening and local), audience (followers), albums + album metadata,
-   playlists, events. Endpoints a plan lacks answer 403 and read "not
-   measured"; nothing is guessed. Their public sandbox credentials
+3. Soundcharts — the adapter exists and is sandbox-verified. It uses
+   only entry-plan endpoints (2026-09-14, the owner took the $50 Starter):
+   artist search + metadata, streaming audience (listening and local),
+   audience (followers, per platform), albums + album metadata, playlists,
+   events. /current/stats is premium and is not called. Endpoints a plan
+   lacks answer 403, read "not measured", and are remembered for a day so
+   the refusal costs one call, not one per page view. Their public sandbox credentials
    (`soundcharts`/`soundcharts`) run the adapter on two real artists and
    are for development only - never set them on the live service.
 4. ACRCloud — the three keys from the console's project page (host is the

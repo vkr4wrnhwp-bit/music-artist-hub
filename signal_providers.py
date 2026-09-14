@@ -491,15 +491,21 @@ class SoundchartsAdapter(_EnvProvider):
             return None
         if at.tzinfo is None:
             at = at.replace(tzinfo=timezone.utc)
-        if (_utcnow() - at).total_seconds() > ttl or entry.get("status") != 200:
+        age = (_utcnow() - at).total_seconds()
+        if entry.get("status") == 403 and age <= self.refusal_ttl:
+            raise ProviderError(entry.get("body") or "Soundcharts 403: not in this plan")
+        if age > ttl or entry.get("status") != 200:
             return None
         return entry.get("body")
 
-    def _cache_write(self, key, body):
+    # How long a plan refusal (403) is remembered before it is asked again.
+    refusal_ttl = 24 * 3600
+
+    def _cache_write(self, key, body, status=200):
         try:
             import db
             db.set_kv(key, json.dumps({"at": _utcnow().isoformat(timespec="seconds"),
-                                       "status": 200, "body": body}))
+                                       "status": status, "body": body}))
         except Exception:
             pass                     # the answer is still good without a cache
 
@@ -551,7 +557,16 @@ class SoundchartsAdapter(_EnvProvider):
             hit = self._cache_read(key, ttl)
             if hit is not None:
                 return hit
-        body = self._fetch_json(path, **params)
+        try:
+            body = self._fetch_json(path, **params)
+        except ProviderError as e:
+            # "Not in your plan" is the account's answer, not the
+            # network's: it is the same tomorrow, and on a metered plan
+            # asking again on every page view spends the quota on a
+            # question whose answer is already known.
+            if key and str(e).startswith("Soundcharts 403"):
+                self._cache_write(key, str(e), status=403)
+            raise
         if key:
             self._cache_write(key, body)
         return body
@@ -688,12 +703,21 @@ class SoundchartsAdapter(_EnvProvider):
         obj = self._get("/api/v2.9/artist/%s" % provider_artist_id).get("object")
         if not obj or not obj.get("uuid"):
             return None
+        # The newest point of the listening series. This used to read
+        # /current/stats, which their entry plans refuse (owner took the
+        # $50 Starter, 2026-09-14); the series endpoint is on every plan
+        # and carries the same Spotify figure, a day or two behind.
         listeners = None
         try:
-            stats = self._get("/api/v2/artist/%s/current/stats" % provider_artist_id)
-            for row in stats.get("streaming") or []:
-                if row.get("platform") == "spotify" and row.get("value") is not None:
-                    listeners = int(row["value"])
+            end = date.today()
+            pts = [it for it in self._items("/api/v2/artist/%s/streaming/spotify/listening"
+                                            % provider_artist_id,
+                                            startDate=(end - timedelta(days=14)).isoformat(),
+                                            endDate=end.isoformat())
+                   if it.get("value") is not None and it.get("date")]
+            if pts:
+                pts.sort(key=lambda it: it["date"])
+                listeners = int(pts[-1]["value"])
         except ProviderError:
             pass                     # identity without the number, not no identity
         return self._artist_fields(obj, listeners)
@@ -833,17 +857,53 @@ class SoundchartsAdapter(_EnvProvider):
                         "estimated_streams": None})
         return out
 
+    # The social platforms read per artist. Each is one call per six
+    # hours; three platforms is the whole of what the product shows.
+    social_platforms = ("instagram", "tiktok", "youtube")
+
     def get_social_activity(self, provider_artist_id, start, end):
-        stats = self._get("/api/v2/artist/%s/current/stats" % provider_artist_id)
+        """Followers per platform from the audience endpoint (on every
+        plan), with the 7 and 28-day change computed from two measured
+        points - or None when the window holds no earlier point. This
+        used to read /current/stats, a premium endpoint. A platform the
+        plan refuses, or that they hold no account for, is simply absent:
+        not measured, never zero."""
         out = []
-        for row in stats.get("social") or []:
-            if row.get("value") is None:
+        for platform in self.social_platforms:
+            try:
+                pts = [it for it in self._items("/api/v2/artist/%s/audience/%s"
+                                                % (provider_artist_id, platform),
+                                                startDate=start.isoformat(), endDate=end.isoformat())
+                       if it.get("followerCount") is not None and it.get("date")]
+            except ProviderError:
                 continue
-            out.append({"platform": row.get("platform") or "", "followers": int(row["value"]),
-                        # Their evolution is over 7 days; the 28-day field stays honest.
-                        "change_28d_pct": None, "change_7d_pct": row.get("percentEvolution"),
-                        "as_of": (row.get("date") or "")[:10]})
+            if not pts:
+                continue
+            pts.sort(key=lambda it: it["date"])
+            latest = pts[-1]
+            latest_day = date.fromisoformat(latest["date"][:10])
+            out.append({"platform": platform, "followers": int(latest["followerCount"]),
+                        "change_28d_pct": self._change_days_back(pts, latest_day, 28),
+                        "change_7d_pct": self._change_days_back(pts, latest_day, 7),
+                        "as_of": latest["date"][:10]})
         return out
+
+    @staticmethod
+    def _change_days_back(pts, latest_day, days):
+        """Percent change from the measured point nearest `days` earlier
+        (within a third of the span either side), or None."""
+        want = latest_day - timedelta(days=days)
+        slack = max(2, days // 3)
+        best, best_gap = None, None
+        for it in pts[:-1]:
+            day = date.fromisoformat(it["date"][:10])
+            gap = abs((day - want).days)
+            if gap <= slack and (best_gap is None or gap < best_gap):
+                best, best_gap = it, gap
+        if not best or not best.get("followerCount"):
+            return None
+        return round((float(pts[-1]["followerCount"]) - float(best["followerCount"]))
+                     / float(best["followerCount"]) * 100.0, 2)
 
     def get_events(self, provider_artist_id):
         today = date.today().isoformat()
