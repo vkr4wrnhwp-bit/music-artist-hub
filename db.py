@@ -1044,6 +1044,14 @@ def init_db():
                 db.execute("ALTER TABLE users ADD COLUMN %s" % _col)
             except sqlite3.OperationalError:
                 pass  # column already exists
+        # Migration: the read-only demo lock. A shared demo login is
+        # handed to strangers (owner, 2026-09-14); while locked, every
+        # request that would change the account is refused and the
+        # owner flips it off from Settings to load data.
+        try:
+            db.execute("ALTER TABLE users ADD COLUMN demo_lock INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         # Migration: which recording a document belongs to. Coverage per
         # song was previously read from a hardcoded presence map, so it
         # could never reflect an upload; the vault now needs somewhere to
@@ -1275,6 +1283,26 @@ def get_user(user_id):
     with get_db() as db:
         row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return dict(row) if row else None
+
+
+def set_demo_lock(user_id, on):
+    """Lock (on=True) or unlock an account as a read-only demo."""
+    with get_db() as db:
+        db.execute("UPDATE users SET demo_lock = ? WHERE id = ?", (1 if on else 0, user_id))
+
+
+def is_demo_locked(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT demo_lock FROM users WHERE id = ?", (user_id,)).fetchone()
+    return bool(row and row["demo_lock"])
+
+
+def list_demo_locked():
+    """Every account under the read-only demo lock, for the owner's box."""
+    with get_db() as db:
+        rows = db.execute("SELECT id, email, name, plan FROM users WHERE demo_lock = 1"
+                          " ORDER BY email").fetchall()
+    return [dict(r) for r in rows]
 
 
 def roll_seen(user_id):

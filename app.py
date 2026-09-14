@@ -3678,9 +3678,22 @@ def create_app():
     def inject_hub_context():
         # The Ecosystem Hub model: one source of truth (hubs.py) feeds the
         # sidebar and the /desk/<hub> landing pages.
-        return {"hubs_nav": hub_defs.nav_hubs(), "hubs_label": hub_defs.LABEL_GROUP,
-                "hubs_community": hub_defs.COMMUNITY_GROUP,
-                "hubs_account": hub_defs.ACCOUNT_GROUP,
+        nav, label, community, account = (hub_defs.nav_hubs(), hub_defs.LABEL_GROUP,
+                                          hub_defs.COMMUNITY_GROUP, hub_defs.ACCOUNT_GROUP)
+        palette = _palette_for(current_user())
+        if _demo_locked_account():
+            # A shared demo hides the Sample pages and Billing. The
+            # routes stay reachable; the sidebar and the palette do not
+            # offer them.
+            hidden = hub_defs.demo_hidden_keys()
+            nav = hub_defs.without(nav, hidden)
+            label, community, account = (
+                (g_[0], [it for it in g_[1] if it[0] not in hidden])
+                for g_ in (label, community, account))
+            palette = [e for e in palette if e["key"] not in hidden]
+        return {"hubs_nav": nav, "hubs_label": label,
+                "hubs_community": community,
+                "hubs_account": account,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
                 "hub_icons": hub_defs.HUB_ICONS,
                 # Flag-aware: a page whose engine is on must not be
@@ -3936,6 +3949,94 @@ def create_app():
                                    plans_list=plans.PLANS,
                                    **build_dashboard_context()), 402
         return None
+
+    def _demo_locked_account():
+        """The signed-in account if it is under the read-only demo lock,
+        else None. Reads the SESSION account as well as current_user(),
+        because a partner seat acting on an artist's behalf presents the
+        artist; a locked staff login must stay locked. Cached per request."""
+        if hasattr(g, "_demo_locked"):
+            return g._demo_locked
+        found = None
+        uid = session.get("user_id")
+        if uid:
+            me = store.get_user(uid)
+            if me and me.get("demo_lock"):
+                found = me
+            else:
+                acting = current_user()
+                if acting and acting.get("demo_lock"):
+                    found = acting
+        g._demo_locked = found
+        return found
+
+    # Writes a locked demo may still make: the way in and out, and the
+    # store check on Statements, which only caches what the stores said.
+    _DEMO_LOCK_ALLOWED = ("/login", "/logout", "/demo-open", "/partner/act/stop",
+                          "/statements/gaps/check")
+    _DEMO_READ_ONLY = ("This is a shared demo account and it is read only. "
+                       "Browse everything; nothing you change is saved. "
+                       "Start your own account to do this.")
+
+    def _wants_json():
+        return (request.is_json
+                or request.path.endswith(".json")
+                or request.accept_mimetypes.best == "application/json"
+                or request.headers.get("X-Requested-With") == "XMLHttpRequest")
+
+    @app.before_request
+    def demo_lock_gate():
+        """A locked demo can read everything and change nothing.
+
+        Runs after the login wall, on state-changing methods only. A
+        page form is bounced back to the page it came from with
+        ?demo=readonly, which the shell turns into the sentence above;
+        a script call gets the same sentence as a 403 JSON answer.
+        """
+        if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+            return None
+        if request.path in _DEMO_LOCK_ALLOWED:
+            return None
+        if not _demo_locked_account():
+            return None
+        if _wants_json():
+            return jsonify({"ok": False, "error": _DEMO_READ_ONLY, "demo": "readonly"}), 403
+        back = "/command-center"
+        ref = urllib.parse.urlsplit(request.referrer or "")
+        if ref.path.startswith("/") and (not ref.netloc or ref.netloc == request.host):
+            back = ref.path
+            if ref.query:
+                back += "?" + "&".join(p for p in ref.query.split("&") if not p.startswith("demo="))
+        return redirect(back + ("&" if "?" in back else "?") + "demo=readonly")
+
+    @app.context_processor
+    def _demo_lock_context():
+        return {"demo_locked": bool(_demo_locked_account()),
+                "demo_readonly_refused": request.args.get("demo") == "readonly"}
+
+    @app.route("/admin/demo-lock", methods=["POST"])
+    def admin_demo_lock():
+        """The owner locks or unlocks an account as a read-only demo.
+
+        Owner, 2026-09-14: "make the demo account read only for everyone
+        but me". There is no second password: the owner unlocks from
+        their own login, signs into the demo to load it, and locks it
+        again. Owner only, 404 to everybody else.
+        """
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        email = (request.form.get("email") or "").strip().lower()
+        action = (request.form.get("action") or "lock").strip().lower()
+        target = store.get_user_by_email(email) if email else None
+        if target is None:
+            return redirect("/settings?demo_lock=unknown#demo-lock")
+        if _is_owner_email(target.get("email")):
+            return redirect("/settings?demo_lock=owner#demo-lock")
+        store.set_demo_lock(target["id"], action != "unlock")
+        return redirect("/settings?demo_lock=%s&to=%s#demo-lock"
+                        % ("unlocked" if action == "unlock" else "locked",
+                           urllib.parse.quote(email)))
 
     @app.route("/world/<world>")
     def switch_world(world):
@@ -10192,6 +10293,10 @@ def create_app():
                                granted_to=request.args.get("to"),
                                granted_mail=request.args.get("emailed"),
                                granted_why=request.args.get("why"),
+                               demo_lock_msg=request.args.get("demo_lock"),
+                               demo_lock_to=request.args.get("to"),
+                               demo_locked_accounts=(store.list_demo_locked()
+                                                     if user and _is_owner_email(user.get("email")) else []),
                                is_owner=bool(user and _is_owner_email(user.get("email"))),
                                **build_dashboard_context())
 

@@ -401,6 +401,19 @@
       {#- The drawn icon sprite, once per page, so every app page can place
           a symbol with <use href="#sb-i-name"/>. Zero-sized; see the partial. -#}
       {% include "partials/sb_icons.html" %}
+      {%- if demo_locked %}
+      {#- A shared demo login. On every page and not dismissible: a
+          stranger needs to know that nothing they change is kept, and
+          a refused form says so in the same bar rather than looking as
+          if it did nothing. -#}
+      <div class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3" role="status">
+        <span class="text-sm text-gray-100">
+          {%- if demo_readonly_refused %}<strong class="text-white">That change was not saved.</strong> {% endif -%}
+          This is a shared demo account and it is read only. Browse everything; nothing you change is kept.
+        </span>
+        <a href="/signup" class="sb-btn sb-btn-secondary sb-btn-sm ml-auto">Start your own account</a>
+      </div>
+      {%- endif %}
       {%- if acting_as_name %}
       {#- Somebody is working inside another account. This is on EVERY page,
           at the top, and it is not dismissible: an operator who forgets which

@@ -188,6 +188,34 @@ def live_keys():
 LIVE_KEYS = _BASE_LIVE
 
 
+# A shared, read-only demo hides the entries that would only confuse a
+# stranger: every page still marked Sample (it shows example data, not
+# the account's) and Billing (a visitor cannot buy a plan for a demo).
+# Owner, 2026-09-14: "any pages we should hide on there that dont work
+# yet". The pages stay reachable at their addresses, as parked pages do.
+DEMO_HIDDEN_ALWAYS = ("billing",)
+
+
+def demo_hidden_keys():
+    live = set(live_keys())
+    hidden = set(DEMO_HIDDEN_ALWAYS)
+    for _hkey, _name, _tag, items in nav_hubs():
+        hidden.update(k for k, _h, _i, _l, _d in items if k not in live)
+    for _gname, items in (LABEL_GROUP, COMMUNITY_GROUP, ACCOUNT_GROUP):
+        hidden.update(k for k, _h, _i, _l, _d in items if k not in live)
+    return hidden
+
+
+def without(hubs, hidden):
+    """The hub list minus the hidden keys; a hub left empty is dropped."""
+    out = []
+    for hkey, name, tagline, items in hubs:
+        kept = [it for it in items if it[0] not in hidden]
+        if kept:
+            out.append((hkey, name, tagline, kept))
+    return out
+
+
 def command_index():
     """Every destination as one flat list, for the command palette.
 

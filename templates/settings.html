@@ -194,6 +194,41 @@
         </a>
       </section>
 
+      <section id="demo-lock" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
+        <h2 class="sb-label text-sb-gold-bright">Read-only demo lock</h2>
+        <p class="mt-2 text-sm text-gray-300">Lock a shared demo login so anyone using it can look at everything and change nothing. Unlock it here when you want to load statements or edit it, then lock it again. Locked accounts also lose the Sample pages and Billing from their menu.</p>
+        {% if demo_lock_msg == 'unknown' %}
+          <p class="mt-2 text-sm text-amber-300">No account has that address.</p>
+        {% elif demo_lock_msg == 'owner' %}
+          <p class="mt-2 text-sm text-amber-300">That is an owner login; it cannot be locked.</p>
+        {% elif demo_lock_msg == 'locked' %}
+          <p class="mt-2 text-sm text-green-400">{{ demo_lock_to }} is locked. Everyone signed in as it is read only from now.</p>
+        {% elif demo_lock_msg == 'unlocked' %}
+          <p class="mt-2 text-sm text-green-400">{{ demo_lock_to }} is unlocked. Changes save again until you lock it.</p>
+        {% endif %}
+        <form method="post" action="/admin/demo-lock" class="mt-3 space-y-2">
+          <label class="block text-xs font-bold uppercase tracking-wide text-gray-300" for="demo-lock-email">Account email</label>
+          <input id="demo-lock-email" name="email" type="email" required autocomplete="off" placeholder="demo@yourlabel.com"
+                 class="w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-gray-100">
+          <div class="flex gap-2">
+            <button type="submit" name="action" value="lock" class="sb-btn sb-btn-primary flex-1">Lock</button>
+            <button type="submit" name="action" value="unlock" class="sb-btn sb-btn-secondary flex-1">Unlock</button>
+          </div>
+        </form>
+        {% if demo_locked_accounts %}
+        <ul class="mt-3 space-y-2">
+          {% for acct in demo_locked_accounts %}
+          <li class="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm">
+            <span class="min-w-0 truncate text-gray-100">{{ acct.email }} <span class="text-xs text-gray-300">· {{ acct.plan }} · locked</span></span>
+            <form method="post" action="/admin/demo-lock"><input type="hidden" name="email" value="{{ acct.email }}"><button type="submit" name="action" value="unlock" class="sb-btn sb-btn-secondary sb-btn-sm">Unlock</button></form>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="mt-3 text-xs text-gray-300">No account is locked right now.</p>
+        {% endif %}
+      </section>
+
       <section id="grant-plan" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
         <h2 class="sb-label text-sb-gold-bright">Grant a plan</h2>
         <p class="mt-2 text-sm text-gray-300">Owner only. Put any account on a plan without a card, the way a demo login gets Pro or Label. The account must already exist. They get an email and a notification in the app saying the plan is open to them.</p>
