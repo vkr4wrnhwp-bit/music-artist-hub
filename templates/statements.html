@@ -5,7 +5,7 @@
 {% block title %}Statements - Royalty Sweep{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/meters.css?v=2">
-  <link rel="stylesheet" href="/static/css/statements.css?v=1">
+  <link rel="stylesheet" href="/static/css/statements.css?v=2">
 {% endblock %}
 
 {#- THE STATEMENTS DESK - approved from the numbered mockup of 2026-09-13.
@@ -109,6 +109,23 @@
       </div>
     </div>
   </section>
+
+  {#- 1b · THE ROSTER: only when the statements name more than one act. -#}
+  {% if roster and roster | length > 1 %}
+  <section aria-labelledby="sd-scope-h">
+    <h2 id="sd-scope-h" class="sd-h">The roster <span class="sub">— {{ roster | length }} artists in the statements on file; pick one and every reading below follows</span></h2>
+    <form method="get" action="/statements" class="sd-scope">
+      <label class="sr-only" for="statements-artist">Artist</label>
+      <select id="statements-artist" name="artist" onchange="this.form.submit()">
+        <option value="">Whole roster</option>
+        {% for r in roster %}<option value="{{ r.name }}"{% if r.name == act %} selected{% endif %}>{{ r.name }}</option>{% endfor %}
+      </select>
+      <noscript><button class="sb-btn sb-btn-secondary sb-btn-sm">Show</button></noscript>
+      {% if act %}<span class="sd-scope-note">Reading {{ act }} only. <a href="/statements">Whole roster</a></span>
+      {% else %}<span class="sd-scope-note">Every figure below is the whole roster's.</span>{% endif %}
+    </form>
+  </section>
+  {% endif %}
 
   {% if a and d %}
   {#- 2 · THE MONEY BRIDGE: four readings, each tagged actual, estimate or

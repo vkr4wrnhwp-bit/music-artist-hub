@@ -5,7 +5,7 @@
 {% block title %}Recovery - Royalty Sweep{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/meters.css?v=2">
-  <link rel="stylesheet" href="/static/css/recovery.css?v=1">
+  <link rel="stylesheet" href="/static/css/recovery.css?v=2">
 {% endblock %}
 
 {#- THE RECOVERY DESK - approved from the numbered mockup of 2026-09-13.
@@ -31,6 +31,7 @@
           {% if g.isrc and (g.askable or g.checked) %}
           <form method="post" action="/statements/gaps/check">
             <input type="hidden" name="title" value="{{ g.title }}">
+            {% if act %}<input type="hidden" name="artist" value="{{ act }}">{% endif %}
             <input type="hidden" name="next" value="/recovery#findings">
             <button class="sb-btn {{ 'sb-btn-primary' if not g.letter_href and not g.checked else 'sb-btn-secondary' }} sb-btn-sm">{{ 'Check the stores again' if g.checked else 'Check the stores' }}</button>
           </form>
@@ -85,8 +86,18 @@
   <section aria-labelledby="rv-scan-h">
     <h2 id="rv-scan-h" class="rv-h">The scan <span class="sub">— what was read, and when</span></h2>
     <div class="rv-scan">
-      <div class="facts">{% for f in d.scan.facts %}<span>{{ f }}</span>{% endfor %}</div>
+      <div class="facts">{% for f in d.scan.facts %}<span>{{ f }}</span>{% endfor %}{% if act %}<span>Reading {{ act }} only</span>{% endif %}</div>
       <div class="when">{{ d.scan.when }}</div>
+      {% if roster and roster | length > 1 %}
+      <form method="get" action="/recovery" class="scope">
+        <label class="sr-only" for="recovery-artist">Artist</label>
+        <select id="recovery-artist" name="artist" onchange="this.form.submit()">
+          <option value="">Whole roster</option>
+          {% for r in roster %}<option value="{{ r.name }}"{% if r.name == act %} selected{% endif %}>{{ r.name }}</option>{% endfor %}
+        </select>
+        <noscript><button class="sb-btn sb-btn-secondary sb-btn-sm">Show</button></noscript>
+      </form>
+      {% endif %}
     </div>
   </section>
 

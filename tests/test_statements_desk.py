@@ -270,3 +270,34 @@ def test_the_header_has_no_photograph_and_one_upload_control(artist, monkeypatch
     assert 'class="sb-plate"' in body and 'class="sb-plate-img"' not in body
     assert body.count('name="statement"') == 1
     assert 'href="#intake"' not in body
+
+
+# --- the roster ---------------------------------------------------------
+
+ROSTER_ = ("Reporting Period,Artist,Track Title,Digital Service Provider,Territory,Royalty ($US)\n"
+          "MAY-26,Hungry Gods,Narrow,Spotify,US,300\n"
+          "MAY-26,Hellhounds,Howl,Spotify,GB,100\n"
+          "JUN-26,Hungry Gods,Narrow,Spotify,US,330\n"
+          "JUN-26,Hungry Gods,Wide,Deezer,US,70\n"
+          "JUN-26,Hellhounds,Howl,Spotify,GB,120\n")
+
+
+def test_a_label_export_offers_the_roster_on_statements_too(artist, monkeypatch):
+    _drop_box(monkeypatch)
+    _upload(artist, ROSTER_)
+    body = artist.get("/statements").get_data(as_text=True)
+    assert 'id="statements-artist"' in body and "2 artists in the statements on file" in body
+    assert "Wide" in body and "Howl" in body
+    one = artist.get("/statements?artist=Hellhounds").get_data(as_text=True)
+    assert '<option value="Hellhounds" selected>' in one and "Reading Hellhounds only" in one
+    assert "Howl" in one and "Wide" not in one, "the track table follows the act"
+    assert "$220.00" in one
+    unknown = artist.get("/statements?artist=Nobody").get_data(as_text=True)
+    assert "Wide" in unknown, "an unknown act is the whole roster"
+
+
+def test_one_artist_on_file_shows_no_roster_control_on_statements(artist, monkeypatch):
+    _drop_box(monkeypatch)
+    _upload(artist, TWO_PERIODS)
+    body = artist.get("/statements").get_data(as_text=True)
+    assert 'id="statements-artist"' not in body and "Whole roster" not in body

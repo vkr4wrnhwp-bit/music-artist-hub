@@ -22,7 +22,7 @@
 .rv-approx { color: var(--sb-ink-3); font-weight: 600; }
 
 /* 1 · the scan strip */
-.rv-scan { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; padding: 12px 16px; border-radius: var(--sb-r-panel); background: var(--sb-surface-2); border: 1px solid var(--sb-line-strong); }
+.rv-scan { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; padding: 12px 16px; border-radius: var(--sb-r-panel); background: var(--sb-surface-2); border: 1px solid var(--sb-line-strong); }
 .rv-scan .facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--sb-ink); font-weight: 600; }
 .rv-scan .when { font-size: 12px; color: var(--sb-ink-3); }
 @media (max-width: 640px) { .rv-scan { grid-template-columns: 1fr; } }
@@ -152,3 +152,8 @@
 .rv-rail .now span { color: var(--sb-gold-bright); font-weight: 700; }
 .rv-sees { display: grid; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--sb-ink-2); }
 .rv-sees b { color: var(--sb-ink); font-weight: 600; }
+
+/* 1b - the roster: the act in scope, when a label's export names more than one. */
+.rv-scan .scope { display: flex; align-items: center; gap: 8px; }
+.rv-scan .scope select { padding: 6px 10px; border-radius: var(--sb-r-control); border: 1px solid var(--sb-line-strong); background: var(--sb-ground); color: var(--sb-gold-bright); font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color-scheme: dark; }
+.rv-scan .scope select:focus-visible { outline: none; box-shadow: var(--sb-focus); }

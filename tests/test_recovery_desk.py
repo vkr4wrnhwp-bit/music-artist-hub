@@ -222,3 +222,25 @@ def test_the_case_desk_opens_the_strip_instead_of_a_form_panel(artist):
     assert r.headers["Location"].endswith("/royalty-recovery/cases")
     body = artist.get("/royalty-recovery/cases").get_data(as_text=True)
     assert "Content ID claim" in body and "Edit ▸" in body
+
+
+# --- the roster ---------------------------------------------------------
+
+ROSTER_ = ("Reporting Period,Artist,Track Title,Digital Service Provider,Territory,Royalty ($US)\n"
+          "MAY-26,Hungry Gods,Narrow,Spotify,US,300\n"
+          "MAY-26,Hellhounds,Howl,Spotify,GB,100\n"
+          "JUN-26,Hungry Gods,Narrow,Spotify,US,330\n"
+          "JUN-26,Hungry Gods,Wide,Deezer,US,70\n"
+          "JUN-26,Hellhounds,Howl,Spotify,GB,120\n")
+
+
+def test_the_scan_follows_the_act_in_scope(artist):
+    _upload(artist, ROSTER_)
+    body = artist.get("/recovery").get_data(as_text=True)
+    assert 'id="recovery-artist"' in body and "Whole roster" in body
+    one = artist.get("/recovery?artist=Hellhounds").get_data(as_text=True)
+    assert '<option value="Hellhounds" selected>' in one and "Reading Hellhounds only" in one
+    assert "Wide" not in one, "Hungry Gods' Deezer-only track is out of scope"
+    assert 'name="artist" value="Hellhounds"' in one or "Check the stores" not in one
+    solo = artist.get("/recovery").get_data(as_text=True)
+    assert "Reading Hellhounds only" not in solo

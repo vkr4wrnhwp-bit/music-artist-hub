@@ -1125,6 +1125,19 @@ def create_app():
         return jsonify({"ok": sent, "address": addr,
                         "error": None if sent else "Resend did not accept the email."})
 
+    def _act_scope(rows_all):
+        """(roster, act, rows): the acts the statements on file name, the
+        act in scope from ?artist=, and the rows narrowed to it. A label's
+        export carries the whole roster (2026-09-14); Statements, Recovery
+        and Royalties all read one act at a time through this, so the
+        three pages agree on what "in scope" means."""
+        import royalties_desk
+        roster = royalties_desk.roster(rows_all)
+        act = (request.args.get("artist") or request.form.get("artist") or "").strip()
+        if act and any(a["name"] == act for a in roster):
+            return roster, act, [r for r in rows_all if (r.get("artist") or "").strip() == act]
+        return roster, "", rows_all
+
     @app.route("/statements", methods=["GET", "POST"])
     def statements():
         user = current_user()
@@ -1146,7 +1159,7 @@ def create_app():
             store.get_or_create_ingest_token(user["id"]))
             if emailer.inbound_configured() else None)
         ctx["uploads"] = store.get_statements(user["id"])
-        rows = store.get_statement_rows(user["id"])
+        ctx["roster"], ctx["act"], rows = _act_scope(store.get_statement_rows(user["id"]))
         ctx["analysis"] = analyze_statement(
             [{"title": r["title"], "source": r["source"], "amount": r["amount"], "period": r["period"]}
              for r in rows]
@@ -1176,7 +1189,8 @@ def create_app():
         if user is None:
             return login_required_redirect()
         title = (request.form.get("title") or "").strip()
-        rows = store.get_statement_rows(user["id"])
+        # The gap is read in the same scope the page showed it in.
+        _roster, act, rows = _act_scope(store.get_statement_rows(user["id"]))
         analysis = analyze_statement(rows) if rows else None
         gap = next((g for g in (analysis or {}).get("coverage_gaps", [])
                     if g["title"] == title), None)
@@ -1187,13 +1201,14 @@ def create_app():
                      if (r["title"] or "").strip() == title and r["isrc"]), "")
         back = _safe_next(request.form.get("next"), "/statements")
         on_recovery = back.startswith("/recovery")
+        scope = ("&artist=" + urllib.parse.quote(act)) if act else ""
         if not isrc:
-            return redirect("/recovery?checked=no-isrc#findings" if on_recovery
-                            else "/statements?checked=no-isrc#gap-%s" % key)
+            return redirect("/recovery?checked=no-isrc%s#findings" % scope if on_recovery
+                            else "/statements?checked=no-isrc%s#gap-%s" % (scope, key))
         store.save_gap_check(user["id"], key, isrc,
                              coverage_check.check_gap(isrc, gap["missing_sources"]))
-        return redirect("/recovery?checked=%s#findings" % key if on_recovery
-                        else "/statements?checked=%s#gap-%s" % (key, key))
+        return redirect("/recovery?checked=%s%s#findings" % (key, scope) if on_recovery
+                        else "/statements?checked=%s%s#gap-%s" % (key, scope, key))
 
     @app.route("/statements/<statement_id>/delete", methods=["POST"])
     def statement_delete(statement_id):
@@ -1942,16 +1957,10 @@ def create_app():
         # Income by type are read here too, laid out by royalties_desk.
         import royalties_desk
         user = current_user()
-        rows_all = store.get_statement_rows(user["id"]) if user else []
         # A label's export names every act on the roster. One act can be
         # put in scope (2026-09-14) and every figure on the page follows
         # it, the way every figure already follows the period.
-        roster = royalties_desk.roster(rows_all)
-        act = (request.args.get("artist") or "").strip()
-        if act and any(a["name"] == act for a in roster):
-            rows_all = [r for r in rows_all if (r.get("artist") or "").strip() == act]
-        else:
-            act = ""
+        roster, act, rows_all = _act_scope(store.get_statement_rows(user["id"]) if user else [])
         periods = royalties_desk.order_periods(
             (r["period"] or "").strip() for r in rows_all if r["period"])
         chosen = (request.args.get("period") or "").strip()
@@ -2397,8 +2406,9 @@ def create_app():
         user = current_user()
         rv = mlc = desk = strip_case = None
         doc_list = []
+        roster, act = [], ""
         if user:
-            rows = store.get_statement_rows(user["id"])
+            roster, act, rows = _act_scope(store.get_statement_rows(user["id"]))
             analysis = analyze_statement(rows) if rows else None
             rv = recovery_engine.build(user["id"], rows=rows, analysis=analysis)
             mlc = recovery_mlc.state(user["id"])
@@ -2414,7 +2424,7 @@ def create_app():
             doc_list = store.list_documents(user["id"]) if strip_case else []
         return render_template(
             "recovery.html", active_page="recovery",
-            recovery_view=rv, mlc=mlc, desk=desk,
+            recovery_view=rv, mlc=mlc, desk=desk, roster=roster, act=act,
             strip_case=strip_case,
             strip_next=("/recovery?case=%s#case-strip" % strip_case["id"]) if strip_case else "/recovery",
             strip_close="/recovery#findings",

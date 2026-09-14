@@ -111,3 +111,10 @@ a.sd-st.carried:hover { text-decoration: underline; }
 .sd-empty { padding: 40px 16px; text-align: center; border: 1px dashed var(--sb-line-strong); border-radius: var(--sb-r-panel); }
 .sd-empty b { display: block; font-size: 14px; color: var(--sb-ink); }
 .sd-empty p { margin: 6px auto 0; max-width: 48ch; font-size: 13px; color: var(--sb-ink-2); }
+
+/* 1b - the roster: the act in scope, when a label's export names more than one. */
+.sd-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; border-radius: var(--sb-r-panel); background: var(--sb-surface-2); border: 1px solid var(--sb-line-strong); }
+.sd-scope select { padding: 6px 10px; border-radius: var(--sb-r-control); border: 1px solid var(--sb-line-strong); background: var(--sb-ground); color: var(--sb-gold-bright); font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color-scheme: dark; }
+.sd-scope select:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+.sd-scope-note { font-size: 13px; color: var(--sb-ink-2); }
+.sd-scope-note a { color: var(--sb-gold-bright); font-weight: 700; }
