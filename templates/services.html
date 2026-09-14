@@ -9,7 +9,7 @@
 {% extends "base.html" if user_plan else "public_base.html" %}
 
 {% set lb = label %}
-{% set plate = {"stem": "/static/img/departments", "widths": [900, 1200, 1553], "position": "center 40%"} %}
+{% set plate = {"stem": none} %}
 {% set plate_eyebrow = lb.brand.sub %}
 {% set plate_title = lb.brand.name %}
 {% set plate_support = lb.brand.tagline %}

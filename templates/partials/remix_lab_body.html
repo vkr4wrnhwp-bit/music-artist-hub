@@ -19,7 +19,7 @@
   {# --- the plate: the band every internal page opens with ---------------- #}
   <div class="sbrl-head sbrl-wrap">
     <div class="sbrl-top">
-      {% call sb.plate("/static/img/sweep-wide", [900, 1400, 1672], "Street Banker · Remix Lab", "Remix Lab",
+      {% call sb.plate(none, [900, 1400, 1672], "Street Banker · Remix Lab", "Remix Lab",
                        rl.hero_subline, position="center 45%") %}
         <a class="sbrl-btn sbrl-btn--primary sbrl-btn--sm" href="{{ rl.primary_cta.href }}">{{ rl.primary_cta.label }}{{ ico("arrow-right", "sbrl-btn-ico") }}</a>
         <a class="sbrl-btn sbrl-btn--ghost sbrl-btn--sm" href="{{ rl.secondary_cta.href }}">{{ rl.secondary_cta.label }}</a>

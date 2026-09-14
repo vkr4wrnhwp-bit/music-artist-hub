@@ -237,7 +237,10 @@ def _outside_results(page):
 
 
 def test_the_photographs_are_real_files_and_decorative(page):
-    for stem in ("sweep-wide-1400", "eq-room-", "distro-wide-"):
+    # The header photograph came off with every other page's
+    # (owner, 2026-09-14); the section bands keep theirs.
+    assert 'class="sb-plate-img"' not in page and "sweep-wide-1400" not in page
+    for stem in ("eq-room-", "distro-wide-"):
         assert stem in page, stem
     for src in re.findall(r'/static/img/(sweep-[a-z]+-\d+\.jpg|distro-[a-z]+-\d+\.jpg|eq-room-\d+\.jpg)', page):
         assert _os.path.exists(_os.path.join(_HERE, "static", "img", src)), src

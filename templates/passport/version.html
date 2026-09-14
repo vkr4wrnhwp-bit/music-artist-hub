@@ -43,7 +43,7 @@
   {%- set n.i = n.i + 1 -%}{{ "%02d"|format(n.i) }}
 {%- endmacro -%}
 
-{{ sb.plate("/static/img/passport-wide", [900, 1300, 1672],
+{{ sb.plate(none, [900, 1300, 1672],
             "Street Banker · Stage Control",
             snapshot.identity.artist_name or "Show Passport",
             "Version %d, frozen on publication." | format(version.number),
