@@ -78,6 +78,13 @@ def test_a_new_account_press_kit_carries_nothing_seeded():
     assert "Strongest platform" not in body
     showcase = _showcase(app_obj).get("/epk").get_data(as_text=True)
     assert "Midnight Drive" in showcase
+    # the public kit of a fresh account, opened by a stranger, says the same
+    import re
+    fresh = _fresh(app_obj)
+    editor = fresh.get("/epk").get_data(as_text=True)
+    slug = re.search(r'href="(/epk/[a-z0-9-]+)"', editor).group(1)
+    public = app_obj.test_client().get(slug).get_data(as_text=True)
+    assert "Not measured" in public and "Midnight Drive" not in public
 
 
 def test_a_new_account_links_page_does_not_call_its_empty_list_examples():

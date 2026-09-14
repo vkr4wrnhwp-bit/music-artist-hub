@@ -272,7 +272,7 @@
           {% if e.stats_are_real %}<span class="sb-label inline-flex items-center gap-1.5 text-green-400"><span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>From uploaded statements</span>{% endif %}
         </div>
         <div class="mt-7 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
-          <div><div class="sb-label text-white/70">Strongest Platform</div><div class="serif mt-2 text-2xl font-semibold">{{ e.top_platform }}</div></div>
+          <div><div class="sb-label text-white/70">Strongest Platform</div><div class="serif mt-2 text-2xl font-semibold">{{ e.top_platform if e.top_platform else "Not measured" }}</div></div>
           {# Only what the cover strip did not already show, and only when
              the artist has the stats section switched on - "hide stats"
              has to mean hidden everywhere, not hidden in one place. #}
