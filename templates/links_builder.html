@@ -43,7 +43,7 @@
     <h2 class="sb-label text-sb-gold-bright">Auto-Scan — paste one link, fill everything</h2>
     <p class="mt-1 text-xs text-gray-300 font-medium">Drop a Spotify, Apple Music, or YouTube track URL and we'll find it on every platform — plus title, artist, and cover art.</p>
     <div class="mt-3 flex gap-2">
-      <input id="scan-url" placeholder="https://open.spotify.com/track/..." class="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-gray-100 placeholder-gray-300 focus:border-sb-gold focus:outline-none">
+      <input aria-label="Track or album link to scan" id="scan-url" placeholder="https://open.spotify.com/track/..." class="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-gray-100 placeholder-gray-300 focus:border-sb-gold focus:outline-none">
       <button type="button" id="scan-btn" class="shrink-0 rounded-lg bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep px-5 py-2.5 text-sm font-bold text-sb-on-gold hover:scale-[1.02]">Scan</button>
     </div>
     <div id="scan-result" class="mt-2 hidden text-xs font-semibold"></div>
@@ -70,22 +70,22 @@
       <div class="mt-3 grid gap-3 sm:grid-cols-2">
         <div><label class="sb-label text-gray-300">Campaign / release title *</label>
           {% if rack_facts %}<div class="mb-2 rounded-lg border border-sb-gold/40 bg-sb-surface-2 px-3 py-2 text-xs text-sb-gold-bright font-medium">From The Rack: {{ rack_facts }}</div>{% endif %}
-          <input name="title" required value="{{ c.title if c else (prefill_title or '') }}" placeholder="Midnight Drive" class="{{ field }}"></div>
+          <input aria-label="Midnight Drive" name="title" required value="{{ c.title if c else (prefill_title or '') }}" placeholder="Midnight Drive" class="{{ field }}"></div>
         <div><label class="sb-label text-gray-300">Artist name</label>
-          <input name="artist_name" value="{{ c.artist_name if c }}" placeholder="Synthwave Surfer" class="{{ field }}"></div>
+          <input aria-label="Synthwave Surfer" name="artist_name" value="{{ c.artist_name if c }}" placeholder="Synthwave Surfer" class="{{ field }}"></div>
         <div><label class="sb-label text-gray-300">Release type</label>
-          <select name="release_type" class="{{ field }} [color-scheme:dark]">
+          <select aria-label="Release type" name="release_type" class="{{ field }} [color-scheme:dark]">
             {% for rt in engine.RELEASE_TYPES %}<option {{ 'selected' if c and c.release_type == rt }}>{{ rt }}</option>{% endfor %}
           </select></div>
         <div><label class="sb-label text-gray-300">Release date <span class="normal-case text-gray-300">(future date = pre-save mode)</span></label>
-          <input name="release_date" type="date" value="{{ c.release_date if c }}" class="{{ field }} [color-scheme:dark]"></div>
+          <input aria-label="Release date" name="release_date" type="date" value="{{ c.release_date if c }}" class="{{ field }} [color-scheme:dark]"></div>
         <div class="sm:col-span-2">
           <label class="sb-label text-gray-300">Cover art</label>
           <div class="mt-1 flex items-center gap-3">
             <img id="cover-preview" src="{{ c.cover_url if c and c.cover_url }}" alt="" class="h-16 w-16 shrink-0 rounded-lg border border-white/10 object-cover {{ '' if c and c.cover_url else 'hidden' }}">
             <div class="min-w-0 flex-1 space-y-1.5">
               <input type="file" name="cover_file" accept=".png,.jpg,.jpeg,.webp" class="w-full text-xs text-gray-300 file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-solid file:border-sb-gold/40 file:bg-sb-gold/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-sb-gold-bright">
-              <input id="cover-url-input" name="cover_url" value="{{ c.cover_url if c }}" placeholder="...or paste an image URL (auto-scan fills this)" class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
+              <input aria-label="...or paste an image URL (auto-scan fills this)" id="cover-url-input" name="cover_url" value="{{ c.cover_url if c }}" placeholder="...or paste an image URL (auto-scan fills this)" class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
               {#- Only when a cover is actually stored, and only on a saved
                   campaign - there is nothing to clear before one exists.
                   `form=` puts the control here and the submission on the
@@ -104,11 +104,11 @@
           <p class="mt-1 text-xs text-gray-300 font-medium">Uploading a file overrides the URL — the file it replaces is deleted. Square, 1500px+ recommended.</p>
         </div>
         <div class="sm:col-span-2"><label class="sb-label text-gray-300">Announcement text</label>
-          <textarea name="description" rows="2" placeholder="The new single. Out everywhere." class="{{ field }} resize-none">{{ c.description if c }}</textarea></div>
+          <textarea aria-label="The new single. Out everywhere." name="description" rows="2" placeholder="The new single. Out everywhere." class="{{ field }} resize-none">{{ c.description if c }}</textarea></div>
         <div><label class="sb-label text-gray-300">Primary CTA text</label>
-          <input name="cta_text" value="{{ s.cta_text or '' }}" placeholder="Listen Now" class="{{ field }}"></div>
+          <input aria-label="Listen Now" name="cta_text" value="{{ s.cta_text or '' }}" placeholder="Listen Now" class="{{ field }}"></div>
         <div><label class="sb-label text-gray-300">Accent color</label>
-          <input name="accent" type="color" value="{{ s.accent or '#E8B950' }}" class="mt-1 h-10 w-16 cursor-pointer rounded-lg border border-white/10 bg-white/5 p-1"></div>
+          <input aria-label="Accent" name="accent" type="color" value="{{ s.accent or '#E8B950' }}" class="mt-1 h-10 w-16 cursor-pointer rounded-lg border border-white/10 bg-white/5 p-1"></div>
       </div>
     </section>
 
@@ -120,7 +120,7 @@
         {% for key, name, logo in engine.SERVICES %}
         <div class="flex items-center gap-2">
           <span class="w-28 shrink-0 text-xs font-semibold text-gray-200">{{ name }}</span>
-          <input name="dest_{{ key }}" value="{{ dest_map.get(key, '') }}" placeholder="https://..." class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
+          <input aria-label="https://..." name="dest_{{ key }}" value="{{ dest_map.get(key, '') }}" placeholder="https://..." class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
         </div>
         {% endfor %}
       </div>
@@ -134,20 +134,20 @@
         <span class="text-xs font-semibold text-gray-200">Enable email capture — own the fan, don't rent them</span>
       </label>
       <div class="mt-3"><label class="sb-label text-gray-300">Consent text shown at the form</label>
-        <input name="consent_text" value="{{ s.consent_text or '' }}" placeholder="I agree to receive updates about this release and future drops." class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none"></div>
+        <input aria-label="I agree to receive updates about this release and future drops." name="consent_text" value="{{ s.consent_text or '' }}" placeholder="I agree to receive updates about this release and future drops." class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none"></div>
       <div class="mt-3"><label class="sb-label text-gray-300">Privacy policy URL (optional)</label>
-        <input name="privacy_url" value="{{ s.privacy_url or '' }}" placeholder="https://..." class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none"></div>
+        <input aria-label="https://..." name="privacy_url" value="{{ s.privacy_url or '' }}" placeholder="https://..." class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none"></div>
       <div class="mt-4 border-t border-white/5 pt-3">
         <label class="sb-label text-gray-300">Fan gate reward (optional)</label>
         <p class="mt-0.5 text-xs text-gray-300 font-medium">Pick a Vault file — fans who drop their email get the download link on the spot. Nothing unlocks without a real capture.</p>
         <div class="mt-2 grid gap-2 sm:grid-cols-2">
-          <select name="gate_reward" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
+          <select aria-label="Gate reward" name="gate_reward" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 focus:border-amber-500/50 focus:outline-none [color-scheme:dark]">
             <option value="">No reward gate</option>
             {% for v in vault_files %}
             <option value="{{ v.id }}" {{ 'selected' if s.gate_reward == v.id }}>{{ v.label or v.path.split('/')[-1] }} ({{ v.kind }})</option>
             {% endfor %}
           </select>
-          <input name="gate_label" value="{{ s.gate_label or '' }}" placeholder="Shown to fans, e.g. Unreleased demo + presale code" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
+          <input aria-label="Shown to fans, e.g. Unreleased demo + presale code" name="gate_label" value="{{ s.gate_label or '' }}" placeholder="Shown to fans, e.g. Unreleased demo + presale code" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
         </div>
         {% if not vault_files %}<p class="mt-1 text-xs text-gray-300 font-medium">Your Vault is empty — <a href="/vault" class="text-sb-gold-bright underline">upload an asset</a> to offer one here.</p>{% endif %}
       </div>

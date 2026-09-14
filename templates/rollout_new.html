@@ -17,13 +17,13 @@
       <h2 class="sb-label text-gray-300">1 · Release</h2>
       <div class="mt-3 grid gap-3 sm:grid-cols-2">
         <div><label class="sb-label text-gray-300">Release title *</label>
-          <input name="title" required placeholder="Midnight Drive" class="{{ field }}"></div>
+          <input aria-label="Midnight Drive" name="title" required placeholder="Midnight Drive" class="{{ field }}"></div>
         <div><label class="sb-label text-gray-300">Artist name</label>
-          <input name="artist_name" placeholder="Synthwave Surfer" class="{{ field }}"></div>
+          <input aria-label="Synthwave Surfer" name="artist_name" placeholder="Synthwave Surfer" class="{{ field }}"></div>
         <div><label class="sb-label text-gray-300">Release date</label>
-          <input name="release_date" type="date" class="{{ field }} [color-scheme:dark]"></div>
+          <input aria-label="Release date" name="release_date" type="date" class="{{ field }} [color-scheme:dark]"></div>
         <div><label class="sb-label text-gray-300">Connect Street Banker Link campaign</label>
-          <select name="ml_campaign_id" class="{{ field }} [color-scheme:dark]">
+          <select aria-label="Ml campaign id" name="ml_campaign_id" class="{{ field }} [color-scheme:dark]">
             <option value="">— none (no link tracking) —</option>
             {% for m in ml_campaigns %}<option value="{{ m.id }}">{{ m.title }} (/l/{{ m.slug }})</option>{% endfor %}
           </select></div>
@@ -35,15 +35,15 @@
       <h2 class="sb-label text-gray-300">2 · Strategy</h2>
       <div class="mt-3 grid gap-3 sm:grid-cols-3">
         <div><label class="sb-label text-gray-300">Campaign goal</label>
-          <select name="goal" class="{{ field }} [color-scheme:dark]">
+          <select aria-label="Goal" name="goal" class="{{ field }} [color-scheme:dark]">
             {% for k, n in engine.CAMPAIGN_GOALS %}<option value="{{ k }}">{{ n }}</option>{% endfor %}
           </select></div>
         <div><label class="sb-label text-gray-300">Rollout length</label>
-          <select name="rollout_length" class="{{ field }} [color-scheme:dark]">
+          <select aria-label="Rollout length" name="rollout_length" class="{{ field }} [color-scheme:dark]">
             {% for days, n in engine.ROLLOUT_LENGTHS %}<option value="{{ days }}" {{ 'selected' if days == 14 }}>{{ n }}</option>{% endfor %}
           </select></div>
         <div><label class="sb-label text-gray-300">Content tone</label>
-          <select name="tone" class="{{ field }} [color-scheme:dark]">
+          <select aria-label="Tone" name="tone" class="{{ field }} [color-scheme:dark]">
             {% for k, n in engine.TONES %}<option value="{{ k }}">{{ n }}</option>{% endfor %}
           </select></div>
       </div>
@@ -69,7 +69,7 @@
           <input type="file" name="video_file" accept=".mp4,.mov,.webm" class="mt-1 w-full text-xs text-gray-300 file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-solid file:border-sb-gold/40 file:bg-sb-gold/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-sb-gold-bright"></div>
       </div>
       <div class="mt-3"><label class="sb-label text-gray-300">Lyrics — powers lyric-reveal posts and overlays</label>
-        <textarea name="lyrics" rows="5" placeholder="Paste lyrics here (optional)" class="{{ field }} resize-none"></textarea></div>
+        <textarea aria-label="Paste lyrics here (optional)" name="lyrics" rows="5" placeholder="Paste lyrics here (optional)" class="{{ field }} resize-none"></textarea></div>
     </section>
 
     <button type="submit" class="rounded-lg bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep px-6 py-2.5 text-sm font-bold text-sb-on-gold shadow-[0_4px_18px_rgba(216,178,90,0.3)] hover:scale-[1.02]">Create Rollout</button>

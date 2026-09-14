@@ -479,6 +479,16 @@ details.asx-open[open] .asx-when-closed { display: none; }
   transition: width var(--sb-slow) var(--sb-ease);
 }
 
+/* --- skip link -------------------------------------------------------------
+ * The first focusable thing on every signed-in page. Off-screen until it
+ * has focus, then a gold tab at the top left that jumps past the sidebar. */
+.sb-skip {
+  position: absolute; left: -999px; top: 8px; z-index: 100;
+  padding: 8px 12px; border-radius: var(--sb-r-control);
+  background: var(--sb-gold); color: var(--sb-on-gold); font-weight: 700; text-decoration: none;
+}
+.sb-skip:focus { left: 8px; outline: none; box-shadow: var(--sb-focus); }
+
 /* the actual portion of a mixed bar, over the fill, in the good tone */
 .sb-meter-part {
   position: absolute;

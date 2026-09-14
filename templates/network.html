@@ -214,7 +214,7 @@
 
     {% with outreach_back='/network?tab=my' %}{% include "partials/outreach_pipeline.html" %}{% endwith %}
 
-    <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5 lg:col-span-1">
+    <section id="my-network" class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5 lg:col-span-1">
       <h2 class="sb-label text-gray-300">Connections</h2>
       <div class="mt-3 space-y-2">
         {% for p in nw.my_connections %}

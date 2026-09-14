@@ -107,11 +107,13 @@ def _spotify_url_for_isrc(isrc):
 #
 #   Deezer   free, exact by ISRC, verified against a real recording
 #   Spotify  exact by ISRC, needs the app's own credentials
+#   Apple    free, exact by ISRC through the public lookup; one answer
+#            covers the Apple Music and iTunes lines (2026-09-14)
 #
 # Everything else reports as unchecked. That is a thin answer and an
 # honest one - and Deezer happens to be where the first real finding on
 # this catalogue was, so it is not a token.
-CHECKABLE = ("deezer", "spotify")
+CHECKABLE = ("deezer", "spotify", "appleMusic", "itunes")
 
 # Songstats answers for far more stores than the two above, so when it is
 # configured it widens what can be asked. Its response shape is not yet
@@ -192,6 +194,15 @@ def availability(isrc):
     links.update(songstats)
     if note:
         unknown.append(note)
+
+    present, detail = music_apis.apple_has_isrc(isrc)
+    if present is True:
+        links["appleMusic"] = detail
+        links["itunes"] = detail
+    elif present is False:
+        absent.extend(["appleMusic", "itunes"])
+    else:
+        unknown.append("Apple Music (%s)" % detail)
 
     present, detail = music_apis.deezer_has_isrc(isrc)
     if present is True:

@@ -101,7 +101,7 @@ def checked(gaps, checks):
     cells = [bool(checks.get(statements_desk.slug(g["title"]))) for g in gaps]
     n = sum(cells)
     return {"n": n, "of": len(cells), "cells": cells,
-            "note": ("%d gap%s not asked yet. Deezer and Spotify answer by ISRC."
+            "note": ("%d gap%s not asked yet. Deezer, Spotify and Apple Music answer by ISRC."
                      % (len(cells) - n, "" if len(cells) - n == 1 else "s")
                      if len(cells) > n else
                      ("Every gap has been put to the stores." if cells else "No gaps to ask about."))}

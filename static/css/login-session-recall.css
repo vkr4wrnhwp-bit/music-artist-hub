@@ -395,6 +395,8 @@ body.lsr {
 .lsr-demo-form { margin-top: 10px; }
 .lsr-demo-form[hidden] { display: none; }
 .lsr-demo-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+/* the button never wraps, so under 520px the email field had ~19px left */
+@media (max-width: 520px) { .lsr-demo-row { grid-template-columns: 1fr; } }
 .lsr-demo-row input { height: 44px; }
 .lsr-demo-btn {
   height: 44px;

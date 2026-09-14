@@ -105,6 +105,42 @@ def odesli_lookup(source_url):
 DEEZER_TTL = 30 * 24 * 3600   # ISRC/UPC assignments never change
 
 
+APPLE_TTL = DEEZER_TTL
+
+
+def apple_has_isrc(isrc):
+    """Does Apple's catalogue carry this exact recording?
+
+    (True|False|None, detail), the same contract as deezer_has_isrc, for
+    the same reason: None is "not answered" and must never be read as
+    absence. Apple's lookup endpoint is public and keyless and takes an
+    ISRC directly; a hit is a song object with the store page's URL, a
+    miss is resultCount 0 - a real no. The iTunes Store and Apple Music
+    share this catalogue, so one answer serves both statement lines.
+    """
+    isrc = (isrc or "").strip().upper().replace("-", "")
+    if not isrc:
+        return None, "no ISRC on the statement row"
+    key = "apple-isrc:" + isrc
+    data = store.cache_get(key, APPLE_TTL)
+    if data is None:
+        try:
+            data = _fetch_json("https://itunes.apple.com/lookup?"
+                               + urllib.parse.urlencode({"isrc": isrc, "entity": "song"}))
+        except Exception as exc:                               # noqa: BLE001
+            return None, "Apple did not answer (%s)" % (str(exc)[:60] or "no detail")
+        store.cache_set(key, data)
+    if not isinstance(data, dict) or "resultCount" not in data:
+        return None, "Apple sent something unreadable"
+    songs = [r for r in (data.get("results") or [])
+             if isinstance(r, dict) and r.get("kind") == "song" and r.get("trackViewUrl")]
+    if songs:
+        return True, songs[0]["trackViewUrl"]
+    if int(data.get("resultCount") or 0) == 0:
+        return False, "not in Apple's catalogue"
+    return None, "Apple answered with no song for that code"
+
+
 def deezer_has_isrc(isrc):
     """Does Deezer's catalogue carry this exact recording?
 

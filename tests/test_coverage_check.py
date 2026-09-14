@@ -31,9 +31,12 @@ def stores(monkeypatch):
     """Stand in for both vendors, so the sorting logic is testable with no
     network and no credentials."""
     def _apply(deezer=(True, "https://www.deezer.com/track/1"),
-               spotify=("https://open.spotify.com/track/1", None)):
+               spotify=("https://open.spotify.com/track/1", None),
+               apple=(None, "Apple did not answer (stubbed)")):
         monkeypatch.setattr(cc.music_apis, "deezer_has_isrc",
                             lambda isrc: deezer)
+        monkeypatch.setattr(cc.music_apis, "apple_has_isrc",
+                            lambda isrc: apple)
         monkeypatch.setattr(cc, "_spotify_url_for_isrc", lambda isrc: spotify)
     return _apply
 
@@ -137,6 +140,8 @@ def test_songstats_widens_what_can_be_asked(monkeypatch):
                                        "pandora": "https://pandora/x"}, ""))
     monkeypatch.setattr(cc.music_apis, "deezer_has_isrc",
                         lambda isrc: (True, "https://deezer/x"))
+    monkeypatch.setattr(cc.music_apis, "apple_has_isrc",
+                        lambda isrc: (None, "stubbed"))
     monkeypatch.setattr(cc, "_spotify_url_for_isrc",
                         lambda isrc: (None, "Spotify is not connected"))
     out = cc.check_gap(ISRC, ["Anghami", "Pandora", "Deezer", "NetEase"])
@@ -153,6 +158,8 @@ def test_an_unreadable_songstats_reply_costs_coverage_not_correctness(monkeypatc
                         lambda isrc, **kw: ({}, "unrecognised shape; top-level keys: a, b"))
     monkeypatch.setattr(cc.music_apis, "deezer_has_isrc",
                         lambda isrc: (True, "https://deezer/x"))
+    monkeypatch.setattr(cc.music_apis, "apple_has_isrc",
+                        lambda isrc: (None, "stubbed"))
     monkeypatch.setattr(cc, "_spotify_url_for_isrc",
                         lambda isrc: (None, "Spotify is not connected"))
     out = cc.check_gap(ISRC, ["Anghami", "Deezer"])

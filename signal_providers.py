@@ -904,7 +904,17 @@ class SongstatsAdapter(_EnvProvider):
             "User-Agent": "StreetBanker/1.0"})
         try:
             with urllib.request.urlopen(req, timeout=12) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                raw = resp.read().decode("utf-8", "replace")
+                try:
+                    return json.loads(raw)
+                except ValueError:
+                    # The live probe of 2026-09-14 saw /tracks/links answer
+                    # 200 with something that was not JSON and recorded only
+                    # "Expecting value". The body is the clue, so keep it.
+                    raise ProviderError("Songstats %s: not JSON: %s"
+                                        % (resp.status, raw[:160].strip() or "empty body"))
+        except ProviderError:
+            raise
         except urllib.error.HTTPError as e:
             # Their words, not a flattened "failed". 429 is the per-resource
             # monthly ceiling and reads very differently from a bad key.

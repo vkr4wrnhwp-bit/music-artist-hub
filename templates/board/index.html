@@ -24,7 +24,7 @@
   {% if coach %}<div class="tb-coach{% if coach['err'] %} tb-coach-err{% endif %}" role="status"><b>{{ coach['head'] }}</b> {{ coach['items']|join(' ') }}</div>{% endif %}
 
   <div class="tb-layout">
-    <main>
+    <div class="tb-main">
       <details class="tb-post tb-pane is-warm" {% if prefill %}open data-open="1"{% endif %} style="margin-bottom:12px">
         <summary><span class="tb-btn tb-btn--fill">+ Post a listing</span> <span class="tb-help" style="margin-left:8px">Artists seeking partners · venues seeking acts</span></summary>
         <form method="post" action="/tour-board/post" accept-charset="utf-8" class="tb-form">
@@ -76,7 +76,7 @@
         </div>
       </section>
       {% endif %}
-    </main>
+    </div>
 
     <aside>
       <section class="tb-pane">

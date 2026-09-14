@@ -15,7 +15,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <div class="sb-label">Street Banker <span class="text-sb-gold-deep">— Press Office</span></div>
-        <div class="text-xs font-semibold text-sb-surface-2/50">EPK Builder</div>
+        <h1 class="text-xs font-semibold text-sb-surface-2/50">EPK Builder</h1>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         {% if user %}
@@ -224,13 +224,13 @@
 
         {% if epk_public_url %}
         <div class="mt-3 rounded-lg border border-sb-gold-deep/30 bg-sb-gold-deep/[0.07] p-3">
-          <label class="sb-label text-sb-gold-deep">Public link — share with press &amp; promoters</label>
+          <label for="public-link" class="sb-label text-sb-gold-deep">Public link — share with press &amp; promoters</label>
           <input id="public-link" readonly value="{{ request.url_root.rstrip('/') }}{{ epk_public_url }}" class="mt-1.5 w-full rounded-md border border-sb-surface-2/15 bg-white px-2 py-1.5 text-xs text-sb-surface-2/75 focus:outline-none font-medium">
           <a href="{{ epk_public_url }}" target="_blank" rel="noopener" class="mt-1.5 inline-block text-xs font-bold text-sb-gold-deep hover:underline">View public page ↗</a>
         </div>
         <div class="mt-2 rounded-lg border border-sb-gold-deep/30 bg-sb-gold-deep/[0.07] p-3">
           <label class="sb-label text-sb-gold-deep">Artist Hub — your link-in-bio</label>
-          <input readonly value="{{ request.url_root.rstrip('/') }}{{ epk_public_url.replace('/epk/', '/@') }}" onclick="this.select()" class="mt-1.5 w-full rounded-md border border-sb-surface-2/15 bg-white px-2 py-1.5 text-xs text-sb-surface-2/75 focus:outline-none font-medium">
+          <input aria-label="Your public press kit address" readonly value="{{ request.url_root.rstrip('/') }}{{ epk_public_url.replace('/epk/', '/@') }}" onclick="this.select()" class="mt-1.5 w-full rounded-md border border-sb-surface-2/15 bg-white px-2 py-1.5 text-xs text-sb-surface-2/75 focus:outline-none font-medium">
           <p class="mt-1 text-xs text-sb-surface-2/55 font-medium">One page with your live links, fan club, shows, and merch — put it in every bio.</p>
           <a href="{{ epk_public_url.replace('/epk/', '/@') }}" target="_blank" rel="noopener" class="mt-1 inline-block text-xs font-bold text-sb-gold-deep hover:underline">View Artist Hub ↗</a>
         </div>
@@ -245,7 +245,7 @@
           </div>
           <p class="mt-1 text-xs leading-snug text-white/55 font-medium">For unreleased pitches: same press kit plus a private listening room from your Vault. Opens and first-plays are logged — never how long anyone stayed.</p>
           {% if pitch_share %}
-          <input readonly value="{{ request.url_root.rstrip('/') }}/pitch/{{ pitch_share.token }}" onclick="this.select()" class="mt-2 w-full rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white/80 focus:outline-none font-medium">
+          <input aria-label="Your public press kit address" readonly value="{{ request.url_root.rstrip('/') }}/pitch/{{ pitch_share.token }}" onclick="this.select()" class="mt-2 w-full rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white/80 focus:outline-none font-medium">
           {% if pitch_stats.plays %}
           <div class="mt-1.5 space-y-0.5">
             {% for label, n in pitch_stats.plays %}
@@ -258,8 +258,8 @@
           {% endif %}
           <form method="post" action="/epk/share" class="mt-2 space-y-2">
             <div class="grid grid-cols-2 gap-2">
-              <input name="pin" inputmode="numeric" value="{{ pitch_share.pin if pitch_share else '' }}" placeholder="PIN (optional)" class="rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white placeholder-white/35 focus:outline-none font-medium">
-              <input name="expires" type="date" value="{{ pitch_share.expires if pitch_share else '' }}" title="Link stops working after this date" class="rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white focus:outline-none [color-scheme:dark] font-medium">
+              <input aria-label="PIN (optional)" name="pin" inputmode="numeric" value="{{ pitch_share.pin if pitch_share else '' }}" placeholder="PIN (optional)" class="rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white placeholder-white/35 focus:outline-none font-medium">
+              <input aria-label="Expires" name="expires" type="date" value="{{ pitch_share.expires if pitch_share else '' }}" title="Link stops working after this date" class="rounded-md border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white focus:outline-none [color-scheme:dark] font-medium">
             </div>
             {% if vault_audio %}
             <div class="flex flex-wrap gap-1.5">
@@ -321,14 +321,14 @@
              and vanish on typing; they are never submitted, so pressing
              Save Draft on an untouched form saves nothing. Values here
              would be saved as the artist's own words. #}
-          <div><label class="sb-label text-sb-surface-2/55">Tagline</label>
+          <div><label for="f-tagline" class="sb-label text-sb-surface-2/55">Tagline</label>
             <input id="f-tagline" value="{{ e.profile.tagline }}" placeholder="One line on what you sound like" class="{{ field }}"></div>
-          <div><label class="sb-label text-sb-surface-2/55">Bio</label>
+          <div><label for="f-bio" class="sb-label text-sb-surface-2/55">Bio</label>
             <textarea id="f-bio" rows="5" placeholder="Two or three sentences a journalist could lift straight into a piece. What you make, how you release it, what you have done so far." class="{{ field }} resize-none">{{ e.profile.bio }}</textarea></div>
           <div class="grid grid-cols-2 gap-3">
-            <div><label class="sb-label text-sb-surface-2/55">Location</label>
+            <div><label for="f-location" class="sb-label text-sb-surface-2/55">Location</label>
               <input id="f-location" value="{{ e.profile.location }}" placeholder="City, Country" class="{{ field }}"></div>
-            <div><label class="sb-label text-sb-surface-2/55">Genres (comma-sep)</label>
+            <div><label for="f-genres" class="sb-label text-sb-surface-2/55">Genres (comma-sep)</label>
               <input id="f-genres" value="{{ e.profile.genres | join(', ') }}" placeholder="Two or three, most specific first" class="{{ field }}"></div>
           </div>
           </div>
@@ -340,7 +340,7 @@
             <label class="sb-label mt-2 block text-sb-surface-2/55">Socials</label>
             <div class="mt-1 grid grid-cols-2 gap-2">
               {% for key, ph in [('instagram','Instagram @'), ('tiktok','TikTok @'), ('youtube','YouTube'), ('spotify','Spotify')] %}
-              <input id="f-soc-{{ key }}" value="{{ e.social_handles[key] }}" placeholder="{{ ph }}" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
+              <input aria-label="{{ ph }}" id="f-soc-{{ key }}" value="{{ e.social_handles[key] }}" placeholder="{{ ph }}" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
               {% endfor %}
             </div>
           </div>
@@ -349,7 +349,7 @@
             <label class="sb-label text-sb-surface-2/55">Contact</label>
             <div class="mt-1 space-y-2">
               {% for key, ph in [('booking','Booking email'), ('press','Press email'), ('management','Management')] %}
-              <input id="f-con-{{ key }}" value="{{ e.profile.contact[key] }}" placeholder="{{ ph }}" class="w-full rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
+              <input aria-label="{{ ph }}" id="f-con-{{ key }}" value="{{ e.profile.contact[key] }}" placeholder="{{ ph }}" class="w-full rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
               {% endfor %}
             </div>
           </div>
@@ -362,8 +362,8 @@
             {% for i in range(2) %}
             {% set q = e.profile.press[i] if e.profile.press | length > i else {'quote': '', 'source': '', 'url': ''} %}
             <div class="mt-1 grid grid-cols-[minmax(0,1fr)_100px] gap-2">
-              <input id="f-q{{ i }}" value="{{ q.quote }}" placeholder="Quote" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
-              <input id="f-s{{ i }}" value="{{ q.source }}" placeholder="Source" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
+              <input aria-label="Quote" id="f-q{{ i }}" value="{{ q.quote }}" placeholder="Quote" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
+              <input aria-label="Source" id="f-s{{ i }}" value="{{ q.source }}" placeholder="Source" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
               <input type="hidden" id="f-u{{ i }}" value="{{ q.url or '' }}">
             </div>
             {% endfor %}
@@ -371,7 +371,7 @@
 
           <!-- Press finder: pull real coverage from the web -->
           <div class="rounded-lg border border-sb-gold-deep/30 bg-sb-gold-deep/[0.06] p-3">
-            <label class="sb-label text-sb-gold-deep">Find press on the web</label>
+            <label for="press-query" class="sb-label text-sb-gold-deep">Find press on the web</label>
             <div class="mt-1.5 flex gap-2">
               <input id="press-query" value="{{ e.name }}" placeholder="Artist or release name" class="w-full rounded-md border border-sb-surface-2/15 bg-white px-2.5 py-1.5 text-xs text-sb-surface-2 focus:border-sb-gold-deep focus:outline-none">
               <button type="button" id="press-search-btn" class="shrink-0 rounded-md bg-sb-surface-2 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.1em] text-white hover:bg-sb-surface-2/85">Search</button>
@@ -386,9 +386,9 @@
             <label class="sb-label text-sb-surface-2/55">Cover color</label>
             <div class="mt-1.5 flex items-center gap-2">
               {% for c in ['#1A1714', '#14100A', '#14100A', '#14100A', '#7FA8E8', '#14100A'] %}
-              <button type="button" class="bg-swatch h-7 w-7 rounded-md border {{ 'border-sb-gold-deep ring-1 ring-sb-gold-deep' if e.bg_color == c else 'border-sb-surface-2/20' }}" style="background-color: {{ c }};" data-color="{{ c }}" title="{{ c }}"></button>
+              <button type="button" aria-label="Cover colour {{ c }}" class="bg-swatch h-7 w-7 rounded-md border {{ 'border-sb-gold-deep ring-1 ring-sb-gold-deep' if e.bg_color == c else 'border-sb-surface-2/20' }}" style="background-color: {{ c }};" data-color="{{ c }}" title="{{ c }}"></button>
               {% endfor %}
-              <input type="color" id="f-bg" value="{{ e.bg_color }}" class="h-7 w-9 cursor-pointer rounded-md border border-sb-surface-2/20 bg-transparent p-0.5" title="Custom color">
+              <input aria-label="Cover colour" type="color" id="f-bg" value="{{ e.bg_color }}" class="h-7 w-9 cursor-pointer rounded-md border border-sb-surface-2/20 bg-transparent p-0.5" title="Custom color">
             </div>
             <p class="mt-1 text-xs text-sb-surface-2/45 font-medium">Sets the cover of your public EPK. Dark colors keep the name readable.</p>
           </div>
@@ -445,12 +445,12 @@
           </div>
           {% endfor %}
           <div>
-            <label class="sb-label text-sb-surface-2/55">Video URL (YouTube)</label>
+            <label for="f-video" class="sb-label text-sb-surface-2/55">Video URL (YouTube)</label>
             <input id="f-video" value="{{ epk.video_url }}" placeholder="https://youtube.com/watch?v=..." class="mt-1 w-full rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
             <img id="video-thumb" src="{{ epk.video_thumb or '' }}" alt="Video thumbnail" class="mt-2 {{ '' if epk.video_thumb else 'hidden' }} aspect-video w-full rounded-md border border-sb-surface-2/15 object-cover">
           </div>
           <div>
-            <label class="sb-label text-sb-surface-2/55">Merch Store URL (Shopify or any store)</label>
+            <label for="f-store" class="sb-label text-sb-surface-2/55">Merch Store URL (Shopify or any store)</label>
             <input id="f-store" value="{{ epk.store_url }}" placeholder="https://your-store.myshopify.com" class="mt-1 w-full rounded-lg border border-sb-surface-2/15 bg-sb-ink px-3 py-2 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
           </div>
           <div>
@@ -458,9 +458,9 @@
             {% for i in range(4) %}
             {% set item = epk.merch[i] if epk.merch|length > i else None %}
             <div class="mt-1.5 grid grid-cols-[1fr_72px_1fr] gap-1.5">
-              <input id="f-m{{ i }}-title" value="{{ item.title if item else '' }}" placeholder="Tee, vinyl, hoodie…" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-2.5 py-1.5 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
-              <input id="f-m{{ i }}-price" value="{{ item.price if item else '' }}" placeholder="$30" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-2.5 py-1.5 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
-              <input id="f-m{{ i }}-url" value="{{ item.url if item else '' }}" placeholder="https://…/products/…" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-2.5 py-1.5 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
+              <input aria-label="Tee, vinyl, hoodie…" id="f-m{{ i }}-title" value="{{ item.title if item else '' }}" placeholder="Tee, vinyl, hoodie…" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-2.5 py-1.5 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
+              <input aria-label="$30" id="f-m{{ i }}-price" value="{{ item.price if item else '' }}" placeholder="$30" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-2.5 py-1.5 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
+              <input aria-label="https://…/products/…" id="f-m{{ i }}-url" value="{{ item.url if item else '' }}" placeholder="https://…/products/…" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-2.5 py-1.5 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
             </div>
             {% endfor %}
           </div>

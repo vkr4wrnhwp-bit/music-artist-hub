@@ -246,6 +246,11 @@
 
   .sbdept-dept {
     display: block;
+    /* the desktop rules above pin each department to its own column and
+       both rows; unreset, departments 01 and 02 collapsed to a sliver at
+       360px (outside audit, 2026-09-12) */
+    grid-column: auto;
+    grid-row: auto;
     min-width: 0;                      /* long labels must not widen a track */
     max-width: none;
     border-left: 0;

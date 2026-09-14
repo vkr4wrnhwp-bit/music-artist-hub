@@ -93,7 +93,7 @@
         <div class="plate"><span class="no">01</span><span class="nm">Art</span><span class="rule"></span></div>
 
         <p class="mt-3 text-xs text-gray-300">AI Artwork — describe the cover and a real image paints onto the proof.</p>
-        <textarea id="prompt-input" rows="2" placeholder="e.g. moody midnight synthwave, neon city"
+        <textarea aria-label="Describe the cover" id="prompt-input" rows="2" placeholder="e.g. moody midnight synthwave, neon city"
                   class="mt-2 w-full resize-none rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-sb-ink placeholder-gray-300 focus:border-sb-gold/60 focus:outline-none"></textarea>
         <button type="button" id="generate-btn" class="mt-2 w-full rounded-lg border border-sb-gold/40 bg-sb-gold/10 px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright transition-colors hover:bg-sb-gold/20">Generate artwork</button>
           <button type="button" id="generate4-btn" class="rounded-lg border border-sb-gold/40 bg-sb-gold/10 px-3 py-2 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/20">4 variations</button>
@@ -112,7 +112,7 @@
           </div>
           <p id="ai-saved-msg" class="mt-2 hidden break-all text-xs text-green-400 font-medium"></p>
           <div id="ai-remix-wrap" class="mt-3 hidden">
-            <label class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Remix — describe the change</label>
+            <label for="remix-input" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Remix — describe the change</label>
             <div class="mt-1 flex gap-2">
               <input id="remix-input" placeholder="e.g. make it red and gold, add rain" class="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-sb-ink placeholder-gray-300 focus:border-sb-gold/60 focus:outline-none">
               <button type="button" id="remix-btn" class="shrink-0 rounded-md border border-sb-gold/40 bg-sb-gold/10 px-3 py-2 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/20">Remix</button>
@@ -134,19 +134,19 @@
           <div class="mt-3 space-y-3">
             <div>
               <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Darken (for text)</span><span id="scrim-val" class="text-sb-gold-bright">28%</span></div>
-              <input type="range" id="img-scrim" min="0" max="80" value="28" class="mt-1 w-full">
+              <input aria-label="Image darkening" type="range" id="img-scrim" min="0" max="80" value="28" class="mt-1 w-full">
             </div>
             <div>
               <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Zoom</span><span id="zoom-val" class="text-sb-gold-bright">100%</span></div>
-              <input type="range" id="img-zoom" min="100" max="250" value="100" class="mt-1 w-full">
+              <input aria-label="Image zoom" type="range" id="img-zoom" min="100" max="250" value="100" class="mt-1 w-full">
             </div>
             <div>
               <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Pan horizontal</span><span id="panx-val" class="text-sb-gold-bright">50%</span></div>
-              <input type="range" id="img-panx" min="0" max="100" value="50" class="mt-1 w-full">
+              <input aria-label="Image pan, left to right" type="range" id="img-panx" min="0" max="100" value="50" class="mt-1 w-full">
             </div>
             <div>
               <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Pan vertical</span><span id="pany-val" class="text-sb-gold-bright">50%</span></div>
-              <input type="range" id="img-pany" min="0" max="100" value="50" class="mt-1 w-full">
+              <input aria-label="Image pan, up and down" type="range" id="img-pany" min="0" max="100" value="50" class="mt-1 w-full">
             </div>
           </div>
         </div>
@@ -159,12 +159,12 @@
         </div>
 
         <div class="mt-3">
-          <label class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Title <span class="normal-case text-gray-300">(use / for a line break)</span></label>
+          <label for="title-input" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Title <span class="normal-case text-gray-300">(use / for a line break)</span></label>
           <input id="title-input" value="" placeholder="Your release title"
                  class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-sb-ink focus:border-sb-gold/60 focus:outline-none">
         </div>
         <div class="mt-3">
-          <label class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Artist</label>
+          <label for="artist-input" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Artist</label>
           <input id="artist-input" value="{{ aw.artist }}"
                  class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-sb-ink focus:border-sb-gold/60 focus:outline-none">
           <label class="mt-2 block cursor-pointer rounded-lg border border-dashed border-white/15 px-3 py-2 text-center text-xs font-bold text-gray-300 hover:border-sb-gold/40 hover:text-sb-gold-bright">
@@ -179,21 +179,21 @@
             </div>
             <div>
               <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Logo size</span><span id="lsize-val" class="text-sb-gold-bright">24%</span></div>
-              <input type="range" id="logo-size" min="5" max="70" value="24" class="mt-1 w-full">
+              <input aria-label="Logo size" type="range" id="logo-size" min="5" max="70" value="24" class="mt-1 w-full">
             </div>
             <div>
               <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Logo horizontal</span><span id="lx-val" class="text-sb-gold-bright">50%</span></div>
-              <input type="range" id="logo-x" min="0" max="100" value="50" class="mt-1 w-full">
+              <input aria-label="Logo position, left to right" type="range" id="logo-x" min="0" max="100" value="50" class="mt-1 w-full">
             </div>
             <div>
               <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Logo vertical</span><span id="ly-val" class="text-sb-gold-bright">16%</span></div>
-              <input type="range" id="logo-y" min="0" max="100" value="16" class="mt-1 w-full">
+              <input aria-label="Logo position, up and down" type="range" id="logo-y" min="0" max="100" value="16" class="mt-1 w-full">
             </div>
           </div>
         </div>
 
         <div class="mt-3">
-          <label class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Typeface</label>
+          <label for="font-select" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Typeface</label>
           <select id="font-select" class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-sm text-sb-ink focus:border-sb-gold/60 focus:outline-none">
             {% for f in aw.fonts %}<option value="{{ f.id }}" style="font-family: {{ f.stack }};">{{ f.name }}</option>{% endfor %}
           </select>
@@ -202,11 +202,11 @@
         <div class="mt-3 grid grid-cols-2 gap-3">
           <div>
             <span class="text-xs uppercase tracking-wide text-gray-300 font-medium">Title color</span>
-            <input type="color" id="title-color" value="#ffffff" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
+            <input aria-label="Title colour" type="color" id="title-color" value="#ffffff" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
           </div>
           <div>
             <span class="text-xs uppercase tracking-wide text-gray-300 font-medium">Artist color</span>
-            <input type="color" id="artist-color" value="#E8B950" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
+            <input aria-label="Artist name colour" type="color" id="artist-color" value="#E8B950" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
           </div>
         </div>
 
@@ -219,7 +219,7 @@
           <label class="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-gray-300">
             <input type="checkbox" id="upper-toggle" checked class="h-3.5 w-3.5 accent-sb-gold">CAPS
           </label>
-          <select id="text-style" class="rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-xs font-bold text-gray-200 focus:border-sb-gold/60 focus:outline-none" title="Title treatment">
+          <select aria-label="Text style" id="text-style" class="rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-xs font-bold text-gray-200 focus:border-sb-gold/60 focus:outline-none" title="Title treatment">
             <option value="shadow" selected>Shadow</option>
             <option value="neon">Neon glow</option>
             <option value="metallic">Metallic gold</option>
@@ -230,31 +230,31 @@
         <div class="mt-4 space-y-3">
           <div>
             <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Title size</span><span id="size-val" class="text-sb-gold-bright">100%</span></div>
-            <input type="range" id="text-size" min="40" max="220" value="100" class="mt-1 w-full">
+            <input aria-label="Title size" type="range" id="text-size" min="40" max="220" value="100" class="mt-1 w-full">
           </div>
           <div>
             <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Artist size</span><span id="asize-val" class="text-sb-gold-bright">100%</span></div>
-            <input type="range" id="artist-size" min="50" max="220" value="100" class="mt-1 w-full">
+            <input aria-label="Artist name size" type="range" id="artist-size" min="50" max="220" value="100" class="mt-1 w-full">
           </div>
           <div>
             <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Letter spacing</span><span id="ls-val" class="text-sb-gold-bright">0</span></div>
-            <input type="range" id="letter-spacing" min="0" max="24" value="0" class="mt-1 w-full">
+            <input aria-label="Letter spacing" type="range" id="letter-spacing" min="0" max="24" value="0" class="mt-1 w-full">
           </div>
           <div>
             <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Title horizontal</span><span id="posx-val" class="text-sb-gold-bright">—</span></div>
-            <input type="range" id="text-x" min="0" max="100" value="50" class="mt-1 w-full">
+            <input aria-label="Title position, left to right" type="range" id="text-x" min="0" max="100" value="50" class="mt-1 w-full">
           </div>
           <div>
             <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Title vertical</span><span id="posy-val" class="text-sb-gold-bright">—</span></div>
-            <input type="range" id="text-y" min="8" max="95" value="58" class="mt-1 w-full">
+            <input aria-label="Title position, up and down" type="range" id="text-y" min="8" max="95" value="58" class="mt-1 w-full">
           </div>
           <div>
             <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Artist horizontal</span><span id="ax-val" class="text-sb-gold-bright">—</span></div>
-            <input type="range" id="artist-x" min="0" max="100" value="50" class="mt-1 w-full">
+            <input aria-label="Artist name position, left to right" type="range" id="artist-x" min="0" max="100" value="50" class="mt-1 w-full">
           </div>
           <div>
             <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Artist vertical</span><span id="ay-val" class="text-sb-gold-bright">—</span></div>
-            <input type="range" id="artist-y" min="0" max="100" value="66" class="mt-1 w-full">
+            <input aria-label="Artist name position, up and down" type="range" id="artist-y" min="0" max="100" value="66" class="mt-1 w-full">
           </div>
         </div>
       </section>
@@ -264,14 +264,14 @@
         <div class="plate"><span class="no">03</span><span class="nm">Canvas</span><span class="rule"></span></div>
 
         <div class="mt-3">
-          <label class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Size</label>
+          <label for="aspect-select" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Size</label>
           <select id="aspect-select" class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-sm text-sb-ink focus:border-sb-gold/60 focus:outline-none">
             {% for a in aw.aspects %}<option value="{{ a.id }}">{{ a.name }} — {{ a.w }}×{{ a.h }}</option>{% endfor %}
           </select>
         </div>
 
         <div class="mt-3">
-          <label class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Background color <span class="normal-case text-gray-300">(when no art is placed)</span></label>
+          <label for="bg-color" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Background color <span class="normal-case text-gray-300">(when no art is placed)</span></label>
           <div class="mt-1 flex items-center gap-2">
             <input type="color" id="bg-color" value="#1A1714" class="h-9 w-16 cursor-pointer rounded border border-white/10 bg-transparent">
             <button type="button" id="bg-clear" class="rounded-md border border-white/15 px-3 py-2 text-xs font-bold text-gray-300 hover:bg-white/10">Default gradient</button>
