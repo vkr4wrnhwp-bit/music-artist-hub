@@ -687,3 +687,19 @@ def test_the_phone_remote_and_the_engine_agree_on_the_looks():
         "the phone remote and the engine disagree about the looks.\n"
         "  app.py:           %s\n"
         "  lights-engine.js: %s" % (phone, engine))
+
+
+def test_an_id_that_names_nothing_is_a_404_not_an_empty_answer(flask_app):
+    """Found by the route probe (2026-09-14): the share list answered
+    "ok, no shares" for a show the account does not have, and a QR was
+    drawn for a remote code that named nothing - a phone sent to a dead
+    page. No such show and no such remote are 404s."""
+    client, _me = _user(flask_app)
+    r = client.get("/lights/library/nope/shares")
+    assert r.status_code == 404 and r.get_json()["ok"] is False
+    assert client.get("/lights/remote/nope/qr.svg").status_code == 404
+    started = client.post("/lights/remote/start", json={}).get_json()
+    code = started["url"].rsplit("/", 1)[-1]
+    assert client.get("/lights/remote/%s/qr.svg" % code).status_code == 200
+    other, _them = _user(flask_app, "Someone Else")
+    assert other.get("/lights/remote/%s/qr.svg" % code).status_code == 404, "another account's remote"

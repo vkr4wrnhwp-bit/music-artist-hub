@@ -6017,6 +6017,10 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
+        # A show this account does not have is a 404, not an empty list:
+        # "no shares" and "no such show" are different answers.
+        if lights_store.get_show(user["id"], show_id) is None:
+            return jsonify({"ok": False, "error": "No such show on this account."}), 404
         return jsonify({"ok": True, "shares": lights_store.list_shares(user["id"], show_id),
                         "origin": _remote_origin()})
 
@@ -6184,6 +6188,11 @@ def create_app():
         user = current_user()
         if user is None:
             return "", 401
+        # Only a live remote of this account gets a code drawn: a QR for a
+        # code that names nothing would send a phone to a dead page.
+        remote = lights_store.get_remote(code)
+        if remote is None or remote.get("user_id") != user["id"]:
+            return "", 404
         import segno
         import io as _io
         url = "%s/lights/remote/%s" % (PUBLIC_BASE_URL.rstrip("/"), code)
