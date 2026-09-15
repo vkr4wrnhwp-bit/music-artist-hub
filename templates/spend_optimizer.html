@@ -22,9 +22,11 @@
     </div>
     <button type="submit" class="sb-btn sb-btn-primary">Recalculate</button>
     <div class="ml-auto text-right text-xs text-gray-300 font-medium">
-      Signals in use: <span class="font-bold text-gray-200">{{ plan.fan_count }}</span> fans ·
-      <span class="font-bold text-gray-200">{{ plan.pageviews }}</span> link visits ·
-      <span class="font-bold text-gray-200">{{ plan.clicks }}</span> platform clicks
+      {% if plan.fan_count or plan.pageviews or plan.clicks %}
+      Signals in use:{% if plan.fan_count %} <span class="font-bold text-gray-200">{{ plan.fan_count }}</span> fans{% endif %}{% if plan.pageviews %} · <span class="font-bold text-gray-200">{{ plan.pageviews }}</span> link visits{% endif %}{% if plan.clicks %} · <span class="font-bold text-gray-200">{{ plan.clicks }}</span> platform clicks{% endif %}
+      {% else %}
+      No signals yet. This split is the starting ratio; it shifts as fans and link clicks come in.
+      {% endif %}
       {% if plan.spent_logged %} · ${{ "{:,.0f}".format(plan.spent_logged) }} spend logged in Revenue OS{% endif %}
     </div>
   </form>
@@ -52,6 +54,6 @@
     </div>
   </section>
 
-  <p class="px-1 text-xs text-gray-300 font-medium">Rule-of-thumb guidance computed from your account's real signals — not financial advice. Log actual spend in <a href="/revenue-os" class="font-bold text-sb-gold-bright hover:underline">Revenue OS</a> so the next release learns from this one.</p>
+  <p class="px-1 text-xs text-gray-300 font-medium">{% if plan.fan_count or plan.pageviews or plan.clicks %}Rule-of-thumb guidance computed from your account's real signals, not financial advice.{% else %}Rule-of-thumb guidance from the starting ratio, not financial advice.{% endif %} Log actual spend in <a href="/revenue-os" class="font-bold text-sb-gold-bright hover:underline">Revenue OS</a> so the next release learns from this one.</p>
 </div>
 {% endblock %}

@@ -11,9 +11,9 @@
       <p class="tb-lede">Artists looking for tour partners, and venues looking for acts. Every listing is a real account — nothing here is seeded or faked, so an empty board means nobody's posted yet, not that something's broken.</p>
     </div>
     <div class="tb-stats" aria-label="Board activity">
-      <span><b>{{ stats['open'] }}</b> open</span>
-      <span><b>{{ stats['posts_30d'] }}</b> posted this month</span>
-      <span><b>{{ stats['messages_30d'] }}</b> replies sent</span>
+      {% if stats['open'] %}<span><b>{{ stats['open'] }}</b> open</span>{% endif %}
+      {% if stats['posts_30d'] %}<span><b>{{ stats['posts_30d'] }}</b> posted this month</span>{% endif %}
+      {% if stats['messages_30d'] %}<span><b>{{ stats['messages_30d'] }}</b> replies sent</span>{% endif %}
       {% if stats['matched'] %}<span><b>{{ stats['matched'] }}</b> matched on the board</span>{% endif %}
       <a class="tb-btn tb-btn--ghost tb-btn--small" href="/tour-board/outreach">Outreach</a>
       <a class="tb-btn tb-btn--ghost tb-btn--small" href="/tour-board/inbox">Inbox{% if unread %} <span class="tb-unread">{{ unread }}</span>{% endif %}</a>

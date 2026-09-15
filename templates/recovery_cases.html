@@ -33,20 +33,27 @@
   {% endif %}
 
   <!-- Totals -->
+  {#- Each tile draws on its own figure (the zero rule). -#}
+  {% if cases %}
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    {% if recovered %}
     <div class="rounded-2xl border border-green-500/25 bg-green-500/[0.05] p-4">
       <div class="sb-label text-gray-300">Recovered (won cases)</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-green-400">${{ "{:,.2f}".format(recovered) }}</div>
     </div>
+    {% endif %}
+    {% if pipeline %}
     <div class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-4">
       <div class="sb-label text-gray-300">In Pipeline (est.)</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-sb-ink">${{ "{:,.2f}".format(pipeline) }}</div>
     </div>
+    {% endif %}
     <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-4">
       <div class="sb-label text-gray-300">Cases</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ cases | length }}</div>
     </div>
   </div>
+  {% endif %}
 
   {#- A case is added or edited in the strip (approved from the Recovery
       mockup of 2026-09-13, 5): two rows in the page's own flow, opened by

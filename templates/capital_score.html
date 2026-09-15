@@ -23,12 +23,20 @@
         </div>
         <div class="mt-1 text-xs font-bold uppercase tracking-wide {{ 'text-green-400' if cs.total >= 75 else 'text-sb-gold-bright' }}">{{ cs.verdict }}</div>
       </div>
+      {#- The engine did read the statements and found none; the figures
+          are real zeros, and the zero rule leaves them out. One tile names
+          the first step instead. -#}
+      {% if cs.periods %}
       <div class="grid grid-cols-3 gap-4 text-center">
         <div><div class="text-2xl font-black tabular-nums">${{ "{:,.0f}".format(cs.income_total) }}</div><div class="sb-label text-gray-300">Income on record</div></div>
         <div><div class="text-2xl font-black tabular-nums">{{ cs.periods }}</div><div class="sb-label text-gray-300">Statement periods</div></div>
         <div><div class="text-2xl font-black tabular-nums">{{ cs.sources }}</div><div class="sb-label text-gray-300">Income sources</div></div>
       </div>
+      {% else %}
+      {{ sb.kpi("Income on record", first="Upload a statement", first_href="/statements") }}
+      {% endif %}
     </div>
+    {% if cs.periods %}
     <div class="mt-6 space-y-3">
       {% for name, pts, note in cs.factors %}
       <div>
@@ -37,6 +45,7 @@
       </div>
       {% endfor %}
     </div>
+    {% endif %}
   </section>
 
   {% if cs.advance_band %}
@@ -53,7 +62,7 @@
     <div class="mt-3 space-y-2">
       {% for name, pts, note in cs.weak %}
       <div class="rounded-lg border border-white/10 bg-black/30 px-4 py-3">
-        <div class="text-xs font-bold text-gray-200">{{ name }} — {{ pts }}/20</div>
+        <div class="text-xs font-bold text-gray-200">{{ name }}{% if pts %} · {{ pts }}/20{% endif %}</div>
         <div class="mt-0.5 text-xs text-gray-300">{{ note }}</div>
       </div>
       {% endfor %}

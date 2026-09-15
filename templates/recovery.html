@@ -136,14 +136,14 @@
       <div class="sbm-frame" style="{{ gear.alu_style() }}">
         <div class="sbm-inst" data-instrument="cases">
           <div class="sbm-lbl"><span>Cases</span><span class="rv-tag cases">your desk</span></div>
-          <div class="sbm-read"><span class="sbm-v">${{ "{:,.2f}".format(d.cases.pipeline) }}</span><span class="sbm-d flat">{{ d.cases.open_count }} open · {{ d.cases.won_count }} won</span></div>
+          {% if d.cases.open_count or d.cases.won_count %}<div class="sbm-read"><span class="sbm-v">${{ "{:,.2f}".format(d.cases.pipeline) }}</span><span class="sbm-d flat">{{ d.cases.open_count }} open · {{ d.cases.won_count }} won</span></div>{% else %}<div class="sbm-read"><span class="sbm-v" style="font-size:22px">No case open</span></div>{% endif %}
           {% if d.cases.newest %}
           <div class="rv-cells" aria-hidden="true" style="grid-template-columns:repeat(4,1fr)">{% for s in d.cases.newest.rail %}<i{% if s.on %} class="on"{% endif %}></i>{% endfor %}</div>
           <p class="rv-inst-note">{{ d.cases.newest.title }}: {% for s in d.cases.newest.rail if s.now %}{{ s.label | lower }}{% endfor %}.</p>
           {% else %}
           <p class="rv-inst-note">No case open. A finding below opens one with one press.</p>
           {% endif %}
-          <div class="sbm-prov"><b>Recovered ${{ "{:,.2f}".format(d.cases.recovered) }}</b><span>· what came back, on the record</span></div>
+          {% if d.cases.recovered %}<div class="sbm-prov"><b>Recovered ${{ "{:,.2f}".format(d.cases.recovered) }}</b><span>· what came back, on the record</span></div>{% endif %}
         </div>
       </div>
     </div>

@@ -5,9 +5,9 @@
 
 <div class="pd-head">
   <div>
-    <p class="pd-eyebrow">Announcements</p>
-    <h1 class="pd-h1">{{ releases | length }} written</h1>
-    <p class="pd-sub">The thing you are actually telling people. Each one becomes a page a journalist can open, with the audio, the artwork and the details in one place.</p>
+    <p class="pd-eyebrow">Press Desk</p>
+    <h1 class="pd-h1">Announcements</h1>
+    <p class="pd-sub">{% if releases %}{{ releases | length }} written. {% endif %}The thing you are actually telling people. Each one becomes a page a journalist can open, with the audio, the artwork and the details in one place.</p>
   </div>
   <a class="pd-btn" href="/press-desk/announcements/new">Write one</a>
 </div>

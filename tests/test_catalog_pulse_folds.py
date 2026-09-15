@@ -196,14 +196,28 @@ def test_an_empty_catalog_does_not_pretend_to_measure(application):
 
 def test_link_engagement_shows_without_spotify(artist, monkeypatch):
     """First-party counts from the artist's own smart links do not depend
-    on a Spotify credential, so they show in the Not Connected state too."""
+    on a Spotify credential, so they show in the Not Connected state too.
+    A counter at nought is left out, and with all three at nought so is
+    the section (owner, 2026-09-15: "if a card shows 0 it needs to not
+    show up")."""
+    import links_store as mls
+
     monkeypatch.delenv("SPOTIFY_CLIENT_ID", raising=False)
     monkeypatch.delenv("SPOTIFY_CLIENT_SECRET", raising=False)
     body = artist["client"].get("/pulse").get_data(as_text=True)
     assert "Not Connected" in body
+    assert 'id="engagement"' not in body, "nothing counted, nothing drawn"
+    with artist["client"].application.app_context():
+        cid = mls.create_campaign(artist["uid"], "eng-%s" % uuid.uuid4().hex[:6],
+                                  {"title": "Counted Drop"})
+        mls.track(cid, "pageview")
+        mls.track(cid, "click", service_key="spotify")
+    body = artist["client"].get("/pulse").get_data(as_text=True)
+    assert "Not Connected" in body
     assert 'id="engagement"' in body and "Your Link Engagement" in body
-    for cap in ("page views", "platform clicks", "pre-saves"):
+    for cap in ("page views", "platform clicks"):
         assert cap + "</span>" in body, cap
+    assert "pre-saves</span>" not in body, "a counter at nought is left out"
 
 
 def test_link_engagement_counts_the_artists_own_links(artist):
@@ -347,7 +361,6 @@ def test_with_no_real_metrics_provider_the_spotify_page_is_what_it_was(artist):
     finally:
         providers.reset_registry(None)
     assert 'id="measured"' not in body, "the mock must not stand in for a real audience"
-    assert 'id="engagement"' in body
 
 
 def test_a_provider_that_cannot_find_the_artist_says_nothing(artist):
@@ -370,6 +383,5 @@ def test_each_cadence_line_describes_its_own_source():
     src = io.open(os.path.join(HERE, "templates", "pulse.html"),
                   encoding="utf-8").read()
     assert "refreshed every 6 hours" not in src
-    assert "read fresh on every load of this page" in src
-    assert "snapshotted whenever this page loads" in src
+    assert "Read on every load of this page and snapshotted as it is read" in src
     assert "{{ metrics.note }}" in src

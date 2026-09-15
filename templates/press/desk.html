@@ -7,7 +7,7 @@
   <div>
     <p class="pd-eyebrow">Press Desk</p>
     <h1 class="pd-h1">Who you told, who read it, who wrote about it.</h1>
-    <p class="pd-sub">Your media list, your announcements, and one tracked link per contact — so an open belongs to an outlet instead of disappearing into a total.</p>
+    <p class="pd-sub">Your media list, your announcements, and one tracked link per contact, so an open belongs to an outlet instead of disappearing into a total.</p>
   </div>
 </div>
 
@@ -18,14 +18,20 @@
 </div>
 {% endif %}
 
+{#- A count that is zero is left out; when every count is zero the row
+    is one sentence (the zero rule, 2026-09-15). -#}
+{% if stats.contacts or stats.releases or stats.pitched or stats.opened or stats.replied or stats.coverage %}
 <div class="pd-cards">
-  <a class="pd-card" href="/press-desk/contacts"><b>{{ stats.contacts }}</b><span>Active contacts</span></a>
-  <a class="pd-card" href="/press-desk/announcements"><b>{{ stats.releases }}</b><span>Announcements</span></a>
-  <a class="pd-card" href="/press-desk"><b>{{ stats.pitched }}</b><span>Pitches out</span></a>
-  <a class="pd-card" href="/press-desk"><b>{{ stats.opened }}</b><span>Opened</span></a>
-  <a class="pd-card" href="/press-desk"><b>{{ stats.replied }}</b><span>Replied</span></a>
-  <a class="pd-card" href="/press-desk/coverage"><b>{{ stats.coverage }}</b><span>Coverage logged</span></a>
+  {% if stats.contacts %}<a class="pd-card" href="/press-desk/contacts"><b>{{ stats.contacts }}</b><span>Active contacts</span></a>{% endif %}
+  {% if stats.releases %}<a class="pd-card" href="/press-desk/announcements"><b>{{ stats.releases }}</b><span>Announcements</span></a>{% endif %}
+  {% if stats.pitched %}<a class="pd-card" href="/press-desk"><b>{{ stats.pitched }}</b><span>Pitches out</span></a>{% endif %}
+  {% if stats.opened %}<a class="pd-card" href="/press-desk"><b>{{ stats.opened }}</b><span>Opened</span></a>{% endif %}
+  {% if stats.replied %}<a class="pd-card" href="/press-desk"><b>{{ stats.replied }}</b><span>Replied</span></a>{% endif %}
+  {% if stats.coverage %}<a class="pd-card" href="/press-desk/coverage"><b>{{ stats.coverage }}</b><span>Coverage logged</span></a>{% endif %}
 </div>
+{% else %}
+<p class="pd-sub">No contacts yet. Add one on the media list, or import a list, and the desk starts counting.</p>
+{% endif %}
 
 {% if follow_ups %}
 <h2 class="pd-h2">Worth a follow-up</h2>

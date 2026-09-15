@@ -131,8 +131,8 @@
       <div class="sbm-frame" style="{{ gear.alu_style() }}">
         <div class="sbm-inst" data-instrument="lanes">
           <div class="sbm-lbl"><span>Lanes</span><span class="ry-tag derived">counted</span></div>
-          <div class="sbm-read"><span class="sbm-v">{{ d.lanes.paying }}<span class="ry-approx" style="font-size:18px"> of {{ d.lanes.of }}</span></span><span class="sbm-d flat">lanes show money</span></div>
-          <div class="ry-cells" aria-hidden="true" style="grid-template-columns:repeat({{ d.lanes.of }},1fr)">{% for on in d.lanes.cells %}<i{% if on %} class="on"{% endif %}></i>{% endfor %}</div>
+          {% if d.lanes.rows %}<div class="sbm-read"><span class="sbm-v">{{ d.lanes.paying }}<span class="ry-approx" style="font-size:18px"> of {{ d.lanes.of }}</span></span><span class="sbm-d flat">lanes show money</span>{% else %}<div class="sbm-read"><span class="sbm-v" style="font-size:22px">Not measured</span><span class="sbm-d flat">no lanes read yet</span>{% endif %}</div>
+          {% if d.lanes.rows %}<div class="ry-cells" aria-hidden="true" style="grid-template-columns:repeat({{ d.lanes.of }},1fr)">{% for on in d.lanes.cells %}<i{% if on %} class="on"{% endif %}></i>{% endfor %}</div>{% endif %}
           <p class="ry-inst-note">{{ d.lanes.note }}</p>
           <div class="sbm-prov">{% if d.lanes.rows %}<b>Est. missing <span class="ry-approx">≈</span> ${{ "{:,.2f}".format(d.lanes.missing_est) }}</b><span>· a share of your own earnings</span>{% else %}<b>No Track Passports</b><span>· <a href="/catalog">add one</a> and the lanes read against it</span>{% endif %}</div>
         </div>

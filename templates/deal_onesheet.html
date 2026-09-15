@@ -105,16 +105,23 @@
 
   <!-- Snapshot tiles -->
   <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+    {#- Only what has a figure behind it (the zero rule). A sheet with
+        nothing measured says so in one line rather than four zeros. -#}
+    {% if ctx.statement_rows %}
     <div class="card rounded-xl border border-sb-gold/30 bg-sb-surface-2 p-3.5">
       <div class="sb-label text-gray-300">Collected Revenue</div>
       <div class="gold mt-1 text-lg font-black tabular-nums">${{ "{:,.2f}".format(ctx.statement_total) }}</div>
       <div class="mt-0.5 text-xs text-gray-300 font-medium">from uploaded statements ({{ ctx.statement_rows }} rows)</div>
     </div>
+    {% endif %}
+    {% if ctx.fans %}
     <div class="card rounded-xl border border-white/10 bg-sb-surface-1 p-3.5">
       <div class="sb-label text-gray-300">Fans Captured</div>
       <div class="mt-1 text-lg font-black tabular-nums">{{ "{:,}".format(ctx.fans) }}</div>
       <div class="mt-0.5 text-xs text-gray-300 font-medium">direct emails/SMS on file</div>
     </div>
+    {% endif %}
+    {% if summary.tracks %}
     <div class="card rounded-xl border border-white/10 bg-sb-surface-1 p-3.5">
       <div class="sb-label text-gray-300">Tracks on OS</div>
       <div class="mt-1 text-lg font-black tabular-nums">{{ summary.tracks }}</div>
@@ -125,6 +132,10 @@
       <div class="mt-1 text-lg font-black tabular-nums">{{ summary.clean_avg }}<span class="text-xs text-gray-300">/100</span></div>
       <div class="mt-0.5 text-xs text-gray-300 font-medium">catalog average</div>
     </div>
+    {% endif %}
+    {% if not ctx.statement_rows and not ctx.fans and not summary.tracks %}
+    <p class="col-span-full text-sm text-gray-300">Nothing measured yet. Statements, captured fans and catalog tracks fill this row as they arrive.</p>
+    {% endif %}
   </div>
 
   <!-- Growth -->

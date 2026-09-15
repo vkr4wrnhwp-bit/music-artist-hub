@@ -2069,7 +2069,10 @@ def create_app():
             c["summary"] = {
                 "total_tracks": n,
                 "tracks_added_this_month": sum(1 for t in tracks if (t.get("added") or "").startswith(month)),
-                "total_releases": releases_n, "releases_added_this_month": 0,
+                "total_releases": releases_n,
+                "releases_added_this_month": sum(
+                    1 for r in ctx["my_releases"]
+                    if (r.get("release_date") or "").startswith(month)),
                 "registered_tracks": with_isrc, "unregistered_tracks": n - with_isrc,
                 "total_isrcs": with_isrc,
                 "isrc_assignment_rate": round(100 * with_isrc / n, 1) if n else 0,
@@ -7968,12 +7971,17 @@ def create_app():
         for e in expenses:
             by_category[e["category"]] = by_category.get(e["category"], 0) + e["amount"]
         summary = build_royalty_summary(store.get_statement_rows(user["id"]))
-        income = summary["total"] if summary else 0
+        # No statement, no income figure: None, never 0, so the page says
+        # "Not measured" and draws no net and no verdict (audit, 2026-09-15:
+        # a fresh account read "$0.00 Profitable").
+        income = summary["total"] if summary else None
         return render_template("revenue_os.html", active_page="revenue-os",
                                expenses=expenses, total_expenses=total_expenses,
                                by_category=sorted(by_category.items(),
                                                   key=lambda x: x[1], reverse=True),
-                               income=income, net=round(income - total_expenses, 2),
+                               income=income,
+                               net=(round(income - total_expenses, 2)
+                                    if income is not None else None),
                                summary=summary, categories=_EXPENSE_CATEGORIES,
                                **build_dashboard_context())
 

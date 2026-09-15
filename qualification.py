@@ -93,7 +93,9 @@ def calculate(user_id):
 
     categories = [
         ("Release Readiness", _pts(best_score, 100),
-         "Best campaign scores %d/100 — run the Clean Release checklist." % best_score),
+         ("Best campaign scores %d/100. Run the Clean Release checklist." % best_score
+          if campaigns else
+          "No campaign yet. Publish one and run the Clean Release checklist.")),
         # The only category that listens to the audio.
         ("Master Quality", audio_pts * 10 // max(audio_max, 1), audio_note),
         ("Smart Link Setup", _pts(sum(1 for c in live

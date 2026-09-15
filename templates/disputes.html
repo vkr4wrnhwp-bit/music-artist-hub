@@ -10,20 +10,29 @@
     <p class="mt-1 max-w-2xl text-sm text-gray-300">Every fight over your money in one place — missing payments, wrong splits, content claims. Log it, work it, close it.</p>
   </div>
 
-  <div class="grid grid-cols-3 gap-3">
+  {#- Each tile draws on its own figure (the zero rule). -#}
+  {% if open_count or disputed_total or recovered_total %}
+  <div class="grid gap-3 sm:grid-cols-3">
+    {% if open_count %}
     <div class="rounded-2xl border border-white/10 bg-sb-surface-1 p-4">
       <div class="sb-label text-gray-300">Open Disputes</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ open_count }}</div>
     </div>
+    {% endif %}
+    {% if disputed_total %}
     <div class="rounded-2xl border border-sb-gold/30 bg-sb-surface-2 p-4">
       <div class="sb-label text-gray-300">In Dispute</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-sb-ink">${{ "{:,.2f}".format(disputed_total) }}</div>
     </div>
+    {% endif %}
+    {% if recovered_total %}
     <div class="rounded-2xl border border-green-500/25 bg-sb-surface-1 p-4">
       <div class="sb-label text-gray-300">Resolved</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-green-400">${{ "{:,.2f}".format(recovered_total) }}</div>
     </div>
+    {% endif %}
   </div>
+  {% endif %}
 
   <!-- New dispute -->
   <section class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-ground p-5">

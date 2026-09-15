@@ -19,10 +19,12 @@ CATEGORY_TONE = {
     "Investor": "border-purple-500/20 bg-purple-500/10 text-purple-400",
 }
 
+# Badge tones of the shared instrument set (sb.badge), not hand-rolled
+# colour classes (audit, 2026-09-15).
 FORMAT_TONE = {
-    "PDF": "border-red-500/20 bg-red-500/10 text-red-400",
-    "CSV": "border-green-500/20 bg-green-500/10 text-green-400",
-    "XLSX": "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+    "PDF": "crit",
+    "CSV": "good",
+    "XLSX": "good",
 }
 
 

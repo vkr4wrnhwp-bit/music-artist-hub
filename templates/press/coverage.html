@@ -5,9 +5,9 @@
 
 <div class="pd-head">
   <div>
-    <p class="pd-eyebrow">Coverage</p>
-    <h1 class="pd-h1">{{ coverage | length }} logged</h1>
-    <p class="pd-sub">What actually ran. Quotes you record here are real ones with a source and a date — which is the difference between a press kit that helps you and one that invents its own reviews.</p>
+    <p class="pd-eyebrow">Press Desk</p>
+    <h1 class="pd-h1">Coverage</h1>
+    <p class="pd-sub">{% if coverage %}{{ coverage | length }} logged. {% endif %}What actually ran. Quotes you record here are real ones with a source and a date, which is the difference between a press kit that helps you and one that invents its own reviews.</p>
   </div>
 </div>
 

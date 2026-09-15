@@ -12,21 +12,33 @@
   </div>
 
   <!-- P&L headline -->
-  <div class="grid grid-cols-3 gap-3">
+  {#- Income comes from statements or is not measured; a net against
+      unmeasured income is itself unmeasured, so the Net tile and its
+      verdict only draw once a statement is on file. Spend only draws
+      once something is logged. -#}
+  <div class="grid gap-3 sm:grid-cols-3">
     <div class="rounded-2xl border border-green-500/25 bg-green-500/[0.05] p-4">
       <div class="sb-label text-gray-300">Income (statements)</div>
+      {% if income is not none %}
       <div class="mt-1 text-2xl font-black tabular-nums text-green-400">${{ "{:,.2f}".format(income) }}</div>
-      {% if not summary %}<div class="text-xs text-gray-300 font-medium"><a href="/statements" class="underline">Upload a statement</a> for real income</div>{% endif %}
+      {% else %}
+      <div class="mt-1 text-2xl font-black text-gray-300">Not measured</div>
+      <div class="text-xs text-gray-300 font-medium"><a href="/statements" class="underline">Upload a statement</a> for real income</div>
+      {% endif %}
     </div>
+    {% if total_expenses %}
     <div class="rounded-2xl border border-red-500/25 bg-red-500/[0.05] p-4">
       <div class="sb-label text-gray-300">Tracked Spend</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-red-400">${{ "{:,.2f}".format(total_expenses) }}</div>
     </div>
+    {% endif %}
+    {% if net is not none %}
     <div class="rounded-2xl border {{ 'border-green-500/40' if net >= 0 else 'border-red-500/40' }} bg-sb-surface-2 p-4">
       <div class="sb-label text-gray-300">Net</div>
       <div class="mt-1 text-2xl font-black tabular-nums {{ 'text-green-400' if net >= 0 else 'text-red-400' }}">${{ "{:,.2f}".format(net) }}</div>
       <div class="text-xs font-bold uppercase {{ 'text-green-400' if net >= 0 else 'text-red-400' }}">{{ 'Recouped' if net >= 0 and total_expenses else ('Profitable' if net >= 0 else 'Not yet recouped') }}</div>
     </div>
+    {% endif %}
   </div>
 
   <div class="grid gap-5 lg:grid-cols-2">

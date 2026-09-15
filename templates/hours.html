@@ -28,7 +28,7 @@
     </div>
     <div class="rounded-2xl border border-white/10 bg-sb-surface-1 p-4">
       <div class="sb-label text-gray-300 sm:text-xs sm:tracking-[0.25em]">Net</div>
-      <div class="mt-1 text-2xl font-black tabular-nums {{ 'text-green-400' if summary.net >= 0 else 'text-red-400' }}">{{ money(summary.net) }}</div>
+      <div class="mt-1 text-2xl font-black tabular-nums {{ 'text-green-400' if summary.net > 0 else ('text-red-400' if summary.net < 0 else '') }}">{{ money(summary.net) }}</div>
       <div class="mt-1 text-xs leading-snug text-gray-300 font-medium">{{ hrs(summary.logged_hours) }} logged across {{ totals.entries }} {{ 'entry' if totals.entries == 1 else 'entries' }}</div>
     </div>
     <div class="rounded-2xl border border-white/10 bg-sb-surface-1 p-4">

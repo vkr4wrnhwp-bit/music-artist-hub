@@ -18,7 +18,9 @@ import app as appmod
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # royalty_type and territories folded into royalties (2026-09-13).
-MONEY = ("overview", "royalties", "statements", "recovery",
+# The Overview merged into the Command Center on 2026-09-15; its money
+# side is the _front_money partial.
+MONEY = ("_front_money", "royalties", "statements", "recovery",
          "valuation", "tax", "revenue_os", "capital_score",
          "spend_optimizer")
 

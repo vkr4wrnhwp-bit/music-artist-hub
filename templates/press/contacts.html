@@ -5,9 +5,9 @@
 
 <div class="pd-head">
   <div>
-    <p class="pd-eyebrow">Media list</p>
-    <h1 class="pd-h1">{{ contacts | length }} contact{{ '' if contacts | length == 1 else 's' }}</h1>
-    <p class="pd-sub">People, not addresses. A list of forty writers who cover your genre beats a list of four hundred who do not — and only the ones marked active can be pitched.</p>
+    <p class="pd-eyebrow">Press Desk</p>
+    <h1 class="pd-h1">Media list</h1>
+    <p class="pd-sub">{% if contacts %}{{ contacts | length }} contact{{ '' if contacts | length == 1 else 's' }}. {% endif %}People, not addresses. A list of forty writers who cover your genre beats a list of four hundred who do not, and only the ones marked active can be pitched.</p>
   </div>
   <div class="pd-inline">
     <a class="pd-btn pd-btn--ghost" href="/press-desk/contacts/import">Import CSV</a>
