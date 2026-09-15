@@ -78,18 +78,22 @@ def test_the_sidebar_shows_the_rooms_with_the_top_rows_and_the_account_group(mon
     body = c.get("/command-center").get_data(as_text=True)
     aside = body.split("</aside>")[0]
     assert _hubs(body) == ["fans", "studio", "stage", "analytics", "business", "publishing", "releases", "marketing", "account"]
-    top = aside.split('id="sb-top-rows"')[1].split('<div class="hub"')[0]
+    top = aside.split('id="sb-top-rows"')[1].split('<div class="room-row"')[0]
     assert re.findall(r'href="([^"]+)"', top) == ["/command-center", "/actions"]
-    assert 'href="/room/stage"' in aside and 'aria-label="Expand Stage"' in aside
+    assert 'href="/room/stage"' in aside and 'aria-label="Expand Stage"' not in aside, "one row, one click, no dropdown"
+    stage_row = aside.split('data-hub="stage"')[1].split("</div>")[0]
+    assert 'href="/tours"' not in stage_row and "hub-items" not in stage_row
     assert 'data-hub="label"' not in aside, "no Label Services row"
-    assert 'href="/services"' in aside and 'href="/roster"' in aside, "a Label plan's cards sit in Business"
+    business = c.get("/room/business").get_data(as_text=True)
+    assert 'data-room-card="services"' in business and 'data-room-card="roster"' in business, "a Label plan's pages sit in Business"
     account = aside.split('data-hub="account"')[1]
     assert 'href="/settings"' in account and 'href="/connections"' in account and 'href="/billing"' in account
     assert 'href="/inbox"' not in account and 'id="sb-corner-inbox"' in aside
-    assert 'href="/vault?view=contracts"' in aside and 'href="/catalog#passports"' in aside, "no double tabs"
+    studio = c.get("/room/studio").get_data(as_text=True)
+    assert 'href="/vault?view=contracts"' in studio, "no double tabs: Contracts is its own icon in the room"
     pro = _client(app_obj, "pro")
-    a2 = pro.get("/links").get_data(as_text=True).split("</aside>")[0]
-    assert 'href="/services"' not in a2 and 'href="/roster"' not in a2
+    b2 = pro.get("/room/business").get_data(as_text=True)
+    assert 'data-room-card="services"' not in b2 and 'data-room-card="roster"' not in b2
 
 
 def test_a_room_screen_is_one_grid_of_cards(monkeypatch):
@@ -102,7 +106,7 @@ def test_a_room_screen_is_one_grid_of_cards(monkeypatch):
     assert "Everything between the booking and the encore." in page
     cards = re.findall(r'data-room-card="([a-z-]+)"', page)
     assert cards[:3] == ["tours", "stage-plot", "lights"] and "tour-board" in cards and "passports" in cards
-    assert 'active_page' not in page and 'data-hub="stage" data-room="1" data-active="1"' in page
+    assert 'data-hub="stage" data-room="1" data-active="1"' in page
     assert c.get("/room/nope").status_code == 404
     studio = c.get("/room/studio").get_data(as_text=True)
     assert 'data-room-card="vault"' in studio and 'data-room-card="contracts"' in studio

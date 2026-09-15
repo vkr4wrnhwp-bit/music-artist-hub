@@ -282,27 +282,23 @@
         </div>
         {% for rkey, rname, rpurpose, ricon, rcards in rooms_nav.rooms %}
         {% set card_keys = rcards | map(attribute='0') | list %}
-        <div class="hub" data-hub="{{ rkey }}" data-room="1"{% if active_page in card_keys or active_page == 'room-' + rkey %} data-active="1"{% endif %}>
+        <div class="room-row" data-hub="{{ rkey }}" data-room="1"{% if active_page in card_keys or active_page == 'room-' + rkey %} data-active="1"{% endif %}>
           <a href="/room/{{ rkey }}" title="{{ rname }} — {{ rpurpose }}"
              class="hub-rail mb-1 h-10 w-10 items-center justify-center rounded-lg border transition-colors {{ 'border-sb-gold/50 bg-sb-gold/15 text-sb-gold-bright' if active_page in card_keys or active_page == 'room-' + rkey else 'border-white/10 text-gray-300 hover:border-white/25 hover:text-white' }}">
             <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               {% for d in ricon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
             </svg>
           </a>
-          <div class="sb-hide-rail flex items-center gap-1">
-            <a href="/room/{{ rkey }}" class="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors {{ 'text-amber-400' if active_page == 'room-' + rkey else 'text-gray-100 hover:bg-white/5 hover:text-white' }}">
-              <svg class="h-[18px] w-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                {% for d in ricon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
-              </svg>
-              <span class="min-w-0 flex-1 truncate">{{ rname }}</span>
-            </a>
-            <button type="button" class="hub-tgl rounded p-1 text-gray-300 hover:text-white" aria-label="Expand {{ rname }}">
-              <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg>
-            </button>
-          </div>
-          <div class="hub-items space-y-1 pl-2">
-            {% for key, href, path, label, desc, state in rcards %}{{ room_item(key, href, path, label, desc, state) }}{% endfor %}
-          </div>
+          {#- One row, one click: the room's name opens its screen. No
+              dropdown in the sidebar (owner, 2026-09-15: "you click studio
+              it opens the room"). The row lights when you are anywhere in
+              the room. -#}
+          <a href="/room/{{ rkey }}" class="sb-hide-rail flex min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors {{ 'bg-amber-500/10 text-amber-400' if active_page in card_keys or active_page == 'room-' + rkey else 'text-gray-100 hover:bg-white/5 hover:text-white' }}">
+            <svg class="h-[18px] w-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              {% for d in ricon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
+            </svg>
+            <span class="min-w-0 flex-1 truncate">{{ rname }}</span>
+          </a>
         </div>
         {% endfor %}
         {% set acct_keys = rooms_nav.account | map(attribute='0') | list %}
