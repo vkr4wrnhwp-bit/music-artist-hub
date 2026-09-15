@@ -4603,8 +4603,10 @@ def test_ecosystem_hubs():
     app_obj = create_app()
     artist = _demo(app_obj)
     nav = artist.get("/command-center").get_data(as_text=True)
-    # Five collapsible hubs + Account; desk links; collapse JS present.
-    assert nav.count('data-hub=') == 6
+    # Five collapsible hubs + Account + Label Services (the demo account
+    # has the Label plan, and since 2026-09-14 that group shows by plan on
+    # every page, not by which world box was pressed); collapse JS present.
+    assert nav.count('data-hub=') == 7
     for hk in ("command", "studio", "launch", "stage", "money"):
         assert '/desk/%s' % hk in nav
     assert "hub-tgl" in nav and "sbHubs" in nav
