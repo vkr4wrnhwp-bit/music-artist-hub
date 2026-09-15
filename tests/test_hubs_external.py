@@ -18,7 +18,11 @@ import hubs
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 EXTERNAL = {
-    "reach": ("launch", "https://street-banker-tour-open-preview-3.onrender.com/reach/"),
+    # The real REACH is the one inside V2: 52 of 55 shared source files are
+    # identical to the tour service's copy, and every difference is V2 ahead -
+    # the plugin surface, the Street Banker identity bridge, and a catalog
+    # delete the older copy still gets wrong (compared 2026-09-15).
+    "reach": ("launch", "https://street-banker-v2-workflows.onrender.com/reach/"),
     "masterclip": ("studio", "https://masterclip.onrender.com/"),
     "tour-suite": ("stage", "https://street-banker-tour-open-preview-3.onrender.com/"),
 }
