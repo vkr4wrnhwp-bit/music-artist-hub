@@ -169,13 +169,13 @@ def test_the_nine_questions_come_back_in_plain_shapes(sc):
     assert [p["date"] for p in ev["youtube_views"]] == ["2020-10-08", "2020-10-09", "2020-10-10"], "sorted, oldest first"
     assert ev["youtube_line"]["latest"]["views"] == 10355797 and ev["youtube_line"]["total"] == 30982025
     assert ev["youtube_line"]["points"].count(",") == 3
-    assert [r["name"] for r in ev["related"]] == ["Lana Del Rey", "Adele"]
-    assert [l["platform"] for l in ev["links"]] == ["allmusic", "spotify"], "no url and duplicates are dropped"
-    assert ev["links"][1]["verified"] is True
-    assert ev["songs"]["total"] == 299 and ev["songs"]["items"][0]["release_date"] == "2026-06-04"
+    # related artists, the platform pages and the song list came off the
+    # page (owner, 2026-09-15) and are not asked for
+    assert "related" not in ev and "links" not in ev and "songs" not in ev
     # one call per question, per platform: nothing loops over a list twice
     paths = [urlparse(u).path for u in wire.calls]
-    assert len(paths) == len(set(paths)) == 1 + 8 + 5 + 3 + 2 + 1 + 1 + 1 + 1
+    assert len(paths) == len(set(paths)) == 1 + 8 + 5 + 3 + 2 + 1
+    assert not any(p.endswith(("/related", "/identifiers", "/songs")) for p in paths)
 
 
 def test_a_refusal_and_an_empty_answer_are_named_not_filled(sc):
@@ -190,7 +190,6 @@ def test_a_refusal_and_an_empty_answer_are_named_not_filled(sc):
     rep = {r["platform"]: r for r in ev["report_rows"]}
     assert rep["tiktok"]["state"] == "refused" and rep["instagram"]["state"] == "measured"
     assert ev["radio"] is None and "radio" in ev["refused"]
-    assert ev["related"] == [] and "related" in ev["empty"]
 
 
 def test_a_provider_without_these_questions_gives_no_section():
@@ -226,15 +225,20 @@ def test_the_page_carries_every_section_and_names_what_the_plan_refused(page):
     assert "Reach and audience" in section and "Measured by Soundcharts" in section
     assert "Everything Soundcharts holds" not in section, "the owner did not want that name"
     assert "Los Angeles, US" in section and "pop, alternative" in section and "career stage: superstar" in section
-    assert "Audience by platform" in section and "33,407,686" in section and "Not in the plan" in section
-    assert "Nothing on file" in section, "TikTok holds nothing"
+    assert "Audience by platform" in section and "33,407,686" in section
+    assert "Not in the plan" not in section, "a refusal is an owner's business, not a stranger's"
+    audience_grid = section.split("Audience by platform")[1].split("Playlists by platform")[0]
+    assert "Nothing on file" not in audience_grid and "TikTok" not in audience_grid, "an empty tile is not shown"
     assert "Playlists by platform" in section and "768,810 placements" in section and "Editorial" in section
+    assert "Amazon Music" not in section, "a refused platform tile is not shown to a non-owner"
     assert "Audience reports" in section and "1.85%" in section and "Age 18-24" in section
     assert "Radio, last 28 days" in section and "23,747 plays logged" in section and "XHITZ" in section
     assert "YouTube views by day" in section and "10,355,797" in section and "<polyline" in section
-    assert "Lana Del Rey" in section and "AllMusic" in section and "299 songs" in section
+    for gone in ("Lana Del Rey", "AllMusic", "299 songs", "places beside this one", "across the platforms", "Songs on file"):
+        assert gone not in section, gone
     assert "Every figure in this section was measured by Soundcharts." in section
     assert " 0 followers" not in section and ">0<" not in section and "$" not in section
+    assert "0 likes" not in section and "0 comments" not in section
     # the search was never spent: the id was on the profile
     assert not any("/artist/search/" in u for u in wire.calls)
 

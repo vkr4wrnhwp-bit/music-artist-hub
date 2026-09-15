@@ -63,7 +63,7 @@
     <h3 class="sb-label text-sb-gold">YouTube{% if youtube.channel_title %} — {{ youtube.channel_title }}{% endif %}</h3>
     <div class="mt-3 flex flex-wrap gap-3">
       {{ sb.lcd(("{:,}".format(youtube.views) if youtube.views is not none else none), "total views", absent="Not measured") }}
-      {{ sb.lcd(("{:,}".format(youtube.videos) if youtube.videos is not none else none), "videos", absent="Not measured") }}
+      {% if youtube.videos is none %}{{ sb.lcd(none, "videos", absent="Not measured") }}{% elif youtube.videos %}{{ sb.lcd("{:,}".format(youtube.videos), "videos") }}{% endif %}
       {% if youtube.started %}{{ sb.lcd(youtube.started[:4], "channel since") }}{% endif %}
     </div>
     {#- Subscribers sit on the meter bridge above with the other growth
@@ -293,15 +293,20 @@
   {#- Owned engagement, folded in from /stats: the one thing that page had
       which this one did not. First-party counts from your own tracked
       smart links, so they show whether or not Spotify is connected. -#}
+  {#- A counter at nought is not shown, and with all three at nought the
+      section is not either (owner, 2026-09-15: "if a card shows 0 it
+      needs to not show up"). -#}
+  {% if link_stats.pageviews or link_stats.clicks or link_stats.presaves %}
   <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-6" id="engagement">
     <h3 class="sb-label text-sb-gold">Your Link Engagement — all time</h3>
     <div class="mt-3 flex flex-wrap gap-3">
-      {{ sb.lcd("{:,}".format(link_stats.pageviews), "page views") }}
-      {{ sb.lcd("{:,}".format(link_stats.clicks), "platform clicks") }}
-      {{ sb.lcd("{:,}".format(link_stats.presaves), "pre-saves") }}
+      {% if link_stats.pageviews %}{{ sb.lcd("{:,}".format(link_stats.pageviews), "page views") }}{% endif %}
+      {% if link_stats.clicks %}{{ sb.lcd("{:,}".format(link_stats.clicks), "platform clicks") }}{% endif %}
+      {% if link_stats.presaves %}{{ sb.lcd("{:,}".format(link_stats.presaves), "pre-saves") }}{% endif %}
     </div>
     <p class="mt-3 text-xs text-gray-300 font-medium">Counted from your own tracked smart links — first-party data, not platform estimates. Per-track stream counts need a distributor feed and are not shown until a real connection exists.</p>
   </section>
+  {% endif %}
 </div>
 
 <script>

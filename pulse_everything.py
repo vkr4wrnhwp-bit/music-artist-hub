@@ -5,8 +5,8 @@ we need as much information as we can find". The instrument row above
 this carries the growth figures; this builds the rest, one section per
 question the provider answers: who the artist is, the audience on every
 platform, playlists by platform, the three audience reports, radio, the
-YouTube daily views, related artists, the artist's pages across the
-platforms, and the song list.
+YouTube daily views. (Related artists, the platform pages and the song
+list were on the page for one day and came off, owner, 2026-09-15.)
 
 Each section is its own call and its own failure. A section the plan
 refuses reads "not in the plan"; one the provider holds nothing for
@@ -24,8 +24,9 @@ PLATFORM_NAMES = {
     "amazon": "Amazon Music",
 }
 
-SECTIONS = ("profile", "audience", "playlists", "reports", "radio",
-            "youtube_views", "related", "links", "songs")
+# Related artists, the platform pages and the song list came off the page
+# (owner, 2026-09-15) and are not asked for.
+SECTIONS = ("profile", "audience", "playlists", "reports", "radio", "youtube_views")
 
 
 def platform_name(code):
@@ -59,9 +60,6 @@ def build(prov, provider_artist_id, today=None):
         "reports": lambda: prov.get_audience_reports(provider_artist_id),
         "radio": lambda: prov.get_radio(provider_artist_id, start, end),
         "youtube_views": lambda: prov.get_youtube_views(provider_artist_id, start, end),
-        "related": lambda: prov.get_related(provider_artist_id),
-        "links": lambda: prov.get_identifiers(provider_artist_id),
-        "songs": lambda: prov.get_songs(provider_artist_id),
     }
     for key in SECTIONS:
         try:

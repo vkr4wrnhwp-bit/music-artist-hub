@@ -9,7 +9,7 @@
 <section id="everything" class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
   <div class="flex flex-wrap items-baseline justify-between gap-2">
     <h3 class="sb-label text-sb-gold">Reach and audience</h3>
-    <span class="text-xs text-gray-300 font-medium">Measured by {{ ev.label }}: audience, playlists, reports, radio, video, related artists, platform pages and songs. Read on each page load, cached six hours.</span>
+    <span class="text-xs text-gray-300 font-medium">Measured by {{ ev.label }}: audience, playlists, reports, radio and video. Read on each page load, cached six hours.</span>
   </div>
 
   {#- 1. Who the artist is -#}
@@ -39,9 +39,11 @@
   {#- 2. Audience on every platform -#}
   <h4 class="sb-label mt-5 text-gray-200">Audience by platform</h4>
   <p class="mt-1 text-xs text-gray-300 font-medium">Followers on each platform as {{ ev.label }} last measured them, with the change over 7 and 28 days where two measured points exist.</p>
-  {% if ev.audience_rows %}
+  {%- set shown_audience = ev.audience_rows | selectattr('state', 'equalto', 'measured') | rejectattr('followers', 'equalto', 0) | list -%}
+  {%- set refused_audience = ev.audience_rows | selectattr('state', 'equalto', 'refused') | list if (is_owner is defined and is_owner) else [] -%}
+  {% if shown_audience or refused_audience %}
   <div class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    {% for a in ev.audience_rows %}
+    {% for a in shown_audience + refused_audience %}
     <div class="rounded-xl border border-white/10 bg-black/30 p-3">
       <div class="text-xs font-bold uppercase tracking-wide text-gray-200">{{ a.name }}</div>
       {% if a.state == 'measured' %}
@@ -51,17 +53,15 @@
         7d {% if a.change_7d_pct is not none %}{{ '+' if a.change_7d_pct > 0 else '' }}{{ a.change_7d_pct }}%{% else %}—{% endif %}
         · 28d {% if a.change_28d_pct is not none %}{{ '+' if a.change_28d_pct > 0 else '' }}{{ a.change_28d_pct }}%{% else %}—{% endif %}
       </div>
-      {% if a.posts is not none or a.views is not none or a.likes is not none %}
+      {% if a.posts or a.views or a.likes %}
       <div class="mt-1 text-xs tabular-nums text-gray-300 font-medium">
-        {% if a.posts is not none %}{{ "{:,}".format(a.posts) }} post{{ '' if a.posts == 1 else 's' }}{% endif %}
-        {% if a.views is not none %} · {{ "{:,}".format(a.views) }} views{% endif %}
-        {% if a.likes is not none %} · {{ "{:,}".format(a.likes) }} likes{% endif %}
+        {% if a.posts %}{{ "{:,}".format(a.posts) }} post{{ '' if a.posts == 1 else 's' }}{% endif %}
+        {% if a.views %} · {{ "{:,}".format(a.views) }} views{% endif %}
+        {% if a.likes %} · {{ "{:,}".format(a.likes) }} likes{% endif %}
       </div>
       {% endif %}
-      {% elif a.state == 'refused' %}
-      <div class="mt-1 text-sm font-bold text-gray-300">Not in the plan</div>
       {% else %}
-      <div class="mt-1 text-sm font-bold text-gray-300">Nothing on file</div>
+      <div class="mt-1 text-sm font-bold text-gray-300">Not in the plan</div>
       {% endif %}
     </div>
     {% endfor %}
@@ -73,9 +73,11 @@
   {#- 3. Playlists by platform -#}
   <h4 class="sb-label mt-5 text-gray-200">Playlists by platform</h4>
   <p class="mt-1 text-xs text-gray-300 font-medium">Current placements, highest position first. The count is every placement {{ ev.label }} holds; the rows are the top of the list.</p>
-  {% if ev.playlist_rows %}
+  {%- set shown_playlists = ev.playlist_rows | selectattr('state', 'equalto', 'measured') | list -%}
+  {%- set refused_playlists = ev.playlist_rows | selectattr('state', 'equalto', 'refused') | list if (is_owner is defined and is_owner) else [] -%}
+  {% if shown_playlists or refused_playlists %}
   <div class="mt-3 grid gap-3 lg:grid-cols-2">
-    {% for p in ev.playlist_rows %}
+    {% for p in shown_playlists + refused_playlists %}
     <div class="rounded-xl border border-white/10 bg-black/30 p-3">
       <div class="flex items-baseline justify-between gap-2">
         <div class="text-xs font-bold uppercase tracking-wide text-gray-200">{{ p.name }}</div>
@@ -88,15 +90,13 @@
           <span class="min-w-0 flex-1 truncate font-semibold text-gray-100">{{ it.playlist_name }}</span>
           {% if it.editorial %}<span class="shrink-0 rounded bg-sb-gold/15 px-1.5 py-0.5 text-xs font-bold uppercase text-sb-gold-bright">Editorial</span>{% endif %}
           <span class="shrink-0 tabular-nums text-gray-300">#{{ it.position }}</span>
-          <span class="shrink-0 tabular-nums text-gray-300">{{ "{:,}".format(it.followers) }} followers</span>
+          {% if it.followers %}<span class="shrink-0 tabular-nums text-gray-300">{{ "{:,}".format(it.followers) }} followers</span>{% endif %}
           {% if it.song %}<span class="w-full truncate text-gray-300 font-medium">{{ it.song }}{% if it.added_on %} · added {{ it.added_on }}{% endif %}</span>{% endif %}
         </div>
         {% endfor %}
       </div>
-      {% elif p.state == 'refused' %}
-      <div class="mt-1 text-sm font-bold text-gray-300">Not in the plan</div>
       {% else %}
-      <div class="mt-1 text-sm font-bold text-gray-300">Nothing on file</div>
+      <div class="mt-1 text-sm font-bold text-gray-300">Not in the plan</div>
       {% endif %}
     </div>
     {% endfor %}
@@ -108,9 +108,11 @@
   {#- 4. The audience reports -#}
   <h4 class="sb-label mt-5 text-gray-200">Audience reports</h4>
   <p class="mt-1 text-xs text-gray-300 font-medium">{{ ev.label }} reports on three platforms: who follows, how the account performs, and the posts that did the most.</p>
-  {% if ev.report_rows %}
+  {%- set shown_reports = ev.report_rows | rejectattr('state', 'equalto', 'refused') | list -%}
+  {%- set refused_reports = ev.report_rows | selectattr('state', 'equalto', 'refused') | list if (is_owner is defined and is_owner) else [] -%}
+  {% if shown_reports or refused_reports %}
   <div class="mt-3 grid gap-3 lg:grid-cols-3">
-    {% for r in ev.report_rows %}
+    {% for r in shown_reports + refused_reports %}
     <div class="rounded-xl border border-white/10 bg-black/30 p-3">
       <div class="text-xs font-bold uppercase tracking-wide text-gray-200">{{ r.name }}</div>
       {% if r.state == 'refused' %}
@@ -120,10 +122,10 @@
         {{ r.account.name }}{% if r.account.verified %} · verified{% endif %}{% if r.account.country %} · {{ r.account.country }}{% endif %}{% if r.account.language %} · {{ r.account.language }}{% endif %}
       </div>
       <div class="mt-2 grid grid-cols-2 gap-2 text-xs">
-        <div><div class="text-gray-300 font-medium">Followers</div><div class="font-bold tabular-nums text-gray-100">{{ "{:,}".format(r.stats.followers) if r.stats.followers is not none else "—" }}</div></div>
-        <div><div class="text-gray-300 font-medium">Engagement rate</div><div class="font-bold tabular-nums text-gray-100">{{ r.stats.engagement_rate_pct ~ "%" if r.stats.engagement_rate_pct is not none else "—" }}</div></div>
-        <div><div class="text-gray-300 font-medium">Average likes per post</div><div class="font-bold tabular-nums text-gray-100">{{ "{:,}".format(r.stats.avg_likes) if r.stats.avg_likes is not none else "—" }}</div></div>
-        <div><div class="text-gray-300 font-medium">Average comments per post</div><div class="font-bold tabular-nums text-gray-100">{{ "{:,}".format(r.stats.avg_comments) if r.stats.avg_comments is not none else "—" }}</div></div>
+        {% if r.stats.followers %}<div><div class="text-gray-300 font-medium">Followers</div><div class="font-bold tabular-nums text-gray-100">{{ "{:,}".format(r.stats.followers) }}</div></div>{% endif %}
+        {% if r.stats.engagement_rate_pct %}<div><div class="text-gray-300 font-medium">Engagement rate</div><div class="font-bold tabular-nums text-gray-100">{{ r.stats.engagement_rate_pct }}%</div></div>{% endif %}
+        {% if r.stats.avg_likes %}<div><div class="text-gray-300 font-medium">Average likes per post</div><div class="font-bold tabular-nums text-gray-100">{{ "{:,}".format(r.stats.avg_likes) }}</div></div>{% endif %}
+        {% if r.stats.avg_comments %}<div><div class="text-gray-300 font-medium">Average comments per post</div><div class="font-bold tabular-nums text-gray-100">{{ "{:,}".format(r.stats.avg_comments) }}</div></div>{% endif %}
       </div>
       {% if r.followers.genders or r.followers.ages %}
       <div class="mt-3 space-y-1.5">
@@ -146,8 +148,8 @@
         {% for p in r.top_posts %}
         <div class="flex flex-wrap items-center gap-2 py-1 text-xs tabular-nums">
           {% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener" class="font-bold text-sb-gold-bright hover:underline">{{ p.date or 'Open' }} ↗</a>{% else %}<span class="text-gray-200">{{ p.date }}</span>{% endif %}
-          <span class="text-gray-200">{{ "{:,}".format(p.likes) if p.likes is not none else "—" }} likes</span>
-          <span class="text-gray-200">{{ "{:,}".format(p.comments) if p.comments is not none else "—" }} comments</span>
+          {% if p.likes %}<span class="text-gray-200">{{ "{:,}".format(p.likes) }} likes</span>{% endif %}
+          {% if p.comments %}<span class="text-gray-200">{{ "{:,}".format(p.comments) }} comments</span>{% endif %}
           {% if p.views %}<span class="text-gray-200">{{ "{:,}".format(p.views) }} views</span>{% endif %}
         </div>
         {% endfor %}
@@ -162,8 +164,8 @@
   {% endif %}
 
   {#- 5. Radio -#}
+  {% if ev.radio and (ev.radio.stations or ev.radio.recent) %}
   <h4 class="sb-label mt-5 text-gray-200">Radio, last {{ ev.window_days }} days</h4>
-  {% if ev.radio %}
   <p class="mt-1 text-xs text-gray-300 font-medium">
     {% if ev.radio.plays_total is not none %}{{ "{:,}".format(ev.radio.plays_total) }} play{{ '' if ev.radio.plays_total == 1 else 's' }} logged{% endif %}
     {% if ev.radio.stations_total is not none %} across {{ "{:,}".format(ev.radio.stations_total) }} station{{ '' if ev.radio.stations_total == 1 else 's' }}{% endif %}, counted by {{ ev.label }}.
@@ -195,20 +197,15 @@
       </div>
     </div>
   </div>
-  {% else %}
-  <p class="mt-2 text-sm font-bold text-gray-300">Nothing on file</p>
   {% endif %}
-  {% elif 'radio' in ev.refused %}
+  {% elif 'radio' in ev.refused and is_owner is defined and is_owner %}
+  <h4 class="sb-label mt-5 text-gray-200">Radio</h4>
   <p class="mt-1 text-sm font-bold text-gray-300">Not in the plan</p>
-  {% elif 'radio' in ev.failed %}
-  <p class="mt-2 text-xs font-semibold text-amber-300">{{ ev.label }} did not answer the radio question just now.</p>
-  {% else %}
-  <p class="mt-1 text-sm font-bold text-gray-300">Nothing on file</p>
   {% endif %}
 
   {#- 6. YouTube daily views -#}
+  {% if ev.youtube_line.latest and ev.youtube_line.total %}
   <h4 class="sb-label mt-5 text-gray-200">YouTube views by day</h4>
-  {% if ev.youtube_line.latest %}
   <div class="mt-2 flex flex-wrap items-end gap-4 rounded-xl border border-white/10 bg-black/30 p-3">
     <div>
       <div class="text-xl font-bold tabular-nums text-gray-100">{{ "{:,}".format(ev.youtube_line.latest.views) }}</div>
@@ -223,62 +220,11 @@
     {% endif %}
   </div>
   <p class="mt-1 text-xs text-gray-300 font-medium">Views across the artist's videos, measured daily by {{ ev.label }}. The YouTube panel below reads the channel's own lifetime counters.</p>
-  {% elif 'youtube_views' in ev.refused %}
+  {% elif 'youtube_views' in ev.refused and is_owner is defined and is_owner %}
+  <h4 class="sb-label mt-5 text-gray-200">YouTube views by day</h4>
   <p class="mt-1 text-sm font-bold text-gray-300">Not in the plan</p>
-  {% else %}
-  <p class="mt-1 text-sm font-bold text-gray-300">Nothing on file</p>
   {% endif %}
 
-  {#- 7. Related artists -#}
-  <h4 class="sb-label mt-5 text-gray-200">Artists {{ ev.label }} places beside this one</h4>
-  {% if ev.related %}
-  <div class="mt-2 flex flex-wrap gap-2">
-    {% for r in ev.related %}
-    {% if r.app_url %}<a href="{{ r.app_url }}" target="_blank" rel="noopener" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-gray-100 hover:border-sb-gold/50">{{ r.name }}</a>
-    {% else %}<span class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-gray-100">{{ r.name }}</span>{% endif %}
-    {% endfor %}
-  </div>
-  <p class="mt-1 text-xs text-gray-300 font-medium">Their grouping, not a claim about your audience. Useful for the peer watch above.</p>
-  {% elif 'related' in ev.refused %}
-  <p class="mt-1 text-sm font-bold text-gray-300">Not in the plan</p>
-  {% else %}
-  <p class="mt-1 text-sm font-bold text-gray-300">Nothing on file</p>
-  {% endif %}
-
-  {#- 8. The artist's pages across platforms -#}
-  <h4 class="sb-label mt-5 text-gray-200">This artist across the platforms</h4>
-  {% if ev.links %}
-  <div class="mt-2 flex flex-wrap gap-2">
-    {% for l in ev.links %}
-    <a href="{{ l.url }}" target="_blank" rel="noopener" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-gray-100 hover:border-sb-gold/50">{{ l.label }}{% if l.verified %} ✓{% endif %}</a>
-    {% endfor %}
-  </div>
-  <p class="mt-1 text-xs text-gray-300 font-medium">{{ ev.links | length }} platform page{{ '' if ev.links | length == 1 else 's' }} {{ ev.label }} links to this artist. A tick is one they mark verified.</p>
-  {% elif 'links' in ev.refused %}
-  <p class="mt-1 text-sm font-bold text-gray-300">Not in the plan</p>
-  {% else %}
-  <p class="mt-1 text-sm font-bold text-gray-300">Nothing on file</p>
-  {% endif %}
-
-  {#- 9. Songs -#}
-  <h4 class="sb-label mt-5 text-gray-200">Songs on file</h4>
-  {% if ev.songs and ev.songs['items'] %}
-  <p class="mt-1 text-xs text-gray-300 font-medium">{{ "{:,}".format(ev.songs.total) }} song{{ '' if ev.songs.total == 1 else 's' }} {{ ev.label }} holds for this artist. The newest first.</p>
-  <div class="mt-2 divide-y divide-white/5 rounded-xl border border-white/10 bg-black/30">
-    {% for s in ev.songs['items'] %}
-    <div class="flex flex-wrap items-center gap-2 px-3 py-1.5 text-xs">
-      <span class="min-w-0 flex-1 truncate font-semibold text-gray-100">{{ s.name }}</span>
-      {% if s.credit %}<span class="shrink-0 truncate text-gray-300">{{ s.credit }}</span>{% endif %}
-      <span class="shrink-0 tabular-nums text-gray-300">{{ s.release_date or '—' }}</span>
-    </div>
-    {% endfor %}
-  </div>
-  {% elif 'songs' in ev.refused %}
-  <p class="mt-1 text-sm font-bold text-gray-300">Not in the plan</p>
-  {% else %}
-  <p class="mt-1 text-sm font-bold text-gray-300">Nothing on file</p>
-  {% endif %}
-
-  <p class="mt-5 text-xs text-gray-300 font-medium">Every figure in this section was measured by {{ ev.label }}. Nothing here is estimated, and a question the plan refuses stays open rather than being filled in. Stream counts and money are not in any of it: those come from your statements.</p>
+  <p class="mt-5 text-xs text-gray-300 font-medium">Every figure in this section was measured by {{ ev.label }}. Nothing here is estimated, and a figure that would read zero is left out rather than shown. Stream counts and money are not in any of it: those come from your statements.</p>
 </section>
 {% endif %}

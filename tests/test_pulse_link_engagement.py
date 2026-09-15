@@ -92,10 +92,10 @@ def test_traffic_is_not_reported_as_nothing(client):
     assert "4" in block, "and four platform clicks"
 
 
-def test_an_account_with_no_links_still_reads_nought(client):
-    """Nought is the right answer when nothing happened - the fix must
-    not invent traffic to prove itself."""
-    block_start = client.get("/pulse").get_data(as_text=True)
-    assert "Your Link Engagement" in block_start
-    start = block_start.index("Your Link Engagement")
-    assert "0" in block_start[start:start + 1200]
+def test_an_account_with_no_links_shows_no_counters(client):
+    """Nothing happened, so nothing is shown: a counter at nought is left
+    out, and with all three at nought the section is too (owner,
+    2026-09-15: "if a card shows 0 it needs to not show up"). The fix must
+    still not invent traffic to prove itself."""
+    body = client.get("/pulse").get_data(as_text=True)
+    assert "Your Link Engagement" not in body and 'id="engagement"' not in body
