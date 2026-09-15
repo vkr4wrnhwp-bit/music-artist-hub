@@ -16,17 +16,21 @@
   </div>
 
   {% if room.cards %}
-  <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label="{{ room.name }} features">
+  {#- Icons, not boxes (owner, 2026-09-15: "instead of square cards could
+      we create icons for all the features in the room"). Each feature is
+      its drawn mark on a disc with its name under it; a small word under
+      that says Hidden, Sample or Opens app when one of those is true. -#}
+  <section class="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6" aria-label="{{ room.name }} features">
     {% for key, href, icon, label, desc, state in room.cards %}
     {%- set external = href.startswith(('http://', 'https://')) -%}
-    <a class="sb-mod{% if state == 'sample' %} sb-mod--preview{% endif %}" href="{{ href }}"{% if external %} target="_blank" rel="noopener"{% endif %} title="{{ desc }}" data-room-card="{{ key }}">
-      <div class="sb-mod-head">
-        <span class="sb-mod-ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{% for d in icon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}</svg></span>
-        <h4 class="sb-mod-title">{{ label }}</h4>
-        {% if state == 'hidden' %}<span class="sb-mod-state nav-lock rounded bg-white/10 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-gray-300">Hidden</span>
-        {% elif state == 'sample' %}<span class="sb-mod-state nav-lock rounded bg-amber-400/15 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-amber-300/90">Sample</span>
-        {% elif state == 'external' %}<span class="sb-mod-state nav-lock rounded bg-white/10 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-gray-300">Opens app</span>{% endif %}
-      </div>
+    <a class="group flex flex-col items-center gap-2 rounded-xl px-2 py-3 text-center transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sb-gold" href="{{ href }}"{% if external %} target="_blank" rel="noopener"{% endif %} title="{{ desc }}" data-room-card="{{ key }}">
+      <span class="sb-disc sb-disc--lg{% if state == 'sample' or state == 'hidden' %} sb-disc--off{% endif %} transition-colors group-hover:border-sb-gold/60" aria-hidden="true">
+        <svg class="h-7 w-7" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">{% for d in icon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}</svg>
+      </span>
+      <span class="text-sm font-semibold leading-tight text-gray-100">{{ label }}</span>
+      {% if state == 'hidden' %}<span class="text-xs font-black uppercase tracking-[0.12em] text-gray-300">Hidden</span>
+      {% elif state == 'sample' %}<span class="text-xs font-black uppercase tracking-[0.12em] text-amber-300/90">Sample</span>
+      {% elif state == 'external' %}<span class="text-xs font-black uppercase tracking-[0.12em] text-gray-300">Opens app</span>{% endif %}
     </a>
     {% endfor %}
   </section>
@@ -34,6 +38,6 @@
   <p class="text-sm text-gray-300">Nothing in this room is switched on for this account yet.</p>
   {% endif %}
 
-  <p class="text-xs text-gray-300 font-medium">Every card here opens the same page it always did. Hidden cards show only to owners. A Sample card shows example data rather than yours, and says so on the page.</p>
+  <p class="text-xs text-gray-300 font-medium">Every icon opens the page it always did. Hidden ones show only to owners. Sample means example data rather than yours, and the page says so.</p>
 </div>
 {% endblock %}
