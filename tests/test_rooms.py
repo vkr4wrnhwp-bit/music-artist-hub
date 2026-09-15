@@ -160,3 +160,19 @@ def test_the_owner_switches_the_layout_in_settings(monkeypatch):
     finally:
         with app_obj.app_context():
             store.set_kv("nav_layout", "")
+
+
+def test_a_page_opened_from_a_room_offers_the_way_back(monkeypatch):
+    monkeypatch.setenv("NAV_ROOMS", "1")
+    app_obj = create_app()
+    with app_obj.app_context():
+        store.set_kv("nav_layout", "")
+    c = _client(app_obj, "pro")
+    body = c.get("/tours").get_data(as_text=True)
+    assert 'id="sb-room-back"' in body and 'href="/room/stage"' in body and "Back to Stage" in body
+    body = c.get("/vault?view=contracts").get_data(as_text=True)
+    assert "Back to Studio" in body, "an unfolded page goes back to its parent's room"
+    assert 'id="sb-room-back"' not in c.get("/room/stage").get_data(as_text=True), "a room screen is the top"
+    assert 'id="sb-room-back"' not in c.get("/command-center").get_data(as_text=True), "the top rows have none"
+    monkeypatch.delenv("NAV_ROOMS", raising=False)
+    assert 'id="sb-room-back"' not in c.get("/tours").get_data(as_text=True), "hubs layout: no rooms, no way back"

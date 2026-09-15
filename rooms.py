@@ -224,3 +224,18 @@ def room_for_key(key):
         if key in keys:
             return rkey
     return None
+
+
+def back_map():
+    """{page key: (room key, room name)} for every page a room holds, so
+    a page opened from a room can offer the way back (owner, 2026-09-15:
+    "we do need back buttons in the pages when you open the icon cards in
+    the room"). An unfolded page's parent maps to the same room, since
+    the page it opens names itself by the parent's key."""
+    out = {}
+    for rkey, name, _purpose, keys in ROOMS:
+        for key in keys:
+            out[key] = (rkey, name)
+            parent = parent_of(key)
+            out.setdefault(parent, (rkey, name))
+    return out

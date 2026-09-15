@@ -503,6 +503,16 @@
       {#- The drawn icon sprite, once per page, so every app page can place
           a symbol with <use href="#sb-i-name"/>. Zero-sized; see the partial. -#}
       {% include "partials/sb_icons.html" %}
+      {#- The way back to the room a page was opened from (owner,
+          2026-09-15: "we do need back buttons in the pages when you open
+          the icon cards in the room"). Only in the rooms layout, only on
+          a page a room holds; a room screen and the top rows have none. -#}
+      {%- if rooms_nav and active_page is defined and active_page in rooms_nav.back %}
+      <a href="/room/{{ rooms_nav.back[active_page][0] }}" id="sb-room-back" class="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-300 transition-colors hover:border-sb-gold/40 hover:text-white">
+        <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg>
+        Back to {{ rooms_nav.back[active_page][1] }}
+      </a>
+      {%- endif %}
       {%- if request.args.get('off') %}
       <div class="mb-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-100" role="status">
         {{ request.args.get('off') }} is switched off for now.

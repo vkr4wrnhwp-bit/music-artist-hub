@@ -3733,7 +3733,8 @@ def create_app():
             demo = bool(_demo_locked_account())
             rooms_nav = {"rooms": rooms.build(me.get("plan") or "artist", is_owner, demo),
                          "top": rooms.top_rows(is_owner, demo),
-                         "account": rooms.account_rows(is_owner, demo)}
+                         "account": rooms.account_rows(is_owner, demo),
+                         "back": rooms.back_map()}
         return {"hubs_nav": nav, "hubs_label": label,
                 "hubs_community": community,
                 "hubs_account": account,
