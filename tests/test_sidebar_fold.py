@@ -153,6 +153,12 @@ MERGED = {"/tracks": "/catalog?view=passports",
 
 def test_every_folded_page_answers_and_carries_its_strip(demo):
     for href, front in FOLDED.items():
+        if href == "/overview":
+            # One page with the Command Center since 2026-09-15: no strip,
+            # the money side simply sits at the top of the front door.
+            body = demo.get(href).get_data(as_text=True)
+            assert "Total Royalties Collected" in body and "The Operating System" in body
+            continue
         r = demo.get(href)
         if href in MERGED:
             assert r.status_code == 302 and r.headers["Location"].endswith(MERGED[href]), href
