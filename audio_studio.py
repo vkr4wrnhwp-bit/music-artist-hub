@@ -347,6 +347,7 @@ def studio():
     voices = _voices() if speech_on else []
     return render_template(
         "audio_studio.html",
+        active_page="audio-studio",
         lanes=lanes,
         lane_titles=_lane_titles(),
         runs_here=_runs_here(),
@@ -479,6 +480,7 @@ def studio_item(work_id):
     outputs = [astore.get_asset(None, aid) for aid in item["output_asset_ids"]]
     outputs = [o for o in outputs if o and not o.get("deleted_at")]
     return render_template("audio_studio_item.html", item=item,
+                           active_page="audio-studio",
                            outputs=outputs,
                            lyrics=_transcript(item),
                            source_url=(url_for("audio_studio.studio_source",

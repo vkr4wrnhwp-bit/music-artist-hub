@@ -30,8 +30,8 @@
 {% endmacro %}
 
 {% block content %}
-{{ sb.subnav([("/catalog", "Catalog"), ("/catalog?view=passports", "Track Passports")],
-             "/catalog?view=passports" if view == "passports" else "/catalog") }}
+{% if not rooms_nav %}{{ sb.subnav([("/catalog", "Catalog"), ("/catalog?view=passports", "Track Passports")],
+             "/catalog?view=passports" if view == "passports" else "/catalog") }}{% endif %}
 {#- A tab is a view. "Track Passports" used to be an anchor to a section at
     the foot of this page, which read as "the tab jumps to the bottom and
     nothing opens" (2026-09-12). -#}

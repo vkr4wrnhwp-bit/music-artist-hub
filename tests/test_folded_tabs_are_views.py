@@ -53,7 +53,7 @@ def test_nothing_left_links_at_the_old_anchors():
     import glob
     import io as _io
     hits = []
-    for path in glob.glob("templates/**/*.html", recursive=True) + ["app.py"]:
+    for path in glob.glob("templates/**/*.html", recursive=True) + ["app.py", "rooms.py"]:
         text = _io.open(path, encoding="utf-8").read()
         for needle in ('"/catalog#passports"', '"/vault#contracts"', '"/releases/autopilot#calendar"'):
             if needle in text:

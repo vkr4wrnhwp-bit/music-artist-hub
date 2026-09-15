@@ -2,7 +2,13 @@
    what a release package needs, what each stage does, and what is and is
    not connected. Every claim here was checked against the app and the
    terms already published on the services page. #}
-{% extends "public_base.html" %}
+{#- Two frames, as Label Services has: a stranger reads the public page;
+    a signed-in artist reads the same guide inside the app, with the way
+    back to the Releases room (audit, 2026-09-15: the room's card opened
+    the public page, which asked them to create an account). -#}
+{% extends "base.html" if user_plan else "public_base.html" %}
+{% import "_sb.html" as sb %}
+{% block head_scripts %}{% if user_plan %}<link rel="stylesheet" href="/static/css/public-page.css?v=1">{% endif %}{% endblock %}
 {% set plate = {"stem": none} %}
 {% set plate_eyebrow_html %}Global Distribution{% endset %}
 {% set plate_title_html %}How a release gets out{% endset %}
@@ -13,7 +19,8 @@
 {% block back_href %}/#global-distribution{% endblock %}
 
 {% block content %}
-<div class="pp-col">
+{% if user_plan %}{{ sb.plate(none, [], "Street Banker · Releases", "Distribution", partner.line) }}{% endif %}
+<div class="pp-col{% if user_plan %} pp-main{% endif %}">
 <h2 class="mt-11 text-sm font-semibold uppercase tracking-[0.2em] text-sb-gold">The five stages</h2>
   <ol class="mt-5 border-l border-[rgb(201_168_106_/_0.22)]">
     {% for step, body in workflow %}
@@ -73,7 +80,9 @@
   </p>
 
   <div class="mt-12 flex flex-wrap gap-3">
+    {% if user_plan %}<a href="/releases/autopilot" class="sb-btn sb-btn-primary">Open Release Autopilot</a>{% else %}
     <a href="/signup" class="inline-flex min-h-[48px] items-center justify-center rounded-sm bg-sb-gold px-6 text-xs font-bold uppercase tracking-[0.14em] text-sb-surface-2 transition-colors hover:bg-sb-gold-bright">Create an account to build one</a>
+    {% endif %}
     <a href="/lanes#distribution" class="inline-flex min-h-[48px] items-center justify-center rounded-sm border border-[rgb(201_168_106_/_0.22)] px-6 text-xs font-bold uppercase tracking-[0.14em] text-sb-ink transition-colors hover:border-sb-gold hover:text-sb-gold">The Distribution lane</a>
   </div>
 </div>

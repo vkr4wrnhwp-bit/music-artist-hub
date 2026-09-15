@@ -27,6 +27,9 @@
       <div class="sg-brand-name">Street Banker</div>
       <div class="sg-brand-sub">Signal</div>
     </div>
+    {#- Signal keeps its own shell; in the rooms layout it still offers the
+        way back to the Analytics room (audit, 2026-09-15). -#}
+    {% if rooms_nav %}<a class="sg-nav" id="sb-room-back" href="/room/analytics">Back to Analytics</a>{% endif %}
     {% for href, label in nav_items %}
       <a class="sg-nav{% if here == href or (href != '/signal' and here.startswith(href)) %} is-active{% endif %}" href="{{ href }}">
         <span>{{ label }}</span>

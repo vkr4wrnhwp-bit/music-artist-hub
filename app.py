@@ -3698,6 +3698,20 @@ def create_app():
             # A partner table mid-migration must not take every page down.
             return {"brand": None}
 
+    def _signal_seat(user, is_owner):
+        """Whether this login holds a Signal seat, so the Analytics room
+        offers the Signal card only to someone it will let in (audit,
+        2026-09-15: a Label account got a refusal page). signal_hub's own
+        lookup is used, since it enrols an owner on first sight and
+        mirrors the Operator Desk roster; a bare read would hide the card
+        from an owner who has never opened Signal."""
+        if is_owner:
+            return True
+        try:
+            return signal_hub._member(user)[1] is not None
+        except Exception:
+            return False
+
     @app.context_processor
     def inject_hub_context():
         # The Ecosystem Hub model: one source of truth (hubs.py) feeds the
@@ -3736,7 +3750,8 @@ def create_app():
         if me and rooms.enabled() and (me.get("plan") or "artist") != "fan":
             is_owner = bool(_is_owner_email(me.get("email")))
             demo = bool(_demo_locked_account())
-            rooms_nav = {"rooms": rooms.build(me.get("plan") or "artist", is_owner, demo),
+            rooms_nav = {"rooms": rooms.build(me.get("plan") or "artist", is_owner, demo,
+                                              _signal_seat(me, is_owner)),
                          "top": rooms.top_rows(is_owner, demo),
                          "account": rooms.account_rows(is_owner, demo),
                          "back": rooms.back_map()}
@@ -3768,9 +3783,10 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        room = rooms.get_room(room_key, user.get("plan") or "artist",
-                              bool(_is_owner_email(user.get("email"))),
-                              bool(_demo_locked_account()))
+        is_owner = bool(_is_owner_email(user.get("email")))
+        room = rooms.get_room(room_key, user.get("plan") or "artist", is_owner,
+                              bool(_demo_locked_account()),
+                              _signal_seat(user, is_owner))
         if room is None:
             abort(404)
         return render_template("room.html", active_page="room-" + room_key,
@@ -4640,8 +4656,12 @@ def create_app():
         # tab used to be an anchor to the section at the foot of this same
         # page, which read as "the tab jumps to the bottom and nothing
         # opens". A tab is a view; an anchor is not.
+        # ?view=ready is the release check alone: the strip and the twelve
+        # derived checks, which the Releases room's card opens (2026-09-15;
+        # the card used to open the public page).
         return render_template("release_autopilot.html", active_page="autopilot",
-                               view=("calendar" if request.args.get("view") == "calendar"
+                               view=(request.args.get("view")
+                                     if request.args.get("view") in ("calendar", "ready")
                                      else "autopilot"),
                                cal=cal,
                                campaigns=campaigns, c=campaign, checks=checks,
@@ -4869,7 +4889,7 @@ def create_app():
         members = store.list_club_members(user["id"])
         active_members = [m for m in members if m["status"] == "active"]
         slug = _ensure_epk_slug(user)
-        return render_template("fan_club.html", active_page="fan-club-admin",
+        return render_template("fan_club.html", active_page="fan-club",
                                club=club, members=members,
                                drops=store.list_club_drops(user["id"]),
                                active_count=len(active_members),
@@ -9154,7 +9174,10 @@ def create_app():
         q = (request.args.get("q") or "").strip()
         fans = mls.list_fans(user["id"], q)
         campaigns = {c["id"]: c["title"] for c in mls.list_campaigns(user["id"])}
-        return render_template("links_fans.html", active_page="links",
+        # Fan CRM is a Fans page (the Fans front: Dashboard, Fan CRM, Fan
+        # Club); "fans" is a key in both layouts, so the Fans row lights
+        # and the rooms layout goes back to Fans, not Marketing.
+        return render_template("links_fans.html", active_page="fans",
                                fans=fans, q=q, campaign_titles=campaigns,
                                intent_tones=links_engine.INTENT_TONES,
                                shopify=shopify_customers.status(),
@@ -11278,9 +11301,12 @@ def create_app():
         from distro_config import (GUIDE, WORKFLOW, CHECKLIST, INTEGRATIONS,
                                    PARTNER)
 
+        # Signed in, the same guide wears the app frame (with the way back
+        # to the Releases room); a stranger gets the public page.
         return render_template("distribution_public.html", guide=GUIDE,
                                workflow=WORKFLOW, checklist=CHECKLIST,
-                               integrations=INTEGRATIONS, partner=PARTNER)
+                               integrations=INTEGRATIONS, partner=PARTNER,
+                               active_page="distribution")
 
     @app.route("/royalty-sweep")
     def sweep_method():

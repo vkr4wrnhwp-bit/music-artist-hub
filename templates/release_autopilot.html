@@ -8,8 +8,8 @@
 {% endblock %}
 
 {% block content %}
-{{ sb.subnav([("/releases/autopilot", "Autopilot"), ("/releases/autopilot?view=calendar", "Calendar")],
-             "/releases/autopilot?view=calendar" if view == "calendar" else "/releases/autopilot") }}
+{{ sb.subnav([("/releases/autopilot", "Autopilot"), ("/releases/autopilot?view=ready", "Release check"), ("/releases/autopilot?view=calendar", "Calendar")],
+             "/releases/autopilot" if view == "autopilot" else "/releases/autopilot?view=" + view) }}
 {#- One release in; the whole desk reads from it. This page absorbed Clean
     Release: both rendered the same twelve checks against the same campaign,
     so the checks live here once, the arc / plan / kit around them, and the
@@ -74,6 +74,9 @@
     </div>
   {% endif %}
 
+  {#- ?view=ready is the release check alone: the strip above and the
+      readiness panel below, nothing else (the Releases room's card). -#}
+  {% if view != "ready" %}
   <nav class="rd-jump" aria-label="On this page">
     {% if c %}
       <a href="#ready">Readiness</a>
@@ -84,6 +87,7 @@
     <a href="#clean">Clean Release</a>
     {% if c %}<a href="#around">Around it</a>{% endif %}
   </nav>
+  {% endif %}
 
   {% if c %}
   {#- READINESS: the twelve derived checks. One meter per group of the
@@ -137,6 +141,7 @@
     </div>
   </section>
 
+  {% if view != "ready" %}
   {#- THE ARC: eight stages, from date math alone. -#}
   <section class="rd-panel" id="arc" aria-labelledby="rd-arc-title">
     <div class="rd-head">
@@ -222,7 +227,9 @@
     </div>
   </section>
   {% endif %}
+  {% endif %}
 
+  {% if view != "ready" %}
   {#- CLEAN RELEASE: per Track Passport, not per campaign - so it is here
       even when no campaign exists yet. The passport pulls are real values
       already stored, copied to the catalog record only on click. -#}
@@ -293,6 +300,7 @@
   {% endif %}
 
   {% include "_release_calendar.html" %}
+  {% endif %}
 {% endif %}
 </div>
 {% endblock %}

@@ -35,7 +35,7 @@ ROOMS = [
       "tax", "hours", "deals", "deal-simulator", "sync-packs", "team", "portal",
       "services", "roster"]),
     ("publishing", "Publishing", "Rights, registrations and identifiers.",
-     ["catalog", "track-passports", "fingerprints", "mechanicals", "neighboring", "certified"]),
+     ["catalog", "track-passports", "fingerprints", "certified"]),
     ("releases", "Releases", "From finished master to the stores.",
      ["autopilot", "release-calendar", "release-check", "distribution", "submit"]),
     ("marketing", "Marketing", "Getting heard and getting written about.",
@@ -63,7 +63,14 @@ ROOM_ICONS = {
 
 # The pages that were tabs of another page, now cards of their own. Each
 # names the sidebar entry it lived under, which is where its live flag
-# and its page switch still come from.
+# and its page switch still come from. A card is a view of a page, never
+# an anchor into one, and never a public document: the audit of
+# 2026-09-15 found Track Passports and the Release Calendar jumping to
+# the foot of another page, and Release check and Distribution opening
+# public pages that asked a signed-in artist to create an account.
+# Mechanicals and Neighbouring rights left the Publishing room the same
+# day: both are folded into Royalties, so a card would only land on a
+# page in another room.
 _DOC = "M4 3h9l3 3v11H4z|M13 3v3h3|M7 9h6M7 12h6"
 _LIST = "M4 5h12M4 10h12M4 15h8"
 _CAL = "M3 5h14v12H3z|M3 9h14|M7 3v4M13 3v4"
@@ -77,11 +84,9 @@ EXTRA = {
     "insights": ("/insights", "M10 3a5 5 0 00-3 9v2h6v-2a5 5 0 00-3-9z|M8 17h4", "Insights", "What your own numbers say this week.", "scores"),
     "deal-simulator": ("/sync/deal-simulator", "M3 15l4-5 3 3 4-6 3 4|M3 17h14", "Deal Simulator", "Try the terms before you sign them.", "deals"),
     "sync-packs": ("/sync/clearance-packs", "M3 6h14v10H3z|M3 6l2-3h10l2 3|M8 10h4", "Sync packs", "Cleared, ready-to-send packs for a sync request.", "deals"),
-    "track-passports": ("/catalog#passports", "M4 3h12v14H4z|M7 7h6|M7 10h6|M7 13h3|M13 13h.01", "Track Passports", "One page per recording: codes, splits, credits.", "catalog"),
-    "mechanicals": ("/mechanicals", "M10 6a4 4 0 100 8 4 4 0 000-8z|M10 2v2M10 16v2M2 10h2M16 10h2|M10 9v2", "Mechanicals", "What the MLC holds and pays for your songs.", "income"),
-    "neighboring": ("/neighboring-rights", "M3 10a7 7 0 0114 0|M6 10a4 4 0 018 0|M10 10v7|M5 17h10", "Neighbouring rights", "Performance income on the recording, by territory.", "income"),
-    "release-calendar": ("/releases/autopilot#calendar", "M3 5h14v12H3z|M3 9h14|M7 3v4M13 3v4|M7 12h2M11 12h2", "Release Calendar", "Every scheduled drop on one calendar.", "autopilot"),
-    "release-check": ("/release-check", "M4 10l4 4 8-8", "Release check", "The store checks before a release goes out.", "autopilot"),
+    "track-passports": ("/catalog?view=passports", "M4 3h12v14H4z|M7 7h6|M7 10h6|M7 13h3|M13 13h.01", "Track Passports", "One page per recording: codes, splits, credits.", "catalog"),
+    "release-calendar": ("/releases/autopilot?view=calendar", "M3 5h14v12H3z|M3 9h14|M7 3v4M13 3v4|M7 12h2M11 12h2", "Release Calendar", "Every scheduled drop on one calendar.", "autopilot"),
+    "release-check": ("/releases/autopilot?view=ready", "M4 10l4 4 8-8", "Release check", "The store checks before a release goes out.", "autopilot"),
     "distribution": ("/distribution", "M3 10h14|M10 3v14|M5 5l10 10|M15 5L5 15", "Distribution", "How your releases reach the stores today.", None),
     "press-contacts": ("/press-desk/contacts", "M7 9a3 3 0 100-6 3 3 0 000 6z|M2 17c0-3 2.5-5 5-5s5 2 5 5|M13 5h5|M13 8h5|M13 11h3", "Media list", "The writers and outlets you pitch.", "press-desk"),
     "press-coverage": ("/press-desk/coverage", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5|M6 13l2-2 3 2", "Coverage", "What has been written, kept in one place.", "press-desk"),
@@ -185,12 +190,13 @@ def _state(key, href, live, hidden):
     return "live" if key in live else "sample"
 
 
-def build(user_plan=None, owner=False, demo=False):
+def build(user_plan=None, owner=False, demo=False, signal_seat=True):
     """The rooms for one person: [(key, name, purpose, icon, cards)], each
     card (key, href, icon, label, desc, state). A hidden page stays for
     an owner, badged; it leaves for everybody else. A locked demo loses
     the Sample pages as the hub sidebar does. Label-only cards show for a
-    Label plan."""
+    Label plan. The Signal card shows only to a login that holds a Signal
+    seat (audit, 2026-09-15: it opened a refusal for everybody else)."""
     cat = catalogue()
     live = live_keys()
     hidden = hidden_keys()
@@ -201,6 +207,8 @@ def build(user_plan=None, owner=False, demo=False):
             if key not in cat:
                 continue                       # a flag-gated entry this deployment lacks
             if key in LABEL_ONLY and user_plan != "label":
+                continue
+            if key == "signal" and not signal_seat:
                 continue
             href, icon, label, desc = cat[key]
             state = _state(key, href, live, hidden)
@@ -239,8 +247,8 @@ def _rows(keys, owner, demo):
     return out
 
 
-def get_room(key, user_plan=None, owner=False, demo=False):
-    for room in build(user_plan, owner, demo):
+def get_room(key, user_plan=None, owner=False, demo=False, signal_seat=True):
+    for room in build(user_plan, owner, demo, signal_seat):
         if room[0] == key:
             return {"key": room[0], "name": room[1], "purpose": room[2],
                     "icon": room[3], "cards": room[4]}

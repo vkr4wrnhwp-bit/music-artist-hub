@@ -6,7 +6,8 @@
 
 {% block content %}
 {% import "_sb.html" as sb %}
-{{ sb.subnav([("/fans", "Dashboard"), ("/links/fans", "Fan CRM"), ("/fan-club", "Fan Club")], request.path) }}
+{#- In the rooms layout Fan CRM and Fan Club are cards of the Fans room, so the strip would be a second row of tabs. -#}
+{% if not rooms_nav %}{{ sb.subnav([("/fans", "Dashboard"), ("/links/fans", "Fan CRM"), ("/fan-club", "Fan Club")], request.path) }}{% endif %}
 <div class="mx-auto max-w-[1200px] space-y-5">
   <div>
     <h1 class="sb-h1">Fan Dashboard</h1>

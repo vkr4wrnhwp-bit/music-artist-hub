@@ -176,3 +176,74 @@ def test_a_page_opened_from_a_room_offers_the_way_back(monkeypatch):
     assert 'id="sb-room-back"' not in c.get("/command-center").get_data(as_text=True), "the top rows have none"
     monkeypatch.delenv("NAV_ROOMS", raising=False)
     assert 'id="sb-room-back"' not in c.get("/tours").get_data(as_text=True), "hubs layout: no rooms, no way back"
+
+
+def test_every_card_a_room_offers_opens_a_page_with_the_way_back(monkeypatch):
+    """Audit, 2026-09-15: Fan Club, Audio Studio, Release check and
+    Distribution opened with no way back; Fan CRM went back to Marketing;
+    Mechanicals landed on Royalties in Business. Every in-app card of every
+    room opens a page that carries the app frame and "Back to <its room>"."""
+    monkeypatch.setenv("NAV_ROOMS", "1")
+    app_obj = create_app()
+    with app_obj.app_context():
+        store.set_kv("nav_layout", "")
+    c = _client(app_obj, "label")
+    wrong = []
+    for rkey, _name, _purpose, _icon, cards in rooms.build("label", False, False, signal_seat=False):
+        for key, href, _i, _l, _d, state in cards:
+            if state == "external":
+                continue
+            r = c.get(href)
+            body = r.get_data(as_text=True)
+            if r.status_code != 200 or 'id="sb-room-back"' not in body or 'href="/room/%s"' % rkey not in body:
+                wrong.append((rkey, key, href, r.status_code))
+    assert wrong == []
+    assert 'id="sb-room-back"' in c.get("/vault?view=contracts").get_data(as_text=True)
+
+
+def test_the_signal_card_shows_only_to_a_login_that_holds_a_seat(monkeypatch):
+    monkeypatch.setenv("NAV_ROOMS", "1")
+    app_obj = create_app()
+    with app_obj.app_context():
+        store.set_kv("nav_layout", "")
+    c = _client(app_obj, "label")
+    page = c.get("/room/analytics").get_data(as_text=True)
+    assert 'data-room-card="signal"' not in page and 'data-room-card="pulse"' in page
+    owner = _client(app_obj, "pro")
+    monkeypatch.setenv("OWNER_EMAILS", owner._email)
+    page = owner.get("/room/analytics").get_data(as_text=True)
+    assert 'data-room-card="signal"' in page
+    body = owner.get("/signal", follow_redirects=True).get_data(as_text=True)
+    assert 'id="sb-room-back"' in body and 'href="/room/analytics"' in body and "Back to Analytics" in body
+
+
+def test_artist_accounts_keep_the_rooms_sidebar_on_the_fan_world_pages(monkeypatch):
+    """Audit, 2026-09-15: /fans, /discover and /marketplace dropped the rooms
+    and showed the fan-account menu; the Fans strip doubled the room's cards."""
+    monkeypatch.setenv("NAV_ROOMS", "1")
+    app_obj = create_app()
+    with app_obj.app_context():
+        store.set_kv("nav_layout", "")
+    c = _client(app_obj, "label")
+    for path in ("/fans", "/discover", "/marketplace"):
+        body = c.get(path).get_data(as_text=True)
+        aside = body.split("</aside>")[0]
+        assert 'id="sb-top-rows"' in aside and 'data-hub="studio"' in aside, path
+    for path in ("/fans", "/links/fans", "/fan-club", "/catalog?view=passports", "/vault?view=contracts"):
+        body = c.get(path).get_data(as_text=True)
+        assert 'class="sb-subnav"' not in body.split('id="sb-main"')[1], path
+    fan = _client(app_obj, "fan")
+    body = fan.get("/discover").get_data(as_text=True)
+    assert 'id="sb-top-rows"' not in body and "Community" in body.split("</aside>")[0]
+
+
+def test_billing_is_live_and_wears_no_sample_badge(monkeypatch):
+    monkeypatch.setenv("NAV_ROOMS", "1")
+    app_obj = create_app()
+    with app_obj.app_context():
+        store.set_kv("nav_layout", "")
+    assert "billing" in hubs.live_keys()
+    c = _client(app_obj, "pro")
+    aside = c.get("/command-center").get_data(as_text=True).split("</aside>")[0]
+    row = aside.split('href="/billing"')[1].split("</a>")[0]
+    assert "Sample" not in row

@@ -250,17 +250,12 @@
           </a>
         {%- endmacro %}
 
-        {% if nav_world == 'fan' %}
-        {# Fans keep their own simple world: Community + a slim Account. #}
-        <div class="space-y-1">
-          <div class="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">{{ hubs_community[0] }}</div>
-          {% for key, href, path, label, _d in hubs_community[1] %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
-        </div>
-        <div class="space-y-1">
-          <div class="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">Account</div>
-          {% for key, href, path, label, _d in hubs_account[1] if key in fan_account_keys %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
-        </div>
-        {% elif rooms_nav %}
+        {#- The rooms come first: an artist or label account keeps the
+            rooms sidebar on the Fans, Discover and Marketplace pages
+            (audit, 2026-09-15: those pages showed the fan-account menu).
+            rooms_nav is None for a fan account, so fans keep their own
+            world. -#}
+        {% if rooms_nav %}
         {#- The eight rooms (owner, 2026-09-15, by numbered mockup).
             Command Center and Actions stay at the top as plain rows. A
             room's name opens its screen of cards; the chevron expands it
@@ -318,6 +313,16 @@
           <div class="hub-items space-y-1">
             {% for key, href, path, label, desc, state in rooms_nav.account %}{{ room_item(key, href, path, label, desc, state) }}{% endfor %}
           </div>
+        </div>
+        {% elif nav_world == 'fan' %}
+        {# Fans keep their own simple world: Community + a slim Account. #}
+        <div class="space-y-1">
+          <div class="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">{{ hubs_community[0] }}</div>
+          {% for key, href, path, label, _d in hubs_community[1] %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
+        </div>
+        <div class="space-y-1">
+          <div class="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">Account</div>
+          {% for key, href, path, label, _d in hubs_account[1] if key in fan_account_keys %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
         </div>
         {% else %}
         {# The Ecosystem Hub model: five hubs, each with a desk page. #}

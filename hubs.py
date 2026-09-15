@@ -132,6 +132,10 @@ HUB_ICONS = {
 # "example data, not yours" - four surfaces wrong from one stale list entry.
 # Flag-gated keys are appended by live_keys() instead.
 _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
+             # Billing is live Stripe checkout and portal; the page says so
+             # honestly when Stripe is not configured (audit, 2026-09-15:
+             # it wore a Sample badge for every account).
+             "billing",
              "artist-twin",
              "revenue-os", "overview", "royalties", "recovery",
              "valuation", "links", "rollout", "artwork", "services", "submit",
