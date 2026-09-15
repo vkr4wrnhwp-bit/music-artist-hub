@@ -54,6 +54,21 @@ def test_the_world_boxes_are_gone_and_label_services_shows_by_plan():
     assert "Fan Account" in body and "/world/" not in body.split("</aside>")[0]
 
 
+def test_the_account_card_stays_on_screen_below_a_long_menu():
+    """The sidebar is a screen-height column. The groups scroll inside it
+    and the name-and-plan card sits after them, so a Label plan's extra
+    group cannot push the card off the bottom (owner, staging,
+    2026-09-15: 'the bottom of navigation used to say your user name
+    and level, its gone')."""
+    app_obj = create_app()
+    c = _client(app_obj, "label")
+    body = c.get("/command-center").get_data(as_text=True)
+    assert "#sb-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; }" in body
+    aside = body.split("</aside>")[0]
+    assert aside.index('id="sb-nav"') < aside.index('class="mt-auto hidden pt-6 lg:block"')
+    assert "Label" in aside.split('class="mt-auto hidden pt-6 lg:block"')[1], "the plan is named on the card"
+
+
 def test_recent_sits_under_the_groups():
     app_obj = create_app()
     c = _client(app_obj, "pro")

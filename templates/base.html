@@ -32,6 +32,11 @@
        drawer, and a 74px rail on a 375px screen helps nobody. */
     .hub-rail { display: none; }
     @media (min-width: 1024px) {
+      /* The groups scroll inside the screen-height sidebar; the account
+         card stays pinned below them. Without this a long menu (a Label
+         plan sees one more group on every page since 2026-09-14) pushed
+         the name and plan off the bottom of the screen (owner, staging). */
+      @media (min-width: 1024px) { #sb-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; } }
       body.sb-rail #sb-aside { width: 4.75rem; padding-left: 0.6rem; padding-right: 0.6rem; }
       body.sb-rail .sb-hide-rail { display: none !important; }
       body.sb-rail #sb-nav .hub-rail { display: flex; }
