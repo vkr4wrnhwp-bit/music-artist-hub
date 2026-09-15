@@ -655,7 +655,10 @@ def test_epk_sidebar_and_export():
     # The kit is a tab of Press now (docs/PARKED_PAGES.md): the sidebar
     # carries Press, and the Press Desk's strip carries the kit.
     nav = client.get("/links").get_data(as_text=True)
-    assert 'href="/press-desk"' in nav and 'href="/epk"' not in nav.split('id="main"')[0]
+    # The press kit folded under Press on 2026-09-09 and came back as its
+    # own entry on 2026-09-15 ("anything thats a major usage ... should be
+    # visible"), so both are on the sidebar now.
+    assert 'href="/press-desk"' in nav and 'href="/epk"' in nav.split('id="main"')[0]
     assert 'href="/epk"' in client.get("/press-desk").get_data(as_text=True)
     resp = client.post("/epk/export")
     assert resp.status_code == 200
