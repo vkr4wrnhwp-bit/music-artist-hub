@@ -20,7 +20,7 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXTERNAL = {
     "noise-lab": ("studio", "https://street-banker-v2-workflows.onrender.com/noise-lab/"),
     "the-room": ("studio", "https://street-banker-v2-workflows.onrender.com/song-builder"),
-    "reach": ("launch", "https://reach-9ub6.onrender.com/reach/"),
+    "reach": ("launch", "https://street-banker-tour-open-preview-3.onrender.com/reach/"),
     "masterclip": ("studio", "https://masterclip.onrender.com/"),
     "tour-suite": ("stage", "https://street-banker-tour-open-preview-3.onrender.com/"),
 }
