@@ -3802,6 +3802,9 @@ def create_app():
         if plan == "fan":
             world = "fan"
         return {"user_plan": plan, "nav_world": world or "promote",
+                # The wordmark: Royalty Sweep on its own pages, Street Banker
+                # everywhere else (owner, 2026-09-14).
+                "path_world": plans.world_for_path(request.path),
                 "plan_worlds": plans.WORLDS, "plan_rank": plans.TIER_RANK,
                 "plan_names": plans.PLAN_NAMES,
                 "unread_ntf": store.unread_notifications(user["id"]) if user else 0}

@@ -89,10 +89,22 @@
               platform's shell rather than a special case of a partner. -#}
           {% if brand and brand.logo %}
             <img src="{{ brand.logo }}" alt="{{ brand.name }}" class="h-4 w-auto">
+            <span class="text-xs font-bold tracking-[0.25em] text-gray-100">{{ brand.name | upper }}</span>
+          {% elif brand %}
+            <svg width="26" height="16" viewBox="0 0 40 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" class="text-sb-gold-bright"{% if brand.accent %} style="color: {{ brand.accent }}"{% endif %}>
+              <path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/>
+            </svg>
+            <span class="text-xs font-bold tracking-[0.25em] text-gray-100">{{ brand.name | upper }}</span>
+          {% elif path_world == 'sweep' %}
+            {#- Royalty Sweep's own pages carry its mark; every other page is
+                Street Banker's (owner, 2026-09-14). -#}
+            <svg width="26" height="16" viewBox="0 0 40 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" class="text-sb-gold-bright">
+              <path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/>
+            </svg>
+            <span class="text-xs font-bold tracking-[0.25em] text-gray-100">ROYALTY SWEEP</span>
           {% else %}
-            <svg width="26" height="16" viewBox="0 0 40 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" class="text-sb-gold-bright"{% if brand and brand.accent %} style="color: {{ brand.accent }}"{% endif %}><path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/></svg>
+            <img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="h-4 w-auto">
           {% endif %}
-          <span class="text-xs font-bold tracking-[0.25em] text-gray-100">{{ (brand.name if brand else "ROYALTY SWEEP") | upper }}</span>
         </a>
         <div class="flex items-center gap-2">
           <!-- The palette's only opener was Ctrl-K, which a phone has no
@@ -110,11 +122,16 @@
       <a href="/" class="hidden flex-col items-center transition-opacity hover:opacity-80 lg:flex">
         {% if brand and brand.logo %}
           <img src="{{ brand.logo }}" alt="{{ brand.name }}" class="sb-hide-rail max-h-16 w-auto shrink-0">
-        {% else %}
+        {% elif brand or path_world == 'sweep' %}
           <svg width="34" height="20" viewBox="0 0 40 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" class="shrink-0 text-sb-gold-bright"{% if brand and brand.accent %} style="color: {{ brand.accent }}"{% endif %}>
             <path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/>
           </svg>
+        {% else %}
+          {#- Street Banker's own mark on every page that is not Royalty
+              Sweep's (owner, 2026-09-14). -#}
+          <img src="/static/img/streetbanker-logo.svg" alt="Street Banker" class="sb-hide-rail max-h-16 w-auto shrink-0">
         {% endif %}
+        {% if brand or path_world == 'sweep' %}
         <div class="sb-hide-rail mt-1.5 text-center leading-none">
           {% if brand %}
             <div class="text-lg font-bold tracking-[0.3em] text-gray-100">{{ brand.name | upper }}</div>
@@ -124,6 +141,7 @@
           {% endif %}
         </div>
         <div class="sb-label sb-hide-rail mt-2 text-amber-500/70">{{ brand.tagline if brand and brand.tagline else ("" if brand else "Track it. Collect it. Sweep it.") }}</div>
+        {% endif %}
       </a>
 
       <div id="sb-menu" class="hidden lg:contents">
@@ -142,18 +160,10 @@
         </div>
       </form>
 
-      {% if user_plan and user_plan != 'fan' %}
-      <!-- Product world switcher -->
-      <div class="sb-hide-rail mt-5 grid grid-cols-2 gap-1.5">
-        {% for wkey, wlabel, whome, wtier in plan_worlds %}
-        {% set locked = wtier and plan_rank.get(user_plan, 1) < plan_rank.get(wtier, 0) %}
-        <a href="/world/{{ wkey }}" class="flex items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-bold uppercase tracking-wide {{ 'border-amber-500/50 bg-amber-500/15 text-amber-400' if nav_world == wkey else ('border-white/10 text-gray-300 hover:text-white' if not locked else 'border-white/5 text-gray-300') }}">
-          {{ wlabel }}
-          {% if locked %}<svg class="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor"><path d="M6 9V6a4 4 0 118 0v3h1a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6a1 1 0 011-1zm2 0h4V6a2 2 0 10-4 0z"/></svg>{% endif %}
-        </a>
-        {% endfor %}
-      </div>
-      {% elif user_plan == 'fan' %}
+      {#- The four world boxes (Promote, Royalty Sweep, Label Services, Fan
+          Side) came off on 2026-09-14: the owner found them a second menu.
+          Label Services shows for a Label plan below instead. -#}
+      {% if user_plan == 'fan' %}
       <div class="sb-hide-rail mt-5 rounded-lg border border-sb-gold/30 bg-sb-gold/[0.06] px-3 py-2 text-center">
         <div class="sb-label text-sb-gold-bright">Fan Account</div>
         <a href="/billing" class="mt-1 inline-block py-1.5 text-xs font-semibold text-gray-200 hover:text-amber-300">Are you an artist? Upgrade →</a>
@@ -178,10 +188,6 @@
         }
       </style>
       <nav class="mt-5 space-y-2 text-sm" id="sb-nav">
-        {# Filled by script from the pages this browser actually opened.
-           With seventy destinations, the four you were just in beat any
-           ordering we could guess. #}
-        <div id="sb-recent" class="sb-hide-rail hidden space-y-1"></div>
         {#- desc is the same one-line description the hub desks and the command
             palette show. A label alone answers "what is this called"; somebody
             hunting for a mixer or a loudness meter needs "what is this FOR",
@@ -252,7 +258,7 @@
           </div>
         </div>
         {% endfor %}
-        {% if nav_world == 'label' %}
+        {% if nav_world == 'label' or user_plan == 'label' %}
         <div class="hub" data-hub="label">
           <a href="/services" title="{{ hubs_label[0] }}"
              class="hub-rail mb-1 h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-gray-300 transition-colors hover:border-sb-gold/40 hover:text-white">
@@ -287,12 +293,14 @@
         </div>
         {% endif %}
 
-        {# "Unlocking soon" said the same wrong thing the padlock did -
-           that access was being withheld. Nothing is withheld. #}
-        <div class="sb-hide-rail flex items-center gap-2 px-3 pt-1 text-xs uppercase tracking-wider text-gray-300 font-medium">
-          <span class="shrink-0 rounded bg-amber-400/15 px-1.5 py-0.5 text-xs font-black tracking-[0.12em] text-amber-300/90">Sample</span>
-          Open, but showing example data
-        </div>
+        {# Recently opened, filled by script from the pages this browser
+           actually opened. Under the groups, not above them (owner,
+           2026-09-14): the map first, the shortcuts after. #}
+        <div id="sb-recent" class="sb-hide-rail hidden space-y-1"></div>
+
+        {#- The "Sample - open, but showing example data" legend came off
+            (owner, 2026-09-14): sample pages are hidden from Owner tools
+            instead, and the badge on an entry explains itself. -#}
 
         {# Internal tools footer. Only rendered for a login that actually
            holds a seat on each roster - offering everyone a link that

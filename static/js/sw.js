@@ -14,7 +14,7 @@
    copy is per-URL - query string included, because Show Command tabs and
    My Day dates live in the query - is whatever the server last sent that
    signed-in person, and is replaced on every successful load. */
-var VERSION = "sb-v238";   /* a page form never gets the JSON refusal */
+var VERSION = "sb-v239";   /* the sidebar: Street Banker mark, no world boxes, Recent under Account */
 var PAGES = VERSION + "-tour";
 var PRECACHE = ["/static/offline.html", "/static/img/streetbanker-logo.svg",
                 "/static/img/icon-192.png", "/static/manifest.json"];

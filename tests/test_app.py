@@ -2660,9 +2660,12 @@ def test_world_switcher_and_public_pages():
     app_obj = create_app()
     client = app_obj.test_client()
     client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
-    # Demo account has the Label plan: everything open, switcher rendered.
+    # Demo account has the Label plan: everything open. The four world
+    # boxes came off the sidebar (owner, 2026-09-14); Label Services shows
+    # by plan instead, on every page.
     body = client.get("/links").get_data(as_text=True)
-    assert "/world/sweep" in body and "/world/fan" in body
+    assert "/world/sweep" not in body and "/world/fan" not in body
+    assert 'data-hub="label"' in body and 'href="/services"' in body
     # Ecosystem Hub model: every artist world carries all five hubs.
     assert "Rollout Engine" in body and "Statements" in body
     assert 'data-hub="launch"' in body and 'data-hub="money"' in body
