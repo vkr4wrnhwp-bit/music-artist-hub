@@ -260,6 +260,69 @@
           <div class="px-3 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">Account</div>
           {% for key, href, path, label, _d in hubs_account[1] if key in fan_account_keys %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
         </div>
+        {% elif rooms_nav %}
+        {#- The eight rooms (owner, 2026-09-15, by numbered mockup).
+            Command Center and Actions stay at the top as plain rows. A
+            room's name opens its screen of cards; the chevron expands it
+            in place, one click to any of its pages. -#}
+        {% macro room_item(key, href, path, label, desc, state) -%}
+          {%- set external = state == 'external' -%}
+          <a href="{{ href }}"{% if external %} target="_blank" rel="noopener"{% endif %} class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors {{ 'bg-amber-500/10 font-semibold text-amber-400' if active_page == key else 'text-gray-200 hover:bg-white/5 hover:text-white' }}" title="{{ desc }}">
+            <svg class="h-[18px] w-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              {% for d in path.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
+            </svg>
+            <span class="min-w-0 flex-1 truncate">{{ label }}</span>
+            {% if external %}<span class="sr-only">(opens in a new tab)</span>{% endif %}
+            {% if state == 'hidden' %}<span class="nav-lock ml-auto shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-gray-300">Hidden</span>
+            {% elif state == 'sample' %}<span class="nav-lock ml-auto shrink-0 rounded bg-amber-400/15 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-amber-300/90">Sample</span>{% endif %}
+          </a>
+        {%- endmacro %}
+        <div class="space-y-1" id="sb-top-rows">
+          {% for key, href, path, label, desc, state in rooms_nav.top %}{{ room_item(key, href, path, label, desc, state) }}{% endfor %}
+        </div>
+        {% for rkey, rname, rpurpose, ricon, rcards in rooms_nav.rooms %}
+        {% set card_keys = rcards | map(attribute='0') | list %}
+        <div class="hub" data-hub="{{ rkey }}" data-room="1"{% if active_page in card_keys or active_page == 'room-' + rkey %} data-active="1"{% endif %}>
+          <a href="/room/{{ rkey }}" title="{{ rname }} — {{ rpurpose }}"
+             class="hub-rail mb-1 h-10 w-10 items-center justify-center rounded-lg border transition-colors {{ 'border-sb-gold/50 bg-sb-gold/15 text-sb-gold-bright' if active_page in card_keys or active_page == 'room-' + rkey else 'border-white/10 text-gray-300 hover:border-white/25 hover:text-white' }}">
+            <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              {% for d in ricon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
+            </svg>
+          </a>
+          <div class="sb-hide-rail flex items-center gap-1">
+            <a href="/room/{{ rkey }}" class="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors {{ 'text-amber-400' if active_page == 'room-' + rkey else 'text-gray-100 hover:bg-white/5 hover:text-white' }}">
+              <svg class="h-[18px] w-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                {% for d in ricon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
+              </svg>
+              <span class="min-w-0 flex-1 truncate">{{ rname }}</span>
+            </a>
+            <button type="button" class="hub-tgl rounded p-1 text-gray-300 hover:text-white" aria-label="Expand {{ rname }}">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg>
+            </button>
+          </div>
+          <div class="hub-items space-y-1 pl-2">
+            {% for key, href, path, label, desc, state in rcards %}{{ room_item(key, href, path, label, desc, state) }}{% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+        {% set acct_keys = rooms_nav.account | map(attribute='0') | list %}
+        <div class="hub" data-hub="account"{% if active_page in acct_keys %} data-active="1"{% endif %}>
+          <a href="/settings" title="Account"
+             class="hub-rail relative mb-1 h-10 w-10 items-center justify-center rounded-lg border transition-colors {{ 'border-sb-gold/50 bg-sb-gold/15 text-sb-gold-bright' if active_page in acct_keys else 'border-white/10 text-gray-300 hover:border-white/25 hover:text-white' }}">
+            <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              {% for d in hub_icons.get('account', '').split('|') if d %}<path d="{{ d }}"/>{% endfor %}
+            </svg>
+          </a>
+          <div class="sb-hide-rail flex items-center gap-1">
+            <span class="min-w-0 flex-1 truncate px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-gray-300">Account</span>
+            <button type="button" class="hub-tgl rounded p-1 text-gray-300 hover:text-white" aria-label="Toggle Account">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg>
+            </button>
+          </div>
+          <div class="hub-items space-y-1">
+            {% for key, href, path, label, desc, state in rooms_nav.account %}{{ room_item(key, href, path, label, desc, state) }}{% endfor %}
+          </div>
+        </div>
         {% else %}
         {# The Ecosystem Hub model: five hubs, each with a desk page. #}
         {% for hkey, hname, htag, hitems in hubs_nav %}

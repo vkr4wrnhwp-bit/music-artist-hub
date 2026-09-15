@@ -43,6 +43,7 @@ import press_desk
 import tour_os
 import demo_accounts
 import page_switches
+import rooms
 import producers
 import distributor_letter
 import recovery_engine
@@ -3723,9 +3724,20 @@ def create_app():
                 (g_[0], [it for it in g_[1] if it[0] not in hidden])
                 for g_ in (label, community, account))
             palette = [e for e in palette if e["key"] not in hidden]
+        # The eight rooms (owner, 2026-09-15, by numbered mockup): the
+        # same keys, addresses and switches as the hubs, laid out as rooms.
+        # Staging first: on when NAV_ROOMS=1 or the owner switched it.
+        rooms_nav = None
+        if me and rooms.enabled() and (me.get("plan") or "artist") != "fan":
+            is_owner = bool(_is_owner_email(me.get("email")))
+            demo = bool(_demo_locked_account())
+            rooms_nav = {"rooms": rooms.build(me.get("plan") or "artist", is_owner, demo),
+                         "top": rooms.top_rows(is_owner, demo),
+                         "account": rooms.account_rows(is_owner, demo)}
         return {"hubs_nav": nav, "hubs_label": label,
                 "hubs_community": community,
                 "hubs_account": account,
+                "rooms_nav": rooms_nav,
                 "page_hidden": page_hidden,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
                 "hub_icons": hub_defs.HUB_ICONS,
@@ -3740,6 +3752,32 @@ def create_app():
                 # the whole point of the fan shell is that those pages are
                 # not part of their world.
                 "command_index": palette}
+
+    @app.route("/room/<room_key>")
+    def room_screen(room_key):
+        """A room's screen: what it is for, then a card per feature
+        (owner, 2026-09-15, mockup 3). Rooms exist whether or not the
+        sidebar shows them, so a link to one never dies with the layout."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        room = rooms.get_room(room_key, user.get("plan") or "artist",
+                              bool(_is_owner_email(user.get("email"))),
+                              bool(_demo_locked_account()))
+        if room is None:
+            abort(404)
+        return render_template("room.html", active_page="room-" + room_key,
+                               room=room, **build_dashboard_context())
+
+    @app.route("/admin/nav-layout", methods=["POST"])
+    def admin_nav_layout():
+        """The owner's choice of sidebar: rooms or hubs, for everybody,
+        on the next request. Owner only, 404 to everybody else."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        rooms.set_layout(request.form.get("layout") or "hubs")
+        return redirect("/settings?nav=saved#nav-layout")
 
     @app.route("/desk/<hub_key>")
     def hub_desk(hub_key):
