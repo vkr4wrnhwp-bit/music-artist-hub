@@ -129,7 +129,7 @@
                   drawn from a one-off decode, so there is a picture of the
                   file and somewhere to click, which four identical grey
                   bars never gave anybody comparing stems. -#}
-              <div class="sd-deck" data-sd-src="{{ out_url }}">
+              <div class="sd-deck" data-sd-src="{{ out_url }}?via=app" data-sd-name="{{ out.file_name }}">
                 <button type="button" class="sd-btn" data-sd-back
                         aria-label="Back ten seconds" title="Back 10s">⏪</button>
                 <button type="button" class="sd-btn" data-sd-play
@@ -255,7 +255,7 @@
   </form>
 </div>
 
-<script src="/static/js/stemdeck.js?v=1"></script>
+<script src="/static/js/stemdeck.js?v=2"></script>
 <script>
 /* Click a line, hear it. The element is the engine here for the same
    reason it is on the stem decks: it streams, and it cannot get stuck

@@ -70,15 +70,23 @@
     if (!data) { return; }
     var mid = HEIGHT / 2;
     var played = Math.floor(width * (progress || 0));
+    /* Read from the stylesheet so the deck follows the theme rather than
+       carrying its own colours, which the design lock forbids anyway. */
+    var cs = getComputedStyle(canvas);
+    var playedColor = cs.getPropertyValue("--sd-played").trim();
+    var waveColor = cs.getPropertyValue("--sd-wave").trim();
+    var headColor = cs.getPropertyValue("--sd-head").trim() || playedColor;
     for (var x = 0; x < width; x++) {
       var v = data[Math.floor(x / width * data.length)] || 0;
       var h = Math.max(1, v * (HEIGHT - 4) / 2);
-      /* Read from the stylesheet so the deck follows the theme rather than
-         carrying its own colours, which the design lock forbids anyway. */
-      g.fillStyle = x <= played
-        ? getComputedStyle(canvas).getPropertyValue("--sd-played").trim()
-        : getComputedStyle(canvas).getPropertyValue("--sd-wave").trim();
+      g.fillStyle = x <= played ? playedColor : waveColor;
       g.fillRect(x, mid - h, 1, h * 2);
+    }
+    /* The playhead: a line the eye can find after a skip, which the
+       colour change alone did not give (owner, 2026-09-15). */
+    if (progress > 0) {
+      g.fillStyle = headColor;
+      g.fillRect(Math.max(0, played - 1), 0, 2, HEIGHT);
     }
   }
 
@@ -101,6 +109,9 @@
       });
   }
 
+  /* Every deck on the page, so the group bar can drive them together. */
+  var decks = [];
+
   function mount(deck) {
     var audio = deck.querySelector("audio");
     var canvas = deck.querySelector("[data-sd-wave]");
@@ -111,6 +122,7 @@
     var note = deck.querySelector("[data-sd-note]");
     if (!audio || !canvas) { return; }
     var data = null;
+    decks.push({el: deck, audio: audio, tick: function () { tick(); }});
 
     function tick() {
       var dur = audio.duration;
@@ -166,8 +178,95 @@
     tick();
   }
 
+  /* Stems are meant to be heard together. With more than one deck on the
+     page a group bar plays them all from the same point, and each deck gets
+     a Mute so a stem can be taken out of the mix and put back (owner,
+     2026-09-15: "a group all button that plays all stems at once then you
+     can mute as you like"). */
+  function mountGroup() {
+    if (decks.length < 2) { return; }
+    var first = decks[0].el;
+    var host = first.closest("table") || first.closest("section") || first.parentNode;
+    var bar = doc.createElement("div");
+    bar.className = "sd-group";
+    bar.setAttribute("role", "group");
+    bar.setAttribute("aria-label", "All stems together");
+    var label = doc.createElement("span");
+    label.className = "sd-group-label";
+    label.textContent = "All stems together";
+    var playAll = doc.createElement("button");
+    playAll.type = "button"; playAll.className = "sd-btn"; playAll.textContent = "\u25B6 Play all";
+    var backAll = doc.createElement("button");
+    backAll.type = "button"; backAll.className = "sd-btn"; backAll.textContent = "\u23EA";
+    backAll.setAttribute("aria-label", "All back ten seconds");
+    var fwdAll = doc.createElement("button");
+    fwdAll.type = "button"; fwdAll.className = "sd-btn"; fwdAll.textContent = "\u23E9";
+    fwdAll.setAttribute("aria-label", "All forward ten seconds");
+    var top = doc.createElement("button");
+    top.type = "button"; top.className = "sd-btn"; top.textContent = "\u23EE";
+    top.setAttribute("aria-label", "All to the start");
+    var hint = doc.createElement("span");
+    hint.className = "sd-group-label";
+    hint.textContent = "Mute a stem on its own row to take it out of the mix.";
+    bar.appendChild(label); bar.appendChild(top); bar.appendChild(backAll);
+    bar.appendChild(playAll); bar.appendChild(fwdAll); bar.appendChild(hint);
+    host.parentNode.insertBefore(bar, host);
+
+    function each(fn) { decks.forEach(function (d) { fn(d.audio, d); }); }
+    function anyPlaying() {
+      return decks.some(function (d) { return !d.audio.paused; });
+    }
+    function setAllLabel() {
+      var playing = anyPlaying();
+      playAll.textContent = playing ? "\u23F8 Pause all" : "\u25B6 Play all";
+    }
+    function seekAll(t) {
+      each(function (a) {
+        var dur = isFinite(a.duration) ? a.duration : t;
+        a.currentTime = Math.max(0, Math.min(dur, t));
+      });
+    }
+    playAll.addEventListener("click", function () {
+      if (anyPlaying()) { each(function (a) { a.pause(); }); return; }
+      /* everyone starts from the first deck's clock, so the stems line up */
+      var t = decks[0].audio.currentTime || 0;
+      seekAll(t);
+      each(function (a) { a.play(); });
+    });
+    backAll.addEventListener("click", function () {
+      seekAll((decks[0].audio.currentTime || 0) - NUDGE);
+    });
+    fwdAll.addEventListener("click", function () {
+      seekAll((decks[0].audio.currentTime || 0) + NUDGE);
+    });
+    top.addEventListener("click", function () { seekAll(0); });
+    each(function (a) {
+      a.addEventListener("play", setAllLabel);
+      a.addEventListener("pause", setAllLabel);
+      a.addEventListener("ended", setAllLabel);
+    });
+
+    decks.forEach(function (d) {
+      var mute = doc.createElement("button");
+      mute.type = "button"; mute.className = "sd-btn"; mute.textContent = "Mute";
+      mute.setAttribute("aria-pressed", "false");
+      var name = d.el.dataset.sdName || "this stem";
+      mute.setAttribute("aria-label", "Mute " + name);
+      mute.addEventListener("click", function () {
+        d.audio.muted = !d.audio.muted;
+        mute.setAttribute("aria-pressed", d.audio.muted ? "true" : "false");
+        mute.textContent = d.audio.muted ? "Muted" : "Mute";
+        d.el.classList.toggle("is-muted", d.audio.muted);
+      });
+      var fwd = d.el.querySelector("[data-sd-fwd]");
+      if (fwd && fwd.parentNode) { fwd.parentNode.insertBefore(mute, fwd.nextSibling); }
+    });
+    setAllLabel();
+  }
+
   function start() {
     Array.prototype.forEach.call(doc.querySelectorAll("[data-sd-src]"), mount);
+    mountGroup();
   }
 
   if (doc.readyState === "loading") {

@@ -2093,11 +2093,16 @@ function sbWhenRunning(c, fn) {
      and an unreachable manifest must not stop it booting. */
   function loadStemsFromStudio(workId) {
     if (!workId) return;
+    function say(text) { if (statusEl) statusEl.textContent = text; }
+    say("Loading the stems from the Audio Studio\u2026");
     fetch("/audio-studio/" + encodeURIComponent(workId) + "/outputs.json",
           {credentials: "same-origin"})
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
-        if (!data || !data.ok || !(data.files || []).length) return;
+        if (!data || !data.ok || !(data.files || []).length) {
+          say("The Audio Studio had no stems to hand over for that item.");
+          return;
+        }
         ensureCtx().resume();
         return Promise.all(data.files.slice(0, 8).map(function (f) {
           return fetch(f.url, {credentials: "same-origin"})
@@ -2110,16 +2115,18 @@ function sbWhenRunning(c, fn) {
             .catch(function () { return null; });
         })).then(function (loaded) {
           var ok = loaded.filter(Boolean);
-          if (!ok.length) return;
+          if (!ok.length) {
+            say("The stems could not be read from the Audio Studio. Download them from the item and drop them here.");
+            return;
+          }
           stems = stems.concat(ok).slice(0, 8);
           stop(); renderStems(); syncDeckInfo(); renderWave();
-          if (statusEl) {
-            statusEl.textContent = ok.length + " stem" +
-              (ok.length === 1 ? "" : "s") + " loaded from the Audio Studio.";
-          }
+          say(ok.length + " stem" + (ok.length === 1 ? "" : "s")
+              + " loaded from the Audio Studio"
+              + (ok.length < loaded.length ? "; " + (loaded.length - ok.length) + " could not be read." : "."));
         });
       })
-      .catch(function () { /* the Rack works without it */ });
+      .catch(function () { say("The stems could not be read from the Audio Studio. Download them from the item and drop them here."); });
   }
 
   /* Street Banker Studio hands a whole master over as ?asset=, the way the

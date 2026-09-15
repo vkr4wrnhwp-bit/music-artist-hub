@@ -57,6 +57,11 @@ import time
 
 import audio_providers as ap
 
+# Where a transcript's lines break: a pause this long between two words,
+# or this many words on one line, whichever comes first.
+LINE_GAP_MS = 700
+LINE_WORDS = 12
+
 VENDOR = "elevenlabs"
 
 # Defaults taken from the SDK's own docstring examples. Overridable, and
@@ -455,19 +460,30 @@ class ElevenLabsTranscription(_Base, ap.TranscriptionProvider):
             end = g(w, "end", default=0) or 0
             if wtype not in ("word", "spacing", "audio_event"):
                 continue
-            if cur is None or (speaker and speaker != cur["speaker"]):
+            start_ms = int(float(start) * 1000)
+            # A sung line ends at a breath. A pause of LINE_GAP_MS between
+            # words, or a dozen words, starts a new segment, so the sheet
+            # reads as lines rather than one paragraph (owner, 2026-09-15).
+            breath = (cur is not None and wtype == "word"
+                      and (start_ms - cur["end_ms"] >= LINE_GAP_MS
+                           or cur.get("words", 0) >= LINE_WORDS))
+            if cur is None or (speaker and speaker != cur["speaker"]) or breath:
                 if cur:
                     segments.append(cur)
                 cur = {"speaker": speaker or "Speaker 1",
-                       "start_ms": int(float(start) * 1000),
-                       "end_ms": int(float(end) * 1000), "text": text}
+                       "start_ms": start_ms,
+                       "end_ms": int(float(end) * 1000), "text": text,
+                       "words": 1 if wtype == "word" else 0}
             else:
                 cur["text"] += text
                 cur["end_ms"] = int(float(end) * 1000)
+                if wtype == "word":
+                    cur["words"] = cur.get("words", 0) + 1
         if cur:
             segments.append(cur)
         for s in segments:
             s["text"] = " ".join(s["text"].split())
+            s.pop("words", None)
         return {
             "status": "completed",
             "is_mock": False,

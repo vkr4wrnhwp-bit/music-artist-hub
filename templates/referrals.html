@@ -7,16 +7,16 @@
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Growth</div>
     <h1 class="sb-h1 mt-1">Referrals</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-300">Give a month, get $9. Anyone who signs up from your link gets their <span class="text-gray-200">first month free</span> on any paid plan — and when they convert, a <span class="text-gray-200">$9.00 credit</span> lands on your Stripe balance and offsets your next invoices.</p>
+    <p class="mt-1 max-w-2xl text-sm text-gray-300">Share your link with another artist. They get their <span class="text-gray-200">first month free</span> on any paid plan. When they pay for their first month after that, you get <span class="text-gray-200">$9 off your next bill</span>.</p>
   </div>
 
   <div class="grid grid-cols-2 gap-3">
     <div class="rounded-2xl border border-white/10 bg-sb-surface-1 p-4">
-      <div class="sb-label text-gray-300">Signed up from your link</div>
+      <div class="sb-label text-gray-300">Joined through your link</div>
       <div class="mt-1 text-2xl font-black tabular-nums">{{ stats.signups }}</div>
     </div>
     <div class="rounded-2xl border border-sb-gold/30 bg-sb-surface-2 p-4">
-      <div class="sb-label text-gray-300">Converted · credits applied</div>
+      <div class="sb-label text-gray-300">Now paying, $9 earned each</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-sb-ink">{{ stats.converted }}</div>
     </div>
   </div>
@@ -28,12 +28,12 @@
              class="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 font-mono text-xs text-sb-gold-bright focus:outline-none">
       <button id="ref-copy" class="sb-btn sb-btn-primary">Copy</button>
     </div>
-    <p class="mt-2 text-xs text-gray-300 font-medium">Drop it in group chats, bios, and the merch table QR. It never expires.</p>
+    <p class="mt-2 text-xs text-gray-300 font-medium">Put it in group chats, your bio, or a QR code on the merch table. It does not expire.</p>
   </section>
 
   <div class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5 text-xs leading-relaxed text-gray-300 font-medium">
-    <span class="font-bold uppercase tracking-wide text-gray-300">How it settles, honestly:</span>
-    credits are applied through Stripe only — the moment your referral's first payment clears, Stripe adds $9.00 to your customer balance{% if not stripe_live %} (Stripe isn't configured on this server yet, so conversions can't complete for now){% endif %}. If you don't have billing set up yet, your earned credits apply automatically the first time you subscribe. No gift cards, no points, no expiry games.
+    <span class="font-bold uppercase tracking-wide text-gray-300">How the $9 reaches you:</span>
+    as a credit on your billing account, applied the moment the artist you referred makes their first payment{% if not stripe_live %}. Payments are not switched on for this service yet, so no referral can complete here for now{% endif %}. If you are not paying for a plan yet, the credits wait and come off your first bill. No gift cards, no points, and they do not expire.
   </div>
 </div>
 

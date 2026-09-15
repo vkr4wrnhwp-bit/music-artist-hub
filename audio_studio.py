@@ -427,7 +427,13 @@ def studio_new():
                     "%s (%s)" % (n, c) for c, n in _DUBBING)))
         option_sets = [{"languages": [lang]}
                        for lang in option_sets[0]["languages"]]
-    base_title = request.form.get("title") or title
+    # No title typed: the recording's own name (owner, 2026-09-15: "in the
+    # recent works theres no title on what it is"). The lane is on the row
+    # already, so "Narrow take 3" says more there than "Lyric sheet" would.
+    typed = (request.form.get("title") or "").strip()
+    if not typed and upload is not None and upload.filename:
+        typed = os.path.splitext(os.path.basename(upload.filename))[0].strip()[:120]
+    base_title = typed or title
 
     first = None
     for options in option_sets:
@@ -499,7 +505,26 @@ def _transcript(item):
         return []
     stored = astore.transcript_for_asset(None, item.get("source_asset_id"))
     segments = (stored or {}).get("segments") or []
-    return [s for s in segments if (s.get("text") or "").strip()]
+    out = []
+    for s in segments:
+        if not (s.get("text") or "").strip():
+            continue
+        words = s["text"].split()
+        if len(words) <= LINE_WRAP_WORDS:
+            out.append(s)
+            continue
+        # A transcript taken before lines were broken at the breath came
+        # back as one segment. Wrap it so it reads as a sheet; every
+        # line keeps the segment's own start, the only time it has.
+        for i in range(0, len(words), LINE_WRAP_WORDS):
+            line = dict(s)
+            line["text"] = " ".join(words[i:i + LINE_WRAP_WORDS])
+            out.append(line)
+    return out
+
+
+# Words per line when an older one-paragraph transcript is wrapped.
+LINE_WRAP_WORDS = 12
 
 
 @bp.route("/audio-studio/<work_id>/outputs.json")
@@ -527,8 +552,9 @@ def studio_outputs(work_id):
             continue
         out.append({
             "name": asset.get("file_name") or "audio",
+            # through the app: a script fetch cannot follow the bucket redirect
             "url": url_for("audio_studio.studio_output", work_id=work_id,
-                           asset_id=asset_id),
+                           asset_id=asset_id, via="app"),
         })
     return jsonify({"ok": True, "title": item.get("title") or "", "files": out})
 
@@ -555,13 +581,27 @@ def studio_output(work_id, asset_id):
         # Destroyed on the retention schedule. Saying so beats a 500.
         abort(410)
 
-    return _send_asset(asset)
+    return _send_asset(asset, through_app=request.args.get("via") == "app")
 
 
-def _send_asset(asset):
-    """The bytes of one asset, however this deployment stores them."""
+def _send_asset(asset, through_app=False):
+    """The bytes of one asset, however this deployment stores them.
+
+    A bucket object is normally a redirect to a signed URL, which a
+    browser follows for a download or an <audio> element. A script's
+    fetch() follows it cross-origin and the bucket sends no CORS headers,
+    so the Rack's stem loader and the deck's waveform got nothing and
+    said nothing (owner, live, 2026-09-15: "open stems in the rack also
+    doesnt work"). `?via=app` streams the bytes through here instead.
+    """
     path = asset["storage_key"]
     if blob_store.is_remote(path):
+        if through_app:
+            data = blob_store.fetch(path)
+            if data is None:
+                abort(503)
+            return Response(data, mimetype=asset.get("mime_type") or "audio/wav",
+                            headers={"Cache-Control": "private, max-age=300"})
         signed = blob_store.url_for(path, ttl=300)
         if signed == path:
             abort(503)

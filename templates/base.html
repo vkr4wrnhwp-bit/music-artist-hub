@@ -119,6 +119,11 @@
                   class="flex h-11 w-11 items-center justify-center rounded-lg border border-white/15 text-gray-200">
             <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="9" r="6"/><path d="M13.5 13.5L17 17"/></svg>
           </button>
+          <a href="/notifications" aria-label="Notifications{% if unread_ntf %}, {{ unread_ntf }} unread{% endif %}"
+             class="relative flex h-11 w-11 items-center justify-center rounded-lg border border-white/15 text-gray-200">
+            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3a4 4 0 00-4 4c0 4-2 5-2 5h12s-2-1-2-5a4 4 0 00-4-4z"/><path d="M8.5 16a1.5 1.5 0 003 0"/></svg>
+            {% if unread_ntf %}<span class="sb-num absolute -right-1 -top-1 rounded-full border border-sb-info/40 bg-sb-info/15 px-1 text-xs font-semibold leading-4 text-sb-info">{{ unread_ntf }}</span>{% endif %}
+          </a>
           <button id="sb-burger" type="button" aria-label="Menu" aria-expanded="false" class="flex h-11 w-11 items-center justify-center rounded-lg border border-white/15 text-gray-200">
             <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
           </button>
@@ -157,13 +162,29 @@
         <svg id="sb-rail-icon" class="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6l-4 4 4 4"/><path d="M15 4v12"/></svg>
         <span class="sb-hide-rail">Collapse<kbd class="ml-1.5 rounded border border-white/15 px-1 text-xs text-gray-300">[</kbd></span>
       </button>
-      <form action="/search" method="get" class="sb-hide-rail mt-6">
+      <div class="sb-hide-rail mt-6 flex items-center gap-2">
+      <form action="/search" method="get" class="min-w-0 flex-1">
         <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 focus-within:border-amber-500/40">
           <svg class="h-4 w-4 shrink-0 text-gray-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.5"/><path d="M17 17l-4-4"/></svg>
           <input type="search" name="q" aria-label="Search" placeholder="Search…" value="{{ request.args.get('q', '') if request else '' }}"
                  class="w-full min-w-0 bg-transparent text-xs text-gray-200 placeholder-gray-300 focus:outline-none">
         </div>
       </form>
+      {#- Inbox and notifications live up here, in the corner, not as two
+          rows of the Account group (owner, 2026-09-15). The bell carries
+          the unread count. -#}
+      {% if user_plan != 'fan' %}
+      <a href="/inbox" id="sb-corner-inbox" aria-label="Inbox" title="Inbox"
+         class="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 text-gray-300 transition-colors hover:border-amber-500/40 hover:text-white {{ 'border-amber-500/50 text-amber-400' if active_page == 'inbox' else '' }}">
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l3-8h8l3 8v4a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><path d="M3 12h4l1.5 2h3L13 12h4"/></svg>
+      </a>
+      {% endif %}
+      <a href="/notifications" id="sb-corner-bell" aria-label="Notifications{% if unread_ntf %}, {{ unread_ntf }} unread{% endif %}" title="Notifications"
+         class="relative grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 text-gray-300 transition-colors hover:border-amber-500/40 hover:text-white {{ 'border-amber-500/50 text-amber-400' if active_page == 'notifications' else '' }}">
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3a4 4 0 00-4 4c0 4-2 5-2 5h12s-2-1-2-5a4 4 0 00-4-4z"/><path d="M8.5 16a1.5 1.5 0 003 0"/></svg>
+        {% if unread_ntf %}<span class="sb-num absolute -right-1.5 -top-1.5 rounded-full border border-sb-info/40 bg-sb-info/15 px-1 text-xs font-semibold leading-4 text-sb-info">{{ unread_ntf }}</span>{% endif %}
+      </a>
+      </div>
 
       {#- The four world boxes (Promote, Royalty Sweep, Label Services, Fan
           Side) came off on 2026-09-14: the owner found them a second menu.
@@ -264,7 +285,7 @@
         </div>
         {% endfor %}
         {% if nav_world == 'label' or user_plan == 'label' %}
-        <div class="hub" data-hub="label">
+        <div class="hub" data-hub="label" data-open="1">
           <a href="/services" title="{{ hubs_label[0] }}"
              class="hub-rail mb-1 h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-gray-300 transition-colors hover:border-sb-gold/40 hover:text-white">
             <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -293,7 +314,7 @@
             </button>
           </div>
           <div class="hub-items space-y-1">
-            {% for key, href, path, label, _d in hubs_account[1] %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
+            {%- for key, href, path, label, _d in hubs_account[1] if key not in ('inbox', 'notifications') %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
           </div>
         </div>
         {% endif %}
@@ -364,7 +385,14 @@
           var KEY = "sbHubs", st = {};
           try { st = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) {}
           document.querySelectorAll("#sb-nav .hub").forEach(function (h) {
-            var open = h.dataset.active === "1" || st[h.dataset.hub] === 1;
+            /* A group this browser has never opened or closed starts as
+               its markup says: closed, except one marked data-open, which
+               is how Label Services first appears for a Label plan
+               (owner, staging, 2026-09-15: "all of label services are
+               gone" - it was there, folded shut). */
+            var seen = Object.prototype.hasOwnProperty.call(st, h.dataset.hub);
+            var open = h.dataset.active === "1" || st[h.dataset.hub] === 1
+              || (!seen && h.dataset.open === "1");
             if (!open) h.classList.add("hub-closed");
           });
           document.querySelectorAll("#sb-nav .hub-tgl").forEach(function (b) {
