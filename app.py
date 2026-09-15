@@ -3768,7 +3768,8 @@ def create_app():
         if room is None:
             abort(404)
         return render_template("room.html", active_page="room-" + room_key,
-                               room=room, **build_dashboard_context())
+                               room=room, room_images=rooms.images(),
+                               **build_dashboard_context())
 
     @app.route("/admin/nav-layout", methods=["POST"])
     def admin_nav_layout():

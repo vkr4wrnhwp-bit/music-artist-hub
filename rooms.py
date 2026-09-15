@@ -148,6 +148,35 @@ def hidden_keys(base=None):
     return hidden
 
 
+# The owner's own drawn pictures for a room's icons (2026-09-15), one
+# file per feature key under static/img/rooms/, e.g. rack.webp. A feature
+# with a picture shows it; one without keeps its line mark. Read from the
+# disk once per process, so dropping a file in is the whole change.
+_IMAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "img", "rooms")
+_IMAGE_EXTS = (".webp", ".avif", ".png", ".jpg", ".jpeg", ".svg")
+_images = None
+
+
+def images():
+    """{feature key: /static path} for every picture on the disk."""
+    global _images
+    if _images is None:
+        found = {}
+        try:
+            for name in sorted(os.listdir(_IMAGE_DIR)):
+                stem, ext = os.path.splitext(name)
+                if ext.lower() in _IMAGE_EXTS and stem not in found:
+                    found[stem] = "/static/img/rooms/" + name
+        except OSError:
+            pass
+        _images = found
+    return _images
+
+
+def image_for(key):
+    return images().get(key, "")
+
+
 def _state(key, href, live, hidden):
     if key in hidden:
         return "hidden"

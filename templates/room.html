@@ -24,9 +24,14 @@
     {% for key, href, icon, label, desc, state in room.cards %}
     {%- set external = href.startswith(('http://', 'https://')) -%}
     <a class="group flex flex-col items-center gap-2 rounded-xl px-2 py-3 text-center transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sb-gold" href="{{ href }}"{% if external %} target="_blank" rel="noopener"{% endif %} title="{{ desc }}" data-room-card="{{ key }}">
+      {%- set picture = room_images.get(key) if room_images is defined else none -%}
+      {% if picture %}
+      <img src="{{ picture }}" alt="" width="112" height="112" loading="lazy" class="h-28 w-28 rounded-2xl object-cover transition-transform group-hover:scale-105{% if state == 'sample' or state == 'hidden' %} opacity-60{% endif %}">
+      {% else %}
       <span class="sb-disc sb-disc--lg{% if state == 'sample' or state == 'hidden' %} sb-disc--off{% endif %} transition-colors group-hover:border-sb-gold/60" aria-hidden="true">
         <svg class="h-7 w-7" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">{% for d in icon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}</svg>
       </span>
+      {% endif %}
       <span class="text-sm font-semibold leading-tight text-gray-100">{{ label }}</span>
       {% if state == 'hidden' %}<span class="text-xs font-black uppercase tracking-[0.12em] text-gray-300">Hidden</span>
       {% elif state == 'sample' %}<span class="text-xs font-black uppercase tracking-[0.12em] text-amber-300/90">Sample</span>
