@@ -19,7 +19,7 @@ HUBS = [
         ("audio-studio", "/audio-studio", "M4 10h2v4H4z|M8 6h2v12H8z|M12 8h2v8h-2z|M16 11h2v2h-2z", "Audio Studio", "Dub a release, cut campaign audio, split stems, register a voice."),
         # The owner's own apps on their own Render services, each with its own
         # login. An absolute href opens in a new tab (base.html nav_item).
-        ("noise-lab", "https://street-banker-v2-workflows.onrender.com/noise-lab/", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Sound design and noise beds, in its own room (opens the v2 workflows app)."),
+        ("noise-lab", "https://street-banker-v2-workflows.onrender.com/noise-lab/", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Build your own effects and pedal chains for playing live (opens the Noise Lab app)."),
         ("the-room", "https://street-banker-v2-workflows.onrender.com/song-builder", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Song builder: a full track from a prompt, in its own room (opens the v2 workflows app)."),
         # MASTERCLIP OS, the video render factory, on its own service like
         # the two above (owner, 2026-09-15: "missing the video edit tool").
