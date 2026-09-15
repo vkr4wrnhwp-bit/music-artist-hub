@@ -102,3 +102,16 @@ def test_no_page_ever_lights_an_external_entry(artist):
     for _key, (_hub, href) in EXTERNAL.items():
         m = re.search(r'<a href="%s"[^>]*class="([^"]*)"' % re.escape(href), body)
         assert m and "font-semibold" not in m.group(1)
+
+
+def test_the_tool_suites_strip_lists_every_off_site_app(artist):
+    """The owner's model (2026-09-15): Street Banker is the desk, the
+    off-site apps are its tool suites. They get a strip of their own under
+    every signed-in page, read from the same entries the rooms read."""
+    assert [k for k, *_ in hubs.tool_suites()] == ["noise-lab", "the-room", "masterclip", "reach"]
+    body = artist.get("/vault").get_data(as_text=True)
+    strip = body.split('id="sb-tool-suites"')[1].split("</footer>")[0]
+    for key, (_hub, href) in EXTERNAL.items():
+        assert 'href="%s"' % href in strip and 'target="_blank"' in strip, key
+    assert "Tool suites" in strip and "(opens in a new tab)" in strip
+    assert "Sample" not in strip

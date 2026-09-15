@@ -573,6 +573,25 @@
       </div>
       {%- endif %}
       {% block content %}{% endblock %}
+      {#- The tool suites: the owner's off-site apps, listed in one place
+          under every signed-in page (owner, 2026-09-15: "think of street
+          banker like adobe and the off site apps are tool suites"). Read
+          from hubs.tool_suites(), so this strip and the room cards name
+          the same apps. Each opens in a new tab and says so. -#}
+      {% if user_plan and tool_suites %}
+      <footer id="sb-tool-suites" class="mt-12 border-t border-white/10 pt-5">
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <span class="sb-label text-gray-300">Tool suites</span>
+          {% for key, href, path, label, desc in tool_suites %}
+          <a href="{{ href }}" target="_blank" rel="noopener" title="{{ desc }}" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-200 transition-colors hover:border-sb-gold/50 hover:text-white">
+            <svg class="h-4 w-4 shrink-0 text-sb-gold-bright" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{% for d in path.split('|') if d %}<path d="{{ d }}"/>{% endfor %}</svg>
+            {{ label }}<span class="sr-only"> (opens in a new tab)</span>
+          </a>
+          {% endfor %}
+          <span class="text-xs text-gray-300 font-medium">Each is its own app with its own sign-in.</span>
+        </div>
+      </footer>
+      {% endif %}
     </main>
   </div>
 

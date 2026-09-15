@@ -226,6 +226,19 @@ def without(hubs, hidden):
     return out
 
 
+def tool_suites():
+    """The owner's off-site apps, the tool suites of the desk (owner,
+    2026-09-15: "think of street banker like adobe and the off site apps
+    are tool suites"). Every hub entry whose address is another service,
+    in sidebar order, so the footer strip and the rooms cannot disagree."""
+    out = []
+    for _hk, _name, _tag, items in nav_hubs():
+        for key, href, icon, label, desc in items:
+            if href.startswith(("http://", "https://")):
+                out.append((key, href, icon, label, desc))
+    return out
+
+
 def command_index():
     """Every destination as one flat list, for the command palette.
 

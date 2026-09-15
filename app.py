@@ -3744,6 +3744,7 @@ def create_app():
                 "hubs_community": community,
                 "hubs_account": account,
                 "rooms_nav": rooms_nav,
+                "tool_suites": hub_defs.tool_suites(),
                 "page_hidden": page_hidden,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
                 "hub_icons": hub_defs.HUB_ICONS,
