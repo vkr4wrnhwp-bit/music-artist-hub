@@ -19,3 +19,10 @@ tzdata
 # and leaves the mock adapters registered, so an install without this line
 # still boots and still demos - it just never reaches a vendor.
 elevenlabs==2.65.0
+
+# Contract reading (2026-09-14): the text out of an uploaded PDF so the
+# renewal dates can be found and checked. Pure Python, no C toolchain.
+# Pinned for the same reason as elevenlabs. Optional at runtime:
+# contract_reader says "cannot read PDFs yet" without it and the app
+# still boots.
+pypdf==6.18.1

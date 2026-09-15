@@ -259,6 +259,24 @@
 </div>
 
 <script>
+  /* Every save on this page is a script call. When the server refuses
+     one - the shared demo is read only, the session ended - the answer
+     must be read, not reloaded over: reloading turned a refusal into a
+     page that silently went back to empty (owner, 2026-09-14, "I clicked
+     it and it doesn't do anything"). A demo refusal goes to the shell's
+     own sentence; any other one is shown where the person is looking. */
+  const settle = async (res, errEl) => {
+    let d = {};
+    try { d = await res.json(); } catch (e) { d = {}; }
+    if (res.ok && d.ok !== false) { window.location.reload(); return; }
+    if (d.demo === "readonly") {
+      window.location.href = window.location.pathname + "?demo=readonly";
+      return;
+    }
+    const msg = d.error || ("This could not be saved (" + res.status + "). Try again.");
+    if (errEl) { errEl.textContent = msg; errEl.classList.remove("hidden"); }
+    else { window.alert(msg); }
+  };
   const q = document.getElementById("pulse-q");
   const searchBtn = document.getElementById("pulse-search");
   if (searchBtn) {
@@ -285,9 +303,9 @@
           + (a.genres && a.genres.length ? ' · ' + a.genres.slice(0, 2).join(", ") : '') + '</span></span>';
         b.querySelector(".font-bold").textContent = a.name;
         b.addEventListener("click", async () => {
-          await fetch("/pulse/select", { method: "POST", headers: { "Content-Type": "application/json" },
+          const r = await fetch("/pulse/select", { method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: a.id, name: a.name, image: a.image }) });
-          window.location.reload();
+          settle(r, err);
         });
         box.appendChild(b);
       });
@@ -326,9 +344,7 @@
           const r = await fetch("/pulse/peer/add", { method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: a.id, name: a.name, image: a.image }) });
-          const d = await r.json();
-          if (d.ok) window.location.reload();
-          else { err.textContent = d.error; err.classList.remove("hidden"); }
+          settle(r, err);
         });
         box.appendChild(b);
       });
@@ -338,8 +354,8 @@
   }
   document.querySelectorAll(".peer-remove").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      await fetch("/pulse/peer/" + btn.dataset.id + "/remove", { method: "POST" });
-      window.location.reload();
+      const r = await fetch("/pulse/peer/" + btn.dataset.id + "/remove", { method: "POST" });
+      settle(r, document.getElementById("peer-error"));
     });
   });
 
@@ -388,8 +404,8 @@
 
   const clearBtn = document.getElementById("pulse-clear");
   if (clearBtn) clearBtn.addEventListener("click", async () => {
-    await fetch("/pulse/clear", { method: "POST" });
-    window.location.reload();
+    const r = await fetch("/pulse/clear", { method: "POST" });
+    settle(r, null);
   });
 </script>
 {% endblock %}

@@ -1110,6 +1110,16 @@ def init_db():
                 sent_at TEXT NOT NULL,
                 PRIMARY KEY (document_id, milestone)
             )""")
+        # What the reader found in the document's own text (2026-09-14):
+        # candidates for the row above, never the row itself.
+        db.execute("""CREATE TABLE IF NOT EXISTS document_readings (
+                document_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT '',
+                findings TEXT NOT NULL DEFAULT '{}',
+                chars INTEGER NOT NULL DEFAULT 0,
+                read_at TEXT NOT NULL
+            )""")
         # Migration (2026-09-09): which provider measured a pulse
         # snapshot. The table held one row per user per day, implicitly
         # Spotify's, so a second metrics provider answering about the
@@ -4502,6 +4512,37 @@ def get_document_terms(user_id):
     return {r["document_id"]: dict(r) for r in rows}
 
 
+def set_document_reading(user_id, doc_id, status, findings, chars=0):
+    """What the reader found in a document's text. One reading per
+    document; a new read replaces the old."""
+    with get_db() as db:
+        owned = db.execute("SELECT 1 FROM documents WHERE id = ? AND user_id = ?",
+                           (doc_id, user_id)).fetchone()
+        if owned is None:
+            return False
+        db.execute(
+            "INSERT INTO document_readings (document_id, user_id, status, findings, chars, read_at)"
+            " VALUES (?,?,?,?,?,?) ON CONFLICT(document_id) DO UPDATE SET status=excluded.status,"
+            " findings=excluded.findings, chars=excluded.chars, read_at=excluded.read_at",
+            (doc_id, user_id, (status or "")[:20], json.dumps(findings or {}), int(chars or 0), _now()))
+    return True
+
+
+def get_document_readings(user_id):
+    """{document_id: reading} for the account, findings decoded."""
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM document_readings WHERE user_id = ?", (user_id,)).fetchall()
+    out = {}
+    for r in rows:
+        d = dict(r)
+        try:
+            d["findings"] = json.loads(d.get("findings") or "{}")
+        except ValueError:
+            d["findings"] = {}
+        out[d["document_id"]] = d
+    return out
+
+
 def list_document_terms():
     """Every contract with terms, joined to its document and its owner's
     address, for the daily run."""
@@ -4537,6 +4578,7 @@ def delete_document(user_id, doc_id):
                    (doc_id, user_id))
         db.execute("DELETE FROM document_terms WHERE document_id = ?", (doc_id,))
         db.execute("DELETE FROM document_reminders WHERE document_id = ?", (doc_id,))
+        db.execute("DELETE FROM document_readings WHERE document_id = ?", (doc_id,))
     return row["path"]
 
 # --- Recovery cases + deal room --------------------------------------------------

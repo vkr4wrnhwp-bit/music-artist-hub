@@ -174,3 +174,19 @@ def test_a_page_scripts_delete_gets_a_refusal_it_can_read(world):
     assert r.status_code == 403 and r.get_json()["ok"] is False, "a fetch() default"
     with app_obj.app_context():
         assert len(store.get_statements(store.get_user_by_email(demo._email)["id"])) == 1
+
+
+def test_picking_a_pulse_artist_on_the_locked_demo_says_why_instead_of_going_blank(world):
+    """Pulse's pick, pin, remove and clear were fetch() calls that reloaded
+    the page whatever the answer. On the locked demo the answer is a
+    403, so the reload landed back on the empty page (owner, staging,
+    2026-09-14: "I clicked it and it doesn't do anything"). The script
+    now reads the answer and a demo refusal goes to the shell's sentence."""
+    app_obj, owner, demo = world
+    owner.post("/admin/demo-lock", data={"email": demo._email, "action": "lock"})
+    r = demo.post("/pulse/select", json={"id": "abc", "name": "King 810", "image": ""})
+    assert r.status_code == 403 and r.get_json()["demo"] == "readonly"
+    body = demo.get("/pulse").get_data(as_text=True)
+    assert 'd.demo === "readonly"' in body and "settle(r, err)" in body
+    assert 'const r = await fetch("/pulse/select"' in body, "the answer is read, never reloaded over"
+    assert "This is a shared demo account and it is read only" in demo.get("/pulse?demo=readonly").get_data(as_text=True)

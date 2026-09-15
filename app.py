@@ -8510,6 +8510,8 @@ def create_app():
                                doc_types=_DOC_TYPES, doc_error=doc_error,
                                doc_terms=_document_terms_view(user["id"]),
                                terms_saved=request.args.get("terms"),
+                               doc_readings=_document_readings_view(user["id"]),
+                               read_result=request.args.get("read"),
                                **build_dashboard_context())
 
     def _document_terms_view(user_id):
@@ -8519,6 +8521,45 @@ def create_app():
         for doc_id, terms in store.get_document_terms(user_id).items():
             out[doc_id] = {"terms": terms, "status": contract_reminders.status(terms)}
         return out
+
+    def _document_readings_view(user_id):
+        """{document_id: reading + its one-line summary}."""
+        import contract_reader
+        out = store.get_document_readings(user_id)
+        for reading in out.values():
+            reading["summary"] = contract_reader.summary(reading["findings"], reading["status"])
+        return out
+
+    @app.route("/vault/documents/<doc_id>/read", methods=["POST"])
+    def document_read(doc_id):
+        """Pull the renewal terms out of the file's own text, for a person
+        to check. Nothing reaches the row until they press Save dates."""
+        import contract_reader
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        doc = next((d for d in store.list_documents(user["id"]) if d["id"] == doc_id), None)
+        if doc is None:
+            abort(404)
+        path = doc.get("path") or ""
+        data = None
+        if blob_store.is_remote(path):
+            data = blob_store.fetch(path)
+        elif path.startswith("/uploads/"):
+            try:
+                with open(blob_store.safe_local_path(path, UPLOADS_DIR), "rb") as fh:
+                    data = fh.read(40 * 1024 * 1024)
+            except (OSError, ValueError):
+                data = None
+        if data is None:
+            status, findings, chars = "unavailable", {}, 0
+        else:
+            ext = (doc.get("filename") or "").rsplit(".", 1)[-1].lower()
+            text, status = contract_reader.extract_text(data, ext)
+            findings = contract_reader.find_terms(text) if status == "ok" else {}
+            chars = len(text)
+        store.set_document_reading(user["id"], doc_id, status, findings, chars)
+        return redirect("/vault?view=contracts&read=%s#doc-%s" % (status, doc_id))
 
     @app.route("/vault/documents/<doc_id>/terms", methods=["POST"])
     def document_terms(doc_id):
