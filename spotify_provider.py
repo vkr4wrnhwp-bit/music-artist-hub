@@ -256,11 +256,17 @@ def artist_pulse(artist_id):
         artist = _api("/artists/" + urllib.parse.quote(artist_id), token)
     except Exception:
         return None
+    clear_refusal()
+    top_note = ""
     try:
         top = _api("/artists/%s/top-tracks?market=US"
                    % urllib.parse.quote(artist_id), token)
-    except Exception:
+    except Exception as exc:
         top = {}  # top tracks are a bonus, never the whole pulse
+        # Their reason, for the page: since Spotify retired followers,
+        # popularity and genres for apps like this one (2026-09-15) an
+        # empty section reads as a bug unless it says what was refused.
+        top_note = last_refusal() or (str(exc)[:200] or "Spotify did not answer.")
     if not artist.get("id"):
         return None
     images = artist.get("images") or []
@@ -272,6 +278,7 @@ def artist_pulse(artist_id):
         "genres": artist.get("genres") or [],
         "image": images[0]["url"] if images else "",
         "url": ((artist.get("external_urls") or {}).get("spotify") or ""),
+        "top_note": top_note,
         "top_tracks": [{
             "name": t.get("name") or "",
             # `.get(key, 0)` does nothing for a key that is present

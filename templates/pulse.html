@@ -10,7 +10,7 @@
     <div>
       <div class="sb-label text-sb-gold">Street Banker · Artist Pulse</div>
       <h1 class="sb-h1 mt-1">Artist Pulse</h1>
-      <p class="mt-1 max-w-2xl text-sm text-gray-300">Your live numbers, straight from the platforms — Spotify followers, popularity, and current top tracks, plus your Deezer fan count. No screenshots, no guesswork.</p>
+      <p class="mt-1 max-w-2xl text-sm text-gray-300">Your live numbers, straight from the platforms and from Soundcharts where it is connected. Spotify no longer sends follower, popularity or genre figures to apps like this one, so those read from Soundcharts or stay unmeasured. No screenshots, no guesswork.</p>
     </div>
     {% if profile %}
     <button id="pulse-clear" class="sb-btn sb-btn-secondary">Change Artist</button>
@@ -185,6 +185,13 @@
       </div>
       {% endfor %}
     </div>
+  </section>
+  {% endif %}
+
+  {% if pulse and not pulse.top_tracks %}
+  <section class="rounded-2xl border border-white/10 bg-sb-ground p-6">
+    <h3 class="sb-label text-sb-gold">Top Tracks</h3>
+    <p class="mt-2 text-sm text-gray-300">Spotify sent no top tracks for this artist to this app{% if pulse.top_note %}: <span class="text-gray-200">{{ pulse.top_note }}</span>{% endif %}. Nothing is shown in their place. The song list under Reach and audience comes from Soundcharts where it is connected.</p>
   </section>
   {% endif %}
 

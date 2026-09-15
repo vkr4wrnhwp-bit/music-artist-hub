@@ -34,6 +34,10 @@ HUBS = [
         ("autopilot", "/releases/autopilot", "M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6", "Releases", "One release at a time - readiness, the arc, the plan, the kit - and the calendar of all of them."),
         ("links", "/links", "M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1", "Smart Links", "One link per release with real click analytics."),
         ("rollout", "/rollout-studio", "M4 4h12v9H4z|M4 13l3 4M16 13l-3 4M7 8l2 2 4-4", "Rollout Engine", "Generated captions, briefs, and rollout plans."),
+        # Back on the sidebar in its own right (owner, 2026-09-15: "epk should
+        # be back in the nav bar, anything thats a major usage or plus from
+        # other platforms should be visible"). It stays a tab of Press too.
+        ("epk", "/epk", "M4 3h9l3 3v11H4z|M13 3v3h3|M7 9h6M7 12h6M7 15h4", "Press Kit", "Your electronic press kit on one link: bio, photos, tracks and the figures that are measured."),
         ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press", "Media list, pitches and coverage — with the press kit and one-sheet they send."),
         ("reach", "https://reach-9ub6.onrender.com/reach/", "M3 10a7 7 0 0114 0|M6 10a4 4 0 018 0|M10 10v7|M8 17h4", "REACH", "Paid promotion and outreach, in its own room (opens the REACH app)."),
         ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Daily follower and popularity snapshots, growth over time, and your link engagement."),
@@ -135,6 +139,9 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "fingerprints",
              "lights", "certified",
              "press-desk", "deals",
+             # The press kit reads the account's own tracks and stats and says
+             # "Not measured" where nothing was; nothing on it is invented.
+             "epk",
              # Real apps on their own services, opened in a new tab - not
              # previews of anything.
              "noise-lab", "the-room", "reach",

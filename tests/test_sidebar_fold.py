@@ -55,23 +55,25 @@ def test_the_sidebar_is_thirty_seven_entries():
     # to type the URL.
     # 36 after Royalty Lanes and Income by type folded into Royalties
     # (owner, 2026-09-13: "royalties, royalty lanes and income by type need
-    # to merge in to one").
-    assert len(_entries()) == 36
+    # to merge in to one"). 37 with the Press Kit back in its own right
+    # (owner, 2026-09-15: "anything thats a major usage or plus from other
+    # platforms should be visible"); it stays a tab of Press as well.
+    assert len(_entries()) == 37
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():
     hrefs = {it[1] for it in _entries()}
-    for href in list(PARKED) + [h for h in FOLDED if h not in ("/qualification", "/deal-room", "/fans")]:
+    for href in list(PARKED) + [h for h in FOLDED if h not in ("/qualification", "/deal-room", "/fans", "/epk")]:
         if href in ("/releases",):
             continue          # /releases is the calendar's URL; the front is /releases/autopilot
         assert href not in hrefs, href
     keys = {it[0] for it in _entries()}
-    for key in ("capital", "benchmark", "funding", "conflicts", "epk", "profile", "mechanicals",
+    for key in ("capital", "benchmark", "funding", "conflicts", "profile", "mechanicals",
                 "neighboring", "territories", "money-queue", "trust-score", "insights",
                 "connections", "deal-simulator", "sync-packs", "releases", "documents", "tracks",
                 "fan-label", "fan-club-admin", "network", "overview", "income", "royalty-lanes"):
         assert key not in keys, key
-    for key in ("royalties", "scores", "deals", "press-desk", "reports"):
+    for key in ("royalties", "scores", "deals", "press-desk", "reports", "epk"):
         assert key in keys, key
     community = {it[0] for it in hubs.COMMUNITY_GROUP[1]} | {it[0] for it in hubs.ACCOUNT_GROUP[1]}
     assert "fans" in community and "fan-label" not in community and "fan-club-admin" not in community
