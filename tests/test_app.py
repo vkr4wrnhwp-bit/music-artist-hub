@@ -303,7 +303,9 @@ def test_overview_renders_command_center():
     response = client.get("/overview")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "What came in, what is missing, and the next thing worth doing." in body
+    # The Overview strapline went with the merge into the Command Center
+    # (2026-09-15); the ledger line is the page now.
+    assert "Total Royalties Collected" in body and "Today's Priorities" in body
     assert "Total Royalties Collected" in body   # the ledger line's eyebrow
     assert "Royalty Goal" in body
 
@@ -337,7 +339,9 @@ def test_overview_includes_money_left_card():
 def test_overview_includes_action_center_and_payouts():
     client = _demo()
     body = client.get("/overview").get_data(as_text=True)
-    assert "Action Center" in body
+    # The Action Center was the Open Actions list drawn twice; gone with
+    # the merge (2026-09-15). The payouts stay.
+    assert "Open Actions" in body
     assert "Recent Payouts" in body
     assert 'id="payout-drawer"' in body
 

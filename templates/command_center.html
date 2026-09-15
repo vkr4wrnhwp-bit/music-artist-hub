@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% import "_sb.html" as sb %}
+{% block head_scripts %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endblock %}
 
 {% block title %}Command Center - Street Banker{% endblock %}
 
 {% block content %}
-{{ sb.subnav([("/command-center", "Command Center"), ("/overview", "Overview")], request.path) }}
 {% if tutor %}
 <!-- Tutor mode: the whole product as an ordered walkthrough. Opt-in,
      never gates anything, and every tick is a real query - a step is
@@ -207,6 +207,12 @@
               value_tone="good" if summary.qualification >= 75 else none) }}
   </div>
 
+  {#- The money side first (owner, 2026-09-15, by numbered order): the
+      ledger line, the goal, what is missing, the health score and the
+      earnings trend, then the priorities and releases, then what changed,
+      then the board. -#}
+  {% include "_front_money.html" %}
+
   <div class="grid gap-5 lg:grid-cols-2">
     <!-- Today's priorities: derived alerts -->
     <section>
@@ -283,6 +289,8 @@
     </div>
   </div>
 
+  {% include "_front_changed.html" %}
+
   <!-- Module grid -->
   <section id="os">
     <h2 class="sb-label">The Operating System</h2>
@@ -319,3 +327,5 @@
   </section>
 </div>
 {% endblock %}
+
+{% block scripts %}{% include "_front_scripts.html" %}{% endblock %}

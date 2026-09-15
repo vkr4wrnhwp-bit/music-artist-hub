@@ -65,12 +65,12 @@ def test_a_new_account_sees_none_of_the_seeded_overview_sections():
     r = fresh.get("/overview")
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    for seeded in ("Recent Payouts", "Royalty Health Score", "Action Center", "$250.00"):
+    for seeded in ("Recent Payouts", "Royalty Health Score", "$250.00"):
         assert seeded not in body, seeded
     # and no zero dollars standing in for a figure nobody measured
     assert "$0.00" not in body and "Nothing tracked yet" in body and "Sample data below" not in body
     showcase = _showcase(app_obj).get("/overview").get_data(as_text=True)
-    for seeded in ("Recent Payouts", "Royalty Health Score", "Action Center"):
+    for seeded in ("Recent Payouts", "Royalty Health Score"):
         assert seeded in showcase, seeded
 
 

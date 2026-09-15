@@ -149,12 +149,14 @@ def test_the_pages_that_draw_charts_still_load_chart_js():
     # Streaming Stats folded into Artist Pulse, which draws its own SVG;
     # Audience was deleted with the other SAMPLE pages. Royalties draws
     # its own instruments since the desk (2026-09-13).
-    for name in ("overview",):
-        s = io.open(os.path.join(HERE, "templates", name + ".html"),
-                    encoding="utf8").read()
-        assert "new Chart(" in s, name
-        assert "chart.js" in s.lower(), \
-            "%s draws a chart but no longer loads Chart.js" % name
+    # The Overview merged into the Command Center (2026-09-15): the chart
+    # is drawn by the _front_scripts partial and Chart.js is loaded by the
+    # page that includes it.
+    drawn = io.open(os.path.join(HERE, "templates", "_front_scripts.html"), encoding="utf8").read()
+    assert "new Chart(" in drawn, "_front_scripts"
+    page = io.open(os.path.join(HERE, "templates", "command_center.html"), encoding="utf8").read()
+    assert "chart.js" in page.lower() and "_front_scripts.html" in page, \
+        "command_center draws a chart but no longer loads Chart.js"
 
 
 # --- utilities that resolve to nothing -----------------------------------

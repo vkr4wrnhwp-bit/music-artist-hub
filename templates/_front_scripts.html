@@ -1,0 +1,95 @@
+{#- The Overview page's own scripts: the earnings chart, the goal drawer
+    and the payout drawer. Merged into the Command Center on 2026-09-15. -#}
+<script>
+  const TOTAL = {{ total | round(2) }};
+  const GOAL = {{ goal | round(2) }};
+  const trend = {{ months | tojson }};
+
+  // The goal lives on the account (royalty_goals); the ring is drawn from
+  // the same figures the server rendered, nothing read from this browser.
+  (function renderGoalCard() {
+    const pct = GOAL > 0 ? Math.min(TOTAL / GOAL, 1) : 0;
+    const ring = document.getElementById("goal-ring");
+    ring.setAttribute("stroke-dashoffset", String(314.16 * (1 - pct)));
+    ring.setAttribute("stroke", pct >= 0.75 ? "#79B473" : (pct >= 0.4 ? "#E8B950" : "#E05C4A"));
+    document.getElementById("goal-bar").style.width = (pct * 100) + "%";
+  })();
+
+  const goalModal = document.getElementById("goal-modal");
+  function openGoalModal() {
+    goalModal.classList.remove("hidden");
+    goalModal.classList.add("flex");
+    document.getElementById("goal-amount").focus();
+  }
+  function closeGoalModal() {
+    goalModal.classList.add("hidden");
+    goalModal.classList.remove("flex");
+  }
+  document.getElementById("edit-goal-btn").addEventListener("click", openGoalModal);
+  document.getElementById("goal-cancel").addEventListener("click", closeGoalModal);
+  goalModal.addEventListener("click", (e) => { if (e.target === goalModal) closeGoalModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeGoalModal(); });
+  const HEALTH_SCORE = {{ overview_health.score }};
+  const healthNeedle = document.getElementById("health-needle");
+  healthNeedle.setAttribute("transform", "rotate(" + ((HEALTH_SCORE / 100) * 180 - 90) + " 50 54)");
+
+  function fmtAxis(v) {
+    return v >= 1000 ? "$" + (v / 1000).toFixed(v % 1000 === 0 ? 0 : 1) + "K" : "$" + v;
+  }
+
+  const chart = new Chart(document.getElementById("earningsChart"), {
+    type: "line",
+    data: {
+      labels: trend.map((p) => p[0]),
+      datasets: [{
+        data: trend.map((p) => p[1]),
+        borderColor: "#E8B950",
+        backgroundColor: "rgba(234,179,8,0.08)",
+        fill: true, tension: 0.35, pointBackgroundColor: "#E8B950", pointRadius: 3,
+      }],
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#91836A", font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.04)" } },
+        y: { ticks: { color: "#91836A", font: { size: 10 }, callback: fmtAxis }, grid: { color: "rgba(255,255,255,0.04)" } },
+      },
+    },
+  });
+
+  document.getElementById("date-range").addEventListener("change", (e) => {
+    const months = Number(e.target.value);
+    const sliced = trend.slice(-months);
+    chart.data.labels = sliced.map((p) => p[0]);
+    chart.data.datasets[0].data = sliced.map((p) => p[1]);
+    chart.update();
+    const labels = { 1: "This month", 3: "Last 3 months", 6: "Last 6 months" };
+    document.getElementById("trend-range-label").textContent = labels[months] || "Last 6 months";
+  });
+  document.getElementById("date-range").addEventListener("click", (e) => e.stopPropagation());
+
+  const payoutDrawer = document.getElementById("payout-drawer");
+  const payoutBackdrop = document.getElementById("payout-drawer-backdrop");
+  function closePayoutDrawer() {
+    payoutDrawer.classList.add("translate-x-full");
+    payoutBackdrop.classList.add("hidden");
+  }
+  document.querySelectorAll(".payout-row").forEach((row) => {
+    row.addEventListener("click", () => {
+      document.getElementById("payout-drawer-platform").textContent = row.dataset.platform;
+      document.getElementById("payout-drawer-song").textContent = row.dataset.song;
+      document.getElementById("payout-drawer-song2").textContent = row.dataset.song;
+      document.getElementById("payout-drawer-amount").textContent = fmtMoney(parseFloat(row.dataset.amount));
+      const statusEl = document.getElementById("payout-drawer-status");
+      statusEl.textContent = row.dataset.status;
+      statusEl.className = "font-semibold " + (row.dataset.status === "Paid" ? "text-green-400" : "text-amber-400");
+      payoutBackdrop.classList.remove("hidden");
+      payoutDrawer.classList.remove("translate-x-full");
+    });
+  });
+  document.getElementById("payout-drawer-close").addEventListener("click", closePayoutDrawer);
+  payoutBackdrop.addEventListener("click", closePayoutDrawer);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !payoutDrawer.classList.contains("translate-x-full")) closePayoutDrawer();
+  });
+</script>

@@ -18,13 +18,20 @@ import hubs
 from tests.test_app import _demo
 
 
-def test_overview_is_a_tab_of_the_command_center_front():
+def test_overview_and_the_command_center_are_one_page():
+    """Overview was a tab of the Command Center front from 2026-09-07; on
+    2026-09-15 the owner merged them: the money side sits at the top of
+    the Command Center and the Overview address answers with the same
+    page, so nothing that pointed at it dies."""
     client = _demo()
     for path in ("/command-center", "/overview"):
         body = client.get(path).get_data(as_text=True)
-        strip = body.split('class="sb-subnav"')[1].split("</nav>")[0] if 'class="sb-subnav"' in body else ""
-        assert 'href="/command-center"' in strip and 'href="/overview"' in strip, path
-    # While reading Overview, the sidebar lights Command Center, not a missing entry.
+        assert 'class="sb-subnav"' not in body.split('id="sb-main"')[1].split("The Operating System")[0], path
+        assert "Total Royalties Collected" in body and "Earnings Trend" in body, path
+        assert "Today's Priorities" in body and "The Operating System" in body, path
+        assert '<h2 class="sb-label text-sb-ink-2">Action Center</h2>' not in body, "the Open Actions list is drawn once"
+        assert body.index("Total Royalties Collected") < body.index("Today's Priorities") < body.index("What Changed Since Your Last Visit") < body.index("The Operating System"), path
+    # While reading the Overview address, the sidebar lights Command Center.
     body = client.get("/overview").get_data(as_text=True)
     assert re.search(r'href="/command-center"[^>]*class="[^"]*font-semibold', body)
     keys = {it[0] for _k, _l, _d, items in hubs.HUBS for it in items}

@@ -1877,6 +1877,14 @@ def create_app():
 
     @app.route("/overview")
     def overview():
+        """The Overview and the Command Center are one page (owner,
+        2026-09-15). This address keeps answering with it, so no link,
+        bookmark or test dies; the sidebar and the rooms only name the
+        Command Center."""
+        return command_center_page()
+
+    def _front_money_context():
+        """What the Overview page computed, for the front door."""
         # Money Left on the Table used to read from the same hardcoded
         # platform list as /recovery, so every account was told it was
         # owed $3,301.38. Hand the card the account's own scan instead.
@@ -1906,19 +1914,16 @@ def create_app():
         if not showcase:
             ctx["goal"] = goal_row["amount"] if goal_row else 0
         ctx["goal_row"] = goal_row
-        return render_template("overview.html", active_page="command-center",
-                               since_visit=(since_engine.build(user["id"], since)
-                                            if user is not None
-                                            and not showcase else None),
-                               real_royalty=rr,
-                               months=(rr["monthly_trend"] if rr
-                                       else (get_earnings_trend() if showcase else [])),
-                               tracked=(rr["total"] if rr
-                                        else (total_royalties(balances) if showcase else 0)),
-                               recovery_view=(recovery_engine.build(user["id"])
-                                              if user is not None
-                                              and not showcase else None),
-                               **ctx)
+        ctx.update(since_visit=(since_engine.build(user["id"], since)
+                                if user is not None and not showcase else None),
+                   real_royalty=rr,
+                   months=(rr["monthly_trend"] if rr
+                           else (get_earnings_trend() if showcase else [])),
+                   tracked=(rr["total"] if rr
+                            else (total_royalties(balances) if showcase else 0)),
+                   recovery_view=(recovery_engine.build(user["id"])
+                                  if user is not None and not showcase else None))
+        return ctx
 
     @app.route("/overview/goal", methods=["POST"])
     def overview_goal():
@@ -4433,7 +4438,8 @@ def create_app():
             # it is on the smaller panel steps aside rather than showing
             # the same five steps twice.
             firstrun=None if tutor_panel else _firstrun_panel(user),
-            **build_dashboard_context())
+            # The Overview's figures, on the same page (2026-09-15).
+            **_front_money_context())
 
     @app.route("/actions", methods=["GET", "POST"])
     def actions_page():
