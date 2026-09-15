@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_gear.html" as gear %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Submit Music - Street Banker{% endblock %}
 
@@ -22,14 +23,10 @@
 
   <!-- Editorial header (HTML above the art; page + art are both near-black) -->
   <div class="pt-6 pb-2 text-center">
-    <div class="sb-label text-sb-gold">Street Banker — A&amp;R Desk</div>
-    <h1 class="mt-4 text-5xl font-extrabold uppercase leading-[0.92] tracking-tight sm:text-6xl">
-      <span class="text-gray-100">Send Us</span><br>
-      <span class="bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep bg-clip-text text-transparent drop-shadow-[0_2px_12px_rgba(216,178,90,0.25)]">Your Sound.</span>
-    </h1>
-    <p class="mx-auto mt-5 max-w-md text-base leading-relaxed text-gray-200">
-      No forms. No fees. No gatekeeping robots. A real person at Street Banker listens to everything that lands on our desk.
-    </p>
+    {#- Inside the app every page opens with the shared band, never a
+        landing hero (owner ruling, 2026-09-02; audit, 2026-09-15). -#}
+    {{ sb.plate(none, [], "Street Banker · A&R Desk", "Submit music",
+                "A real person at Street Banker listens to everything that lands on the desk.") }}
   </div>
 
   <div class="relative" style="font-size: clamp(7px, 1.5vw, 14.5px);">
@@ -107,14 +104,10 @@
 
   <!-- Editorial header -->
   <div class="pt-6 text-center">
-    <div class="sb-label text-sb-gold">Street Banker — A&amp;R Desk</div>
-    <h1 class="mt-4 text-5xl font-extrabold uppercase leading-[0.92] tracking-tight sm:text-6xl">
-      <span class="text-gray-100">Send Us</span><br>
-      <span class="bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep bg-clip-text text-transparent drop-shadow-[0_2px_12px_rgba(216,178,90,0.25)]">Your Sound.</span>
-    </h1>
-    <p class="mx-auto mt-5 max-w-md text-base leading-relaxed text-gray-200">
-      No forms. No fees. No gatekeeping robots. A real person at Street Banker listens to everything that lands on our desk.
-    </p>
+    {#- Inside the app every page opens with the shared band, never a
+        landing hero (owner ruling, 2026-09-02; audit, 2026-09-15). -#}
+    {{ sb.plate(none, [], "Street Banker · A&R Desk", "Submit music",
+                "A real person at Street Banker listens to everything that lands on the desk.") }}
   </div>
 
   <!-- Turntable / pitch panel -->

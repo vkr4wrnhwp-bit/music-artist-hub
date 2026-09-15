@@ -7,6 +7,7 @@
    store links and the contact - styled with the frame's own classes,
    which the app chrome loads for this page alone. #}
 {% extends "base.html" if user_plan else "public_base.html" %}
+{% import "_sb.html" as sb %}
 
 {% set lb = label %}
 {% set plate = {"stem": none} %}
@@ -30,9 +31,9 @@
 {% block content %}
 <div class="pp{% if user_plan %} pp-main{% endif %}">
   {% if user_plan %}
-  <p class="pp-eyebrow">{{ lb.brand.sub }}</p>
-  <h1 class="pp-title" style="font-size: clamp(28px, 3.4vw, 40px);">{{ lb.brand.name }}</h1>
-  <p class="pp-lead">{{ lb.brand.tagline }}</p>
+  {#- Signed in, the page opens with the shared band like every other app
+      page; the public frame draws its own plate (audit, 2026-09-15). -#}
+  {{ sb.plate(none, [], lb.brand.sub, "Label Services", lb.brand.tagline) }}
   {% endif %}
 
   <div class="pp-actions"{% if not user_plan %} style="margin-top: 0;"{% endif %}>

@@ -1856,8 +1856,10 @@ def test_artist_pulse_live_flow(monkeypatch):
     assert "4,321" in body                       # Spotify followers
     assert "Anthem" in body and "LP1" in body    # live top tracks
     assert "777" in body                         # Deezer fans
-    assert "read fresh on every load of this page" in body   # honest sourcing note
-    assert "nothing above is cached" in body
+    # The sourcing note was reworded on 2026-09-15 when Spotify retired the
+    # follower, popularity and genre fields: the page says what it reads
+    # fresh and where the retired lines stop.
+    assert "Read on every load of this page and snapshotted as it is read" in body
     # Change Artist resets to setup.
     assert client.post("/pulse/clear").get_json()["ok"]
     assert "Find yourself on Spotify" in client.get("/pulse").get_data(as_text=True)

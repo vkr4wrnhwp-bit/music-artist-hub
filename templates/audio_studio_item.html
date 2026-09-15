@@ -15,8 +15,9 @@
     <h1 class="sb-h1 mt-1">{{ item.title or "Untitled" }}</h1>
     <p class="mt-2 text-sm text-gray-300">
       {{ lane.title }} ·
-      {{ sb.badge(item.status, status_tone.get(item.status, "idle")) }}
-      {% if item.is_mock %}· demo output, nothing was generated{% endif %}
+      {#- A mock run never reads "ready": nothing was produced. -#}
+      {% if item.is_mock %}{{ sb.badge("demo") }} · demo output, nothing was generated
+      {% else %}{{ sb.badge(item.status, status_tone.get(item.status, "idle")) }}{% endif %}
     </p>
   </div>
 

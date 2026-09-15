@@ -244,13 +244,13 @@
       <div class="ry-panel">
         <div class="sbm-lbl"><span>By market</span><span class="ry-tag actual">actual</span></div>
         {% if d.markets.rows %}
-        <p class="ry-note" style="margin-top:6px">Read from the territory column on {{ "{:,}".format(d.markets.covered) }} of {{ "{:,}".format(d.markets.total_rows) }} rows. Rows without one are not drawn — no imputed geography.</p>
+        <p class="ry-note" style="margin-top:6px">Read from the territory column on {{ "{:,}".format(d.markets.covered) }} of {{ "{:,}".format(d.markets.total_rows) }} rows. Rows without one are not drawn , with no imputed geography.</p>
         <div class="space-y-2" style="margin-top:10px">
           {% for m in d.markets.rows %}{{ sb.meter(m.code, m.amount, d.markets.top, shown="$" ~ "{:,.2f}".format(m.amount)) }}{% endfor %}
           {% if d.markets.tail %}{{ sb.meter("%d more markets" % d.markets.tail.count, d.markets.tail.amount, d.markets.top, shown="$" ~ "{:,.2f}".format(d.markets.tail.amount)) }}{% endif %}
         </div>
         {% else %}
-        <p class="ry-note">No territory column on these rows, so nothing is drawn — no imputed geography. Symphonic and most distributors include one; a PRO statement usually does not.</p>
+        <p class="ry-note">No territory column on these rows, so nothing is drawn , with no imputed geography. Symphonic and most distributors include one; a PRO statement usually does not.</p>
         {% endif %}
       </div>
       <div class="sbm-frame" style="{{ gear.alu_style() }}">

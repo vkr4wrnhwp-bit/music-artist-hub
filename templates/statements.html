@@ -21,6 +21,10 @@
                  "Street Banker · Royalty Sweep", "Statements",
                  "Your distributor, PRO and MLC statements, read line by line. Every figure on this page is computed from the files you uploaded; an estimate is marked as one.") %}
   {% if a %}<a href="/reports/royalty-report/download.csv" class="sb-btn sb-btn-secondary">Download CSV</a>{% endif %}
+  {#- After an upload the next move is the findings, then the desk that
+      reads them (audit, 2026-09-15: the page had no way on). -#}
+  {% if a and (a.unmatched_revenue or a.coverage_gaps) %}<a href="/recovery" class="sb-btn sb-btn-primary">See the findings on Recovery</a>{% endif %}
+  <a href="/royalties" class="sb-btn sb-btn-secondary">Royalties</a>
 {% endcall %}
 
 <div class="sd mx-auto max-w-[1200px]">

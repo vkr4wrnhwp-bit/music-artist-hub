@@ -204,9 +204,23 @@ _user_getter = None
 
 
 def _lanes_for_render():
+    """A lane that is on but served by the mock adapter reads "demo", not
+    "available" (audit, 2026-09-15): mock mode produces nothing, and a
+    lane badged available is a promise the deployment cannot keep."""
     return [{"key": key, "kind": kind, "title": title, "note": note,
-             "on": _on(flag, kind), "flag": _needed_flags(flag, kind)}
+             "on": _on(flag, kind), "flag": _needed_flags(flag, kind),
+             "demo": _is_mock(kind)}
             for key, kind, flag, title, note in LANES]
+
+
+def _is_mock(kind):
+    """Is the capability behind this lane served by the mock adapter?"""
+    try:
+        spec = FEATURES.get(kind) or {}
+        cap = spec.get("capability")
+        return bool(cap) and (ap.get(cap).key or "") == "mock"
+    except Exception:
+        return False
 
 
 def _lane_titles():

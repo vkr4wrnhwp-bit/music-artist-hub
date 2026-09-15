@@ -3,11 +3,12 @@
 {% block head_scripts %}<link rel="stylesheet" href="/static/css/tour-os.css?v=26">{% endblock %}
 {% block content %}
 {% import "tour/_macros.html" as m %}
+{% import "_sb.html" as sb %}
+{{ sb.plate(none, [], "Street Banker · Stage", "Tour",
+            "Every date, every hotel and every call time in one place.") }}
 <div class="to">
   <div class="to-head">
     <div>
-      <p class="to-eyebrow">Tour</p>
-      <h1 class="to-h1">Every date, every hotel, every call time — one place.</h1>
       <p class="to-muted" style="margin-top:8px">Your <a href="/stage-plot">stage plot</a> lives here too: one drawing per act, under More inside every tour, attached to every advance you send.</p>
       <p class="to-sub">A tour is the container: shows and off days, the schedule, travel and rooms, the people, the guest list, the money. Invite the crew with the permissions each one needs; everyone sees their own day.</p>
     </div>

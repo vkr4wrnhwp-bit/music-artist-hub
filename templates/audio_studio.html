@@ -27,7 +27,7 @@
         <h2 class="sb-label sb-label-gold">Nothing is switched on yet</h2>
       </div>
       <p>
-        Every lane below is off on this deployment. They are listed so you can
+        None of these are switched on for you yet. They are listed so you can
         see what the Studio does before anything that costs money is enabled.
       </p>
     </section>
@@ -43,7 +43,7 @@
         <div class="asx-lane-head">
           <span class="sb-disc asx-lane-ico" aria-hidden="true">{{ ico(lane_icons.get(lane.kind, "wave")) }}</span>
           <h2 class="asx-lane-title">{{ lane.title }}</h2>
-          {{ sb.badge("available" if lane.on else "off",
+          {{ sb.badge(("demo" if lane.demo else "available") if lane.on else "off",
                       "good" if lane.on else "idle") }}
         </div>
         <p class="asx-lane-note">{{ lane.note }}</p>
@@ -64,7 +64,7 @@
             </p>
           {% else %}
             <p class="asx-lane-flag">
-              Needs <code>{{ lane.flag }}</code>.
+              Not switched on for this account yet.
             </p>
           {% endif %}
         {% elif lane.key == 'voice_vault' %}
