@@ -21,6 +21,7 @@ EXTERNAL = {
     "noise-lab": ("studio", "https://street-banker-v2-workflows.onrender.com/noise-lab/"),
     "the-room": ("studio", "https://street-banker-v2-workflows.onrender.com/song-builder"),
     "reach": ("launch", "https://reach-9ub6.onrender.com/reach/"),
+    "masterclip": ("studio", "https://masterclip.onrender.com/"),
 }
 
 

@@ -21,6 +21,9 @@ HUBS = [
         # login. An absolute href opens in a new tab (base.html nav_item).
         ("noise-lab", "https://street-banker-v2-workflows.onrender.com/noise-lab/", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Sound design and noise beds, in its own room (opens the v2 workflows app)."),
         ("the-room", "https://street-banker-v2-workflows.onrender.com/song-builder", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Song builder: a full track from a prompt, in its own room (opens the v2 workflows app)."),
+        # MASTERCLIP OS, the video render factory, on its own service like
+        # the two above (owner, 2026-09-15: "missing the video edit tool").
+        ("masterclip", "https://masterclip.onrender.com/", "M3 5h14v10H3z|M3 8h14|M6 5v10M14 5v10|M9 10l3-1.5v3z", "Video Studio", "Cinematic video from your masters and art, in its own room (opens MASTERCLIP OS)."),
         ("artwork", "/artwork", "M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z", "Cover Art", "Generate and manage release artwork."),
         ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Vault", "Stems, bounces and press assets - and the contracts and licences beside them."),
         ("beats", "/beats", "M5 14a3 3 0 106 0 3 3 0 00-6 0z|M11 14V4l5 2v8|M14 12a2 2 0 104 0 2 2 0 00-4 0z", "Beats", "Beat registry, licences, cleared list, usage cases."),
@@ -144,7 +147,7 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "epk",
              # Real apps on their own services, opened in a new tab - not
              # previews of anything.
-             "noise-lab", "the-room", "reach",
+             "noise-lab", "the-room", "reach", "masterclip",
              # Reports has five real export routes; only the demo account's
              # scheduled-report list is illustrative. It was badged as a
              # sample for want of this entry.
