@@ -74,3 +74,17 @@ def test_recent_sits_under_the_groups():
     c = _client(app_obj, "pro")
     aside = c.get("/command-center").get_data(as_text=True).split("</aside>")[0]
     assert aside.index('data-hub="account"') < aside.index('id="sb-recent"')
+
+
+def test_an_artist_still_reaches_the_community_pages():
+    """Discover, the Collab Marketplace and Fans rendered only in the fan
+    world, which an artist reached through the Fan Side box. With the
+    boxes gone they are a group of their own (owner, 2026-09-15: "what
+    else did we lose ... seems we lost some features")."""
+    app_obj = create_app()
+    c = _client(app_obj, "pro")
+    aside = c.get("/command-center").get_data(as_text=True).split("</aside>")[0]
+    assert 'data-hub="community" data-open="1"' in aside
+    for href in ("/discover", "/marketplace", "/fans"):
+        assert 'href="%s"' % href in aside, href
+    assert aside.index('data-hub="community"') < aside.index('data-hub="account"')

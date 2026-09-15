@@ -4606,7 +4606,10 @@ def test_ecosystem_hubs():
     # Five collapsible hubs + Account + Label Services (the demo account
     # has the Label plan, and since 2026-09-14 that group shows by plan on
     # every page, not by which world box was pressed); collapse JS present.
-    assert nav.count('data-hub=') == 7
+    # Eight with Community (Discover, Collab Marketplace, Fans), which only
+    # the fan world used to show and an artist reached through the Fan
+    # Side box (owner, 2026-09-15: "seems we lost some features").
+    assert nav.count('data-hub=') == 8
     for hk in ("command", "studio", "launch", "stage", "money"):
         assert '/desk/%s' % hk in nav
     assert "hub-tgl" in nav and "sbHubs" in nav

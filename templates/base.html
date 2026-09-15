@@ -357,6 +357,31 @@
           </div>
         </div>
         {% endif %}
+        {#- Community: Discover, the Collab Marketplace and Fans. These
+            rendered only in the fan world, which an artist reached through
+            the Fan Side box; when the four boxes came off (2026-09-14) an
+            artist lost the way to them (owner, 2026-09-15: "seems we lost
+            some features"). They are a group of their own here now. -#}
+        {% if hubs_community[1] %}
+        {% set community_keys = hubs_community[1] | map(attribute='0') | list %}
+        <div class="hub" data-hub="community" data-open="1"{% if active_page in community_keys %} data-active="1"{% endif %}>
+          <a href="/fans" title="Community"
+             class="hub-rail mb-1 h-10 w-10 items-center justify-center rounded-lg border transition-colors {{ 'border-sb-gold/50 bg-sb-gold/15 text-sb-gold-bright' if active_page in community_keys else 'border-white/10 text-gray-300 hover:border-white/25 hover:text-white' }}">
+            <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/><path d="M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4"/>
+            </svg>
+          </a>
+          <div class="sb-hide-rail flex items-center gap-1">
+            <span class="min-w-0 flex-1 truncate px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-gray-300">{{ hubs_community[0] }}</span>
+            <button type="button" class="hub-tgl rounded p-1 text-gray-300 hover:text-white" aria-label="Toggle {{ hubs_community[0] }}">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg>
+            </button>
+          </div>
+          <div class="hub-items space-y-1">
+            {% for key, href, path, label, _d in hubs_community[1] %}{{ nav_item(key, href, path, label, _d) }}{% endfor %}
+          </div>
+        </div>
+        {% endif %}
         {% set acct_keys = hubs_account[1] | map(attribute='0') | list %}
         <div class="hub" data-hub="account"{% if active_page in acct_keys %} data-active="1"{% endif %}>
           <a href="/settings" title="Account"

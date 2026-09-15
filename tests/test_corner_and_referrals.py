@@ -52,7 +52,7 @@ def test_label_services_opens_the_first_time_it_is_seen():
     assert 'data-hub="label" data-open="1"' in body
     assert 'h.dataset.open === "1"' in body, "the collapse script honours it"
     pro = _client(app_obj, "pro")
-    assert 'data-open="1"' not in pro.get("/command-center").get_data(as_text=True)
+    assert 'data-hub="label"' not in pro.get("/command-center").get_data(as_text=True)
 
 
 def test_referrals_read_in_plain_words():
