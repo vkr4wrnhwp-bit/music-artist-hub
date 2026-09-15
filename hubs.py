@@ -56,6 +56,8 @@ HUBS = [
          "Stage Plot", "One drawing per act, attached to every advance you send. Draw it here before there is a tour."),
         ("lights", "/lights", "M10 2v4|M4 6l2 2|M16 6l-2 2|M6 12a4 4 0 118 0v4H6z", "Light Studio", "Cue programming with real DMX output."),
         ("tour-board", "/tour-board", "M7 8a3 3 0 116 0 3 3 0 01-6 0z|M2 17c1-3 4-4 8-4s7 1 8 4", "Team-Up Board", "Artists and venues finding each other."),
+        # The Tour suite, the owner's tour app on its own service (2026-09-15).
+        ("tour-suite", "https://street-banker-tour-open-preview-3.onrender.com/", "M3 15h14|M5 15V9l5-4 5 4v6|M8 15v-3h4v3|M15 4l2 2", "Tour Suite", "The tour app on its own service: routing, advancing and the road, in one suite (opens Tour).")
     ]),
     ("money", "Royalty Sweep & Banking", "The money side — find it, claim it, value it, and keep the books straight.", [
         # Overview is a tab of the Command Center front (2026-09-07: "overview
@@ -148,7 +150,7 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "epk",
              # Real apps on their own services, opened in a new tab - not
              # previews of anything.
-             "noise-lab", "the-room", "reach", "masterclip",
+             "noise-lab", "the-room", "reach", "masterclip", "tour-suite",
              # Reports has five real export routes; only the demo account's
              # scheduled-report list is illustrative. It was badged as a
              # sample for want of this entry.

@@ -22,6 +22,7 @@ EXTERNAL = {
     "the-room": ("studio", "https://street-banker-v2-workflows.onrender.com/song-builder"),
     "reach": ("launch", "https://reach-9ub6.onrender.com/reach/"),
     "masterclip": ("studio", "https://masterclip.onrender.com/"),
+    "tour-suite": ("stage", "https://street-banker-tour-open-preview-3.onrender.com/"),
 }
 
 
@@ -108,7 +109,7 @@ def test_the_tool_suites_strip_lists_every_off_site_app(artist):
     """The owner's model (2026-09-15): Street Banker is the desk, the
     off-site apps are its tool suites. They get a strip of their own under
     every signed-in page, read from the same entries the rooms read."""
-    assert [k for k, *_ in hubs.tool_suites()] == ["noise-lab", "the-room", "masterclip", "reach"]
+    assert [k for k, *_ in hubs.tool_suites()] == ["noise-lab", "the-room", "masterclip", "reach", "tour-suite"]
     body = artist.get("/vault").get_data(as_text=True)
     strip = body.split('id="sb-tool-suites"')[1].split("</footer>")[0]
     for key, (_hub, href) in EXTERNAL.items():

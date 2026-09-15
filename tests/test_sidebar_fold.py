@@ -60,7 +60,8 @@ def test_the_sidebar_is_thirty_seven_entries():
     # platforms should be visible"); it stays a tab of Press as well.
     # 38 with MASTERCLIP OS, the video tool on its own service, beside Noise
     # Lab and The Room (owner, 2026-09-15: "missing the video edit tool").
-    assert len(_entries()) == 38
+    # 39 with the Tour Suite, the tour app on its own service (2026-09-15).
+    assert len(_entries()) == 39
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():

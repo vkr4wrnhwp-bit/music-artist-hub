@@ -27,7 +27,7 @@ ROOMS = [
      ["audio-studio", "rack", "remix-lab", "studio", "noise-lab", "the-room", "masterclip", "beats",
       "vault", "contracts", "artwork"]),
     ("stage", "Stage", "Everything between the booking and the encore.",
-     ["tours", "stage-plot", "lights", "live", "tour-board", "passports"]),
+     ["tours", "stage-plot", "lights", "live", "tour-board", "passports", "tour-suite"]),
     ("analytics", "Analytics", "What is measured, by whom, and how it moved.",
      ["pulse", "signal", "scores", "trust-score", "insights", "artist-twin", "reports"]),
     ("business", "Business", "The money, the paperwork and the people.",
