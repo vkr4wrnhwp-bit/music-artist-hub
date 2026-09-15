@@ -841,8 +841,12 @@ class SoundchartsAdapter(_EnvProvider):
         return out
 
     def get_playlist_activity(self, provider_artist_id, start, end):
-        data = self._get("/api/v2.20/artist/%s/playlist/current/spotify" % provider_artist_id,
-                         sortBy="position", limit=50)
+        return self._playlists_on(provider_artist_id, "spotify")["items"]
+
+    def _playlists_on(self, provider_artist_id, platform, limit=50):
+        """Current placements on one platform, and how many there are."""
+        data = self._get("/api/v2.20/artist/%s/playlist/current/%s" % (provider_artist_id, platform),
+                         sortBy="position", limit=limit)
         out = []
         for it in data.get("items") or []:
             pl = it.get("playlist") or {}
@@ -855,7 +859,246 @@ class SoundchartsAdapter(_EnvProvider):
                         "song": (it.get("song") or {}).get("name") or "",
                         # Not measured by them; never estimated here.
                         "estimated_streams": None})
+        total = (data.get("page") or {}).get("total")
+        return {"items": out, "total": int(total) if total is not None else len(out)}
+
+    # -- everything else the plan can pull for Artist Pulse --------------------
+    # Owner, 2026-09-14: "i want everything it can pull on the artist pulse".
+    # Every method below is one question with its own answer, and every
+    # shape was read from their public sandbox on that day, not from the
+    # docs. A platform or endpoint the plan refuses answers 403, which the
+    # page shows as "not in the plan"; an empty answer is "nothing on file".
+    audience_platforms = ("spotify", "deezer", "soundcloud", "youtube", "instagram",
+                          "tiktok", "facebook", "twitter")
+    playlist_platforms = ("spotify", "apple-music", "deezer", "amazon", "youtube")
+    report_platforms = ("instagram", "tiktok", "youtube")      # the only three they report on
+    related_shown = 12
+    songs_shown = 10
+    radio_shown = 10
+
+    @staticmethod
+    def _maybe_int(value):
+        if value is None or value == "":
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def get_profile(self, provider_artist_id):
+        """Who Soundcharts says the artist is: country, city, genres,
+        career stage, growth level, website, ISNI and IPI."""
+        obj = self._get("/api/v2.9/artist/%s" % provider_artist_id).get("object") or {}
+        if not obj.get("uuid"):
+            return None
+        genres = []
+        for g in obj.get("genres") or []:
+            root = (g.get("root") or "").strip()
+            if root and root not in genres:
+                genres.append(root)
+        return {"name": obj.get("name") or "", "image": obj.get("imageUrl") or "",
+                "web_url": obj.get("webUrl") or "", "app_url": obj.get("appUrl") or "",
+                "country": obj.get("countryCode") or "", "city": obj.get("cityName") or "",
+                "genres": genres, "career_stage": (obj.get("careerStage") or "").replace("_", " "),
+                "growth_level": (obj.get("growthLevel") or "").replace("_", " "),
+                "kind": obj.get("type") or "", "isni": obj.get("isni") or "", "ipi": obj.get("ipi") or "",
+                "biography": (obj.get("biography") or "").strip()[:600]}
+
+    def get_audience_all(self, provider_artist_id, start, end):
+        """{platform: reading} for every audience platform. A reading is
+        measured (followers, the 7 and 28-day change, and whatever other
+        counters the platform reports), empty, or refused by the plan."""
+        out = {}
+        span = {"startDate": start.isoformat(), "endDate": end.isoformat()}
+        for platform in self.audience_platforms:
+            try:
+                pts = [it for it in self._items("/api/v2/artist/%s/audience/%s"
+                                                % (provider_artist_id, platform), **span)
+                       if it.get("date") and it.get("followerCount") is not None]
+            except ProviderError as e:
+                out[platform] = {"state": "refused", "why": str(e)[:160]}
+                continue
+            if not pts:
+                out[platform] = {"state": "empty"}
+                continue
+            pts.sort(key=lambda it: it["date"])
+            latest = pts[-1]
+            day = date.fromisoformat(latest["date"][:10])
+            out[platform] = {
+                "state": "measured", "followers": int(latest["followerCount"]),
+                "as_of": latest["date"][:10],
+                "change_28d_pct": self._change_days_back(pts, day, 28),
+                "change_7d_pct": self._change_days_back(pts, day, 7),
+                "likes": self._maybe_int(latest.get("likeCount")),
+                "posts": self._maybe_int(latest.get("postCount")),
+                "views": self._maybe_int(latest.get("viewCount")),
+                "following": self._maybe_int(latest.get("followingCount")),
+            }
         return out
+
+    def get_playlists_all(self, provider_artist_id, limit=8):
+        """{platform: {state, items, total}} across the playlist platforms."""
+        out = {}
+        for platform in self.playlist_platforms:
+            try:
+                got = self._playlists_on(provider_artist_id, platform, limit=limit)
+            except ProviderError as e:
+                out[platform] = {"state": "refused", "why": str(e)[:160], "items": [], "total": 0}
+                continue
+            out[platform] = {"state": "measured" if got["items"] else "empty",
+                             "items": got["items"], "total": got["total"]}
+        return out
+
+    @staticmethod
+    def _weights(items, limit):
+        out = []
+        for it in (items or [])[:limit]:
+            code = (it.get("name") or it.get("code") or "").strip()
+            if not code:
+                continue
+            try:
+                pct = round(float(it.get("weight") or 0) * 100.0, 1)
+            except (TypeError, ValueError):
+                continue
+            out.append({"code": code, "pct": pct})
+        return out
+
+    def _posts(self, items, limit):
+        out = []
+        for it in (items or [])[:limit]:
+            out.append({"url": it.get("url") or "", "date": (it.get("date") or "")[:10],
+                        "likes": self._maybe_int(it.get("likeCount")),
+                        "comments": self._maybe_int(it.get("commentCount")),
+                        "views": self._maybe_int(it.get("viewCount")),
+                        "shares": self._maybe_int(it.get("shareCount"))})
+        return out
+
+    def get_audience_report(self, provider_artist_id, platform):
+        """Their latest audience report for one of instagram, tiktok or
+        youtube: who follows (gender, age, country, city, language), how
+        the account performs, and the posts that did the most."""
+        obj = self._get("/api/v2/artist/%s/audience/%s/report/latest"
+                        % (provider_artist_id, platform)).get("object") or {}
+        prof = obj.get("userProfile") or {}
+        aud = obj.get("audience") or {}
+        stats = aud.get("stats") or {}
+        fol = aud.get("audienceFollower") or {}
+        top = obj.get("top") or {}
+        rate = stats.get("engagementRate")
+        try:
+            rate = round(float(rate) * 100.0, 2) if rate is not None else None
+        except (TypeError, ValueError):
+            rate = None
+        return {
+            "platform": platform,
+            "account": {"name": prof.get("fullName") or "", "verified": bool(prof.get("verified")),
+                        "age_group": prof.get("ageGroup") or "", "gender": (prof.get("gender") or "").lower(),
+                        "country": (((prof.get("geo") or {}).get("country") or {}).get("name") or ""),
+                        "language": ((prof.get("language") or {}).get("name") or "")},
+            "stats": {"followers": self._maybe_int(stats.get("followerCount")),
+                      "posts": self._maybe_int(stats.get("postCount")),
+                      "engagement_rate_pct": rate,
+                      "avg_likes": self._maybe_int(stats.get("averageLikesPerPost")),
+                      "avg_comments": self._maybe_int(stats.get("averageCommentsPerPost")),
+                      "avg_views": self._maybe_int(stats.get("averageViewsPerPost")),
+                      "avg_reels_plays": self._maybe_int(stats.get("averageReelsPlays"))},
+            "followers": {"genders": self._weights(fol.get("genders"), 3),
+                          "ages": self._weights(fol.get("ages"), 8),
+                          "countries": self._weights(fol.get("countries"), 6),
+                          "cities": self._weights(fol.get("cities"), 6),
+                          "languages": self._weights(fol.get("languages"), 4)},
+            "interests": [str(x) for x in (aud.get("interests") or [])[:8]],
+            "brands": [str(x) for x in (aud.get("brandsAffinity") or [])[:8]],
+            "hashtags": [h.get("code") for h in (top.get("hashtags") or [])[:8] if h.get("code")],
+            "mentions": [m.get("code") for m in (top.get("mentions") or [])[:8] if m.get("code")],
+            "top_posts": self._posts(top.get("posts"), 3),
+            "recent_posts": self._posts(top.get("recentPosts"), 3),
+        }
+
+    def get_audience_reports(self, provider_artist_id):
+        out = {}
+        for platform in self.report_platforms:
+            try:
+                out[platform] = self.get_audience_report(provider_artist_id, platform)
+            except ProviderError as e:
+                out[platform] = {"state": "refused", "why": str(e)[:160]}
+        return out
+
+    def get_related(self, provider_artist_id):
+        """Artists Soundcharts places beside this one."""
+        data = self._get("/api/v2/artist/%s/related" % provider_artist_id)
+        out = []
+        for it in (data.get("items") or [])[:self.related_shown]:
+            if it.get("name"):
+                out.append({"name": it["name"], "image": it.get("imageUrl") or "",
+                            "app_url": it.get("appUrl") or "",
+                            "provider_artist_id": it.get("uuid") or ""})
+        return out
+
+    def get_identifiers(self, provider_artist_id):
+        """The artist's pages across every platform Soundcharts links."""
+        seen, out = set(), []
+        for it in self._items("/api/v2/artist/%s/identifiers" % provider_artist_id):
+            code = (it.get("platformCode") or "").strip()
+            url = (it.get("url") or "").strip()
+            if not code or not url or code in seen:
+                continue
+            seen.add(code)
+            out.append({"platform": code, "label": it.get("platformName") or code,
+                        "url": url, "verified": bool(it.get("verified"))})
+        return out
+
+    def get_radio(self, provider_artist_id, start, end):
+        """Radio: the stations that played the artist most in the window,
+        the latest plays, and how many plays there were in all."""
+        span = {"startDate": start.isoformat(), "endDate": end.isoformat()}
+        groups = self._get("/api/v2/artist/%s/broadcast-groups" % provider_artist_id,
+                           limit=self.radio_shown, **span)
+        stations = []
+        for it in groups.get("items") or []:
+            r = it.get("radio") or {}
+            if r.get("name"):
+                stations.append({"name": r["name"], "city": r.get("cityName") or "",
+                                 "country": r.get("countryCode") or "",
+                                 "plays": self._maybe_int(it.get("playCount")) or 0})
+        plays = self._get("/api/v2/artist/%s/broadcasts" % provider_artist_id,
+                          limit=self.radio_shown, **span)
+        recent = []
+        for it in plays.get("items") or []:
+            r = it.get("radio") or {}
+            recent.append({"song": (it.get("song") or {}).get("name") or "",
+                           "station": r.get("name") or "", "city": r.get("cityName") or "",
+                           "country": r.get("countryCode") or "",
+                           "aired_at": (it.get("airedAt") or "")[:16].replace("T", " ")})
+        return {"stations": stations,
+                "stations_total": self._maybe_int((groups.get("page") or {}).get("total")),
+                "recent": recent,
+                "plays_total": self._maybe_int((plays.get("page") or {}).get("total")),
+                "window_days": (end - start).days}
+
+    def get_youtube_views(self, provider_artist_id, start, end):
+        """Daily YouTube views across the artist's videos, as Soundcharts
+        measures them; [] when they hold none."""
+        pts = []
+        for it in self._items("/api/v2/artist/%s/streaming/youtube/listening" % provider_artist_id,
+                              startDate=start.isoformat(), endDate=end.isoformat()):
+            v = self._maybe_int(it.get("value"))
+            if it.get("date") and v is not None:
+                pts.append({"date": it["date"][:10], "views": v})
+        pts.sort(key=lambda p: p["date"])
+        return pts
+
+    def get_songs(self, provider_artist_id):
+        """How many songs they hold for the artist, and the newest ones."""
+        data = self._get("/api/v2.21/artist/%s/songs" % provider_artist_id,
+                         limit=self.songs_shown, sortBy="releaseDate", sortOrder="desc")
+        items = []
+        for it in data.get("items") or []:
+            if it.get("name"):
+                items.append({"name": it["name"], "release_date": (it.get("releaseDate") or "")[:10],
+                              "image": it.get("imageUrl") or "", "credit": it.get("creditName") or ""})
+        total = (data.get("page") or {}).get("total")
+        return {"items": items, "total": int(total) if total is not None else len(items)}
 
     # The social platforms read per artist. Each is one call per six
     # hours; three platforms is the whole of what the product shows.

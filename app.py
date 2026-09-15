@@ -7946,6 +7946,18 @@ def create_app():
         # None of this is required for the Spotify and Deezer blocks: with
         # no real metrics provider the page is exactly what it was.
         metrics = _provider_metrics(user["id"], profile) if profile else None
+        # Everything else the provider holds on the artist (owner,
+        # 2026-09-14: "as much information as we can find"): nine
+        # questions, each its own call and its own failure, cached six
+        # hours like the instruments. The provider id was resolved and
+        # stored by _provider_metrics, so this spends no search.
+        everything = None
+        if profile and metrics is not None:
+            import pulse_everything
+            _prov = _metrics_provider()
+            _pid = (profile.get("provider_artist_id") or "") if profile.get("provider") == getattr(_prov, "key", None) else ""
+            if _prov is not None and _pid:
+                everything = pulse_everything.build(_prov, _pid)
         # YouTube: only for a channel the owner has named, and never
         # derived from the artist name (see _youtube_pulse).
         youtube = _youtube_pulse(user["id"], profile,
@@ -8020,6 +8032,7 @@ def create_app():
         instruments = pulse_signals.build(pulse, metrics, youtube, deezer, snaps) if profile else []
         return render_template("pulse.html", active_page="pulse",
                                instruments=instruments,
+                               everything=everything,
                                pulse_configured=spotify.pulse_configured(),
                                profile=profile, pulse=pulse, deezer=deezer,
                                metrics=metrics, youtube=youtube,
