@@ -17,10 +17,6 @@ HUBS = [
         ("rack", "/rack", "M3 4h14v4H3z|M3 12h14v4H3z|M6 6h.01|M6 14h.01|M13 6h2|M13 14h2", "The Rack", "Mix and master in the browser: EQ, tube, compressor, LUFS loudness against platform targets, WAV export."),
         ("remix-lab", "/remix-lab", "M15.5 6.5A6 6 0 004.9 8.2|M4.5 13.5A6 6 0 0015.1 11.8|M16 3v4h-4|M4 17v-4h4", "Remix Lab", "One master in, a measured remix brief back."),
         ("audio-studio", "/audio-studio", "M4 10h2v4H4z|M8 6h2v12H8z|M12 8h2v8h-2z|M16 11h2v2h-2z", "Audio Studio", "Dub a release, cut campaign audio, split stems, register a voice."),
-        # The owner's own apps on their own Render services, each with its own
-        # login. An absolute href opens in a new tab (base.html nav_item).
-        ("noise-lab", "https://street-banker-v2-workflows.onrender.com/noise-lab/", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Build your own effects and pedal chains for playing live (opens the Noise Lab app)."),
-        ("the-room", "https://street-banker-v2-workflows.onrender.com/song-builder", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Song builder: a full track from a prompt, in its own room (opens the v2 workflows app)."),
         # MASTERCLIP OS, the video render factory, on its own service like
         # the two above (owner, 2026-09-15: "missing the video edit tool").
         # Motion is MASTERCLIP's proper name (owner, 2026-09-15).
@@ -243,7 +239,7 @@ def tool_suites():
         for key, href, icon, label, desc in items:
             if href.startswith(("http://", "https://")):
                 out.append((key, href, icon, label, desc))
-    return out + list(TOOL_SUITES_PENDING)
+    return list(TOOL_SUITES_OWN) + out + list(TOOL_SUITES_PENDING)
 
 
 # Suites the owner has named but not yet addressed (2026-09-15: "have
@@ -251,6 +247,15 @@ def tool_suites():
 # to command center"). They sit on the strip marked Soon and open the
 # Command Center until their addresses arrive; then they become entries
 # above like the others and leave this list.
+# The two suites that left the Studio hub (owner, 2026-09-15: "remove
+# noise lab and the room from studio"). They are their own products with
+# their own sign-in, so they belong on the suites strip rather than in a
+# hub of Street Banker's own pages.
+TOOL_SUITES_OWN = (
+    ("noise-lab", "https://street-banker-v2-workflows.onrender.com/noise-lab/", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Build your own effects and pedal chains for playing live (opens the Noise Lab app)."),
+    ("the-room", "https://street-banker-v2-workflows.onrender.com/song-builder", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Songwriting, arrangement and production: build the record part by part, in its own app.")
+)
+
 TOOL_SUITES_PENDING = (
     ("company", "/command-center", "M3 17V6l7-3 7 3v11H3z|M8 17v-5h4v5|M7 9h.01M13 9h.01", "Company",
      "The company desk, coming to the suites. Opens the Command Center for now."),

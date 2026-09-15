@@ -61,7 +61,11 @@ def test_the_sidebar_is_thirty_seven_entries():
     # 38 with MASTERCLIP OS, the video tool on its own service, beside Noise
     # Lab and The Room (owner, 2026-09-15: "missing the video edit tool").
     # 39 with the Tour Suite, the tour app on its own service (2026-09-15).
-    assert len(_entries()) == 39
+    # 37 when The Room and Noise Lab left the Studio hub the same day
+    # (owner: "remove noise lab and the room from studio"). They are their
+    # own products with their own sign-in, so they live on the tool suites
+    # strip instead of inside a hub of Street Banker's own pages.
+    assert len(_entries()) == 37
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():

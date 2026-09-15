@@ -24,7 +24,7 @@ ROOMS = [
     ("fans", "Fans", "The people who follow you and what they get.",
      ["fans", "fan-crm", "fan-club", "discover", "marketplace"]),
     ("studio", "Studio", "Making the record and keeping its files.",
-     ["audio-studio", "rack", "remix-lab", "studio", "noise-lab", "the-room", "masterclip", "beats",
+     ["audio-studio", "rack", "remix-lab", "studio", "masterclip", "beats",
       "vault", "contracts", "artwork"]),
     ("stage", "Stage", "Everything between the booking and the encore.",
      ["tours", "stage-plot", "lights", "live", "tour-board", "passports", "tour-suite"]),

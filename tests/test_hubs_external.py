@@ -18,11 +18,17 @@ import hubs
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 EXTERNAL = {
-    "noise-lab": ("studio", "https://street-banker-v2-workflows.onrender.com/noise-lab/"),
-    "the-room": ("studio", "https://street-banker-v2-workflows.onrender.com/song-builder"),
     "reach": ("launch", "https://street-banker-tour-open-preview-3.onrender.com/reach/"),
     "masterclip": ("studio", "https://masterclip.onrender.com/"),
     "tour-suite": ("stage", "https://street-banker-tour-open-preview-3.onrender.com/"),
+}
+
+# Two suites that are no longer hub entries at all: their own products with
+# their own sign-in, on the suites strip only (owner, 2026-09-15: "remove
+# noise lab and the room from studio").
+STRIP_ONLY = {
+    "noise-lab": "https://street-banker-v2-workflows.onrender.com/noise-lab/",
+    "the-room": "https://street-banker-v2-workflows.onrender.com/song-builder",
 }
 
 
@@ -46,15 +52,17 @@ def test_the_three_apps_are_hub_entries_with_https_hrefs():
         assert href.startswith("https://")
         assert icon and label and desc
         assert hubs.get_hub(hub)["modules"]
-    # Neighbours: after Audio Studio in Studio & Assets, after Press in Launch.
+    # Neighbours: Motion after Audio Studio in Studio & Assets, REACH after
+    # Press in Launch. The Room and Noise Lab are not hub entries at all.
     studio = [it[0] for it in hubs.get_hub("studio")["modules"]]
     launch = [it[0] for it in hubs.get_hub("launch")["modules"]]
-    assert studio[studio.index("audio-studio") + 1:][:2] == ["noise-lab", "the-room"]
+    assert "noise-lab" not in studio and "the-room" not in studio
+    assert studio[studio.index("audio-studio") + 1] == "masterclip"
     assert launch[launch.index("press-desk") + 1] == "reach"
 
 
 def test_they_are_live_not_previews():
-    for key in EXTERNAL:
+    for key in list(EXTERNAL) + list(STRIP_ONLY):
         assert key in hubs.LIVE_KEYS and key in hubs.live_keys(), key
 
 
@@ -114,6 +122,8 @@ def test_the_tool_suites_strip_lists_every_off_site_app(artist):
     strip = body.split('id="sb-tool-suites"')[1].split("</footer>")[0]
     for key, (_hub, href) in EXTERNAL.items():
         assert 'href="%s"' % href in strip and 'target="_blank"' in strip, key
+    for key, href in STRIP_ONLY.items():
+        assert 'href="%s"' % href in strip, key
     assert "Tool suites" in strip and "(opens in a new tab)" in strip
     assert "Sample" not in strip
     # Company and Artifacts wait for their addresses: on the strip, marked

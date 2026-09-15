@@ -110,7 +110,7 @@ def test_a_room_screen_is_one_grid_of_cards(monkeypatch):
     assert c.get("/room/nope").status_code == 404
     studio = c.get("/room/studio").get_data(as_text=True)
     assert 'data-room-card="vault"' in studio and 'data-room-card="contracts"' in studio
-    assert ">Opens app<" in studio, "Noise Lab and The Room are other apps"
+    assert ">Opens app<" in studio, "Motion is another app"
     # rooms answer even when the sidebar shows hubs: a link to one never dies
     monkeypatch.delenv("NAV_ROOMS", raising=False)
     assert c.get("/room/marketing").status_code == 200
