@@ -76,7 +76,7 @@ def test_the_picture_takes_its_colours_from_the_theme():
     assert "--sd-played" in src and "--sd-wave" in src
     css = _read("static/css/app-chrome.css")
     assert "--sd-wave: var(--sb-ink-3)" in css
-    assert "--sd-played: var(--sb-gold)" in css
+    assert "--sd-played: var(--sb-gold-bright)" in css
 
 
 def test_there_is_still_something_without_javascript():
