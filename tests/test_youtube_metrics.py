@@ -482,7 +482,7 @@ def test_before_a_channel_is_named_the_windows_read_not_measured(artist,
     _, wire = live_youtube
     body = artist["client"].get("/pulse").get_data(as_text=True)
     section = _yt_section(body)
-    assert section.count('<span class="sb-lcd-v">Not measured</span>') == 1, "the views window"
+    assert section.count('<span class="sb-lcd-v">Not measured</span>') == 2, "the views and videos windows"
     assert '<span class="sbm-v is-none">Not measured</span>' in _yt_instrument(body), "the subscriber instrument"
     assert "subscribers" in _yt_instrument(body) and "total views" in section
     assert "Name your channel below" in section
@@ -584,7 +584,7 @@ def test_with_no_key_the_panel_names_the_variable_and_calls_nothing(artist,
     finally:
         providers.reset_registry(None)
     assert "YOUTUBE_API_KEY" in section
-    assert section.count('<span class="sb-lcd-v">Not measured</span>') == 1, "the views window"
+    assert section.count('<span class="sb-lcd-v">Not measured</span>') == 2, "the views and videos windows"
     assert '<span class="sbm-v is-none">Not measured</span>' in _yt_instrument(body)
     assert wire.calls == []
     assert 'action="/pulse/youtube"' not in section, \

@@ -2807,6 +2807,7 @@ def create_app():
                "channel_id": profile.get("youtube_channel_id") or "",
                "subscribers": None, "views": None, "videos": None,
                "hidden": False, "channel_title": "", "channel_url": "",
+               "started": "", "country": "", "uploads": [],
                "cached_hours": None, "note": "", "error": error}
         if not out["configured"]:
             out["note"] = ("This server has no YouTube key yet, so nothing here is "
@@ -2827,8 +2828,14 @@ def create_app():
                            "again below.")
             return out
         for k in ("subscribers", "views", "videos", "hidden",
-                  "channel_title", "channel_url"):
-            out[k] = social[k]
+                  "channel_title", "channel_url", "started", "country"):
+            out[k] = social.get(k) if k in ("started", "country") else social[k]
+        # The latest uploads: a bonus, never the whole panel. A failure
+        # here leaves the channel's own counters standing.
+        try:
+            out["uploads"] = prov.get_recent_videos(out["channel_id"])
+        except Exception:                                       # noqa: BLE001
+            out["uploads"] = []
         hours = int((datetime.now(timezone.utc)
                      - social["measured_at"]).total_seconds() // 3600)
         out["cached_hours"] = hours
@@ -8075,6 +8082,26 @@ def create_app():
         store.save_pulse_profile(user["id"], artist_id, name,
                                  (p.get("image") or "").strip()[:300])
         return jsonify({"ok": True})
+
+    @app.route("/pulse/youtube/search")
+    def pulse_youtube_search():
+        """Channels matching a typed name, for the person to pick from
+        (owner, 2026-09-14: "no one ever knows their handle"). The pick
+        itself posts to /pulse/youtube with the channel id, like a paste."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "results": [], "error": "Sign in first."}), 401
+        prov = _youtube_adapter()
+        if prov is None or not prov.configured():
+            return jsonify({"ok": False, "results": [], "error": _YT_ERRORS["unconfigured"]})
+        q = (request.args.get("q") or "").strip()[:100]
+        if not q:
+            return jsonify({"ok": True, "results": []})
+        try:
+            results = prov.search_channels(q)
+        except Exception as e:                                  # noqa: BLE001
+            return jsonify({"ok": False, "results": [], "error": prov.redact(e)[:200]})
+        return jsonify({"ok": True, "results": results})
 
     @app.route("/pulse/youtube", methods=["POST"])
     def pulse_youtube():

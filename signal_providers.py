@@ -2273,6 +2273,53 @@ class YouTubeAdapter(_EnvProvider):
                                        "accessNotConfigured", "not configured",
                                        "403", "401"))
 
+    def search_channels(self, term):
+        """Channels matching a typed name, for a PERSON to pick from.
+
+        Owner, 2026-09-14: "no one ever knows their handle". One
+        `search.list` (the expensive call) for the candidate ids, then one
+        `channels.list` for all of them at once (1 unit) so each card can
+        show the handle, the subscriber count and the picture that tell
+        two same-named channels apart. Nothing is chosen here: the list
+        goes back to the page and the pick is the person's.
+        """
+        term = (term or "").strip()
+        if not term:
+            return []
+        self.searches += 1
+        data = self._get("/search", part="snippet", type="channel", q=term,
+                         maxResults=self.search_results)
+        ids, titles = [], {}
+        for item in (data.get("items") or []):
+            cid = ((item.get("id") or {}).get("channelId") or "").strip()
+            if cid and cid not in ids:
+                ids.append(cid)
+                titles[cid] = ((item.get("snippet") or {}).get("title") or "").strip()
+        if not ids:
+            return []
+        detail = self._get("/channels", part="snippet,statistics", id=",".join(ids))
+        by_id = {(it.get("id") or ""): it for it in (detail.get("items") or [])}
+        out = []
+        for cid in ids:
+            item = by_id.get(cid) or {}
+            snip = item.get("snippet") or {}
+            stats = item.get("statistics") or {}
+            hidden = bool(stats.get("hiddenSubscriberCount"))
+            custom = (snip.get("customUrl") or "").strip()
+            thumbs = snip.get("thumbnails") or {}
+            out.append({
+                "channel_id": cid,
+                "title": snip.get("title") or titles.get(cid) or "",
+                "handle": custom,
+                "url": ("https://www.youtube.com/%s" % custom if custom
+                        else "https://www.youtube.com/channel/%s" % cid),
+                # None, not 0, for a hidden count: the same rule as get_social
+                "subscribers": None if hidden else self._count(stats.get("subscriberCount")),
+                "videos": self._count(stats.get("videoCount")),
+                "image": ((thumbs.get("default") or {}).get("url") or ""),
+            })
+        return out
+
     def _search_once(self, term):
         """The fallback, run at most once per resolution."""
         self.searches += 1
@@ -2327,8 +2374,65 @@ class YouTubeAdapter(_EnvProvider):
             "channel_title": snip.get("title") or "",
             "channel_url": ("https://www.youtube.com/%s" % custom if custom
                             else "https://www.youtube.com/channel/%s" % (item.get("id") or cid)),
+            # the day the channel was made and the country it declares,
+            # both from the snippet YouTube already sent; "" when absent
+            "started": (snip.get("publishedAt") or "")[:10],
+            "country": (snip.get("country") or "").strip(),
             "measured_at": at,
         }
+
+    uploads_shown = 5
+
+    def get_recent_videos(self, channel_id):
+        """The channel's latest uploads with their own counters, newest
+        first, or [] when YouTube has none to give.
+
+        Owner, 2026-09-14: "is this all the info we get from youtube".
+        The public API has no history for a channel, but it does have the
+        per-video counters, and the last few uploads are the part of a
+        channel an artist actually asks about. Two 1-unit calls: the
+        uploads playlist (its id is the channel id with "UU" for "UC", a
+        documented convention that saves the contentDetails lookup),
+        then videos.list for the ids it named.
+        """
+        cid = (channel_id or "").strip()
+        if not cid.startswith("UC"):
+            return []
+        try:
+            page = self._get("/playlistItems", part="contentDetails",
+                             playlistId="UU" + cid[2:], maxResults=self.uploads_shown)
+        except ProviderError as e:
+            if self._is_quota_or_key(e):
+                raise
+            return []          # a channel with no uploads playlist yet answers 404
+        ids = []
+        for item in (page.get("items") or []):
+            vid = ((item.get("contentDetails") or {}).get("videoId") or "").strip()
+            if vid and vid not in ids:
+                ids.append(vid)
+        if not ids:
+            return []
+        data = self._get("/videos", part="snippet,statistics", id=",".join(ids))
+        by_id = {(it.get("id") or ""): it for it in (data.get("items") or [])}
+        out = []
+        for vid in ids:
+            item = by_id.get(vid)
+            if not item:
+                continue
+            snip = item.get("snippet") or {}
+            stats = item.get("statistics") or {}
+            out.append({
+                "video_id": vid,
+                "title": snip.get("title") or "",
+                "published": (snip.get("publishedAt") or "")[:10],
+                "url": "https://www.youtube.com/watch?v=" + vid,
+                # None for a counter YouTube left out (likes and comments
+                # can be switched off per video); never 0 for absent
+                "views": self._count(stats.get("viewCount")),
+                "likes": self._count(stats.get("likeCount")),
+                "comments": self._count(stats.get("commentCount")),
+            })
+        return out
 
     def get_social_activity(self, provider_artist_id, start, end):
         """Deliberately absent. The Data API has no public history: a
