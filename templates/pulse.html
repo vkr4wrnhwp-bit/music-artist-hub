@@ -251,7 +251,7 @@
   <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-6">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h3 class="sb-label text-sb-gold">Peer Watch <span class="font-normal normal-case tracking-normal text-gray-300">— how this artist compares with artists you pin</span></h3>
-      <span class="text-xs text-gray-300 font-medium">Public Spotify numbers, snapshotted whenever this page loads — pin up to 3</span>
+      <span class="text-xs text-gray-300 font-medium">Pin up to 3. Spotify no longer sends public follower counts, so a pinned artist reads unmeasured until the comparison moves to Soundcharts, which is on the queue.</span>
     </div>
     {% if peers %}
     <div class="mt-3 space-y-2">
@@ -287,7 +287,7 @@
     <div id="peer-error" class="mt-2 hidden text-xs font-semibold text-red-400"></div>
   </section>
 
-  <p class="px-1 text-xs text-gray-300 font-medium">Live data from the Spotify Web API{% if deezer %} and Deezer{% endif %}, read fresh on every load of this page and snapshotted as it is read — nothing above is cached. Popularity is Spotify's own 0–100 signal based on recent plays.</p>
+  <p class="px-1 text-xs text-gray-300 font-medium">Read on every load of this page and snapshotted as it is read. Spotify no longer sends follower, popularity or genre figures to apps like this one, so those lines stop where Spotify stopped; the Deezer fan count still comes from Deezer's own public API.</p>
   {% endif %}
 
   {#- Owned engagement, folded in from /stats: the one thing that page had

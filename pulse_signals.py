@@ -109,24 +109,33 @@ def build(pulse, metrics, youtube, deezer, snaps, today=None):
                 detail="As measured by %s." % (metrics.get("label") or "the provider")))
 
     spotify_snaps = snaps or []
+    # Spotify retired followers, popularity and genres for apps like this
+    # one (2026-09-15). A 0 on file for either came from the days it sent
+    # 0 for a field it had stopped counting, and is not a measurement:
+    # it must never stand in for a figure as "fresh 0" (owner, live).
+    def _spotify_series(key):
+        return [(d, (None if v == 0 else v)) for d, v in _series(spotify_snaps, key)]
+
     followers = (pulse or {}).get("followers") if pulse else None
+    followers_series = _spotify_series("followers")
     out.append(instrument(
         "followers", "Spotify followers", followers,
-        _series(spotify_snaps, "followers"), "Spotify",
+        followers_series, "Spotify",
         today.isoformat() if followers is not None else
         (spotify_snaps[-1].get("day") if spotify_snaps else None), today,
         detail=("" if followers is not None else
-                "Spotify has not returned a follower count.")))
+                "Spotify no longer sends a follower count to apps like this one; "
+                "the followers figure above comes from the provider where one is connected.")))
 
     popularity = (pulse or {}).get("popularity") if pulse else None
     out.append(instrument(
         "popularity", "Popularity", popularity,
-        _series(spotify_snaps, "popularity"), "Spotify",
+        _spotify_series("popularity"), "Spotify",
         today.isoformat() if popularity is not None else
         (spotify_snaps[-1].get("day") if spotify_snaps else None), today,
         scale="/100", fmt=lambda v: "%d" % int(round(v)),
         detail=("Spotify's own 0-100 signal, based on recent plays." if popularity is not None
-                else "Spotify has not returned a popularity figure.")))
+                else "Spotify no longer sends a popularity figure to apps like this one.")))
 
     fans = (deezer or {}).get("fans") if deezer else None
     out.append(instrument(

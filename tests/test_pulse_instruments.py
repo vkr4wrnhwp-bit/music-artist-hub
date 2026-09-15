@@ -48,7 +48,7 @@ def test_an_omitted_live_figure_falls_back_to_the_last_snapshot_and_reads_stale(
     out = pulse_signals.build({"followers": None, "popularity": None}, None, None, None, snaps, today=TODAY)
     f = {i["key"]: i for i in out}["followers"]
     assert f["shown"] == "1,000" and f["state"] == "stale" and f["lamp"] == "3 days old"
-    assert "has not returned a follower count" in f["detail"]
+    assert "no longer sends a follower count" in f["detail"]
 
 
 def test_the_provider_row_is_kept_apart_from_the_platform_row():

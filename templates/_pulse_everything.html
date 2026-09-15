@@ -53,7 +53,7 @@
       </div>
       {% if a.posts is not none or a.views is not none or a.likes is not none %}
       <div class="mt-1 text-xs tabular-nums text-gray-300 font-medium">
-        {% if a.posts is not none %}{{ "{:,}".format(a.posts) }} posts{% endif %}
+        {% if a.posts is not none %}{{ "{:,}".format(a.posts) }} post{{ '' if a.posts == 1 else 's' }}{% endif %}
         {% if a.views is not none %} · {{ "{:,}".format(a.views) }} views{% endif %}
         {% if a.likes is not none %} · {{ "{:,}".format(a.likes) }} likes{% endif %}
       </div>

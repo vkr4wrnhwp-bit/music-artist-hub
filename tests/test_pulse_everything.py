@@ -69,7 +69,7 @@ class Wire(object):
                                        "averageLikesPerPost": 2299351, "averageCommentsPerPost": 12765,
                                        "averageViewsPerPost": 0, "averageReelsPlays": 26857059},
                              "audienceFollower": {"genders": [{"code": "FEMALE", "weight": 0.704556}, {"code": "MALE", "weight": 0.295444}],
-                                                  "ages": [{"code": "18-24", "weight": 0.497303}, {"code": "25-34", "weight": 0.344372}],
+                                                  "ages": [{"code": "18-24", "weight": 0.497303}, {"code": "25-34", "weight": 0.344372}, {"code": "65-", "weight": 0.01}],
                                                   "countries": [{"code": "US", "name": "United States", "weight": 0.31}],
                                                   "cities": [], "languages": []},
                              "interests": ["Music", "Sports"], "brandsAffinity": ["Apple", "Converse"]}}}
@@ -89,7 +89,9 @@ class Wire(object):
                                "position": 2, "peakPosition": 1, "entryDate": "2021-09-10T00:00:00+00:00",
                                "song": {"name": "bad guy"}},
                               {"playlist": {"name": "New Music Friday", "type": "editorial", "latestSubscriberCount": 4000000},
-                               "position": 9, "peakPosition": 3, "entryDate": "2026-09-05T00:00:00+00:00", "song": {"name": "Narrow"}}],
+                               "position": 9, "peakPosition": 3, "entryDate": "2026-09-05T00:00:00+00:00", "song": {"name": "Narrow"}},
+                              {"playlist": {"name": "New Music Friday", "type": "editorial", "latestSubscriberCount": 4000000},
+                               "position": 12, "peakPosition": 3, "entryDate": "2026-09-01T00:00:00+00:00", "song": {"name": "Narrow"}}],
                     "page": {"total": 768810 if platform == "spotify" else 446, "next": None}}
         if p.endswith("/related"):
             return {"items": [{"uuid": "r1", "name": "Lana Del Rey", "appUrl": "https://app.soundcharts.com/app/artist/lana-del-rey/overview", "imageUrl": ""},

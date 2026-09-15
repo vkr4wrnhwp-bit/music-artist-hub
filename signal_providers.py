@@ -859,6 +859,15 @@ class SoundchartsAdapter(_EnvProvider):
                         "song": (it.get("song") or {}).get("name") or "",
                         # Not measured by them; never estimated here.
                         "estimated_streams": None})
+        # One row per playlist and song: they list a placement again for
+        # each position recorded, so one editorial playlist showed four
+        # times (owner, live, 2026-09-15). The best position is kept.
+        seen = {}
+        for row in out:
+            k = (row["playlist_name"], row["song"])
+            if k not in seen or (row["position"] or 10**9) < (seen[k]["position"] or 10**9):
+                seen[k] = row
+        out = [row for row in out if seen.get((row["playlist_name"], row["song"])) is row]
         total = (data.get("page") or {}).get("total")
         return {"items": out, "total": int(total) if total is not None else len(out)}
 
@@ -956,6 +965,10 @@ class SoundchartsAdapter(_EnvProvider):
             code = (it.get("name") or it.get("code") or "").strip()
             if not code:
                 continue
+            # Their age bands end "65-" for sixty-five and over; a person
+            # reads that as "under 65", so it is written as they mean it.
+            if re.match(r"^\d{2}-$", code):
+                code = code[:-1] + "+"
             try:
                 pct = round(float(it.get("weight") or 0) * 100.0, 1)
             except (TypeError, ValueError):
