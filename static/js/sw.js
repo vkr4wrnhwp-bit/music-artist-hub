@@ -14,7 +14,7 @@
    copy is per-URL - query string included, because Show Command tabs and
    My Day dates live in the query - is whatever the server last sent that
    signed-in person, and is replaced on every successful load. */
-var VERSION = "sb-v243";   /* Pulse: everything Soundcharts holds on the artist */
+var VERSION = "sb-v244";   /* lyric sheet reads a bucket upload; an X on recent work; Reach and audience */
 var PAGES = VERSION + "-tour";
 var PRECACHE = ["/static/offline.html", "/static/img/streetbanker-logo.svg",
                 "/static/img/icon-192.png", "/static/manifest.json"];

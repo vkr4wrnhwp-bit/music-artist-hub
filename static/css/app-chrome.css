@@ -335,8 +335,8 @@ details.asx-open[open] .asx-when-closed { display: none; }
 .asx-rows { list-style: none; margin: 0; padding: 0; }
 .asx-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas: "ico main status" "ico main time";
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: "ico main status x" "ico main time x";
   align-items: center;
   column-gap: 12px;
   row-gap: 2px;
@@ -358,6 +358,19 @@ details.asx-open[open] .asx-when-closed { display: none; }
 .asx-row-title:focus-visible { outline: none; box-shadow: var(--sb-focus); border-radius: var(--sb-r-control); }
 .asx-row-sub { font-size: 12.5px; line-height: 1.4; color: var(--sb-ink-3); }
 .asx-row .sb-badge { grid-area: status; justify-self: end; }
+.asx-row-x { grid-area: x; margin: 0; align-self: center; }
+.asx-row-x-btn {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border: 1px solid var(--sb-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sb-ink-3);
+  font-size: 12px; line-height: 1;
+  cursor: pointer;
+}
+.asx-row-x-btn:hover { color: var(--sb-ink); border-color: var(--sb-line-strong); }
+.asx-row-x-btn:focus-visible { outline: none; box-shadow: var(--sb-focus); }
 .asx-row-time {
   grid-area: time;
   justify-self: end;

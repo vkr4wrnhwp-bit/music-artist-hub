@@ -188,11 +188,18 @@
               </span>
               {{ sb.badge(item.status, status_tone.get(item.status, "idle")) }}
               <time class="asx-row-time" datetime="{{ item.created_at }}">{{ item.created_at[:16] | replace("T", " ") }}</time>
+              {#- Delete from the row (owner, 2026-09-14: "there is a lot of
+                  excessive clicking"). The same post the item page makes,
+                  with the same warning, so nothing is lost by the shortcut. -#}
+              <form method="post" action="{{ url_for('audio_studio.studio_delete', work_id=item.id) }}" class="asx-row-x"
+                    onsubmit="return confirm('Delete this and destroy the audio you uploaded for it?');">
+                <button type="submit" class="asx-row-x-btn" aria-label="Delete {{ item.title or 'this item' }}" title="Delete">✕</button>
+              </form>
             </li>
           {% endfor %}
         </ul>
         {% if works|length > 12 %}
-          <p class="asx-more">The latest 12 of {{ works|length }}. Each item opens to its files and its reason.</p>
+          <p class="asx-more">The latest 12 of {{ works|length }}. Each item opens to its files and its reason; the X deletes it from here.</p>
         {% endif %}
       {% else %}
         <div class="asx-empty">

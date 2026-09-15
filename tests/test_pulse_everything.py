@@ -221,7 +221,8 @@ def test_the_page_carries_every_section_and_names_what_the_plan_refused(page):
     body = client.get("/pulse").get_data(as_text=True)
     assert 'id="everything"' in body
     section = body.split('id="everything"')[1].split("</section>")[0]
-    assert "Everything Soundcharts holds on this artist" in section
+    assert "Reach and audience" in section and "Measured by Soundcharts" in section
+    assert "Everything Soundcharts holds" not in section, "the owner did not want that name"
     assert "Los Angeles, US" in section and "pop, alternative" in section and "career stage: superstar" in section
     assert "Audience by platform" in section and "33,407,686" in section and "Not in the plan" in section
     assert "Nothing on file" in section, "TikTok holds nothing"

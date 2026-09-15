@@ -52,6 +52,7 @@ an environment variable.
 """
 import os
 import threading
+import io
 import time
 
 import audio_providers as ap
@@ -390,13 +391,28 @@ class ElevenLabsTranscription(_Base, ap.TranscriptionProvider):
             kw["timestamps_granularity"] = "word"
         if request.language:
             kw["language_code"] = request.language      # omitted = detect
+        audio_bytes = getattr(request, "audio_bytes", None)
+        name = (getattr(request, "file_name", None) or "audio")[:120]
         if request.audio_url:
             kw["cloud_storage_url"] = request.audio_url
             resp = c.speech_to_text.convert(**kw)
-        else:
+        elif request.audio_path:
             with open(request.audio_path, "rb") as fh:
                 kw["file"] = fh
                 resp = c.speech_to_text.convert(**kw)
+        elif audio_bytes:
+            # A bucket-backed upload is fetched into bytes by
+            # audio_works._source_file, because the vendor cannot be handed
+            # a private signed URL that expires under it. This branch was
+            # missing, so every lyric sheet on the live deployment died on
+            # open(None) (live log, 2026-09-14).
+            kw["file"] = (name, io.BytesIO(audio_bytes))
+            resp = c.speech_to_text.convert(**kw)
+        else:
+            raise ap.ProviderRefusal(
+                "The recording for this lyric sheet could not be read back "
+                "from storage, so nothing was sent to the provider. Upload "
+                "it again.", "source_unreadable")
 
         norm = self._normalise(resp)
         jid = getattr(resp, "transcription_id", None) or ("inline_%d" % (time.time() * 1000))
