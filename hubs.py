@@ -239,7 +239,20 @@ def tool_suites():
         for key, href, icon, label, desc in items:
             if href.startswith(("http://", "https://")):
                 out.append((key, href, icon, label, desc))
-    return out
+    return out + list(TOOL_SUITES_PENDING)
+
+
+# Suites the owner has named but not yet addressed (2026-09-15: "have
+# company and artifacts in the footer just for the moment, the link is
+# to command center"). They sit on the strip marked Soon and open the
+# Command Center until their addresses arrive; then they become entries
+# above like the others and leave this list.
+TOOL_SUITES_PENDING = (
+    ("company", "/command-center", "M3 17V6l7-3 7 3v11H3z|M8 17v-5h4v5|M7 9h.01M13 9h.01", "Company",
+     "The company desk, coming to the suites. Opens the Command Center for now."),
+    ("artifacts", "/command-center", "M4 4h12v12H4z|M4 9h12|M9 9v7|M7 6.5h.01", "Artifacts",
+     "The artifacts workbench, coming to the suites. Opens the Command Center for now."),
+)
 
 
 def command_index():

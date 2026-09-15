@@ -109,10 +109,16 @@ def test_the_tool_suites_strip_lists_every_off_site_app(artist):
     """The owner's model (2026-09-15): Street Banker is the desk, the
     off-site apps are its tool suites. They get a strip of their own under
     every signed-in page, read from the same entries the rooms read."""
-    assert [k for k, *_ in hubs.tool_suites()] == ["noise-lab", "the-room", "masterclip", "reach", "tour-suite"]
+    assert [k for k, *_ in hubs.tool_suites()] == ["noise-lab", "the-room", "masterclip", "reach", "tour-suite", "company", "artifacts"]
     body = artist.get("/vault").get_data(as_text=True)
     strip = body.split('id="sb-tool-suites"')[1].split("</footer>")[0]
     for key, (_hub, href) in EXTERNAL.items():
         assert 'href="%s"' % href in strip and 'target="_blank"' in strip, key
     assert "Tool suites" in strip and "(opens in a new tab)" in strip
     assert "Sample" not in strip
+    # Company and Artifacts wait for their addresses: on the strip, marked
+    # Soon, opening the Command Center in this tab (owner, 2026-09-15).
+    for pending in ("Company", "Artifacts"):
+        m = re.search(r'<a href="/command-center"[^>]*title="The %s[^"]*"([^>]*)>' % pending.lower(), strip)
+        assert m and "_blank" not in m.group(1), pending
+    assert strip.count(">Soon<") == 2
