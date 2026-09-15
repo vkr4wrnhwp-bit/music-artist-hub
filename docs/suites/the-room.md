@@ -34,6 +34,41 @@ Share in the header.
 - **Spend.** Anything a run costs at a vendor is counted here, because
   the owner's ceiling has to hold across every suite.
 
+## What is actually deployed (read 2026-09-15, owner's signed-in browser)
+
+The handoff says the newer architecture is approved but unverified. It is
+live. The test project renders the rebuilt experience:
+
+- The first screen asks what to start with: record, upload or create. It
+  is correctly hidden once a project has parts, so the disclosure works.
+- The four areas are the navigation: Song, Sound, Improve, Export, with
+  Share beside them.
+- Song parts are cards (Verse 1, Chorus, Bridge) with "Add song part".
+- A selected part offers Add instrument, Shape Sound, Try Another Take,
+  Lock This Part and Edit This Part, all in the artist-facing wording.
+- Export offers the whole song, one song part, one track, a 30-second
+  preview and a 15-second social clip.
+- "Back to Street Banker" is on the page, so the way home already exists.
+
+Three things worth fixing there, by The Room's own rules:
+
+1. **The five area buttons are the loudest thing on the screen**, drawn as
+   pale slabs, and the selected one is darker than the rest. The brightest
+   elements are the places the artist is not. A quiet row with a gold
+   underline on the active area was the approved direction.
+2. **Share sits as a fifth peer of the four areas**, though the approved
+   architecture puts it in the header. As a peer it competes with the work.
+3. **Two navigations are on the page at once.** The menu still lists Sound
+   DNA, Improve My Track, Tempo and Key Lab, Pro Workflow and Collaborate
+   and Listen as their own destinations, beside the four areas that
+   contain them. This is the double-tab problem, one level up.
+
+Section-level regeneration ships as "Try Another Take" on a selected part:
+the take is generated as a new mix rather than replacing only the audio
+inside the section, so seamless continuity with the surrounding bars is
+not proven. Say "another take of this part", never "we replace just that
+section", until it is benchmarked.
+
 ## Open seams, to be settled before either side builds across them
 
 1. **Two things are called a rack.** This app's **The Rack** (`/rack`) is
