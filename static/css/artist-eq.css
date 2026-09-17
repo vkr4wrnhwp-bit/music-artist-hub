@@ -511,15 +511,15 @@
    above stay as they are. */
 @media (min-width: 901px) {
   .sbeq-unit {
-    /* Sized by the column it sits in, never by the window, and capped so it
-       reads as a rack unit on the page rather than filling it. Everything
-       inside is measured in the unit's own width (cqw). */
+    /* Sized by the column it sits in, never by the window: it fills that
+       column edge to edge. Everything inside is measured in the unit's own
+       width (cqw), so it scales as one object. */
     container-type: inline-size;
     position: relative;
     align-self: center;
-    width: min(100%, 760px);
+    width: 100%;
     aspect-ratio: 1636 / 911;
-    margin: 0 auto 56px;
+    margin: 0 0 30px;
     background: #0B0A09 url("/static/img/eq-unit-plate.jpg") center / 100% 100% no-repeat;
     background-image: image-set(url("/static/img/eq-unit-plate.webp") type("image/webp"), url("/static/img/eq-unit-plate.jpg") type("image/jpeg"));
     border-radius: 6px;
@@ -601,11 +601,65 @@
     text-align: center; font-size: 13px; line-height: 1.4; color: var(--eq-muted);
     opacity: 0; transition: opacity 0.15s; pointer-events: none;
   }
-  /* The faders left this card for the unit above, so its heading no longer
-     hangs at the foot of an empty box: the words and the buttons fill it,
-     centred against the readiness panel beside them. */
-  .sbeq-channels-wrap { justify-content: center; }
-  .sbeq-channels-wrap .sbeq-head { margin-top: 0; padding-top: 0; border-top: 0; }
+  /* The faders left this card for the unit, so the card goes too. What is
+     left is two lines of type under the unit: the name of the thing and
+     what it does, then how to use it with the buttons at the end of the
+     line. No box around words that do not need one. */
+  .sbeq-channels-wrap {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 28px;
+    border: 0; border-radius: 0; background: none; box-shadow: none; padding: 0;
+  }
+  .sbeq-channels-wrap .sbeq-head { display: block; margin: 0; padding: 0; border: 0; max-width: none; }
+  .sbeq-head .sbeq-eyebrow, .sbeq-head .sbeq-title, .sbeq-head .sbeq-support,
+  .sbeq-head .sbeq-instruction, .sbeq-head .sbeq-score-note { display: inline; margin: 0; }
+  .sbeq-head .sbeq-eyebrow { margin-right: 12px; }
+  .sbeq-head .sbeq-title { margin-right: 14px; font-size: clamp(20px, 1.9vw, 28px); line-height: 1.15; }
+  .sbeq-head .sbeq-support { font-size: 15px; }
+  .sbeq-head .sbeq-support::after { content: "\A"; white-space: pre; }
+  .sbeq-head .sbeq-instruction, .sbeq-head .sbeq-score-note { font-size: 13px; line-height: 1.5; color: var(--eq-muted); }
+  .sbeq-head .sbeq-instruction { margin-right: 6px; }
+  .sbeq-channels-wrap .sbeq-ctas { margin: 0; flex-wrap: nowrap; }
   .sbeq-unit .sbeq-channel:hover .sbeq-ch-desc,
   .sbeq-unit .sbeq-channel:focus-within .sbeq-ch-desc { opacity: 1; }
+}
+
+/* --- the composition (owner, 2026-09-17: "you have so much empty space") --
+   On a wide screen the section is one spread, not a stack of boxes.
+     line 1   ARTIST EQ  TUNE YOUR ARTIST SYSTEM.  Set your priorities...
+     line 2   the focus presets, as a rail
+     then     the photographed unit | the readiness panel, side by side
+     under    how to use it, the honesty note, then the two buttons
+   The wrappers dissolve (display: contents) so each piece can take its own
+   place in the grid without the markup changing. Columns 1 and 2 are sized
+   by the eyebrow and the title; everything else spans, so the unit's width
+   is simply the spread minus the panel. */
+@media (min-width: 1100px) {
+  .sbeq-inner {
+    max-width: 1440px;
+    padding: 0 clamp(32px, 4vw, 64px);
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) minmax(340px, 35%);
+    column-gap: 24px;
+    row-gap: 14px;
+    align-items: start;
+  }
+  .sbeq-console, .sbeq-channels-wrap, .sbeq-channels-wrap .sbeq-head { display: contents; }
+
+  .sbeq-head .sbeq-eyebrow { grid-column: 1; grid-row: 1; align-self: baseline; margin: 0; }
+  .sbeq-head .sbeq-title { grid-column: 2; grid-row: 1; align-self: baseline; margin: 0; font-size: clamp(22px, 2vw, 30px); line-height: 1.05; white-space: nowrap; }
+  .sbeq-head .sbeq-support { grid-column: 3 / 5; grid-row: 1; align-self: baseline; margin: 0; font-size: 15px; }
+  .sbeq-head .sbeq-support::after { content: none; }
+
+  .sbeq-presets-wrap {
+    grid-column: 1 / 5; grid-row: 2; display: flex; align-items: center; gap: 18px;
+    border: 0; border-radius: 0; background: none; padding: 0;
+  }
+  .sbeq-presets-wrap .sbeq-panel-label { flex: none; }
+  .sbeq-presets { flex: 1; margin-top: 0; }
+
+  .sbeq-unit { grid-column: 1 / 4; grid-row: 3; }
+  .sbeq-output { grid-column: 4; grid-row: 3 / 7; align-self: start; }
+  .sbeq-head .sbeq-instruction { grid-column: 1 / 4; grid-row: 4; margin: 0; font-size: 14px; color: #DED8CD; }
+  .sbeq-head .sbeq-score-note { grid-column: 1 / 4; grid-row: 5; margin: 0; font-size: 12px; }
+  .sbeq-channels-wrap .sbeq-ctas { grid-column: 1 / 4; grid-row: 6; margin: 6px 0 0; }
 }

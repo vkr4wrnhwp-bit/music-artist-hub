@@ -729,14 +729,42 @@ def create_app():
     def login_required_redirect():
         return redirect(url_for("login", next=request.path))
 
+    def _signup_open():
+        """May a stranger register? Owner, 2026-09-17: "make sure no one can
+        make an account unless i give them one". On Render, which is every
+        deployed service, the door is shut unless SIGNUP_MODE=open is set
+        there on purpose. Off Render (the tests, a laptop) it stays open."""
+        mode = (os.environ.get("SIGNUP_MODE") or "").strip().lower()
+        if mode in ("open", "invite"):
+            return mode == "open"
+        return not os.environ.get("RENDER")
+
+    _INVITE_ONLY = ("Street Banker is invitation only right now. "
+                    "Ask Street Banker for an invitation, then open the link it sends you.")
+
     @app.route("/signup", methods=["GET", "POST"])
     def signup():
         error = None
+        # An invitation is a link the owner made in Settings: one address,
+        # one plan, one use. With the door shut it is the only way in.
+        invite = store.get_signup_invite(request.values.get("invite") or "")
+        if invite is None and not _signup_open():
+            # The page stays, form and all (owner, 2026-09-17: "I don't want
+            # the sign up page to go away. I just want it to not be able to
+            # sign anybody up"). Submitting it creates nothing and says why.
+            preselect = "fan" if request.args.get("as") == "fan" else "artist"
+            if request.method == "POST":
+                return render_template("signup.html", error=_INVITE_ONLY, preselect=preselect,
+                                       closed=True, invite=None), 403
+            return render_template("signup.html", error=None, preselect=preselect,
+                                   closed=True, invite=None)
         if request.method == "GET" and request.args.get("ref"):
             session["ref_code"] = request.args.get("ref")[:16]
         if request.method == "POST":
             name = (request.form.get("name") or "").strip()
             email = (request.form.get("email") or "").strip().lower()
+            if invite is not None:
+                email = invite["email"]        # the invitation names the address; the form cannot change it
             password = request.form.get("password") or ""
             if not name or "@" not in email or len(password) < 6:
                 error = "Please provide a name, a valid email, and a password of 6+ characters."
@@ -745,6 +773,9 @@ def create_app():
                 if user_id is None:
                     error = "An account with that email already exists."
                 else:
+                    if invite is not None:
+                        store.set_user_plan(user_id, invite["plan"])
+                        store.use_signup_invite(invite["token"], user_id)
                     _grant_owner_plan(store.get_user(user_id))
                     ref = session.pop("ref_code", None) or request.form.get("ref")
                     referrer = store.user_by_ref_code(ref) if ref else None
@@ -754,7 +785,7 @@ def create_app():
                                      "%s joined from your link. Your $9 credit "
                                      "applies when they start a paid plan." % email,
                                      "/referrals")
-                    if request.form.get("account_type") == "fan":
+                    if request.form.get("account_type") == "fan" and invite is None:
                         store.set_user_plan(user_id, "fan")
                         session.permanent = True
                         session["user_id"] = user_id
@@ -769,7 +800,8 @@ def create_app():
         # Artist already ticked - a link that names a destination has to
         # arrive there.
         preselect = "fan" if request.args.get("as") == "fan" else "artist"
-        return render_template("signup.html", error=error, preselect=preselect)
+        return render_template("signup.html", error=error, preselect=preselect,
+                               closed=False, invite=invite)
 
     @app.route("/demo-open", methods=["POST"])
     def demo_open():
@@ -5205,6 +5237,10 @@ def create_app():
             if existing:
                 artist_id = existing["id"]
             else:
+                if not _signup_open():
+                    return render_template(
+                        "roster_join.html", invalid=False, invite=invite,
+                        has_account=False, error=_INVITE_ONLY), 403
                 name = (request.form.get("name") or "").strip()
                 password = request.form.get("password") or ""
                 if not name or len(password) < 6:
@@ -10245,6 +10281,9 @@ def create_app():
             if existing:
                 member_id = existing["id"]
             else:
+                if not _signup_open():
+                    return render_template("team_join.html", invalid=False,
+                                           invite=invite, error=_INVITE_ONLY), 403
                 name = (request.form.get("name") or "").strip()
                 password = request.form.get("password") or ""
                 if not name or len(password) < 6:
@@ -10627,6 +10666,11 @@ def create_app():
                                deleted=request.args.get("deleted"),
                                reset=request.args.get("reset"),
                                granted=request.args.get("granted"),
+                               invited=request.args.get("invited"),
+                               signup_open=_signup_open(),
+                               signup_invites=([dict(i, link=public_url("/signup?invite=" + i["token"]))
+                                                for i in store.list_signup_invites()]
+                                               if user and _is_owner_email(user.get("email")) else []),
                                granted_to=request.args.get("to"),
                                granted_mail=request.args.get("emailed"),
                                granted_why=request.args.get("why"),
@@ -10684,6 +10728,22 @@ def create_app():
                 except Exception:          # noqa: BLE001 - rows are gone; do not fail the reset
                     pass
         return redirect("/settings?reset=1#start-over")
+
+    @app.route("/admin/invite", methods=["POST"])
+    def admin_invite():
+        """The owner gives somebody an account: an invitation link for one
+        address on one plan, good for one use. Owner only, 404 to the rest."""
+        user, bail = _owner_or_404()
+        if bail:
+            return bail
+        email = (request.form.get("email") or "").strip().lower()
+        plan = (request.form.get("plan") or "artist").strip().lower()
+        if "@" not in email or plan not in plans.TIER_RANK:
+            return redirect("/settings?invited=bad#invite-someone")
+        if store.get_user_by_email(email) is not None:
+            return redirect("/settings?invited=exists#invite-someone")
+        store.add_signup_invite(email, plan, user["id"])
+        return redirect("/settings?invited=ok#invite-someone")
 
     @app.route("/admin/plan", methods=["POST"])
     def admin_plan():

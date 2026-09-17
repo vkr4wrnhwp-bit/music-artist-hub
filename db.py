@@ -3968,6 +3968,53 @@ def list_team(owner_id):
     return [dict(r) for r in rows]
 
 
+def _signup_invites(db):
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS signup_invites ("
+        "token TEXT PRIMARY KEY, email TEXT NOT NULL, plan TEXT NOT NULL DEFAULT 'artist', "
+        "created_by TEXT, created TEXT NOT NULL, used_by TEXT, used_at TEXT)")
+
+
+def add_signup_invite(email, plan, created_by):
+    """An owner's invitation to make one account, for one address, on one
+    plan. A second invitation for the same unused address replaces the first,
+    so an old link never outlives the one the owner just sent."""
+    import secrets
+    token = secrets.token_urlsafe(24)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_db() as db:
+        _signup_invites(db)
+        db.execute("DELETE FROM signup_invites WHERE email = ? AND used_by IS NULL", (email,))
+        db.execute("INSERT INTO signup_invites (token, email, plan, created_by, created) VALUES (?,?,?,?,?)",
+                   (token, email, plan, created_by, now))
+    return token
+
+
+def get_signup_invite(token):
+    """The unused invitation behind a token, or None."""
+    if not token:
+        return None
+    with get_db() as db:
+        _signup_invites(db)
+        row = db.execute("SELECT * FROM signup_invites WHERE token = ? AND used_by IS NULL", (token,)).fetchone()
+    return dict(row) if row else None
+
+
+def use_signup_invite(token, user_id):
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_db() as db:
+        _signup_invites(db)
+        db.execute("UPDATE signup_invites SET used_by = ?, used_at = ? WHERE token = ? AND used_by IS NULL",
+                   (user_id, now, token))
+
+
+def list_signup_invites(limit=25):
+    with get_db() as db:
+        _signup_invites(db)
+        rows = db.execute("SELECT * FROM signup_invites ORDER BY created DESC LIMIT ?", (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_team_invite(token):
     with get_db() as db:
         row = db.execute(
