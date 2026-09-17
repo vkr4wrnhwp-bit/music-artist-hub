@@ -65,6 +65,16 @@ ALLOWED_HEX = TOKENS | {
     "#005eb8",  # Deezer
     "#635bff",  # Stripe
     "#ff5500",  # SoundCloud
+    # The Street Banker suites' own colours (owner's suite artwork, 2026-09-17),
+    # drawn only on the suites strip monograms (hubs.SUITE_MARKS). The suite
+    # colour rule makes them splashes on the gold/black/white base, never UI.
+    "#f2e600",  # Noise Lab
+    "#ff7a1a",  # The Room
+    "#12c8ff",  # Motion
+    "#1e9bff",  # REACH
+    "#ff2d2d",  # Tour
+    "#ff2dd1",  # Company
+    "#9b5cff",  # Artifacts
     # The stage-colour picker's own hue wheel (light-studio.css). These
     # are the lamp, not the interface - a hue slider made of tokens
     # cannot pick a hue.
