@@ -705,7 +705,13 @@ def create_app():
             else:
                 return actor
 
-        return store.get_user(user_id)
+        me = store.get_user(user_id)
+        if me and store.account_shut(me) and not _is_owner_email(me.get("email")):
+            # Locked by the owner, or a guest pass that ran out. Shut off,
+            # not deleted: the session ends here and sign-in says why.
+            session.clear()
+            return None
+        return me
 
     @app.route("/suites/go/<key>")
     def suite_go(key):
@@ -722,9 +728,65 @@ def create_app():
         user = current_user()
         if not user:
             return redirect(url_for("login", next=request.path))
+        # The membership decides which suites open (owner, 2026-09-17). The
+        # creation suites spend credits: Label carries them, anybody else
+        # gets in by holding some.
+        wallet = _wallet(user)
+        plan = user.get("plan") or "artist"
+        # The owner's own account opens every door whatever plan it sits on.
+        if not _is_owner_email(user.get("email")) and not plans.suite_open(plan, key, wallet["total"]):
+            need = plans.suite_access(key)
+            return render_template("upgrade.html", required="label" if need == "credits" else need,
+                                   needs_credits=(need == "credits"),
+                                   suite_name={"the-room": "The Room", "noise-lab": "Noise Lab", "reach": "REACH", "tour": "Tour", "motion": "Motion"}.get(key, key),
+                                   plans_list=plans.PLANS, **build_dashboard_context()), 402
         if not suite_sso.configured():
             return redirect(suite_sso.suite_base(key) + suite_sso.suite_home(key))
         return redirect(suite_sso.handoff_url(user, key))
+
+    def _wallet(user):
+        """The account's credit wallet, with this month's Label credits put in
+        first if they have not been. The month is the ref, so however many
+        doors ask, a month is granted once."""
+        if (user.get("plan") or "") == "label":
+            today = datetime.now(timezone.utc)
+            nxt = (today.replace(day=1) + timedelta(days=32)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            store.add_credits(user["id"], plans.LABEL_MONTHLY_CREDITS, "monthly", bucket="monthly",
+                              note="Included with Label for %s" % today.strftime("%B %Y"),
+                              ref="monthly:%s:%s" % (user["id"], today.strftime("%Y-%m")),
+                              expires=nxt.isoformat(timespec="seconds"))
+        return store.credit_balances(user["id"])
+
+    @app.route("/api/suites/credits", methods=["POST"])
+    def suite_credits_call():
+        """A suite asks what an artist holds, or spends some of it. Server to
+        server: the body is a token signed with the suites' shared secret.
+        {"op": "balance"|"spend", "email", "suite", "amount", "ref"}."""
+        body = request.get_json(silent=True) or {}
+        call = suite_sso.verify_credit_call(body.get("token") or request.form.get("token"))
+        if call is None:
+            return jsonify({"ok": False, "error": "unsigned"}), 401
+        who = store.get_user_by_email((call.get("email") or "").strip().lower())
+        suite = call.get("suite") or ""
+        if who is not None and store.account_shut(who):
+            return jsonify({"ok": False, "error": "account shut off"}), 403
+        if who is None or plans.suite_access(suite) != "credits":
+            return jsonify({"ok": False, "error": "unknown account or suite"}), 404
+        if call.get("op") == "spend":
+            try:
+                amount = int(call.get("amount") or 0)
+            except (TypeError, ValueError):
+                amount = 0
+            if amount <= 0 or not call.get("ref"):
+                return jsonify({"ok": False, "error": "a spend needs an amount and a ref"}), 400
+            _wallet(who)
+            after = store.spend_credits(who["id"], amount, suite, note=(call.get("note") or "")[:200],
+                                        ref="spend:%s:%s" % (suite, call["ref"]))
+            if after is None:
+                return jsonify({"ok": False, "error": "not enough credits",
+                                "balance": store.credit_balances(who["id"])}), 402
+            return jsonify({"ok": True, "balance": after})
+        return jsonify({"ok": True, "balance": _wallet(who)})
 
     def login_required_redirect():
         return redirect(url_for("login", next=request.path))
@@ -776,6 +838,11 @@ def create_app():
                     if invite is not None:
                         store.set_user_plan(user_id, invite["plan"])
                         store.use_signup_invite(invite["token"], user_id)
+                        if invite.get("guest_hours"):
+                            # The clock starts now, when the guest arrives,
+                            # not when the owner sent the link.
+                            store.set_access_ends(user_id, (datetime.now(timezone.utc) + timedelta(
+                                hours=int(invite["guest_hours"]))).isoformat(timespec="seconds"))
                     _grant_owner_plan(store.get_user(user_id))
                     ref = session.pop("ref_code", None) or request.form.get("ref")
                     referrer = store.user_by_ref_code(ref) if ref else None
@@ -834,6 +901,12 @@ def create_app():
             email = (request.form.get("email") or "").strip().lower()
             password = request.form.get("password") or ""
             user = store.get_user_by_email(email)
+            shut = store.account_shut(user) if user and check_password_hash(user["password_hash"], password) else ""
+            if shut and not _is_owner_email(user.get("email")):
+                error = ("Your guest access has ended. Contact Street Banker to continue."
+                         if shut == "ended" else
+                         "This account is locked. Contact Street Banker to continue.")
+                user = None
             if user and check_password_hash(user["password_hash"], password):
                 session["user_id"] = user["id"]
                 # A fresh sign-in is a fresh visit: let the Overview
@@ -852,6 +925,12 @@ def create_app():
                 session.permanent = bool(request.form.get("remember"))
                 is_demo = (email == "demo@streetbanker.io"
                            or email.startswith("demo-") and email.endswith("@streetbanker.io"))
+                if is_demo:
+                    # The shared demo logins keep the Rack and the audio pages
+                    # open (owner, 2026-09-17: "let them use the rack"): a
+                    # standing balance, granted once per account by its ref.
+                    store.add_credits(user["id"], 100000, "grant", note="Standing demo balance",
+                                      ref="demo-standing:%s" % user["id"])
                 if (user.get("plan") or "artist") == "fan":
                     default = "/discover"
                 elif is_demo:
@@ -860,7 +939,7 @@ def create_app():
                 else:
                     default = "/command-center"
                 return redirect(request.args.get("next") or default)
-            error = "Incorrect email or password."
+            error = error or "Incorrect email or password."
         return render_template(
             "login.html", error=error,
             # Tour-rack state: was demo access just requested, and is this
@@ -3824,6 +3903,16 @@ def create_app():
                 "tool_suites": hub_defs.tool_suites(),
                 "suite_marks": hub_defs.SUITE_MARKS,
                 "suites_pending": hub_defs.suites_pending(),
+                # The same answer for a sidebar entry, asked by its address.
+                "nav_lock": ((lambda href: "") if not me or _is_owner_email(me.get("email")) else (
+                    lambda held: (lambda href: plans.nav_lock(me.get("plan") or "artist", href, held)))(
+                        0 if (me.get("plan") or "") == "label" else store.credit_balances(me["id"])["total"])),
+                # What this membership cannot open yet: strip key -> the word
+                # the strip shows ("Pro", "Credits"). Empty when signed out.
+                "suite_locks": ({} if not me or _is_owner_email(me.get("email")) else (lambda held: {
+                    k: plans.suite_tag(k) for k in plans.SUITE_ACCESS
+                    if not plans.suite_open(me.get("plan") or "artist", k, held)})(
+                        0 if (me.get("plan") or "") == "label" else store.credit_balances(me["id"])["total"])),
                 "page_hidden": page_hidden,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
                 "hub_icons": hub_defs.HUB_ICONS,
@@ -3997,6 +4086,8 @@ def create_app():
                      # A crawler bounced to /login never reads the rules.
                      "/robots.txt",
                      "/api/artist-signal-profile",
+                     # The suites' credit call: no session, a signed token.
+                     "/api/suites/credits",
                      # A stranger asking what the Artist Twin does, and how
                      # their music would be treated, must not meet a password
                      # field first. /artist-twin itself stays gated.
@@ -4114,6 +4205,19 @@ def create_app():
             return render_template("upgrade.html", required=tier,
                                    plans_list=plans.PLANS,
                                    **build_dashboard_context()), 402
+        # A page that is really one of the suites opens the way the suite
+        # does. Public links under the same prefixes stay public, and the
+        # owner's own account opens everything.
+        suite = plans.path_suite(request.path)
+        if suite and not _is_public_path(request.path) and not _is_owner_email(user.get("email")):
+            plan = user.get("plan") or "artist"
+            held = 0 if plan == "label" else store.credit_balances(user["id"])["total"]
+            if not plans.suite_open(plan, suite, held):
+                need = plans.suite_access(suite)
+                return render_template("upgrade.html", required="label" if need == "credits" else need,
+                                       needs_credits=(need == "credits"),
+                                       suite_name={"the-room": "The Room", "tour": "Tour"}[suite],
+                                       plans_list=plans.PLANS, **build_dashboard_context()), 402
         return None
 
     def _demo_locked_account():
@@ -4325,6 +4429,36 @@ def create_app():
                                    **build_dashboard_context()), 502
         return redirect(session_obj["url"], code=303)
 
+    @app.route("/billing/credits", methods=["POST"])
+    def billing_credits():
+        """Buy a credit pack. Any membership can; bought credits never expire."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        pack = plans.CREDIT_PACKS.get(request.form.get("pack") or "")
+        if pack is None or not stripe_billing.configured() or _demo_locked_account():
+            return redirect("/billing#credits")
+        credits, cents, name = pack
+        session_obj = stripe_billing.create_credit_pack_checkout(
+            user["id"], user["email"], request.form.get("pack"), credits, cents, name,
+            request.url_root.rstrip("/"))
+        if not session_obj or not session_obj.get("url"):
+            return redirect("/billing?credits=fail#credits")
+        return redirect(session_obj["url"])
+
+    def _claim_credit_pack(obj):
+        """Fill a wallet from a paid pack session, once, whoever sees it first
+        (the webhook or the success redirect)."""
+        meta = obj.get("metadata") or {}
+        pack = plans.CREDIT_PACKS.get(meta.get("pack") or "")
+        uid = obj.get("client_reference_id")
+        if meta.get("kind") != "credit_pack" or pack is None or obj.get("payment_status") != "paid":
+            return False
+        if not uid or not store.get_user(uid):
+            return False
+        return store.add_credits(uid, pack[0], "pack", bucket="bought", note=pack[2],
+                                 ref="stripe:%s" % obj.get("id"))
+
     @app.route("/billing/sync", methods=["POST"])
     def billing_sync():
         """Webhook-less fallback: claim a completed Stripe checkout by
@@ -4443,6 +4577,9 @@ def create_app():
             # delayed payment method completes unpaid and settles later: the
             # second event carries the same session, now paid.
             tour_os.claim_vip_session(obj)
+        elif etype in ("checkout.session.completed", "checkout.session.async_payment_succeeded") and \
+                (obj.get("metadata") or {}).get("kind") == "credit_pack":
+            _claim_credit_pack(obj)
         elif etype == "checkout.session.completed":
             user_id = obj.get("client_reference_id")
             plan = (obj.get("metadata") or {}).get("plan")
@@ -5363,7 +5500,10 @@ def create_app():
         if user is None:
             return login_required_redirect()
         if plans.allowed(user.get("plan") or "artist", plans.required_tier("/catalog")):
-            return redirect("/catalog?view=passports")
+            # Keep the one query the passports section reads, so an old
+            # /tracks?discogs=<id> link still opens that song's lookup.
+            looked_up = request.args.get("discogs")
+            return redirect("/catalog?view=passports" + ("&discogs=%s" % urllib.parse.quote(looked_up) if looked_up else ""))
         ctx = build_dashboard_context()
         ctx["my_tracks"] = store.get_catalog_tracks(user["id"])
         ctx.update(_passport_section(user, ctx["my_tracks"]))
@@ -10227,6 +10367,14 @@ def create_app():
         ctx["plan_cards"] = plans.PLANS
         ctx["user"] = user
         ctx["webhook_live"] = stripe_billing.webhook_configured()
+        sid = request.args.get("session_id") or ""
+        if request.args.get("credits") == "1" and sid:
+            paid = stripe_billing.get_checkout_session(sid)
+            if paid and paid.get("client_reference_id") == user["id"]:
+                _claim_credit_pack(paid)
+        ctx["wallet"] = _wallet(user)
+        ctx["credit_packs"] = [(k,) + v for k, v in plans.CREDIT_PACKS.items()]
+        ctx["credit_history"] = store.credit_history(user["id"], 12)
         return render_template("billing.html", active_page="billing", **ctx)
 
     _TEAM_ROLES = ("manager", "accountant", "publicist", "attorney", "assistant")
@@ -10668,6 +10816,11 @@ def create_app():
                                granted=request.args.get("granted"),
                                invited=request.args.get("invited"),
                                signup_open=_signup_open(),
+                               all_accounts=([dict(a, shut=store.account_shut(a),
+                                                   is_owner_row=bool(_is_owner_email(a.get("email"))))
+                                              for a in store.list_accounts()]
+                                             if user and _is_owner_email(user.get("email")) else []),
+                               account_msg=request.args.get("account"),
                                signup_invites=([dict(i, link=public_url("/signup?invite=" + i["token"]))
                                                 for i in store.list_signup_invites()]
                                                if user and _is_owner_email(user.get("email")) else []),
@@ -10742,8 +10895,33 @@ def create_app():
             return redirect("/settings?invited=bad#invite-someone")
         if store.get_user_by_email(email) is not None:
             return redirect("/settings?invited=exists#invite-someone")
-        store.add_signup_invite(email, plan, user["id"])
+        store.add_signup_invite(email, plan, user["id"],
+                                guest_hours=72 if request.form.get("guest") else 0)
         return redirect("/settings?invited=ok#invite-someone")
+
+    @app.route("/admin/account", methods=["POST"])
+    def admin_account():
+        """The owner's door on any account: lock, unlock, give a guest 72 more
+        hours, or make a guest permanent. Nothing here deletes anything."""
+        user, bail = _owner_or_404()
+        if bail:
+            return bail
+        target = store.get_user(request.form.get("user_id") or "")
+        action = request.form.get("action") or ""
+        if target is None or _is_owner_email(target.get("email")):
+            return redirect("/settings?account=unknown#accounts")
+        if action == "lock":
+            store.set_account_locked(target["id"], True)
+        elif action == "unlock":
+            store.set_account_locked(target["id"], False)
+        elif action == "extend":
+            store.set_access_ends(target["id"], (datetime.now(timezone.utc) + timedelta(hours=72))
+                                  .isoformat(timespec="seconds"))
+        elif action == "permanent":
+            store.set_access_ends(target["id"], None)
+        else:
+            return redirect("/settings?account=unknown#accounts")
+        return redirect("/settings?account=%s#accounts" % action)
 
     @app.route("/admin/plan", methods=["POST"])
     def admin_plan():

@@ -95,8 +95,11 @@ def owned_user_or_404(partner, user_id):
 @require("view")
 def home(partner, member):
     roster = pstore.roster(partner["id"])
+    import partner_billing
     return render_template("partner/home.html",
                            partner=partner, member=member, roster=roster,
+                           statement=partner_billing.statement(roster),
+                           plan_names=plans.PLAN_NAMES,
                            can=lambda p: pstore.can(member, p),
                            role_label=pstore.ROLE_LABELS.get(member["role"], member["role"]))
 

@@ -56,6 +56,31 @@ def _serializer():
     return URLSafeTimedSerializer(secret, salt=SALT)
 
 
+# A suite spending an artist's credits calls Street Banker server to server.
+# The call is a signed token under its own salt, so a sign-in hand-off can
+# never be replayed as a spend and a spend can never sign anybody in.
+CREDIT_SALT = "street-banker-suite-credits-v1"
+
+
+def issue_credit_call(payload):
+    secret = (os.environ.get("SUITE_SSO_SECRET") or "").strip()
+    if not secret:
+        raise RuntimeError("SUITE_SSO_SECRET is not set")
+    return URLSafeTimedSerializer(secret, salt=CREDIT_SALT).dumps(payload)
+
+
+def verify_credit_call(token, max_age=MAX_AGE_SECONDS):
+    """The payload of a suite's credit call, or None for anything else."""
+    secret = (os.environ.get("SUITE_SSO_SECRET") or "").strip()
+    if not secret or not token:
+        return None
+    try:
+        data = URLSafeTimedSerializer(secret, salt=CREDIT_SALT).loads(token, max_age=max_age)
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def suite_base(key):
     """The suite's origin (scheme and host, no trailing slash), or None for
     a key Street Banker does not know."""

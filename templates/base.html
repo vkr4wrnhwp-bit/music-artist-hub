@@ -233,6 +233,7 @@
             <svg class="h-3 w-3 shrink-0 text-gray-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 14l8-8M8 6h6v6"/></svg>
             <span class="sr-only">(opens in a new tab)</span>
             {% endif %}
+            {% set _lk = nav_lock(href) if nav_lock is defined else '' %}{% if _lk %}<span class="nav-lock ml-auto shrink-0 rounded border border-sb-gold/40 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-sb-gold-bright" title="Opens with {{ 'credits or the Label membership' if _lk == 'Credits' else 'the ' + _lk + ' membership' }}">{{ _lk }}</span>{% endif %}
             {% if key == 'notifications' and unread_ntf %}<span class="sb-num rounded-full border border-sb-info/40 bg-sb-info/15 px-1.5 text-xs font-semibold text-sb-info">{{ unread_ntf }}</span>{% endif %}
             {# This was a padlock. A padlock means "you cannot have this",
                and these pages open perfectly well - the mark means the
@@ -268,6 +269,7 @@
             </svg>
             <span class="min-w-0 flex-1 truncate">{{ label }}</span>
             {% if external %}<span class="sr-only">(opens in a new tab)</span>{% endif %}
+            {% set _lk = nav_lock(href) if nav_lock is defined else '' %}{% if _lk %}<span class="nav-lock ml-auto shrink-0 rounded border border-sb-gold/40 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-sb-gold-bright" title="Opens with {{ 'credits or the Label membership' if _lk == 'Credits' else 'the ' + _lk + ' membership' }}">{{ _lk }}</span>{% endif %}
             {% if state == 'hidden' %}<span class="nav-lock ml-auto shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-gray-300">Hidden</span>
             {% elif state == 'sample' %}<span class="nav-lock ml-auto shrink-0 rounded bg-amber-400/15 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-amber-300/90">Sample</span>{% endif %}
           </a>
@@ -597,16 +599,16 @@
               <path d="M3 13V3h11M34 3h11v10M45 27v10H34M14 37H3V27"/>
               <text x="24" y="26.5" text-anchor="middle" font-family="Archivo, system-ui, sans-serif" font-weight="900" font-size="17" letter-spacing="-0.5" fill="{{ mark[1] }}" stroke="none">{{ mark[0] }}</text>
             </svg>
-            {{ label }}{% if away %}<span class="sr-only"> (opens in a new tab)</span>{% elif key in suites_pending %}<span class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-gray-300">Soon</span>{% endif %}
+            {{ label }}{% if away %}<span class="sr-only"> (opens in a new tab)</span>{% endif %}{% if key in suites_pending %}<span class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-gray-300">Soon</span>{% elif key in suite_locks %}<span class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-gray-300" title="Opens with {{ 'credits or the Label membership' if suite_locks[key] == 'Credits' else 'the ' + suite_locks[key] + ' membership' }}">{{ suite_locks[key] }}</span>{% endif %}
           </a>
           {% else %}
           <a href="{{ href }}"{% if away %} target="_blank" rel="noopener"{% endif %} title="{{ desc }}" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-200 transition-colors hover:border-sb-gold/50 hover:text-white">
             <svg class="h-4 w-4 shrink-0 text-sb-gold-bright" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{% for d in path.split('|') if d %}<path d="{{ d }}"/>{% endfor %}</svg>
-            {{ label }}{% if away %}<span class="sr-only"> (opens in a new tab)</span>{% elif key in suites_pending %}<span class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-gray-300">Soon</span>{% endif %}
+            {{ label }}{% if away %}<span class="sr-only"> (opens in a new tab)</span>{% endif %}{% if key in suites_pending %}<span class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-gray-300">Soon</span>{% endif %}
           </a>
           {% endif %}
           {% endfor %}
-          <span class="text-xs text-gray-300 font-medium">Each is its own app. Your Street Banker sign-in opens them all.</span>
+          <span class="text-xs text-gray-300 font-medium">Each is its own app. Your Street Banker sign-in opens them; your membership decides which.</span>
         </div>
       </footer>
       {% endif %}

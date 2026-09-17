@@ -22,9 +22,9 @@
     theatre input list, so those are two passports, not one with a note on it.
   </p>
   <form method="post" action="/passports/new" class="sb-row sb-row--wrap">
-    {{ sb.field("artist_name", "Artist", placeholder="Prayers") }}
-    {{ sb.field("production_name", "Production", placeholder="No Tengo Calma") }}
-    {{ sb.field("variant", "Format", placeholder="Theatre") }}
+    {{ sb.field("artist_name", "Artist", placeholder="Artist or band name") }}
+    {{ sb.field("production_name", "Production", placeholder="Tour or production name") }}
+    {{ sb.field("variant", "Format", placeholder="Theatre, festival, club") }}
     {{ sb.btn("Create passport", type="submit", variant="primary") }}
   </form>
 </section>

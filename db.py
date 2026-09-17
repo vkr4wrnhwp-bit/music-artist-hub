@@ -1052,6 +1052,15 @@ def init_db():
             db.execute("ALTER TABLE users ADD COLUMN demo_lock INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: the owner's door on an account (2026-09-17). `locked`
+        # is the owner's switch; `access_ends` is a guest pass running out.
+        # Either one shuts the account off. Neither deletes anything.
+        for ddl in ("ALTER TABLE users ADD COLUMN locked INTEGER NOT NULL DEFAULT 0",
+                    "ALTER TABLE users ADD COLUMN access_ends TEXT"):
+            try:
+                db.execute(ddl)
+            except sqlite3.OperationalError:
+                pass  # column already exists
         # Migration: which recording a document belongs to. Coverage per
         # song was previously read from a hardcoded presence map, so it
         # could never reflect an upload; the vault now needs somewhere to
@@ -1312,6 +1321,38 @@ def get_user(user_id):
     with get_db() as db:
         row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return dict(row) if row else None
+
+
+def set_account_locked(user_id, on):
+    with get_db() as db:
+        db.execute("UPDATE users SET locked = ? WHERE id = ?", (1 if on else 0, user_id))
+
+
+def set_access_ends(user_id, when_iso):
+    """When this account's guest pass runs out (ISO, UTC), or None for an
+    account with no end."""
+    with get_db() as db:
+        db.execute("UPDATE users SET access_ends = ? WHERE id = ?", (when_iso, user_id))
+
+
+def account_shut(user, now=None):
+    """Why this account is shut off: "locked", "ended", or "" when it is
+    open. Shut off is not deleted: everything in the account stays."""
+    if not user:
+        return ""
+    if user.get("locked"):
+        return "locked"
+    ends = user.get("access_ends") or ""
+    now = now or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return "ended" if ends and ends <= now else ""
+
+
+def list_accounts():
+    """Every account, newest first, for the owner's panel. No password hash."""
+    with get_db() as db:
+        rows = db.execute("SELECT id, email, name, plan, created, last_seen, locked, access_ends "
+                          "FROM users ORDER BY created DESC").fetchall()
+    return [dict(r) for r in rows]
 
 
 def set_demo_lock(user_id, on):
@@ -3973,9 +4014,110 @@ def _signup_invites(db):
         "CREATE TABLE IF NOT EXISTS signup_invites ("
         "token TEXT PRIMARY KEY, email TEXT NOT NULL, plan TEXT NOT NULL DEFAULT 'artist', "
         "created_by TEXT, created TEXT NOT NULL, used_by TEXT, used_at TEXT)")
+    try:
+        # Hours of access the account gets from the moment it is made; 0 is no end.
+        db.execute("ALTER TABLE signup_invites ADD COLUMN guest_hours INTEGER NOT NULL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # column already exists
 
 
-def add_signup_invite(email, plan, created_by):
+def _credits(db):
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS credit_ledger ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, "
+        "bucket TEXT NOT NULL, delta INTEGER NOT NULL, kind TEXT NOT NULL, "
+        "suite TEXT, note TEXT, ref TEXT, expires TEXT, created TEXT NOT NULL)")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_ref "
+               "ON credit_ledger (ref) WHERE ref IS NOT NULL")
+
+
+def credit_balances(user_id, now=None):
+    """The wallet: {"monthly", "bought", "total", "monthly_expires"}. Included
+    credits count only until they lapse; bought credits never lapse. A bucket
+    never reads below zero."""
+    now = now or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_db() as db:
+        _credits(db)
+        grant = db.execute(
+            "SELECT id, expires FROM credit_ledger WHERE user_id = ? AND bucket = 'monthly' "
+            "AND kind = 'monthly' ORDER BY id DESC LIMIT 1", (user_id,)).fetchone()
+        monthly, lapses = 0, None
+        if grant and (grant["expires"] or "") > now:
+            lapses = grant["expires"]
+            monthly = db.execute(
+                "SELECT COALESCE(SUM(delta), 0) FROM credit_ledger WHERE user_id = ? "
+                "AND bucket = 'monthly' AND id >= ?", (user_id, grant["id"])).fetchone()[0]
+        bought = db.execute(
+            "SELECT COALESCE(SUM(delta), 0) FROM credit_ledger WHERE user_id = ? "
+            "AND bucket = 'bought'", (user_id,)).fetchone()[0]
+    monthly, bought = max(0, monthly), max(0, bought)
+    return {"monthly": monthly, "bought": bought, "total": monthly + bought,
+            "monthly_expires": lapses}
+
+
+def add_credits(user_id, amount, kind, bucket="bought", note="", ref=None, expires=None):
+    """Put credits in a wallet. `ref` makes it happen once: a second call with
+    the same ref (a Stripe session seen by both the webhook and the redirect,
+    a month already granted) adds nothing and returns False."""
+    import sqlite3
+    amount = int(amount)
+    if amount <= 0:
+        return False
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    try:
+        with get_db() as db:
+            _credits(db)
+            db.execute("INSERT INTO credit_ledger (user_id, bucket, delta, kind, note, ref, expires, created) "
+                       "VALUES (?,?,?,?,?,?,?,?)", (user_id, bucket, amount, kind, note, ref, expires, now))
+    except sqlite3.IntegrityError:
+        return False
+    return True
+
+
+def spend_credits(user_id, amount, suite, note="", ref=None):
+    """Take credits out, included ones first so bought ones last. Returns the
+    new balances, or None when the wallet cannot cover it (nothing is taken).
+    A repeated `ref` takes nothing twice and returns the balances as they are."""
+    import sqlite3
+    amount = int(amount)
+    if amount <= 0:
+        return None
+    have = credit_balances(user_id)
+    if ref:
+        with get_db() as db:
+            _credits(db)
+            if db.execute("SELECT 1 FROM credit_ledger WHERE ref IN (?, ?)",
+                          (ref + ":m", ref + ":b")).fetchone():
+                return have
+    if have["total"] < amount:
+        return None
+    from_monthly = min(have["monthly"], amount)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    try:
+        with get_db() as db:
+            _credits(db)
+            if from_monthly:
+                db.execute("INSERT INTO credit_ledger (user_id, bucket, delta, kind, suite, note, ref, created) "
+                           "VALUES (?,?,?,?,?,?,?,?)", (user_id, "monthly", -from_monthly, "spend", suite, note,
+                                                      ref and ref + ":m", now))
+            if amount - from_monthly:
+                db.execute("INSERT INTO credit_ledger (user_id, bucket, delta, kind, suite, note, ref, created) "
+                           "VALUES (?,?,?,?,?,?,?,?)", (user_id, "bought", from_monthly - amount, "spend", suite, note,
+                                                      ref and ref + ":b", now))
+    except sqlite3.IntegrityError:
+        pass
+    return credit_balances(user_id)
+
+
+def credit_history(user_id, limit=30):
+    with get_db() as db:
+        _credits(db)
+        rows = db.execute("SELECT * FROM credit_ledger WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                          (user_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_signup_invite(email, plan, created_by, guest_hours=0):
     """An owner's invitation to make one account, for one address, on one
     plan. A second invitation for the same unused address replaces the first,
     so an old link never outlives the one the owner just sent."""
@@ -3985,8 +4127,8 @@ def add_signup_invite(email, plan, created_by):
     with get_db() as db:
         _signup_invites(db)
         db.execute("DELETE FROM signup_invites WHERE email = ? AND used_by IS NULL", (email,))
-        db.execute("INSERT INTO signup_invites (token, email, plan, created_by, created) VALUES (?,?,?,?,?)",
-                   (token, email, plan, created_by, now))
+        db.execute("INSERT INTO signup_invites (token, email, plan, created_by, created, guest_hours) "
+                   "VALUES (?,?,?,?,?,?)", (token, email, plan, created_by, now, int(guest_hours or 0)))
     return token
 
 

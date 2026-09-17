@@ -105,9 +105,9 @@ def test_the_acr_desk_is_reachable_gated_and_lights_its_own_entry():
     assert "fingerprints" in {it[0] for it in studio[3]}, "it belongs beside Beats"
 
     # Same tier as the finding source it feeds.
-    assert plans.required_tier("/fingerprints/") == plans.required_tier("/recovery") == "pro"
-    assert plans.required_tier("/fingerprints/scans/abc") == "pro"
-    assert not plans.allowed("fan", "pro") and not plans.allowed("artist", "pro")
+    assert plans.required_tier("/fingerprints/") == plans.required_tier("/recovery") == "artist"
+    assert plans.required_tier("/fingerprints/scans/abc") == "artist"
+    assert not plans.allowed("fan", "artist")
 
     # In the palette, and not badged as example data.
     assert "fingerprints" in {row["key"] for row in hubs.command_index()}

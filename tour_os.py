@@ -1105,7 +1105,9 @@ def _log(tour, viewer, entity_type, entity_id, label, changes, source="manual", 
 
 
 def _artist_tier(user):
-    return plans.allowed(user.get("plan") or "artist", "artist")
+    # Tour is part of Pro (owner, 2026-09-17). Where the suite gates are on,
+    # owning a tour needs Pro; joining one you were invited to never did.
+    return plans.allowed(user.get("plan") or "artist", "pro" if plans.gates_on() else "artist")
 
 
 # --- index & create ---------------------------------------------------------

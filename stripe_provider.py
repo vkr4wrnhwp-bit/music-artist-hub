@@ -20,9 +20,9 @@ _TIMEOUT = 20
 
 # Tier -> (monthly cents, display name). Keep in sync with plans.PLANS.
 PRICES = {
-    "artist": (900, "Street Banker Artist"),
-    "pro": (2900, "Street Banker Pro"),
-    "label": (9900, "Street Banker Label"),
+    "artist": (2900, "Street Banker Artist"),
+    "pro": (7900, "Street Banker Pro"),
+    "label": (19900, "Street Banker Label"),
 }
 
 
@@ -219,6 +219,32 @@ def create_vip_checkout(tour_id, show_id, offer_id, offer_name, unit_cents, quan
         "line_items[0][price_data][currency]": (currency or "usd").lower(),
         "line_items[0][price_data][unit_amount]": str(int(unit_cents)),
         "line_items[0][price_data][product_data][name]": (offer_name or "VIP package")[:100],
+    }
+    try:
+        return _http("/v1/checkout/sessions", fields)
+    except Exception:
+        return None
+
+
+def create_credit_pack_checkout(user_id, email, pack_key, credits, cents, name, base_url):
+    """A one-time purchase of credits, tagged so the webhook and the success
+    redirect both know whose wallet it fills and can only fill it once."""
+    if not configured():
+        return None
+    fields = {
+        "mode": "payment",
+        "payment_method_types[0]": "card",
+        "client_reference_id": user_id,
+        "customer_email": email,
+        "success_url": base_url + "/billing?credits=1&session_id={CHECKOUT_SESSION_ID}",
+        "cancel_url": base_url + "/billing#credits",
+        "metadata[kind]": "credit_pack",
+        "metadata[pack]": pack_key,
+        "metadata[credits]": str(int(credits)),
+        "line_items[0][quantity]": "1",
+        "line_items[0][price_data][currency]": "usd",
+        "line_items[0][price_data][unit_amount]": str(int(cents)),
+        "line_items[0][price_data][product_data][name]": "Street Banker " + name,
     }
     try:
         return _http("/v1/checkout/sessions", fields)

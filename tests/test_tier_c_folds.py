@@ -57,15 +57,17 @@ def test_an_artist_plan_account_keeps_its_passports_at_the_old_door(application)
     c = application.test_client()
     c.post("/signup", data={"name": "Artist Plan", "email": email, "password": PASSWORD})
     c.post("/login", data={"email": email, "password": PASSWORD})
+    # Since 2026-09-17 the catalog is part of Artist, so the old door sends
+    # this account to the passports inside it like everybody else.
     r = c.get("/tracks")
-    assert r.status_code == 200
-    body = r.get_data(as_text=True)
-    assert 'id="passports"' in body and "Import CSV catalog" in body
+    assert r.status_code == 302 and r.headers["Location"].endswith("/catalog?view=passports")
+    body = c.get("/catalog?view=passports").get_data(as_text=True)
+    assert 'id="passports"' in body
     r = c.post("/tracks/add", data={"title": "Artist Door"})
-    assert r.status_code == 302 and r.headers["Location"].endswith("/tracks")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/catalog?view=passports")
     uid = store.get_user_by_email(email)["id"]
     assert [t for t in store.get_catalog_tracks(uid) if t["title"] == "Artist Door"]
-    assert c.get("/catalog").status_code == 402          # still the Pro page
+    assert c.get("/catalog").status_code != 402          # Royalty Sweep came down to Artist, 2026-09-17
 
 
 def test_a_song_added_from_the_passport_form_is_one_catalog_row(artist):
@@ -355,8 +357,13 @@ def test_an_artist_plan_account_sees_the_plan_note_not_the_form(application):
     c = application.test_client()
     c.post("/signup", data={"name": "Artist Plan", "email": email, "password": PASSWORD})
     c.post("/login", data={"email": email, "password": PASSWORD})
+    # Since 2026-09-17 Royalty Sweep is part of Artist, so the note has
+    # nobody to show to and the Artist account gets the form. A free
+    # account still meets the gate at the old address.
     body = c.get("/vault").get_data(as_text=True)
-    assert 'id="contracts"' in body and "See plans" in body
-    assert 'action="/vault/documents"' not in body
+    assert 'id="contracts"' in body and 'action="/vault/documents"' in body
+    assert c.get("/documents").status_code != 402
+    import db as store
+    store.set_user_plan(store.get_user_by_email(email)["id"], "fan")
     assert c.get("/documents").status_code == 402
     assert _doc(c).status_code == 402

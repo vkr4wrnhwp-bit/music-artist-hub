@@ -1807,11 +1807,12 @@ def test_tier_demo_accounts():
         r = app_obj.test_client().post("/login", data={
             "email": email, "password": "sweep"})
         assert r.status_code == 302 and r.headers["Location"].endswith(landing)
-    # The tiers actually gate: artist demo hits the paywall on a Pro page.
+    # Royalty Sweep came down to the Artist membership (owner, 2026-09-17),
+    # so the artist demo opens it; the fan below still meets the paywall.
     artist = app_obj.test_client()
     artist.post("/login", data={"email": "demo-artist@streetbanker.io",
                                 "password": "sweep"})
-    assert artist.get("/overview").status_code == 402
+    assert artist.get("/overview").status_code == 200
     fan = app_obj.test_client()
     fan.post("/login", data={"email": "demo-fan@streetbanker.io",
                              "password": "sweep"})
@@ -2261,12 +2262,12 @@ def test_capital_score_and_spend_optimizer_real():
     body = client.get("/spend-optimizer?budget=1000").get_data(as_text=True)
     assert "Recommended split" in body and "$400.00" in body
     assert "Don't spend it here" in body
-    # Money features stay behind the Pro wall.
-    artist = app_obj.test_client()
-    artist.post("/login", data={"email": "demo-artist@streetbanker.io",
-                                "password": "sweep"})
-    assert artist.get("/capital-score").status_code == 402
-    assert artist.get("/spend-optimizer").status_code == 402
+    # Money features stay behind the paywall: Artist and up since 2026-09-17.
+    fan = app_obj.test_client()
+    fan.post("/login", data={"email": "demo-fan@streetbanker.io",
+                             "password": "sweep"})
+    assert fan.get("/capital-score").status_code == 402
+    assert fan.get("/spend-optimizer").status_code == 402
 
 
 def test_metadata_passport_real():
@@ -2370,12 +2371,12 @@ def test_stripe_checkout_and_webhooks(monkeypatch):
                                  "password": "paypass"})
     # Real accounts see real checkout, not the demo switch.
     body = client.get("/billing").get_data(as_text=True)
-    assert "Subscribe — $29/mo" in body and "Switch (demo)" not in body
+    assert "Subscribe — $79/mo" in body and "Switch (demo)" not in body
     r = client.post("/billing/checkout", data={"plan": "pro"})
     assert r.status_code == 303 and "checkout.stripe.com" in r.headers["Location"]
     path, fields = calls[0]
     assert path == "/v1/checkout/sessions"
-    assert fields["line_items[0][price_data][unit_amount]"] == "2900"
+    assert fields["line_items[0][price_data][unit_amount]"] == "7900"
     assert fields["mode"] == "subscription"
     # Paid demo switching is blocked for real users when Stripe is live.
     uid = store_mod.get_user_by_email("payer2@example.net")["id"]
@@ -2628,13 +2629,14 @@ def test_plan_tiers_gate_sections():
     email = "tier%s@x.com" % _uuid.uuid4().hex[:6]
     client.post("/signup", data={"name": "T", "email": email, "password": "secret1",
                                  "account_type": "artist"})
-    # Artist tier: Promote works, Royalty Sweep is gated with the upgrade page.
+    # Artist tier: Promote and Royalty Sweep both open (owner, 2026-09-17);
+    # a suite above the membership is gated with the upgrade page.
     assert client.get("/links").status_code == 200
     assert client.get("/command-center").status_code == 200
-    r = client.get("/overview")
+    assert client.get("/overview").status_code == 200
+    r = client.get("/suites/go/tour")
     assert r.status_code == 402
-    assert "This is a Pro feature" in r.get_data(as_text=True)
-    assert client.get("/statements").status_code == 402
+    assert "Tour opens with Pro" in r.get_data(as_text=True)
     # Demo plan switch unlocks it (labeled demo until Stripe).
     client.post("/plan/switch", data={"plan": "pro"})
     assert client.get("/overview").status_code == 200
