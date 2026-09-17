@@ -271,19 +271,20 @@ TOOL_SUITES_PENDING = (
      "The artifacts workbench, coming to the suites. Opens the Command Center for now."),
 )
 
-# The suite wordmarks the owner sent (2026-09-17: "in the footer where you
-# have the suites i would like you to place the proper suite logo"): the
-# bracket mark in each suite's own colour on a clear ground, trimmed from
-# the originals to 144px tall. Keyed by strip key; a suite without one
-# keeps its line icon. (path under static/, width, height), each sized so
-# the suite's name inside the frame reads at 13px: The Room's mark sets its
-# name small inside a roomy frame, so it draws largest.
+# The suites strip draws every suite the same way (owner, 2026-09-17: "fix the
+# images in the footer to be the same size and look"): one bracket frame, a
+# two-letter monogram, the suite's own colour, as on the owner's flight-case
+# artwork. The marks the owner sent were each built differently (frame
+# shape, line weight, glow), so they are drawn here as one system instead of
+# resized. Keyed by strip key: (monogram, colour).
 SUITE_MARKS = {
-    "the-room": ("img/suites/the-room.png", 122, 85),
-    "reach": ("img/suites/reach.png", 70, 55),
-    "tour-suite": ("img/suites/tour.png", 60, 45),
-    "noise-lab": ("img/suites/noise-lab.png", 92, 41),
-    "masterclip": ("img/suites/motion.png", 63, 59),
+    "noise-lab": ("NL", "#F2E600"),
+    "the-room": ("TR", "#FF7A1A"),
+    "masterclip": ("MO", "#12C8FF"),
+    "reach": ("RE", "#1E9BFF"),
+    "tour-suite": ("TO", "#FF2D2D"),
+    "company": ("CO", "#FF2DD1"),
+    "artifacts": ("AR", "#9B5CFF"),
 }
 
 

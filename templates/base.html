@@ -592,8 +592,12 @@
           {%- set away = href.startswith(('http://', 'https://', '/suites/go/')) -%}
           {%- set mark = suite_marks.get(key) -%}
           {% if mark %}
-          <a href="{{ href }}"{% if away %} target="_blank" rel="noopener"{% endif %} title="{{ desc }}" class="inline-flex items-center rounded-lg px-2 py-1 transition-colors hover:bg-white/5">
-            <img src="/static/{{ mark[0] }}" alt="{{ label }}" width="{{ mark[1] }}" height="{{ mark[2] }}" class="shrink-0" loading="lazy" decoding="async">{% if away %}<span class="sr-only"> (opens in a new tab)</span>{% endif %}
+          <a href="{{ href }}"{% if away %} target="_blank" rel="noopener"{% endif %} title="{{ desc }}" class="inline-flex items-center gap-2 rounded-lg px-2 py-1 text-xs font-semibold text-gray-200 transition-colors hover:bg-white/5 hover:text-white">
+            <svg class="h-10 w-12 shrink-0" viewBox="0 0 48 40" fill="none" stroke="{{ mark[1] }}" stroke-width="3.5" stroke-linecap="square" aria-hidden="true">
+              <path d="M3 13V3h11M34 3h11v10M45 27v10H34M14 37H3V27"/>
+              <text x="24" y="26.5" text-anchor="middle" font-family="Archivo, system-ui, sans-serif" font-weight="900" font-size="17" letter-spacing="-0.5" fill="{{ mark[1] }}" stroke="none">{{ mark[0] }}</text>
+            </svg>
+            {{ label }}{% if away %}<span class="sr-only"> (opens in a new tab)</span>{% else %}<span class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-black uppercase tracking-[0.12em] text-gray-300">Soon</span>{% endif %}
           </a>
           {% else %}
           <a href="{{ href }}"{% if away %} target="_blank" rel="noopener"{% endif %} title="{{ desc }}" class="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-200 transition-colors hover:border-sb-gold/50 hover:text-white">
@@ -602,7 +606,7 @@
           </a>
           {% endif %}
           {% endfor %}
-          <span class="text-xs text-gray-300 font-medium">Each is its own app with its own sign-in.</span>
+          <span class="text-xs text-gray-300 font-medium">Each is its own app. Your Street Banker sign-in opens them all.</span>
         </div>
       </footer>
       {% endif %}
