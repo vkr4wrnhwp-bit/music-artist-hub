@@ -397,6 +397,13 @@ def _internal_tools():
         # email behind a tier anyone could buy.
         out.append({"href": "/admin/review", "label": "Artist accounts"})
         out.append({"href": "/admin/readiness", "label": "Readiness"})
+        # Core, the template builder new suites are made from (owner,
+        # 2026-09-17: "add this into the street banker back side owner
+        # account, it's a template for making new suites"). Another
+        # service, so it opens in a new tab like the suites do.
+        core = (os.environ.get("CORE_BUILDER_URL")
+                or "https://street-banker-core-builder.onrender.com/").strip()
+        out.append({"href": core, "label": "Core builder", "away": True})
     return out
 
 
@@ -3783,6 +3790,7 @@ def create_app():
                 "hubs_account": account,
                 "rooms_nav": rooms_nav,
                 "tool_suites": hub_defs.tool_suites(),
+                "suite_marks": hub_defs.SUITE_MARKS,
                 "page_hidden": page_hidden,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
                 "hub_icons": hub_defs.HUB_ICONS,

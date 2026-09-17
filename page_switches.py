@@ -66,7 +66,9 @@ def set_hidden(keys):
 
 
 def is_external(href):
-    return href.startswith(("http://", "https://"))
+    # A suite reached through the sign-in hand-off (/suites/go/<key>) lands on
+    # another service after one redirect, so it is external like a full URL.
+    return href.startswith(("http://", "https://", "/suites/go/"))
 
 
 def hidden_for_path(path, hidden=None):

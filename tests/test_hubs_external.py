@@ -134,3 +134,27 @@ def test_the_tool_suites_strip_lists_every_off_site_app(artist):
         m = re.search(r'<a href="/command-center"[^>]*title="The %s[^"]*"([^>]*)>' % pending.lower(), strip)
         assert m and "_blank" not in m.group(1), pending
     assert strip.count(">Soon<") == 2
+
+
+def test_the_strip_draws_each_suite_wordmark(artist):
+    """Owner, 2026-09-17: "in the footer where you have the suites i would
+    like you to place the proper suite logo". The four suites with a mark
+    show it, named for screen readers; a suite without one keeps its line
+    icon; every mark is a real file."""
+    assert set(hubs.SUITE_MARKS) == {"the-room", "reach", "tour-suite", "noise-lab", "masterclip"}
+    hrefs = {k: v[1] for k, v in EXTERNAL.items()}
+    hrefs.update(STRIP_ONLY)
+    labels = {k: label for k, _h, _i, label, _d in hubs.tool_suites()}
+    body = artist.get("/vault").get_data(as_text=True)
+    strip = body.split('id="sb-tool-suites"')[1].split("</footer>")[0]
+    for key, (path, w, h) in hubs.SUITE_MARKS.items():
+        assert os.path.isfile(os.path.join(HERE, "static", path)), path
+        m = re.search(r'<a href="%s"[^>]*>(.*?)</a>' % re.escape(hrefs[key]), strip, re.S)
+        assert m, key
+        inner = m.group(1)
+        assert 'src="/static/%s"' % path in inner and 'alt="%s"' % labels[key] in inner, key
+        assert 'width="%d"' % w in inner and 'height="%d"' % h in inner, key
+        assert "<svg" not in inner and "(opens in a new tab)" in inner, key
+    # Company and Artifacts have no mark yet: they keep the line icon.
+    m = re.search(r'<a href="/command-center"[^>]*>(.*?)</a>', strip, re.S)
+    assert m and "<svg" in m.group(1)

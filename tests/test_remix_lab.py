@@ -247,7 +247,8 @@ def test_the_photographs_are_real_files_and_decorative(page):
     # Every image on the page is decorative and says so; the header logo
     # is the one image that carries meaning and lives in the shared partial.
     for tag in re.findall(r"<img[^>]*>", page):
-        if "streetbanker-logo" in tag:
+        if "streetbanker-logo" in tag or "/static/img/suites/" in tag:
+            # the suite wordmarks on the shared footer strip name their suite
             continue
         assert 'alt=""' in tag, tag
 

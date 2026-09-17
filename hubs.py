@@ -271,6 +271,21 @@ TOOL_SUITES_PENDING = (
      "The artifacts workbench, coming to the suites. Opens the Command Center for now."),
 )
 
+# The suite wordmarks the owner sent (2026-09-17: "in the footer where you
+# have the suites i would like you to place the proper suite logo"): the
+# bracket mark in each suite's own colour on a clear ground, trimmed from
+# the originals to 144px tall. Keyed by strip key; a suite without one
+# keeps its line icon. (path under static/, width, height), each sized so
+# the suite's name inside the frame reads at 13px: The Room's mark sets its
+# name small inside a roomy frame, so it draws largest.
+SUITE_MARKS = {
+    "the-room": ("img/suites/the-room.png", 122, 85),
+    "reach": ("img/suites/reach.png", 70, 55),
+    "tour-suite": ("img/suites/tour.png", 60, 45),
+    "noise-lab": ("img/suites/noise-lab.png", 92, 41),
+    "masterclip": ("img/suites/motion.png", 63, 59),
+}
+
 
 def command_index():
     """Every destination as one flat list, for the command palette.
