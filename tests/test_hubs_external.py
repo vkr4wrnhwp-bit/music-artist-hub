@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 EXTERNAL = {
     "reach": ("launch", "/suites/go/reach"),
-    "masterclip": ("studio", "https://masterclip.onrender.com/"),
+    "masterclip": ("studio", "/suites/go/motion"),
     "tour-suite": ("stage", "/suites/go/tour"),
 }
 
