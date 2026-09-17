@@ -3791,6 +3791,7 @@ def create_app():
                 "rooms_nav": rooms_nav,
                 "tool_suites": hub_defs.tool_suites(),
                 "suite_marks": hub_defs.SUITE_MARKS,
+                "suites_pending": hub_defs.suites_pending(),
                 "page_hidden": page_hidden,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
                 "hub_icons": hub_defs.HUB_ICONS,

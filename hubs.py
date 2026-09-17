@@ -239,7 +239,11 @@ def tool_suites():
         for key, href, icon, label, desc in items:
             if is_away(href):
                 out.append((key, href, icon, label, desc))
-    return list(TOOL_SUITES_OWN) + out + list(TOOL_SUITES_PENDING)
+    every = list(TOOL_SUITES_OWN) + out + list(TOOL_SUITES_PENDING)
+    # The owner's order for the eight (suite artwork, 2026-09-17): TR NL RE RS
+    # TO CO AR MO. Anything not named keeps its place after them.
+    rank = {k: i for i, k in enumerate(SUITE_ORDER)}
+    return sorted(every, key=lambda row: rank.get(row[0], len(rank)))
 
 
 def is_away(href):
@@ -259,7 +263,18 @@ def is_away(href):
 # noise lab and the room from studio"). They are their own products with
 # their own sign-in, so they belong on the suites strip rather than in a
 # hub of Street Banker's own pages.
+SUITE_ORDER = ("the-room", "noise-lab", "reach", "royalty-sweep", "tour-suite", "company", "artifacts", "masterclip")
+
+# The strip entries that are waiting for an address; everything else is live.
+def suites_pending():
+    return {row[0] for row in TOOL_SUITES_PENDING}
+
+
 TOOL_SUITES_OWN = (
+    # Royalty Sweep is this app: rights, royalties, clarity. It sits on the
+    # strip with the other seven (owner, 2026-09-17: "yes put royalty sweep in
+    # the footer") and opens the Royalties desk in this tab.
+    ("royalty-sweep", "/royalties", "M4 6h12M4 10h12M4 14h8", "Royalty Sweep", "Rights, royalties and clarity: the money desk of this app."),
     ("noise-lab", "/suites/go/noise-lab", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Build your own effects and pedal chains for playing live (opens the Noise Lab app)."),
     ("the-room", "/suites/go/the-room", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Songwriting, arrangement and production: build the record part by part, in its own app.")
 )
@@ -282,6 +297,7 @@ SUITE_MARKS = {
     "the-room": ("TR", "#FF7A1A"),
     "masterclip": ("MO", "#12C8FF"),
     "reach": ("RE", "#1E9BFF"),
+    "royalty-sweep": ("RS", "#19E68C"),
     "tour-suite": ("TO", "#FF2D2D"),
     "company": ("CO", "#FF2DD1"),
     "artifacts": ("AR", "#9B5CFF"),

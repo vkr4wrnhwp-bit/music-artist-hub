@@ -72,6 +72,7 @@ ALLOWED_HEX = TOKENS | {
     "#ff7a1a",  # The Room
     "#12c8ff",  # Motion
     "#1e9bff",  # REACH
+    "#19e68c",  # Royalty Sweep
     "#ff2d2d",  # Tour
     "#ff2dd1",  # Company
     "#9b5cff",  # Artifacts

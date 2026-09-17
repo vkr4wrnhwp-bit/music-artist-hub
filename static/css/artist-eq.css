@@ -511,12 +511,15 @@
    above stay as they are. */
 @media (min-width: 901px) {
   .sbeq-unit {
-    --uw: min(calc(100vw - 64px), 1400px);
+    /* Sized by the column it sits in, never by the window, and capped so it
+       reads as a rack unit on the page rather than filling it. Everything
+       inside is measured in the unit's own width (cqw). */
+    container-type: inline-size;
     position: relative;
     align-self: center;
-    width: var(--uw);
+    width: min(100%, 760px);
     aspect-ratio: 1636 / 911;
-    margin: 0 auto calc(var(--uw) * 0.075);
+    margin: 0 auto 56px;
     background: #0B0A09 url("/static/img/eq-unit-plate.jpg") center / 100% 100% no-repeat;
     background-image: image-set(url("/static/img/eq-unit-plate.webp") type("image/webp"), url("/static/img/eq-unit-plate.jpg") type("image/jpeg"));
     border-radius: 6px;
@@ -542,16 +545,16 @@
     margin: 0 0 0 -5.5%; padding: 0; border: 0; background: none; box-shadow: none;
     display: block;
   }
-  .sbeq-unit .sbeq-channel:nth-child(1) { left: 13.39%; }
-  .sbeq-unit .sbeq-channel:nth-child(2) { left: 25.37%; }
-  .sbeq-unit .sbeq-channel:nth-child(3) { left: 37.41%; }
-  .sbeq-unit .sbeq-channel:nth-child(4) { left: 49.57%; }
-  .sbeq-unit .sbeq-channel:nth-child(5) { left: 61.67%; }
-  .sbeq-unit .sbeq-channel:nth-child(6) { left: 73.84%; }
+  .sbeq-unit .sbeq-channel:nth-child(1) { left: 13.39%; --l: 13.39; }
+  .sbeq-unit .sbeq-channel:nth-child(2) { left: 25.37%; --l: 25.37; }
+  .sbeq-unit .sbeq-channel:nth-child(3) { left: 37.41%; --l: 37.41; }
+  .sbeq-unit .sbeq-channel:nth-child(4) { left: 49.57%; --l: 49.57; }
+  .sbeq-unit .sbeq-channel:nth-child(5) { left: 61.67%; --l: 61.67; }
+  .sbeq-unit .sbeq-channel:nth-child(6) { left: 73.84%; --l: 73.84; }
   /* engraved name between the window and the lamp */
   .sbeq-unit .sbeq-ch-name {
     position: absolute; left: -20%; right: -20%; top: 35.7%;
-    text-align: center; font-size: clamp(12px, calc(var(--uw) * 0.0098), 14px);
+    text-align: center; font-size: clamp(12px, calc(100cqw * 0.0098), 14px);
     font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
     color: #2A2110; text-shadow: 0 1px 0 rgb(255 240 200 / 0.35);
   }
@@ -560,26 +563,26 @@
     position: absolute; left: 50%; top: 42.5%; width: 26%; height: auto; aspect-ratio: 1;
     margin: 0; transform: translate(-50%, -50%); border: 0; border-radius: 50%;
     background: radial-gradient(circle, rgb(255 190 80 / 0.95) 0%, rgb(255 140 30 / 0.55) 45%, transparent 72%);
-    box-shadow: 0 0 calc(var(--uw) * 0.012) rgb(255 150 40 / 0.7);
+    box-shadow: 0 0 calc(100cqw * 0.012) rgb(255 150 40 / 0.7);
     opacity: var(--lit, 0.75); mix-blend-mode: screen; pointer-events: none;
   }
   /* the fader: travel runs tick to tick (462..722 of 911), centre at 65% */
   .sbeq-unit .sbeq-fader { position: absolute; left: 50%; top: 65%; width: 0; height: 0; display: block; }
   .sbeq-unit .sbeq-range {
     position: absolute; left: 0; top: 0; margin: 0;
-    width: calc(var(--uw) * 0.2249); height: calc(var(--uw) * 0.0562);
+    width: calc(100cqw * 0.2249); height: calc(100cqw * 0.0562);
     transform: translate(-50%, -50%) rotate(-90deg);
   }
   .sbeq-unit .sbeq-range::-webkit-slider-runnable-track { height: 100%; background: transparent; box-shadow: none; }
   .sbeq-unit .sbeq-range::-moz-range-track { height: 100%; background: transparent; box-shadow: none; }
   .sbeq-unit .sbeq-range::-webkit-slider-thumb {
-    width: calc(var(--uw) * 0.066); height: calc(var(--uw) * 0.0562); margin-top: 0;
+    width: calc(100cqw * 0.066); height: calc(100cqw * 0.0562); margin-top: 0;
     border: 0; border-radius: 6px;
     background: url("/static/img/eq-unit-cap.png") center / 100% 100% no-repeat;
     box-shadow: -7px 0 12px rgb(0 0 0 / 0.55), -2px 0 3px rgb(0 0 0 / 0.5);
   }
   .sbeq-unit .sbeq-range::-moz-range-thumb {
-    width: calc(var(--uw) * 0.066); height: calc(var(--uw) * 0.0562);
+    width: calc(100cqw * 0.066); height: calc(100cqw * 0.0562);
     border: 0; border-radius: 6px;
     background: url("/static/img/eq-unit-cap.png") center / 100% 100% no-repeat;
     box-shadow: -7px 0 12px rgb(0 0 0 / 0.55), -2px 0 3px rgb(0 0 0 / 0.5);
@@ -588,11 +591,21 @@
   /* the reading under the slot, the description under the unit */
   .sbeq-unit .sbeq-value {
     position: absolute; left: -20%; right: -20%; top: 85.2%; text-align: center;
-    font-size: clamp(13px, calc(var(--uw) * 0.0115), 16px); font-weight: 800; color: #2A2110;
+    font-size: clamp(13px, calc(100cqw * 0.0115), 16px); font-weight: 800; color: #2A2110;
     font-variant-numeric: tabular-nums; background: none; border: 0; padding: 0;
   }
+  /* One description at a time, on the line under the unit: six side by side
+     do not fit at this size. It belongs to the fader being touched. */
   .sbeq-unit .sbeq-ch-desc {
-    position: absolute; left: -25%; right: -25%; top: 101.5%; margin: 0;
-    text-align: center; font-size: 12px; line-height: 1.35; color: var(--eq-muted);
+    position: absolute; top: 102%; left: calc((5.5 - var(--l)) * 1cqw); width: 100cqw; margin: 0;
+    text-align: center; font-size: 13px; line-height: 1.4; color: var(--eq-muted);
+    opacity: 0; transition: opacity 0.15s; pointer-events: none;
   }
+  /* The faders left this card for the unit above, so its heading no longer
+     hangs at the foot of an empty box: the words and the buttons fill it,
+     centred against the readiness panel beside them. */
+  .sbeq-channels-wrap { justify-content: center; }
+  .sbeq-channels-wrap .sbeq-head { margin-top: 0; padding-top: 0; border-top: 0; }
+  .sbeq-unit .sbeq-channel:hover .sbeq-ch-desc,
+  .sbeq-unit .sbeq-channel:focus-within .sbeq-ch-desc { opacity: 1; }
 }

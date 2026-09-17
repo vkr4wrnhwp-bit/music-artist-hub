@@ -119,7 +119,7 @@ def test_the_tool_suites_strip_lists_every_off_site_app(artist):
     """The owner's model (2026-09-15): Street Banker is the desk, the
     off-site apps are its tool suites. They get a strip of their own under
     every signed-in page, read from the same entries the rooms read."""
-    assert [k for k, *_ in hubs.tool_suites()] == ["noise-lab", "the-room", "masterclip", "reach", "tour-suite", "company", "artifacts"]
+    assert [k for k, *_ in hubs.tool_suites()] == ["the-room", "noise-lab", "reach", "royalty-sweep", "tour-suite", "company", "artifacts", "masterclip"]
     body = artist.get("/vault").get_data(as_text=True)
     strip = body.split('id="sb-tool-suites"')[1].split("</footer>")[0]
     for key, (_hub, href) in EXTERNAL.items():
@@ -140,7 +140,7 @@ def test_the_strip_draws_every_suite_as_one_system(artist):
     """Owner, 2026-09-17: "fix the images in the footer to be the same size and
     look". Every suite is the same bracket frame and two-letter monogram in
     its own colour, with its name beside it; none is a differently built image."""
-    assert set(hubs.SUITE_MARKS) == {"noise-lab", "the-room", "masterclip", "reach", "tour-suite", "company", "artifacts"}
+    assert set(hubs.SUITE_MARKS) == {"noise-lab", "the-room", "masterclip", "reach", "royalty-sweep", "tour-suite", "company", "artifacts"}
     assert len({c for _m, c in hubs.SUITE_MARKS.values()}) == len(hubs.SUITE_MARKS)
     labels = {k: label for k, _h, _i, label, _d in hubs.tool_suites()}
     body = artist.get("/vault").get_data(as_text=True)

@@ -356,7 +356,7 @@ def get_artist_eq_config():
         "eyebrow": "ARTIST EQ",
         "heading": "TUNE YOUR ARTIST SYSTEM.",
         "support": "Set your priorities. Street Banker builds the plan.",
-        "instruction": ("Adjust the six areas below or choose a preset. Your "
+        "instruction": ("Adjust the six faders or choose a preset. Your "
                         "recommended tools and next actions update instantly."),
         "channels": CHANNELS,
         "presets": PRESETS,
