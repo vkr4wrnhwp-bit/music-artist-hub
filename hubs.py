@@ -39,7 +39,7 @@ HUBS = [
         # other platforms should be visible"). It stays a tab of Press too.
         ("epk", "/epk", "M4 3h9l3 3v11H4z|M13 3v3h3|M7 9h6M7 12h6M7 15h4", "Press Kit", "Your electronic press kit on one link: bio, photos, tracks and the figures that are measured."),
         ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press", "Media list, pitches and coverage — with the press kit and one-sheet they send."),
-        ("reach", "https://street-banker-tour-open-preview-3.onrender.com/reach/", "M3 10a7 7 0 0114 0|M6 10a4 4 0 018 0|M10 10v7|M8 17h4", "REACH", "Paid promotion and outreach, in its own room (opens the REACH app)."),
+        ("reach", "/suites/go/reach", "M3 10a7 7 0 0114 0|M6 10a4 4 0 018 0|M10 10v7|M8 17h4", "REACH", "Paid promotion and outreach, in its own room (opens the REACH app)."),
         ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Daily follower and popularity snapshots, growth over time, and your link engagement."),
     ]),
     ("stage", "Live Stage Suite", "Everything between the booking and the encore — shows, plots, lights, and the rider.", [
@@ -53,7 +53,7 @@ HUBS = [
         ("lights", "/lights", "M10 2v4|M4 6l2 2|M16 6l-2 2|M6 12a4 4 0 118 0v4H6z", "Light Studio", "Cue programming with real DMX output."),
         ("tour-board", "/tour-board", "M7 8a3 3 0 116 0 3 3 0 01-6 0z|M2 17c1-3 4-4 8-4s7 1 8 4", "Team-Up Board", "Artists and venues finding each other."),
         # The Tour suite, the owner's tour app on its own service (2026-09-15).
-        ("tour-suite", "https://street-banker-tour-open-preview-3.onrender.com/", "M3 15h14|M5 15V9l5-4 5 4v6|M8 15v-3h4v3|M15 4l2 2", "Tour Suite", "The tour app on its own service: routing, advancing and the road, in one suite (opens Tour).")
+        ("tour-suite", "/suites/go/tour", "M3 15h14|M5 15V9l5-4 5 4v6|M8 15v-3h4v3|M15 4l2 2", "Tour Suite", "The tour app on its own service: routing, advancing and the road, in one suite (opens Tour).")
     ]),
     ("money", "Royalty Sweep & Banking", "The money side — find it, claim it, value it, and keep the books straight.", [
         # Overview is a tab of the Command Center front (2026-09-07: "overview
@@ -237,9 +237,17 @@ def tool_suites():
     out = []
     for _hk, _name, _tag, items in nav_hubs():
         for key, href, icon, label, desc in items:
-            if href.startswith(("http://", "https://")):
+            if is_away(href):
                 out.append((key, href, icon, label, desc))
     return list(TOOL_SUITES_OWN) + out + list(TOOL_SUITES_PENDING)
+
+
+def is_away(href):
+    """True for a link that leaves this app: another service outright, or
+    one of the suites reached through the sign-in hand-off at /suites/go/
+    (sb_suite_sso), which lands on another service after one redirect.
+    The sidebar, the strip and the palette open these in a new tab."""
+    return href.startswith(("http://", "https://", "/suites/go/"))
 
 
 # Suites the owner has named but not yet addressed (2026-09-15: "have
@@ -252,8 +260,8 @@ def tool_suites():
 # their own sign-in, so they belong on the suites strip rather than in a
 # hub of Street Banker's own pages.
 TOOL_SUITES_OWN = (
-    ("noise-lab", "https://street-banker-v2-workflows.onrender.com/noise-lab/", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Build your own effects and pedal chains for playing live (opens the Noise Lab app)."),
-    ("the-room", "https://street-banker-v2-workflows.onrender.com/song-builder", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Songwriting, arrangement and production: build the record part by part, in its own app.")
+    ("noise-lab", "/suites/go/noise-lab", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Build your own effects and pedal chains for playing live (opens the Noise Lab app)."),
+    ("the-room", "/suites/go/the-room", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Songwriting, arrangement and production: build the record part by part, in its own app.")
 )
 
 TOOL_SUITES_PENDING = (

@@ -22,7 +22,7 @@
       that says Hidden, Sample or Opens app when one of those is true. -#}
   <section class="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6" aria-label="{{ room.name }} features">
     {% for key, href, icon, label, desc, state in room.cards %}
-    {%- set external = href.startswith(('http://', 'https://')) -%}
+    {%- set external = href.startswith(('http://', 'https://', '/suites/go/')) -%}
     <a class="group flex flex-col items-center gap-2 rounded-xl px-2 py-3 text-center transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sb-gold" href="{{ href }}"{% if external %} target="_blank" rel="noopener"{% endif %} title="{{ desc }}" data-room-card="{{ key }}">
       {%- set picture = room_images.get(key) if room_images is defined else none -%}
       {% if picture %}

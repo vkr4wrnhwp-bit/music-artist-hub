@@ -1,7 +1,9 @@
 """The owner's own apps on other services, listed in the sidebar.
 
-Noise Lab and The Room live on the v2 workflows service, REACH on its own;
-each has its own login. They join the hubs as entries whose href is
+Noise Lab, The Room, REACH and Tour are suites on their own services. They
+no longer have their own login: each link goes through /suites/go/<key>,
+where Street Banker, the account of record, hands the signed-in artist
+across (sb_suite_sso). Motion is still a plain link. They join the hubs as entries whose href is
 absolute, and everything that renders a hub entry - the sidebar, the hub
 desk tiles, the command palette - opens one in a new tab and says so.
 They are real apps, not previews, so they are never badged Sample.
@@ -18,17 +20,17 @@ import hubs
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 EXTERNAL = {
-    "reach": ("launch", "https://street-banker-tour-open-preview-3.onrender.com/reach/"),
+    "reach": ("launch", "/suites/go/reach"),
     "masterclip": ("studio", "https://masterclip.onrender.com/"),
-    "tour-suite": ("stage", "https://street-banker-tour-open-preview-3.onrender.com/"),
+    "tour-suite": ("stage", "/suites/go/tour"),
 }
 
 # Two suites that are no longer hub entries at all: their own products with
 # their own sign-in, on the suites strip only (owner, 2026-09-15: "remove
 # noise lab and the room from studio").
 STRIP_ONLY = {
-    "noise-lab": "https://street-banker-v2-workflows.onrender.com/noise-lab/",
-    "the-room": "https://street-banker-v2-workflows.onrender.com/song-builder",
+    "noise-lab": "/suites/go/noise-lab",
+    "the-room": "/suites/go/the-room",
 }
 
 
@@ -49,7 +51,7 @@ def test_the_three_apps_are_hub_entries_with_https_hrefs():
         assert key in items, key
         got_hub, (_k, got_href, icon, label, desc) = items[key]
         assert got_hub == hub and got_href == href
-        assert href.startswith("https://")
+        assert href.startswith(("https://", "/suites/go/"))
         assert icon and label and desc
         assert hubs.get_hub(hub)["modules"]
     # Neighbours: Motion after Audio Studio in Studio & Assets, REACH after

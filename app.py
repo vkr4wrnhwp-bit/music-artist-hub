@@ -126,6 +126,7 @@ def _grant_owner_plan(user):
         store.set_user_plan(user["id"], OWNER_PLAN)
         return True
     return False
+import sb_suite_sso as suite_sso   # one account for every suite: Street Banker hands the artist across
 import tour_hub_rules as touring   # the old Tour Hub's rule set: public rider/show-day pages, Money Queue fallback
 import tour_store
 import artist_identity
@@ -698,6 +699,25 @@ def create_app():
                 return actor
 
         return store.get_user(user_id)
+
+    @app.route("/suites/go/<key>")
+    def suite_go(key):
+        """Hand a signed-in artist across to one of the tool suites.
+
+        Street Banker is the account of record. The suite receives a
+        short-lived signed token naming this account (sb_suite_sso) and
+        starts its own session from it, so nobody signs in twice. With no
+        shared secret configured the link is a plain visit, which is what
+        it was before.
+        """
+        if key not in suite_sso.SUITES:
+            abort(404)
+        user = current_user()
+        if not user:
+            return redirect(url_for("login", next=request.path))
+        if not suite_sso.configured():
+            return redirect(suite_sso.suite_base(key) + suite_sso.suite_home(key))
+        return redirect(suite_sso.handoff_url(user, key))
 
     def login_required_redirect():
         return redirect(url_for("login", next=request.path))
