@@ -9634,9 +9634,22 @@ def create_app():
         known_set = {e.strip().lower() for e in known if e}
         for row in parsed["rows"]:
             if row["email"] in known_set:
+                # Already a fan, so nothing about their consent or tags
+                # changes. Where they are can still be learned: a second
+                # file that carries a city fills a gap the first one left.
+                # set_fan_place never overwrites something with nothing.
+                existing = mls.fan_by_email(user["id"], row["email"])
+                if existing:
+                    mls.set_fan_place(existing["id"], row.get("country"), row.get("city"))
                 continue
             fan_id = mls.upsert_fan(user["id"], row["email"], None, row.get("name"))
             mls.add_fan_tags(fan_id, ["imported"])
+            # The parser has read country and city from the file since the
+            # columns were added, and this loop dropped them on the floor:
+            # every imported fan landed in Unknown and sorting by region
+            # showed one group. Found 2026-09-18 while building the regions
+            # view the owner asked for.
+            mls.set_fan_place(fan_id, row.get("country"), row.get("city"))
             if not mls.find_consent(fan_id, "list_import"):
                 mls.add_consent(fan_id, None, "list_import", note)
 

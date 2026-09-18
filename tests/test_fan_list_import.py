@@ -115,3 +115,73 @@ def test_an_empty_file_is_empty_and_not_an_error():
     for text in ("", "\n", "   "):
         p = fli.parse(text)
         assert p["rows"] == [] and p["read"] == 0
+
+
+# --- through the route, down to the row ----------------------------------
+# The tests above prove the parser reads country and city. That was never
+# the problem: the upload route called the parser and then filed every fan
+# without the location it had just read, so every imported fan landed in
+# Unknown and the regions view showed one group. Found 2026-09-18 while
+# building that view. These go through the real route and read the stored
+# row back, which is the only place the bug was visible.
+
+import uuid
+
+import app as appmod
+import db as store
+import links_store as mls
+
+LOCATED = (
+    "Email,First Name,City,Country,Status\n"
+    "ada@example.com,Ada,Atlanta,US,subscribed\n"
+    "grace@example.com,Grace,London,GB,subscribed\n"
+    "nowhere@example.com,No,,,subscribed\n"
+)
+
+
+def _signed_in():
+    email = "fli-%s@example.net" % uuid.uuid4().hex[:8]
+    c = appmod.app.test_client()
+    c.post("/signup", data={"name": "L", "email": email, "password": "list-import-1"})
+    return c, store.get_user_by_email(email)["id"]
+
+
+def _upload(c, text):
+    return c.post("/links/fans/import/list",
+                  data={"text": text, "source": "My mailing list", "confirm": "1"})
+
+
+def _where(uid, email):
+    fan = mls.fan_by_email(uid, email)
+    return (fan["city"], fan["country"])
+
+
+def test_an_imported_fan_keeps_the_city_and_country_the_file_gave():
+    c, uid = _signed_in()
+    assert _upload(c, LOCATED).status_code == 302
+    assert _where(uid, "ada@example.com") == ("Atlanta", "US")
+    assert _where(uid, "grace@example.com") == ("London", "GB")
+    # No location in the file means none on the record: never guessed.
+    assert _where(uid, "nowhere@example.com") == ("", "")
+
+
+def test_a_later_file_fills_a_gap_but_never_blanks_a_known_place():
+    c, uid = _signed_in()
+    _upload(c, "Email\nada@example.com\nbo@example.com\n")
+    assert _where(uid, "ada@example.com") == ("", "")
+    # The second list knows where Ada is: the gap fills.
+    _upload(c, "Email,City,Country\nada@example.com,Atlanta,US\n")
+    assert _where(uid, "ada@example.com") == ("Atlanta", "US")
+    # A third list with no location must not wipe it.
+    _upload(c, "Email\nada@example.com\n")
+    assert _where(uid, "ada@example.com") == ("Atlanta", "US")
+
+
+def test_imported_places_group_into_regions_rather_than_one_unknown():
+    import fan_segments
+    c, uid = _signed_in()
+    _upload(c, LOCATED)
+    groups = fan_segments.regions(mls.list_fans(uid))
+    names = [g.get("name") or g.get("region") or g.get("place") for g in groups]
+    assert len(groups) == 3, groups
+    assert names[-1] == fan_segments.UNKNOWN, "Unknown is last, and present"
