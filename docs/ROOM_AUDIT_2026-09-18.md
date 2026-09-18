@@ -250,12 +250,31 @@ Marketplace Sample label contradicts its real-requests language.
 
 **Three code-level facts that change the plan.**
 
-1. **There is no messaging layer. At all.** No mail sender module, no bulk
-   send anywhere in the repo. Journeys, automations, email/SMS and most of
-   "three moves today" assume one exists. This is BLOCKING: those screens
-   cannot be honest before something can send. Build a sender before
-   Journeys, or ship buttons that do nothing - the exact defect this audit
-   exists to catch.
+1. ~~**There is no messaging layer. At all.**~~ **WRONG, corrected
+   2026-09-18 by the owner: "we have resend man" and "the tour section we
+   literally have advance emails in it".** Both true, and both checkable in
+   seconds, which is the lesson.
+
+   What is actually there: `email_provider.py` IS Resend, imported as
+   `emailer` at app.py:225 - my grep for `emailer.py` missed the alias. And
+   the Tour advance packet is a REAL sending feature: `tour_advance_mail.py`
+   composes it with no I/O, tour_os.py:2299 sends it with permissions,
+   attachments and minted share tokens, through that same mailer. V1 emails
+   people outside the building today.
+
+   So the fan send is much smaller than I claimed. What is genuinely
+   missing, and only this:
+
+     batching and rate limiting      advance sends one email to one venue
+     an unsubscribe link and header  REACH has the pattern (reach/compliance.py)
+     bounce/complaint -> suppression REACH has it (reach/outcomes.py); the
+                                     sink already exists here as
+                                     links_store.suppress_fan
+
+   The architecture to copy is the advance's: compose stays pure and
+   testable, I/O and permissions live in the route. Do NOT extend
+   tour_advance_mail itself - tour_hub_rules.py:6 says not to build new
+   features on it.
 
 2. **The Marketplace contradiction resolves the other way.** The review
    assumes the listings are sample and the language is wrong. In fact

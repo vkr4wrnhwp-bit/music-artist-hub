@@ -11,9 +11,10 @@
     <div>
       <div class="sb-label text-sb-gold">Street Banker Links · Fan CRM</div>
       <h1 class="sb-h1 mt-1">Your Fans</h1>
-      <p class="mt-1 max-w-xl text-sm text-gray-300">Every email captured, pre-save made, and click tracked — the audience you own, scored by intent.</p>
+      <p class="mt-1 max-w-xl text-sm text-gray-300">Every email captured, pre-save made and click tracked: the audience you own, scored by intent.</p>
     </div>
     <div class="flex gap-2">
+      <a href="#import" class="sb-btn sb-btn-primary">Import a list</a>
       <a href="/links/fans/export.csv" class="sb-btn sb-btn-secondary">Export CSV</a>
       <a href="/links" class="sb-btn sb-btn-secondary">← Campaigns</a>
     </div>
@@ -106,4 +107,8 @@
   </div>
   {% endif %}
 </div>
+
+{#- The way in, beside the way out. Export without import on an empty page
+    was the asymmetry the audit caught. -#}
+{% include "partials/fan_list_import.html" %}
 {% endblock %}

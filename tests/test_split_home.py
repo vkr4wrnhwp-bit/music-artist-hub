@@ -202,8 +202,11 @@ def test_the_line_under_the_form_follows_whether_sign_up_is_open(page):
 
 def test_the_rail_is_a_map_and_not_a_progress_bar(page):
     rail = page.split('class="sbrail"')[1].split("</nav>")[0]
+    # The stage name is the list item's own text now: the door was rebuilt
+    # 2026-09-18 and the wrapping span went with it. What the rule protects
+    # is that all eight are named and none is marked as reached.
     for stage in split_home.STAGES:
-        assert ">%s</span>" % stage in rail, stage
+        assert stage in rail, stage
     assert rail.count("sbrail-stage") == 8
     # Nothing is ticked, done, complete or current: the page does not know
     # who is reading it.

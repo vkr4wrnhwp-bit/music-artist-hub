@@ -1,0 +1,145 @@
+/* The Artist Twin: two figures crossing the room, and the words on the
+ * picture rather than beside it.
+ *
+ * Owner, 2026-09-17: "what about on the ai twin image you make the 2 black
+ * shadows moving in animation?" and "we should overlay that text as well on
+ * that image maybe it will look cleaner". Then 2026-09-18, having waited:
+ * "we literally had the AI artist twin where the two ghost figures moved
+ * and the text was bleeding over onto the image."
+ *
+ * Neither had ever been built. The section shipped with no ghost elements
+ * at all; the blurred people in it are motion blur baked into the
+ * photograph, which is why they never moved. An earlier attempt at this
+ * file targeted .sbtw-plate, .sbtw-ghost and .sbtw-words, and the real
+ * class names are .sbtw-photo and .sbtw-panel, so it styled nothing. That
+ * is the whole lesson: check the markup before writing the stylesheet.
+ *
+ * The plate and both cut-outs are the owner's, from his approved artifact,
+ * at the positions he signed off.
+ *
+ * Loaded after artist-twin.css, and everything here is scoped to
+ * .sbtw--over so the long homepage keeps its two columns.
+ */
+
+/* ---- the two who cross it ------------------------------------------- */
+/* These are on both layouts: figures moving through the room is the point
+ * of the picture, not a property of the overlay. */
+
+.sbtw-photo { position: relative; }
+
+.sbtw-ghost {
+  position: absolute;
+  z-index: 1;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: multiply;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.sbtw-ghost--l {
+  left: 5.71%;
+  top: 22.95%;
+  width: 27.77%;
+  height: 50.16%;
+  background-image: url("/static/img/twin-ghost-gl.webp");
+  animation: sbtw-pass-l 7s ease-in-out infinite alternate;
+}
+
+.sbtw-ghost--r {
+  left: 69.99%;
+  top: 25.08%;
+  width: 16.35%;
+  height: 39.96%;
+  background-image: url("/static/img/twin-ghost-gr.webp");
+  animation: sbtw-pass-r 8.5s ease-in-out -3s infinite alternate;
+}
+
+/* "Make them move more than before": the artifact crossed 44% in 9s and
+ * 60% in 11s. These cross 66% in 7s and 80% in 8.5s, with more scale on the
+ * turn, so they read as people walking through rather than drifting. */
+@keyframes sbtw-pass-l {
+  0%   { transform: translateX(-14%) scaleX(1);    opacity: .12; }
+  50%  {                                           opacity: .85; }
+  100% { transform: translateX(52%)  scaleX(1.18); opacity: .5;  }
+}
+
+@keyframes sbtw-pass-r {
+  0%   { transform: translateX(20%)  scaleX(1);    opacity: .18; }
+  50%  {                                           opacity: .8;  }
+  100% { transform: translateX(-60%) scaleX(1.22); opacity: .45; }
+}
+
+/* ---- the words, on the picture -------------------------------------- */
+/* Only where the modifier says so. The photograph runs the full width and
+ * fades out under the text rather than stopping at a hard edge. */
+
+@media (min-width: 1180px) {
+  .sbtw--over .sbtw-inner {
+    display: block;
+    position: relative;
+    min-height: 620px;
+  }
+
+  .sbtw--over .sbtw-photo {
+    position: absolute;
+    inset: 0 0 0 0;
+    margin: 0;
+    width: min(74%, 1180px);
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .sbtw--over .sbtw-photo picture,
+  .sbtw--over .sbtw-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* The fade that lets the words sit on the picture. */
+  .sbtw--over .sbtw-photo {
+    -webkit-mask-image: linear-gradient(90deg, #000 46%, transparent 96%);
+    mask-image: linear-gradient(90deg, #000 46%, transparent 96%);
+  }
+
+  /* .sbtw-panel is display:contents, so its children are the grid items
+     and each one has to be lifted individually. */
+  .sbtw--over .sbtw-eyebrow,
+  .sbtw--over .sbtw-title,
+  .sbtw--over .sbtw-support,
+  .sbtw--over .sbtw-card,
+  .sbtw--over .sbtw-ctas,
+  .sbtw--over .sbtw-microcopy {
+    position: relative;
+    z-index: 2;
+    margin-left: auto;
+    width: min(52%, 640px);
+    /* The picture is busy behind the left edge of this, so the text carries
+       its own contrast rather than trusting the mask alone. */
+    text-shadow: 0 1px 14px rgb(0 0 0 / .8);
+  }
+
+  .sbtw--over .sbtw-eyebrow { padding-top: 54px; }
+  .sbtw--over .sbtw-microcopy { padding-bottom: 54px; }
+
+  /* The assessment card sits on the photograph, so it needs a real ground
+     of its own or the rows read as floating text. */
+  .sbtw--over .sbtw-card {
+    background: rgb(19 17 16 / .82);
+    backdrop-filter: none;
+    border-radius: var(--sb-r-panel);
+  }
+}
+
+/* ---- somebody who asked for less motion ----------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Still, but present: parked at the opacity they spend most of their time
+     at, so the room still looks like a room with people in it. */
+  .sbtw-ghost { animation: none; opacity: .5; }
+  .sbtw-ghost--l { transform: translateX(20%) scaleX(1.08); }
+  .sbtw-ghost--r { transform: translateX(-20%) scaleX(1.1); }
+}

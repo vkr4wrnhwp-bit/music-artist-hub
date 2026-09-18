@@ -38,7 +38,7 @@
         {% if r.reasons %}
         <ul class="mt-2 space-y-1 text-xs text-gray-300">
           {% for why, n in r.reasons.items() %}
-          <li>{{ "{:,}".format(n) }} — {{ why }}</li>
+          <li>{{ "{:,}".format(n) }}: {{ why }}</li>
           {% endfor %}
         </ul>
         {% endif %}
