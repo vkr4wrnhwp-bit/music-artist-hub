@@ -9547,7 +9547,23 @@ def create_app():
         # Fan CRM is a Fans page (the Fans front: Dashboard, Fan CRM, Fan
         # Club); "fans" is a key in both layouts, so the Fans row lights
         # and the rooms layout goes back to Fans, not Marketing.
+        #
+        # 2026-09-18: it is the Fan CRM tab of the Audience screen, under
+        # the same header. The list import redirects here with ?imp=...;
+        # until now nothing read that back, so an import finished in
+        # silence. The counts shown are the ones the import stored.
+        imp = request.args.get("imp") or ""
+        fan_import_result = {
+            "needs-source": {"error": "Say where these people gave you permission, and tick the box, before the list is read."},
+            "unreadable": {"error": "That file could not be read as text. Export it as a CSV and try again."},
+            "empty": {"error": "There was nothing in the file or the box to read."},
+        }.get(imp)
+        if imp == "done":
+            last_list = store.latest_fan_import(user["id"], "list")
+            fan_import_result = (last_list or {}).get("summary") or None
         return render_template("links_fans.html", active_page="fans",
+                               fan_import_result=fan_import_result,
+                               au_resend=emailer.configured(),
                                fans=fans, q=q, campaign_titles=campaigns,
                                intent_tones=links_engine.INTENT_TONES,
                                shopify=(shopify_customers.status()
@@ -9686,18 +9702,27 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # A file that leaves this app goes into mail tools. By default it
+        # carries only the contactable: somebody who unsubscribed, bounced
+        # or complained is not in it. ?include=suppressed is the explicit
+        # full record, and every suppressed row says why in its own column.
         import csv as _csv
         import io as _io
+        everyone = request.args.get("include") == "suppressed"
         out = _io.StringIO()
         w = _csv.writer(out)
         w.writerow(["Email", "Name", "Visits", "Clicks", "Pre-saves", "Captures",
-                    "Intent Score", "Intent Level", "First Seen", "Last Active"])
+                    "Intent Score", "Intent Level", "First Seen", "Last Active", "Suppressed"])
         for f in mls.list_fans(user["id"]):
+            why = (f.get("suppressed") or "").strip()
+            if why and not everyone:
+                continue
             w.writerow([f["email"], f["name"], f["total_visits"], f["total_clicks"],
                         f["total_presaves"], f["total_captures"], f["intent_score"],
-                        f["intent_level"], f["created"], f["updated"]])
+                        f["intent_level"], f["created"], f["updated"], why])
+        name = "street-banker-fans-all.csv" if everyone else "street-banker-fans.csv"
         return Response(out.getvalue(), mimetype="text/csv",
-                        headers={"Content-Disposition": "attachment; filename=street-banker-fans.csv"})
+                        headers={"Content-Disposition": "attachment; filename=" + name})
 
     @app.route("/links/create", methods=["POST"])
     def links_create():
@@ -9790,27 +9815,155 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # The approved Collab Marketplace screen (owner mock, 2026-09-18).
+        # Every count below is a query on the collab tables; see
+        # collab_market.py for what each section is allowed to show.
+        import collab_market
+        tab = request.args.get("tab") or "discover"
+        if tab not in ("discover", "briefs", "applications", "projects"):
+            tab = "discover"
         kind = request.args.get("kind") or None
         role = request.args.get("role") or None
         genre = (request.args.get("genre") or "").strip() or None
-        reqs = store.list_collab_requests(kind, role, genre)
-        today = datetime.now(timezone.utc).date().isoformat()
+        q = (request.args.get("q") or "").strip()
+        saved_only = request.args.get("saved") == "1"
+        today_d = datetime.now(timezone.utc).date()
+        today = today_d.isoformat()
+        uid = user["id"]
+        # One rule for "on the board": open, and its closing date (if any)
+        # not yet passed. The tiles count with it and the board reads with
+        # it, with no row cap, so neither stops at a list length.
+        live_sql = ("c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
+                    " OR substr(c.closes, 1, 10) >= ?)")
+        with store.get_db() as db:
+            counts = {row["request_id"]: row["n"] for row in db.execute(
+                "SELECT request_id, COUNT(*) AS n FROM collab_replies "
+                "GROUP BY request_id").fetchall()}
+            sent = [dict(row) for row in db.execute(
+                "SELECT r.*, c.title, c.role, c.kind, c.status, c.closes,"
+                " c.user_id AS owner_id, u.name AS poster_name"
+                " FROM collab_replies r"
+                " JOIN collab_requests c ON c.id = r.request_id"
+                " JOIN users u ON u.id = c.user_id"
+                " WHERE r.user_id = ? ORDER BY r.created DESC",
+                (uid,)).fetchall()]
+            board = [dict(row) for row in db.execute(
+                "SELECT c.*, u.name AS poster_name FROM collab_requests c"
+                " JOIN users u ON u.id = c.user_id WHERE " + live_sql
+                + " ORDER BY c.created DESC", (today,)).fetchall()]
+            tiles = {
+                "open": db.execute(
+                    "SELECT COUNT(*) FROM collab_requests c JOIN users u"
+                    " ON u.id = c.user_id WHERE " + live_sql,
+                    (today,)).fetchone()[0],
+                "mine": db.execute(
+                    "SELECT COUNT(*) FROM collab_requests c"
+                    " WHERE c.user_id = ? AND " + live_sql,
+                    (uid, today)).fetchone()[0],
+                "sent": db.execute(
+                    "SELECT COUNT(*) FROM collab_replies WHERE user_id = ?",
+                    (uid,)).fetchone()[0],
+                "saved": db.execute(
+                    "SELECT COUNT(*) FROM collab_saves s"
+                    " JOIN collab_requests c ON c.id = s.request_id"
+                    " JOIN users u ON u.id = c.user_id"
+                    " WHERE s.user_id = ? AND " + live_sql,
+                    (uid, today)).fetchone()[0],
+            }
         trust_cache = {}
-        for r in reqs:
+
+        def _dress(r):
             r["ago"] = _ago(r["created"])
+            r["applicants"] = counts.get(r["id"], 0)
+            r["days_left"] = collab_market.days_left(r["closes"], today_d)
+            r["closes_label"] = collab_market.short_date(r["closes"], today_d)
+            r["initials"] = collab_market.initials(r.get("poster_name"))
+            r["photo"] = collab_market.ROLE_PHOTOS.get(
+                r["role"], collab_market.DEFAULT_PHOTO)
+            r["chip"] = collab_market.KIND_CHIPS.get(r["kind"], "")
+            r["state"] = collab_market.brief_state(r, today_d)
+            r["state_label"] = collab_market.STATE_LABELS[r["state"]]
+            return r
+
+        def _with_trust(r):
+            # Scored only for rows on screen: a poster's score is a real
+            # calculation, so it is not run for rows nobody sees.
             if r["user_id"] not in trust_cache:
-                trust_cache[r["user_id"]] = trust_score.calculate(r["user_id"])["total"]
-            r["trust"] = trust_cache[r["user_id"]]
-            r["expired"] = bool(r["closes"]) and r["closes"] < today
-        reqs = [r for r in reqs if not r["expired"]]
-        own = store.list_own_collab_requests(user["id"])
+                t = trust_score.calculate(r["user_id"])
+                trust_cache[r["user_id"]] = (
+                    t["total"], any(pts for _n, pts, _x in t["factors"]))
+            total, measured = trust_cache[r["user_id"]]
+            r["trust"] = total
+            r["trust_label"] = collab_market.trust_label(total, measured)
+            return r
+
+        board = [_dress(r) for r in board]
+        saves = store.list_collab_saves(uid)
+        reqs = [r for r in board
+                if (not kind or r["kind"] == kind)
+                and (not role or r["role"] == role)
+                and (not genre or r["genre"] == genre)
+                and (not saved_only or r["id"] in saves)
+                and (not q or q.lower() in " ".join(
+                    (r["title"], r["role"], r["genre"], r["details"],
+                     r["poster_name"] or "")).lower())]
+        shown = [_with_trust(r) for r in reqs[:collab_market.TABLE_ROWS]]
+        own = store.list_own_collab_requests(uid)
+        replies_by_req = {r["id"]: store.list_collab_replies(r["id"]) for r in own}
+        for r in own:
+            r["applicants"] = len(replies_by_req[r["id"]])
+            r["days_left"] = collab_market.days_left(r["closes"], today_d)
+            r["state"] = collab_market.brief_state(r, today_d)
+            r["state_label"] = collab_market.STATE_LABELS[r["state"]]
+        for a in sent:
+            a["state"] = collab_market.brief_state(a, today_d)
+            a["state_label"] = collab_market.STATE_LABELS[a["state"]]
+            a["sent_label"] = collab_market.short_date(a["created"], today_d)
+        applied_ids = {a["request_id"] for a in sent}
+        recs, rec_basis = collab_market.recommendations(board, uid, own, sent)
+        recs = [_with_trust(r) for r in recs]
+        # Active projects: your briefs still open (and not past their
+        # closing date) that have drawn at least one application - the
+        # only work in progress this board records.
+        projects = [collab_market.pipeline(r, replies_by_req[r["id"]], today_d)
+                    for r in own if r["state"] == "open" and r["applicants"]]
+        latest = (collab_market.pipeline(own[0], replies_by_req[own[0]["id"]],
+                                         today_d) if own else None)
+        focus = None
+        brief_id = request.args.get("brief")
+        if brief_id:
+            focus = next((r for r in board if r["id"] == brief_id), None)
+            if focus is None:
+                mine = next((r for r in own if r["id"] == brief_id), None)
+                focus = _dress(dict(mine, poster_name=user["name"])) if mine else None
+            if focus is not None:
+                _with_trust(focus)
+        # The view a save or apply form returns to (the applied flag is
+        # dropped so the flash does not follow the user around).
+        kept = [(k, v) for k, v in request.args.items(multi=True) if k != "applied"]
+        here = request.path + ("?" + urllib.parse.urlencode(kept) if kept else "")
+        trust = trust_score.calculate(uid)
+        trust_rows = [
+            {"name": name, "pts": pts, "note": note,
+             "unmeasured": trust["unmeasured"].get(name),
+             "icon": Markup(collab_market.TRUST_ICONS.get(
+                 name, collab_market.DEFAULT_TRUST_ICON))}
+            for name, pts, note in trust["factors"]]
+        trust_scored = any(r["pts"] for r in trust_rows)
         return render_template(
             "marketplace.html", active_page="marketplace",
-            requests=reqs, kind=kind or "", role=role or "", genre=genre or "",
-            roles=COLLAB_ROLES, user=user,
-            saves=store.list_collab_saves(user["id"]),
-            own=own,
-            replies_by_req={r["id"]: store.list_collab_replies(r["id"]) for r in own},
+            tab=tab, tabs=collab_market.TABS, q=q, saved_only=saved_only,
+            requests=shown, more=len(reqs) - len(shown),
+            kind=kind or "", role=role or "", genre=genre or "",
+            roles=COLLAB_ROLES, user=user, saves=saves, own=own,
+            replies_by_req=replies_by_req, sent=sent, tiles=tiles,
+            applied_ids=applied_ids, here=here,
+            recs=recs, rec_basis=rec_basis, projects=projects, latest=latest,
+            focus=focus, trust=trust, trust_rows=trust_rows,
+            trust_scored=trust_scored, kind_labels=collab_market.KIND_LABELS,
+            genres=sorted({r["genre"] for r in board if r["genre"]}),
+            showcase=(collab_market.SHOWCASE
+                      if _session_is_demo() and not recs else []),
             **build_dashboard_context())
 
     @app.route("/marketplace/post", methods=["POST"])
@@ -9836,19 +9989,21 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        import collab_market
+        back = collab_market.safe_back(request.form.get("back"))
         req = store.get_collab_request(req_id)
         message = (request.form.get("message") or "").strip()
         contact = (request.form.get("contact") or "").strip()
         if (req is None or req["status"] != "open"
                 or req["user_id"] == user["id"] or not message
                 or "@" not in contact):
-            return redirect("/marketplace")
+            return redirect(back)
         store.add_collab_reply(req_id, user["id"], message, contact,
                                (request.form.get("proposal") or "").strip(),
                                (request.form.get("ref_url") or "").strip())
         store.notify(req["user_id"], "network",
                      "New application on your collab request",
-                     "%s applied to “%s” — reach them at %s."
+                     "%s applied to “%s”. Reach them at %s."
                      % (user["name"] or "A member", req["title"], contact),
                      "/marketplace")
         if emailer.configured():
@@ -9863,7 +10018,7 @@ def create_app():
                        _html.escape(req["title"]),
                        _html.escape(message[:500]), _html.escape(contact),
                        _html.escape(contact)), reply_to=contact)
-        return redirect("/marketplace?applied=1")
+        return redirect(collab_market.with_flag(back, "applied=1"))
 
     @app.route("/marketplace/<req_id>/save", methods=["POST"])
     def marketplace_save(req_id):
@@ -9872,7 +10027,8 @@ def create_app():
             return login_required_redirect()
         if store.get_collab_request(req_id):
             store.toggle_collab_save(user["id"], req_id)
-        return redirect("/marketplace")
+        import collab_market
+        return redirect(collab_market.safe_back(request.form.get("back")))
 
     @app.route("/marketplace/<req_id>/close", methods=["POST"])
     def marketplace_close(req_id):
@@ -10139,16 +10295,42 @@ def create_app():
 
         Same rule as the royalty dashboard, for the same reason: showcase data
         handed to a real artist reads as their own.
+
+        2026-09-18: this is now the Audience screen from the owner's approved
+        mockup, built by fan_audience over the same records. ?export=csv with
+        region=... is the "Use this selection" step: the contactable fans in
+        the ticked places, as a CSV. Suppressed fans are never in it.
         """
-        import fan_dashboard
+        import fan_audience
+
+        user = current_user()
+        showcase = _session_is_demo() or user is None
+
+        if request.args.get("export") == "csv":
+            if user is None:
+                return login_required_redirect()
+            keys = [k for k in request.args.getlist("region") if k]
+            if not keys:
+                return redirect("/fans")
+            rows = fan_audience.selection_rows(
+                fan_audience.showcase_rows() if showcase else mls.list_fans(user["id"]), keys)
+            import csv as _csv
+            import io as _io
+            out = _io.StringIO()
+            w = _csv.writer(out)
+            w.writerow(["Email", "Name", "City", "Country"])
+            for f in rows:
+                w.writerow([f.get("email") or "", f.get("name") or "",
+                            f.get("city") or "", f.get("country") or ""])
+            return Response(out.getvalue(), mimetype="text/csv", headers={
+                "Content-Disposition": "attachment; filename=street-banker-fans-selection.csv"})
 
         ctx = build_dashboard_context()
-        user = current_user()
-        if _session_is_demo() or user is None:
-            ctx["fans"] = get_fan_dashboard_data()
-            ctx["fans"]["is_real"] = False
+        if showcase:
+            ctx["audience"] = fan_audience.showcase()
         else:
-            ctx["fans"] = fan_dashboard.fan_dashboard_for(user["id"])
+            ctx["audience"] = fan_audience.for_account(
+                user["id"], resend_configured=emailer.configured())
         ctx["shopify_import"] = (shopify_customers.status()
                                  if _shopify_import_allowed(user) else None)
         return render_template("fans.html", active_page="fans", **ctx)

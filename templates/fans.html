@@ -1,184 +1,420 @@
 {% extends "base.html" %}
 
-{% block title %}Fan Dashboard - Royalty Sweep{% endblock %}
+{% block title %}Audience - Royalty Sweep{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/fans-audience.css?v=3">
+{% endblock %}
 
-{% set fd = fans %}
+{#- THE AUDIENCE SCREEN - the owner's approved mockup (static/_mock_audience.html,
+    2026-09-18), inside the app's own shell. Every figure comes from
+    fan_audience.build() over this account's records; the demo account and
+    signed-out visitors get the same builder over generated rows, labelled.
+
+    What the mockup drew and this page does not, and why:
+      Segments / Journeys / Community / Insights tabs   no page behind them
+      Anonymous / Buyer / Member / Advocate stages      no data behind them
+      Growth column on segments                         no history of the bands
+      "Fan activity" map switcher                       one measure, so no switch
+      Lucas Joyner pill, promo card, own sidebar        mock chrome, not the page -#}
+{% set a = audience %}
+
+{% macro ico(name) -%}
+{%- if name == 'people' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="6.8" r="2.9"/><path d="M2 17c0-2.9 2.2-4.7 5-4.7s5 1.8 5 4.7"/><path d="M13.4 5a2.7 2.7 0 010 4.8M15.2 17c0-2.3-.8-4-2.3-5"/></svg>
+{%- elif name == 'mail' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.6" y="5" width="14.8" height="10" rx="2"/><path d="M3 6l7 5 7-5"/></svg>
+{%- elif name == 'clock' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 5.8v4.4l3 1.8"/></svg>
+{%- elif name == 'heart' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17s6-3.7 6-8.1A3.9 3.9 0 0010 6.4 3.9 3.9 0 004 8.9C4 13.3 10 17 10 17z"/><circle cx="10" cy="8.6" r="1.7"/></svg>
+{%- elif name == 'pin' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17.2s5.2-3.5 5.2-7.6A5.2 5.2 0 004.8 9.6c0 4.1 5.2 7.6 5.2 7.6z"/><circle cx="10" cy="9.4" r="1.8"/></svg>
+{%- elif name == 'unknown' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.6"/><path d="M8.1 8.1a1.95 1.95 0 113.2 1.55c-.75.5-1.35.95-1.35 1.85"/><path d="M10 14.3v.1"/></svg>
+{%- elif name == 'shield' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17.2s6.2-3.8 6.2-8.3V5.3L10 2.8 3.8 5.3v3.6c0 4.5 6.2 8.3 6.2 8.3z"/></svg>
+{%- elif name == 'pulse' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.8 10h3l2-5.4 3 10.8 2-5.4h4.4"/></svg>
+{%- elif name == 'star' -%}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6 14.6 8.9l5.8.85-4.2 4.1 1 5.8-5.2-2.74-5.2 2.74 1-5.8-4.2-4.1 5.8-.85z"/></svg>
+{%- elif name == 'note' -%}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 17.6V5.9l9.3-2.1v11.7"/><circle cx="6.4" cy="17.6" r="2.8"/><circle cx="15.7" cy="15.5" r="2.8"/></svg>
+{%- elif name == 'dot' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.2"/><circle cx="10" cy="10" r="1.6"/></svg>
+{%- elif name == 'check' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>
+{%- elif name == 'arrow' -%}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+{%- endif -%}
+{%- endmacro %}
 
 {% block content %}
-{% import "_sb.html" as sb %}
-{#- In the rooms layout Fan CRM and Fan Club are cards of the Fans room, so the strip would be a second row of tabs. -#}
-{% if not rooms_nav %}{{ sb.subnav([("/fans", "Dashboard"), ("/links/fans", "Fan CRM"), ("/fan-club", "Fan Club")], request.path) }}{% endif %}
-<div class="mx-auto max-w-[1200px] space-y-5">
-  <div>
-    <h1 class="sb-h1">Fan Dashboard</h1>
-    {% if fd.is_real %}
-      <p class="mt-1 max-w-3xl text-sm text-gray-300">Who gave you their email, how engaged they are, and where they came from. Your own records only.</p>
-    {% else %}
-      <p class="mt-1 text-sm text-gray-300">Turn listeners into superfans — who your most valuable fans are and what they spend on.</p>
-    {% endif %}
-  </div>
+<div class="au mx-auto max-w-[1200px]" data-no-collapse>
+  {% set au_tab = "audience" %}{% set au_resend = a.resend_configured %}{% set au_no_import = a.showcase %}
+  {% include "partials/fans_head.html" %}
 
-{% if fd.is_real %}
-  {#- The way in for somebody who already has an audience. An empty page
-      with no way to fill it is the complaint this answers. -#}
-  {% include "partials/fan_list_import.html" %}
-
-  {# ---------------------------------------------------------------------
-     Real account. Everything below reads ml_fans, ml_consents and ml_events
-     for this user. There is deliberately no lifetime value, spend, or
-     leaderboard-by-amount: ml_fans has no spend column and the app has no
-     purchase feed, so every one of those figures used to be invented. A
-     fan-value number an artist might act on is not a thing to guess at.
-     --------------------------------------------------------------------- #}
-
-  {% if not fd.has_data %}
-    <section class="rounded-2xl border border-amber-500/15 bg-sb-surface-1 p-6">
-      <h2 class="sb-label text-gray-300">No fans captured yet</h2>
-      <p class="mt-2 max-w-2xl text-sm text-gray-300">{{ fd.reason }}</p>
-      <p class="mt-2 max-w-2xl text-sm text-gray-300">Or bring in a list you already have, below.</p>
-      <div class="mt-4 flex flex-wrap gap-2">
-        <a class="sb-btn sb-btn-primary" href="/links/new">Create a smart link</a>
-        <a class="sb-btn sb-btn-secondary" href="/links">See your links</a>
-        <a class="sb-btn sb-btn-secondary" href="#import">Import a list</a>
-        {% if shopify_import and shopify_import.on %}
-        <form method="post" action="/links/fans/import/shopify"><button class="sb-btn sb-btn-secondary">Import subscribed Shopify customers</button></form>
-        {% endif %}
-      </div>
-    </section>
-  {% else %}
-
-  {# Numbers in windows, bands and sources as meters, consent as a lamp.
-     Every figure is the account's own; the captions carry the meaning so
-     the sentences that used to explain them are gone. #}
-  <div class="flex flex-wrap items-center gap-3">
-    {{ sb.lcd("{:,}".format(fd.summary.total_fans), "fans captured") }}
-    {{ sb.lcd("{:,}".format(fd.summary.consented), "consent on file") }}
-    {{ sb.lcd("{:,}".format(fd.summary.presaves), "pre-saves") }}
-    {{ sb.lcd("{:,}".format(fd.summary.qr_scans), "QR scans") }}
-    {{ sb.lcd("{:,}".format(fd.summary.page_views), "page views") }}
-    {% if fd.summary.without_consent %}{{ sb.lamp("{:,} without consent on file".format(fd.summary.without_consent), "warn") }}{% else %}{{ sb.lamp("every fan consented", "good") }}{% endif %}
-  </div>
-
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
-    <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <h2 class="sb-label text-gray-300">Engagement</h2>
-      <div class="mt-3 space-y-1.5">
-        {% for s in fd.segments %}
-        {{ sb.meter(s.segment, s.count, fd.summary.total_fans, shown="{:,}".format(s.count) ~ " · " ~ s.share ~ "%", tone=("good" if s.segment == "Hot" else "")) }}
-        {% endfor %}
-      </div>
-      <p class="mt-3 text-xs text-gray-300">The smart-link scorer's own bands.</p>
-    </section>
-
-    <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <h2 class="sb-label text-gray-300">Where they came from</h2>
-      <div class="mt-3 space-y-1.5">
-        {% for s in fd.sources %}
-        {{ sb.meter(s.source, s.count, fd.summary.total_fans, shown="{:,}".format(s.count)) }}
-        {% endfor %}
-      </div>
-      <p class="mt-3 text-xs text-gray-300">The link, or the import, that first captured each email.</p>
-    </section>
-
-    <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <div class="flex items-baseline justify-between gap-2">
-        <h2 class="sb-label text-gray-300">Most engaged</h2>
-        <a class="text-xs text-gray-300 underline" href="/links/fans">Full CRM</a>
-      </div>
-      <div class="mt-3 space-y-1.5">
-        {% for f in fd.top_fans %}
-        <div class="flex items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-1.5 text-xs" title="{{ f.visits }} visits · {{ f.clicks }} clicks · {{ f.presaves }} pre-saves">
-          <span class="min-w-0 flex-1 truncate font-semibold text-gray-100">{{ f.name or f.email }}</span>
-          {{ sb.lamp(f.intent_level|lower, "good" if f.intent_level == "Hot" else ("warn" if f.intent_level == "Warm" else "")) }}
-          <span class="shrink-0 font-bold sb-num text-sb-ink">{{ f.intent_score }}</span>
-        </div>
-        {% endfor %}
-      </div>
-      <p class="mt-3 text-xs text-gray-300">The CRM's own intent score, so the two pages agree.</p>
-    </section>
-  </div>
-
-  <p class="px-1 max-w-3xl text-xs text-gray-300">
-    Your own records, from the emails people gave you. No spend or lifetime
-    value: the app holds no purchase data, and a number you might act on is
-    not guessed. Manage or delete records in the <a class="underline" href="/links/fans">Fan CRM</a>.
-  </p>
+  {% if a.showcase %}
+  <p class="au-showcase" role="note"><b>Showcase.</b> Example figures on generated rows, not anybody's fans. A signed-in artist sees only their own records here.</p>
   {% endif %}
 
-{% else %}
-  {# ---------------------------------------------------------------------
-     Showcase only. Reached by the demo account or a signed-out visitor, and
-     labelled as invented at the bottom. A real account never sees this.
-     --------------------------------------------------------------------- #}
-  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-2xl border border-amber-500/15 bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Superfans</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums text-sb-ink">{{ "{:,}".format(fd.summary.superfans) }}</div>
-    </div>
-    <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Total Fans</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums">{{ "{:,}".format(fd.summary.total_fans) }}</div>
-    </div>
-    <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Avg. Fan LTV</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums">${{ "{:,.2f}".format(fd.summary.avg_ltv) }}</div>
-    </div>
-    <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <div class="sb-label text-gray-300">Follower Growth</div>
-      <div class="mt-2 text-2xl font-bold tabular-nums text-green-400">+{{ fd.summary.follower_growth }}</div>
-      <div class="mt-1 text-xs text-gray-300 font-medium">Last 7 days</div>
-    </div>
+  {#- The mockup's "Import a list", on this screen: the existing list import
+      (authorise, source, file), opened by the header button. -#}
+  {% if not a.showcase %}
+  <div class="au-import" id="au-import">
+    {% include "partials/fan_list_import.html" %}
+    {% if shopify_import and shopify_import.on %}
+    <form method="post" action="/links/fans/import/shopify" class="au-import-shop">
+      <button class="sb-btn sb-btn-secondary">Import subscribed Shopify customers</button>
+    </form>
+    {% endif %}
   </div>
+  {% endif %}
 
-  <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-    <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <h2 class="sb-label text-gray-300">Fan Segments</h2>
-      <div class="mt-4 space-y-4">
-        {% for s in fd.segments %}
-        <div class="rounded-xl border border-white/5 bg-white/5 p-4">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-semibold text-gray-100">{{ s.segment }}</span>
-            <span class="text-xs text-gray-300">{{ "{:,}".format(s.count) }} fans · ${{ "{:,.2f}".format(s.ltv) }} LTV</span>
-          </div>
-          <div class="mt-3 flex h-2.5 overflow-hidden rounded-full bg-white/5">
-            <div class="h-2.5 bg-amber-500" style="width: {{ s.merch }}%;" title="Merch"></div>
-            <div class="h-2.5 bg-blue-500" style="width: {{ s.tickets }}%;" title="Tickets"></div>
-            <div class="h-2.5 bg-green-500" style="width: {{ s.digital }}%;" title="Digital"></div>
-          </div>
-          <div class="mt-1.5 flex flex-wrap gap-3 text-xs text-gray-300 font-medium">
-            <span><span class="text-amber-400">■</span> Merch {{ s.merch }}%</span>
-            <span><span class="text-blue-400">■</span> Tickets {{ s.tickets }}%</span>
-            <span><span class="text-green-400">■</span> Digital {{ s.digital }}%</span>
-          </div>
-        </div>
-        {% endfor %}
+  {% if not a.showcase and not a.total %}
+  <section class="au-card au-empty" aria-labelledby="au-empty-h">
+    <h2 id="au-empty-h">No fans captured yet</h2>
+    <p class="au-cap">Fans appear here when somebody gives you their email on a smart link, or when you bring in a list you already have. Every panel below fills from those records and nothing else.</p>
+    <div class="au-empty-acts">
+      <a class="sb-btn sb-btn-primary" href="/links/new">Create a smart link</a>
+      <a class="sb-btn sb-btn-secondary" href="#import" data-au-import>Import a list</a>
+      {% if shopify_import and shopify_import.on %}
+      <form method="post" action="/links/fans/import/shopify"><button class="sb-btn sb-btn-secondary">Import subscribed Shopify customers</button></form>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ---- tiles ---- #}
+  <section class="au-tiles" aria-label="Your list at a glance">
+    <div class="au-tile">
+      <span class="au-ico">{{ ico('people') }}</span>
+      <div><div class="au-lab">Owned fans</div>
+        <div class="au-numrow"><span class="au-num" data-au-stat="total">{{ "{:,}".format(a.total) }}</span>
+          {% if a.growth %}<span class="au-chip gold" title="{{ '{:,}'.format(a.growth.recent) }} gave their email on a smart link in the last 30 days, against {{ '{:,}'.format(a.growth.before) }} before that. Imported lists are not counted as growth.">&#9650;{{ a.growth.pct }}%</span>{% endif %}</div>
+        {% if a.showcase %}
+        <div class="au-foot"><span class="au-mark au-mark--example"><i></i>Example</span> generated rows</div>
+        {% else %}
+        <div class="au-foot"><span class="au-mark"><i></i>Live</span> your own records</div>
+        {% endif %}</div>
+    </div>
+    <div class="au-tile">
+      <span class="au-ico">{{ ico('mail') }}</span>
+      <div><div class="au-lab">Contactable</div>
+        <div class="au-numrow"><span class="au-num" data-au-stat="contactable">{{ "{:,}".format(a.contactable) }}</span>
+          {% if a.contactable_pct is not none %}<span class="au-chip flat">{{ a.contactable_pct }}%</span>{% endif %}</div>
+        <div class="au-foot">{% if a.suppressed %}{{ "{:,}".format(a.suppressed) }} suppressed, every one with a reason{% elif a.total %}Nobody suppressed{% else %}Nobody on file yet{% endif %}</div></div>
+    </div>
+    <div class="au-tile">
+      <span class="au-ico">{{ ico('clock') }}</span>
+      <div><div class="au-lab">Never engaged</div>
+        <div class="au-numrow"><span class="au-num" data-au-stat="never">{{ "{:,}".format(a.never_engaged) }}</span>
+          {% if a.never_engaged %}<span class="au-chip gold">First send</span>{% endif %}</div>
+        <div class="au-foot">{% if a.total %}Contactable, never engaged: who the first link is for{% else %}Nobody on file yet{% endif %}</div></div>
+    </div>
+    <div class="au-tile">
+      <span class="au-ico">{{ ico('heart') }}</span>
+      <div><div class="au-lab">With a location</div>
+        {% if a.located_pct is not none %}
+        <div class="au-numrow"><span class="au-num">{{ a.located_pct }}%</span><span class="au-chip flat" data-au-stat="located">{{ "{:,}".format(a.located) }}</span></div>
+        <div class="au-foot">Of the contactable. The rest are Unknown, and still selectable.</div>
+        {% else %}
+        <div class="au-numrow"><span class="au-num au-num--none">Not measured yet</span></div>
+        <div class="au-foot">{% if a.total %}Nobody on file is contactable, so there is no share to take.{% else %}A share of nobody is not a number. It appears with the first fan.{% endif %}</div>
+        {% endif %}</div>
+    </div>
+  </section>
+
+  {# ---- map + funnel ---- #}
+  <div class="au-r-geo">
+    <section class="au-card au-map" aria-labelledby="au-map-h">
+      <div class="au-chead">
+        <div><h2 id="au-map-h">Fan Geography</h2>
+          <p class="au-cap">Your top markets by contactable fans on file</p></div>
+        <span class="au-chiplabel"><span class="au-pill-dot" aria-hidden="true"></span>Fans on file</span>
       </div>
-    </section>
+      <div class="au-stage">
+        <div class="au-map-box">
+        <svg class="au-map-svg" viewBox="0 0 604 306" preserveAspectRatio="xMidYMid meet" role="img"
+             aria-label="Dot map of the United States.{% for t in a.geo.top %} {{ t.city }} {{ '{:,}'.format(t.count) }}.{% endfor %}">
+          <defs>
+            <radialGradient id="auWash" cx="44%" cy="50%" r="64%"><stop offset="0" class="au-s-wash0"/><stop offset="1" class="au-s-wash1"/></radialGradient>
+            <radialGradient id="auVig" cx="50%" cy="48%" r="74%"><stop offset=".5" class="au-s-vig0"/><stop offset="1" class="au-s-vig1"/></radialGradient>
+            <radialGradient id="auHeat"><stop offset="0" class="au-s-heat0"/><stop offset=".45" class="au-s-heat1"/><stop offset="1" class="au-s-heat2"/></radialGradient>
+            <radialGradient id="auRingA"><stop offset="0" class="au-s-ra0"/><stop offset=".5" class="au-s-ra1"/><stop offset="1" class="au-s-ra2"/></radialGradient>
+            <radialGradient id="auRingB"><stop offset="0" class="au-s-rb0"/><stop offset=".4" class="au-s-rb1"/><stop offset="1" class="au-s-rb2"/></radialGradient>
+            <radialGradient id="auCore" cx="38%" cy="30%" r="80%"><stop offset="0" class="au-s-c0"/><stop offset=".55" class="au-s-c1"/><stop offset="1" class="au-s-c2"/></radialGradient>
+          </defs>
+          <rect x="0" y="0" width="604" height="306" fill="url(#auWash)"/>
+          {% include "partials/us_dot_field.html" %}
+          <rect x="0" y="0" width="604" height="306" fill="url(#auVig)"/>
+          {% for l in a.geo.labels %}<circle cx="{{ l.x }}" cy="{{ l.y }}" r="68" fill="url(#auHeat)"/>{% endfor %}
+          <g aria-hidden="true">
+            {% for d in a.geo.dots %}
+            <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.ring_b }}" fill="url(#auRingB)"/>
+            <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.ring_a }}" fill="url(#auRingA)"/>
+            <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.halo }}" class="au-halo"/>
+            <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.core }}" fill="url(#auCore)"><title>{{ d.city }}: {{ '{:,}'.format(d.count) }}</title></circle>
+            {% if d.spec %}<circle cx="{{ d.sx }}" cy="{{ d.sy }}" r="{{ d.sr }}" class="au-spec"/>{% endif %}
+            {% endfor %}
+          </g>
+          <g class="au-lbl" aria-hidden="true">
+            {% for l in a.geo.labels %}
+            <line class="au-leader" x1="{{ l.x1 }}" y1="{{ l.y }}" x2="{{ l.x2 }}" y2="{{ l.y }}"/>
+            {% endfor %}
+          </g>
+        </svg>
+        {#- The city labels are HTML, not SVG text: SVG text shrinks with the
+            map, and the type floor is 12px at every width. -#}
+        {% for l in a.geo.labels %}
+        <span class="au-lbl-html" aria-hidden="true" style="left: {{ l.lx }}%; top: {{ l.ly }}%;"><span class="c">{{ l.city }}</span><span class="n">{{ '{:,}'.format(l.count) }}</span></span>
+        {% endfor %}
+        </div>
 
-    <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
-      <h2 class="sb-label text-gray-300">Fan Leaderboard</h2>
-      <div class="mt-3 space-y-2">
-        {% for f in fd.leaderboard %}
-        <div class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2">
-          <span class="w-5 text-center text-xs font-bold text-gray-300">{{ loop.index }}</span>
-          <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm font-semibold text-gray-100">{{ f.fan }}</span>
-            <span class="text-xs text-gray-300 font-medium">{{ f.tier }}</span>
+        {% if a.geo.dots %}
+        <div class="au-key">
+          <span class="au-key-cap">Marker size</span>
+          <span class="au-key-set">
+            <span class="au-key-dot au-key-dot--a" aria-hidden="true"></span><span class="au-key-n">{{ '{:,}'.format(a.geo.key_min) }}</span>
+            {% if a.geo.key_max != a.geo.key_min %}<span class="au-key-bar" aria-hidden="true"></span>
+            <span class="au-key-dot au-key-dot--b" aria-hidden="true"></span><span class="au-key-n">{{ '{:,}'.format(a.geo.key_max) }}</span>{% endif %}
           </span>
-          <span class="shrink-0 text-sm font-bold sb-num text-sb-ink">${{ "{:,.2f}".format(f.spend) }}</span>
         </div>
+        {% endif %}
+
+        {% if a.geo.top %}
+        <div class="au-top5">
+          <span class="au-top5-h">Top {{ a.geo.top|length }} {{ 'city' if a.geo.top|length == 1 else 'cities' }}</span>
+          <div class="au-top5-rule"></div>
+          <ol class="au-top5-list">
+            {% for t in a.geo.top %}
+            <li class="{{ 'lead' if loop.first }}"><span class="rk">{{ loop.index }}.</span><span class="ct">{{ t.city }}</span><span class="vl">{{ '{:,}'.format(t.count) }}</span></li>
+            {% endfor %}
+          </ol>
+        </div>
+        {% else %}
+        <p class="au-stage-empty">No city on file yet. A list with a city column puts people on this map; nobody is placed from a guess.</p>
+        {% endif %}
+      </div>
+      {% if a.geo.unplotted %}<p class="au-map-foot">{{ a.geo.unplotted }} {{ 'city is' if a.geo.unplotted == 1 else 'cities are' }} counted but not drawn: outside the lower 48, or not in the built-in atlas. Nothing is placed from a guess.</p>{% endif %}
+    </section>
+
+    <section class="au-card au-fun" aria-labelledby="au-fun-h">
+      <div class="au-chead">
+        <div><h2 id="au-fun-h">Fan Lifecycle</h2>
+          <p class="au-cap">From link visits to Fan Club members, stage by stage</p></div>
+        <span class="au-glyph" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      </div>
+      <div class="au-fun-rule" aria-hidden="true"></div>
+      {% set xs = [4, 17, 27, 36, 44, 51, 57] %}
+      {% if not a.total %}
+      <p class="au-cap au-fun-note">Nobody on file yet, so nothing is counted. These are the stages the counters can back, and they fill from the first fan.</p>
+      {% elif not a.funnel_measured %}
+      <p class="au-cap au-fun-note">Nobody has clicked a smart link yet, so only On file is measured. The other stages count from the first click.</p>
+      {% endif %}
+      <div class="au-fun-plot{{ ' au-fun-plot--ghost' if not a.total }}" style="--au-rows: {{ a.funnel|length }};">
+        <svg class="au-fun-svg" viewBox="0 0 180 {{ 43 * a.funnel|length }}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <defs>
+            {% for s in a.funnel %}
+            <linearGradient id="auF{{ loop.index }}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" class="au-f{{ loop.index }}-0"/><stop offset=".46" class="au-f{{ loop.index }}-1"/><stop offset="1" class="au-f{{ loop.index }}-2"/>
+            </linearGradient>
+            {% endfor %}
+            <linearGradient id="auSheen" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" class="au-sheen0"/><stop offset=".44" class="au-sheen1"/><stop offset="1" class="au-sheen2"/>
+            </linearGradient>
+          </defs>
+          {% for s in a.funnel %}
+          {% set i = loop.index0 %}{% set t = 3.5 + 43 * i %}{% set b = 39.5 + 43 * i %}
+          {% set l1 = xs[i] %}{% set l2 = xs[i + 1] %}
+          {% set pts = "%s,%s %s,%s %s,%s %s,%s" % (l1, t, 180 - l1, t, 180 - l2, b, l2, b) %}
+          {% if s.measured %}
+          <polygon points="{{ pts }}" fill="url(#auF{{ loop.index }})" class="au-fun-slab"/>
+          <polygon points="{{ pts }}" fill="url(#auSheen)"/>
+          {% else %}
+          <polygon points="{{ pts }}" class="au-fun-ghost"/>
+          {% endif %}
+          {% endfor %}
+        </svg>
+        {% for s in a.funnel %}
+        <span class="au-fun-name{{ ' dim' if not s.measured }}" style="grid-row: {{ loop.index }}; --c: var(--au-ramp-{{ loop.index }});">{{ s.name }}</span>
+        {% if s.measured %}
+        <span class="au-fun-count" style="grid-row: {{ loop.index }};">{{ '{:,}'.format(s.count) }}</span>
+        {% elif a.total %}
+        <span class="au-fun-count none" style="grid-row: {{ loop.index }};">Not measured yet</span>
+        {% endif %}
+        <span class="au-fun-pct" style="grid-row: {{ loop.index }};">{{ s.pct }}</span>
         {% endfor %}
+      </div>
+      <div class="au-fun-foot">
+        <span class="k">{{ a.funnel_foot_key or "On file to pre-saved" }}</span>
+        <span class="v{{ ' dim' if not a.funnel_foot }}">{% if a.funnel_foot %}{{ a.funnel_foot }}{% elif a.total %}Not measured yet{% else %}Nobody on file{% endif %}</span>
       </div>
     </section>
   </div>
-  {# The old wording claimed the app does not track individual fans. It does -
-     the Fan CRM holds named records with intent scores - so the disclaimer is
-     scoped to THIS panel and points at the real thing. #}
-  <p class="px-1 max-w-3xl text-xs text-gray-300 font-medium">
-    Illustrative example figures, not anybody's fans. Your own fan records —
-    the people who gave you an email on a smart link — are in the
-    <a class="underline" href="/links/fans">Fan CRM</a>.
-  </p>
-{% endif %}
+
+  {# ---- regions + first send ---- #}
+  <div class="au-r-sel{{ ' au-r-sel--empty' if not a.regions }}">
+    <section class="au-card au-where" aria-labelledby="au-where-h">
+      <form id="au-sel" method="get" action="/fans">
+        <input type="hidden" name="export" value="csv">
+        <div class="au-chead">
+          <div><h2 id="au-where-h">Where they are</h2>
+            <p class="au-cap">Read from the files you imported. Never guessed from an address.</p></div>
+          {% if a.regions %}<button type="button" class="au-link" data-au-all>Select all {{ "{:,}".format(a.contactable) }} {{ ico('arrow') }}</button>{% endif %}
+        </div>
+        {% if a.regions %}
+        <div class="au-rows{{ ' au-rows--long' if a.regions|length > 9 }}">
+          {% for r in a.regions %}
+          <label class="au-row{{ ' unknown' if r.unknown }}">
+            <input type="checkbox" name="region" value="{{ r.key }}" data-count="{{ r.count }}" data-name="{{ r.key.split(',')[0] }}">
+            <span class="au-cb" aria-hidden="true">{{ ico('check') }}</span>
+            <span class="au-pin" aria-hidden="true">{{ ico('unknown' if r.unknown else 'pin') }}</span>
+            <span class="au-place"><span class="au-nm">{{ r.key }}</span>
+              <span class="au-meta">{% if r.unknown %}Their file carried no city or country. Still selectable.{% else %}{{ "{:,}".format(r.count) }} contactable{% if r.suppressed %} <span class="au-supp">{{ "{:,}".format(r.suppressed) }} suppressed</span>{% endif %}{% endif %}</span></span>
+            <span class="au-bar{{ ' ghost' if r.unknown }}" aria-hidden="true"><i style="width: {{ r.bar }}%;"></i></span><span class="au-cnt">{{ "{:,}".format(r.count) }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="au-selbar">
+          <div class="au-selbar-l"><span class="n" data-au-n>0</span> selected <span class="au-tag" data-au-tags hidden></span></div>
+          <div class="au-selbar-r">
+            <button type="button" class="au-btn ghost sm" data-au-clear>Clear</button>
+            <button type="submit" class="au-btn ghost sm" data-au-use title="Downloads the contactable fans in these places as a CSV">Use this selection</button>
+          </div>
+        </div>
+        <p class="au-selnote">Use this selection downloads the contactable fans in the chosen places as a CSV. Suppressed fans are never in it.</p>
+        {% else %}
+        <div class="au-where-empty">
+          <span class="au-pin" aria-hidden="true">{{ ico('pin') }}</span>
+          <p>Nobody contactable on file yet. Places appear as fans arrive, and a fan whose file had no city sits under Unknown rather than vanishing.</p>
+        </div>
+        {% endif %}
+      </form>
+    </section>
+
+    <section class="au-card" aria-labelledby="au-send-h">
+      <div class="au-chead"><div><h2 id="au-send-h">The first send</h2><p class="au-cap">A link, not a campaign.</p></div></div>
+      <div class="au-pipe">
+        <div class="au-pstep" data-au-step1>
+          <span class="au-dot">{{ ico('check') }}</span>
+          <div><div class="au-pt"><span data-au-n2>0</span> selected</div>
+            <div class="au-pd">All contactable. Suppressed fans were never in the count.</div></div>
+          {% if a.regions %}<span class="au-pmeta" data-au-ready>Pick places</span>{% endif %}
+        </div>
+        <div class="au-pstep now">
+          <span class="au-dot"></span>
+          <div><div class="au-pt">Choose a smart link</div>
+            <div class="au-pd">An imported fan has no score at all. Every click on a link scores the fan who made it, so the list stops being flat the same day.</div></div>
+        </div>
+        <div class="au-pstep todo">
+          <span class="au-dot"></span>
+          <div><div class="au-pt">Send through Resend</div>
+            <div class="au-pd">Not available in this build. Nothing is sent from this screen.</div></div>
+          <span class="au-pmeta">Not started</span>
+        </div>
+      </div>
+      <div class="au-guard">
+        <div class="au-gbox"><div class="au-gl">Unsubscribe</div><div class="au-gv">Needed before any send</div></div>
+        <div class="au-gbox"><div class="au-gl">Bounces</div><div class="au-gv">Needed before any send</div></div>
+      </div>
+      <a class="au-btn wide" href="/links">Choose a link</a>
+      <div class="au-note"><b>After the first send</b><br>Whoever clicks stops being a row with an address on it. Segments and the lifecycle funnel both read that score, so this is the step that makes the rest of the screen work.</div>
+    </section>
+  </div>
+
+  {# ---- health, activity, segments ---- #}
+  <div class="au-r-seg">
+    <section class="au-card" aria-labelledby="au-health-h">
+      <div class="au-chead">
+        <div><h2 id="au-health-h">List health, without the mystery</h2>
+          <p class="au-cap">What each score is made of, and what is missing.</p></div>
+        <button type="button" class="au-link" data-au-how aria-controls="au-how" aria-expanded="false">How these are measured {{ ico('arrow') }}</button>
+      </div>
+      <div class="au-health">
+        {% for h in a.health %}
+        <div class="au-hrow"><span class="au-hl">{{ ico(h.icon) }}{{ h.label }}</span>
+          {% if h.score is not none %}
+          <span class="au-hbar"><i class="{{ h.tone }}" style="width: {{ [h.score, 2]|max }}%;"></i></span><span class="au-hsc">{{ h.score }}/100{% if h.basis %} <span class="au-hbase">{{ h.basis }}</span>{% endif %}</span>
+          {% else %}
+          <span class="au-hbar"><i class="none" style="width: 6%;"></i></span><span class="au-hsc dim">{{ h.absent }}</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="au-how" id="au-how" hidden>
+        <p><b>Consent on file</b>: the share of fans with at least one consent record, written at capture or by the list import.</p>
+        <p><b>Consent freshness</b>: of the fans who gave their email on a smart link, the share who did so within a year. Imported lists do not carry the date each person agreed, so they are left out rather than read as new.</p>
+        <p><b>Deliverability</b>: needs sends. Nothing has been sent from this screen, so it is not measured.</p>
+        <p><b>Location coverage</b>: the share whose file carried a city or a country.</p>
+        <p><b>Engagement</b>: the share who have done anything on a smart link: a visit, a click, a pre-save.</p>
+      </div>
+      {% set eng = a.health[4] %}
+      <div class="au-note">{% if eng.score is none %}Engagement carries no score because nobody on this list has clicked a smart link yet. It appears after the first one, computed from real clicks rather than estimated from the size of the list.{% else %}Engagement is counted from real clicks on your smart links. Deliverability stays unmeasured until something is sent.{% endif %}</div>
+    </section>
+
+    <section class="au-card au-act" aria-labelledby="au-act-h">
+      <h2 class="au-act-title" id="au-act-h">Recent member activity</h2>
+      <div class="au-act-rule" aria-hidden="true"></div>
+      {% if a.activity %}
+      <ul class="au-act-list">
+        {% for e in a.activity %}
+        <li class="au-act-row">
+          <span class="au-av" aria-hidden="true">{{ e.initials }}</span>
+          <span class="au-act-body"><span class="au-act-name">{{ e.name }}</span><span class="au-act-what">{{ e.action }}</span></span>
+          <span class="au-act-time">{{ e.when }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="au-cap au-pad">No activity on file yet. Fans joining your list or your Fan Club appear here as they happen.</p>
+      {% endif %}
+    </section>
+
+    <section class="au-card au-seg" aria-labelledby="au-seg-h">
+      <div class="au-chead">
+        <div><h2 id="au-seg-h">Segments</h2></div>
+        <a class="au-link gold" href="/links/fans">Open the Fan CRM {{ ico('arrow') }}</a>
+      </div>
+      {% if a.segments %}
+      <div class="au-seg-table" role="table" aria-labelledby="au-seg-h">
+        <div class="au-seg-thead" role="row">
+          <span role="columnheader">Segment</span><span class="num" role="columnheader">Fans</span><span class="num" role="columnheader">Share</span>
+        </div>
+        {% for s in a.segments %}
+        <div class="au-seg-row" role="row">
+          <div class="au-seg-seg" role="cell"><span class="au-seg-ico" aria-hidden="true">{{ ico(s.icon) }}</span>
+            <span class="au-seg-txt"><span class="au-seg-name">{{ s.name }}</span><span class="au-seg-desc">{{ s.desc }}</span></span></div>
+          <div class="num au-seg-fans" role="cell">{{ "{:,}".format(s.count) }}</div>
+          <div class="num au-seg-share" role="cell">{{ (100 * s.count / a.total)|round|int }}%</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="au-cap au-pad">No bands yet. The scorer sorts fans into Hot, Warm, Cool and Cold as they click.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  {# ---- tour ---- #}
+  <section class="au-card au-tour" aria-labelledby="au-tour-h">
+    <div class="au-chead">
+      <div><h2 id="au-tour-h">Where the audience is against where the tour goes</h2>
+        <p class="au-cap">The useful direction: not only who to tell, but where to play.</p></div>
+      <a class="au-link" href="/tour">Open Tour {{ ico('arrow') }}</a>
+    </div>
+    <div class="au-demand">
+      <div>
+        <div class="au-dh"><span class="sw"></span>Booked, and you have fans there</div>
+        {% if a.tour.covered %}
+        <ul class="au-dlist">
+          {% for c in a.tour.covered %}<li>{{ c.city }} {% if c.date %}<span class="au-tag">{{ c.date }}{% if c.hold %} hold{% endif %}</span>{% endif %}<b>{{ "{:,}".format(c.count) }}</b></li>{% endfor %}
+        </ul>
+        {% elif a.tour.has_shows %}
+        <p class="au-cap au-pad">None of your upcoming shows is in a city this list has anybody in yet.</p>
+        {% else %}
+        <p class="au-cap au-pad">No shows are booked yet. Add dates on Tour and the cities are matched here by name.</p>
+        {% endif %}
+      </div>
+      <div>
+        <div class="au-dh"><span class="sw g"></span>Fans there, no show booked</div>
+        {% if a.tour.uncovered %}
+        <ul class="au-dlist">
+          {% for c in a.tour.uncovered %}<li class="gap">{{ c.city }}<b>{{ "{:,}".format(c.count) }}</b></li>{% endfor %}
+        </ul>
+        {% else %}
+        <p class="au-cap au-pad">{% if a.total %}No city on file outside your booked shows.{% else %}Nobody on file yet.{% endif %}</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="au-note">Cities are matched by name against your own upcoming shows.{% if a.tour.unmatched %} Shows in {{ a.tour.unmatched|join(', ') }} have nobody on this list yet, which is listed rather than counted as a miss.{% else %} A show in a city this list has nobody in is listed as unmatched rather than counted as a miss.{% endif %} The list cannot speak for a market it has never seen.</div>
+  </section>
 </div>
+<script src="/static/js/fans-audience.js?v=2" defer></script>
 {% endblock %}

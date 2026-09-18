@@ -2,33 +2,34 @@
 
 {% block title %}Fan CRM - Street Banker Links{% endblock %}
 
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/fans-audience.css?v=3">
+{% endblock %}
+
 {% block content %}
-{% import "_sb.html" as sb %}
-{#- In the rooms layout Fan CRM and Fan Club are cards of the Fans room, so the strip would be a second row of tabs. -#}
-{% if not rooms_nav %}{{ sb.subnav([("/fans", "Dashboard"), ("/links/fans", "Fan CRM"), ("/fan-club", "Fan Club")], request.path) }}{% endif %}
-<div class="mx-auto max-w-[1100px] space-y-5">
-  <div class="flex flex-wrap items-end justify-between gap-4">
-    <div>
-      <div class="sb-label text-sb-gold">Street Banker Links · Fan CRM</div>
-      <h1 class="sb-h1 mt-1">Your Fans</h1>
-      <p class="mt-1 max-w-xl text-sm text-gray-300">Every email captured, pre-save made and click tracked: the audience you own, scored by intent.</p>
-    </div>
-    <div class="flex gap-2">
-      <a href="#import" class="sb-btn sb-btn-primary">Import a list</a>
-      <a href="/links/fans/export.csv" class="sb-btn sb-btn-secondary">Export CSV</a>
-      <a href="/links" class="sb-btn sb-btn-secondary">← Campaigns</a>
+{#- The Fan CRM tab of the Audience screen (owner, 2026-09-18: "everything in
+    fans besides collab and discover can be in one screen"). Same header as
+    /fans; search, remove, export and import work as they always did. -#}
+<div class="au mx-auto max-w-[1200px]" data-no-collapse>
+  {% set au_tab = "crm" %}
+  {% include "partials/fans_head.html" %}
+
+  <div class="au-crm-tools">
+    <form method="get" role="search">
+      <input name="q" value="{{ q }}" placeholder="Search by email or name..." aria-label="Search fans">
+      <button class="au-btn ghost">Search</button>
+    </form>
+    <div class="au-crm-export">
+      <a href="/links/fans/export.csv" class="au-btn ghost" title="Contactable fans only: nobody who unsubscribed, bounced or complained">Export CSV</a>
+      <a href="/links/fans/export.csv?include=suppressed" class="au-link" title="Every fan on file, with a Suppressed column giving the reason">Include suppressed</a>
     </div>
   </div>
-
-  <form method="get" class="flex gap-2">
-    <input name="q" value="{{ q }}" placeholder="Search by email or name..." class="w-full max-w-sm rounded-lg border border-white/10 bg-sb-surface-1 px-3 py-2 text-sm text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
-    <button class="sb-btn sb-btn-secondary">Search</button>
-  </form>
+  <p class="au-selnote">Export CSV carries contactable fans only. Include suppressed adds everyone else, each marked with the reason, for your records rather than a mail tool.</p>
 
   {# The connected store's customers, on request. Owner only: the
      connection is the server's, so it is the owner's store. #}
   {% if shopify %}
-  <section id="import" class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+  <section id="shopify-import" class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 class="sb-label text-gray-300">Shopify</h2>
@@ -59,7 +60,7 @@
   {% endif %}
 
   {% if fans %}
-  <section class="overflow-x-auto rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+  <section class="au-card au-table-wrap">
     <table class="w-full text-left text-sm">
       <thead>
         <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-300 font-medium">
@@ -78,6 +79,7 @@
           <td class="py-3 pr-4">
             <div class="font-semibold text-gray-100">{{ f.email }}</div>
             {% if f.name %}<div class="text-xs text-gray-300 font-medium">{{ f.name }}</div>{% endif %}
+            {% if f.suppressed %}<span class="au-supp au-supp--crm" title="Never in a send or the default export">Suppressed: {{ f.suppressed }}</span>{% endif %}
           </td>
           <td class="py-3 pr-4">
             <div class="flex items-center gap-2">
@@ -87,7 +89,7 @@
           </td>
           <td class="py-3 pr-4 text-right sb-num text-gray-200">{{ f.total_presaves }}</td>
           <td class="py-3 pr-4 text-right sb-num text-gray-200">{{ f.total_captures }}</td>
-          <td class="py-3 pr-4 text-xs text-gray-300 font-medium">{{ campaign_titles.get(f.first_campaign_id, '—') }}</td>
+          <td class="py-3 pr-4 text-xs text-gray-300 font-medium">{{ campaign_titles.get(f.first_campaign_id, 'Imported or added') }}</td>
           <td class="py-3 text-xs sb-num text-gray-300 font-medium">{{ f.updated[:10] }}</td>
           <td class="py-3 pl-3 text-right">
             <form method="post" action="/links/fans/{{ f.id }}/delete"
@@ -103,12 +105,13 @@
   {% else %}
   <div class="rounded-2xl border border-dashed border-sb-gold/30 py-10 text-center">
     <div class="text-sm font-bold text-gray-200">No fans captured yet</div>
-    <p class="mx-auto mt-1 max-w-md text-xs text-gray-300">Enable email capture on a campaign and every signup lands here — with consent logged and intent scored.</p>
+    <p class="mx-auto mt-1 max-w-md text-xs text-gray-300">Enable email capture on a campaign and every signup lands here, with consent logged and intent scored.</p>
   </div>
   {% endif %}
-</div>
 
 {#- The way in, beside the way out. Export without import on an empty page
     was the asymmetry the audit caught. -#}
 {% include "partials/fan_list_import.html" %}
+</div>
+<script src="/static/js/fans-audience.js?v=2" defer></script>
 {% endblock %}

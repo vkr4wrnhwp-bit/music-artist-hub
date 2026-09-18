@@ -183,7 +183,12 @@ def world_for_path(path):
         return "promote"
     if _matches(path, ("/services", "/submit", "/roster")):
         return "label"
-    if _matches(path, ("/discover", "/network", "/fan-label", "/fans",
-                       "/marketplace", "/capital")):
+    # /fans (the artist's own Audience screen) and /marketplace (Collab)
+    # used to be listed here, which gave an ARTIST the fan-side sidebar on
+    # both: only Community and a slim Account, their whole menu gone. Both
+    # are artist tools. A fan account still gets the fan sidebar on them,
+    # because inject_plan_context forces world "fan" for the fan plan
+    # whatever the path says. Found by the 2026-09-18 Audience review.
+    if _matches(path, ("/discover", "/network", "/fan-label", "/capital")):
         return "fan"
     return None

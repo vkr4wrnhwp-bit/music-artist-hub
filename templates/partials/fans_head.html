@@ -1,0 +1,24 @@
+{#- The Audience header, shared by /fans and /links/fans (owner, 2026-09-18:
+    "everything in fans besides collab and discover can be in one screen").
+
+    The plate carries the mockup's title, subtitle and actions. The tabs are
+    only the ones with something real behind them: the mockup's Segments,
+    Journeys, Community and Insights had no page, so they are not drawn.
+
+    Expects: au_tab ("audience" | "crm"), au_resend (bool), au_no_import (bool). -#}
+{% import "_sb.html" as sb %}
+{% call sb.plate(none, [], "Street Banker · Fans", "Audience",
+                 "Everyone who is yours, where they are, and who you may contact.") %}
+  {#- Only what config can truthfully say. A key being set is not a send
+      having worked, so the lamp is gold, not the green of verified. -#}
+  {% if au_resend %}<span class="au-pill" title="RESEND_API_KEY is set on this service. Nothing has been sent from this screen."><span class="au-pill-dot" aria-hidden="true"></span>Resend configured</span>{% endif %}
+  {#- The showcase has no import on it: a list brought in there would land
+      on the demo account's records, which the showcase never shows. -#}
+  {% if not au_no_import %}<a href="#import" class="au-btn" data-au-import>
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13.2V3M6.4 6.6L10 3l3.6 3.6"/><path d="M4 13v3.2a1 1 0 001 1h10a1 1 0 001-1V13"/></svg>Import a list</a>{% endif %}
+{% endcall %}
+{#- The shared strip (sb.subnav), drawn as the mockup's underlined tabs. In
+    the rooms layout Fan CRM and Fan Club are cards of the Fans room, so a
+    strip here would be a second row of tabs (owner: no double tabs). -#}
+{% if not rooms_nav %}<div class="au-tabs">{{ sb.subnav([("/fans", "Audience"), ("/links/fans", "Fan CRM"), ("/fan-club", "Fan Club")],
+                                  "/links/fans" if au_tab == "crm" else "/fans", label="Fans") }}</div>{% endif %}

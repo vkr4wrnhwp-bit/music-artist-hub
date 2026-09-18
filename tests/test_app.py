@@ -1159,7 +1159,9 @@ def test_marketplace_post_flow():
     poster = _demo(app_obj)
     page = poster.get("/marketplace").get_data(as_text=True)
     assert "Collab Marketplace" in page and "Nothing here is seeded" in page
-    assert "For Bid" in page and "Royalty Split" in page and "For Fun" in page
+    # The approved screen (owner mock, 2026-09-18) names the deal types
+    # Paid / Royalty split / For fun, in the Deal filter and the post form.
+    assert "Paid" in page and "Royalty split" in page and "For fun" in page
     # Post a real request with terms up front.
     poster.post("/marketplace/post", data={
         "kind": "split", "role": "Vocalist", "genre": "Synthwave",
@@ -1168,7 +1170,12 @@ def test_marketplace_post_flow():
         "ref_url": "https://example.com/scratch"})
     page = poster.get("/marketplace").get_data(as_text=True)
     assert "Velvet topline" in page and "5-15% master" in page
-    assert "Trust" in page and "Hear the reference track" in page
+    assert "Trust" in page
+    # The reference link lives on the opened brief ("View Brief") now.
+    rid = store_mod.list_own_collab_requests(
+        store_mod.get_user_by_email("demo@streetbanker.io")["id"])[0]["id"]
+    assert "Hear the reference track" in poster.get(
+        "/marketplace?brief=%s" % rid).get_data(as_text=True)
     # A second member applies; the poster sees the application + notification.
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     req = store_mod.list_own_collab_requests(uid)[0]
@@ -1184,7 +1191,8 @@ def test_marketplace_post_flow():
                              "contact": "topliner@example.net",
                              "proposal": "10% master"})
     assert r.status_code == 302 and "applied=1" in r.headers["Location"]
-    mine = poster.get("/marketplace").get_data(as_text=True)
+    # Applications received sit on the My Briefs tab of the new screen.
+    mine = poster.get("/marketplace?tab=briefs").get_data(as_text=True)
     assert "Top Liner" in mine and "10% master" in mine
     # Applicants can't apply to their own post; saves toggle.
     own_try = poster.post("/marketplace/%s/apply" % req["id"],
@@ -1211,8 +1219,10 @@ def test_fan_label_vote_flow():
 
 
 def test_fan_dashboard_content():
+    # The demo account sees the Audience screen's labelled showcase
+    # (redesign, 2026-09-18); a real account never does (test_fans_audience).
     body = _demo().get("/fans").get_data(as_text=True)
-    assert "Fan Segments" in body and "Fan Leaderboard" in body
+    assert "Fan Geography" in body and "Fan Lifecycle" in body and "Showcase." in body
 
 
 def test_capital_page_content_and_disclaimer():

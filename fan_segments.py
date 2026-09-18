@@ -54,8 +54,10 @@ STALE_DAYS = 365 * 2
 
 
 def _place(fan):
-    """The group a fan belongs to. City first where there is one, because
-    an artist routes a tour through cities, not countries."""
+    """The group a fan belongs to, as written on their row. City first where
+    there is one, because an artist routes a tour through cities, not
+    countries. Grouping goes through place_key, so two spellings of one
+    place are one group; this is only the fallback label."""
     city = (fan.get("city") or "").strip()
     country = (fan.get("country") or "").strip()
     if city and country:
@@ -63,25 +65,75 @@ def _place(fan):
     return city or country or UNKNOWN
 
 
+# Spellings of one country that a list export produces. Only the ones a
+# US-first artist actually meets; anything else is kept as written.
+_COUNTRY_ALIASES = {"usa": "us", "u.s.": "us", "u.s.a.": "us", "united states": "us",
+                    "united states of america": "us", "america": "us",
+                    "uk": "gb", "united kingdom": "gb", "great britain": "gb"}
+
+
+def city_key(city):
+    """One key per city however it was typed: case and spacing ignored,
+    nothing else. The same key is used by regions, the map and tour
+    matching, so the three panels can never disagree about a city."""
+    return " ".join((city or "").split()).casefold()
+
+
+def country_key(country):
+    k = " ".join((country or "").split()).casefold()
+    return _COUNTRY_ALIASES.get(k, k)
+
+
+def place_key(fan):
+    """The grouping key behind _place: (city, country), normalised."""
+    return "%s|%s" % (city_key(fan.get("city")), country_key(fan.get("country")))
+
+
+def canonical(spellings):
+    """The spelling to show for a group, from {spelling: count}. A spelling
+    somebody capitalised beats an all-lowercase export; among those, the
+    most common wins, then the alphabetically first so it is stable."""
+    if not spellings:
+        return ""
+    cased = {s: n for s, n in spellings.items() if s != s.lower()}
+    pool = cased or spellings
+    return sorted(pool.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+
+
 def regions(fans):
-    """[{region, count, emails, unknown}], biggest first, Unknown last.
+    """[{region, key, count, emails, unknown}], biggest first, Unknown last.
 
     Unknown is last rather than absent: it is usually the largest group on
     a freshly imported list, and hiding it would mean every "select all in
     a region" quietly missed most of the list.
+
+    "chicago, us" and "Chicago, USA" are one group, shown under the
+    spelling somebody capitalised; `key` is what a selection matches on.
     """
     groups = {}
     for fan in fans or ():
-        key = _place(fan)
-        g = groups.setdefault(key, {"region": key, "count": 0, "emails": []})
+        key = place_key(fan)
+        g = groups.setdefault(key, {"key": key, "count": 0, "emails": [],
+                                    "_city": {}, "_country": {}})
         g["count"] += 1
+        city = " ".join((fan.get("city") or "").split())
+        country = " ".join((fan.get("country") or "").split())
+        if city:
+            g["_city"][city] = g["_city"].get(city, 0) + 1
+        if country:
+            g["_country"][country] = g["_country"].get(country, 0) + 1
         if fan.get("email"):
             g["emails"].append(fan["email"])
-    known = [g for k, g in groups.items() if k != UNKNOWN]
+    for g in groups.values():
+        city, country = canonical(g.pop("_city")), canonical(g.pop("_country"))
+        g["region"] = ("%s, %s" % (city, country) if city and country
+                       else city or country or UNKNOWN)
+    unknown_key = place_key({})
+    known = [g for k, g in groups.items() if k != unknown_key]
     known.sort(key=lambda g: (-g["count"], g["region"]))
-    out = known + [groups[UNKNOWN]] if UNKNOWN in groups else known
+    out = known + [groups[unknown_key]] if unknown_key in groups else known
     for g in out:
-        g["unknown"] = g["region"] == UNKNOWN
+        g["unknown"] = g["key"] == unknown_key
     return out
 
 
@@ -95,20 +147,26 @@ def tour_overlap(fans, show_cities):
                       criticism of the show, only a statement that this
                       list cannot speak for it
     """
-    booked = {(c or "").strip().lower() for c in (show_cities or ()) if (c or "").strip()}
+    booked = {city_key(c) for c in (show_cities or ()) if city_key(c)}
     by_city = {}
     for fan in fans or ():
-        city = (fan.get("city") or "").strip()
-        if not city:
+        k = city_key(fan.get("city"))
+        if not k:
             continue
-        by_city.setdefault(city.lower(), {"city": city, "count": 0})["count"] += 1
+        e = by_city.setdefault(k, {"count": 0, "_sp": {}})
+        e["count"] += 1
+        sp = " ".join((fan.get("city") or "").split())
+        e["_sp"][sp] = e["_sp"].get(sp, 0) + 1
+    for k, e in by_city.items():
+        e["city"] = canonical(e.pop("_sp"))
+        e["key"] = k
 
     covered = [v for k, v in by_city.items() if k in booked]
     uncovered = [v for k, v in by_city.items() if k not in booked]
-    covered.sort(key=lambda v: -v["count"])
-    uncovered.sort(key=lambda v: -v["count"])
-    unmatched = sorted({c for c in (show_cities or ())
-                        if (c or "").strip() and (c or "").strip().lower() not in by_city})
+    covered.sort(key=lambda v: (-v["count"], v["city"]))
+    uncovered.sort(key=lambda v: (-v["count"], v["city"]))
+    unmatched = sorted({(c or "").strip() for c in (show_cities or ())
+                        if city_key(c) and city_key(c) not in by_city})
     return {"covered": covered, "uncovered": uncovered, "unmatched_shows": unmatched}
 
 

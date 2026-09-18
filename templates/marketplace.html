@@ -1,178 +1,361 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Collab Marketplace - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/collab-market.css?v=1">{% endblock %}
+
+{#- THE COLLAB MARKETPLACE - the owner's approved screen (static/_mock_collab.html,
+    2026-09-18). Layout, order and furniture follow the mock; every number is a
+    query on the collab tables for this account (collab_market.py says what each
+    section may show). No seeded briefs, no invented people. -#}
+
+{% macro arrow() %}<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>{% endmacro %}
 
 {% block content %}
-<div class="mx-auto max-w-[1100px] space-y-6">
-  <div>
-    <div class="sb-label text-sb-gold">Street Banker · Community</div>
-    <h1 class="sb-h1 mt-1">Collab Marketplace</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-300">Real requests from real members — need a vocalist, a producer, a mix? Post it, set your terms, and applicants come to you. Nothing here is seeded; every card is a member who actually posted.</p>
-  </div>
+{% call sb.plate(none, [900, 1400, 1672],
+                 "Street Banker · Community", "Collab Marketplace",
+                 "Find the right creative partner. Protect the work.") %}
+  <form method="get" action="/marketplace" class="cm-search" role="search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <label class="sr-only" for="cm-q">Search briefs</label>
+    <input id="cm-q" name="q" value="{{ q }}" placeholder="Search skills, roles or genres">
+  </form>
+  <a href="/marketplace?tab=briefs#post" class="sb-btn sb-btn-primary cm-plus"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Post a Brief</a>
+{% endcall %}
+
+<div class="cm mx-auto max-w-[1200px]" data-no-collapse>
 
   {% if request.args.get('applied') %}
-  <div class="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">Application sent — the poster got a notification with your contact.</div>
+  <p class="cm-flash" role="status">Application sent. The poster got a notification with your contact.</p>
   {% endif %}
 
-  <!-- Collab Flow: how the board works, start to finish -->
-  <section class="overflow-hidden rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-ground">
-    <div class="grid items-center gap-0 lg:grid-cols-[1fr_minmax(0,420px)]">
-      <div class="p-5">
-        <h2 class="sb-label text-sb-gold-bright">Collab Flow</h2>
-        <div class="mt-3 grid gap-3 sm:grid-cols-4">
-          {% for num, step, blurb in [('1', 'Posting', 'Say what you need, your terms up front.'),
-                                      ('2', 'Applying', 'Members pitch with their work and their terms.'),
-                                      ('3', 'Working', 'You pick, connect directly, and make the record.'),
-                                      ('4', 'Delivering', 'Register it — passports, splits, and lockbox sign-offs live here too.')] %}
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-b from-sb-gold-bright to-sb-gold-deep text-xs font-black text-sb-on-gold">{{ num }}</span>
-              <span class="text-xs font-bold uppercase tracking-wide text-gray-200">{{ step }}</span>
+  <nav class="cm-tabs" aria-label="Collab Marketplace">
+    {% for key, label, href in tabs %}
+    <a href="{{ href }}" {% if tab == key %}class="on" aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+
+  {#- The four counts, each a COUNT(*) on the collab tables. The mock's "New
+      Matches" is dropped: there is no matching engine behind it, and a tile
+      with no source is invented. -#}
+  <section class="cm-tiles" aria-label="Your marketplace in numbers">
+    <a class="cm-tile" href="/marketplace">
+      <span class="cm-ico"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 7.5h6M7 10.5h6M7 13.5h3"/></svg></span>
+      <span><span class="cm-lab">Open Briefs</span><span class="cm-num" data-tile="open">{{ tiles.open }}</span></span>
+    </a>
+    <a class="cm-tile" href="/marketplace?tab=briefs">
+      <span class="cm-ico"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="6.8" r="2.9"/><path d="M2 17c0-2.9 2.2-4.7 5-4.7s5 1.8 5 4.7"/><path d="M13.4 5a2.7 2.7 0 010 4.8"/></svg></span>
+      <span><span class="cm-lab">My Open Briefs</span><span class="cm-num" data-tile="mine">{{ tiles.mine }}</span></span>
+    </a>
+    <a class="cm-tile" href="/marketplace?tab=applications">
+      <span class="cm-ico"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h7l3 3v11H5z"/><path d="M12 3v3h3M8 11h4M8 14h4"/></svg></span>
+      <span><span class="cm-lab">Applications Sent</span><span class="cm-num" data-tile="sent">{{ tiles.sent }}</span></span>
+    </a>
+    <a class="cm-tile" href="/marketplace?saved=1">
+      <span class="cm-ico"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 3h9v14l-4.5-3-4.5 3z"/></svg></span>
+      <span><span class="cm-lab">Saved</span><span class="cm-num" data-tile="saved">{{ tiles.saved }}</span></span>
+    </a>
+  </section>
+
+  {% if tab == 'discover' %}
+
+  {#- One brief, opened from "View Brief". -#}
+  {% if focus %}
+  <section class="cm-card cm-focus" id="brief" aria-labelledby="cm-focus-h">
+    <div class="cm-chead">
+      <div>
+        <span class="cm-chip {{ focus.chip }}">{{ kind_labels[focus.kind] }}</span>
+        {% if focus.state != 'open' %}<span class="cm-chip {{ 'warn' if focus.state == 'expired' }}">{{ focus.state_label }}</span>{% endif %}
+        <h2 id="cm-focus-h">{{ focus.title }}</h2>
+        <p class="cm-cap">{{ focus.poster_name }} · {{ focus.trust_label }} · needs a {{ focus.role }}{% if focus.genre %} · {{ focus.genre }}{% endif %} · posted {{ focus.ago }}{% if focus.closes_label %} · closes {{ focus.closes_label }}{% endif %}</p>
+      </div>
+      <a class="cm-link" href="/marketplace">Close</a>
+    </div>
+    {% if focus.terms %}<p class="cm-terms"><b>Terms</b> {{ focus.terms }}</p>{% endif %}
+    {% if focus.details %}<p class="cm-body">{{ focus.details }}</p>{% endif %}
+    <div class="cm-row">
+      {% if focus.ref_url %}<a href="{{ focus.ref_url }}" target="_blank" rel="noopener noreferrer" class="sb-btn sb-btn-secondary sb-btn-sm">Hear the reference track (opens in a new tab)</a>{% endif %}
+      <form method="post" action="/marketplace/{{ focus.id }}/save">
+        <input type="hidden" name="back" value="{{ here }}#brief">
+        <button class="sb-btn sb-btn-secondary sb-btn-sm">{{ 'Saved: remove' if focus.id in saves else 'Save for later' }}</button>
+      </form>
+    </div>
+    {% if focus.user_id == user.id %}
+    <p class="cm-cap">This is your brief. Its applications are on <a class="cm-inline" href="/marketplace?tab=briefs">My Briefs</a>.</p>
+    {% elif focus.id in applied_ids %}
+    <p class="cm-cap">You have applied to this brief. It is on your <a class="cm-inline" href="/marketplace?tab=applications">Applications</a>.</p>
+    {% elif focus.state == 'open' %}
+    <form method="post" action="/marketplace/{{ focus.id }}/apply" class="cm-form">
+      <input type="hidden" name="back" value="{{ here }}#brief">
+      <label class="cm-fl" for="cm-msg">Your pitch</label>
+      <textarea id="cm-msg" name="message" required rows="3" placeholder="What you would bring to this track"></textarea>
+      <div class="cm-fields">
+        <input name="contact" type="email" required placeholder="you@email.com" aria-label="Your email">
+        <input name="proposal" placeholder="Your terms (e.g. $200 flat, 10% master)" aria-label="Your terms">
+        <input name="ref_url" type="url" placeholder="Link to your work" aria-label="Link to your work">
+      </div>
+      <button class="sb-btn sb-btn-primary sb-btn-sm">Send application</button>
+      <p class="cm-cap">The poster gets your message and contact. Terms are between the two of you; Street Banker does not hold funds or broker deals.</p>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <div class="cm-wrap">
+    <div class="cm-col">
+
+      {#- RECOMMENDED - real briefs on a stated basis, or the demo's labelled showcase. -#}
+      <section class="cm-card" aria-labelledby="cm-rec-h">
+        <div class="cm-chead">
+          <div><h2 id="cm-rec-h">Recommended for you</h2>
+            {% if showcase %}
+            <p class="cm-cap">Showcase: example collaborators for the demo account. They are not members.</p>
+            {% else %}
+            <p class="cm-cap">Open briefs asking for a role you have applied as, or in a genre you post in.</p>
+            {% endif %}
+          </div>
+          {% if recs %}<a class="cm-link" href="/marketplace#opps">View all{{ arrow() }}</a>{% endif %}
+        </div>
+        {% if showcase %}
+        <div class="cm-recs">
+          {% for p in showcase %}
+          <article class="cm-rec">
+            <div class="cm-shot"><span class="cm-match">Showcase · {{ p.match }}</span><img src="{{ p.photo }}" alt="Example collaborator photograph" loading="lazy"></div>
+            <div class="cm-rec-b">
+              <div class="cm-who">{{ p.name }}</div>
+              <div class="cm-role">{{ p.role }}</div>
+              <div class="cm-where">{{ p.where }} <span class="cm-chip">Remote</span></div>
+              <div class="cm-tags">{% for t in p.tags %}<span class="cm-chip">{{ t }}</span>{% endfor %}</div>
+              <div class="cm-credits"><b>Credits</b> · {{ p.credits }}</div>
+              <div class="cm-split">
+                <div class="sp"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M13.2 6.2H8.4a2.1 2.1 0 000 4.2h3.2a2.1 2.1 0 010 4.2H6.4"/></svg><div><div class="k">{{ p.rate }}</div><div class="v">{{ p.per }}</div></div></div>
+                <div class="sp"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.4" width="14" height="12.6" rx="2"/><path d="M3 8.4h14M7 2.6v3M13 2.6v3"/></svg><div><div class="k">Available</div><div class="v">{{ p.avail }}</div></div></div>
+              </div>
             </div>
-            <p class="mt-1.5 text-xs leading-relaxed text-gray-300 font-medium">{{ blurb }}</p>
+          </article>
+          {% endfor %}
+        </div>
+        {% elif recs %}
+        <div class="cm-recs">
+          {% for r in recs %}
+          <article class="cm-rec">
+            <div class="cm-shot"><span class="cm-match">{{ r.role }}</span><img src="{{ r.photo }}" alt="Illustration of the role this brief needs: {{ r.role }}" loading="lazy"></div>
+            <div class="cm-rec-b">
+              <div class="cm-who">{{ r.title }}</div>
+              <div class="cm-role">{{ r.poster_name }} · {{ r.trust_label }}</div>
+              <div class="cm-tags"><span class="cm-chip {{ r.chip }}">{{ kind_labels[r.kind] }}</span>{% if r.genre %}<span class="cm-chip">{{ r.genre }}</span>{% endif %}</div>
+              <div class="cm-credits"><b>Why</b> · {{ r.why | join('; ') }}</div>
+              <div class="cm-split">
+                <div class="sp"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M13.2 6.2H8.4a2.1 2.1 0 000 4.2h3.2a2.1 2.1 0 010 4.2H6.4"/></svg><div><div class="k">{{ r.terms or 'Terms not stated' }}</div><div class="v">terms</div></div></div>
+                <div class="sp"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7.8" cy="6.8" r="2.7"/><path d="M3 16.2c0-2.7 2.1-4.5 4.8-4.5s4.8 1.8 4.8 4.5"/></svg><div><div class="k">{{ r.applicants }}</div><div class="v">applicant{{ '' if r.applicants == 1 else 's' }}</div></div></div>
+              </div>
+              <a class="sb-btn sb-btn-secondary sb-btn-sm cm-wide" href="/marketplace?brief={{ r.id }}#brief">View Brief</a>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="cm-empty">
+          <img src="/static/img/collab-role-mixing.webp" alt="" aria-hidden="true" loading="lazy">
+          <p>{% if rec_basis %}No open brief matches {{ rec_basis | join(', ') }} right now.{% else %}Nothing to recommend yet. Recommendations come from what you do here: post a brief with a genre, or apply to one as a role, and matching briefs from other members show up here.{% endif %}</p>
+        </div>
+        {% endif %}
+      </section>
+
+      {#- OPEN OPPORTUNITIES - the board, filtered by the fields briefs actually carry. -#}
+      <section class="cm-card" id="opps" aria-labelledby="cm-opp-h">
+        <div class="cm-chead">
+          <div><h2 id="cm-opp-h">Open opportunities</h2>
+            <p class="cm-cap">Real briefs posted by members. Nothing here is seeded.</p></div>
+        </div>
+        <form method="get" action="/marketplace#opps" class="cm-filters" data-cm-autosubmit>
+          {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+          {% if saved_only %}<input type="hidden" name="saved" value="1">{% endif %}
+          <label class="cm-fil"><span>Role</span>
+            <select name="role"><option value="">All roles</option>{% for r in roles %}<option value="{{ r }}" {{ 'selected' if role == r }}>{{ r }}</option>{% endfor %}</select></label>
+          <label class="cm-fil"><span>Genre</span>
+            <select name="genre"><option value="">All genres</option>{% for g in genres %}<option value="{{ g }}" {{ 'selected' if genre == g }}>{{ g }}</option>{% endfor %}</select></label>
+          <label class="cm-fil"><span>Deal</span>
+            <select name="kind"><option value="">All types</option>{% for k, lbl in kind_labels.items() %}<option value="{{ k }}" {{ 'selected' if kind == k }}>{{ lbl }}</option>{% endfor %}</select></label>
+          {#- Shown only without JavaScript; collab-market.js submits on change. -#}
+          <button class="sb-btn sb-btn-secondary sb-btn-sm cm-fgo">Filter</button>
+          {% if kind or role or genre or q or saved_only %}<a class="cm-link" href="/marketplace#opps">Clear</a>{% endif %}
+        </form>
+        {% if saved_only or q %}<p class="cm-cap">{% if saved_only %}Showing your saved briefs. {% endif %}{% if q %}Matching "{{ q }}".{% endif %}</p>{% endif %}
+        {% if requests %}
+        <div class="cm-scroll">
+          <table class="cm-table">
+            <thead><tr><th scope="col" class="cm-bcol">Brief</th><th scope="col">Role</th><th scope="col">Genre</th><th scope="col">Deal</th><th scope="col">Applicants</th><th scope="col">Deadline</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+            <tbody>
+            {% for r in requests %}
+            <tr>
+              <td><div class="cm-brief"><span class="cm-av" aria-hidden="true">{{ r.initials }}</span>
+                <div><a class="bt" href="/marketplace?brief={{ r.id }}#brief" title="{{ r.title }}">{{ r.title }}</a><div class="bw" title="{{ r.poster_name }} · {{ r.trust_label }}">{{ r.poster_name }} · {{ r.trust_label }}</div></div></div></td>
+              <td>{{ r.role }}</td>
+              <td>{% if r.genre %}<span class="cm-chip">{{ r.genre }}</span>{% else %}<span class="cm-dim">Any</span>{% endif %}</td>
+              <td><span class="cm-chip {{ r.chip }}">{{ kind_labels[r.kind] }}</span>{% if r.terms %}<div class="cm-deal">{{ r.terms }}</div>{% endif %}</td>
+              <td class="cm-n">{{ r.applicants }}</td>
+              <td class="cm-dead">{% if r.closes %}{{ r.closes_label }}{% if r.days_left is not none %}<span class="left">{{ 'Closes today' if r.days_left == 0 else '%d day%s left' % (r.days_left, '' if r.days_left == 1 else 's') }}</span>{% endif %}{% else %}<span class="cm-dim">Open-ended</span>{% endif %}</td>
+              <td class="cm-acts"><a class="sb-btn sb-btn-secondary sb-btn-sm" href="/marketplace?brief={{ r.id }}#brief">View Brief</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if more %}<p class="cm-cap">Showing the newest {{ requests | length }}. {{ more }} more match; narrow them with search or the filters.</p>{% endif %}
+        {% else %}
+        <div class="cm-empty">
+          <img src="/static/img/collab-role-producer.webp" alt="" aria-hidden="true" loading="lazy">
+          <p>{% if kind or role or genre or q or saved_only %}No open brief matches that. <a class="cm-inline" href="/marketplace#opps">Clear the filters</a> or post your own.{% else %}No open briefs yet. This board starts empty on purpose: every brief is a real member. Be the first to post one.{% endif %}</p>
+          <a href="/marketplace?tab=briefs#post" class="sb-btn sb-btn-primary sb-btn-sm">Post a Brief</a>
+        </div>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside class="cm-col" aria-label="Your projects and trust">
+      {#- PROJECT PIPELINE - the latest of your own briefs. -#}
+      <section class="cm-card" aria-labelledby="cm-pipe-h">
+        <div class="cm-chead"><h2 id="cm-pipe-h">Project Pipeline</h2>
+          {% if own %}<a class="cm-link" href="/marketplace?tab=projects">All projects{{ arrow() }}</a>{% endif %}</div>
+        {% if latest %}
+          {% with p = latest %}{% include "partials/collab_pipeline.html" %}{% endwith %}
+        {% else %}
+        <p class="cm-cap cm-gap">No brief yet. Post one and its progress shows here, stage by stage.</p>
+        <a href="/marketplace?tab=briefs#post" class="sb-btn sb-btn-primary cm-wide">Post a Brief</a>
+        {% endif %}
+      </section>
+
+      {#- TRUST SIGNALS - the account's own score, the one beside its name on every
+          brief. A factor with nothing to measure says so; it is not drawn as 0. -#}
+      <section class="cm-card" aria-labelledby="cm-trust-h">
+        <h2 id="cm-trust-h">Your trust signals</h2>
+        {% if trust_scored %}
+        <p class="cm-cap">Posters see your Trust Score, <b class="cm-score">{{ trust.total }}/100</b>, beside your name. Each signal below is out of 10 and read from your own Street Banker record.</p>
+        {% else %}
+        <p class="cm-cap">Your Trust Score is <b class="cm-score">not scored yet</b>: nothing on your Street Banker record feeds it so far, so posters see "Trust not scored" beside your name.</p>
+        {% endif %}
+        <div class="cm-health">
+          {% for f in trust_rows %}
+          <div class="cm-hrow" title="{{ f.note }}">
+            <span class="cm-hl"><svg viewBox="0 0 20 20" aria-hidden="true">{{ f.icon }}</svg>{{ f.name }}</span>
+            {% if f.unmeasured %}
+            <span class="cm-hnm">Not measured yet: {{ f.unmeasured }}</span>
+            {% else %}
+            <span class="cm-hbar" role="img" aria-label="{{ f.name }}: {{ f.pts }} of 10"><i class="{{ 'full' if f.pts >= 10 }}" style="width: {{ f.pts * 10 }}%"></i></span>
+            <span class="cm-hsc">{{ f.pts }}/10</span>
+            {% endif %}
           </div>
           {% endfor %}
         </div>
-      </div>
-      <img src="/static/img/collab-flow.jpg" alt="Illustration: collaborator cards feeding one project" class="hidden h-full w-full object-cover lg:block" loading="lazy">
-    </div>
-  </section>
-
-  <!-- Interactive kind filters -->
-  <div class="flex flex-wrap gap-2">
-    {% for k, label, blurb in [('', 'All requests', ''), ('bid', 'For Bid', 'paid work, poster sets the budget'), ('split', 'Royalty Split', 'points on the song instead of cash'), ('fun', 'For Fun', 'portfolio and community builds')] %}
-    <a href="/marketplace?kind={{ k }}{% if role %}&role={{ role }}{% endif %}{% if genre %}&genre={{ genre }}{% endif %}"
-       class="rounded-xl border px-4 py-2.5 {{ 'border-amber-500/50 bg-amber-500/15' if kind == k else 'border-white/10 bg-sb-surface-1 hover:border-white/25' }}">
-      <div class="text-xs font-bold uppercase tracking-wide {{ 'text-amber-400' if kind == k else 'text-gray-200' }}">{{ label }}</div>
-      {% if blurb %}<div class="text-xs text-gray-300 font-medium">{{ blurb }}</div>{% endif %}
-    </a>
-    {% endfor %}
+        <div class="cm-note"><b>Every score is its parts.</b> No single number stands alone: each signal comes from a record you can check and improve. A signal not measured yet adds nothing to the score. <a class="cm-inline" href="/trust-score">See your Trust Score</a></div>
+      </section>
+    </aside>
   </div>
 
-  <!-- Role / genre filters -->
-  <form method="get" action="/marketplace" class="flex flex-wrap items-center gap-2">
-    {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
-    <select name="role" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white">
-      <option value="">Any role</option>
-      {% for r in roles %}<option value="{{ r }}" {{ 'selected' if role == r }}>{{ r }}</option>{% endfor %}
-    </select>
-    <input name="genre" value="{{ genre }}" placeholder="Genre (exact tag)"
-           class="w-40 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
-    <button class="sb-btn sb-btn-secondary sb-btn-sm">Filter</button>
-    {% if kind or role or genre %}<a href="/marketplace" class="text-xs font-semibold text-amber-400 hover:underline">Clear</a>{% endif %}
-  </form>
-
-  <!-- Open requests -->
-  <section class="space-y-3">
-    <h2 class="sb-label text-sb-gold">Open Requests</h2>
-    {% for r in requests %}
-    <div class="rounded-2xl border border-white/10 bg-sb-surface-1 p-4">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide {{ 'border-sb-gold/50 bg-sb-gold/10 text-sb-gold-bright' if r.kind == 'bid' else ('border-sky-500/40 bg-sky-500/10 text-sky-400' if r.kind == 'split' else 'border-white/15 bg-white/5 text-gray-300') }}">{{ {'bid': 'For Bid', 'split': 'Royalty Split', 'fun': 'For Fun'}[r.kind] }}</span>
-        <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ r.title }}</span>
-        <span class="text-xs text-gray-300 font-medium">{{ r.ago }}</span>
-        {% if r.closes %}<span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-400">closes {{ r.closes }}</span>{% endif %}
-        <form method="post" action="/marketplace/{{ r.id }}/save">
-          <button title="{{ 'Saved — click to remove' if r.id in saves else 'Save for later' }}" class="text-base {{ 'text-sb-gold-bright' if r.id in saves else 'text-gray-300 hover:text-white' }}">{{ '★' if r.id in saves else '☆' }}</button>
-        </form>
-      </div>
-      <div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-300 font-medium">
-        <span class="font-bold text-gray-200">{{ r.poster_name }}</span>
-        <span class="rounded-full border border-white/10 px-2 py-0.5" title="Poster's real Trust Score — completeness and verifiability of their Street Banker record">Trust {{ r.trust }}</span>
-        <span>needs a <span class="font-bold text-gray-200">{{ r.role }}</span></span>
-        {% if r.genre %}<span class="rounded-full border border-white/10 px-2 py-0.5">{{ r.genre }}</span>{% endif %}
-        {% if r.terms %}<span class="rounded-full border border-sb-gold/30 bg-sb-gold/5 px-2 py-0.5 font-bold text-sb-gold-bright">{{ r.terms }}</span>{% endif %}
-      </div>
-      {% if r.details %}<p class="mt-2 text-xs leading-relaxed text-gray-300">{{ r.details }}</p>{% endif %}
-      {% if r.ref_url %}<a href="{{ r.ref_url }}" target="_blank" rel="noopener noreferrer" class="mt-2 inline-block text-xs font-bold text-sb-gold-bright hover:underline">▶ Hear the reference track ↗</a>{% endif %}
-      {% if r.user_id != user.id %}
-      <details class="mt-3">
-        <summary class="inline-block cursor-pointer rounded-lg bg-sb-gold-bright px-4 py-1.5 text-xs font-black text-sb-on-gold hover:bg-sb-gold-bright">Apply / Submit</summary>
-        <form method="post" action="/marketplace/{{ r.id }}/apply" class="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/30 p-3">
-          <textarea name="message" required rows="3" placeholder="Pitch yourself — what you'd bring to this track…" class="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300"></textarea>
-          <div class="flex flex-wrap gap-2">
-            <input name="contact" type="email" required placeholder="you@email.com" class="w-52 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
-            <input name="proposal" placeholder="Your terms (e.g. $200 flat · 10% master)" class="w-64 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
-            <input name="ref_url" type="url" placeholder="Link to your work (smart link, portfolio…)" class="w-64 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white placeholder-gray-300">
-          </div>
-          <button class="sb-btn sb-btn-primary sb-btn-sm">Send application</button>
-          <p class="text-xs text-gray-300 font-medium">The poster gets your message and contact — terms are between the two of you. Street Banker doesn't hold funds or broker deals.</p>
-        </form>
-      </details>
-      {% else %}
-      <p class="mt-2 text-xs uppercase tracking-wide text-gray-300 font-medium">Your request — applications appear below.</p>
-      {% endif %}
-    </div>
-    {% else %}
-    <div class="rounded-2xl border border-dashed border-white/10 py-10 text-center text-sm text-gray-300">
-      {% if kind or role or genre %}No open requests match those filters — <a href="/marketplace" class="font-semibold text-amber-400 hover:underline">clear them</a> or post your own below.
-      {% else %}No open requests yet. This board starts empty on purpose — every card is a real member. Be the first to post.{% endif %}
-    </div>
-    {% endfor %}
-  </section>
-
-  <!-- My requests -->
-  {% if own %}
-  <section class="space-y-3">
-    <h2 class="sb-label text-sb-gold">My Requests</h2>
+  {% elif tab == 'briefs' %}
+  <section class="cm-card" aria-labelledby="cm-mine-h">
+    <div class="cm-chead"><div><h2 id="cm-mine-h">My Briefs</h2>
+      <p class="cm-cap">Every brief you have posted, with the applications it drew.</p></div></div>
     {% for r in own %}
-    <div class="rounded-2xl border {{ 'border-sb-gold/30' if r.status == 'open' else 'border-white/10 opacity-70' }} bg-sb-surface-2 p-4">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ r.title }}</span>
-        <span class="rounded-full border border-white/10 px-2 py-0.5 text-xs font-bold uppercase text-gray-300">{{ r.status }}</span>
-        {% if r.status == 'open' %}
-        <form method="post" action="/marketplace/{{ r.id }}/close"><button class="sb-btn sb-btn-secondary sb-btn-sm">Close</button></form>
-        {% endif %}
+    <div class="cm-item {{ 'is-closed' if r.state != 'open' }}">
+      <div class="cm-item-h">
+        <span class="bt">{{ r.title }}</span>
+        <span class="cm-chip {{ 'gold' if r.state == 'open' else ('warn' if r.state == 'expired') }}">{{ r.state_label }}</span>
+        <span class="cm-dim">{{ r.applicants }} application{{ '' if r.applicants == 1 else 's' }}</span>
+        {% if r.status == 'open' %}<form method="post" action="/marketplace/{{ r.id }}/close"><button class="sb-btn sb-btn-secondary sb-btn-sm">Close</button></form>{% endif %}
         <form method="post" action="/marketplace/{{ r.id }}/delete"><button class="sb-btn sb-btn-danger sb-btn-sm">Remove</button></form>
       </div>
       {% set apps = replies_by_req.get(r.id, []) %}
-      {% if apps %}
-      <div class="mt-3 space-y-2">
-        {% for a in apps %}
-        <div class="rounded-xl border border-white/10 bg-black/30 p-3">
-          <div class="flex flex-wrap items-center gap-2 text-xs font-medium">
-            <span class="font-bold text-gray-200">{{ a.applicant_name }}</span>
-            <a href="mailto:{{ a.contact }}" class="font-mono text-sb-gold-bright hover:underline">{{ a.contact }}</a>
-            {% if a.proposal %}<span class="rounded-full border border-sb-gold/30 px-2 py-0.5 font-bold text-sb-gold-bright">{{ a.proposal }}</span>{% endif %}
-            {% if a.ref_url %}<a href="{{ a.ref_url }}" target="_blank" rel="noopener noreferrer" class="text-sb-gold-bright hover:underline">their work ↗</a>{% endif %}
-          </div>
-          <p class="mt-1 text-xs text-gray-300">{{ a.message }}</p>
+      {% for a in apps %}
+      <div class="cm-app">
+        <div class="cm-app-h"><span class="cm-av" aria-hidden="true">{{ a.applicant_name[:1] | upper if a.applicant_name else '?' }}</span>
+          <b>{{ a.applicant_name }}</b>
+          <a class="cm-inline" href="mailto:{{ a.contact }}">{{ a.contact }}</a>
+          {% if a.proposal %}<span class="cm-chip gold">{{ a.proposal }}</span>{% endif %}
+          {% if a.ref_url %}<a class="cm-inline" href="{{ a.ref_url }}" target="_blank" rel="noopener noreferrer">their work (opens in a new tab)</a>{% endif %}
         </div>
-        {% endfor %}
+        <p>{{ a.message }}</p>
       </div>
       {% else %}
-      <p class="mt-2 text-xs text-gray-300 font-medium">No applications yet.</p>
-      {% endif %}
+      <p class="cm-cap">No applications yet.</p>
+      {% endfor %}
     </div>
+    {% else %}
+    <p class="cm-cap cm-gap">You have not posted a brief yet.</p>
     {% endfor %}
+  </section>
+
+  <section class="cm-card" id="post" aria-labelledby="cm-post-h">
+    <h2 id="cm-post-h">Post a Brief</h2>
+    <p class="cm-cap">Say what you need and put your terms up front. Your Trust Score shows beside your name.</p>
+    <form method="post" action="/marketplace/post" class="cm-form">
+      <div class="cm-fields">
+        <select name="kind" required aria-label="Deal type">
+          <option value="bid">Paid: I set the budget</option>
+          <option value="split">Royalty split: points on the song</option>
+          <option value="fun">For fun: no money involved</option>
+        </select>
+        <select name="role" required aria-label="Role needed">{% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select>
+        <input name="genre" placeholder="Genre" aria-label="Genre">
+      </div>
+      <input name="title" required maxlength="120" placeholder="What do you need? (e.g. Airy topline for a late-night driver)" aria-label="Title">
+      <textarea name="details" rows="3" placeholder="Details: vibe, references, deadline" aria-label="Details"></textarea>
+      <div class="cm-fields">
+        <input name="terms" placeholder="Terms (e.g. $150-$300, 5-15% master)" aria-label="Terms">
+        <input name="ref_url" type="url" placeholder="Scratch track link" aria-label="Scratch track link">
+        <input name="closes" type="date" aria-label="Closing date (optional)">
+      </div>
+      <button class="sb-btn sb-btn-primary">Post brief</button>
+    </form>
+  </section>
+
+  {% elif tab == 'applications' %}
+  <section class="cm-card" aria-labelledby="cm-sent-h">
+    <div class="cm-chead"><div><h2 id="cm-sent-h">Applications</h2>
+      <p class="cm-cap">Every application you have sent, and whether the brief is still open.</p></div></div>
+    {% if sent %}
+    <div class="cm-scroll">
+      <table class="cm-table">
+        <thead><tr><th scope="col">Brief</th><th scope="col">Role</th><th scope="col">Your terms</th><th scope="col">Sent</th><th scope="col">Brief status</th></tr></thead>
+        <tbody>
+        {% for a in sent %}
+        <tr>
+          <td><div class="cm-brief"><span class="cm-av" aria-hidden="true">{{ a.poster_name[:1] | upper if a.poster_name else '?' }}</span>
+            <div><div class="bt">{{ a.title }}</div><div class="bw">{{ a.poster_name }}</div></div></div></td>
+          <td>{{ a.role }}</td>
+          <td>{{ a.proposal or 'Not stated' }}</td>
+          <td class="cm-n">{{ a.sent_label }}</td>
+          <td><span class="cm-chip {{ 'gold' if a.state == 'open' else ('warn' if a.state == 'expired') }}">{{ a.state_label }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="cm-empty">
+      <img src="/static/img/collab-role-vocalist.webp" alt="" aria-hidden="true" loading="lazy">
+      <p>You have not applied to a brief yet. Open one from <a class="cm-inline" href="/marketplace#opps">Open opportunities</a> and pitch yourself.</p>
+    </div>
+    {% endif %}
+  </section>
+
+  {% elif tab == 'projects' %}
+  <section class="cm-card" aria-labelledby="cm-proj-h">
+    <div class="cm-chead"><div><h2 id="cm-proj-h">Active Projects</h2>
+      <p class="cm-cap">Your open briefs, not past their closing date, that have drawn at least one application.</p></div></div>
+    {% if projects %}
+    <div class="cm-projects">
+      {% for p in projects %}<div class="cm-proj">{% include "partials/collab_pipeline.html" %}</div>{% endfor %}
+    </div>
+    {% else %}
+    <p class="cm-cap cm-gap">No active project yet. A brief becomes one when somebody applies to it.</p>
+    <a href="/marketplace?tab=briefs#post" class="sb-btn sb-btn-primary sb-btn-sm">Post a Brief</a>
+    {% endif %}
   </section>
   {% endif %}
 
-  <!-- Post a request -->
-  <section class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-ground p-5">
-    <h2 class="sb-label text-gray-300">Post a Request</h2>
-    <form method="post" action="/marketplace/post" class="mt-3 space-y-2.5">
-      <div class="flex flex-wrap gap-2">
-        <select name="kind" required class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-xs text-white">
-          <option value="bid">For Bid — I'm paying</option>
-          <option value="split">Royalty Split — points on the song</option>
-          <option value="fun">For Fun — no money involved</option>
-        </select>
-        <select name="role" required class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-xs text-white">
-          {% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
-        </select>
-        <input name="genre" placeholder="Genre" class="w-36 rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-xs text-white placeholder-gray-300">
-      </div>
-      <input name="title" required maxlength="120" placeholder="What do you need? (e.g. Airy topline for a late-night driver)" class="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-xs text-white placeholder-gray-300">
-      <textarea name="details" rows="2" placeholder="Details — vibe, references, deadline…" class="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-xs text-white placeholder-gray-300"></textarea>
-      <div class="flex flex-wrap gap-2">
-        <input name="terms" placeholder="Terms up front (e.g. $150–$300 · 5–15% master)" class="w-72 rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-xs text-white placeholder-gray-300">
-        <input name="ref_url" type="url" placeholder="Scratch track link (smart link, private stream…)" class="w-72 rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-xs text-white placeholder-gray-300">
-        <input name="closes" type="date" title="Optional closing date" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-xs text-white">
-      </div>
-      <button class="sb-btn sb-btn-primary">Post request</button>
-      <p class="text-xs text-gray-300 font-medium">Stating a budget or split range up front gets better applicants. Your Trust Score shows on the card — a complete Street Banker record is your credibility here.</p>
-    </form>
-  </section>
 </div>
 {% endblock %}
+
+{% block scripts %}<script src="/static/js/collab-market.js?v=1" defer></script>{% endblock %}

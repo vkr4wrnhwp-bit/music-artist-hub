@@ -2,7 +2,7 @@
 
 One partner-facing number that says: this artist's business is in order.
 Ten factors, ten points each, every point computed from real account
-state — metadata coverage, documented splits, connected statements,
+state: metadata coverage, documented splits, connected statements,
 consented fan data, release readiness, sync clearance, press kit,
 deal hygiene, tracked promo, and catalog depth. Factors under 5 are
 blockers, and every blocker names its fix.
@@ -44,7 +44,9 @@ def calculate(user_id):
     split_deals = [d for d in deals if d["deal_type"] == "split"
                    and d["status"] == "signed"]
     statements = store.get_statements(user_id)
-    fans = mls.list_fans(user_id)
+    # Consent counts only while it stands: a fan who unsubscribed or was
+    # suppressed is no longer consented data, so is not counted here.
+    fans = [f for f in mls.list_fans(user_id) if not f.get("suppressed")]
     campaigns = [c for c in mls.list_campaigns(user_id) if not c.get("archived_at")]
     scores = [links_engine.calculate_street_banker_score(
         c, mls.get_destinations(c["id"]))["total"] for c in campaigns]
@@ -60,13 +62,13 @@ def calculate(user_id):
 
     factors = [
         ("Metadata coverage", _pts(with_isrc, max(len(tracks), 1)) if tracks else 0,
-         "Add catalog tracks — ISRCs auto-pull and close this gap."),
+         "Add catalog tracks. ISRCs auto-pull and close this gap."),
         ("Splits documented", 10 if split_deals else (5 if deals else 0),
          "Generate and sign split agreements in the Deal Room."),
         ("Statements connected", 10 if statements else 0,
          "Upload a royalty statement so income claims are verifiable."),
         ("Fan data consented", 10 if fans else 0,
-         "Capture fans through your links — every signup logs consent."),
+         "Capture fans through your links. Every signup logs consent."),
         ("Release readiness", _pts(best_score, 100),
          "Run the Clean Release checklist on your next campaign."),
         ("Sync clearance", 10 if cleared_packs else (5 if packs else 0),
@@ -81,11 +83,24 @@ def calculate(user_id):
         ("Promo attribution", 10 if variants else (5 if campaigns else 0),
          "Create campaign variants so every promo channel is measured."),
         ("Catalog depth", _pts(len(tracks) + len(campaigns), 6),
-         "Keep releasing — depth compounds trust."),
+         "Keep releasing. Depth compounds trust."),
         ("Verified platform presence", _pulse_pts(user_id),
-         "Link your Spotify profile on Artist Pulse — partners can verify "
+         "Link your Spotify profile on Artist Pulse so partners can verify "
          "your numbers are real."),
     ]
+
+    # Factors with nothing to measure yet: a ratio over an empty set, or a
+    # presence check with no profile linked. They still score 0 in the
+    # total (unchanged), but a screen can say "Not measured yet" and why
+    # instead of drawing a 0/10 bar as if something had been measured.
+    unmeasured = {}
+    if not tracks:
+        unmeasured["Metadata coverage"] = "no catalog tracks yet"
+    if not campaigns:
+        unmeasured["Release readiness"] = "no campaigns yet"
+        unmeasured["Promo attribution"] = "no campaigns yet"
+    if store.get_pulse_profile(user_id) is None:
+        unmeasured["Verified platform presence"] = "no Spotify profile linked"
 
     # Eleven factors of 10; normalized so the total stays a 0-100 score.
     total = round(sum(pts for _, pts, _ in factors) * 100 / (len(factors) * 10))
@@ -103,4 +118,4 @@ def calculate(user_id):
     except Exception:
         pass
     return {"total": total, "factors": factors, "blockers": blockers,
-            "verdict": verdict}
+            "verdict": verdict, "unmeasured": unmeasured}

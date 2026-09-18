@@ -141,7 +141,12 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "artist-twin",
              "revenue-os", "overview", "royalties", "recovery",
              "valuation", "links", "rollout", "artwork", "services", "submit",
-             "inbox", "settings", "discover", "catalog", "command-center",
+             "inbox", "settings", "catalog", "command-center",
+             # F-5 (audit 2026-09-18): the badges were backwards. The Collab
+             # Marketplace is a real db-backed board (nothing seeded), so it
+             # is live; Discover shows example artists, so it is NOT here and
+             # wears the Sample badge.
+             "marketplace",
              "actions", "autopilot", "scores",
              "vault", "pulse", "team", "tax",
              "income", "disputes", "fans", "portal",
