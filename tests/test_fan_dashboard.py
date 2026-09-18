@@ -139,7 +139,10 @@ def test_an_account_with_no_fans_gets_an_honest_empty_state(application, artist)
     and the panel should say what makes a fan rather than show nothing."""
     client, _user = artist
     body = _text(client.get("/fans"))
-    assert "No fans captured yet" in body
+    # 2026-09-18: a real account with nobody on file gets the owner-approved
+    # first-run page at /fans, not the old "No fans captured yet" panel
+    # (tests/test_fans_first_run.py locks it). Updated deliberately.
+    assert "Your audience already exists" in body
     assert "smart link" in body.lower()
 
 
@@ -159,7 +162,10 @@ def test_one_accounts_fans_never_reach_another(application, artist):
                                     "fd-other-%s@example.net" % uuid.uuid4().hex[:8])
     body = _text(other_client.get("/fans"))
     assert "ada@example.net" not in body
-    assert "No fans captured yet" in body
+    # 2026-09-18: a real account with nobody on file gets the owner-approved
+    # first-run page at /fans, not the old "No fans captured yet" panel
+    # (tests/test_fans_first_run.py locks it). Updated deliberately.
+    assert "Your audience already exists" in body
 
 
 # --- QR codes are a shipped feature ----------------------------------------

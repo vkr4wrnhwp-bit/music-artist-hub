@@ -42,9 +42,17 @@ def _account(application, email=None):
 
 
 def _import(client, rows):
+    # 2026-09-18: the import previews, then files on confirm (see
+    # tests/test_fans_first_run.py). This helper wants a finished import, so
+    # it confirms the preview deliberately; it used to rely on the POST
+    # saving at once.
     lines = ["email,name,city,country"] + ["%s,%s,%s,%s" % r for r in rows]
-    return client.post("/links/fans/import/list", data={
+    r = client.post("/links/fans/import/list", data={
         "text": "\n".join(lines), "source": "Mailchimp, shows 2025", "confirm": "1"})
+    assert r.status_code == 302 and r.headers["Location"].endswith("/fans/import")
+    draft_id = re.search(r'name="draft_id" value="([0-9a-f]+)"',
+                         client.get("/fans/import").get_data(as_text=True)).group(1)
+    return client.post("/fans/import/confirm", data={"draft_id": draft_id})
 
 
 def _populated(application):
@@ -76,8 +84,29 @@ def _main(html):
 # --- a fresh account ---------------------------------------------------------
 
 def test_a_fresh_account_shows_no_invented_numbers(application):
-    client, _user = _account(application)
-    html = client.get("/fans").get_data(as_text=True)
+    # 2026-09-18: a real account with nobody on file now gets the first-run
+    # page (owner-approved), not the Audience screen's empty panels; its own
+    # no-invented-number lock is in tests/test_fans_first_run.py. The empty
+    # Audience screen is still what fan_audience builds for nobody, and it
+    # must still read as zeros and "Not measured yet", so this renders it
+    # directly rather than through /fans.
+    import flask
+    client, user = _account(application)
+    seen = []
+
+    def grab(sender, template, context, **extra):
+        seen.append((template.name, dict(context)))
+    flask.template_rendered.connect(grab, application)
+    try:
+        first = _main(client.get("/fans").get_data(as_text=True))
+    finally:
+        flask.template_rendered.disconnect(grab, application)
+    assert "Your audience already exists" in first and "au-tiles" not in first
+    name, ctx = seen[0]
+    assert name == "fans_first_run.html" and ctx["audience"]["total"] == 0
+    with application.test_request_context("/fans"):
+        ctx = {k: v for k, v in ctx.items() if k not in ("request", "session", "g", "config")}
+        html = flask.render_template("fans.html", **ctx)
     main = _main(html)
     assert "No fans captured yet" in main and "smart link" in main.lower()
     for stat in ("total", "contactable", "never"):
@@ -148,7 +177,10 @@ def test_tour_demand_reads_the_accounts_own_shows(application):
         a = fan_audience.for_account(user["id"])
     assert [c["city"] for c in a["tour"]["covered"]] == ["Atlanta"]
     assert [c["city"] for c in a["tour"]["uncovered"]] == ["London"]
-    fresh, _ = _account(application)
+    # A fresh account with nobody on file gets the first-run page now
+    # (2026-09-18), so the no-shows line is checked with one fan on file.
+    fresh, fresh_user = _account(application)
+    mls.upsert_fan(fresh_user["id"], "solo-%s@example.org" % uuid.uuid4().hex[:6], None)
     assert "No shows are booked yet" in fresh.get("/fans").get_data(as_text=True)
 
 

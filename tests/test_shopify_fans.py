@@ -197,7 +197,10 @@ def test_the_fan_dashboard_offers_the_import_on_its_empty_state(monkeypatch):
     app_obj = create_app()
     client, user = _artist(app_obj, monkeypatch)
     page = client.get("/fans").get_data(as_text=True)
-    assert "No fans captured yet" in page and "Import subscribed Shopify customers" in page
+    # 2026-09-18: a real account with nobody on file gets the owner-approved
+    # first-run page at /fans, not the old "No fans captured yet" panel
+    # (tests/test_fans_first_run.py locks it). Updated deliberately.
+    assert "Your audience already exists" in page and "Import subscribed Shopify customers" in page
     monkeypatch.delenv("SHOPIFY_ADMIN_TOKEN", raising=False)
     page = client.get("/fans").get_data(as_text=True)
     assert "Import subscribed Shopify customers" not in page

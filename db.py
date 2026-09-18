@@ -512,6 +512,28 @@ def init_db():
                 cursor TEXT NOT NULL DEFAULT '',
                 created TEXT NOT NULL
             );
+            -- A read list waiting for the artist to confirm it (2026-09-18).
+            -- "Preview the import" parks the parsed rows here and writes no
+            -- fan; "Confirm and import" claims the row and files exactly
+            -- what it holds. One live draft per user. Unusable after 24
+            -- hours, and deleted by the next read or write of any draft
+            -- (get, claim, put all purge expired rows), so a list of other
+            -- people's addresses does not sit on disk or in the nightly
+            -- backup for longer than it has to.
+            -- Held server-side, never in the cookie: 50,000 rows do not fit
+            -- in one, and a cookie is the visitor's to edit.
+            CREATE TABLE IF NOT EXISTS fan_import_drafts (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                origin TEXT NOT NULL DEFAULT 'fans',
+                source TEXT NOT NULL DEFAULT '',
+                has_status_column INTEGER NOT NULL DEFAULT 0,
+                summary TEXT NOT NULL DEFAULT '{}',
+                rows TEXT NOT NULL DEFAULT '[]',
+                created TEXT NOT NULL,
+                expires TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_fan_import_drafts_user ON fan_import_drafts(user_id);
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -4163,6 +4185,85 @@ def latest_fan_import(user_id, source):
     except ValueError:
         d["summary"] = {}
     return d
+
+
+FAN_IMPORT_DRAFT_HOURS = 24
+
+
+def _draft_row(row):
+    d = dict(row)
+    try:
+        d["summary"] = json.loads(d.get("summary") or "{}")
+        d["rows"] = json.loads(d.get("rows") or "[]")
+    except ValueError:
+        d["summary"], d["rows"] = {}, []
+    d["has_status_column"] = bool(d.get("has_status_column"))
+    return d
+
+
+def _purge_expired_drafts(db, now):
+    """Delete every expired draft, anybody's. The table holds at most one
+    row per user, so this is cheap; it runs on every draft read and write,
+    so an expired list is gone the next time anyone touches a draft."""
+    db.execute("DELETE FROM fan_import_drafts WHERE expires < ?", (now,))
+
+
+def put_fan_import_draft(user_id, origin, source, has_status_column, summary, rows):
+    """Park a read list for the artist to confirm. Replaces any draft the
+    user already had (one live draft each) and clears everybody's expired
+    ones on the way. Returns the new draft's id."""
+    draft_id = uuid.uuid4().hex
+    now = datetime.now(timezone.utc)
+    with get_db() as db:
+        db.execute("DELETE FROM fan_import_drafts WHERE user_id = ? OR expires < ?",
+                   (user_id, now.isoformat(timespec="seconds")))
+        db.execute("INSERT INTO fan_import_drafts (id, user_id, origin, source,"
+                   " has_status_column, summary, rows, created, expires)"
+                   " VALUES (?,?,?,?,?,?,?,?,?)",
+                   (draft_id, user_id, origin or "fans", (source or "")[:120],
+                    1 if has_status_column else 0, json.dumps(summary or {}),
+                    json.dumps(rows or []), now.isoformat(timespec="seconds"),
+                    (now + timedelta(hours=FAN_IMPORT_DRAFT_HOURS)).isoformat(timespec="seconds")))
+    return draft_id
+
+
+def get_fan_import_draft(user_id, draft_id=None):
+    """The user's live draft (or that exact one, if it is theirs and live).
+    None for a stale, foreign or unknown id."""
+    now = _now()
+    with get_db() as db:
+        _purge_expired_drafts(db, now)
+        if draft_id:
+            row = db.execute("SELECT * FROM fan_import_drafts WHERE id = ? AND user_id = ?"
+                             " AND expires >= ?", (draft_id, user_id, now)).fetchone()
+        else:
+            row = db.execute("SELECT * FROM fan_import_drafts WHERE user_id = ? AND expires >= ?"
+                             " ORDER BY created DESC, rowid DESC LIMIT 1", (user_id, now)).fetchone()
+    return _draft_row(row) if row is not None else None
+
+
+def claim_fan_import_draft(user_id, draft_id):
+    """Take the draft out of the table and hand it back, once. The DELETE is
+    the claim: a second confirm of the same draft, a double click, or
+    another account's id finds nothing and gets None."""
+    if not draft_id:
+        return None
+    with get_db() as db:
+        _purge_expired_drafts(db, _now())
+        row = db.execute("SELECT * FROM fan_import_drafts WHERE id = ? AND user_id = ?"
+                         " AND expires >= ?", (draft_id, user_id, _now())).fetchone()
+        if row is None:
+            return None
+        gone = db.execute("DELETE FROM fan_import_drafts WHERE id = ? AND user_id = ?",
+                          (draft_id, user_id)).rowcount
+    return _draft_row(row) if gone == 1 else None
+
+
+def drop_fan_import_draft(user_id, draft_id):
+    """Cancel. Only the owner's own draft; returns whether one went."""
+    with get_db() as db:
+        return db.execute("DELETE FROM fan_import_drafts WHERE id = ? AND user_id = ?",
+                          (draft_id or "", user_id)).rowcount == 1
 
 
 def latest_recovery_mlc_sweep(user_id):

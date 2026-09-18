@@ -9561,14 +9561,7 @@ def create_app():
         # until now nothing read that back, so an import finished in
         # silence. The counts shown are the ones the import stored.
         imp = request.args.get("imp") or ""
-        fan_import_result = {
-            "needs-source": {"error": "Say where these people gave you permission, and tick the box, before the list is read."},
-            "unreadable": {"error": "That file could not be read as text. Export it as a CSV and try again."},
-            "empty": {"error": "There was nothing in the file or the box to read."},
-        }.get(imp)
-        if imp == "done":
-            last_list = store.latest_fan_import(user["id"], "list")
-            fan_import_result = (last_list or {}).get("summary") or None
+        fan_import_result = _import_result(user["id"], imp)
         return render_template("links_fans.html", active_page="fans",
                                fan_import_result=fan_import_result,
                                au_resend=emailer.configured(),
@@ -9614,9 +9607,39 @@ def create_app():
         store.add_fan_import(user["id"], "shopify", summary, cursor=cursor or "")
         return redirect("/links/fans#import")
 
+    # Where a list import can send the artist back to, by the form it came
+    # from. Anything else is refused rather than followed.
+    _IMPORT_ORIGINS = {"fans": "/fans", "crm": "/links/fans"}
+
+    _IMPORT_ERRORS = {
+        "needs-source": "Say where these people gave you permission, and tick the box, before the list is read.",
+        "unreadable": "That file could not be read as text. Export it as a CSV and try again.",
+        "empty": "There was nothing in the file or the box to read.",
+        "no-address": "No column of email addresses was found. The file needs one, however it is spelled; a bare list of addresses works too.",
+        "stale": "That preview is no longer here: it was confirmed, cancelled, replaced by a newer one or is older than a day. Nothing more was added from it.",
+    }
+
+    def _import_result(user_id, imp):
+        """What the import panel says after a round trip: an error, or the
+        counts of the import that just ran, read back from its own record."""
+        if imp in _IMPORT_ERRORS:
+            return {"error": _IMPORT_ERRORS[imp]}
+        if imp == "done":
+            last_list = store.latest_fan_import(user_id, "list")
+            return (last_list or {}).get("summary") or None
+        return None
+
+    @app.route("/fans/import/preview", methods=["POST"])
     @app.route("/links/fans/import/list", methods=["POST"])
     def ml_fans_import_list():
-        """Read a list the artist already has, from a file or pasted text.
+        """Read a list the artist already has, from a file or pasted text,
+        and show what it would do. Writes no fan.
+
+        Until 2026-09-18 this route filed every row the moment the form was
+        sent, while the page promised a preview first. It now parks the
+        parsed rows as a draft (db.fan_import_drafts) and sends the artist
+        to /fans/import, where nothing is added until they confirm. The old
+        URL is kept and goes the same way, so there is one path in.
 
         Open to any signed-in account, unlike the Shopify import, which
         reads the owner's own store and is owner-only. This one reads what
@@ -9632,10 +9655,19 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        if _session_is_demo():
+            # The showcase has no import on it (partials/fans_head.html), and
+            # a preview it could confirm would write real rows onto the demo
+            # account (review, 2026-09-18).
+            return redirect("/fans")
+        origin = request.form.get("origin")
+        if origin not in _IMPORT_ORIGINS:
+            origin = "crm" if request.path.startswith("/links/") else "fans"
+        back = _IMPORT_ORIGINS[origin]
 
         source = (request.form.get("source") or "").strip()[:120]
         if not request.form.get("confirm") or not source:
-            return redirect("/links/fans?imp=needs-source#import")
+            return redirect(back + "?imp=needs-source#import")
 
         text = request.form.get("text") or ""
         upload = request.files.get("file")
@@ -9643,42 +9675,89 @@ def create_app():
             try:
                 text = upload.read().decode("utf-8-sig", "replace")
             except Exception:
-                return redirect("/links/fans?imp=unreadable#import")
+                return redirect(back + "?imp=unreadable#import")
         if not text.strip():
-            return redirect("/links/fans?imp=empty#import")
+            return redirect(back + "?imp=empty#import")
 
         parsed = fan_list_import.parse(text)
-        known = [f.get("email") or "" for f in mls.list_fans(user["id"])]
-        summary = fan_list_import.preview(parsed, known)
+        if parsed["columns"]["email"] is None:
+            return redirect(back + "?imp=no-address#import")
+        on_file = {f.get("email") or "": f for f in mls.list_fans(user["id"])}
+        summary = fan_list_import.preview(parsed, on_file.keys())
+        rows = fan_list_import.draft_rows(parsed, on_file)
+        # How many fans already here would get a missing place filled in:
+        # the only change confirm makes to them, counted now so the preview
+        # can say it (and say nothing would change when it is 0).
+        summary["places_to_fill"] = sum(1 for r in rows if r.get("fills"))
+        store.put_fan_import_draft(user["id"], origin, source,
+                                   parsed["has_status_column"], summary, rows)
+        return redirect("/fans/import")
 
-        # The preview is what runs. The counts the page shows are the ones
-        # that happened, not a second tally taken afterwards.
-        when = datetime.now(timezone.utc).date().isoformat()
-        note = fan_list_import.consent_note(source, when, parsed["has_status_column"])
-        known_set = {e.strip().lower() for e in known if e}
-        for row in parsed["rows"]:
-            if row["email"] in known_set:
-                # Already a fan, so nothing about their consent or tags
-                # changes. Where they are can still be learned: a second
-                # file that carries a city fills a gap the first one left.
-                # set_fan_place never overwrites something with nothing.
-                existing = mls.fan_by_email(user["id"], row["email"])
-                if existing:
-                    mls.set_fan_place(existing["id"], row.get("country"), row.get("city"))
-                continue
-            fan_id = mls.upsert_fan(user["id"], row["email"], None, row.get("name"))
-            mls.add_fan_tags(fan_id, ["imported"])
-            # The parser has read country and city from the file since the
-            # columns were added, and this loop dropped them on the floor:
-            # every imported fan landed in Unknown and sorting by region
-            # showed one group. Found 2026-09-18 while building the regions
-            # view the owner asked for.
-            mls.set_fan_place(fan_id, row.get("country"), row.get("city"))
-            if not mls.find_consent(fan_id, "list_import"):
-                mls.add_consent(fan_id, None, "list_import", note)
+    @app.route("/fans/import")
+    def fans_import_preview():
+        """The preview: counts, reasons, a masked sample. Nothing written."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if _session_is_demo():
+            return redirect("/fans")
+        draft = store.get_fan_import_draft(user["id"])
+        if draft is None:
+            return redirect("/fans?imp=stale#import")
+        ctx = build_dashboard_context()
+        ctx.update(draft=draft, s=draft["summary"],
+                   sample=fan_list_import.sample(draft["rows"]),
+                   places_to_fill=int(draft["summary"].get("places_to_fill") or 0),
+                   consent_line=_import_consent_line(draft),
+                   au_resend=emailer.configured(),
+                   au_tab="crm" if draft["origin"] == "crm" else "audience")
+        return render_template("fans_import_preview.html", active_page="fans", **ctx)
 
-        store.add_fan_import(user["id"], "list", summary)
-        return redirect("/links/fans?imp=done#import")
+    def _import_consent_line(draft):
+        """The sentence written on each new record. Dated the day the box
+        was ticked, which is the day the draft was made, so the preview's
+        quote and the note confirm writes are the same sentence even when
+        confirm comes after midnight (review, 2026-09-18)."""
+        return fan_list_import.consent_note(
+            draft["source"], (draft.get("created") or "")[:10]
+            or datetime.now(timezone.utc).date().isoformat(),
+            bool(draft.get("has_status_column")))
+
+    @app.route("/fans/import/confirm", methods=["POST"])
+    def fans_import_confirm():
+        """File exactly what the preview showed, once.
+
+        links_store.confirm_list_import does it all in one transaction: the
+        draft's DELETE is the claim, so a second press, a replayed form or
+        another account's id finds nothing and writes nothing, and a request
+        killed partway leaves the draft and writes nothing. Fans already
+        here only get a missing place filled; a place they hold is kept."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if _session_is_demo():
+            return redirect("/fans")
+        draft_id = request.form.get("draft_id") or ""
+        origin = (store.get_fan_import_draft(user["id"], draft_id) or {}).get("origin")
+        done = mls.confirm_list_import(user["id"], draft_id, _import_consent_line)
+        if done is None:
+            return redirect("/fans?imp=stale#import")
+        if origin == "crm":
+            return redirect("/links/fans?imp=done#import")
+        return redirect("/fans?imp=done")
+
+    @app.route("/fans/import/cancel", methods=["POST"])
+    def fans_import_cancel():
+        """Throw the draft away. Only the owner's own; nothing was written."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if _session_is_demo():
+            return redirect("/fans")
+        draft_id = request.form.get("draft_id") or ""
+        draft = store.get_fan_import_draft(user["id"], draft_id)
+        store.drop_fan_import_draft(user["id"], draft_id)
+        return redirect(_IMPORT_ORIGINS.get((draft or {}).get("origin"), "/fans"))
 
     @app.route("/links/fans/shopify/reconnect", methods=["POST"])
     def ml_fans_shopify_reconnect():
@@ -10593,6 +10672,17 @@ def create_app():
                 user["id"], resend_configured=emailer.configured())
         ctx["shopify_import"] = (shopify_customers.status()
                                  if _shopify_import_allowed(user) else None)
+        if not showcase:
+            ctx["fan_import_result"] = _import_result(user["id"], request.args.get("imp") or "")
+        # FIRST RUN (owner-approved mockup, 2026-09-18). A real account with
+        # nobody on file gets the import as the page, not a screen of empty
+        # panels; from the first fan it is the Audience screen as before.
+        # The showcase never sees this: it always has its generated rows.
+        if not showcase and not ctx["audience"]["total"]:
+            ctx["last_list_import"] = store.latest_fan_import(user["id"], "list")
+            ctx["pending_draft"] = store.get_fan_import_draft(user["id"])
+            ctx["import_max_rows"] = fan_list_import.MAX_ROWS
+            return render_template("fans_first_run.html", active_page="fans", **ctx)
         return render_template("fans.html", active_page="fans", **ctx)
 
     @app.route("/capital")

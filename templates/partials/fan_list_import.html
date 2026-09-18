@@ -35,6 +35,12 @@
           <strong>{{ "{:,}".format(r.skipped) }}</strong> left out,
           from {{ "{:,}".format(r.read) }} rows read.
         </p>
+        {% if r.places_filled %}
+        <p class="mt-1 text-xs text-gray-300">A missing city or country was filled in on {{ "{:,}".format(r.places_filled) }} {{ "fan" if r.places_filled == 1 else "fans" }} already here. No place a record already held was replaced.</p>
+        {% endif %}
+        {% if r.arrived_since_preview %}
+        <p class="mt-1 text-xs text-gray-300">{{ "{:,}".format(r.arrived_since_preview) }} of the addresses the preview counted as new reached you on a smart link before you confirmed, so they are counted as already here and keep the way they arrived.</p>
+        {% endif %}
         {% if r.reasons %}
         <ul class="mt-2 space-y-1 text-xs text-gray-300">
           {% for why, n in r.reasons.items() %}
@@ -52,7 +58,11 @@
     </div>
   {% endif %}
 
-  <form method="post" action="/links/fans/import/list" enctype="multipart/form-data" class="mt-4 space-y-3">
+  {#- 2026-09-18: this form previews, it does not import. The list is read
+      and held as a draft; /fans/import shows the counts and nothing is filed
+      until the artist confirms there. Same path as the first-run page. -#}
+  <form method="post" action="/fans/import/preview" enctype="multipart/form-data" class="mt-4 space-y-3">
+    <input type="hidden" name="origin" value="{{ fli_origin|default('crm') }}">
     <div>
       <label class="sb-label text-gray-300" for="fli-file">Choose a CSV</label>
       <input id="fli-file" type="file" name="file" accept=".csv,text/csv,text/plain"
@@ -82,6 +92,9 @@
       <span>These people gave me permission to email them, and I can show where.</span>
     </label>
 
-    <button class="sb-btn sb-btn-primary">Read the list</button>
+    <div class="flex flex-wrap items-center gap-3">
+      <button class="sb-btn sb-btn-primary">Preview the import</button>
+      <span class="text-xs text-gray-300">You see the counts first. Nothing is added to Fans until you confirm them.</span>
+    </div>
   </form>
 </section>

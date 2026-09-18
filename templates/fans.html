@@ -47,8 +47,8 @@
   {#- The mockup's "Import a list", on this screen: the existing list import
       (authorise, source, file), opened by the header button. -#}
   {% if not a.showcase %}
-  <div class="au-import" id="au-import">
-    {% include "partials/fan_list_import.html" %}
+  <div class="au-import{{ ' open' if fan_import_result }}" id="au-import">
+    {% set fli_origin = "fans" %}{% include "partials/fan_list_import.html" %}
     {% if shopify_import and shopify_import.on %}
     <form method="post" action="/links/fans/import/shopify" class="au-import-shop">
       <button class="sb-btn sb-btn-secondary">Import subscribed Shopify customers</button>

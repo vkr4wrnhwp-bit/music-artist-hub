@@ -111,13 +111,43 @@ def read_columns(text):
             found["country"] = i
         elif found["city"] is None and h in CITY_HEADERS:
             found["city"] = i
-    # A file with no header row at all, just addresses in the first column.
-    if found["email"] is None and headers and _EMAIL.match((headers[0] or "").strip()):
+    # A file with no header row at all, just addresses: in the first column,
+    # or several to a line (a block pasted from a mail client).
+    if found["email"] is None and headers and _addresses_in(headers[0]):
         found["email"] = 0
         headers = []
     found["headers"] = headers
     found["delimiter"] = delimiter
     return found
+
+
+_SPLIT = re.compile(r"[\s,;|]+")
+
+
+def _addresses_in(cell):
+    """The things in one cell that look like addresses at all (they carry
+    an @). Used only for a list with no header row, where one line can hold
+    several: "a@x.com, b@x.com; c@x.com"."""
+    # "Jo Park <jo@x.com>" is how a mail client copies a person; the
+    # brackets and quotes are wrapping, not part of the address.
+    return [t.strip("<>\"'()[]") for t in _SPLIT.split((cell or "").strip()) if "@" in t]
+
+
+def _headerless_emails(row):
+    """Every address on one line of a list with no header row, in order.
+
+    The paste box invites "a block copied from anywhere", and a block
+    copied out of a mail client puts several addresses on one line. This
+    used to read the first cell only, so every address after the first
+    vanished with no reason given and the ledger still added up, because it
+    counted lines (review, 2026-09-18). Now each address is its own row.
+    Cells with no @ (a name typed beside an address) are not addresses and
+    are ignored, as they always were. A line with no @ anywhere is one row,
+    read from its first cell, so it is still counted under a reason."""
+    found = []
+    for c in row:
+        found.extend(_addresses_in(c))
+    return found or [(row[0] if row else "")]
 
 
 def _consent(value):
@@ -154,9 +184,23 @@ def parse(text, limit=MAX_ROWS):
     if cols["headers"]:
         next(reader, None)
     seen = set()
-    for line_no, row in enumerate(reader, start=2 if cols["headers"] else 1):
-        if not row or not any((c or "").strip() for c in row):
-            continue
+    headerless = not cols["headers"]
+
+    def lines():
+        # One (line number, row, address) per row to read. A headed file is
+        # one row a line; a headerless list can carry several addresses on
+        # a line, and each is read and counted as its own row.
+        for line_no, row in enumerate(reader, start=1 if headerless else 2):
+            if not row or not any((c or "").strip() for c in row):
+                continue
+            if headerless:
+                for address in _headerless_emails(row):
+                    yield line_no, [address], address
+            else:
+                i = cols["email"]
+                yield line_no, row, (row[i] if i < len(row) else "")
+
+    for line_no, row, raw_email in lines():
         if out["read"] >= limit:
             out["truncated"] = True
             break
@@ -164,9 +208,11 @@ def parse(text, limit=MAX_ROWS):
 
         def cell(key):
             i = cols[key]
+            if headerless:
+                return ""
             return (row[i].strip() if i is not None and i < len(row) else "")
 
-        email = cell("email").lower()
+        email = (raw_email or "").strip().lower()
         if not email:
             out["skipped"].append({"line": line_no, "email": "", "why": "no email address"})
             continue
@@ -216,6 +262,50 @@ def preview(parsed, known_emails=()):
         "located": sum(1 for r in parsed["rows"] if r.get("country") or r.get("city")),
         "sample": [r["email"] for r in new[:5]],
     }
+
+
+def draft_rows(parsed, on_file=None):
+    """The rows a preview promises, each marked new or already here as the
+    preview counted it. Confirm files these and nothing else.
+
+    `on_file` maps each address already on file to its record (at least
+    country and city). A row already on file is marked `fills` only when
+    the file carries a country or city that the record is missing: that is
+    the one thing confirm changes about a fan already here. A place the
+    record already holds is never replaced (review, 2026-09-18: confirm
+    used to overwrite Lyon with Berlin while the preview said "left as they
+    are")."""
+    on_file = {(e or "").strip().lower(): (rec or {})
+               for e, rec in (on_file or {}).items()}
+    out = []
+    for r in parsed["rows"]:
+        rec = on_file.get(r["email"])
+        if rec is None:
+            out.append(dict(r, new=True, fills=False))
+        else:
+            fills = bool((r.get("country") and not (rec.get("country") or "").strip())
+                         or (r.get("city") and not (rec.get("city") or "").strip()))
+            out.append(dict(r, new=False, fills=fills))
+    return out
+
+
+def mask_email(email):
+    """a***@example.com: enough to recognise a list, not enough to lift one
+    off a screen share."""
+    email = (email or "").strip()
+    if "@" not in email:
+        return "***"
+    local, domain = email.split("@", 1)
+    return "%s***@%s" % (local[:1], domain)
+
+
+def sample(rows, n=6):
+    """A few rows as the preview shows them: the new ones first, the email
+    masked, the place exactly as the file gave it (blank when it gave none)."""
+    ordered = [r for r in rows if r.get("new")] + [r for r in rows if not r.get("new")]
+    return [{"name": r.get("name") or "", "email": mask_email(r.get("email")),
+             "city": r.get("city") or "", "country": r.get("country") or "",
+             "new": bool(r.get("new"))} for r in ordered[:n]]
 
 
 def consent_note(source, when, has_status_column):

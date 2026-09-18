@@ -52,4 +52,8 @@ def test_sources_and_the_consent_gap_come_from_the_records(application, artist):
 def test_the_empty_state_is_honest(application, artist):
     client, user = artist
     html = client.get("/fans").get_data(as_text=True)
-    assert "No fans captured yet" in html and "Not measured yet" in html
+    # 2026-09-18: a real account with nobody on file gets the owner-approved
+    # first-run page at /fans, not the old "No fans captured yet" panel
+    # (tests/test_fans_first_run.py locks it). Updated deliberately.
+    assert "Your audience already exists" in html and ">Not measured<" in html
+    assert ">None yet<" in html

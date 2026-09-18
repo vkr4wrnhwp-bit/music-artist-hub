@@ -147,8 +147,17 @@ def _signed_in():
 
 
 def _upload(c, text):
-    return c.post("/links/fans/import/list",
-                  data={"text": text, "source": "My mailing list", "confirm": "1"})
+    # 2026-09-18: the import previews first and files nothing until the
+    # artist confirms (tests/test_fans_first_run.py locks that). These tests
+    # are about what a finished import stores, so they preview AND confirm,
+    # deliberately, where they used to rely on the POST saving at once.
+    import re
+    r = c.post("/links/fans/import/list",
+               data={"text": text, "source": "My mailing list", "confirm": "1"})
+    assert r.status_code == 302 and r.headers["Location"].endswith("/fans/import"), r.headers.get("Location")
+    draft_id = re.search(r'name="draft_id" value="([0-9a-f]+)"',
+                         c.get("/fans/import").get_data(as_text=True)).group(1)
+    return c.post("/fans/import/confirm", data={"draft_id": draft_id})
 
 
 def _where(uid, email):
@@ -185,3 +194,25 @@ def test_imported_places_group_into_regions_rather_than_one_unknown():
     names = [g.get("name") or g.get("region") or g.get("place") for g in groups]
     assert len(groups) == 3, groups
     assert names[-1] == fan_segments.UNKNOWN, "Unknown is last, and present"
+
+
+def test_several_addresses_on_one_line_are_each_read_and_counted():
+    """Review 2026-09-18: the paste box invites "a block copied from
+    anywhere", and a comma or semicolon separated line kept its first
+    address and dropped the rest with no reason, while the ledger still
+    said it added up (it counted lines). Each address is its own row now."""
+    p = fli.parse("a1@example.com, a2@example.com, a3@example.com")
+    assert [r["email"] for r in p["rows"]] == ["a1@example.com", "a2@example.com", "a3@example.com"]
+    assert p["read"] == 3
+    p = fli.parse("a1@example.com; a2@example.com\na3@example.com; a4@example.com")
+    assert len(p["rows"]) == 4 and p["read"] == 4
+    p = fli.parse('Jo Park <jo@example.com>, "Mo" <mo@example.com> nope@\n')
+    s = fli.preview(p)
+    assert [r["email"] for r in p["rows"]] == ["jo@example.com", "mo@example.com"]
+    assert s["read"] == 3 and s["skipped"] == 1 and s["adds_up"]
+
+
+def test_a_headerless_address_and_name_is_still_one_fan():
+    p = fli.parse("jo@example.com,Jo Park\nmo@example.com,Mo\n")
+    assert [r["email"] for r in p["rows"]] == ["jo@example.com", "mo@example.com"]
+    assert p["read"] == 2
