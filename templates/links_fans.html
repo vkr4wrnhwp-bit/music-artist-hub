@@ -24,7 +24,9 @@
     <button class="sb-btn sb-btn-secondary">Search</button>
   </form>
 
-  {# Shopify: the customers who said yes to email, on request. #}
+  {# The connected store's customers, on request. Owner only: the
+     connection is the server's, so it is the owner's store. #}
+  {% if shopify %}
   <section id="import" class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
@@ -53,6 +55,7 @@
     </p>
     {% endif %}
   </section>
+  {% endif %}
 
   {% if fans %}
   <section class="overflow-x-auto rounded-2xl border border-white/10 bg-sb-surface-1 p-5">

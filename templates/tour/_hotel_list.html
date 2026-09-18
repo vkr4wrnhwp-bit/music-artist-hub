@@ -39,7 +39,7 @@
   {% elif can('hotel') %}<p class="to-muted">No rooms assigned yet.</p>{% endif %}
   {% if can('hotel') %}
   {#- The room forms behind a plus; open on their own only while nobody is roomed. -#}
-  <details class="to-add"{% if not rl %} open{% endif %}>
+  <details class="to-add">
   <summary><span class="plus" aria-hidden="true">+</span> Assign a room</summary>
   <div class="to-add-body to-inline">
     <form method="post" action="/tours/{{ tour['id'] }}/hotels/{{ l['id'] }}/rooms" class="to-inline">

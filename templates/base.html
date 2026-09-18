@@ -371,7 +371,7 @@
             some features"). They are a group of their own here now. -#}
         {% if hubs_community[1] %}
         {% set community_keys = hubs_community[1] | map(attribute='0') | list %}
-        <div class="hub" data-hub="community" data-open="1"{% if active_page in community_keys %} data-active="1"{% endif %}>
+        <div class="hub" data-hub="community"{% if active_page in community_keys %} data-active="1"{% endif %}>
           <a href="/fans" title="Community"
              class="hub-rail mb-1 h-10 w-10 items-center justify-center rounded-lg border transition-colors {{ 'border-sb-gold/50 bg-sb-gold/15 text-sb-gold-bright' if active_page in community_keys else 'border-white/10 text-gray-300 hover:border-white/25 hover:text-white' }}">
             <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -586,10 +586,13 @@
           banker like adobe and the off site apps are tool suites"). Read
           from hubs.tool_suites(), so this strip and the room cards name
           the same apps. Each opens in a new tab and says so. -#}
+      {% include "partials/support_ask.html" %}
       {% if user_plan and tool_suites %}
       <footer id="sb-tool-suites" class="mt-12 border-t border-white/10 pt-5">
-        <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <span class="sb-label text-gray-300">Tool suites</span>
+        {#- Three rows, not one wrapping line (owner, 2026-09-17): the
+            heading, then the eight marks, then the sentence under them. -#}
+        <h2 class="sb-label text-gray-300">Tool suites</h2>
+        <div class="mt-3 flex flex-wrap items-center gap-4">
           {% for key, href, path, label, desc in tool_suites %}
           {%- set away = href.startswith(('http://', 'https://', '/suites/go/')) -%}
           {%- set mark = suite_marks.get(key) -%}
@@ -608,8 +611,8 @@
           </a>
           {% endif %}
           {% endfor %}
-          <span class="text-xs text-gray-300 font-medium">Each is its own app. Your Street Banker sign-in opens them; your membership decides which.</span>
         </div>
+        <p class="mt-3 text-xs text-gray-300 font-medium">Each is its own app. Your Street Banker sign-in opens them; your membership decides which.</p>
       </footer>
       {% endif %}
     </main>

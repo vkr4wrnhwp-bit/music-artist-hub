@@ -22,7 +22,12 @@ import page_switches
 
 ROOMS = [
     ("fans", "Fans", "The people who follow you and what they get.",
-     ["fans", "fan-crm", "fan-club", "discover", "marketplace"]),
+     ["fans", "fan-crm", "fan-club", "discover", "marketplace",
+      # Apparel & Merch left the Marketing room on 2026-09-17: merch is
+      # something you make and sell to the people here, not a way of
+      # getting heard. It waits with the fans until Artifacts lands, which
+      # is where the owner is taking it.
+      "apparel"]),
     ("studio", "Studio", "Making the record and keeping its files.",
      ["audio-studio", "rack", "remix-lab", "studio", "masterclip", "beats",
       "vault", "contracts", "artwork"]),
@@ -39,8 +44,12 @@ ROOMS = [
     ("releases", "Releases", "From finished master to the stores.",
      ["autopilot", "release-calendar", "release-check", "distribution", "submit"]),
     ("marketing", "Marketing", "Getting heard and getting written about.",
+     # Apparel & Merch left this room on 2026-09-17: merch is something you
+     # make and sell, not a way of getting heard, and it moves to Artifacts
+     # when that suite lands. The page and its address are unchanged; only
+     # where it is listed has.
      ["links", "rollout", "press-desk", "press-contacts", "press-coverage", "epk", "onesheet",
-      "reach", "referrals", "apparel"]),
+      "reach", "referrals"]),
 ]
 
 # Rows above the rooms, and the group under them.
@@ -113,6 +122,17 @@ def set_layout(value):
     db.set_kv("nav_layout", "rooms" if value == "rooms" else "hubs")
 
 
+# Cards this layout names differently from the classic sidebar. In the
+# sidebar "Scores" is the parent of Trust and Insights, reached by the tab
+# strip on its page; in a room each of the three is its own card, so the
+# card says which score it is (owner, 2026-09-17). The page has read
+# "Growth Score" all along, so this is the card catching up.
+RENAMES = {
+    "scores": ("Growth Score",
+               "How ready you are to grow, scored from your own record."),
+}
+
+
 def catalogue():
     """{key: (href, icon, label, desc)} for every card any room can hold,
     read from the hub definitions and the groups, plus the unfolded pages."""
@@ -125,6 +145,10 @@ def catalogue():
             out[key] = (href, icon, label, desc)
     for key, (href, icon, label, desc, _parent) in EXTRA.items():
         out[key] = (href, icon, label, desc)
+    for key, (label, desc) in RENAMES.items():
+        if key in out:
+            href, icon, _l, _d = out[key]
+            out[key] = (href, icon, label, desc)
     return out
 
 

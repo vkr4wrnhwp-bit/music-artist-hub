@@ -22,7 +22,17 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXTERNAL = {
     "reach": ("launch", "/suites/go/reach"),
     "masterclip": ("studio", "/suites/go/motion"),
-    "tour-suite": ("stage", "/suites/go/tour"),
+}
+
+# On the strip, but in this app: no hand-off, no new tab. Royalty Sweep
+# always was. Tour joined it on 2026-09-17, when an audit found the separate
+# Tour service was an August fork twenty routes behind this app's Tour and
+# asleep on a free instance, so the strip mark sent people to the older copy
+# and made them wait for it to wake up. The suite is rebuilt from this code
+# after partner week.
+IN_APP_STRIP = {
+    "royalty-sweep": "/royalties",
+    "tour-suite": "/tours",
 }
 
 # Two suites that are no longer hub entries at all: their own products with
@@ -129,10 +139,12 @@ def test_the_tool_suites_strip_lists_every_off_site_app(artist):
     assert "Tool suites" in strip and "(opens in a new tab)" in strip
     assert "Sample" not in strip
     # Company and Artifacts wait for their addresses: on the strip, marked
-    # Soon, opening the Command Center in this tab (owner, 2026-09-15).
-    for pending in ("Company", "Artifacts"):
-        m = re.search(r'<a href="/command-center"[^>]*title="The %s[^"]*"([^>]*)>' % pending.lower(), strip)
-        assert m and "_blank" not in m.group(1), pending
+    # Soon, opening the Command Center in this tab (owner, 2026-09-15). What
+    # each of them will be is the owner's own words (2026-09-17).
+    assert "Your team, your partners and your paperwork." in strip
+    assert "Merch, collectibles and moments for fans." in strip
+    for m in re.finditer(r'<a href="/command-center"([^>]*)>', strip):
+        assert "_blank" not in m.group(1)
     assert strip.count(">Soon<") == 2
 
 
@@ -150,3 +162,27 @@ def test_the_strip_draws_every_suite_as_one_system(artist):
     assert len(frames) == len(hubs.SUITE_MARKS) and len(set(frames)) == 1
     for key, (letters, colour) in hubs.SUITE_MARKS.items():
         assert re.search(r'fill="%s" stroke="none">%s</text>\s*</svg>\s*%s' % (re.escape(colour), letters, re.escape(labels[key])), strip), key
+
+
+def test_the_in_app_strip_entries_stay_in_this_tab(artist):
+    """Royalty Sweep and Tour sit on the strip with the other six, but they
+    are pages of this app: no hand-off, no new tab, and no "Soon"."""
+    import hubs
+    rows = {k: href for k, href, *_ in hubs.tool_suites()}
+    for key, href in IN_APP_STRIP.items():
+        assert rows[key] == href, key
+        assert not hubs.is_away(href), key
+        assert key not in hubs.suites_pending(), key
+    body = artist.get("/command-center").get_data(as_text=True)
+    for href in IN_APP_STRIP.values():
+        m = re.search(r'<a href="%s"[^>]*target="_blank"' % re.escape(href), body)
+        assert m is None, href
+
+
+def test_tour_is_listed_once(artist):
+    """It used to be twice: "Tour" in the Live Stage hub and a "Tour Suite"
+    that opened the other service. One Tour, and it is this app's."""
+    import hubs
+    hrefs = [href for _h, _n, _t, items in hubs.nav_hubs() for _k, href, *_ in items]
+    assert hrefs.count("/tours") == 1
+    assert "/suites/go/tour" not in hrefs

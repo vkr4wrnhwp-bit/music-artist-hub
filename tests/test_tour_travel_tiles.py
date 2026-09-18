@@ -17,7 +17,7 @@ def test_legs_are_rows_with_times_as_instruments_and_small_print_folded(flask_ap
     tid = _tour(client)
     _show(client, tid)
     html = client.get("/tours/%s/travel" % tid).get_data(as_text=True)
-    assert '<details class="to-add" id="add-leg" open>' in html, "no legs yet: the form is open"
+    assert '<details class="to-add" id="add-leg">' in html, "closed like every other fold (owner, 2026-09-17)"
     client.post("/tours/%s/travel/add" % tid, data={
         "day_date": "2030-05-02", "mode": "ground", "vehicle": "Sprinter", "driver": "Dee",
         "phone": "555 0100", "confirmation": "VAN-CONF", "dep_loc": "Nashville", "arr_loc": "Atlanta",
@@ -39,7 +39,7 @@ def test_hotels_are_compact_cards_with_room_forms_behind_a_plus(flask_app):
     tid = _tour(client)
     sid = _show(client, tid)
     html = client.get("/tours/%s/hotels" % tid).get_data(as_text=True)
-    assert '<details class="to-add" id="add-hotel" open>' in html
+    assert '<details class="to-add" id="add-hotel">' in html
     client.post("/tours/%s/hotels/add" % tid, data={"show_id": sid, "property": "Crew Hotel", "city": "Nashville",
                                                     "checkin": "2030-05-02", "checkout": "2030-05-03",
                                                     "confirmation": "HOTEL-CONF", "wifi": "crew2030"})
@@ -49,7 +49,8 @@ def test_hotels_are_compact_cards_with_room_forms_behind_a_plus(flask_app):
     assert '<span class="to-fig"><span>rooms</span><b>0</b></span>' in html
     assert '<details class="to-fold"><summary>details</summary>' in html and "HOTEL-CONF" in html and "Wi-Fi crew2030" in html
     assert "Assign a room</summary>" in html
-    assert html.count('<details class="to-add" open>') == 1, "nobody roomed: the assign form is open"
+    assert html.count('<details class="to-add" open>') == 0,         "closed like every other fold (owner, 2026-09-17)"
+    assert "Assign a room" in html, "and the summary still says what it does"
     assert '<details class="to-add" id="add-hotel">' in html, "a hotel exists: the add form waits"
     lodging = ts.list_lodging(tid)[0]
     client.post("/tours/%s/hotels/%s/rooms" % (tid, lodging["id"]), data={"guest_name": "Ava", "room_number": "1201"})

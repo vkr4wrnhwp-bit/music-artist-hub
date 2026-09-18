@@ -1714,7 +1714,7 @@ class MusicBrainzAdapter(_EnvProvider):
 # examples - "the alternative is that we just silently block it". So this
 # names the product and a URL they could reach us at, in the shape their
 # good examples take.
-DISCOGS_USER_AGENT = "StreetBanker/1.0 +https://app.artiswarrecords.com"
+DISCOGS_USER_AGENT = "StreetBanker/1.0 +https://app.streetbankermusic.com"
 
 
 def _discogs_date(released):

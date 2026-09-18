@@ -139,6 +139,7 @@ period_year,analyze as analyze_statement, parse_statement,
 from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
 from departments_config import get_departments_config
+from eight_tools_config import get_eight_tools_config
 from artist_twin_config import get_artist_twin_config
 from lanes_config import get_lanes_config
 from creative_config import get_creative_config
@@ -1853,6 +1854,49 @@ def create_app():
 
     # --- Inbox: persisted submissions ------------------------------------------
 
+    # A question a stranger asks is free to answer, because every answer is
+    # written down here already. Sending one to the owner is not free, so
+    # only the escalations are throttled, and per address.
+    _support_asked = {}
+
+    @app.route("/support/ask", methods=["POST"])
+    def support_ask():
+        """Answer from what support has written down, or admit nobody knows.
+
+        There is no model behind this. Every sentence comes from
+        support_kb.ENTRIES, so it cannot invent an answer about an account's
+        money, and a question nobody wrote an answer for goes to the owner
+        rather than being improvised at.
+        """
+        import support_kb
+
+        body = request.get_json(silent=True) or request.form or {}
+        question = (body.get("q") or "").strip()[:2000]
+        page = (body.get("page") or "")[:200]
+        if not question:
+            return jsonify({"kind": "empty"}), 400
+
+        found = support_kb.answer(question)
+        if found:
+            return jsonify({"kind": "answer", "question": found["question"],
+                            "answer": found["answer"], "where": found["where"]})
+
+        user = current_user()
+        note = support_kb.escalation(question, page=page,
+                                     account=(user or {}).get("email") or "")
+        ip = (request.headers.get("X-Forwarded-For", request.remote_addr or "?")
+              .split(",")[0].strip())
+        now = time.time()
+        if len(_support_asked) > 4096:
+            _support_asked.clear()
+        if now - _support_asked.get(ip, 0) > 20:
+            _support_asked[ip] = now
+            try:
+                store.add_inbox("support-question", note)
+            except Exception:
+                current_app.logger.exception("support question")
+        return jsonify({"kind": "unknown", "reply": note["reply"]})
+
     @app.route("/inbox")
     def inbox():
         user = current_user()
@@ -1904,6 +1948,7 @@ def create_app():
                                artist_eq_json=json.dumps(eq),
                                departments=departments,
                                departments_json=json.dumps(departments),
+                               eight_tools=get_eight_tools_config(),
                                artist_twin=get_artist_twin_config(),
                                lanes=get_lanes_config(),
                                creative=get_creative_config(),
@@ -1948,7 +1993,7 @@ def create_app():
             state = {
                 "profile": bool((user.get("name") or "").strip()
                                 or (profile_data and profile_data not in ("{}", {}))),
-                "track": bool(store.list_os_tracks(uid)),
+                "track": bool(store.list_os_tracks(uid)) or bool(store.statement_titles(uid, 1)),
                 "link": bool(campaigns) or bool(store.get_db_links(uid)),
                 "rack": bool(store.get_rack_preset(uid)),
                 "rate": bool(store.list_hours_rates(uid)),
@@ -1966,10 +2011,14 @@ def create_app():
                 for key, _t, _w, href, _c in steps:
                     if plans.allowed(plan, plans.required_tier(href)):
                         reachable.add(key)
+            # Plainly started: there is real work in here, so the
+            # walkthrough stops taking the top of the dashboard.
+            settled = bool(state["statement"] or state["campaign"]
+                           or mls.list_fans(uid) or store.list_os_tracks(uid))
         except Exception:
             # A walkthrough is never worth breaking a page over.
             return None
-        return tutor.build(state, reachable)
+        return tutor.build(state, reachable, settled=settled)
 
     @app.route("/tutor/toggle", methods=["POST"])
     def tutor_toggle():
@@ -2001,10 +2050,15 @@ def create_app():
             has_profile = bool(
                 (user.get("name") or "").strip()
                 or (profile_data and profile_data not in ("{}", {})))
+            # Both halves of each answer, so this list and the tutor and
+            # the scores cannot disagree about the same account (Codex
+            # audit, 2026-09-17). A smart link lives in one of two tables
+            # depending on which door made it, and an account's songs are
+            # known from its passports OR from the statements it uploaded.
             state = {
                 "profile": has_profile,
-                "track": bool(store.list_os_tracks(uid)),
-                "link": bool(store.get_db_links(uid)),
+                "track": bool(store.list_os_tracks(uid)) or bool(store.statement_titles(uid, 1)),
+                "link": bool(store.get_db_links(uid)) or bool(mls.list_campaigns(uid)),
                 "rack": bool(store.get_rack_preset(uid)),
                 "rate": bool(store.list_hours_rates(uid)),
             }
@@ -8567,6 +8621,7 @@ def create_app():
                                **build_dashboard_context())
 
     @app.route("/homepage")
+    @app.route("/homepage/")
     def homepage_edit_page():
         _user, bounce = _owner_or_404()
         if bounce:
@@ -9379,6 +9434,17 @@ def create_app():
                                c=campaign, providers=social_providers.provider_status(),
                                **build_dashboard_context())
 
+    def _shopify_import_allowed(user):
+        """Reading the connected store's customers is the OWNER'S alone.
+
+        The connection is server configuration (SHOPIFY_*), so it is one
+        store: the owner's. Until 2026-09-17 the button was offered to any
+        signed-in account, which meant a partner's artist could file the
+        owner's customer list as their own fans. Nobody had pressed it.
+        A per-account connection is a different feature; this is the door.
+        """
+        return bool(user and _is_owner_email(user.get("email")))
+
     @app.route("/links/fans")
     def ml_fans():
         user = current_user()
@@ -9393,7 +9459,8 @@ def create_app():
         return render_template("links_fans.html", active_page="fans",
                                fans=fans, q=q, campaign_titles=campaigns,
                                intent_tones=links_engine.INTENT_TONES,
-                               shopify=shopify_customers.status(),
+                               shopify=(shopify_customers.status()
+                                        if _shopify_import_allowed(user) else None),
                                last_import=store.latest_fan_import(user["id"], "shopify"),
                                imp_note={"off": "Shopify is not connected on this service."}.get(
                                    request.args.get("imp") or "", ""),
@@ -9407,6 +9474,8 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        if not _shopify_import_allowed(user):
+            abort(404)
         if not shopify_customers.configured():
             return redirect("/links/fans?imp=off#import")
         last = store.latest_fan_import(user["id"], "shopify")
@@ -9437,6 +9506,8 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        if not _shopify_import_allowed(user):
+            abort(404)
         if shopify_customers.uses_grant():
             shopify_customers.forget_grant()
             shopify_customers.token()
@@ -9921,7 +9992,8 @@ def create_app():
             ctx["fans"]["is_real"] = False
         else:
             ctx["fans"] = fan_dashboard.fan_dashboard_for(user["id"])
-        ctx["shopify_import"] = shopify_customers.status()
+        ctx["shopify_import"] = (shopify_customers.status()
+                                 if _shopify_import_allowed(user) else None)
         return render_template("fans.html", active_page="fans", **ctx)
 
     @app.route("/capital")
@@ -10816,11 +10888,9 @@ def create_app():
                                granted=request.args.get("granted"),
                                invited=request.args.get("invited"),
                                signup_open=_signup_open(),
-                               all_accounts=([dict(a, shut=store.account_shut(a),
-                                                   is_owner_row=bool(_is_owner_email(a.get("email"))))
-                                              for a in store.list_accounts()]
-                                             if user and _is_owner_email(user.get("email")) else []),
+                               **_accounts_panel(user),
                                account_msg=request.args.get("account"),
+                               cleared=request.args.get("cleared"),
                                signup_invites=([dict(i, link=public_url("/signup?invite=" + i["token"]))
                                                 for i in store.list_signup_invites()]
                                                if user and _is_owner_email(user.get("email")) else []),
@@ -10898,6 +10968,70 @@ def create_app():
         store.add_signup_invite(email, plan, user["id"],
                                 guest_hours=72 if request.form.get("guest") else 0)
         return redirect("/settings?invited=ok#invite-someone")
+
+    def _clearable_fan_accounts(scope, rows=None):
+        """The Fan accounts a bulk clear-out may take, and the ones it holds
+        back. Held back always: the owner, the shared demo logins, an account
+        a partner owns, and anyone who has paid for anything. A bulk button
+        must never be able to reach somebody's paid account; those are dealt
+        with one at a time or not at all."""
+        go, held = [], []
+        for a in (rows if rows is not None else store.list_accounts()):
+            if (a.get("plan") or "") != "fan":
+                continue
+            if (_is_owner_email(a.get("email")) or _is_demo_email(a.get("email") or "")
+                    or a.get("partner_id") or a.get("has_paid")):
+                held.append(a)
+                continue
+            if scope == "never" and not a.get("never_returned"):
+                continue
+            go.append(a)
+        return go, held
+
+    def _accounts_panel(user):
+        """Everything the owner's Accounts panel shows, or nothing at all.
+
+        Hundreds of Fan accounts registered themselves while sign-up was open
+        (owner, 2026-09-17), so the panel has to say when each one arrived and
+        whether it ever came back: that is what separates a fan from a script.
+        """
+        if not (user and _is_owner_email(user.get("email"))):
+            return {"all_accounts": [], "account_counts": {}, "clear_counts": {},
+                    "plan_filter": ""}
+        rows, counts = [], {}
+        for a in store.list_accounts():
+            plan = a.get("plan") or "artist"
+            counts[plan] = counts.get(plan, 0) + 1
+            rows.append(dict(a, shut=store.account_shut(a),
+                             is_owner_row=bool(_is_owner_email(a.get("email"))),
+                             is_demo_row=bool(_is_demo_email(a.get("email") or ""))))
+        counts["all"] = len(rows)
+        never, held = _clearable_fan_accounts("never", rows)
+        every, _ = _clearable_fan_accounts("all", rows)
+        keep = (request.args.get("plan") or "").strip().lower()
+        if keep in plans.TIER_RANK:
+            rows = [r for r in rows if (r.get("plan") or "artist") == keep]
+        return {"all_accounts": rows, "account_counts": counts, "plan_filter": keep,
+                "clear_counts": {"never": len(never), "all": len(every), "held": len(held)}}
+
+    @app.route("/admin/accounts/clear", methods=["POST"])
+    def admin_accounts_clear():
+        """Clear out the Fan accounts that registered themselves while sign-up
+        was open. The owner presses it, the word is typed rather than clicked,
+        and the count is on the page before the press. Everything a cleared
+        account owned goes with it, in one transaction each."""
+        user, bail = _owner_or_404()
+        if bail:
+            return bail
+        scope = request.form.get("scope") or ""
+        if scope not in ("never", "all"):
+            return redirect("/settings?cleared=bad#accounts")
+        if (request.form.get("confirm") or "").strip() != "DELETE":
+            return redirect("/settings?cleared=unconfirmed#accounts")
+        go, _held = _clearable_fan_accounts(scope)
+        for row in go:
+            store.delete_user_everything(row["id"])
+        return redirect("/settings?cleared=%d#accounts" % len(go))
 
     @app.route("/admin/account", methods=["POST"])
     def admin_account():

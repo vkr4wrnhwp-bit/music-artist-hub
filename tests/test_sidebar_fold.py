@@ -65,7 +65,10 @@ def test_the_sidebar_is_thirty_seven_entries():
     # (owner: "remove noise lab and the room from studio"). They are their
     # own products with their own sign-in, so they live on the tool suites
     # strip instead of inside a hub of Street Banker's own pages.
-    assert len(_entries()) == 37
+    # 36 when "Tour Suite" went the same way on 2026-09-17, except that Tour
+    # is this app's own page: the hub listed Tour twice, once here and once
+    # as a link to a separate service that had fallen twenty routes behind.
+    assert len(_entries()) == 36
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():

@@ -32,11 +32,11 @@ def _css():
 
 # --- placement and copy ---------------------------------------------------
 
-def test_the_section_sits_after_the_departments_and_displaces_nothing():
+def test_the_section_sits_after_the_eight_tools_and_displaces_nothing():
     body = _home()
-    assert body.index('id="departments"') < body.index('id="artist-twin-section"')
+    assert body.index('id="eight-tools"') < body.index('id="artist-twin-section"')
     assert body.index('id="artist-twin-section"') < body.index('id="lanes"')
-    for kept in ["One system. Six departments.", "TUNE YOUR ARTIST SYSTEM.",
+    for kept in ["One system. Eight tools.", "TUNE YOUR ARTIST SYSTEM.",
                  "Choose your lane.",
                  "sbhero-veil", "Your catalog is the "]:
         assert kept in body, kept

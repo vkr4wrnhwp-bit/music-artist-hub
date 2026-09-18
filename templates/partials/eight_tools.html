@@ -1,0 +1,73 @@
+{# Section 4 — one system, eight tools.
+
+   A photographed rack of eight faceplates. Only the lights are drawn: each
+   window carries its suite's mark in its own colour, and they switch on one
+   after another when the section is first reached, once, then stay lit and
+   still. The homepage never changes around the reader after that.
+
+   Nothing here is a link. Pointing at a tool writes a sentence underneath;
+   the one call to action goes to the plans page. Seven of the eight suites
+   have no public page, and a stranger asking what a tool does must never be
+   handed a password field.
+
+   On a narrow screen the rack scrolls sideways inside its own frame rather
+   than shrinking eight faceplates into illegibility. The picture is one
+   <img> with one description either way, so a reader hearing the page read
+   aloud gets the rack once, not eight times. #}
+
+{% set et = eight_tools %}
+{% set img = et.image %}
+{% set p = et.plate %}
+<section class="sbet" id="eight-tools" aria-labelledby="sbet-heading">
+  <div class="sbet-inner">
+    <header class="sbet-head">
+      <h2 class="sbet-eyebrow" id="sbet-heading">{{ et.eyebrow }}</h2>
+      <p class="sbet-support">{{ et.support }}</p>
+    </header>
+
+    <div class="sbet-scroll">
+      <div class="sbet-rack" id="sbet-rack">
+        <picture class="sbet-photo">
+          <source type="image/avif"
+                  srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.avif {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+                  sizes="(min-width: 1600px) 1540px, 100vw">
+          <source type="image/webp"
+                  srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.webp {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+                  sizes="(min-width: 1600px) 1540px, 100vw">
+          <img src="{{ img.stem }}-1200.jpg"
+               srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.jpg {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+               sizes="(min-width: 1600px) 1540px, 100vw"
+               width="{{ img.width }}" height="{{ img.height }}"
+               alt="{{ img.alt }}" loading="lazy" decoding="async">
+        </picture>
+
+        {% for t in et.tools %}
+        <button type="button" class="sbet-unit" data-key="{{ t.key }}"
+                data-name="{{ t.name }}" data-desc="{{ t.desc }}" data-opens="{{ t.opens }}"
+                aria-describedby="sbet-readout"
+                style="--c: {{ t.colour }};
+                       left: {{ (p.first_left + loop.index0 * p.step) | round(3) }}%;
+                       width: {{ p.width }}%; top: {{ p.top }}%; height: {{ p.height }}%">
+          <span class="sbet-lamp" aria-hidden="true"
+                style="left: {{ p.lamp_left }}%; top: {{ p.lamp_top }}%; width: {{ p.lamp_size }}%"></span>
+          <span class="sbet-win" aria-hidden="true"
+                style="left: {{ p.window_left }}%; width: {{ p.window_width }}%;
+                       top: {{ p.window_top }}%; height: {{ p.window_height }}%">
+            <svg viewBox="0 0 48 40" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="square" focusable="false">
+              <path d="M3 13V3h11M34 3h11v10M45 27v10H34M14 37H3V27"/>
+              <text x="24" y="26.5" text-anchor="middle" font-family="Archivo, system-ui, sans-serif"
+                    font-weight="900" font-size="17" fill="currentColor" stroke="none">{{ t.mark }}</text>
+            </svg>
+          </span>
+          <span class="sbet-name" style="left: {{ p.window_left }}%; width: {{ p.window_width }}%;
+                                         top: {{ p.label_top }}%; height: {{ p.label_height }}%">{{ t.name }}</span>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <p class="sbet-readout" id="sbet-readout" aria-live="polite" data-idle="{{ et.note }}">{{ et.note }}</p>
+
+    <p class="sbet-cta"><a href="{{ et.cta.href }}">{{ et.cta.label }}</a></p>
+  </div>
+</section>

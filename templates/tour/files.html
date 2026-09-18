@@ -34,7 +34,7 @@
 </div>
 {% else %}{{ m.empty("No files yet", "Upload tour-wide documents here (rider, insurance, tech pack) and show-specific ones from each show.") }}{% endif %}
 {#- Five fields behind a plus; open on its own only while there are no files. -#}
-<details class="to-add" id="add-file"{% if not total_files %} open{% endif %}>
+<details class="to-add" id="add-file">
 <summary><span class="plus" aria-hidden="true">+</span> Upload a file</summary>
 <div class="to-add-body">
 <form method="post" action="/tours/{{ tour['id'] }}/files/upload" enctype="multipart/form-data" class="to-form">

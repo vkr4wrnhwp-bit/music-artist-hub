@@ -1350,9 +1350,22 @@ def account_shut(user, now=None):
 def list_accounts():
     """Every account, newest first, for the owner's panel. No password hash."""
     with get_db() as db:
-        rows = db.execute("SELECT id, email, name, plan, created, last_seen, locked, access_ends "
-                          "FROM users ORDER BY created DESC").fetchall()
-    return [dict(r) for r in rows]
+        rows = db.execute("SELECT id, email, name, plan, created, last_seen, locked, access_ends, "
+                          "partner_id, stripe_customer_id FROM users ORDER BY created DESC").fetchall()
+        paying = {r["member_email"] for r in db.execute(
+            "SELECT member_email FROM club_members WHERE status = 'active'").fetchall()}
+    out = []
+    for r in rows:
+        row = dict(r)
+        # "Never came back": signed in no later than the hour it was made, or
+        # never at all. That is the shape a script leaves behind; a person
+        # who came back the next day does not look like this.
+        seen, made = (row.get("last_seen") or ""), (row.get("created") or "")
+        row["never_returned"] = (not seen) or (seen[:13] <= made[:13])
+        row["has_paid"] = bool(row.get("stripe_customer_id")
+                               or (row.get("email") or "").lower() in paying)
+        out.append(row)
+    return out
 
 
 def set_demo_lock(user_id, on):
@@ -1536,6 +1549,23 @@ def get_gap_checks(user_id):
             result = {}
         out[r["track_key"]] = {"isrc": r["isrc"], "checked": r["checked"], "result": result}
     return out
+
+
+def statement_titles(user_id, limit=500):
+    """The recordings this account's own statements name, deduplicated.
+
+    An account can hold tens of thousands of statement rows and still be
+    asked to "add a track", because the checklist read the passports table
+    and nothing else (Codex audit, 2026-09-17). The app already knows these
+    songs exist; it just had not been asked.
+    """
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT DISTINCT r.title FROM statement_rows r "
+            "JOIN statements s ON s.id = r.statement_id "
+            "WHERE s.user_id = ? AND r.title IS NOT NULL AND TRIM(r.title) != '' "
+            "LIMIT ?", (user_id, limit)).fetchall()
+    return [r["title"].strip() for r in rows]
 
 
 def get_statement_rows(user_id, statement_id=None):

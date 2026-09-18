@@ -4,7 +4,10 @@
 {% block title %}Growth Score - Street Banker{% endblock %}
 
 {% block content %}
-{{ sb.subnav([("/qualification", "Growth"), ("/trust-score", "Trust"), ("/insights", "Insights")], "/qualification") }}
+{#- The classic sidebar lists only Scores, so the strip is the way to
+    Trust and Insights there. The rooms layout gives each its own card, and
+    the strip would only repeat them (owner, 2026-09-17). -#}
+{% if not rooms_nav %}{{ sb.subnav([("/qualification", "Growth"), ("/trust-score", "Trust"), ("/insights", "Insights")], "/qualification") }}{% endif %}
 <div class="mx-auto max-w-[1000px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>

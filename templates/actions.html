@@ -17,14 +17,14 @@
   <section class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">
     <h2 class="sb-label text-sb-gold-bright">New Action</h2>
     <form method="post" class="mt-3 grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-      <input name="title" required placeholder="What needs to happen?" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
-      <select name="category" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
+      <input name="title" required aria-label="What needs to happen?" placeholder="What needs to happen?" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
+      <select name="category" aria-label="Category" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
         {% for cat in categories %}<option value="{{ cat }}">{{ cat.replace('_', ' ') | title }}</option>{% endfor %}
       </select>
-      <select name="priority" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
+      <select name="priority" aria-label="Priority" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
         {% for p in priorities %}<option value="{{ p }}" {{ 'selected' if p == 'medium' }}>{{ p | title }}</option>{% endfor %}
       </select>
-      <input name="due_date" type="date" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
+      <input name="due_date" type="date" aria-label="Due date" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
       <button class="sb-btn sb-btn-secondary">Add</button>
     </form>
   </section>

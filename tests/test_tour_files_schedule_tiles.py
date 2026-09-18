@@ -24,7 +24,7 @@ def test_files_are_rows_with_counted_chips_and_a_folded_upload(flask_app):
     tid = _tour(client)
     sid = _show(client, tid)
     html = client.get("/tours/%s/files" % tid).get_data(as_text=True)
-    assert '<details class="to-add" id="add-file" open>' in html and "No files yet" in html
+    assert '<details class="to-add" id="add-file">' in html and "No files yet" in html
     _upload(client, tid, "rider.pdf", "rider")
     _upload(client, tid, "plot.pdf", "stage_plot", "show", sid)
     html = client.get("/tours/%s/files" % tid).get_data(as_text=True)
@@ -45,7 +45,7 @@ def test_schedule_days_carry_counts_and_confirmed_is_a_lamp(flask_app):
     tid = _tour(client)
     _show(client, tid)
     html = client.get("/tours/%s/schedule" % tid).get_data(as_text=True)
-    assert '<details class="to-add" id="add-item" open>' in html and "Nothing scheduled yet" in html
+    assert '<details class="to-add" id="add-item">' in html and "Nothing scheduled yet" in html
     client.post("/tours/%s/schedule/add" % tid, data={"day_date": "2030-05-02", "title": "Load in",
                                                         "category": "load_in", "start_time": "14:00", "visibility": "all"})
     client.post("/tours/%s/schedule/add" % tid, data={"day_date": "2030-05-02", "title": "Doors",

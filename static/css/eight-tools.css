@@ -1,0 +1,171 @@
+/* Section 4 — one system, eight tools.
+
+   The rack is photographed; only the lights are drawn. Every position is a
+   percentage of the picture, so the whole thing survives any width without
+   a second set of measurements.
+
+   The power-on runs once, when the section is first reached. After that the
+   rack is lit and still: the homepage does not change around the person
+   reading it. Anyone who has asked for less motion gets it lit from the
+   start and never sees the sequence at all. */
+
+.sbet {
+  background: var(--sb-ground);
+  padding: clamp(48px, 7vw, 96px) 0;
+}
+.sbet-inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 4vw, 40px);
+}
+
+.sbet-head { text-align: center; margin-bottom: clamp(20px, 3vw, 34px); }
+.sbet-eyebrow {
+  margin: 0;
+  font-size: clamp(26px, 4vw, 46px);
+  line-height: 1.02;
+  font-weight: 900;
+  font-stretch: 112%;
+  text-transform: uppercase;
+  color: var(--sb-ink);
+  text-wrap: balance;
+}
+.sbet-support {
+  margin: 10px 0 0;
+  font-size: clamp(14px, 1.4vw, 17px);
+  color: var(--sb-ink-2);
+}
+
+/* Eight faceplates do not shrink to legibility on a phone, so the rack
+   keeps its size and the frame scrolls instead. */
+.sbet-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  border-radius: var(--sb-r-panel);
+}
+.sbet-rack {
+  position: relative;
+  min-width: 720px;
+  border-radius: var(--sb-r-panel);
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+}
+.sbet-photo, .sbet-photo img { display: block; width: 100%; height: auto; }
+
+.sbet-unit {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--c);
+  cursor: pointer;
+  border-radius: var(--sb-r-control);
+  transition: opacity .25s ease, filter .25s ease;
+}
+.sbet-unit > span { position: absolute; }
+
+/* The smoked window, lit from behind by the suite's own colour. */
+.sbet-win {
+  display: grid;
+  place-items: center;
+  border-radius: var(--sb-r-control);
+  background:
+    radial-gradient(circle at 50% 45%,
+      color-mix(in srgb, var(--c) 42%, transparent),
+      color-mix(in srgb, var(--c) 10%, transparent) 75%);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--c) 35%, transparent);
+  transition: opacity .35s ease, filter .3s ease;
+}
+.sbet-win svg {
+  width: 72%;
+  height: auto;
+  filter: brightness(1.35)
+          drop-shadow(0 0 9px var(--c))
+          drop-shadow(0 0 3px var(--c));
+}
+
+.sbet-lamp {
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  /* The bulb's hot centre. White, not a brand colour: a lamp filament
+     is the same white whatever the lens over it is tinted. */
+  background: radial-gradient(circle, var(--sb-paper) 0, var(--c) 35%, transparent 70%);
+  box-shadow: 0 0 16px 3px var(--c);
+  transition: opacity .2s ease;
+}
+
+.sbet-name {
+  display: grid;
+  place-items: center;
+  white-space: nowrap;
+  font-size: clamp(12px, 1.1vw, 15px);
+  font-weight: 800;
+  font-stretch: 80%;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  /* The name is the thing a reader is scanning for, so it takes the
+     brightest ink. The dim state below drops to --sb-ink-3, and the gap
+     between the two is what the power-on is visibly doing. */
+  color: var(--sb-ink);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, .9);
+}
+
+/* Before the sequence runs, and between its steps, a plate is dark. */
+.sbet-rack.is-arming .sbet-unit:not(.is-on) .sbet-win,
+.sbet-rack.is-arming .sbet-unit:not(.is-on) .sbet-lamp { opacity: 0; }
+.sbet-rack.is-arming .sbet-unit:not(.is-on) .sbet-name { color: var(--sb-ink-3); }
+
+.sbet-unit.is-flash .sbet-win { filter: brightness(1.7); }
+
+/* Pointing at one dims the other seven, so the answer below is unambiguous. */
+.sbet-rack.is-focused .sbet-unit:not(.is-picked) { opacity: .34; filter: saturate(.4); }
+.sbet-unit.is-picked .sbet-win { filter: brightness(1.35); }
+.sbet-unit:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: -2px; }
+
+.sbet-readout {
+  min-height: 3.2em;
+  margin: 18px auto 0;
+  max-width: 72ch;
+  text-align: center;
+  font-size: clamp(14px, 1.4vw, 17px);
+  line-height: 1.5;
+  color: var(--sb-ink-2);
+}
+.sbet-readout b { color: var(--sb-ink); font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.sbet-readout i {
+  font-style: normal;
+  margin-left: 8px;
+  padding: 3px 9px;
+  border-radius: var(--sb-r-control);
+  border: 1px solid currentColor;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.sbet-cta { margin: 20px 0 0; text-align: center; }
+.sbet-cta a {
+  display: inline-block;
+  padding: 12px 22px;
+  border-radius: var(--sb-r-panel);
+  border: 1px solid rgba(212, 169, 60, .5);
+  color: var(--sb-gold-bright);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.sbet-cta a:hover { border-color: var(--sb-gold-bright); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sbet-unit, .sbet-win, .sbet-lamp { transition: none; }
+  /* Lit from the start. The sequence never runs. */
+  .sbet-rack.is-arming .sbet-unit .sbet-win,
+  .sbet-rack.is-arming .sbet-unit .sbet-lamp { opacity: 1; }
+  .sbet-rack.is-arming .sbet-unit .sbet-name { color: var(--sb-ink-2); }
+}

@@ -17,7 +17,7 @@ def test_merch_is_windows_over_rows_with_low_stock_and_unsettled_as_lamps(flask_
     tid = _tour(client)
     sid = _show(client, tid)
     html = client.get("/tours/%s/merch" % tid).get_data(as_text=True)
-    assert '<details class="to-add" id="add-product" open>' in html and "No products yet" in html
+    assert '<details class="to-add" id="add-product">' in html and "No products yet" in html
     assert html.split('id="merch-run"')[1].split("</div>")[0].count('<span class="sb-lcd-v">—</span>') == 4, "nothing yet: every window is a dash"
     client.post("/tours/%s/merch/products/add" % tid, data={"name": "Tour tee", "sku": "TEE-1", "price": "30",
                                                              "tour_inventory": "10", "low_stock_at": "3"})

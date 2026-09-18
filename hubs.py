@@ -52,8 +52,14 @@ HUBS = [
          "Stage Plot", "One drawing per act, attached to every advance you send. Draw it here before there is a tour."),
         ("lights", "/lights", "M10 2v4|M4 6l2 2|M16 6l-2 2|M6 12a4 4 0 118 0v4H6z", "Light Studio", "Cue programming with real DMX output."),
         ("tour-board", "/tour-board", "M7 8a3 3 0 116 0 3 3 0 01-6 0z|M2 17c1-3 4-4 8-4s7 1 8 4", "Team-Up Board", "Artists and venues finding each other."),
-        # The Tour suite, the owner's tour app on its own service (2026-09-15).
-        ("tour-suite", "/suites/go/tour", "M3 15h14|M5 15V9l5-4 5 4v6|M8 15v-3h4v3|M15 4l2 2", "Tour Suite", "The tour app on its own service: routing, advancing and the road, in one suite (opens Tour).")
+        # Tour used to be listed twice: this hub's "Tour" and a "Tour Suite"
+        # that opened the separate service. An audit on 2026-09-17 found that
+        # service is a fork from August, twenty routes behind this app's Tour
+        # (VIP, ticket sync, advance sending, venue photos, setlists, the show
+        # page the owner approved) and asleep on a free instance, so the link
+        # cost a cold start to reach the older copy. One Tour, and it is this
+        # one; the strip's TO mark points here too, from TOOL_SUITES_OWN. The
+        # suite is rebuilt from this code after partner week.
     ]),
     ("money", "Royalty Sweep & Banking", "The money side — find it, claim it, value it, and keep the books straight.", [
         # Overview is a tab of the Command Center front (2026-09-07: "overview
@@ -74,7 +80,7 @@ HUBS = [
 
 # Groups outside the five hubs.
 LABEL_GROUP = ("Label Services", [
-    ("services", "/services", "M4 6h12v10H4z|M4 9h12M8 6V4h4v2", "Services", "Art Is War Records label services."),
+    ("services", "/services", "M4 6h12v10H4z|M4 9h12M8 6V4h4v2", "Services", "Street Banker label services."),
     ("apparel", "/apparel", "M6 6l4-2 2 2 2-2 4 2-2 4h-1v6H9v-6H8L6 6z", "Apparel & Merch", "The store's own checkout, on the page you are on."),
     ("submit", "/submit", "M10 4v9M6 8l4-4 4 4|M4 15h12", "Submit Music", "Send music to the label desk."),
     # /admin/review is NOT here. It lists every account on the deployment
@@ -276,14 +282,15 @@ TOOL_SUITES_OWN = (
     # the footer") and opens the Royalties desk in this tab.
     ("royalty-sweep", "/royalties", "M4 6h12M4 10h12M4 14h8", "Royalty Sweep", "Rights, royalties and clarity: the money desk of this app."),
     ("noise-lab", "/suites/go/noise-lab", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Build your own effects and pedal chains for playing live (opens the Noise Lab app)."),
-    ("the-room", "/suites/go/the-room", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Songwriting, arrangement and production: build the record part by part, in its own app.")
+    ("the-room", "/suites/go/the-room", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Songwriting, arrangement and production: build the record part by part, in its own app."),
+    ("tour-suite", "/tours", "M3 15h14|M5 15V9l5-4 5 4v6|M8 15v-3h4v3|M15 4l2 2", "Tour", "Route it, advance it, play it, settle it: the tour desk of this app."),
 )
 
 TOOL_SUITES_PENDING = (
     ("company", "/command-center", "M3 17V6l7-3 7 3v11H3z|M8 17v-5h4v5|M7 9h.01M13 9h.01", "Company",
-     "The company desk, coming to the suites. Opens the Command Center for now."),
+     "Your team, your partners and your paperwork. Coming to the suites; opens the Command Center for now."),
     ("artifacts", "/command-center", "M4 4h12v12H4z|M4 9h12|M9 9v7|M7 6.5h.01", "Artifacts",
-     "The artifacts workbench, coming to the suites. Opens the Command Center for now."),
+     "Merch, collectibles and moments for fans. Coming to the suites; opens the Command Center for now."),
 )
 
 # The suites strip draws every suite the same way (owner, 2026-09-17: "fix the
@@ -356,8 +363,10 @@ def get_hub(key):
 _STUDIO_ITEM = (
     "studio", "/studio",
     "M3 5h14v10H3z|M3 15h14|M6 8v4|M9 7v6|M12 9v3|M15 8v4",
-    "Studio",
-    "Sessions, versions and approvals for the record you are finishing.",
+    # "Studio" inside a room called Studio said nothing about the work
+    # (owner, 2026-09-17). The page keeps its Control Room heading.
+    "Mix Check",
+    "Check a mix or master before it goes out: loudness, headroom, versions and approvals.",
 )
 
 

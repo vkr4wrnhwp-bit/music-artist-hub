@@ -40,7 +40,7 @@ def test_the_section_sits_after_creative_studio_and_displaces_nothing():
     assert body.index('id="rollout-engine"') < body.index('id="royalty-sweep-section"')
     for kept in ["Build the", "Choose your lane.", "Find what&#39;s yours.",
                  "Your catalog is the ",
-                 "One system. Six departments."]:
+                 "One system. Eight tools."]:
         assert kept in body, kept
 
 

@@ -12,6 +12,10 @@ import re
 
 from tests.test_tour_date_page import _user, _tour, _show, flask_app  # noqa: F401
 
+NOTE = ("every fold on every page opens closed now; the owner's rule on "
+        "2026-09-17 was that either all of them are or none of them are, "
+        "and the summary still says what the fold does")
+
 
 def _money(client, tid):
     r = client.get("/tours/%s/money" % tid)
@@ -69,7 +73,7 @@ def test_the_expense_form_waits_behind_a_plus_once_the_ledger_has_an_entry(flask
     tid = _tour(client)
     _show(client, tid, "2030-05-02", "Room One")
     html = _money(client, tid)
-    assert '<details class="to-add" id="add-expense" open>' in html, "an empty ledger opens the form"
+    assert '<details class="to-add" id="add-expense">' in html, "closed, %s" % NOTE
     assert "No expenses logged." in html
     r = client.post("/tours/%s/expenses/add" % tid, data={"vendor": "Backline Co", "category": "other",
                                                           "amount": "250", "spend_date": "2030-05-01"})

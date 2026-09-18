@@ -26,10 +26,10 @@ _EPK_PROFILE = {
     "genres": ["Synthwave", "Electronic Pop", "Alternative"],
     "location": "Los Angeles, CA",
     "socials": [
-        {"label": "Instagram", "handle": "@artiswar", "logo": "other"},
-        {"label": "TikTok", "handle": "@artiswar", "logo": "tiktok"},
-        {"label": "YouTube", "handle": "Art Is War", "logo": "youtube"},
-        {"label": "Spotify", "handle": "Art Is War", "logo": "spotify"},
+        {"label": "Instagram", "handle": "@yourhandle", "logo": "other"},
+        {"label": "TikTok", "handle": "@yourhandle", "logo": "tiktok"},
+        {"label": "YouTube", "handle": "Your Artist Name", "logo": "youtube"},
+        {"label": "Spotify", "handle": "Your Artist Name", "logo": "spotify"},
     ],
     "contact": {
         "booking": "booking@streetbanker.co",

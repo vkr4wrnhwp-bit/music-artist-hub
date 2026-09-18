@@ -244,7 +244,7 @@ def test_landing_is_the_twelve_approved_sections_in_order():
     order = [
         "sbhero",                       # 2  hero
         'id="artist-eq"',               # 3  Artist EQ
-        'id="departments"',             # 4  one system, six departments
+        'id="eight-tools"',             # 4  one system, eight tools
         'id="artist-twin-section"',     # 5  AI Artist Twin
         'id="lanes"',                   # 6  three lanes
         'id="creative-studio"',         # 7  Creative Studio
@@ -1255,7 +1255,7 @@ def test_label_services_content_from_site():
     hub = client.get("/services").get_data(as_text=True)
     # Platform branding is Street Banker; the AIW Shopify store is only a link.
     assert "Street Banker" in hub
-    assert "artiswarrecords.com" in hub  # store link retained
+    assert "streetbankermusic.com" in hub  # store link retained
     assert "team.summitarts@gmail.com" in hub
     assert "200+" in hub
     dist = client.get("/services/distribution").get_data(as_text=True)

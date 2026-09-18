@@ -10,6 +10,10 @@ import re
 
 from tests.test_tour_date_page import _user, _tour, _show, flask_app  # noqa: F401
 
+NOTE = ("every fold on every page opens closed now; the owner's rule on "
+        "2026-09-17 was that either all of them are or none of them are, "
+        "and the summary still says what the fold does")
+
 
 def _people(client, tid, **args):
     q = "&".join("%s=%s" % kv for kv in args.items())
@@ -63,7 +67,7 @@ def test_the_person_form_waits_behind_a_plus_once_anybody_is_listed(flask_app):
     client, owner = _user(flask_app)
     tid = _tour(client)
     html = _people(client, tid)
-    assert '<details class="to-add" id="add-person" open>' in html, "an empty directory opens the form"
+    assert '<details class="to-add" id="add-person">' in html, "closed, %s" % NOTE
     assert "Nobody in the directory yet" in html
     _add(client, tid, name="Ava Kane")
     html = _people(client, tid)

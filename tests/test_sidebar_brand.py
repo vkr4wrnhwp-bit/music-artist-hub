@@ -84,7 +84,10 @@ def test_an_artist_still_reaches_the_community_pages():
     app_obj = create_app()
     c = _client(app_obj, "pro")
     aside = c.get("/command-center").get_data(as_text=True).split("</aside>")[0]
-    assert 'data-hub="community" data-open="1"' in aside
+    # The group is there and reachable. It used to be forced open while every
+    # other group started closed; every fold on every page opens closed now
+    # (owner, 2026-09-17: "either all are or none are").
+    assert 'data-hub="community"' in aside and 'data-open="1"' not in aside
     for href in ("/discover", "/marketplace", "/fans"):
         assert 'href="%s"' % href in aside, href
     assert aside.index('data-hub="community"') < aside.index('data-hub="account"')

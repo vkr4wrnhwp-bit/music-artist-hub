@@ -34,7 +34,7 @@
 {% else %}{{ m.empty("No products yet", "Add what is on the table, with tour inventory and a low-stock threshold.") }}{% endif %}
 
 {#- Five fields behind a plus; open on its own only while there are no products. -#}
-<details class="to-add" id="add-product"{% if not products %} open{% endif %}>
+<details class="to-add" id="add-product">
 <summary><span class="plus" aria-hidden="true">+</span> Add a product</summary>
 <div class="to-add-body">
 <form method="post" action="/tours/{{ tour['id'] }}/merch/products/add" class="to-form">

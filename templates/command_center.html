@@ -15,7 +15,9 @@
     <div>
       <p class="sb-label text-sb-gold-bright">Tutor mode</p>
       <p class="mt-1 max-w-xl text-sm text-gray-300">
-        {% if tutor.complete %}
+        {% if tutor.settled and not tutor.complete %}
+          Setup is {{ tutor.percent }}% complete. One thing at a time, whenever you want it.
+        {% elif tutor.complete %}
           Every step is done. Nothing left to walk through — turn this off whenever you like.
         {% elif tutor.next %}
           Next up, in <span class="font-semibold text-gray-100">{{ tutor.next.stage }}</span>: {{ tutor.next.why }}
@@ -38,9 +40,16 @@
   </div>
   {% endif %}
 
+  {% if tutor.settled %}
+  <details class="mt-4">
+    <summary><span class="sb-btn sb-btn-secondary sb-btn-sm">Resume setup</span></summary>
+  {% endif %}
   <div class="mt-4 space-y-3">
     {% for stage in tutor.stages %}
-    <details {{ 'open' if not stage.complete and tutor.next and tutor.next.stage == stage.name }}>
+    {#- Closed like every other fold on every other page. The next step is
+        already marked; opening it as well was the one thing on the page
+        that behaved differently from the rest of the app. -#}
+    <details>
       <summary class="flex cursor-pointer items-center gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
         <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border {{ 'border-green-500/60 bg-green-500/20' if stage.complete else 'border-white/20' }}">
           {% if stage.complete %}<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#79B473" stroke-width="2.5"><path d="M2 6l3 3 5-6"/></svg>{% endif %}
@@ -74,6 +83,9 @@
     </details>
     {% endfor %}
   </div>
+  {% if tutor.settled %}
+  </details>
+  {% endif %}
 
   <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
     <p class="text-xs text-gray-300 font-medium">Each line is checked against your account, not against whether you clicked something — remove the thing and the step comes back. Nothing here is locked; this panel only suggests.</p>

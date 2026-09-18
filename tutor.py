@@ -110,13 +110,19 @@ def stage_state_keys():
             for key, *_ in steps]
 
 
-def build(state, reachable=None):
+def build(state, reachable=None, settled=False):
     """The tutor panel for one account.
 
     `state`     dict of step-key -> bool, real queries only.
     `reachable` optional set of step keys this account's PLAN can open.
                 Steps not in it are dropped entirely: a walkthrough must
                 never point at a locked door. None means everything.
+    `settled`   the account has plainly started: statements, fans, releases
+                or a catalog. The panel keeps its progress line and its one
+                recommended action and folds the rest away, because a
+                walkthrough at the top of a working dashboard is in the way
+                (outside audit, 2026-09-17). It is not switched off: that
+                stays the person's decision, as it always was.
     """
     stages = []
     next_step = None
@@ -148,4 +154,6 @@ def build(state, reachable=None):
         "done": done_total,
         "total": total,
         "complete": next_step is None,
+        "settled": bool(settled),
+        "percent": int(round(100.0 * done_total / total)) if total else 0,
     }

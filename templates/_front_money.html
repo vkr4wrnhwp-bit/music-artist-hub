@@ -230,7 +230,14 @@
       <div class="mt-2 text-2xl font-bold tracking-tight">Nothing tracked yet</div>
       <div class="text-xs text-gray-300 font-medium">No statement months on file</div>
       {% endif %}
-      <div class="mt-3"><canvas id="earningsChart" height="120"></canvas></div>
+      {#- The chart is drawn, so a reader who cannot see it gets the same
+          figures in words. Canvas fallback content is read out; the label
+          says what the drawing is (Codex audit, 2026-09-17). -#}
+      <div class="mt-3"><canvas id="earningsChart" height="120" role="img"
+        aria-label="Royalties by month{% if months %}, {{ months[0][0] }} to {{ months[-1][0] }}{% else %}, nothing tracked yet{% endif %}">
+        {% if months %}<p class="text-xs text-gray-300">Royalties by month: {% for m in months %}{{ m[0] }}, ${{ "{:,.2f}".format(m[1]) }}{{ "; " if not loop.last }}{% endfor %}.</p>
+        {% else %}<p class="text-xs text-gray-300">No statement months on file yet.</p>{% endif %}
+      </canvas></div>
       {% if months %}
       <div class="mt-4 grid grid-cols-3 gap-2 border-t border-white/5 pt-3 text-center">
         <div>

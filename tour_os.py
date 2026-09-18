@@ -33,8 +33,8 @@ import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from flask import (Blueprint, Response, abort, redirect, render_template,
-                   request, session, url_for)
+from flask import (Blueprint, Response, abort, current_app, redirect,
+                   render_template, request, session, url_for)
 
 import artist_identity
 import blob_store
@@ -1118,6 +1118,16 @@ def index():
     if user is None:
         return redirect(url_for("login", next=request.path))
     ts.adopt_orphan_shows(user["id"])   # a Hub show on no tour joins one before the list is read
+    # An account with no tours opens onto the Mock Up Tour rather than an
+    # empty page: a real routing to click through, marked as an example.
+    # Never for an account that already has one, so a real tour is never
+    # mixed with the demonstration.
+    if _artist_tier(user):
+        try:
+            import tour_mockup
+            tour_mockup.ensure_for(user)
+        except Exception:                       # a demo must never break the page
+            current_app.logger.exception("mock up tour")
     mine = ts.list_tours(user["id"])
     shared = ts.tours_shared_with(user["id"])
     for t in mine + shared:
@@ -1393,7 +1403,9 @@ def calendar(user, tour, viewer, tour_id):
     view = request.args.get("view") or "month"
     return render_template("tour/calendar.html", **_ctx(
         user, tour, viewer, "calendar", shows=shows, days=days, readiness=readiness, view=view,
-        add_open=(not days) or request.args.get("add") == "1", **cal))
+        # Only the link opens it. An empty month used to open the Add form
+        # by itself, which made one page disagree with every other one.
+        add_open=request.args.get("add") == "1", **cal))
 
 
 @bp.route("/tours/<tour_id>/mode", methods=["POST"])

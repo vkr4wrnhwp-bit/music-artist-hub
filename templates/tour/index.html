@@ -80,7 +80,7 @@
   {% if can_own %}
   {#- Three ways in, each behind a plus; the first opens on its own only
       while there is nothing to list. -#}
-  <details class="to-add" id="start-tour"{% if not mine and not shared %} open{% endif %}>
+  <details class="to-add" id="start-tour">
   <summary><span class="plus" aria-hidden="true">+</span> Start a tour</summary>
   <div class="to-add-body">
   <form method="post" action="/tours/new" class="to-form">
