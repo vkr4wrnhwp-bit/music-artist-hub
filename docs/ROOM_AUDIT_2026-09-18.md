@@ -231,3 +231,54 @@ not quietly dropped from every region.
 needs on day one. D-1 is the IA change that makes D-4's screen the obvious
 home. D-3 is small once the decision is made. D-2 is the largest and needs
 a provider budget conversation first.
+
+
+---
+
+## Outside review of the Fans section (owner-supplied, 2026-09-18)
+
+A full product review arrived proposing a **Fan Operating System**: capture
+-> understand -> segment -> activate -> monetize -> community -> measure.
+Persistent nav (Overview, Audience, Segments, Journeys, Fan Club,
+Community, Insights), Artist vs Label modes, a command centre in place of
+the launcher, fan profiles, journeys, a guided Fan Club builder, a split of
+Discover into artist and fan experiences, and a full Collab lifecycle.
+
+**Where it agrees with this audit, independently:** merge Fans and Fan CRM;
+empty states must offer a path; sample vs live must be unmistakable; the
+Marketplace Sample label contradicts its real-requests language.
+
+**Three code-level facts that change the plan.**
+
+1. **There is no messaging layer. At all.** No mail sender module, no bulk
+   send anywhere in the repo. Journeys, automations, email/SMS and most of
+   "three moves today" assume one exists. This is BLOCKING: those screens
+   cannot be honest before something can send. Build a sender before
+   Journeys, or ship buttons that do nothing - the exact defect this audit
+   exists to catch.
+
+2. **The Marketplace contradiction resolves the other way.** The review
+   assumes the listings are sample and the language is wrong. In fact
+   `collab_requests` is a real table written only by the Post request
+   route; nothing seeds it; a fresh database has zero rows. The listings
+   are real and the BADGE is wrong. Fix: add `marketplace` to
+   `hubs.LIVE_KEYS`. One line.
+
+3. **Lifetime value is in the fan-profile spec and the product refuses to
+   compute it** (F-2). No spend column, no purchase feed. It needs a
+   purchase-feed decision before it is a build item, or it becomes F-2
+   again under a new name.
+
+**Already built against this, 2026-09-18:** `fan_segments.py` + 15 tests -
+regions (Unknown selectable, never dropped), tour overlap in both
+directions (where to play, not only who to tell), consent-age buckets (an
+unreadable date is unknown, not new), suppression keyed by reason, and
+`first_send` (who has never been scored). That is the review's Segments
+item, standing. `ml_fans` gained country, city, suppressed, suppressed_at;
+`fan_list_import` now reads country/city columns where the export carries
+them and leaves them blank where it does not.
+
+**Sequencing view (mine, differs from the review's):** merge Fans + Fan CRM
+into Audience FIRST - cheap, and everything else hangs off it. THEN a
+sender. THEN Journeys. The review puts Journeys in "Next" alongside
+segments; without a sender that ordering produces dead UI.

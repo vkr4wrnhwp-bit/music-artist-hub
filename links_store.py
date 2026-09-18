@@ -235,6 +235,41 @@ def upsert_fan(user_id, email, campaign_id, name=""):
         return fan_id
 
 
+def set_fan_place(fan_id, country="", city=""):
+    """Where a fan is, when the file said so. Never overwrites something
+    with nothing: a later import that carries no location leaves the
+    location an earlier one recorded."""
+    country, city = (country or "").strip()[:80], (city or "").strip()[:80]
+    if not country and not city:
+        return
+    with get_db() as db:
+        db.execute(
+            "UPDATE ml_fans SET country = CASE WHEN ? <> '' THEN ? ELSE country END,"
+            " city = CASE WHEN ? <> '' THEN ? ELSE city END, updated = ? WHERE id = ?",
+            (country, country, city, city, _now(), fan_id))
+
+
+def suppress_fan(user_id, email, reason):
+    """Stop contacting this address, and record why.
+
+    A reason rather than a flag: "why is this person not being emailed" is
+    the question anyone actually asks, and a bare boolean cannot answer it.
+    Scoped to the account in the UPDATE itself.
+    """
+    reason = (reason or "").strip()[:120] or "suppressed"
+    with get_db() as db:
+        db.execute("UPDATE ml_fans SET suppressed = ?, suppressed_at = ?, updated = ?"
+                   " WHERE user_id = ? AND email = ?",
+                   (reason, _now(), _now(), user_id, (email or "").lower().strip()))
+
+
+def unsuppress_fan(user_id, email):
+    with get_db() as db:
+        db.execute("UPDATE ml_fans SET suppressed = '', suppressed_at = '', updated = ?"
+                   " WHERE user_id = ? AND email = ?",
+                   (_now(), user_id, (email or "").lower().strip()))
+
+
 _FAN_COUNTERS = ("total_visits", "total_clicks", "total_presaves", "total_captures")
 
 

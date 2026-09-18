@@ -34,6 +34,16 @@ NAME_HEADERS = ("name", "full name", "full_name", "display name", "customer name
                 "contact name", "subscriber name")
 FIRST_HEADERS = ("first name", "first_name", "firstname", "given name")
 LAST_HEADERS = ("last name", "last_name", "lastname", "surname", "family name")
+# Where somebody is, as the exporting tool spells it. Read, never
+# inferred: an email domain says nothing reliable about a person's
+# country, and a list that quietly invents locations is worse than one
+# that admits it does not know (owner, 2026-09-18).
+COUNTRY_HEADERS = ("country", "country code", "country_code", "country name",
+                   "billing country", "shipping country", "addr country",
+                   "address country", "region", "nation")
+CITY_HEADERS = ("city", "town", "billing city", "shipping city", "locality",
+                "address city", "addr city")
+
 STATUS_HEADERS = ("status", "subscribed", "email marketing consent",
                   "accepts email marketing", "marketing consent", "consent",
                   "subscription status", "email subscription", "opt in", "opt-in",
@@ -68,10 +78,12 @@ def _sniff_delimiter(text):
 def read_columns(text):
     """Which column is which, read from the header row.
 
-    Returns {"email", "name", "first", "last", "status", "headers",
-    "delimiter"}; the values are column indexes, or None where that column
-    is not in the file. email is None when nothing in the header looks like
-    an address column, which is the one thing this cannot work without.
+    Returns {"email", "name", "first", "last", "status", "country",
+    "city", "headers", "delimiter"}; the values are column indexes, or None
+    where that column is not in the file. email is None when nothing in the
+    header looks like an address column, which is the one thing this cannot
+    work without. country and city are usually None, and that is fine: a
+    fan with no location is Unknown rather than missing.
     """
     delimiter = _sniff_delimiter(text)
     reader = csv.reader(io.StringIO(text), delimiter=delimiter)
@@ -79,8 +91,10 @@ def read_columns(text):
         headers = next(reader)
     except StopIteration:
         return {"email": None, "name": None, "first": None, "last": None,
-                "status": None, "headers": [], "delimiter": delimiter}
-    found = {"email": None, "name": None, "first": None, "last": None, "status": None}
+                "status": None, "country": None, "city": None,
+                "headers": [], "delimiter": delimiter}
+    found = {"email": None, "name": None, "first": None, "last": None,
+             "status": None, "country": None, "city": None}
     for i, raw in enumerate(headers):
         h = _norm(raw)
         if found["email"] is None and h in EMAIL_HEADERS:
@@ -93,6 +107,10 @@ def read_columns(text):
             found["name"] = i
         elif found["status"] is None and h in STATUS_HEADERS:
             found["status"] = i
+        elif found["country"] is None and h in COUNTRY_HEADERS:
+            found["country"] = i
+        elif found["city"] is None and h in CITY_HEADERS:
+            found["city"] = i
     # A file with no header row at all, just addresses in the first column.
     if found["email"] is None and headers and _EMAIL.match((headers[0] or "").strip()):
         found["email"] = 0
@@ -127,6 +145,7 @@ def parse(text, limit=MAX_ROWS):
     out = {"rows": [], "skipped": [], "columns": cols,
            "had_header": bool(cols["headers"]),
            "has_status_column": cols["status"] is not None,
+           "has_location": cols["country"] is not None or cols["city"] is not None,
            "read": 0, "truncated": False}
     if cols["email"] is None:
         return out
@@ -166,7 +185,9 @@ def parse(text, limit=MAX_ROWS):
             continue
         seen.add(email)
         name = cell("name") or " ".join(p for p in (cell("first"), cell("last")) if p)
-        out["rows"].append({"email": email, "name": name.strip()})
+        out["rows"].append({"email": email, "name": name.strip(),
+                            "country": cell("country")[:80],
+                            "city": cell("city")[:80]})
     return out
 
 
@@ -189,6 +210,10 @@ def preview(parsed, known_emails=()):
         "adds_up": counted == parsed["read"],
         "truncated": parsed["truncated"],
         "has_status_column": parsed["has_status_column"],
+        # So the page can say "this file carried no locations" rather than
+        # showing every fan under Unknown with no explanation.
+        "has_location": bool(parsed.get("has_location")),
+        "located": sum(1 for r in parsed["rows"] if r.get("country") or r.get("city")),
         "sample": [r["email"] for r in new[:5]],
     }
 

@@ -1021,6 +1021,26 @@ def init_db():
             db.execute("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'artist'")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: where a fan is, and whether they may be contacted.
+        #
+        # An imported list is the reason both exist (owner, 2026-09-18:
+        # sort fans by region, and act on a region). Region is READ from
+        # the file and left blank when the file does not carry it - never
+        # guessed from an email domain, which is how a list acquires
+        # confident nonsense. A fan with no country is not dropped from
+        # every group; they are Unknown, and Unknown is selectable.
+        #
+        # `suppressed` holds a REASON rather than a flag, because "why is
+        # this person not being emailed" is the question anyone actually
+        # asks. Empty means contactable.
+        for _col in ("country TEXT NOT NULL DEFAULT ''",
+                     "city TEXT NOT NULL DEFAULT ''",
+                     "suppressed TEXT NOT NULL DEFAULT ''",
+                     "suppressed_at TEXT NOT NULL DEFAULT ''"):
+            try:
+                db.execute("ALTER TABLE ml_fans ADD COLUMN %s" % _col)
+            except sqlite3.OperationalError:
+                pass  # column already exists
         # Migration: referral engine columns on users.
         for _col in ("ref_code TEXT", "referred_by TEXT",
                      "ref_credited INTEGER NOT NULL DEFAULT 0"):
