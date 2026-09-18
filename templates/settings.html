@@ -205,6 +205,18 @@
         </form>
       </section>
 
+      <section id="home-layout" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
+        <h2 class="sb-label text-sb-gold-bright">Home page</h2>
+        <p class="mt-2 text-sm text-gray-300">Long: the nine-section homepage, story and all. Split: the door only &mdash; headline, sign-in, the stages rail, the Artist EQ, the eight tools, the Artist Twin and memberships. Switch to Split once the story and the plans are up on the store. Changes the front page for everybody on their next visit, and switches back the same way.</p>
+        {% if request.args.get('home') == 'saved' %}<p class="mt-2 text-sm text-green-400">Saved. The front page changed for everybody.</p>{% endif %}
+        <form method="post" action="/admin/home-layout" class="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-100">
+          <label class="flex items-center gap-2"><input type="radio" name="layout" value="full" class="accent-sb-gold"{% if not home_split %} checked{% endif %}> Long homepage</label>
+          <label class="flex items-center gap-2"><input type="radio" name="layout" value="split" class="accent-sb-gold"{% if home_split %} checked{% endif %}> Split (app door)</label>
+          <button class="sb-btn sb-btn-secondary sb-btn-sm">Save home page</button>
+        </form>
+        <p class="mt-2 text-xs text-gray-300">Preview it either way at <a class="text-sb-gold-bright" href="/?home=split">/?home=split</a> and <a class="text-sb-gold-bright" href="/?home=full">/?home=full</a>. Owner only; nobody else's page changes.</p>
+      </section>
+
       <section id="page-switches" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
         <h2 class="sb-label text-sb-gold-bright">Pages: live or hidden</h2>
         <p class="mt-2 text-sm text-gray-300">Untick a page and it leaves the menu for everyone but you, and its address sends them to the Command Center with a note. You still see it, marked Hidden, so you can check a page on the live site before switching it on. Saves straight away, no deploy.</p>

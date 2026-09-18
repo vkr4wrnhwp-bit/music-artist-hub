@@ -1,0 +1,21 @@
+{# The eight stages, as a rail.
+
+   Create, Finish, Approve, Protect, Deliver, Release, Market, Monetize.
+   Every desk in the app belongs to one of them, and the rail is the
+   shortest honest answer to "what is this". It is a map, not a progress
+   bar: nothing here is ticked, because the homepage does not know who is
+   reading it and a lit stage on a stranger's screen would be a claim
+   about them.
+
+   It reads as a list to a screen reader, because that is what it is. #}
+
+<nav class="sbrail" aria-label="The stages Street Banker covers">
+  <ol class="sbrail-list">
+    {% for stage in split_home.stages %}
+    <li class="sbrail-stage">
+      <span class="sbrail-dot" aria-hidden="true"></span>
+      <span class="sbrail-word">{{ stage }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+</nav>

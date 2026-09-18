@@ -211,7 +211,7 @@
           <h2 class="sb-label text-sb-gold">{{ col.title }}</h2>
           <ul class="mt-4 space-y-2.5">
             {% for l in col.links %}
-            <li><a href="{{ l.href }}" class="-my-2 inline-block py-3.5 text-xs text-sb-ink-2 transition-colors hover:text-sb-ink sm:my-0 sm:py-0">{{ l.label }}</a></li>
+            <li><a href="{{ l.href }}" class="-my-2 inline-block py-3.5 text-xs text-sb-ink-2 transition-colors hover:text-sb-ink sm:my-0 sm:py-0">{{ signup_cta(l.label) if l.href == "/signup" else l.label }}</a></li>
             {% endfor %}
           </ul>
         </div>

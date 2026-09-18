@@ -19,6 +19,10 @@
   </div>
 
 {% if fd.is_real %}
+  {#- The way in for somebody who already has an audience. An empty page
+      with no way to fill it is the complaint this answers. -#}
+  {% include "partials/fan_list_import.html" %}
+
   {# ---------------------------------------------------------------------
      Real account. Everything below reads ml_fans, ml_consents and ml_events
      for this user. There is deliberately no lifetime value, spend, or
@@ -31,9 +35,11 @@
     <section class="rounded-2xl border border-amber-500/15 bg-sb-surface-1 p-6">
       <h2 class="sb-label text-gray-300">No fans captured yet</h2>
       <p class="mt-2 max-w-2xl text-sm text-gray-300">{{ fd.reason }}</p>
+      <p class="mt-2 max-w-2xl text-sm text-gray-300">Or bring in a list you already have, below.</p>
       <div class="mt-4 flex flex-wrap gap-2">
         <a class="sb-btn sb-btn-primary" href="/links/new">Create a smart link</a>
         <a class="sb-btn sb-btn-secondary" href="/links">See your links</a>
+        <a class="sb-btn sb-btn-secondary" href="#import">Import a list</a>
         {% if shopify_import and shopify_import.on %}
         <form method="post" action="/links/fans/import/shopify"><button class="sb-btn sb-btn-secondary">Import subscribed Shopify customers</button></form>
         {% endif %}

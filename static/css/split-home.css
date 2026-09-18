@@ -1,0 +1,334 @@
+/* The split home page: the door, the stages rail, the memberships band.
+ *
+ * Only the three pieces that are new. The Artist EQ, the eight tools and
+ * the Artist Twin keep their own stylesheets, because on this page they
+ * are the same sections they are on the long one.
+ *
+ * Tokens only, and the three radii the design system allows:
+ * --sb-r-control 6px, --sb-r-panel 10px, --sb-r-pill 999px.
+ */
+
+/* ---- the door ------------------------------------------------------- */
+
+.sbdoor {
+  background: var(--sb-ground);
+  color: var(--sb-ink);
+  border-bottom: 1px solid var(--sb-line);
+}
+
+/* The padding is load-bearing, not taste. At 1440x900 the EQ rack used
+ * to start 113px BELOW the fold, so the first screen was a headline, a
+ * form, a rail and dark space - the most persuasive object on the page
+ * out of sight. These numbers put the rack's top edge 99px above it.
+ * Measure again before changing them. */
+.sbdoor-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 34px 16px 18px;
+  display: grid;
+  gap: 40px;
+  align-items: start;
+}
+
+/* Two columns once there is room for the form to sit beside the words
+ * without either one getting narrow enough to read badly. */
+@media (min-width: 900px) {
+  .sbdoor-inner {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+    padding: 34px 24px 18px;
+    gap: 56px;
+  }
+}
+
+.sbdoor-eyebrow {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--sb-gold);
+}
+
+.sbdoor-h {
+  margin: 10px 0 12px;
+  font-size: clamp(30px, 4.4vw, 52px);
+  line-height: 1.02;
+  font-weight: 900;
+  text-transform: uppercase;
+  text-wrap: balance;
+  color: var(--sb-ink);
+}
+
+.sbdoor-lede {
+  margin: 0;
+  max-width: 34em;
+  font-size: 17px;
+  color: var(--sb-ink-2);
+}
+
+/* The sign-in form arrives with its own stylesheet. All this does is put
+ * it on the page's ground and give it an edge, because on /login it is
+ * the whole page and here it is one panel among several. */
+.sbdoor-form {
+  border: 1px solid var(--sb-gold-line);
+  border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1);
+  padding: 20px;
+}
+
+.sbdoor-fine {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--sb-ink-2);
+}
+
+.sbdoor-fine strong { color: var(--sb-ink); }
+.sbdoor-fine a { color: var(--sb-gold-bright); }
+
+/* ---- the stages rail ------------------------------------------------ */
+
+.sbrail {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 16px 20px;
+}
+
+@media (min-width: 900px) {
+  .sbrail { padding: 0 24px 20px; }
+}
+
+.sbrail-list {
+  margin: 0;
+  padding: 14px 16px;
+  list-style: none;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  align-items: center;
+}
+
+.sbrail-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--sb-ink-2);
+}
+
+.sbrail-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sb-gold-deep);
+  flex: none;
+}
+
+/* ---- memberships --------------------------------------------------- */
+
+.sbmem {
+  background: var(--sb-ground);
+  color: var(--sb-ink);
+  border-top: 1px solid var(--sb-line);
+}
+
+.sbmem-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 56px 16px;
+}
+
+@media (min-width: 900px) {
+  .sbmem-inner { padding: 72px 24px; }
+}
+
+.sbmem-head { text-align: center; }
+
+.sbmem-h {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.sbmem-sub {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: var(--sb-ink-2);
+}
+
+.sbmem-trio {
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 760px) {
+  .sbmem-trio { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.sbmem-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 22px 18px 20px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1);
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color .18s ease;
+}
+
+.sbmem-tier.is-top .sbmem-card { border-color: var(--sb-gold-line); }
+
+.sbmem-card:hover,
+.sbmem-card:focus-visible { border-color: var(--sb-gold); }
+
+/* The pass is a transparent photograph of a real object, so the panel's
+ * own ground shows through it. Height rather than width, so all three
+ * sit at the same size whatever each file measures. */
+.sbmem-pass {
+  height: 168px;
+  width: auto;
+  margin-bottom: 6px;
+}
+
+.sbmem-name {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--sb-gold);
+}
+
+.sbmem-price {
+  font-size: 26px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.sbmem-blurb {
+  font-size: 13px;
+  color: var(--sb-ink-2);
+  max-width: 26em;
+}
+
+.sbmem-go {
+  margin-top: auto;
+  padding-top: 14px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--sb-gold-bright);
+}
+
+.sbmem-credits {
+  margin-top: 28px;
+  padding: 22px;
+  border: 1px solid var(--sb-line);
+  border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1);
+}
+
+.sbmem-credits-h {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--sb-gold);
+}
+
+.sbmem-token { width: 32px; height: 32px; }
+
+.sbmem-credits-note {
+  margin: 10px 0 0;
+  max-width: 62em;
+  font-size: 14px;
+  color: var(--sb-ink-2);
+}
+
+.sbmem-packs {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sbmem-packs li {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 9px 14px;
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-pill);
+  font-size: 13px;
+  color: var(--sb-ink-2);
+}
+
+.sbmem-packs b {
+  font-size: 15px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--sb-ink);
+}
+
+.sbmem-packs em {
+  font-style: normal;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--sb-gold-bright);
+}
+
+/* ---- the way back -------------------------------------------------- */
+
+.sbback {
+  background: var(--sb-ground);
+  border-top: 1px solid var(--sb-line);
+}
+
+.sbback-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 22px 16px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--sb-ink-2);
+}
+
+.sbback-line {
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: var(--sb-ink);
+}
+
+.sbback-store { margin: 0; }
+.sbback-store a { color: var(--sb-gold-bright); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sbmem-card { transition: none; }
+}

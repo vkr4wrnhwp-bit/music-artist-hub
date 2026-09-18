@@ -140,6 +140,8 @@ from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
 from departments_config import get_departments_config
 from eight_tools_config import get_eight_tools_config
+import fan_list_import
+import split_home
 from artist_twin_config import get_artist_twin_config
 from lanes_config import get_lanes_config
 from creative_config import get_creative_config
@@ -1943,7 +1945,27 @@ def create_app():
         # render the plate from, once as JSON for the component script.
         eq = get_artist_eq_config()
         departments = get_departments_config()
-        return render_template("landing.html", config=config, artist_eq=eq,
+        # After the split the public story lives on the store and this
+        # address is the door to the system. Off unless the owner switched
+        # it in Settings or the deployment sets SPLIT_HOME (split_home.py).
+        # The owner can look at either one without switching it for
+        # anybody: /?home=split and /?home=full. Only owner logins; for
+        # everybody else the parameter does nothing at all, so a link to
+        # it cannot show a stranger a page the owner has not chosen.
+        want = (request.args.get("home") or "").strip().lower()
+        me = current_user()
+        if want in ("split", "full") and me and _is_owner_email(me.get("email")):
+            split_on = want == "split"
+        else:
+            split_on = split_home.enabled()
+
+        page = "landing.html"
+        split_cfg = None
+        if split_on:
+            page = "landing_split.html"
+            split_cfg = split_home.get_split_home_config(_signup_open())
+        return render_template(page, config=config, artist_eq=eq,
+                               split_home=split_cfg,
                                public_base=PUBLIC_BASE_URL,
                                artist_eq_json=json.dumps(eq),
                                departments=departments,
@@ -3893,19 +3915,35 @@ def create_app():
             # A partner table mid-migration must not take every page down.
             return {"brand": None}
 
-    def _signal_seat(user, is_owner):
-        """Whether this login holds a Signal seat, so the Analytics room
-        offers the Signal card only to someone it will let in (audit,
-        2026-09-15: a Label account got a refusal page). signal_hub's own
-        lookup is used, since it enrols an owner on first sight and
-        mirrors the Operator Desk roster; a bare read would hide the card
-        from an owner who has never opened Signal."""
-        if is_owner:
-            return True
-        try:
-            return signal_hub._member(user)[1] is not None
-        except Exception:
-            return False
+    # _signal_seat lived here until 2026-09-17. It decided whether the
+    # Analytics room drew the Signal card; the card left the room, so the
+    # question stopped being asked. Signal's own guard is unchanged:
+    # signal_hub.require() runs before every handler.
+
+    @app.context_processor
+    def inject_the_door():
+        """Whether a stranger can make an account, and the words to offer
+        them either way.
+
+        Owner, 2026-09-17: "i still want no sign ups until i say so keep
+        that locked". The lock itself is _signup_open, and it holds: no
+        route mints an account while the door is shut. What did not hold
+        was the advertising. Twelve public pages and the footer said
+        "Create an account", which sent a stranger to a page that told
+        them no. The route was honest and the buttons were not.
+
+        So every one of those buttons asks here instead of deciding for
+        itself. Shut, they all offer an invitation; open, each keeps its
+        own specific wording ("Create an account to build one" rather than
+        one label pasted everywhere). Nothing needs a second edit on the
+        day the owner opens sign-up.
+        """
+        shut = not _signup_open()
+
+        def signup_cta(open_label="Create an account"):
+            return "Ask for an invitation" if shut else open_label
+
+        return {"signup_open": not shut, "signup_cta": signup_cta}
 
     @app.context_processor
     def inject_hub_context():
@@ -3945,8 +3983,7 @@ def create_app():
         if me and rooms.enabled() and (me.get("plan") or "artist") != "fan":
             is_owner = bool(_is_owner_email(me.get("email")))
             demo = bool(_demo_locked_account())
-            rooms_nav = {"rooms": rooms.build(me.get("plan") or "artist", is_owner, demo,
-                                              _signal_seat(me, is_owner)),
+            rooms_nav = {"rooms": rooms.build(me.get("plan") or "artist", is_owner, demo),
                          "top": rooms.top_rows(is_owner, demo),
                          "account": rooms.account_rows(is_owner, demo),
                          "back": rooms.back_map()}
@@ -3992,8 +4029,7 @@ def create_app():
             return login_required_redirect()
         is_owner = bool(_is_owner_email(user.get("email")))
         room = rooms.get_room(room_key, user.get("plan") or "artist", is_owner,
-                              bool(_demo_locked_account()),
-                              _signal_seat(user, is_owner))
+                              bool(_demo_locked_account()))
         if room is None:
             abort(404)
         return render_template("room.html", active_page="room-" + room_key,
@@ -4009,6 +4045,18 @@ def create_app():
             return bail
         rooms.set_layout(request.form.get("layout") or "hubs")
         return redirect("/settings?nav=saved#nav-layout")
+
+    @app.route("/admin/home-layout", methods=["POST"])
+    def admin_home_layout():
+        """The owner's choice of front page: the long homepage, or the
+        split one for after the story moves to the store. Owner only,
+        404 to everybody else, and flippable both ways while looking at
+        the page rather than through a redeploy."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        split_home.set_layout(request.form.get("layout") or "full")
+        return redirect("/settings?home=saved#home-layout")
 
     @app.route("/desk/<hub_key>")
     def hub_desk(hub_key):
@@ -4455,8 +4503,17 @@ def create_app():
             return redirect(request.referrer or "/billing")
         # With Stripe live, paid tiers go through real checkout — the demo
         # accounts keep instant switching so the tier demos still work.
-        if (stripe_billing.configured() and plan in stripe_billing.PRICES
-                and not _is_demo_email(user["email"])):
+        #
+        # And on a deployed service a paid tier is never granted here even
+        # when Stripe looks unconfigured (2026-09-17). It used to be: a
+        # service missing STRIPE_SECRET_KEY handed out any tier for the
+        # asking, which since Labels may now seat a roster would have let
+        # an account promote itself and then mint accounts. This fails
+        # toward refusing an upgrade rather than giving one away, so a key
+        # that goes missing stops sales instead of starting a giveaway.
+        paid = plan in stripe_billing.PRICES
+        if paid and not _is_demo_email(user["email"]) and (
+                stripe_billing.configured() or os.environ.get("RENDER")):
             return redirect("/billing")
         if plan in plans.TIER_RANK:
             store.set_user_plan(user["id"], plan)
@@ -5396,11 +5453,39 @@ def create_app():
                         headers={"Content-Disposition":
                                  "attachment; filename=roster-report.csv"})
 
+    def _may_seat(user, kind):
+        """May this account put somebody else on Street Banker?
+
+        Until 2026-09-17 the answer was "anybody signed in", which was
+        harmless only because the invitations could not be redeemed while
+        sign-up was shut. Now they can, so the question is real.
+
+        A roster is a Label feature, so roster seats need the Label plan.
+        Team is for every tier - a manager, an accountant, an attorney -
+        so a team seat needs any paid plan, and Fan is not one. The owner
+        may always seat anybody, which is how the owner has always worked.
+        """
+        if user is None:
+            return False
+        if _is_owner_email(user.get("email")):
+            return True
+        plan = (user.get("plan") or "artist").lower()
+        if kind == "roster":
+            return plan == "label"
+        return plan in ("artist", "pro", "label")
+
+    _NO_SEAT = {
+        "roster": "A roster comes with the Label membership.",
+        "team": "Inviting your team comes with a paid membership.",
+    }
+
     @app.route("/roster/invite", methods=["POST"])
     def roster_invite():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        if not _may_seat(user, "roster"):
+            return redirect("/upgrade?why=roster")
         email = (request.form.get("email") or "").strip().lower()
         if "@" in email and email != user["email"].lower():
             invite = store.add_roster_invite(user["id"], email)
@@ -5428,7 +5513,13 @@ def create_app():
             if existing:
                 artist_id = existing["id"]
             else:
-                if not _signup_open():
+                # The invitation is the authorisation, the way
+                # /signup?invite= is, so the shut public door does not
+                # stand in a Label's way. What is checked is the label:
+                # still an account, and still on the plan that may seat
+                # somebody. A downgrade ends its pending invitations.
+                label = store.get_user(invite["label_id"])
+                if not _may_seat(label, "roster"):
                     return render_template(
                         "roster_join.html", invalid=False, invite=invite,
                         has_account=False, error=_INVITE_ONLY), 403
@@ -9499,6 +9590,59 @@ def create_app():
         store.add_fan_import(user["id"], "shopify", summary, cursor=cursor or "")
         return redirect("/links/fans#import")
 
+    @app.route("/links/fans/import/list", methods=["POST"])
+    def ml_fans_import_list():
+        """Read a list the artist already has, from a file or pasted text.
+
+        Open to any signed-in account, unlike the Shopify import, which
+        reads the owner's own store and is owner-only. This one reads what
+        the artist hands over, so it is theirs to run.
+
+        Consent is never inferred from the fact that somebody uploaded a
+        file. Where the export carries a status column, fan_list_import
+        leaves out every row that says unsubscribed, cleaned, bounced or
+        never subscribed, whatever is ticked here. Where it does not, the
+        artist's own sentence about where the permission came from is what
+        gets written onto each record.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+
+        source = (request.form.get("source") or "").strip()[:120]
+        if not request.form.get("confirm") or not source:
+            return redirect("/links/fans?imp=needs-source#import")
+
+        text = request.form.get("text") or ""
+        upload = request.files.get("file")
+        if upload and upload.filename:
+            try:
+                text = upload.read().decode("utf-8-sig", "replace")
+            except Exception:
+                return redirect("/links/fans?imp=unreadable#import")
+        if not text.strip():
+            return redirect("/links/fans?imp=empty#import")
+
+        parsed = fan_list_import.parse(text)
+        known = [f.get("email") or "" for f in mls.list_fans(user["id"])]
+        summary = fan_list_import.preview(parsed, known)
+
+        # The preview is what runs. The counts the page shows are the ones
+        # that happened, not a second tally taken afterwards.
+        when = datetime.now(timezone.utc).date().isoformat()
+        note = fan_list_import.consent_note(source, when, parsed["has_status_column"])
+        known_set = {e.strip().lower() for e in known if e}
+        for row in parsed["rows"]:
+            if row["email"] in known_set:
+                continue
+            fan_id = mls.upsert_fan(user["id"], row["email"], None, row.get("name"))
+            mls.add_fan_tags(fan_id, ["imported"])
+            if not mls.find_consent(fan_id, "list_import"):
+                mls.add_consent(fan_id, None, "list_import", note)
+
+        store.add_fan_import(user["id"], "list", summary)
+        return redirect("/links/fans?imp=done#import")
+
     @app.route("/links/fans/shopify/reconnect", methods=["POST"])
     def ml_fans_shopify_reconnect():
         """Owner: forget the cached Shopify tokens and mint afresh - the
@@ -10467,6 +10611,8 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in first."}), 401
+        if not _may_seat(user, "team"):
+            return jsonify({"ok": False, "error": _NO_SEAT["team"]}), 402
         email = (request.form.get("email") or "").strip().lower()
         role = request.form.get("role") or "manager"
         if "@" not in email or role not in _TEAM_ROLES:
@@ -10501,7 +10647,11 @@ def create_app():
             if existing:
                 member_id = existing["id"]
             else:
-                if not _signup_open():
+                # Same rule as the roster door: the invitation authorises
+                # the account, and the account that issued it must still
+                # be allowed to.
+                inviter = store.get_user(invite["owner_id"])
+                if not _may_seat(inviter, "team"):
                     return render_template("team_join.html", invalid=False,
                                            invite=invite, error=_INVITE_ONLY), 403
                 name = (request.form.get("name") or "").strip()
@@ -10878,6 +11028,7 @@ def create_app():
     def settings():
         user = current_user()
         return render_template("settings.html", active_page="settings",
+                               home_split=split_home.enabled(),
                                notification_kinds=store.NOTIFICATION_KINDS,
                                muted_kinds=(store.muted_kinds(user["id"]) if user else set()),
                                can_backup=_backup_allowed(current_user()),

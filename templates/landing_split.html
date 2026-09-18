@@ -1,0 +1,141 @@
+{# The home page for after the split.
+
+   The long homepage tells the story and then offers a login at the top
+   right. Once the story lives on the store at streetbankermusic.com, this
+   address is the door to the system and nothing else, so the page is:
+
+     the door           headline and the real sign-in form
+     the stages rail    the eight words the product is organised by
+     the Artist EQ      the one thing here a visitor operates
+     eight tools        which doors exist, and what opens them
+     the Artist Twin    the argument for having an account
+     memberships        three passes and the credit wallet
+     the way back       one line pointing at the store
+
+   Every section that survives is the same partial the long page uses.
+   Nothing is forked, so a fix to the EQ or the rack fixes both pages.
+
+   The four sections that go (the three lanes, Creative Studio, the
+   Rollout Engine, the back office) are not deleted. They are the story,
+   and the story is moving somewhere the owner can edit it without a
+   deploy. landing.html still ships them, so this whole page is one
+   toggle away from being the long one again.
+
+   Off unless the owner switches it in Settings > Home page, or the
+   deployment sets SPLIT_HOME=1. See split_home.py. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {#- Street Banker, not config.brand: that resolves to "Royalty Sweep",
+      which is a suite inside the product rather than the product. The
+      share tag below already said Street Banker and the two disagreed. -#}
+  <title>Sign in · Street Banker — The Artist Operating System</title>
+  <meta name="description" content="One sign-in opens Street Banker and all eight suites: the studio, live effects, audience, royalties, touring, company, collectibles and video.">
+  <link rel="canonical" href="{{ public_base }}/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Street Banker">
+  <meta property="og:title" content="Street Banker — One platform. Every stage.">
+  <meta property="og:description" content="One sign-in opens Street Banker and all eight suites.">
+  <meta property="og:url" content="{{ public_base }}/">
+  <meta property="og:image" content="{{ public_base }}/static/img/eight-tools-1553.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23141210'/%3E%3Cpath d='M6 12l5 4 5-7 5 7 5-4v10a1 1 0 01-1 1H7a1 1 0 01-1-1z' fill='none' stroke='%23d8b25a' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#0B0A08">
+  <link rel="apple-touch-icon" href="/static/img/icon-192.png">
+  <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
+  <link rel="stylesheet" href="/static/css/page-guard.css?v=1">
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
+  {% include "_fonts.html" %}
+  <link rel="stylesheet" href="/static/css/public-header.css?v=5">
+  {#- The sign-in form's own stylesheet, because the form on this page is
+      the one /login serves rather than a second copy of it. -#}
+  <link rel="stylesheet" href="/static/css/login-session-recall.css?v=9">
+  <link rel="stylesheet" href="/static/css/split-home.css?v=1">
+  <link rel="stylesheet" href="/static/css/artist-eq.css?v=26">
+  <link rel="stylesheet" href="/static/css/eight-tools.css?v=1">
+  <link rel="stylesheet" href="/static/css/artist-twin.css?v=6">
+</head>
+<body class="min-h-screen bg-sb-ground text-sb-ink antialiased">
+
+{#- Not partials/public_header.html. That is the long site's marketing
+    nav, and three of its links (/#platform, /#creative-studio,
+    /#royalty-sweep) point at sections that live on the store now, so on
+    this page they scroll nowhere. It also offers "Log in" on the page
+    that IS the login. The owner's mockup had a minimal bar; this is it. -#}
+{% include "partials/split_bar.html" %}
+
+<main id="main">
+
+  {# 1. THE DOOR — words, the sign-in form, and the stages rail. #}
+  {% include "partials/split_door.html" %}
+
+  {# 2. THE ARTIST EQ — unchanged. The one thing on this page a visitor
+       works rather than reads, and the reason a stranger stays. #}
+  {% include "partials/artist_eq.html" %}
+
+  {# 3. ONE SYSTEM. EIGHT TOOLS. — which doors exist and what opens each.
+       Nothing in it is a link: seven of the eight have no public page. #}
+  {% include "partials/eight_tools.html" %}
+
+  {# 4. AI ARTIST TWIN — the argument for the account. #}
+  {% include "partials/artist_twin.html" %}
+
+  {# 5. MEMBERSHIPS AND CREDITS. #}
+  {% include "partials/memberships_band.html" %}
+
+  {# 6. THE WAY BACK. One line, because the store is where the rest of it
+       is now and a visitor who wants the story must not be stuck here. #}
+  <section class="sbback" aria-label="The Street Banker store">
+    <div class="sbback-inner">
+      <p class="sbback-line">{{ split_home.foot.line }}</p>
+      <p class="sbback-store">{{ split_home.foot.store }}
+        <a href="{{ public_base }}/" rel="noopener">{{ public_base | replace("https://", "") | replace("http://", "") }}</a>
+      </p>
+    </div>
+  </section>
+
+</main>
+
+{# The full footer. Every link on it is public, and after the split most
+   of them point at the store; the owner edits those in landing_config. #}
+{% set f = config.footer %}
+<footer class="bg-sb-ground text-sb-ink border-t border-sb-line">
+  <div class="mx-auto max-w-[1600px] px-5 py-14 sm:px-8 lg:px-14 lg:py-20">
+    <div class="grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_repeat(5,minmax(0,1fr))] lg:gap-8">
+      <div>
+        <img src="/static/img/streetbanker-logo-light.svg" alt="{{ f.logo.primary }}" width="920" height="250" class="h-8 w-auto">
+        <div class="sb-label mt-2 text-sb-ink-2">{{ f.logo.secondary }}</div>
+        {% if f.socials %}
+        <div class="mt-5 flex gap-4 text-xs font-semibold text-sb-ink-2">
+          {% for s in f.socials %}
+          <a href="{{ s.href }}" target="_blank" rel="noopener" class="-my-2 inline-block py-3.5 transition-colors hover:text-sb-gold sm:my-0 sm:py-0">{{ s.label }}</a>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% for col in f.columns %}
+      <div>
+        <h2 class="sb-label text-sb-gold">{{ col.title }}</h2>
+        <ul class="mt-4 space-y-2.5">
+          {% for l in col.links %}
+          <li><a href="{{ l.href }}" class="-my-2 inline-block py-3.5 text-xs text-sb-ink-2 transition-colors hover:text-sb-ink sm:my-0 sm:py-0">{{ signup_cta(l.label) if l.href == "/signup" else l.label }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-[rgb(238_232_220_/_0.08)] pt-6 text-xs text-sb-ink-3">
+      <span>{{ f.copyright }}</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/static/js/login-session-recall.js?v=4" defer></script>
+<script src="/static/js/artist-eq.js?v=13" defer></script>
+<script src="/static/js/eight-tools.js?v=1" defer></script>
+<script src="/static/js/artist-twin.js?v=2" defer></script>
+</body>
+</html>
