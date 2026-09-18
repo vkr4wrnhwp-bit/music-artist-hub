@@ -390,15 +390,14 @@ def test_the_plan_page_is_public_and_recomputes_the_same_plan():
     assert expected["setup_time"] in body
 
 
-def test_the_eq_background_carries_no_baked_text():
-    """The supplied plate had the heading and every panel label painted
-    into it. All of that is markup now, and the image is the room."""
-    import os
-    for asset in ("eq-room-1600.avif", "eq-room-1200.webp", "eq-room-900.jpg"):
-        assert os.path.exists("static/img/" + asset), asset
+def test_the_eq_has_no_picture_behind_it_and_its_words_are_text():
+    """The supplied plate once had the heading and every panel label
+    painted into it; that became markup. Then the faded room photograph
+    behind the console went too (owner, 2026-09-18): it read as faint
+    racks ghosting behind the controls."""
     body = _home()
-    assert "eq-room-1200.jpg" in body
-    assert 'alt=""' in body                      # decorative, per the brief
+    eq = body.split('id="artist-eq"')[1].split("</section>")[0]
+    assert "eq-room" not in eq and "sbeq-room" not in eq
     # The words are in the DOM, which is where a screen reader can reach
     # them - not inside a JPEG.
     for label in ("System readiness", "Recommended modules", "Top 3 actions",

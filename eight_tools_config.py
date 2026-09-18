@@ -66,6 +66,32 @@ NOTE = ("Each is its own app. One Street Banker sign-in opens them, and your "
         "membership decides which.")
 
 
+# THE TWO HALVES
+# The rack is drawn as two halves of four, side by side on a wide screen
+# and one above the other on a phone. The owner, 2026-09-18: "we don't
+# want to have to scroll left and right that's stupid". His artifact did
+# it this way from the start; the live page had shipped with a sideways
+# scroller instead.
+#
+# Each half shows the same photograph at twice its width, the second one
+# shifted left by a full half, so the seam falls between plates four and
+# five. A plate's position inside its half is its position on the whole
+# picture, doubled, minus the half it is in.
+def _halves(tools):
+    out = []
+    for h in (0, 1):
+        units = []
+        for i in range(4):
+            n = h * 4 + i
+            k, m, name, d, c, o = tools[n]
+            units.append({
+                "key": k, "mark": m, "name": name, "desc": d, "colour": c, "opens": o,
+                "left": round((PLATE["first_left"] + n * PLATE["step"]) * 2 - h * 100, 3),
+            })
+        out.append({"index": h, "units": units})
+    return out
+
+
 def get_eight_tools_config():
     return {
         "eyebrow": EYEBROW,
@@ -74,6 +100,9 @@ def get_eight_tools_config():
             {"key": k, "mark": m, "name": n, "desc": d, "colour": c, "opens": o}
             for k, m, n, d, c, o in TOOLS
         ],
+        "halves": _halves(TOOLS),
+        # Inside a half, a plate is twice as wide as it is on the whole.
+        "unit_width": PLATE["width"] * 2,
         "plate": PLATE,
         "image": IMAGE,
         "cta": CTA,

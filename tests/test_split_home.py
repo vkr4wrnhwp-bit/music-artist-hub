@@ -236,26 +236,58 @@ def test_the_story_sections_are_gone_from_the_page_but_not_the_repo(page):
         assert os.path.exists(os.path.join(HERE, "templates", "partials", kept)), kept
 
 
-def test_memberships_read_their_prices_from_plans(page):
-    band = page.split('class="sbmem"')[1].split("</section>")[0]
+def test_the_engraved_price_still_matches_plans(page):
+    """The prices are cut into metal in a photograph, so nothing in the
+    code can correct them. This is the thing that goes wrong quietly:
+    change a tier in plans.PLANS and the plate keeps advertising the old
+    number to every visitor. Fail the build instead.
+
+    If this breaks, the fix is a new photograph from the owner, not an
+    edit here.
+    """
     for key, name, price, _blurb, _inc in plans.PLANS:
         if key == "fan":
             # Free, and no photographed metal pass claiming otherwise.
-            assert "pass-fan" not in band
+            assert "pass-plate-fan" not in page
             continue
-        assert price in band, (key, price)
-        assert ">%s</span>" % name in band, name
-        assert "pass-%s.png" % key in band, key
+        reads = split_home.ENGRAVED[key]
+        assert reads.startswith(price.split("/")[0] + " a month."), (
+            "the %s plate is engraved %r but plans says %s - the "
+            "photograph needs reshooting" % (key, reads, price))
 
 
-def test_every_pass_and_the_token_ship(page):
-    for name in ("pass-artist", "pass-pro", "pass-label", "credit-token"):
-        for ext in ("png", "webp"):
-            path = os.path.join(HERE, "static", "img", "%s.%s" % (name, ext))
-            assert os.path.exists(path), path
-    # The photograph is decoration; the words beside it are the content.
+def test_each_pass_is_a_plate_a_word_mask_and_the_light_between(page):
+    """Two images per pass, and the mask is the one that matters: the
+    light is poured through the words, which is what makes them light a
+    line at a time. A pass that lost its mask would still look right at
+    rest and do nothing on hover, so check the wiring, not the look.
+    """
     band = page.split('class="sbmem"')[1].split("</section>")[0]
-    assert band.count('alt=""') == 4
+    for key, name, _price, _blurb, _inc in plans.PLANS:
+        if key == "fan":
+            continue
+        for slot, f in (("--sbmem-plate", "pass-plate-%s.webp" % key),
+                        ("--sbmem-words", "pass-words-%s.webp" % key)):
+            assert f in band, (key, f)
+            assert os.path.exists(os.path.join(HERE, "static", "img", f)), f
+        assert ">Choose %s</span>" % name in band, name
+    # The three light layers, once per pass.
+    for layer in ("sbmem-bloom", "sbmem-glow", "sbmem-sheen"):
+        assert band.count('class="%s"' % layer) == 3, layer
+    # Every word on a plate is in its label, so the pass is readable
+    # without seeing it.
+    for key in ("artist", "pro", "label"):
+        assert split_home.ENGRAVED[key] in band, key
+
+
+def test_the_coins_ship_and_stay_decorative(page):
+    for name in ("credit-pile", "credit-coin"):
+        assert os.path.exists(
+            os.path.join(HERE, "static", "img", "%s.webp" % name)), name
+    band = page.split('class="sbmem"')[1].split("</section>")[0]
+    # Only the two coin images are decorative. The plates are labelled,
+    # because they carry words.
+    assert band.count('alt=""') == 2
 
 
 def test_the_credit_packs_are_the_real_packs(page):

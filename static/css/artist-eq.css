@@ -26,28 +26,6 @@
   padding: clamp(48px, 7vw, 96px) 0;
 }
 
-/* The room, used as a frame. Its centre was painted out of the file, so
-   the console sits in a real hole rather than on top of a picture of a
-   console. */
-.sbeq-room {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  display: block;
-}
-.sbeq-room img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  opacity: 0.85;
-}
-@media (max-width: 900px) {
-  /* On a phone the gear would sit behind the controls. Keep a hint of it
-     at the edges and let the console own the middle. */
-  .sbeq-room img { opacity: 0.35; object-position: 50% 30%; }
-}
-
 /* The section runs the full width of the page so its own near-black is
    the ground rather than a dark card on white. The console keeps the
    measurements it was approved at: this max-width and padding reproduce

@@ -64,6 +64,18 @@ FOOT = {
     "store": "The full story, plans and the store live at",
 }
 
+# What is cut into each plate, line for line. The image is the only
+# place these words are drawn, so they live here too: a screen reader
+# reads this, and anyone changing what a tier includes can see here that
+# a new photograph is needed. tests/test_split_home.py checks the price
+# in each line still matches plans.PLANS.
+ENGRAVED = {
+    "artist": "$29 a month. Street Banker, Royalty Sweep, Artifacts.",
+    "pro": "$79 a month. All of Artist, REACH, Tour, Company.",
+    "label": ("$199 a month. All of Pro, The Room, Noise Lab, Motion, "
+              "monthly credits."),
+}
+
 CREDIT_NOTE = (
     "The Room, Noise Lab and Motion spend credits, because every render "
     "costs real compute. One wallet covers all three. Label includes "
@@ -102,19 +114,66 @@ def get_split_home_config(signup_open=False):
     # Fan is free and has no pass: a photographed metal pass for a free
     # tier would say something about it that is not true.
     paid = ("artist", "pro", "label")
-    # The pass images are named here rather than assembled in the
-    # template. tests/test_image_slots.py scans templates for
-    # /static/img/... and cannot evaluate Jinja, so a path built from a
-    # loop variable reads to it as a missing file - correctly, since it
-    # cannot know what the variable holds. Naming them here keeps that
-    # check meaningful; tests/test_split_home.py asserts the four files
-    # actually ship.
-    tiers = [{"key": key, "name": name, "price": price, "blurb": blurb,
-              "includes": includes, "top": key == "label",
-              "pass_webp": "/static/img/pass-%s.webp" % key,
-              "pass_png": "/static/img/pass-%s.png" % key}
-             for key, name, price, blurb, includes in plans.PLANS
-             if key in paid]
+    # THE PASSES
+    # ----------
+    # Two images per pass, and this is the whole trick. PLATE is the
+    # metal with the engraving cut into it and no light on the letters.
+    # WORDS is the same engraving as an alpha mask: white glyphs on
+    # nothing. The mask is what the light is poured through, so the
+    # letters can be lit without lighting the plate.
+    #
+    # Both are the owner's, shot for this band. He asked for them back
+    # by name after I shipped blank plates with live type over them:
+    # that version could not do the effect, because live text lights as
+    # one block. The words are stacked lines inside one image, so a
+    # light edge rising through the mask crosses them one line at a
+    # time, which is the thing he remembered and the thing he wanted.
+    #
+    # The cost of engraved metal is that the prices and the contents are
+    # baked into a photograph. tests/test_split_home.py asserts every
+    # engraved price still matches plans.PLANS, so changing a price
+    # fails the build instead of quietly making the plate lie.
+    #
+    # LIT is the colour the letters reach. BLOOM is the colour that
+    # spills off them, blurred and screened, and it is warmer than LIT
+    # because hot metal throws warmer light than it holds.
+    #
+    # Paths are named here, not assembled in the template.
+    # tests/test_image_slots.py scans templates for /static/img/... and
+    # cannot evaluate Jinja, so a path built from a loop variable reads
+    # to it as a missing file - correctly, since it cannot know what the
+    # variable holds. Naming them here keeps that check meaningful.
+    #
+    # sb-keep: these six are not chrome and must not be snapped onto the
+    # gold ramp. They are the colour of light on three specific pieces of
+    # metal in three specific photographs, matched to them by eye. Moving
+    # black metal's highlight to --sb-gold-bright makes it glow the same
+    # colour as the gold plate, which is the one thing that tells the
+    # three passes apart at a glance. Same reason the Light Studio gel
+    # book is exempt: this is data about a physical thing, not a theme.
+    metal = {
+        # sb-keep: light on the owner's black plate
+        "artist": ("black metal", "#FFF6E0", "#E9B949"),
+        # sb-keep: light on the owner's bronze plate
+        "pro": ("bronze", "#FFD79A", "#FF9A3D"),
+        # sb-keep: light on the owner's gold plate
+        "label": ("gold", "#FFFBE6", "#FFD45E"),
+    }
+    tiers = []
+    for key, name, price, blurb, includes in plans.PLANS:
+        if key not in paid:
+            continue
+        finish, lit, bloom = metal[key]
+        tiers.append({
+            "key": key, "name": name, "price": price, "blurb": blurb,
+            "includes": includes, "top": key == "label",
+            "finish": finish, "lit": lit, "bloom": bloom,
+            "plate": "/static/img/pass-plate-%s.webp" % key,
+            "words": "/static/img/pass-words-%s.webp" % key,
+            # What the engraving actually says, so a screen reader gets
+            # the pass and the repo carries the copy in text.
+            "reads": ENGRAVED[key],
+        })
     packs = [{"credits": credits, "price": "$%d" % (cents // 100), "label": label}
              for credits, cents, label in sorted(plans.CREDIT_PACKS.values())]
     return {

@@ -1,10 +1,12 @@
 /* One system, eight tools: the lights.
 
-   Two behaviours and nothing else.
+   Three behaviours and nothing else.
 
    The power-on runs once, when the section is first reached, and then the
    rack is lit and still. The homepage must never change around the person
-   reading it, so there is no loop, no idle animation and no second run.
+   reading it, so there is no loop and no idle animation. The only second
+   run is one the visitor asks for with "Play the power-on again", which is
+   in the owner's artifact and had been left out of the live page.
 
    Pointing at a plate dims the other seven and writes a sentence below the
    rack. Every sentence is read from the markup, so the words live in the
@@ -20,25 +22,39 @@
 
   var units = Array.prototype.slice.call(rack.querySelectorAll(".sbet-unit"));
   if (!units.length) { return; }
+  /* Phones carry the names in a row under each half, in plate order. */
+  var names = Array.prototype.slice.call(rack.querySelectorAll(".sbet-names li"));
+  var replay = document.getElementById("sbet-replay");
+  var timers = [];
 
   var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var idle = readout.getAttribute("data-idle") || "";
 
   /* --- the power-on, once ------------------------------------------- */
+  function later(fn, at) { timers.push(window.setTimeout(fn, at)); }
+
   function powerOn() {
+    /* A replay pressed mid-sequence starts clean rather than doubling up. */
+    timers.forEach(window.clearTimeout);
+    timers = [];
+    rack.classList.add("is-arming");
+    units.forEach(function (u) { u.classList.remove("is-on", "is-flash"); });
     units.forEach(function (unit, i) {
       var at = 320 + i * 230;
-      window.setTimeout(function () {
-        unit.classList.add("is-on", "is-flash");
-      }, at);
-      window.setTimeout(function () {
-        unit.classList.remove("is-flash");
-      }, at + 420);
+      later(function () { unit.classList.add("is-on", "is-flash"); }, at);
+      later(function () { unit.classList.remove("is-flash"); }, at + 420);
     });
-    window.setTimeout(function () {
+    later(function () {
       rack.classList.remove("is-arming");
       units.forEach(function (u) { u.classList.remove("is-on"); });
     }, 320 + units.length * 230 + 520);
+  }
+
+  /* Without the script there is no sequence to replay, so the button is
+     only offered once this has run. */
+  if (replay && !still) {
+    replay.hidden = false;
+    replay.addEventListener("click", powerOn);
   }
 
   if (!still && "IntersectionObserver" in window) {
@@ -51,14 +67,19 @@
           return;
         }
       }
-    }, { threshold: 0.4 });
+    /* A quarter in view: stacked on a phone the rack is two rows tall,
+       and waiting for 40% of it would light it late. */
+    }, { threshold: 0.25 });
     watcher.observe(rack);
   }
 
   /* --- pointing at one ---------------------------------------------- */
   function say(unit) {
     rack.classList.add("is-focused");
-    units.forEach(function (u) { u.classList.toggle("is-picked", u === unit); });
+    units.forEach(function (u, i) {
+      u.classList.toggle("is-picked", u === unit);
+      if (names[i]) { names[i].classList.toggle("is-picked", u === unit); }
+    });
 
     var opens = unit.getAttribute("data-opens") || "";
     var how = opens === "Credits" ? "Runs on credits"
@@ -82,6 +103,7 @@
   function clear() {
     rack.classList.remove("is-focused");
     units.forEach(function (u) { u.classList.remove("is-picked"); });
+    names.forEach(function (n) { n.classList.remove("is-picked"); });
     readout.textContent = idle;
   }
 

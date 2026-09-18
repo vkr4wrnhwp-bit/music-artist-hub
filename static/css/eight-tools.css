@@ -36,23 +36,61 @@
   color: var(--sb-ink-2);
 }
 
-/* Eight faceplates do not shrink to legibility on a phone, so the rack
-   keeps its size and the frame scrolls instead. */
-.sbet-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  border-radius: var(--sb-r-panel);
-}
+/* Two halves of four. Stacked by default, which is what a phone gets;
+   side by side once each half is wide enough for the names to sit in
+   their label strips at the 12px floor. Never a sideways scroller. */
 .sbet-rack {
-  position: relative;
-  min-width: 720px;
-  border-radius: var(--sb-r-panel);
-  overflow: hidden;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.sbet-photo, .sbet-photo img { display: block; width: 100%; height: auto; }
+@media (min-width: 1180px) {
+  .sbet-rack { flex-direction: row; gap: 0; }
+  .sbet-half { flex: 1 1 50%; min-width: 0; }
+  /* Side by side they are one rack again: the seam's corners go square
+     and the shadow wraps both. */
+  .sbet-half--0 .sbet-bay { border-radius: var(--sb-r-panel) 0 0 var(--sb-r-panel); }
+  .sbet-half--1 .sbet-bay { border-radius: 0 var(--sb-r-panel) var(--sb-r-panel) 0; }
+}
+
+/* A half is a window onto the photograph at twice its width. The aspect
+   ratio is half the photograph's, so the plates keep their shape. */
+.sbet-bay {
+  position: relative;
+  aspect-ratio: 1553 / 776.5;
+  overflow: hidden;
+  border-radius: var(--sb-r-panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+  container-type: inline-size;
+}
+.sbet-photo { position: absolute; inset: 0 auto 0 0; width: 200%; }
+.sbet-half--1 .sbet-photo { left: -100%; }
+.sbet-photo img { display: block; width: 100%; height: 100%; }
+
+/* The names under each half, phones only. Each sits at its plate's own
+   left edge and width, taken from the same numbers that place the plate,
+   so a name can only ever be centred under the plate it names. Room for
+   two lines, because ROYALTY SWEEP wraps at a phone's width. */
+.sbet-names {
+  position: relative;
+  list-style: none;
+  margin: 8px 0 4px;
+  padding: 0;
+  min-height: 2.6em;
+}
+.sbet-half--1 .sbet-names { min-height: 1.4em; }
+.sbet-names li {
+  position: absolute;
+  top: 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 800;
+  font-stretch: 80%;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--sb-ink);
+}
 
 .sbet-unit {
   position: absolute;
@@ -97,14 +135,27 @@
   transition: opacity .2s ease;
 }
 
+@media (min-width: 600px) { .sbet-names { display: none; } }
+@media (max-width: 599px) {
+  .sbet-unit .sbet-name {
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+
 .sbet-name {
   display: grid;
   place-items: center;
   white-space: nowrap;
-  font-size: clamp(12px, 1.1vw, 15px);
+  /* Sized by the plate, not the window. The bay is a size container, so
+     cqw is a fraction of the half the name sits in, and the longest name,
+     ROYALTY SWEEP, fits its strip at every width where the strip is shown.
+     It used to follow the viewport and ran off the strip on a laptop. */
+  font-size: clamp(12px, 2.05cqw, 15px);
   font-weight: 800;
-  font-stretch: 80%;
-  letter-spacing: .06em;
+  font-stretch: 75%;
+  letter-spacing: .03em;
   text-transform: uppercase;
   /* The name is the thing a reader is scanning for, so it takes the
      brightest ink. The dim state below drops to --sb-ink-3, and the gap
@@ -119,6 +170,11 @@
 .sbet-rack.is-arming .sbet-unit:not(.is-on) .sbet-name { color: var(--sb-ink-3); }
 
 .sbet-unit.is-flash .sbet-win { filter: brightness(1.7); }
+
+/* The names row follows the rack: dim before its plate powers on, and
+   dimmed with the others while one is picked. */
+.sbet-rack.is-focused .sbet-names li:not(.is-picked) { opacity: .34; }
+.sbet-names li.is-picked { color: var(--c); }
 
 /* Pointing at one dims the other seven, so the answer below is unambiguous. */
 .sbet-rack.is-focused .sbet-unit:not(.is-picked) { opacity: .34; filter: saturate(.4); }
@@ -146,6 +202,21 @@
   letter-spacing: .1em;
   text-transform: uppercase;
 }
+
+.sbet-again { margin: 6px 0 0; text-align: center; min-height: 1.5em; }
+.sbet-replay {
+  background: none;
+  border: 0;
+  padding: 4px 6px;
+  color: var(--sb-ink-2);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.sbet-replay:hover { color: var(--sb-ink); }
+.sbet-replay:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; border-radius: var(--sb-r-control); }
 
 .sbet-cta { margin: 20px 0 0; text-align: center; }
 .sbet-cta a {

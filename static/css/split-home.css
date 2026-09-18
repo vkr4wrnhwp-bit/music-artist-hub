@@ -59,53 +59,48 @@
 .sbbar + .sbdoor .sbdoor-inner { padding-top: 130px; }
 
 /* ---- the door ------------------------------------------------------- */
-/* Rebuilt 2026-09-18. It was a headline and a form on a flat band, which
- * made the front door the plainest screen in the product. The photograph
- * carries the frame now and the sign-in floats over it.
- * Tokens only, and the three allowed radii. */
+/* The billboard sits BESIDE the sign-in, not behind it (owner, 2026-09-18).
+ * It carries its own headline, its own wordmark and all eight suite marks,
+ * so laying the door's headline over it would be two statements fighting,
+ * and the scrim needed to make white type readable would dim the thing
+ * worth reading. A poster next to a door, which is what it is. */
 
 .sbdoor {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
   background: var(--sb-ground);
   color: var(--sb-ink);
   border-bottom: 1px solid var(--sb-line);
 }
 
-.sbdoor-shot { position: absolute; inset: 0; z-index: 0; }
-.sbdoor-shot img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 42%; display: block; }
-
-/* Two scrims, each with a job. The first lifts the whole image so ivory
- * type holds against the stage bloom; the second darkens the right so the
- * sign-in panel never lands on a highlight. */
-.sbdoor-shot::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgb(11 10 8 / .82) 0%, rgb(11 10 8 / .42) 34%, rgb(11 10 8 / .88) 100%),
-    linear-gradient(90deg, rgb(11 10 8 / .5) 0%, rgb(11 10 8 / 0) 38%, rgb(11 10 8 / .74) 88%);
-}
-
 .sbdoor-inner {
-  position: relative;
-  z-index: 2;
   max-width: 1240px;
   margin: 0 auto;
-  padding: 56px 16px 60px;
+  padding: 40px 16px 0;
   display: grid;
-  gap: 40px;
+  gap: 32px;
   align-items: center;
 }
 
 @media (min-width: 900px) {
   .sbdoor-inner {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 412px);
-    padding: 78px 24px 84px;
-    gap: 64px;
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr);
+    padding: 52px 24px 0;
+    gap: 56px;
   }
 }
+
+/* the poster */
+.sbdoor-poster {
+  margin: 0;
+  border-radius: var(--sb-r-panel);
+  overflow: hidden;
+  background: var(--sb-surface-1);
+  box-shadow: 0 30px 70px -34px rgb(0 0 0 / .95);
+}
+
+.sbdoor-poster img { width: 100%; height: auto; display: block; }
+
+/* the way in */
+.sbdoor-side { display: flex; flex-direction: column; gap: 26px; }
 
 .sbdoor-eyebrow {
   display: inline-flex;
@@ -122,34 +117,30 @@
 .sbdoor-eyebrow i { width: 22px; height: 2px; background: var(--sb-gold); display: block; }
 
 .sbdoor-h {
-  margin: 16px 0 0;
-  font-size: clamp(34px, 4.6vw, 62px);
-  line-height: .98;
+  margin: 14px 0 0;
+  font-size: clamp(30px, 3.4vw, 46px);
+  line-height: 1;
   font-weight: 900;
   letter-spacing: -.02em;
   text-transform: uppercase;
   text-wrap: balance;
   color: var(--sb-ink);
-  text-shadow: 0 2px 30px rgb(0 0 0 / .6);
 }
 
 .sbdoor-lede {
-  margin: 18px 0 0;
-  max-width: 30em;
-  font-size: 16.5px;
+  margin: 14px 0 0;
+  max-width: 34em;
+  font-size: 16px;
   line-height: 1.55;
-  color: var(--sb-ink);
-  opacity: .88;
+  color: var(--sb-ink-2);
 }
 
-/* The sign-in panel. It sits on a photograph, so it needs its own ground
- * and a real shadow: a flat card would look pasted on. */
 .sbdoor-form {
   border: 1px solid var(--sb-gold-line);
   border-radius: var(--sb-r-panel);
   background: var(--sb-surface-1);
   padding: 24px;
-  box-shadow: 0 1px 0 rgb(242 236 224 / .07) inset, 0 40px 90px -30px rgb(0 0 0 / .95);
+  box-shadow: 0 1px 0 rgb(242 236 224 / .07) inset, 0 30px 70px -34px rgb(0 0 0 / .9);
 }
 
 .sbdoor-fine { margin: 16px 0 0; font-size: 13px; color: var(--sb-ink-2); line-height: 1.5; }
@@ -157,10 +148,16 @@
 .sbdoor-fine a { color: var(--sb-gold-bright); }
 
 /* ---- the stages rail ------------------------------------------------ */
-/* Inside the door now, under the lede. Eight must sit on one line: an
+/* Full width under both columns now. Eight must sit on one line: an
  * orphaned last stage reads as a mistake rather than a rail. */
 
-.sbrail { margin-top: 26px; }
+.sbrail {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 30px 16px 40px;
+}
+
+@media (min-width: 900px) { .sbrail { padding: 34px 24px 44px; } }
 
 .sbrail-list {
   margin: 0;
@@ -168,21 +165,21 @@
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .sbrail-stage {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
   white-space: nowrap;
-  padding: 6px 9px;
+  padding: 7px 12px;
   border: 1px solid var(--sb-line-strong);
   border-radius: var(--sb-r-pill);
-  background: rgb(11 10 8 / .42);
+  background: var(--sb-surface-1);
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: .05em;
+  letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--sb-ink-2);
 }
@@ -196,125 +193,215 @@
 }
 
 /* ---- memberships --------------------------------------------------- */
+/* Three engraved metal passes and the light that runs up the letters.
+ *
+ * Each pass is two images in one box. --sbmem-plate is the metal with the
+ * engraving cut into it and no light on the letters. --sbmem-words is the
+ * same engraving as an alpha mask - white glyphs on nothing - and it is
+ * what the light is poured through, so the letters can be lit without
+ * lighting the plate.
+ *
+ * .sbmem-glow and .sbmem-bloom each carry a gradient that is lit across
+ * its top half and transparent below, drawn at 200% height and parked at
+ * "0 100%", which puts the lit half below the bottom edge. Hover moves it
+ * to "0 0" over three quarters of a second, and the lit edge climbs the
+ * plate. The engraving is stacked lines, so it crosses them one at a
+ * time: MONTHLY CREDITS, then MOTION, then NOISE LAB, then THE ROOM, then
+ * ALL OF PRO, then the price, then the name. That one-line-at-a-time
+ * reveal is the whole reason the words are in the photograph rather than
+ * set in live type over a blank plate - live text lights as one block.
+ * The owner had to ask for this back twice. It is not decoration.
+ *
+ * .sbmem-bloom is the same gradient blurred and screened in a warmer
+ * colour, because hot metal throws warmer light than it holds.
+ *
+ * .sbmem-sheen is masked by the plate rather than the words, so the
+ * highlight travels across the metal and stops at its edge.
+ *
+ * The plate tones live in the photographs. The only colours declared
+ * here are the design tokens and the two per-pass light colours, which
+ * arrive from split_home.py as --sbmem-lit and --sbmem-bloom. */
 
 .sbmem {
   background: var(--sb-ground);
-  color: var(--sb-ink);
   border-top: 1px solid var(--sb-line);
 }
 
-.sbmem-inner {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 56px 16px;
-}
-
-@media (min-width: 900px) {
-  .sbmem-inner { padding: 72px 24px; }
-}
+.sbmem-inner { max-width: 1240px; margin: 0 auto; padding: 56px 16px; }
+@media (min-width: 900px) { .sbmem-inner { padding: 72px 24px; } }
 
 .sbmem-head { text-align: center; }
-
 .sbmem-h {
   margin: 0;
   font-size: clamp(24px, 3vw, 34px);
   font-weight: 900;
-  text-transform: uppercase;
   letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--sb-ink);
 }
-
-.sbmem-sub {
-  margin: 8px 0 0;
-  font-size: 15px;
-  color: var(--sb-ink-2);
-}
+.sbmem-sub { margin: 8px 0 0; font-size: 15px; color: var(--sb-ink-2); }
 
 .sbmem-trio {
-  margin: 32px 0 0;
-  padding: 0;
   list-style: none;
   display: grid;
-  gap: 18px;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+  max-width: 300px;
+  margin: 26px auto 0;
+  padding: 0;
 }
-
 @media (min-width: 760px) {
-  .sbmem-trio { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sbmem-trio {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(16px, 4vw, 48px);
+    max-width: 980px;
+  }
 }
 
-.sbmem-card {
+.sbmem-tier { min-width: 0; }
+
+.sbmem-pass {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  height: 100%;
-  padding: 22px 18px 20px;
-  border: 1px solid var(--sb-line);
-  border-radius: var(--sb-r-panel);
-  background: var(--sb-surface-1);
-  text-align: center;
+  gap: 16px;
   text-decoration: none;
-  color: inherit;
-  transition: border-color .18s ease;
 }
 
-.sbmem-tier.is-top .sbmem-card { border-color: var(--sb-gold-line); }
+/* --- the plate ------------------------------------------------------- */
+/* The aspect ratio is the photograph's own, so the mask lines up with the
+ * engraving at every width. */
 
-.sbmem-card:hover,
-.sbmem-card:focus-visible { border-color: var(--sb-gold); }
-
-/* The pass is a transparent photograph of a real object, so the panel's
- * own ground shows through it. Height rather than width, so all three
- * sit at the same size whatever each file measures. */
-.sbmem-pass {
-  height: 168px;
-  width: auto;
-  margin-bottom: 6px;
+.sbmem-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 600 / 913;
+  background: var(--sbmem-plate) center / 100% 100% no-repeat;
+  filter: drop-shadow(0 22px 26px rgb(0 0 0 / .65))
+          drop-shadow(0 2px 3px rgb(0 0 0 / .6));
+  transition: filter .5s ease;
 }
 
-.sbmem-name {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--sb-gold);
+.sbmem-card i {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
-.sbmem-price {
-  font-size: 26px;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
+/* --- the light in the letters ---------------------------------------- */
+
+.sbmem-glow,
+.sbmem-bloom {
+  -webkit-mask: var(--sbmem-words) center / 100% 100% no-repeat;
+  mask: var(--sbmem-words) center / 100% 100% no-repeat;
+  background: linear-gradient(180deg, var(--sbmem-lit) 0 50%, transparent 50% 100%)
+              0 100% / 100% 200% no-repeat;
+  transition: background-position .75s cubic-bezier(.3, .7, .2, 1);
+  mix-blend-mode: screen;
 }
 
-.sbmem-blurb {
-  font-size: 13px;
-  color: var(--sb-ink-2);
-  max-width: 26em;
+.sbmem-bloom {
+  background-image: linear-gradient(180deg, var(--sbmem-bloom) 0 50%, transparent 50% 100%);
+  filter: blur(7px) saturate(1.4);
+  opacity: .95;
 }
+
+/* --- the light on the metal ------------------------------------------ */
+
+.sbmem-sheen {
+  -webkit-mask: var(--sbmem-plate) center / 100% 100% no-repeat;
+  mask: var(--sbmem-plate) center / 100% 100% no-repeat;
+  background: linear-gradient(105deg, transparent 40%, rgb(255 255 255 / .34) 50%, transparent 60%)
+              140% 0 / 250% 100% no-repeat;
+  mix-blend-mode: screen;
+  transition: background-position 0s;
+}
+
+/* --- what hovering does ---------------------------------------------- */
+
+.sbmem-pass:hover .sbmem-glow,
+.sbmem-pass:hover .sbmem-bloom,
+.sbmem-pass:focus-visible .sbmem-glow,
+.sbmem-pass:focus-visible .sbmem-bloom { background-position: 0 0; }
+
+.sbmem-pass:hover .sbmem-sheen,
+.sbmem-pass:focus-visible .sbmem-sheen {
+  background-position: -40% 0;
+  transition: background-position 1.1s ease;
+}
+
+.sbmem-pass:hover .sbmem-card,
+.sbmem-pass:focus-visible .sbmem-card {
+  filter: drop-shadow(0 22px 26px rgb(0 0 0 / .65))
+          drop-shadow(0 0 22px color-mix(in srgb, var(--sbmem-bloom) 45%, transparent));
+}
+
+.sbmem-pass:focus-visible {
+  outline: 2px solid var(--sb-gold-bright);
+  outline-offset: 6px;
+  border-radius: var(--sb-r-panel);
+}
+
+/* --- the button ------------------------------------------------------ */
 
 .sbmem-go {
-  margin-top: auto;
-  padding-top: 14px;
+  padding: 10px 16px;
+  border: 1px solid var(--sb-gold-line);
+  border-radius: var(--sb-r-control);
+  color: var(--sb-gold-bright);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: var(--sb-gold-bright);
+  transition: background .3s ease, color .3s ease;
 }
 
+.sbmem-pass.is-top .sbmem-go,
+.sbmem-pass:hover .sbmem-go,
+.sbmem-pass:focus-visible .sbmem-go {
+  background: linear-gradient(var(--sb-gold-bright), var(--sb-gold-deep));
+  color: var(--sb-on-gold);
+  border-color: transparent;
+}
+
+/* --- somebody who asked for less motion ------------------------------ */
+/* The letters still light, because that is how the pass is read. What
+ * goes is the travel: the glow arrives with the pointer instead of
+ * climbing, and the sheen does not sweep at all. */
+
+@media (prefers-reduced-motion: reduce) {
+  .sbmem-glow,
+  .sbmem-bloom,
+  .sbmem-card,
+  .sbmem-pass:hover .sbmem-sheen { transition: none; }
+  .sbmem-sheen { display: none; }
+}
+
+/* --- credits --------------------------------------------------------- */
+
 .sbmem-credits {
-  margin-top: 28px;
-  padding: 22px;
+  margin-top: 40px;
+  padding: 24px;
   border: 1px solid var(--sb-line);
   border-radius: var(--sb-r-panel);
   background: var(--sb-surface-1);
+  display: grid;
+  gap: 22px;
+  align-items: center;
 }
+
+@media (min-width: 900px) {
+  .sbmem-credits { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 32px; }
+}
+
+.sbmem-pile { width: 100%; height: auto; display: block; }
 
 .sbmem-credits-h {
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: .16em;
@@ -322,12 +409,13 @@
   color: var(--sb-gold);
 }
 
-.sbmem-token { width: 32px; height: 32px; }
+.sbmem-coin { width: 34px; height: 34px; }
 
 .sbmem-credits-note {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   max-width: 62em;
   font-size: 14px;
+  line-height: 1.6;
   color: var(--sb-ink-2);
 }
 
@@ -363,6 +451,13 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--sb-gold-bright);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The light does not travel; it is simply on, so nothing is lost to
+     somebody who asked for less movement. */
+  .sbmem-engrave, .sbmem-plate, .sbmem-go { transition: none; }
+  .sbmem-card:hover .sbmem-engrave { background-position: 0 0; }
 }
 
 /* ---- the way back -------------------------------------------------- */

@@ -73,9 +73,36 @@ def test_each_one_says_what_it_is_and_what_opens_it(section):
 
 
 def test_it_is_one_photograph_and_one_description(section):
-    assert section.count("<img") == 1, "eight faceplates, one file"
+    """Two halves of four, so the photograph is drawn twice, but it is one
+    file and it is described once. A screen reader must hear about the rack
+    once, not once per half."""
+    srcs = set(re.findall(r'<img src="([^"]+)"', section))
+    assert len(srcs) == 1, ("eight faceplates, one file", srcs)
     alts = re.findall(r'alt="([^"]*)"', section)
-    assert len(alts) == 1 and len(alts[0]) > 30, alts
+    assert alts == ["", ""], "both copies are decorative"
+    assert 'role="group" aria-label="%s"' % cfg.IMAGE["alt"] in section
+
+
+def test_a_phone_never_scrolls_the_rack_sideways(section):
+    """Owner, 2026-09-18: "we don't want to have to scroll left and right
+    that's stupid". The rack is two halves that stack, and nothing in the
+    stylesheet may give it a floor wider than a phone."""
+    assert section.count('class="sbet-half ') == 2
+    css = open(os.path.join(HERE, "static", "css", "eight-tools.css"), encoding="utf-8").read()
+    assert "overflow-x" not in css, "a sideways scroller came back"
+    assert not re.search(r"min-width:\s*\d{3,}px", css.split("@media")[0]), (
+        "a fixed minimum width outside a media query forces a scroll")
+    # Names under each half on phones, four each, in plate order.
+    rows = re.findall(r'<ol class="sbet-names"[^>]*>(.*?)</ol>', section, re.S)
+    got = [re.findall(r">([^<]+)</li>", r) for r in rows]
+    assert got == [["The Room", "Noise Lab", "REACH", "Royalty Sweep"],
+                   ["Tour", "Company", "Artifacts", "Motion"]]
+
+
+def test_the_power_on_can_be_played_again(section):
+    """In the owner's artifact and missing from the live page. Hidden until
+    the script runs, since without it there is nothing to replay."""
+    assert 'id="sbet-replay" hidden>Play the power-on again</button>' in section
 
 
 def test_the_picture_ships_in_three_formats_at_the_sites_widths(section):
