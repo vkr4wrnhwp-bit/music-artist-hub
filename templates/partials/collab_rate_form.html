@@ -1,0 +1,18 @@
+{#- Rate a chosen collaborator on a closed brief. Once per brief and person;
+    the route re-checks the brief is closed and the person chosen. Expects
+    `brief`, `reply` and `back`. -#}
+<form method="post" action="/marketplace/{{ brief.id }}/rate/{{ reply.user_id }}" class="cm-rate">
+  <input type="hidden" name="back" value="{{ back }}">
+  <fieldset>
+    <legend>Rate {{ reply.applicant_name }} for "{{ brief.title }}"</legend>
+    <div class="cm-starpick">
+      {% for n in range(1, 6) %}
+      <label><input type="radio" name="stars" value="{{ n }}" required><span>{{ n }} star{{ '' if n == 1 else 's' }}</span></label>
+      {% endfor %}
+    </div>
+    <label class="sr-only" for="note-{{ brief.id }}-{{ reply.user_id }}">A short note (optional)</label>
+    <input id="note-{{ brief.id }}-{{ reply.user_id }}" name="note" maxlength="300" placeholder="A short note (optional)">
+    <button class="sb-btn sb-btn-primary sb-btn-sm">Save rating</button>
+  </fieldset>
+  <p class="cm-cap">Your stars and note show on their profile with this brief's title. Your name does not. One rating per brief.</p>
+</form>

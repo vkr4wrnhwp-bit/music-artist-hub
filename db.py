@@ -1266,8 +1266,68 @@ def init_db():
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS recovery_cases_live_finding"
                    " ON recovery_cases (user_id, finding_key)"
                    " WHERE finding_key <> '' AND closed_at IS NULL")
+        _migrate_collab_profiles(db)
     link_song_tables()
     link_document_store()
+
+
+def _migrate_collab_profiles(db):
+    """Collaborator profiles (owner brief PROFILES-SPEC.md, 2026-09-18).
+
+    Additive only: two new tables, one small last-seen table, and guarded
+    columns on the two collab tables. Every existing row keeps its meaning:
+    a brief with no location or budget says "Not stated", a reply is not
+    chosen until its poster marks it, and nobody is listed until they
+    switch "List me in the marketplace" on themselves (listed DEFAULT 0).
+    """
+    db.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS collab_profiles (
+            user_id TEXT PRIMARY KEY,
+            listed INTEGER NOT NULL DEFAULT 0,
+            roles TEXT NOT NULL DEFAULT '[]',
+            genres TEXT NOT NULL DEFAULT '[]',
+            city TEXT NOT NULL DEFAULT '',
+            country TEXT NOT NULL DEFAULT '',
+            remote_ok INTEGER NOT NULL DEFAULT 0,
+            rate_min INTEGER,
+            rate_max INTEGER,
+            rate_unit TEXT NOT NULL DEFAULT '',
+            currency TEXT NOT NULL DEFAULT 'USD',
+            availability TEXT NOT NULL DEFAULT '',
+            available_from TEXT NOT NULL DEFAULT '',
+            credits TEXT NOT NULL DEFAULT '',
+            links TEXT NOT NULL DEFAULT '[]',
+            bio TEXT NOT NULL DEFAULT '',
+            created TEXT NOT NULL,
+            updated TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS collab_ratings (
+            id TEXT PRIMARY KEY,
+            request_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            ratee_id TEXT NOT NULL,
+            stars INTEGER NOT NULL,
+            note TEXT NOT NULL DEFAULT '',
+            created TEXT NOT NULL,
+            UNIQUE (request_id, user_id, ratee_id)
+        );
+        CREATE TABLE IF NOT EXISTS collab_seen (
+            user_id TEXT PRIMARY KEY,
+            matches_seen TEXT NOT NULL DEFAULT ''
+        );
+        """)
+    for table, ddl in (
+            ("collab_replies", "chosen INTEGER NOT NULL DEFAULT 0"),
+            ("collab_requests", "city TEXT NOT NULL DEFAULT ''"),
+            ("collab_requests", "country TEXT NOT NULL DEFAULT ''"),
+            ("collab_requests", "remote_ok INTEGER NOT NULL DEFAULT 0"),
+            ("collab_requests", "budget_min INTEGER"),
+            ("collab_requests", "budget_max INTEGER")):
+        try:
+            db.execute("ALTER TABLE %s ADD COLUMN %s" % (table, ddl))
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def _now():
@@ -2810,14 +2870,21 @@ def delete_outreach(user_id, item_id):
 # --- Collaboration Marketplace ----------------------------------------------------
 
 def add_collab_request(user_id, role, genre, kind, title, details, terms,
-                       ref_url, closes):
+                       ref_url, closes, city="", country="", remote_ok=False,
+                       budget_min=None, budget_max=None):
+    """Location and budget are optional: left out, they stay unstated
+    (empty / NULL) and the board shows "Not stated", never a guess."""
     req_id = uuid.uuid4().hex
     with get_db() as db:
         db.execute(
             "INSERT INTO collab_requests (id, user_id, role, genre, kind, title,"
-            " details, terms, ref_url, closes, created) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            " details, terms, ref_url, closes, created, city, country,"
+            " remote_ok, budget_min, budget_max)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (req_id, user_id, role[:60], genre[:60], kind, title[:120],
-             details[:1000], terms[:120], ref_url[:300], closes[:10], _now()))
+             details[:1000], terms[:120], ref_url[:300], closes[:10], _now(),
+             (city or "")[:60], (country or "")[:60], 1 if remote_ok else 0,
+             budget_min, budget_max))
     return req_id
 
 
@@ -2869,6 +2936,8 @@ def delete_collab_request(user_id, req_id):
         db.execute("DELETE FROM collab_requests WHERE id = ? AND user_id = ?",
                    (req_id, user_id))
         db.execute("DELETE FROM collab_replies WHERE request_id = ?", (req_id,))
+        db.execute("DELETE FROM collab_ratings WHERE request_id = ? AND user_id = ?",
+                   (req_id, user_id))
 
 
 def add_collab_reply(req_id, user_id, message, contact, proposal, ref_url):
@@ -2906,6 +2975,236 @@ def list_collab_saves(user_id):
         rows = db.execute("SELECT request_id FROM collab_saves WHERE user_id = ?",
                           (user_id,)).fetchall()
     return {r["request_id"] for r in rows}
+
+
+# --- Collaborator profiles (PROFILES-SPEC.md) ------------------------------------
+#
+# The privacy line is `listed`: every read that can reach ANOTHER member
+# goes through list_listed_collab_profiles / get_listed_collab_profile,
+# and both filter on listed = 1 in SQL. get_collab_profile is the owner's
+# own read for the edit page and the viewer's own match basis.
+
+_PROFILE_JSON = ("roles", "genres", "links")
+
+
+def _profile_row(row):
+    d = dict(row)
+    for k in _PROFILE_JSON:
+        try:
+            d[k] = json.loads(d.get(k) or "[]")
+        except ValueError:
+            d[k] = []
+    return d
+
+
+def get_collab_profile(user_id):
+    """The owner's own record, listed or not (None when never saved)."""
+    with get_db() as db:
+        row = db.execute("SELECT * FROM collab_profiles WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    return _profile_row(row) if row else None
+
+
+def save_collab_profile(user_id, fields):
+    """Insert or replace the account's own profile. `fields` is already
+    cleaned by collab_market.clean_profile; nothing here invents a value.
+
+    Microsecond stamps: "New Matches" compares this with the viewer's
+    last look (set_collab_seen), and a save in the same second as that
+    look must still count as newer."""
+    now = _now_fine()
+    cols = ("listed", "roles", "genres", "city", "country", "remote_ok",
+            "rate_min", "rate_max", "rate_unit", "currency", "availability",
+            "available_from", "credits", "links", "bio")
+    vals = [json.dumps(fields[c]) if c in _PROFILE_JSON else fields[c]
+            for c in cols]
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO collab_profiles (user_id, %s, created, updated)"
+            " VALUES (?, %s, ?, ?) ON CONFLICT(user_id) DO UPDATE SET %s,"
+            " updated = excluded.updated"
+            % (", ".join(cols), ", ".join("?" * len(cols)),
+               ", ".join("%s = excluded.%s" % (c, c) for c in cols)),
+            [user_id] + vals + [now, now])
+
+
+def _listable_sql():
+    """The WHERE clause every read of ANOTHER member's profile shares, with
+    its arguments. Listed is not enough on its own:
+      * a showcase login (demo_accounts) or a demo-locked account is never
+        a member, so it is never listed, whatever its row says;
+      * a locked account, or a guest whose access has ended, cannot sign in
+        to switch the listing off, so it leaves the marketplace the moment
+        it is shut and comes back only if it is opened again."""
+    import demo_accounts
+    emails = sorted(demo_accounts.EMAILS)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    clause = (" p.listed = 1 AND COALESCE(u.demo_lock, 0) = 0"
+              " AND COALESCE(u.locked, 0) = 0"
+              " AND (COALESCE(u.access_ends, '') = '' OR u.access_ends > ?)"
+              " AND LOWER(u.email) NOT IN (%s)" % ",".join("?" * len(emails)))
+    return clause, [now] + emails
+
+
+def list_listed_collab_profiles(exclude_user_id=None):
+    """Every member who switched "List me in the marketplace" on and can
+    still answer (_listable_sql), with the name and EPK photo the card
+    shows. Unlisted members never leave SQL."""
+    clause, args = _listable_sql()
+    q = ("SELECT p.*, u.name AS name, e.photo AS photo FROM collab_profiles p"
+         " JOIN users u ON u.id = p.user_id"
+         " LEFT JOIN epk_profiles e ON e.user_id = p.user_id"
+         " WHERE" + clause)
+    if exclude_user_id:
+        q += " AND p.user_id <> ?"
+        args.append(exclude_user_id)
+    q += " ORDER BY p.updated DESC"
+    with get_db() as db:
+        rows = db.execute(q, args).fetchall()
+    return [_profile_row(r) for r in rows]
+
+
+def get_listed_collab_profile(user_id):
+    """One member's card, only while they are listed and listable
+    (_listable_sql); None otherwise."""
+    clause, args = _listable_sql()
+    with get_db() as db:
+        row = db.execute(
+            "SELECT p.*, u.name AS name, e.photo AS photo FROM collab_profiles p"
+            " JOIN users u ON u.id = p.user_id"
+            " LEFT JOIN epk_profiles e ON e.user_id = p.user_id"
+            " WHERE p.user_id = ? AND" + clause, [user_id] + args).fetchone()
+    return _profile_row(row) if row else None
+
+
+def set_collab_reply_chosen(owner_id, reply_id, chosen):
+    """The brief's poster marks (or unmarks) an applicant as chosen.
+    Only the poster of the brief the reply belongs to can; returns
+    whether a row changed. Unmarking withdraws the poster's rating of that
+    applicant on that brief: a rating stands only on a choice that stands."""
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE collab_replies SET chosen = ? WHERE id = ? AND request_id IN"
+            " (SELECT id FROM collab_requests WHERE user_id = ?)",
+            (1 if chosen else 0, reply_id, owner_id))
+        if cur.rowcount and not chosen:
+            db.execute(
+                "DELETE FROM collab_ratings WHERE user_id = ? AND EXISTS"
+                " (SELECT 1 FROM collab_replies r WHERE r.id = ?"
+                " AND r.request_id = collab_ratings.request_id"
+                " AND r.user_id = collab_ratings.ratee_id)",
+                (owner_id, reply_id))
+    return cur.rowcount > 0
+
+
+def can_rate_collab(rater_id, req_id, ratee_id):
+    """A rating needs a brief the rater posted, that the rater CLOSED, and
+    an application on it from the ratee that the rater marked chosen."""
+    with get_db() as db:
+        row = db.execute(
+            "SELECT 1 FROM collab_requests c JOIN collab_replies r"
+            " ON r.request_id = c.id WHERE c.id = ? AND c.user_id = ?"
+            " AND c.status = 'closed' AND r.user_id = ? AND r.chosen = 1"
+            " AND r.user_id <> c.user_id",
+            (req_id, rater_id, ratee_id)).fetchone()
+    return row is not None
+
+
+def add_collab_rating(rater_id, req_id, ratee_id, stars, note):
+    """Once per (brief, rater, ratee). Returns False when not allowed or
+    already rated; the first rating stands."""
+    if not can_rate_collab(rater_id, req_id, ratee_id):
+        return False
+    try:
+        stars = int(stars)
+    except (TypeError, ValueError):
+        return False
+    if stars < 1 or stars > 5:
+        return False
+    with get_db() as db:
+        cur = db.execute(
+            "INSERT OR IGNORE INTO collab_ratings (id, request_id, user_id,"
+            " ratee_id, stars, note, created) VALUES (?,?,?,?,?,?,?)",
+            (uuid.uuid4().hex, req_id, rater_id, ratee_id, stars,
+             (note or "")[:300], _now()))
+    return cur.rowcount > 0
+
+
+# The read side re-checks the part of the basis the POSTER owns: a rating
+# counts only while the rater's brief exists and is still closed. The
+# "chosen" half was checked when the rating was written (can_rate_collab)
+# and is withdrawn explicitly when the poster unmarks the applicant
+# (set_collab_reply_chosen) or deletes the brief (delete_collab_request).
+# Nothing here reads a row the RATEE owns, so the rated member cannot make
+# ratings about them disappear by clearing their own data (Start over).
+_RATING_BASIS = (" FROM collab_ratings g"
+                 " JOIN collab_requests c ON c.id = g.request_id"
+                 " AND c.user_id = g.user_id AND c.status = 'closed'"
+                 " WHERE g.ratee_id <> g.user_id")
+
+
+def collab_rating_summary(ratee_ids):
+    """{ratee_id: {"count", "mean", "clients"}} for those with ratings.
+    Nobody without a rating is in the result: no zero, no default."""
+    ids = [i for i in ratee_ids if i]
+    if not ids:
+        return {}
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT g.ratee_id, COUNT(*) AS n, AVG(g.stars) AS mean,"
+            " COUNT(DISTINCT g.user_id) AS clients" + _RATING_BASIS
+            + " AND g.ratee_id IN (%s) GROUP BY g.ratee_id"
+            % ",".join("?" * len(ids)), ids).fetchall()
+    return {r["ratee_id"]: {"count": r["n"], "mean": r["mean"],
+                            "clients": r["clients"]} for r in rows}
+
+
+def list_collab_ratings_for(ratee_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT g.id, g.stars, g.note, g.created, c.title"
+            + _RATING_BASIS + " AND g.ratee_id = ? ORDER BY g.created DESC",
+            (ratee_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def rated_pairs_by(rater_id):
+    """{(request_id, ratee_id)} the account has already rated."""
+    with get_db() as db:
+        rows = db.execute("SELECT request_id, ratee_id FROM collab_ratings"
+                          " WHERE user_id = ?", (rater_id,)).fetchall()
+    return {(r["request_id"], r["ratee_id"]) for r in rows}
+
+
+def list_collab_chosen_for(user_id):
+    """Briefs by other members where this account was marked chosen."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT c.*, u.name AS poster_name FROM collab_replies r"
+            " JOIN collab_requests c ON c.id = r.request_id"
+            " JOIN users u ON u.id = c.user_id"
+            " WHERE r.user_id = ? AND r.chosen = 1 AND c.user_id <> ?"
+            " ORDER BY c.created DESC", (user_id, user_id)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_collab_seen(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT matches_seen FROM collab_seen WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    return row["matches_seen"] if row else ""
+
+
+def _now_fine():
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
+def set_collab_seen(user_id, when=None):
+    with get_db() as db:
+        db.execute("INSERT INTO collab_seen (user_id, matches_seen) VALUES (?,?)"
+                   " ON CONFLICT(user_id) DO UPDATE SET"
+                   " matches_seen = excluded.matches_seen",
+                   (user_id, when or _now_fine()))
 
 
 def add_board_listing(user_id, kind, title, region, window, genre, details):
@@ -4561,6 +4860,12 @@ RESET_EXTRA_KEYS = (
     ("hours_submissions", "owner_id"), ("board_threads", "poster_id"),
     ("board_messages", "from_user_id"), ("studio_comments", "author_id"),
 )
+# Rows ABOUT the account that other members wrote. Start over keeps them
+# (a rated member must not be able to erase what other people said about
+# their work and keep the login); deleting the account removes them.
+DELETE_ONLY_KEYS = (
+    ("collab_ratings", "ratee_id"),
+)
 # Rows that belong to the account only through a parent row. Each entry is
 # (child, child column, parent, parent column, parent's user column); the
 # child goes before the parent so nothing is orphaned. The delete sweep
@@ -4683,6 +4988,12 @@ def delete_user_everything(user_id):
         # so a deleted account leaves no statement rows, click logs or
         # consents behind under a parent that no longer exists.
         removed.update(_wipe_account_rows(db, user_id, keep=("users",)))
+        names = _table_names(db)
+        for table, key in DELETE_ONLY_KEYS:
+            if table in names:
+                cur = db.execute('DELETE FROM "%s" WHERE "%s" = ?' % (table, key),
+                                 (user_id,))
+                removed[table] = removed.get(table, 0) + cur.rowcount
         for table, key in _tables_keyed_by_user(db):
             cur = db.execute('DELETE FROM "%s" WHERE "%s" = ?' % (table, key), (user_id,))
             if cur.rowcount:

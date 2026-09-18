@@ -2,7 +2,7 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}Collab Marketplace - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/collab-market.css?v=1">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/collab-market.css?v=2">{% endblock %}
 
 {#- THE COLLAB MARKETPLACE - the owner's approved screen (static/_mock_collab.html,
     2026-09-18). Layout, order and furniture follow the mock; every number is a
@@ -20,6 +20,7 @@
     <label class="sr-only" for="cm-q">Search briefs</label>
     <input id="cm-q" name="q" value="{{ q }}" placeholder="Search skills, roles or genres">
   </form>
+  <a href="/marketplace/profile" class="sb-btn sb-btn-secondary">{{ 'Your profile' if me_profile else 'Create your profile' }}</a>
   <a href="/marketplace?tab=briefs#post" class="sb-btn sb-btn-primary cm-plus"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Post a Brief</a>
 {% endcall %}
 
@@ -35,14 +36,22 @@
     {% endfor %}
   </nav>
 
-  {#- The four counts, each a COUNT(*) on the collab tables. The mock's "New
-      Matches" is dropped: there is no matching engine behind it, and a tile
-      with no source is invented. -#}
-  <section class="cm-tiles" aria-label="Your marketplace in numbers">
+  {#- The four counts, each a COUNT(*) on the collab tables, plus the two the
+      profiles feed. New Matches is shown only while the account has an open
+      brief to match against; Active Projects only when something chosen or
+      to rate exists. A tile with no source is an invented number. -#}
+  {% set n_tiles = 4 + (1 if new_matches is not none else 0) + (1 if active_count else 0) %}
+  <section class="cm-tiles n{{ n_tiles }}" aria-label="Your marketplace in numbers">
     <a class="cm-tile" href="/marketplace">
       <span class="cm-ico"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 7.5h6M7 10.5h6M7 13.5h3"/></svg></span>
       <span><span class="cm-lab">Open Briefs</span><span class="cm-num" data-tile="open">{{ tiles.open }}</span></span>
     </a>
+    {% if new_matches is not none %}
+    <a class="cm-tile" href="/marketplace/people" title="Listed collaborators scoring {{ match_threshold }}% or more against one of your open briefs, new or updated since you last opened Discover" aria-label="New Matches: {{ new_matches }} listed collaborator{{ '' if new_matches == 1 else 's' }} scoring {{ match_threshold }}% or more against one of your open briefs since your last visit">
+      <span class="cm-ico"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="6.8" r="2.9"/><path d="M2 17c0-2.9 2.2-4.7 5-4.7s5 1.8 5 4.7"/><path d="M13 9.5l1.8 1.8 3.2-3.6"/></svg></span>
+      <span><span class="cm-lab">New Matches</span><span class="cm-num" data-tile="matches">{{ new_matches }}</span></span>
+    </a>
+    {% endif %}
     <a class="cm-tile" href="/marketplace?tab=briefs">
       <span class="cm-ico"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="6.8" r="2.9"/><path d="M2 17c0-2.9 2.2-4.7 5-4.7s5 1.8 5 4.7"/><path d="M13.4 5a2.7 2.7 0 010 4.8"/></svg></span>
       <span><span class="cm-lab">My Open Briefs</span><span class="cm-num" data-tile="mine">{{ tiles.mine }}</span></span>
@@ -55,6 +64,12 @@
       <span class="cm-ico"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 3h9v14l-4.5-3-4.5 3z"/></svg></span>
       <span><span class="cm-lab">Saved</span><span class="cm-num" data-tile="saved">{{ tiles.saved }}</span></span>
     </a>
+    {% if active_count %}
+    <a class="cm-tile" href="/marketplace?tab=projects" title="Your open briefs with applications, chosen collaborators still to rate, and open briefs where you were chosen">
+      <span class="cm-ico"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h2.6l2-5.2 2.8 10.4 2-5.2H17"/></svg></span>
+      <span><span class="cm-lab">Active Projects</span><span class="cm-num" data-tile="active">{{ active_count }}</span></span>
+    </a>
+    {% endif %}
   </section>
 
   {% if tab == 'discover' %}
@@ -72,6 +87,7 @@
       <a class="cm-link" href="/marketplace">Close</a>
     </div>
     {% if focus.terms %}<p class="cm-terms"><b>Terms</b> {{ focus.terms }}</p>{% endif %}
+    <p class="cm-cap"><b>Budget</b> {{ focus.budget_label or 'Not stated' }} · <b>Location</b> {{ focus.place or ('' if focus.remote_ok else 'Not stated') }}{% if focus.remote_ok %}{{ ', ' if focus.place }}remote OK{% endif %}</p>
     {% if focus.details %}<p class="cm-body">{{ focus.details }}</p>{% endif %}
     <div class="cm-row">
       {% if focus.ref_url %}<a href="{{ focus.ref_url }}" target="_blank" rel="noopener noreferrer" class="sb-btn sb-btn-secondary sb-btn-sm">Hear the reference track (opens in a new tab)</a>{% endif %}
@@ -104,19 +120,29 @@
   <div class="cm-wrap">
     <div class="cm-col">
 
-      {#- RECOMMENDED - real briefs on a stated basis, or the demo's labelled showcase. -#}
-      <section class="cm-card" aria-labelledby="cm-rec-h">
+      {#- RECOMMENDED - listed collaborators (opt-in only), best match first; else
+          real briefs on a stated basis; else the demo's labelled showcase; else
+          an honest empty state that invites the viewer to list themselves. -#}
+      <section class="cm-card" id="recs" aria-labelledby="cm-rec-h">
         <div class="cm-chead">
           <div><h2 id="cm-rec-h">Recommended for you</h2>
-            {% if showcase %}
+            {% if rec_people %}
+            <p class="cm-cap">{% if people_matched %}Members who listed themselves, best match first. Each % is worked out from your {{ 'open briefs' if tiles.mine else 'own profile' }}; open "Why" to see the rules.{% if people_unmatched %} A card with no % shares no role or genre with {{ 'your open briefs' if tiles.mine else 'your profile' }}.{% endif %}{% else %}Members who listed themselves, newest first. No % yet: {{ 'none of them lists the role or genre your open briefs ask for' if tiles.mine else 'post a brief, or add genres to your profile, and each card shows how well it fits' }}.{% endif %}</p>
+            {% elif recs %}
+            <p class="cm-cap">No member has listed themselves yet, so these are open briefs asking for a role you have applied as, or in a genre you post in.</p>
+            {% elif showcase %}
             <p class="cm-cap">Showcase: example collaborators for the demo account. They are not members.</p>
             {% else %}
-            <p class="cm-cap">Open briefs asking for a role you have applied as, or in a genre you post in.</p>
+            <p class="cm-cap">Members who list themselves, matched to your briefs.</p>
             {% endif %}
           </div>
-          {% if recs %}<a class="cm-link" href="/marketplace#opps">View all{{ arrow() }}</a>{% endif %}
+          {% if rec_people %}<a class="cm-link" href="/marketplace/people">View all{{ arrow() }}</a>{% elif recs %}<a class="cm-link" href="/marketplace#opps">View all{{ arrow() }}</a>{% endif %}
         </div>
-        {% if showcase %}
+        {% if rec_people %}
+        <div class="cm-recs">
+          {% for c in rec_people %}{% include "partials/collab_person_card.html" %}{% endfor %}
+        </div>
+        {% elif showcase %}
         <div class="cm-recs">
           {% for p in showcase %}
           <article class="cm-rec">
@@ -157,7 +183,9 @@
         {% else %}
         <div class="cm-empty">
           <img src="/static/img/collab-role-mixing.webp" alt="" aria-hidden="true" loading="lazy">
-          <p>{% if rec_basis %}No open brief matches {{ rec_basis | join(', ') }} right now.{% else %}Nothing to recommend yet. Recommendations come from what you do here: post a brief with a genre, or apply to one as a role, and matching briefs from other members show up here.{% endif %}</p>
+          <p>{% if rec_basis %}No open brief matches {{ rec_basis | join(', ') }} right now, and no member has listed themselves as a collaborator yet.{% else %}Nothing to recommend yet. No member has listed themselves as a collaborator so far, and you have not posted or applied to a brief for us to match on.{% endif %}
+            {% if me_profile and me_profile.listed %}You are listed, so you show up here for other members.{% else %}Be one of the first: list yourself and you show up here for members whose briefs need you.{% endif %}</p>
+          {% if not (me_profile and me_profile.listed) %}<a href="/marketplace/profile" class="sb-btn sb-btn-primary sb-btn-sm">List me in the marketplace</a>{% endif %}
         </div>
         {% endif %}
       </section>
@@ -175,17 +203,23 @@
             <select name="role"><option value="">All roles</option>{% for r in roles %}<option value="{{ r }}" {{ 'selected' if role == r }}>{{ r }}</option>{% endfor %}</select></label>
           <label class="cm-fil"><span>Genre</span>
             <select name="genre"><option value="">All genres</option>{% for g in genres %}<option value="{{ g }}" {{ 'selected' if genre == g }}>{{ g }}</option>{% endfor %}</select></label>
+          {#- Budget and Location filter only on what a brief states; a brief that
+              does not say is found under "Not stated", never guessed into a band. -#}
+          <label class="cm-fil"><span>Budget</span>
+            <select name="budget"><option value="">Any</option>{% for key, lbl, _lo, _hi in budget_bands %}<option value="{{ key }}" {{ 'selected' if budget == key }}>{{ lbl }}</option>{% endfor %}<option value="unstated" {{ 'selected' if budget == 'unstated' }}>Not stated</option></select></label>
+          <label class="cm-fil"><span>Location</span>
+            <select name="loc">{% for key, lbl in loc_options %}<option value="{{ key }}" {{ 'selected' if loc == key }}>{{ lbl }}</option>{% endfor %}</select></label>
           <label class="cm-fil"><span>Deal</span>
             <select name="kind"><option value="">All types</option>{% for k, lbl in kind_labels.items() %}<option value="{{ k }}" {{ 'selected' if kind == k }}>{{ lbl }}</option>{% endfor %}</select></label>
           {#- Shown only without JavaScript; collab-market.js submits on change. -#}
           <button class="sb-btn sb-btn-secondary sb-btn-sm cm-fgo">Filter</button>
-          {% if kind or role or genre or q or saved_only %}<a class="cm-link" href="/marketplace#opps">Clear</a>{% endif %}
+          {% if kind or role or genre or q or saved_only or loc or budget %}<a class="cm-link" href="/marketplace#opps">Clear</a>{% endif %}
         </form>
         {% if saved_only or q %}<p class="cm-cap">{% if saved_only %}Showing your saved briefs. {% endif %}{% if q %}Matching "{{ q }}".{% endif %}</p>{% endif %}
         {% if requests %}
         <div class="cm-scroll">
           <table class="cm-table">
-            <thead><tr><th scope="col" class="cm-bcol">Brief</th><th scope="col">Role</th><th scope="col">Genre</th><th scope="col">Deal</th><th scope="col">Applicants</th><th scope="col">Deadline</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+            <thead><tr><th scope="col" class="cm-bcol">Brief</th><th scope="col">Role</th><th scope="col">Genre</th><th scope="col">Deal</th><th scope="col">Location</th><th scope="col">Applicants</th><th scope="col">Deadline</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
             <tbody>
             {% for r in requests %}
             <tr>
@@ -193,7 +227,10 @@
                 <div><a class="bt" href="/marketplace?brief={{ r.id }}#brief" title="{{ r.title }}">{{ r.title }}</a><div class="bw" title="{{ r.poster_name }} · {{ r.trust_label }}">{{ r.poster_name }} · {{ r.trust_label }}</div></div></div></td>
               <td>{{ r.role }}</td>
               <td>{% if r.genre %}<span class="cm-chip">{{ r.genre }}</span>{% else %}<span class="cm-dim">Any</span>{% endif %}</td>
-              <td><span class="cm-chip {{ r.chip }}">{{ kind_labels[r.kind] }}</span>{% if r.terms %}<div class="cm-deal">{{ r.terms }}</div>{% endif %}</td>
+              {#- One line under the chip: the poster's own terms, else the stated budget.
+                  Both are on the opened brief. -#}
+              <td><span class="cm-chip {{ r.chip }}">{{ kind_labels[r.kind] }}</span>{% if r.terms %}<div class="cm-deal">{{ r.terms }}</div>{% elif r.budget_label %}<div class="cm-deal">Budget {{ r.budget_label }}</div>{% endif %}</td>
+              <td class="cm-loc">{% if r.place %}{{ r.place }}{% endif %}{% if r.remote_ok %}{{ ' ' if r.place }}<span class="cm-remote">Remote OK</span>{% endif %}{% if not r.place and not r.remote_ok %}<span class="cm-dim">Not stated</span>{% endif %}</td>
               <td class="cm-n">{{ r.applicants }}</td>
               <td class="cm-dead">{% if r.closes %}{{ r.closes_label }}{% if r.days_left is not none %}<span class="left">{{ 'Closes today' if r.days_left == 0 else '%d day%s left' % (r.days_left, '' if r.days_left == 1 else 's') }}</span>{% endif %}{% else %}<span class="cm-dim">Open-ended</span>{% endif %}</td>
               <td class="cm-acts"><a class="sb-btn sb-btn-secondary sb-btn-sm" href="/marketplace?brief={{ r.id }}#brief">View Brief</a></td>
@@ -206,7 +243,7 @@
         {% else %}
         <div class="cm-empty">
           <img src="/static/img/collab-role-producer.webp" alt="" aria-hidden="true" loading="lazy">
-          <p>{% if kind or role or genre or q or saved_only %}No open brief matches that. <a class="cm-inline" href="/marketplace#opps">Clear the filters</a> or post your own.{% else %}No open briefs yet. This board starts empty on purpose: every brief is a real member. Be the first to post one.{% endif %}</p>
+          <p>{% if kind or role or genre or q or saved_only or loc or budget %}No open brief matches that. <a class="cm-inline" href="/marketplace#opps">Clear the filters</a> or post your own.{% else %}No open briefs yet. This board starts empty on purpose: every brief is a real member. Be the first to post one.{% endif %}</p>
           <a href="/marketplace?tab=briefs#post" class="sb-btn sb-btn-primary sb-btn-sm">Post a Brief</a>
         </div>
         {% endif %}
@@ -258,7 +295,7 @@
     <div class="cm-chead"><div><h2 id="cm-mine-h">My Briefs</h2>
       <p class="cm-cap">Every brief you have posted, with the applications it drew.</p></div></div>
     {% for r in own %}
-    <div class="cm-item {{ 'is-closed' if r.state != 'open' }}">
+    <div class="cm-item {{ 'is-closed' if r.state != 'open' }}" id="brief-{{ r.id }}">
       <div class="cm-item-h">
         <span class="bt">{{ r.title }}</span>
         <span class="cm-chip {{ 'gold' if r.state == 'open' else ('warn' if r.state == 'expired') }}">{{ r.state_label }}</span>
@@ -274,8 +311,23 @@
           <a class="cm-inline" href="mailto:{{ a.contact }}">{{ a.contact }}</a>
           {% if a.proposal %}<span class="cm-chip gold">{{ a.proposal }}</span>{% endif %}
           {% if a.ref_url %}<a class="cm-inline" href="{{ a.ref_url }}" target="_blank" rel="noopener noreferrer">their work (opens in a new tab)</a>{% endif %}
+          {% if a.chosen %}<span class="cm-chip gold">Chosen</span>{% endif %}
+          <form method="post" action="/marketplace/{{ r.id }}/choose/{{ a.id }}" class="cm-push">
+            <input type="hidden" name="chosen" value="{{ '0' if a.chosen else '1' }}">
+            <button class="sb-btn sb-btn-secondary sb-btn-sm">{{ 'Undo chosen' if a.chosen else 'Mark as chosen' }}</button>
+          </form>
         </div>
         <p>{{ a.message }}</p>
+        {#- A rating needs a closed brief and a chosen applicant (db.can_rate_collab). -#}
+        {% if a.chosen and r.status == 'closed' and a.user_id != user.id %}
+          {% if (r.id, a.user_id) in rated %}
+          <p class="cm-cap">You rated {{ a.applicant_name }} for this brief.</p>
+          {% else %}
+          {% with brief = r, reply = a, back = '/marketplace?tab=briefs#brief-' ~ r.id %}{% include "partials/collab_rate_form.html" %}{% endwith %}
+          {% endif %}
+        {% elif a.chosen %}
+        <p class="cm-cap">Close this brief when the work is done, then you can rate {{ a.applicant_name }}.</p>
+        {% endif %}
       </div>
       {% else %}
       <p class="cm-cap">No applications yet.</p>
@@ -306,6 +358,15 @@
         <input name="ref_url" type="url" placeholder="Scratch track link" aria-label="Scratch track link">
         <input name="closes" type="date" aria-label="Closing date (optional)">
       </div>
+      <p class="cm-fl">Budget and location (optional: left blank, they show as "Not stated")</p>
+      {% if post_error %}<p class="cm-err" role="alert">Not posted. {{ post_error }}</p>{% endif %}
+      <div class="cm-fields">
+        <input name="budget_min" inputmode="decimal" pattern="{{ money_pattern }}" title="A plain amount such as 300, $1,500 or 2k" placeholder="Budget from ($)" aria-label="Budget from, in dollars (optional)">
+        <input name="budget_max" inputmode="decimal" pattern="{{ money_pattern }}" title="A plain amount such as 300, $1,500 or 2k" placeholder="Budget up to ($)" aria-label="Budget up to, in dollars (optional)">
+        <input name="city" maxlength="60" placeholder="City" aria-label="City (optional)">
+        <input name="country" maxlength="60" placeholder="Country" aria-label="Country (optional)">
+      </div>
+      <label class="cm-check"><input type="checkbox" name="remote_ok" value="1"> Remote is fine</label>
       <button class="sb-btn sb-btn-primary">Post brief</button>
     </form>
   </section>
@@ -343,7 +404,7 @@
   {% elif tab == 'projects' %}
   <section class="cm-card" aria-labelledby="cm-proj-h">
     <div class="cm-chead"><div><h2 id="cm-proj-h">Active Projects</h2>
-      <p class="cm-cap">Your open briefs, not past their closing date, that have drawn at least one application.</p></div></div>
+      <p class="cm-cap">What the Active Projects count adds up: your open briefs that have drawn at least one application, anyone you chose and still owe a rating, and open briefs where you were chosen.</p></div></div>
     {% if projects %}
     <div class="cm-projects">
       {% for p in projects %}<div class="cm-proj">{% include "partials/collab_pipeline.html" %}</div>{% endfor %}
@@ -351,6 +412,42 @@
     {% else %}
     <p class="cm-cap cm-gap">No active project yet. A brief becomes one when somebody applies to it.</p>
     <a href="/marketplace?tab=briefs#post" class="sb-btn sb-btn-primary sb-btn-sm">Post a Brief</a>
+    {% endif %}
+  </section>
+
+  {#- The profile-era projects: who you chose and still owe a rating, and
+      where you were the one chosen. Both read from chosen marks on real
+      applications. -#}
+  <section class="cm-card" aria-labelledby="cm-chosen-h">
+    <div class="cm-chead"><div><h2 id="cm-chosen-h">Chosen collaborators</h2>
+      <p class="cm-cap">Mark an applicant as chosen on <a class="cm-inline" href="/marketplace?tab=briefs">My Briefs</a>. After you close the brief you can rate them, once.</p></div></div>
+    {% if to_rate %}
+    <h3 class="cm-h3">To rate</h3>
+    {% for t in to_rate %}
+    <div class="cm-app">
+      {% with brief = t.brief, reply = t.reply, back = '/marketplace?tab=projects' %}{% include "partials/collab_rate_form.html" %}{% endwith %}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% if chosen_for %}
+    <h3 class="cm-h3">You were chosen</h3>
+    <ul class="cm-list">
+      {% for c in chosen_for %}
+      <li><b>{{ c.title }}</b> <span class="cm-dim">{{ c.poster_name }} · {{ c.role }}</span> <span class="cm-chip gold">{{ c.state_label }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if chosen_done %}
+    <h3 class="cm-h3">Finished</h3>
+    <p class="cm-cap">Briefs you were chosen for that are closed or past their date. They are not counted as active.</p>
+    <ul class="cm-list">
+      {% for c in chosen_done %}
+      <li><b>{{ c.title }}</b> <span class="cm-dim">{{ c.poster_name }} · {{ c.role }}</span> <span class="cm-chip {{ 'warn' if c.state == 'expired' }}">{{ c.state_label }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if not to_rate and not chosen_for and not chosen_done %}
+    <p class="cm-cap cm-gap">Nothing here yet. Nobody you chose is waiting for a rating, and no poster has marked you as chosen.</p>
     {% endif %}
   </section>
   {% endif %}

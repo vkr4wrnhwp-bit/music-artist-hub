@@ -3386,21 +3386,29 @@ def create_app():
         store.save_epk(user["id"], overrides)
         return jsonify({"ok": True})
 
+    def _store_epk_photo(user, f):
+        """The one artist-photo uploader: /epk/photo and the collaborator
+        profile's photo form both write through here, so a member has one
+        photo. Returns (path, error)."""
+        if f is None or not f.filename:
+            return None, "Choose an image file."
+        ext = f.filename.rsplit(".", 1)[-1].lower()
+        if ext not in ("png", "jpg", "jpeg", "webp"):
+            return None, "Use a PNG, JPG, or WebP image."
+        fname = "epk_%s.%s" % (user["id"], ext)
+        f.save(os.path.join(UPLOADS_DIR, fname))
+        photo_path = "/uploads/" + fname
+        store.save_epk_photo(user["id"], photo_path)
+        return photo_path, None
+
     @app.route("/epk/photo", methods=["POST"])
     def epk_photo():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in to upload a photo."}), 401
-        f = request.files.get("photo")
-        if f is None or not f.filename:
-            return jsonify({"ok": False, "error": "Choose an image file."}), 400
-        ext = f.filename.rsplit(".", 1)[-1].lower()
-        if ext not in ("png", "jpg", "jpeg", "webp"):
-            return jsonify({"ok": False, "error": "Use a PNG, JPG, or WebP image."}), 400
-        fname = "epk_%s.%s" % (user["id"], ext)
-        f.save(os.path.join(UPLOADS_DIR, fname))
-        photo_path = "/uploads/" + fname
-        store.save_epk_photo(user["id"], photo_path)
+        photo_path, error = _store_epk_photo(user, request.files.get("photo"))
+        if error:
+            return jsonify({"ok": False, "error": error}), 400
         return jsonify({"ok": True, "photo": photo_path})
 
     @app.route("/epk/photo/delete", methods=["POST"])
@@ -9807,8 +9815,9 @@ def create_app():
             return "%dh ago" % (mins // 60)
         return "%dd ago" % (mins // (60 * 24))
 
-    COLLAB_ROLES = ["Vocalist", "Producer", "Songwriter", "Mixing / Mastering",
-                    "Instrumentalist", "Visuals / Cover Art"]
+    import collab_market as _cm
+    # One role vocabulary for briefs and collaborator profiles.
+    COLLAB_ROLES = _cm.ROLES
 
     @app.route("/marketplace")
     def marketplace():
@@ -9825,6 +9834,10 @@ def create_app():
         kind = request.args.get("kind") or None
         role = request.args.get("role") or None
         genre = (request.args.get("genre") or "").strip() or None
+        loc = (request.args.get("loc") or "").strip().lower()
+        budget = request.args.get("budget") or ""
+        if budget not in [b[0] for b in collab_market.BUDGET_BANDS] + ["unstated"]:
+            budget = ""
         q = (request.args.get("q") or "").strip()
         saved_only = request.args.get("saved") == "1"
         today_d = datetime.now(timezone.utc).date()
@@ -9883,6 +9896,8 @@ def create_app():
             r["chip"] = collab_market.KIND_CHIPS.get(r["kind"], "")
             r["state"] = collab_market.brief_state(r, today_d)
             r["state_label"] = collab_market.STATE_LABELS[r["state"]]
+            r["place"] = collab_market.brief_place(r)
+            r["budget_label"] = collab_market.brief_budget(r)
             return r
 
         def _with_trust(r):
@@ -9904,6 +9919,8 @@ def create_app():
                 and (not role or r["role"] == role)
                 and (not genre or r["genre"] == genre)
                 and (not saved_only or r["id"] in saves)
+                and collab_market.location_filter(r, loc)
+                and collab_market.budget_filter(r, budget)
                 and (not q or q.lower() in " ".join(
                     (r["title"], r["role"], r["genre"], r["details"],
                      r["poster_name"] or "")).lower())]
@@ -9929,6 +9946,65 @@ def create_app():
                     for r in own if r["state"] == "open" and r["applicants"]]
         latest = (collab_market.pipeline(own[0], replies_by_req[own[0]["id"]],
                                          today_d) if own else None)
+
+        # COLLABORATOR PROFILES (PROFILES-SPEC.md). Only listed members
+        # come back from the store; the viewer is never matched with
+        # themselves. Matching is against the viewer's own open briefs,
+        # else the viewer's own profile, else nothing (no % shown).
+        open_own = [r for r in own if r["state"] == "open"]
+        me_profile = store.get_collab_profile(uid)
+        # The shared demo login is handed to prospects who are not members:
+        # it never sees a member's profile (it keeps its labelled showcase).
+        demo = _session_is_demo()
+        listed = ([] if demo else
+                  store.list_listed_collab_profiles(exclude_user_id=uid))
+        scored = [(p, collab_market.best_match(p, open_own, me_profile, today_d))
+                  for p in listed]
+        matched = sorted([s for s in scored if s[1]], key=lambda s: -s[1]["pct"])
+        # Best matches first; the slots left are filled with listed members
+        # who share no role or genre (newest first, no % badge), so a listed
+        # member is never dropped from a short row.
+        row = (matched + [s for s in scored if not s[1]])[:3]
+        summaries = store.collab_rating_summary([p["user_id"] for p, _m in row])
+        rec_people = [collab_market.person_card(p, today_d, m,
+                                                summaries.get(p["user_id"]))
+                      for p, m in row]
+        people_unmatched = any(m is None for _p, m in row)
+        # Tiles that need a source. New Matches: listed profiles at or over
+        # the threshold against an open brief of yours, new or changed
+        # since you last opened Discover. Shown only while you have an
+        # open brief to match against.
+        new_matches = None
+        if open_own:
+            seen = store.get_collab_seen(uid)
+            new_matches = sum(
+                1 for p, m in scored
+                if m and m["basis"] == "brief"
+                and m["pct"] >= collab_market.MATCH_THRESHOLD
+                and (not seen or (p.get("updated") or "") > seen))
+            if tab == "discover":
+                store.set_collab_seen(uid)
+        # Active Projects, one definition for the tile and the tab: your
+        # open briefs with applications (the pipeline), your closed briefs
+        # with a chosen collaborator still to rate, and OPEN briefs where you
+        # were the one chosen. A finished brief you were chosen for is kept
+        # on the tab under "Finished", and is not counted.
+        rated = store.rated_pairs_by(uid)
+        to_rate = []
+        for r in own:
+            if r["status"] != "closed":
+                continue
+            for a in replies_by_req[r["id"]]:
+                if a.get("chosen") and a["user_id"] != uid \
+                        and (r["id"], a["user_id"]) not in rated:
+                    to_rate.append({"brief": r, "reply": a})
+        chosen_all = store.list_collab_chosen_for(uid)
+        for c in chosen_all:
+            c["state"] = collab_market.brief_state(c, today_d)
+            c["state_label"] = collab_market.STATE_LABELS[c["state"]]
+        chosen_for = [c for c in chosen_all if c["state"] == "open"]
+        chosen_done = [c for c in chosen_all if c["state"] != "open"]
+        active_count = len(projects) + len(to_rate) + len(chosen_for)
         focus = None
         brief_id = request.args.get("brief")
         if brief_id:
@@ -9962,8 +10038,20 @@ def create_app():
             focus=focus, trust=trust, trust_rows=trust_rows,
             trust_scored=trust_scored, kind_labels=collab_market.KIND_LABELS,
             genres=sorted({r["genre"] for r in board if r["genre"]}),
+            loc=loc, budget=budget,
+            loc_options=collab_market.location_options(board),
+            budget_bands=collab_market.BUDGET_BANDS,
+            rec_people=rec_people, people_matched=bool(matched),
+            people_unmatched=people_unmatched, chosen_done=chosen_done,
+            post_error=request.args.get("post_error") or "",
+            money_pattern=collab_market.MONEY_PATTERN,
+            me_profile=me_profile, new_matches=new_matches,
+            match_threshold=collab_market.MATCH_THRESHOLD,
+            to_rate=to_rate, chosen_for=chosen_for, active_count=active_count,
+            rated=rated,
             showcase=(collab_market.SHOWCASE
-                      if _session_is_demo() and not recs else []),
+                      if _session_is_demo() and not recs and not rec_people
+                      else []),
             **build_dashboard_context())
 
     @app.route("/marketplace/post", methods=["POST"])
@@ -9975,13 +10063,25 @@ def create_app():
         role = (request.form.get("role") or "").strip()
         title = (request.form.get("title") or "").strip()
         if kind in ("bid", "split", "fun") and role and title:
+            lo, hi, money_errors = _cm.read_money_pair(
+                request.form.get("budget_min"), request.form.get("budget_max"),
+                "Budget")
+            if money_errors:
+                # Nothing is saved: a number the member never typed must not
+                # reach the board, the filters or the match.
+                return redirect("/marketplace?tab=briefs&post_error=%s#post"
+                                % urllib.parse.quote(money_errors[0]))
             store.add_collab_request(
                 user["id"], role,
                 (request.form.get("genre") or "").strip(), kind, title,
                 (request.form.get("details") or "").strip(),
                 (request.form.get("terms") or "").strip(),
                 (request.form.get("ref_url") or "").strip(),
-                (request.form.get("closes") or "").strip())
+                (request.form.get("closes") or "").strip(),
+                city=(request.form.get("city") or "").strip(),
+                country=(request.form.get("country") or "").strip(),
+                remote_ok=request.form.get("remote_ok") == "1",
+                budget_min=lo, budget_max=hi)
         return redirect("/marketplace")
 
     @app.route("/marketplace/<req_id>/apply", methods=["POST"])
@@ -10045,6 +10145,166 @@ def create_app():
             return login_required_redirect()
         store.delete_collab_request(user["id"], req_id)
         return redirect("/marketplace")
+
+    # --- Collaborator profiles (PROFILES-SPEC.md, owner-approved 2026-09-18) ---
+
+    def _own_card(user, profile, today_d):
+        """The viewer's own card, as others would see it once listed."""
+        epk = store.get_epk(user["id"]) or {}
+        base = dict(profile or {}, user_id=user["id"], name=user["name"],
+                    photo=epk.get("photo") or "")
+        summary = store.collab_rating_summary([user["id"]]).get(user["id"])
+        return _cm.person_card(base, today_d, None, summary)
+
+    @app.route("/marketplace/profile", methods=["GET", "POST"])
+    def marketplace_profile():
+        """The member's own collaborator profile and the opt-in switch.
+        Nobody is listed until they tick "List me in the marketplace"."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        today_d = datetime.now(timezone.utc).date()
+        errors = []
+        profile = store.get_collab_profile(user["id"])
+        demo = _session_is_demo()
+        if request.method == "POST":
+            fields, errors = _cm.clean_profile(request.form)
+            if demo and fields["listed"]:
+                # The shared demo login is not a member: it is never listed.
+                fields["listed"] = 0
+                errors.append("The demo account cannot be listed in the "
+                              "marketplace: it is not a member.")
+            if not errors:
+                store.save_collab_profile(user["id"], fields)
+                return redirect("/marketplace/profile?saved=1")
+            profile = dict(profile or {}, **fields)
+        blank = {"listed": 0, "roles": [], "genres": [], "city": "", "country": "",
+                 "remote_ok": 0, "rate_min": None, "rate_max": None,
+                 "rate_unit": "", "currency": "USD", "availability": "",
+                 "available_from": "", "credits": "", "links": [], "bio": ""}
+        form = dict(blank, **(profile or {}))
+        card = _own_card(user, form, today_d)
+        return render_template(
+            "collab_profile.html", active_page="marketplace", user=user,
+            form=form, card=card, errors=errors, roles=COLLAB_ROLES,
+            is_demo=demo, money_pattern=_cm.MONEY_PATTERN,
+            rate_units=_cm.RATE_UNITS, currencies=_cm.CURRENCIES,
+            max_links=_cm.MAX_LINKS, saved=request.args.get("saved") == "1",
+            photo_error=request.args.get("photo_error") or "",
+            photo_saved=request.args.get("photo") == "1",
+            **build_dashboard_context())
+
+    @app.route("/marketplace/profile/photo", methods=["POST"])
+    def marketplace_profile_photo():
+        """The member's own photo, stored as their EPK photo (one photo per
+        member). Never a placeholder: no upload means initials."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        _path, error = _store_epk_photo(user, request.files.get("photo"))
+        if error:
+            return redirect("/marketplace/profile?photo_error=" +
+                            urllib.parse.quote(error) + "#photo")
+        return redirect("/marketplace/profile?photo=1#photo")
+
+    def _people_cards(user, today_d, only=None):
+        """Listed collaborators with the viewer's match, best first."""
+        uid = user["id"]
+        own = store.list_own_collab_requests(uid)
+        open_own = [r for r in own if _cm.brief_state(r, today_d) == "open"]
+        me = store.get_collab_profile(uid)
+        # The demo login never sees a member's profile (see marketplace()).
+        listed = ([] if _session_is_demo() else
+                  store.list_listed_collab_profiles(exclude_user_id=uid))
+        if only:
+            listed = [p for p in listed if only in (p.get("roles") or [])]
+        scored = [(p, _cm.best_match(p, open_own, me, today_d)) for p in listed]
+        scored.sort(key=lambda s: -(s[1]["pct"] if s[1] else -1))
+        summaries = store.collab_rating_summary([p["user_id"] for p, _m in scored])
+        return ([_cm.person_card(p, today_d, m, summaries.get(p["user_id"]))
+                 for p, m in scored], bool(open_own), me)
+
+    @app.route("/marketplace/people")
+    def marketplace_people():
+        """Every listed collaborator (opt-in only), best match first."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        today_d = datetime.now(timezone.utc).date()
+        role = request.args.get("role") or ""
+        if role not in COLLAB_ROLES:
+            role = ""
+        cards, has_open, me = _people_cards(user, today_d, only=role or None)
+        return render_template(
+            "collab_people.html", active_page="marketplace", user=user,
+            people=cards, role=role, roles=COLLAB_ROLES, has_open=has_open,
+            me_profile=me, is_demo=_session_is_demo(),
+            **build_dashboard_context())
+
+    @app.route("/marketplace/people/<member_id>")
+    def marketplace_person(member_id):
+        """One listed member's profile. Unlisted means not here at all."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        profile = store.get_listed_collab_profile(member_id)
+        if profile is None or (_session_is_demo() and member_id != user["id"]):
+            if member_id == user["id"]:
+                return redirect("/marketplace/profile")
+            abort(404)
+        today_d = datetime.now(timezone.utc).date()
+        is_me = member_id == user["id"]
+        match = None
+        if not is_me:
+            own = store.list_own_collab_requests(user["id"])
+            open_own = [r for r in own if _cm.brief_state(r, today_d) == "open"]
+            match = _cm.best_match(profile, open_own,
+                                   store.get_collab_profile(user["id"]), today_d)
+        summary = store.collab_rating_summary([member_id]).get(member_id)
+        card = _cm.person_card(profile, today_d, match, summary)
+        ratings = store.list_collab_ratings_for(member_id)
+        for g in ratings:
+            g["when"] = _cm.short_date(g["created"], today_d)
+        briefs = [r for r in store.list_own_collab_requests(member_id)
+                  if _cm.brief_state(r, today_d) == "open"]
+        t = trust_score.calculate(member_id)
+        trust_rows = [
+            {"name": name, "pts": pts, "unmeasured": t["unmeasured"].get(name),
+             "icon": Markup(_cm.TRUST_ICONS.get(name, _cm.DEFAULT_TRUST_ICON))}
+            for name, pts, _note in t["factors"]]
+        return render_template(
+            "collab_person.html", active_page="marketplace", user=user,
+            card=card, ratings=ratings, briefs=briefs, is_me=is_me,
+            kind_labels=_cm.KIND_LABELS, trust=t, trust_rows=trust_rows,
+            trust_scored=any(r["pts"] for r in trust_rows),
+            **build_dashboard_context())
+
+    @app.route("/marketplace/<req_id>/choose/<reply_id>", methods=["POST"])
+    def marketplace_choose(req_id, reply_id):
+        """The brief's poster marks an applicant as chosen (or undoes it).
+        A chosen applicant on a closed brief is who may be rated."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        req = store.get_collab_request(req_id)
+        if req is not None and req["user_id"] == user["id"]:
+            store.set_collab_reply_chosen(user["id"], reply_id,
+                                          request.form.get("chosen") == "1")
+        return redirect("/marketplace?tab=briefs#brief-%s" % req_id)
+
+    @app.route("/marketplace/<req_id>/rate/<ratee_id>", methods=["POST"])
+    def marketplace_rate(req_id, ratee_id):
+        """1 to 5 stars and an optional note, once per brief and person,
+        only on a closed brief of yours where you chose them."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.add_collab_rating(user["id"], req_id, ratee_id,
+                                request.form.get("stars"),
+                                (request.form.get("note") or "").strip())
+        back = _cm.safe_back(request.form.get("back"),
+                             "/marketplace?tab=projects")
+        return redirect(back)
 
     def _discover_state():
         """This browser's likes and follows.

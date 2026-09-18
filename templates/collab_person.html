@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}{{ card.name }} - Collaborator - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/collab-market.css?v=2">{% endblock %}
+
+{#- One listed member's profile (PROFILES-SPEC.md part 3). Reached only while
+    the member is listed. Every fact is theirs; trust signals are read from
+    THEIR record; ratings only exist behind a closed brief where they were
+    chosen. -#}
+
+{% block content %}
+{% call sb.plate(none, [900, 1400, 1672],
+                 "Street Banker · Collaborator", card.name, card.role_line) %}
+  <a href="/marketplace/people" class="sb-btn sb-btn-secondary">All collaborators</a>
+  {% if is_me %}<a href="/marketplace/profile" class="sb-btn sb-btn-primary">Edit your profile</a>{% endif %}
+{% endcall %}
+
+<div class="cm mx-auto max-w-[1200px]" data-no-collapse>
+  {% if is_me %}<p class="cm-notice" role="status">This is your profile as other members see it.</p>{% endif %}
+  <div class="cm-wrap">
+    <div class="cm-col">
+      <section class="cm-card cm-person-head" aria-labelledby="cm-ph-h">
+        <div class="cm-ph">
+          <div class="cm-ph-photo{{ ' is-initials' if not card.photo }}">{% if card.photo %}<img src="{{ card.photo }}" alt="Photo of {{ card.name }}" loading="lazy">{% else %}<span class="cm-initials" aria-hidden="true">{{ card.initials }}</span>{% endif %}</div>
+          <div class="cm-ph-b">
+            <h2 id="cm-ph-h">{{ card.name }}</h2>
+            <div class="cm-role">{{ card.role_line }}</div>
+            <div class="cm-where"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17.2s5.2-3.5 5.2-7.6A5.2 5.2 0 004.8 9.6c0 4.1 5.2 7.6 5.2 7.6z"/><circle cx="10" cy="9.4" r="1.7"/></svg>{% if card.where %}{{ card.where }}{% else %}<span class="cm-dim">Location not stated</span>{% endif %}{% if card.remote %} <span class="cm-chip">Remote</span>{% endif %}</div>
+            <div class="cm-tags">{% for g in card.genres %}<span class="cm-chip">{{ g }}</span>{% else %}<span class="cm-dim cm-small">Genres not stated</span>{% endfor %}</div>
+            <div class="cm-trustline">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.6l6 2.4v4.2c0 4.3-6 8.2-6 8.2s-6-3.9-6-8.2V5z"/></svg>
+              <span data-trusted>{{ card.trusted }}</span>
+              {% if card.mean %}<span class="cm-stars"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2l2.4 5 5.6.7-4.1 3.8 1.1 5.5L10 14.3 5 17l1.1-5.5L2 7.7l5.6-.7z"/></svg>{{ card.mean }} <i>({{ card.count }})</i></span>{% endif %}
+            </div>
+          </div>
+          {% if card.match %}<span class="cm-match cm-match-inline">{{ card.match.pct }}% match</span>{% endif %}
+        </div>
+        <div class="cm-split cm-split-3">
+          <div class="sp"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M13.2 6.2H8.4a2.1 2.1 0 000 4.2h3.2a2.1 2.1 0 010 4.2H6.4"/></svg><div>{% if card.rate %}<div class="k">{% for part in card.rate.split('–') %}{{ part }}{% if not loop.last %}–<wbr>{% endif %}{% endfor %}</div><div class="v">{{ card.unit or 'rate' }}</div>{% else %}<div class="k">Rate</div><div class="v">Not stated</div>{% endif %}</div></div>
+          <div class="sp"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.4" width="14" height="12.6" rx="2"/><path d="M3 8.4h14M7 2.6v3M13 2.6v3"/></svg><div><div class="k">Availability</div><div class="v {{ 'on' if card.avail == 'Available now' }}">{{ card.avail }}</div></div></div>
+          <div class="sp"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 15V4l9-1.6V14"/><circle cx="5" cy="15.5" r="2.3"/><circle cx="14" cy="14" r="2.3"/></svg><div><div class="k">Credits</div><div class="v">{{ card.credits or 'Not stated' }}</div></div></div>
+        </div>
+        {% if card.match %}
+        <div class="cm-whybox">
+          <b>Why {{ card.match.pct }}%</b>
+          <ul>{% for r in card.match.reasons %}<li class="{{ 'hit' if r.hit else ('miss' if r.counted else 'skip') }}">{{ r.text }} <span class="cm-dim">({{ r.weight }} points{{ '' if r.counted else ', not counted' }})</span></li>{% endfor %}</ul>
+          <p class="cm-cap">{% if card.match.basis == 'brief' %}Scored against your open brief "{{ card.match.brief_title }}", the best fit of your open briefs.{% else %}Scored against your own profile, because you have no open brief.{% endif %} {{ 'Your brief' if card.match.basis == 'brief' else 'Your profile' }} sets the rules: one it does not state is left out of the %; one they have not answered counts as not met.</p>
+        </div>
+        {% elif not is_me %}
+        <p class="cm-cap">No match % shown: {{ card.name }} does not list the role or genre any open brief of yours asks for, or there is nothing of yours to match on yet.</p>
+        {% endif %}
+      </section>
+
+      <section class="cm-card" aria-labelledby="cm-about-h">
+        <h2 id="cm-about-h">About</h2>
+        {% if card.bio %}<p class="cm-body">{{ card.bio }}</p>{% else %}<p class="cm-cap">Not stated.</p>{% endif %}
+        <h3 class="cm-h3">Work</h3>
+        {% if card.links %}
+        <ul class="cm-list">{% for l in card.links %}<li><a class="cm-inline" href="{{ l }}" target="_blank" rel="noopener noreferrer nofollow">{{ l }}</a> <span class="cm-dim">(opens in a new tab)</span></li>{% endfor %}</ul>
+        {% else %}<p class="cm-cap">No links added.</p>{% endif %}
+      </section>
+
+      <section class="cm-card" aria-labelledby="cm-pb-h">
+        <h2 id="cm-pb-h">Open briefs by {{ card.name }}</h2>
+        {% if briefs %}
+        <ul class="cm-list">{% for b in briefs %}<li><a class="cm-inline" href="/marketplace?brief={{ b.id }}#brief">{{ b.title }}</a> <span class="cm-dim">needs a {{ b.role }}{% if b.genre %} · {{ b.genre }}{% endif %}</span> <span class="cm-chip">{{ kind_labels[b.kind] }}</span></li>{% endfor %}</ul>
+        {% else %}<p class="cm-cap">No open briefs right now.</p>{% endif %}
+      </section>
+    </div>
+
+    <aside class="cm-col" aria-label="Trust and ratings">
+      <section class="cm-card" aria-labelledby="cm-rt-h">
+        <h2 id="cm-rt-h">Ratings</h2>
+        {% if ratings %}
+        <p class="cm-cap">{{ card.trusted }}, average {{ card.mean }} from {{ card.count }} rating{{ '' if card.count == 1 else 's' }}. Each one comes from a closed brief where the poster chose {{ card.name }}.</p>
+        <ul class="cm-ratings">
+          {% for g in ratings %}
+          <li><span class="cm-stars" aria-label="{{ g.stars }} of 5 stars">{% for n in range(5) %}<svg viewBox="0 0 20 20" aria-hidden="true" class="{{ 'off' if n >= g.stars }}"><path d="M10 2l2.4 5 5.6.7-4.1 3.8 1.1 5.5L10 14.3 5 17l1.1-5.5L2 7.7l5.6-.7z"/></svg>{% endfor %}</span>
+            <span class="cm-dim">"{{ g.title }}" · {{ g.when }}</span>
+            {% if g.note %}<p>{{ g.note }}</p>{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="cm-cap">No ratings yet. A rating can only come from a poster who chose {{ card.name }} for a brief and then closed it.</p>
+        {% endif %}
+      </section>
+
+      <section class="cm-card" aria-labelledby="cm-ts-h">
+        <h2 id="cm-ts-h">{{ card.name }}: trust signals</h2>
+        {% if trust_scored %}
+        <p class="cm-cap">Trust Score <b class="cm-score">{{ trust.total }}/100</b>, each signal out of 10, read from {{ card.name }}'s own Street Banker record.</p>
+        {% else %}
+        <p class="cm-cap">Trust Score <b class="cm-score">not scored yet</b>: nothing on {{ card.name }}'s Street Banker record feeds it so far.</p>
+        {% endif %}
+        <div class="cm-health">
+          {% for f in trust_rows %}
+          <div class="cm-hrow">
+            <span class="cm-hl"><svg viewBox="0 0 20 20" aria-hidden="true">{{ f.icon }}</svg>{{ f.name }}</span>
+            {% if f.unmeasured %}
+            <span class="cm-hnm">Not measured yet</span>
+            {% else %}
+            <span class="cm-hbar" role="img" aria-label="{{ f.name }}: {{ f.pts }} of 10"><i class="{{ 'full' if f.pts >= 10 }}" style="width: {{ f.pts * 10 }}%"></i></span>
+            <span class="cm-hsc">{{ f.pts }}/10</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <div class="cm-note"><b>Every score is its parts.</b> Each signal comes from a record on Street Banker. A signal not measured yet adds nothing.</div>
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}
