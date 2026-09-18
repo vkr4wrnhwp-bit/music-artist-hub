@@ -4,8 +4,8 @@
    right. Once the story lives on the store at streetbankermusic.com, this
    address is the door to the system and nothing else, so the page is:
 
-     the door           headline and the real sign-in form
-     the stages rail    the eight words the product is organised by
+     the door           the owner's billboard, with the headline and the
+                        real sign-in laid over it
      the Artist EQ      the one thing here a visitor operates
      eight tools        which doors exist, and what opens them
      the Artist Twin    the argument for having an account
@@ -14,6 +14,11 @@
 
    Every section that survives is the same partial the long page uses.
    Nothing is forked, so a fix to the EQ or the rack fixes both pages.
+
+   The body carries .sbhome, and split-home.css uses it to tighten the
+   shared sections on this page only (owner, 2026-09-18: "the padding
+   between sections also needs to reduce drastically", and the Artist Twin
+   smaller). The long page never has the class, so it is untouched.
 
    The four sections that go (the three lanes, Creative Studio, the
    Rollout Engine, the back office) are not deleted. They are the story,
@@ -53,7 +58,7 @@
   {#- The sign-in form's own stylesheet, because the form on this page is
       the one /login serves rather than a second copy of it. -#}
   <link rel="stylesheet" href="/static/css/login-session-recall.css?v=9">
-  <link rel="stylesheet" href="/static/css/split-home.css?v=6">
+  <link rel="stylesheet" href="/static/css/split-home.css?v=8">
   <link rel="stylesheet" href="/static/css/artist-eq.css?v=27">
   <link rel="stylesheet" href="/static/css/eight-tools.css?v=2">
   <link rel="stylesheet" href="/static/css/artist-twin.css?v=6">
@@ -62,7 +67,7 @@
       the overlay wins over the two columns. -#}
   <link rel="stylesheet" href="/static/css/artist-twin-ghosts.css?v=2">
 </head>
-<body class="min-h-screen bg-sb-ground text-sb-ink antialiased">
+<body class="sbhome min-h-screen bg-sb-ground text-sb-ink antialiased">
 
 {#- Not partials/public_header.html. That is the long site's marketing
     nav, and three of its links (/#platform, /#creative-studio,
@@ -73,7 +78,7 @@
 
 <main id="main">
 
-  {# 1. THE DOOR — words, the sign-in form, and the stages rail. #}
+  {# 1. THE DOOR — the billboard, the words and the sign-in form over it. #}
   {% include "partials/split_door.html" %}
 
   {# 2. THE ARTIST EQ — unchanged. The one thing on this page a visitor

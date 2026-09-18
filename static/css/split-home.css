@@ -1,8 +1,13 @@
-/* The split home page: the door, the stages rail, the memberships band.
+/* The split home page: the bar, the door, the memberships band, and the
+ * shared sections pulled tighter on this page.
  *
- * Only the three pieces that are new. The Artist EQ, the eight tools and
- * the Artist Twin keep their own stylesheets, because on this page they
- * are the same sections they are on the long one.
+ * The Artist EQ, the eight tools and the Artist Twin keep their own
+ * stylesheets, because on this page they are the same sections they are
+ * on the long one. What this page changes about them it changes under
+ * body.sbhome (landing_split.html), which the long page never carries, so
+ * the long page renders exactly as it did. This file loads BEFORE those
+ * three sheets, so every rule that reaches into them has to win on
+ * specificity, never on order: .sbhome is the extra class that does it.
  *
  * Tokens only, and the three radii the design system allows:
  * --sb-r-control 6px, --sb-r-panel 10px, --sb-r-pill 999px.
@@ -10,7 +15,10 @@
 
 /* ---- the bar --------------------------------------------------------- */
 /* Shipped 2026-09-17 with markup and no stylesheet, so the wordmark drew at
- * its natural 920x250 and the header stood 274px tall. */
+ * its natural 920x250 and the header stood 274px tall. Then it was 30px
+ * and the owner found it tiny: "The street banker logo ... needs to be much
+ * bigger" (2026-09-18). 84px on a desktop, 46px on a phone, and it never
+ * shrinks to make room for the links. */
 
 .sbbar {
   position: relative;
@@ -21,29 +29,36 @@
 .sbbar-inner {
   max-width: 1240px;
   margin: 0 auto;
-  padding: 18px 16px;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 12px;
 }
 
-@media (min-width: 900px) { .sbbar-inner { padding: 20px 24px; } }
+@media (min-width: 900px) { .sbbar-inner { padding: 16px 24px; gap: 20px; } }
 
-.sbbar-mark { display: block; line-height: 0; }
-.sbbar-mark img { height: 30px; width: auto; display: block; }
+.sbbar-mark { display: block; flex: none; line-height: 0; }
+.sbbar-mark img { height: 46px; width: auto; display: block; }
+@media (min-width: 900px) { .sbbar-mark img { height: 84px; } }
 
 .sbbar-nav {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: .12em;
   text-transform: uppercase;
 }
+@media (min-width: 700px) { .sbbar-nav { gap: 24px; } }
 
 .sbbar-nav a { color: var(--sb-ink-2); text-decoration: none; }
+
+/* The links sit on the photograph, and at some widths on one of the
+ * billboard's lit wall lamps. The shadow is the same one the words on the
+ * door carry, so a link stays readable on a hot spot. */
+.sbbar-nav { text-shadow: 0 1px 2px rgb(0 0 0 / .9), 0 0 14px rgb(0 0 0 / .85); }
 .sbbar-nav a:hover { color: var(--sb-ink); }
 .sbbar-here {
   color: var(--sb-ink) !important;
@@ -51,56 +66,148 @@
   padding-bottom: 4px;
 }
 
-/* The bar sits over the photograph, so the door must start underneath it
- * rather than after it. */
-.sbbar + main .sbdoor,
-.sbbar + .sbdoor { margin-top: -74px; }
-.sbbar + main .sbdoor .sbdoor-inner,
-.sbbar + .sbdoor .sbdoor-inner { padding-top: 130px; }
+/* On a phone the bigger mark leaves no room for the domain, and the store
+ * is linked again at the foot of the page. */
+@media (max-width: 699px) {
+  .sbbar-nav a:last-child:not(.sbbar-here) { display: none; }
+}
 
 /* ---- the door ------------------------------------------------------- */
-/* The billboard sits BESIDE the sign-in, not behind it (owner, 2026-09-18).
- * It carries its own headline, its own wordmark and all eight suite marks,
- * so laying the door's headline over it would be two statements fighting,
- * and the scrim needed to make white type readable would dim the thing
- * worth reading. A poster next to a door, which is what it is. */
+/* Owner, 2026-09-18: "the hero image needs to be much bigger and overlay
+ * the text on it with the sign up", then "you can place the sign up ...
+ * over the top of where that gentleman is standing". So the wide billboard
+ * fills the door from edge to edge, starting under the bar, and the words
+ * and the sign-in sit bottom left over the man walking in the foreground.
+ * The billboard itself is centre-right, so nothing covers it.
+ *
+ * The bar sits over the photograph, so the door starts underneath it: the
+ * negative margin is the bar's own height (84px mark + 32px padding on a
+ * desktop, 46 + 24 on a phone). */
 
 .sbdoor {
+  position: relative;
+  overflow: hidden;
   background: var(--sb-ground);
   color: var(--sb-ink);
   border-bottom: 1px solid var(--sb-line);
 }
 
+.sbbar + main .sbdoor,
+.sbbar + .sbdoor { margin-top: -70px; }
+
 .sbdoor-inner {
-  max-width: 1240px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 40px 16px 0;
   display: grid;
-  gap: 32px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 360px 16px 32px;
 }
 
 @media (min-width: 900px) {
+  .sbbar + main .sbdoor,
+  .sbbar + .sbdoor { margin-top: -116px; }
+
   .sbdoor-inner {
-    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr);
-    padding: 52px 24px 0;
-    gap: 56px;
+    min-height: clamp(700px, 100vh, 1000px);
+    grid-template-columns: minmax(0, 720px) minmax(0, 1fr);
+    align-items: end;
+    gap: 40px;
+    padding: 150px 24px 40px;
   }
 }
 
-/* the poster */
+/* The picture. On a phone it is a banner at its own shape under the bar,
+ * not stretched to the height of everything below it; on a desktop it is
+ * the whole door. */
 .sbdoor-poster {
+  position: absolute;
+  inset: 50px 0 auto;
+  z-index: 0;
+  height: 350px;
   margin: 0;
-  border-radius: var(--sb-r-panel);
   overflow: hidden;
   background: var(--sb-surface-1);
-  box-shadow: 0 30px 70px -34px rgb(0 0 0 / .95);
 }
 
-.sbdoor-poster img { width: 100%; height: auto; display: block; }
+.sbdoor-poster img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 64% 40%;
+}
+
+/* On a desktop the photograph is cover-cropped to the door, so where the
+ * billboard lands depends on the window's shape. Two things keep the words
+ * off the billboard's own lettering at every size:
+ *
+ * The anchor. With x at 35% (anything at or under 37.7%, the billboard's
+ * left edge as a share of the photograph) a crop never slides the billboard
+ * left of 37.7% of the window. With y at 70%, a window wider than the
+ * photograph loses sky rather than pavement, so the strip of wet street
+ * under the billboard, where the sign-in row sits, is never less than about
+ * a quarter of the door's height.
+ *
+ * The words column. Where the door is tall enough, the headline and lede
+ * sit under the billboard's last line at the approved 720px width (the
+ * mockup was judged on a window tall enough for that). On a shorter
+ * window, which is most laptops, there is no room under it, so the words narrow to the
+ * street left of the billboard (37.7% of the window, less a 24px gap and
+ * the column's own left edge) and the sign-in row stays full width on the
+ * pavement below. The reviewer caught the words printing over CREATE,
+ * RELEASE and TOOLS FOR A BIGGER TOMORROW at 1280x720 and 1024x768. */
+@media (min-width: 900px) {
+  .sbdoor-poster { inset: 0; height: auto; }
+  .sbdoor-poster img { object-position: 35% 70%; }
+}
+
+/* The sums, with the billboard's last line at 688 of the photograph's 941
+ * rows: the pavement under it is about 27% of the door on a window no wider
+ * than 16:9, and less on a wider one. The words at 720px need about 260px
+ * under that line, which a door only has from about 980px tall and under
+ * about 2000px wide. Everything else gets the narrow column. */
+@media (min-width: 900px) and (max-height: 979px), (min-width: 2000px) {
+  .sbdoor-words { max-width: calc(37.7vw - 24px - max(24px, 50vw - 636px)); }
+}
+
+/* The scrim. Top: enough dark under the bar for the mark and the links.
+ * Desktop: a pool of dark bottom left, where the words are, and a fade into
+ * the page at the foot. Phone: the banner fades into the page before the
+ * words start. */
+.sbdoor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgb(11 10 8 / .7) 0,
+    rgb(11 10 8 / .1) 70px,
+    rgb(11 10 8 / 0) 250px,
+    var(--sb-ground) 400px);
+}
+
+@media (min-width: 900px) {
+  .sbdoor::after {
+    background:
+      radial-gradient(70% 62% at 16% 92%, rgb(11 10 8 / .9) 0, rgb(11 10 8 / .66) 48%, rgb(11 10 8 / 0) 100%),
+      linear-gradient(180deg, rgb(11 10 8 / .55) 0, rgb(11 10 8 / 0) 16%, rgb(11 10 8 / 0) 80%, var(--sb-ground) 100%);
+  }
+}
 
 /* the way in */
-.sbdoor-side { display: flex; flex-direction: column; gap: 26px; }
+.sbdoor-side {
+  position: relative;
+  z-index: 2;
+  grid-column: 1;
+  align-self: end;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-shadow: 0 2px 18px rgb(0 0 0 / .75);
+}
 
 .sbdoor-eyebrow {
   display: inline-flex;
@@ -117,9 +224,9 @@
 .sbdoor-eyebrow i { width: 22px; height: 2px; background: var(--sb-gold); display: block; }
 
 .sbdoor-h {
-  margin: 14px 0 0;
-  font-size: clamp(30px, 3.4vw, 46px);
-  line-height: 1;
+  margin: 4px 0 2px;
+  font-size: clamp(28px, 2.6vw, 38px);
+  line-height: 1.02;
   font-weight: 900;
   letter-spacing: -.02em;
   text-transform: uppercase;
@@ -128,68 +235,116 @@
 }
 
 .sbdoor-lede {
-  margin: 14px 0 0;
+  margin: 0;
   max-width: 34em;
   font-size: 16px;
   line-height: 1.55;
   color: var(--sb-ink-2);
 }
 
-.sbdoor-form {
-  border: 1px solid var(--sb-gold-line);
-  border-radius: var(--sb-r-panel);
-  background: var(--sb-surface-1);
-  padding: 24px;
-  box-shadow: 0 1px 0 rgb(242 236 224 / .07) inset, 0 30px 70px -34px rgb(0 0 0 / .9);
+/* The sign-in: "login doesn't have to be a big box like that. It can just
+ * be a few, you know, bars across the bottom of it" (owner). No panel.
+ * Email, password and the button in one row on a desktop, stacked on a
+ * phone; the remember line under them. The labels are hidden from sight
+ * only, so a screen reader still names each field, and the placeholders
+ * (lsr_slim, split_door.html) name them for everybody else. /login uses the
+ * same partial and none of this reaches it: every rule is under .sbdoor-form. */
+.sbdoor-form { margin-top: 6px; }
+
+.sbdoor-form .lsr-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
 }
 
-.sbdoor-fine { margin: 16px 0 0; font-size: 13px; color: var(--sb-ink-2); line-height: 1.5; }
+.sbhome .sbdoor-form .lsr-field { margin: 0; }
+
+.sbdoor-form .lsr-field label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sbdoor-form .lsr-field input {
+  height: 46px;
+  background: rgb(11 10 8 / .72);
+  border: 1px solid var(--sb-line-strong);
+  border-radius: var(--sb-r-control);
+}
+
+.sbdoor-form .lsr-field input:focus-visible { border-color: var(--sb-gold); }
+
+.sbdoor-form .lsr-row { margin: 0; }
+
+.sbdoor-form .lsr-gold-btn { width: 100%; min-height: 46px; margin: 0; white-space: nowrap; }
+
+@media (min-width: 900px) {
+  .sbdoor-form .lsr-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+  .sbdoor-form .lsr-gold-btn { grid-column: 3; grid-row: 1; width: auto; height: 46px; padding: 0 22px; }
+  .sbdoor-form .lsr-row { grid-column: 1 / -1; grid-row: 2; }
+}
+
+.sbdoor-fine { margin: 2px 0 0; font-size: 13px; color: var(--sb-ink-2); line-height: 1.5; }
 .sbdoor-fine strong { color: var(--sb-ink); }
 .sbdoor-fine a { color: var(--sb-gold-bright); }
 
-/* ---- the stages rail ------------------------------------------------ */
-/* Full width under both columns now. Eight must sit on one line: an
- * orphaned last stage reads as a mistake rather than a rail. */
+/* The stages rail that sat under the door is gone (owner, 2026-09-18:
+ * "you have 8 bullets made like the 8 suite names this makes no sense"),
+ * and so are its rules. tests/test_split_home.py keeps it gone. */
 
-.sbrail {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 30px 16px 40px;
+/* ---- the shared sections, tighter on this page ---------------------- */
+/* Owner, 2026-09-18: "the padding between sections also needs to reduce
+ * drastically", "the ai twin section is way to big", and again "Remember
+ * to reduce the size of the artist twin and the padding in between
+ * everything." Only under .sbhome, so the long page keeps its spacing. */
+
+.sbhome .sbeq,
+.sbhome .sbet { padding-top: 22px; padding-bottom: 22px; }
+
+/* The eight tools: heading, readout and button closer to the rack. The
+ * readout keeps two lines of room (eight-tools.css keeps 3.2em), because it
+ * changes as the pointer moves along the rack, and without the reserve
+ * everything under it jumps with every plate. */
+.sbhome .sbet-head { margin-bottom: 10px; }
+.sbhome .sbet-readout { margin-top: 10px; min-height: 3em; }
+.sbhome .sbet-cta { margin-top: 10px; }
+
+/* The Artist Twin, much smaller: one-line rows, tighter type, a shorter
+ * picture. The row summaries go from the row; each row still opens to its
+ * full reasoning. */
+.sbhome .sbtw { padding-top: 18px; padding-bottom: 18px; }
+.sbhome .sbtw-title { margin-top: 6px; margin-bottom: 6px; font-size: clamp(24px, 2.1vw, 32px); }
+.sbhome .sbtw-support { margin-top: 8px; margin-bottom: 8px; max-width: 58ch; font-size: 13px; line-height: 1.45; }
+.sbhome .sbtw-card { margin-top: 6px; }
+.sbhome .sbtw-example { padding-top: 6px; padding-bottom: 6px; }
+.sbhome .sbtw-summary { padding: 3px 12px; gap: 10px; }
+.sbhome .sbtw-icon { width: 22px; height: 22px; }
+.sbhome .sbtw-icon svg { width: 13px; height: 13px; }
+.sbhome .sbtw-row-title { font-size: 13px; }
+.sbhome .sbtw-row-summary { display: none; }
+.sbhome .sbtw-sources { margin-top: 6px; padding-top: 6px; padding-bottom: 8px; }
+.sbhome .sbtw-sources-label { margin-bottom: 2px; }
+.sbhome .sbtw-sources ul { gap: 4px 10px; }
+.sbhome .sbtw-ctas { margin-top: 8px; }
+.sbhome .sbtw-microcopy { margin-top: 6px; font-size: 12px; line-height: 1.35; }
+
+/* The one-line rows are the approved desktop look. Each row is a tap
+ * target, so anywhere a finger may be the pointer (a tablet in landscape
+ * is below 1180px, a touch laptop reports coarse) the row keeps the 44px
+ * floor artist-twin.css gives it. */
+@media (min-width: 1180px) and (pointer: fine) {
+  .sbhome .sbtw-summary { min-height: 0; }
 }
 
-@media (min-width: 900px) { .sbrail { padding: 34px 24px 44px; } }
-
-.sbrail-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.sbrail-stage {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  padding: 7px 12px;
-  border: 1px solid var(--sb-line-strong);
-  border-radius: var(--sb-r-pill);
-  background: var(--sb-surface-1);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--sb-ink-2);
-}
-
-.sbrail-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--sb-gold-deep);
-  flex: none;
+@media (min-width: 1180px) {
+  .sbhome .sbtw--over .sbtw-inner { min-height: 0; }
+  .sbhome .sbtw--over .sbtw-eyebrow { padding-top: 8px; }
+  .sbhome .sbtw--over .sbtw-microcopy { padding-bottom: 8px; }
+  .sbhome .sbtw--over .sbtw-photo { width: min(62%, 980px); }
 }
 
 /* ---- memberships --------------------------------------------------- */
@@ -227,10 +382,12 @@
   border-top: 1px solid var(--sb-line);
 }
 
-.sbmem-inner { max-width: 1240px; margin: 0 auto; padding: 56px 16px; }
-@media (min-width: 900px) { .sbmem-inner { padding: 72px 24px; } }
+.sbmem-inner { max-width: 1240px; margin: 0 auto; padding: 24px 16px; }
+@media (min-width: 900px) { .sbmem-inner { padding: 24px; } }
 
-.sbmem-head { text-align: center; }
+/* Tight since 2026-09-18, with the rest of the page (owner: "reduce ...
+ * the padding in between everything"). */
+.sbmem-head { text-align: center; margin-bottom: 10px; }
 .sbmem-h {
   margin: 0;
   font-size: clamp(24px, 3vw, 34px);
@@ -381,7 +538,7 @@
 /* --- credits --------------------------------------------------------- */
 
 .sbmem-credits {
-  margin-top: 40px;
+  margin-top: 22px;
   padding: 24px;
   border: 1px solid var(--sb-line);
   border-radius: var(--sb-r-panel);

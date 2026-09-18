@@ -168,7 +168,10 @@ def get_split_home_config(signup_open=False):
             "key": key, "name": name, "price": price, "blurb": blurb,
             "includes": includes, "top": key == "label",
             "finish": finish, "lit": lit, "bloom": bloom,
-            "plate": "/static/img/pass-plate-%s.webp" % key,
+            # ?v=2: the ARTIST plate was re-shot with white letters
+            # (owner, 2026-09-18) under the same file name, so browsers
+            # holding the gold one must fetch it again.
+            "plate": "/static/img/pass-plate-%s.webp?v=2" % key,
             "words": "/static/img/pass-words-%s.webp" % key,
             # What the engraving actually says, so a screen reader gets
             # the pass and the repo carries the copy in text.

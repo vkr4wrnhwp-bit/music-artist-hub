@@ -200,18 +200,46 @@ def test_the_line_under_the_form_follows_whether_sign_up_is_open(page):
         assert 'action="/login' in markup and 'name="password"' in markup
 
 
-def test_the_rail_is_a_map_and_not_a_progress_bar(page):
-    rail = page.split('class="sbrail"')[1].split("</nav>")[0]
-    # The stage name is the list item's own text now: the door was rebuilt
-    # 2026-09-18 and the wrapping span went with it. What the rule protects
-    # is that all eight are named and none is marked as reached.
-    for stage in split_home.STAGES:
-        assert stage in rail, stage
-    assert rail.count("sbrail-stage") == 8
-    # Nothing is ticked, done, complete or current: the page does not know
-    # who is reading it.
-    for claim in ("is-done", "is-current", "aria-current", "complete"):
-        assert claim not in rail, claim
+def test_there_is_no_stage_rail_on_the_app_home(page):
+    """The owner, 2026-09-18, looking at the eight stage pills under the
+    door: "you have 8 bullets made like the 8 suite names this makes no
+    sense". Eight pills in a row read as the eight suites, which they were
+    not, so the rail left the page. This keeps it from coming back, in the
+    markup or as dead rules in the page's own stylesheet."""
+    assert "sbrail" not in page
+    door = io.open(os.path.join(HERE, "templates", "partials", "split_door.html"),
+                   encoding="utf-8").read()
+    assert "sh.stages" not in door and "<nav" not in door
+    css = io.open(os.path.join(HERE, "static", "css", "split-home.css"),
+                  encoding="utf-8").read()
+    assert ".sbrail" not in css
+
+
+def test_the_door_is_the_billboard_with_the_sign_in_over_it(page):
+    """The owner: "the hero image needs to be much bigger and overlay the
+    text on it with the sign up", and the sign-in as "a few ... bars
+    across the bottom of it" rather than a big box. The wide billboard is
+    the picture; the form is still the /login form, labels and all."""
+    door = page.split('class="sbdoor"')[1]
+    assert "door-billboard-wide.webp" in door
+    assert os.path.exists(os.path.join(HERE, "static", "img",
+                                       "door-billboard-wide.webp"))
+    # Hidden from sight on this page, never from a screen reader.
+    assert '<label for="lsr-email">Email</label>' in door
+    assert '<label for="lsr-password">Password</label>' in door
+    assert 'placeholder="Email"' in door and 'placeholder="Password"' in door
+    # The long page's scoping hook is this page's alone.
+    assert '<body class="sbhome' in page
+
+
+def test_the_slim_sign_in_stays_on_the_door_and_off_login(client):
+    """/login serves the same partial, and it must look exactly as it did:
+    visible labels, the old placeholder, and none of the door's rules."""
+    body = client.get("/login").get_data(as_text=True)
+    assert 'placeholder="you@domain.com"' in body
+    assert 'placeholder="Email"' not in body
+    assert 'placeholder="Password"' not in body
+    assert "sbhome" not in body and "split-home.css" not in body
 
 
 def test_no_section_is_forked(page):
@@ -324,3 +352,26 @@ def test_the_settings_toggle_shows_the_owner_which_one_is_on():
     assert 'value="split"' in box and 'value="full"' in box
     assert "home_split" in box, "the radio must show the current choice"
     assert "/?home=split" in box, "and offer a look before committing"
+
+
+def test_the_tightened_sections_do_not_move_or_shrink_under_a_finger():
+    """Two things the tightening must not cost. The eight-tools readout
+    changes as the pointer moves along the rack, so it keeps two lines of
+    room or everything under it jumps with each plate. And the Artist Twin
+    rows are tap targets: the one-line rows are for a mouse on a wide
+    screen only, everywhere else they keep artist-twin.css's 44px floor."""
+    css = io.open(os.path.join(HERE, "static", "css", "split-home.css"),
+                  encoding="utf-8").read()
+    assert ".sbhome .sbet-readout { margin-top: 10px; min-height: 3em; }" in css
+    compact = "@media (min-width: 1180px) and (pointer: fine) {\n  .sbhome .sbtw-summary { min-height: 0; }\n}"
+    assert compact in css
+    assert ".sbhome .sbtw-summary { padding: 3px 12px; gap: 10px; }" in css
+
+
+def test_the_door_picture_comes_in_three_widths(page):
+    """A phone draws the banner about 622px wide, so it is offered the
+    smaller files rather than only the 1672px one."""
+    door = page.split('class="sbdoor"')[1]
+    for name in ("door-billboard-wide-800.webp", "door-billboard-wide-1280.webp"):
+        assert name in door
+        assert os.path.exists(os.path.join(HERE, "static", "img", name))

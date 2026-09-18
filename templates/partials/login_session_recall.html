@@ -1,6 +1,11 @@
 {# The sign-in form. Every field, name, id and autocomplete token is the
    one the /login handler, the script and the password managers already
-   expect; only the chrome around it changed. #}
+   expect; only the chrome around it changed.
+
+   lsr_slim is set by the split home's door, which shows the form as one
+   row of bars with the labels hidden from sight (still read aloud), so
+   there the fields carry their names as placeholders. /login leaves it
+   unset and renders exactly as it always has. #}
 <section class="lsr-block" aria-labelledby="lsr-session-h">
   <h2 class="lsr-sr" id="lsr-session-h">Sign in to your account</h2>
 
@@ -18,14 +23,14 @@
       {# "username" rather than "email": it is the token password
          managers look for when pairing a field with a saved login. #}
       <input type="email" id="lsr-email" name="email" required autofocus
-             autocomplete="username" placeholder="you@domain.com"
+             autocomplete="username" placeholder="{{ 'Email' if lsr_slim else 'you@domain.com' }}"
              {% if error %}aria-describedby="lsr-login-error"{% endif %}>
     </div>
     <div class="lsr-field">
       <label for="lsr-password">Password</label>
       <div class="lsr-pw">
         <input type="password" id="lsr-password" name="password" required
-               autocomplete="current-password"
+               autocomplete="current-password"{% if lsr_slim %} placeholder="Password"{% endif %}
                {% if error %}aria-describedby="lsr-login-error"{% endif %}>
         <button type="button" class="lsr-pw-toggle" id="lsr-pw-toggle"
                 aria-pressed="false" aria-label="Show password">
