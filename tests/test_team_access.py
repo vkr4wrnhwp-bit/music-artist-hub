@@ -13,6 +13,7 @@ import pytest
 
 import app as appmod
 import db as store
+import team_areas
 
 PW = "team-access-1"
 
@@ -34,8 +35,9 @@ def _account(plan="artist", name="Artist"):
     return c
 
 
-def _invite(owner, member, access="read", roster=False, role="manager"):
-    data = {"email": member._email, "role": role, "access": access}
+def _invite(owner, member, access="read", roster=False, role="manager", areas=None):
+    data = {"email": member._email, "role": role, "access": access,
+            "areas": list(areas if areas is not None else team_areas.keys())}
     if roster:
         data["can_roster"] = "1"
     r = owner.post("/team/invite", data=data)
@@ -56,10 +58,10 @@ def test_each_plan_has_its_seats(plan, seats):
     owner = _account(plan)
     for i in range(seats):
         r = owner.post("/team/invite", data={"email": "seat%d-%s@example.net" % (i, uuid.uuid4().hex[:6]),
-                                             "role": "assistant"})
+                                             "role": "assistant", "areas": ["fans"]})
         assert r.get_json()["ok"], r.get_json()
     r = owner.post("/team/invite", data={"email": "one-more-%s@example.net" % uuid.uuid4().hex[:6],
-                                         "role": "assistant"})
+                                         "role": "assistant", "areas": ["fans"]})
     assert r.status_code == 402 and "all taken" in r.get_json()["error"]
 
 
@@ -67,7 +69,7 @@ def test_a_label_has_no_seat_limit():
     owner = _account("label")
     for i in range(7):
         r = owner.post("/team/invite", data={"email": "l%d-%s@example.net" % (i, uuid.uuid4().hex[:6]),
-                                             "role": "assistant"})
+                                             "role": "assistant", "areas": ["fans"]})
         assert r.get_json()["ok"]
 
 

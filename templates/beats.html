@@ -151,8 +151,10 @@
             <p class="bt-meta"><span>from {{ l.producer_name }}</span><span>{{ l.status }}</span></p>
           </div>
           <div class="bt-row-right">
-            {% if l.status != 'signed' %}
+            {% if l.status != 'signed' and not team_seat %}
             <a href="/licence/{{ l.token }}" class="bt-btn bt-btn--small">Read &amp; sign →</a>
+            {% elif l.status != 'signed' %}
+            <span class="bt-meta">Waiting for the artist to sign</span>
             {% else %}
             <span class="bt-led bt-led--free"><i></i>Signed</span>
             {% endif %}

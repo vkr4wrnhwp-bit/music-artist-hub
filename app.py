@@ -44,6 +44,7 @@ import tour_os
 import demo_accounts
 import page_switches
 import rooms
+import team_areas
 import producers
 import distributor_letter
 import recovery_engine
@@ -294,16 +295,30 @@ from royalty_data import (
 )
 
 
+def _team_owner():
+    """The account a team seat is working inside this request, or None.
+    team_seat_gate resolved the seat before any page renders, and
+    current_user() drops team_as the moment the seat is gone."""
+    try:
+        if not session.get("team_as"):
+            return None
+    except RuntimeError:
+        return None
+    return ((getattr(g, "_team_seat", None) or (None, None))[1] or {}).get("owner")
+
+
 def _account_with_user(account):
     """Overlay the signed-in user's identity on the sidebar account chip.
-    Safe outside a request context (tests call this directly)."""
+    Safe outside a request context (tests call this directly). Inside an
+    artist's account through a team seat it is the artist's chip: it said
+    the member's own name, email and plan (team review, 2026-09-19)."""
     try:
         user_id = session.get("user_id")
     except RuntimeError:
         return account
     if not user_id:
         return account
-    user = store.get_user(user_id)
+    user = _team_owner() or store.get_user(user_id)
     if not user:
         return account
     initials = "".join(p[0] for p in user["name"].split()[:2]).upper() or "?"
@@ -316,7 +331,7 @@ def _account_with_user(account):
     # rather than invent a figure.
     plan_key = (user.get("plan") or "artist") if hasattr(user, "get") else "artist"
     return {**account, "name": user["name"], "initials": initials,
-            "email": user["email"], "role": "Artist Account",
+            "email": user["email"], "role": "Team access" if _team_owner() else "Artist Account",
             "plan": plans.PLAN_NAMES.get(plan_key, "Artist"),
             "next_payout": None, "next_payout_in": None}
 
@@ -372,8 +387,8 @@ def _internal_tools():
         user_id = session.get("user_id")
     except RuntimeError:                   # outside a request context (tests)
         return []
-    if not user_id:
-        return []
+    if not user_id or _team_owner():
+        return []                          # none of the member's own, inside an artist's account
     user = store.get_user(user_id)
     if not user:
         return []
@@ -751,13 +766,22 @@ def create_app():
         me = store.get_user(member_id) if m else None
         if (m and owner and me and not store.account_shut(owner) and not store.account_shut(me)
                 and not _is_owner_email(owner.get("email"))
-                and not demo_accounts.is_demo_email(owner.get("email") or "")):
+                and not demo_accounts.is_demo_email(owner.get("email") or "")
+                # A seat the artist has not confirmed opens nothing (team
+                # review, 2026-09-19), nor one beyond the plan's count.
+                and m.get("access") in ("read", "edit")):
             plan = owner.get("plan") or "artist"
-            edit = m.get("access") == "edit" and plans.team_can_edit(plan)
-            seat = {"owner": owner, "member_id": member_id,
-                    "member_name": me.get("name") or me.get("email") or "",
-                    "role": m.get("role") or "", "access": "edit" if edit else "read",
-                    "can_roster": bool(edit and m.get("can_roster") and plans.team_can_roster(plan))}
+            limit = plans.team_seats(plan)
+            pos = store.team_seat_position(owner_id, member_id)
+            if limit is None or (pos is not None and pos < limit):
+                edit = m.get("access") == "edit" and plans.team_can_edit(plan)
+                seat = {"owner": owner, "member_id": member_id,
+                        "member_name": me.get("name") or me.get("email") or "",
+                        "member_email": me.get("email") or "",
+                        "role": m.get("role") or "", "access": "edit" if edit else "read",
+                        "can_roster": bool(edit and m.get("can_roster") and plans.team_can_roster(plan)),
+                        "areas": m.get("areas") if m.get("areas") is not None else team_areas.ALL,
+                        "rooms": team_areas.describe(m.get("areas"))}
         g._team_seat = (key, seat)
         return seat
 
@@ -1133,7 +1157,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"error": "auth required"}), 401
-        if request.method == "GET":
+        if request.method != "POST":
             return jsonify({"profile": store.get_artist_signal_profile(user["id"])})
         clean = _clean_signal_profile(request.get_json(silent=True))
         if clean is None:
@@ -1316,6 +1340,17 @@ def create_app():
                          "/statements")
         return None
 
+    @app.route("/statements/dropbox-new", methods=["POST"])
+    def dropbox_new_address():
+        """A new drop-box address; the old one stops working at once."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if _working_as_someone():
+            return redirect("/statements")
+        store.rotate_ingest_token(user["id"])
+        return redirect("/statements?dropbox=new")
+
     @app.route("/statements/dropbox-test", methods=["POST"])
     def dropbox_test():
         """Round-trip self-test: email a sample CSV to your own drop-box.
@@ -1323,6 +1358,8 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in first."}), 401
+        if _working_as_someone():
+            return jsonify({"ok": False, "error": "Only the account holder can use the drop-box."}), 403
         if not emailer.inbound_configured():
             return jsonify({"ok": False, "error": "Drop-box not configured."}), 400
         import base64 as _b64
@@ -1368,9 +1405,12 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["user"] = user
         ctx["error"] = error
+        # The address is a key to the account: anyone who has it can put
+        # statements in, so it is shown to the account holder only, never
+        # to a team seat or a partner working inside (team review).
         ctx["drop_box"] = (emailer.inbound_address(
             store.get_or_create_ingest_token(user["id"]))
-            if emailer.inbound_configured() else None)
+            if emailer.inbound_configured() and not _working_as_someone() else None)
         ctx["uploads"] = store.get_statements(user["id"])
         ctx["roster"], ctx["act"], rows = _act_scope(store.get_statement_rows(user["id"]))
         ctx["analysis"] = analyze_statement(
@@ -2178,7 +2218,7 @@ def create_app():
         # visit" window does not close behind the reader on a refresh.
         since = None
         if user is not None:
-            if not session.get("seen_rolled"):
+            if not session.get("seen_rolled") and not session.get("team_as"):
                 store.roll_seen(user["id"])
                 session["seen_rolled"] = True
             since = store.get_prev_seen(user["id"])
@@ -4104,6 +4144,12 @@ def create_app():
                 (g_[0], [it for it in g_[1] if it[0] not in hidden])
                 for g_ in (label, community, account))
             palette = [e for e in palette if e["key"] not in hidden]
+        # A team seat sees only the rooms the artist opened to it.
+        seat = (getattr(g, "_team_seat", None) or (None, None))[1] if session.get("team_as") else None
+        shut_rooms = team_areas.hidden_page_keys(seat["areas"]) if seat else set()
+        if shut_rooms:
+            nav = hub_defs.without(nav, shut_rooms)
+            palette = [e for e in palette if e["key"] not in shut_rooms]
         # The eight rooms (owner, 2026-09-15, by numbered mockup): the
         # same keys, addresses and switches as the hubs, laid out as rooms.
         # Staging first: on when NAV_ROOMS=1 or the owner switched it.
@@ -4111,8 +4157,10 @@ def create_app():
         if me and rooms.enabled() and (me.get("plan") or "artist") != "fan":
             is_owner = bool(_is_owner_email(me.get("email")))
             demo = bool(_demo_locked_account())
-            rooms_nav = {"rooms": rooms.build(me.get("plan") or "artist", is_owner, demo),
-                         "top": rooms.top_rows(is_owner, demo),
+            granted = team_areas.parse(seat["areas"]) if seat else None
+            rooms_nav = {"rooms": [r for r in rooms.build(me.get("plan") or "artist", is_owner, demo)
+                                   if granted is None or r[0] in granted],
+                         "top": [r for r in rooms.top_rows(is_owner, demo) if r[0] not in shut_rooms],
                          "account": rooms.account_rows(is_owner, demo),
                          "back": rooms.back_map()}
         return {"hubs_nav": nav, "hubs_label": label,
@@ -4561,7 +4609,10 @@ def create_app():
         ?demo=readonly, which the shell turns into the sentence above;
         a script call gets the same sentence as a 403 JSON answer.
         """
-        if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        # Anything but a read is a write: Flask answers HEAD with the GET
+        # handler, and a handler that writes on "not GET" wrote on HEAD
+        # (team review, 2026-09-19).
+        if request.method in ("GET", "OPTIONS"):
             return None
         if request.path in _DEMO_LOCK_ALLOWED:
             return None
@@ -4579,9 +4630,15 @@ def create_app():
 
     # Areas a team seat never reaches, whatever its access: the account
     # holder's money, settings, team and suites stay theirs (2026-09-19).
+    # /account (start over, delete) and /backup were reachable from a seat;
+    # Tour, the Tour Board and the Press Desk read the signed-in person, not
+    # the account they work in, so they would show and change the member's
+    # own (team review, 2026-09-19). They open to seats when they learn
+    # whose account they are in.
     _TEAM_BLOCKED = ("/billing", "/settings", "/team", "/admin", "/partner", "/plan/switch",
                      "/suites/go", "/api/suites", "/referrals", "/portal", "/roster/join",
-                     "/upgrade", "/owner", "/operator-desk", "/signal")
+                     "/upgrade", "/owner", "/operator-desk", "/signal", "/account", "/backup",
+                     "/tours", "/tour", "/tour-board", "/press-desk")
     _TEAM_ALLOWED = ("/portal/leave", "/logout")
     _TEAM_READ_ONLY = ("You have read-only access to this account. Look at everything; "
                        "changes are made by the artist or a team member who can edit.")
@@ -4603,24 +4660,40 @@ def create_app():
         seat = (getattr(g, "_team_seat", None) or (None, None))[1]
         if not session.get("team_as") or seat is None:
             return None
-        writes = request.method in ("POST", "PUT", "PATCH", "DELETE")
+        writes = request.method not in ("GET", "OPTIONS")
+        home = team_areas.home(seat["areas"])
         if any(_under(path, p) for p in _TEAM_BLOCKED):
             if writes and _wants_json():
                 return jsonify({"ok": False, "error": "Only the account holder can do this."}), 403
-            return redirect("/command-center?team=blocked")
+            return redirect(home + "?team=blocked")
+        # The rooms the artist ticked for this person (owner, 2026-09-19).
+        if not team_areas.allows(seat["areas"], path):
+            if _wants_json():
+                return jsonify({"ok": False, "error": "That room is not open to you."}), 403
+            return redirect(home + "?team=room")
         if not writes:
             return None
         if seat["access"] != "edit" or (_under(path, "/roster") and not seat["can_roster"]):
             if _wants_json():
                 return jsonify({"ok": False, "error": _TEAM_READ_ONLY, "team": "readonly"}), 403
-            back = "/command-center"
+            back = home
             ref = urllib.parse.urlsplit(request.referrer or "")
             if ref.path.startswith("/") and (not ref.netloc or ref.netloc == request.host):
                 back = ref.path
             return redirect(back + "?team=readonly")
-        store.add_team_audit(seat["owner"]["id"], seat["member_id"], seat["member_name"],
+        # Recorded once the change has gone through, not when it is asked
+        # for: a refused or unrouted request is not a change (team review).
+        if request.method != "HEAD":
+            g._team_audit = (seat["owner"]["id"], seat["member_id"], seat["member_name"],
                              request.method, path)
         return None
+
+    @app.after_request
+    def _team_audit_write(resp):
+        a = getattr(g, "_team_audit", None)
+        if a and request.url_rule is not None and resp.status_code < 400:
+            store.add_team_audit(*a)
+        return resp
 
     @app.context_processor
     def _team_banner():
@@ -7238,6 +7311,10 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
+        if session.get("team_as"):
+            # The artist's queue is theirs to drain, and the remote code
+            # drives their rig: a seat gets neither (team review).
+            return jsonify({"ok": True, "code": "", "commands": [], "phone_seen": ""})
         return jsonify(dict(lights_store.drain_remote_commands(user["id"]), ok=True))
 
     @app.route("/lights/remote/<code>")
@@ -7867,7 +7944,7 @@ def create_app():
             abort(404)
         session["team_as"] = owner_id
         session["team_as_name"] = seat["owner"].get("name") or "the artist"
-        return redirect("/command-center")
+        return redirect(team_areas.home(seat["areas"]))
 
     @app.route("/portal/leave", methods=["POST"])
     def portal_leave():
@@ -7884,14 +7961,16 @@ def create_app():
         if membership is None:
             abort(404)
         role = membership["role"]
+        rooms_open = team_areas.parse(membership.get("areas"))
         money = None
-        if role in ("manager", "accountant", "attorney"):
+        # The summary follows the rooms the artist opened, as the account does.
+        if role in ("manager", "accountant", "attorney") and "business" in rooms_open:
             rows = store.get_statement_rows(owner_id)
             money = {"total": round(sum(r["amount"] for r in rows), 2),
                      "rows": len(rows),
                      "statements": len(store.get_statements(owner_id))}
         promo = None
-        if role in ("manager", "publicist", "assistant"):
+        if role in ("manager", "publicist", "assistant") and "marketing" in rooms_open:
             campaigns = [c for c in mls.list_campaigns(owner_id)
                          if not c.get("archived_at")]
             clicks = views = 0
@@ -10727,7 +10806,7 @@ def create_app():
                 if m and m["basis"] == "brief"
                 and m["pct"] >= collab_market.MATCH_THRESHOLD
                 and (not seen or (p.get("updated") or "") > seen))
-            if tab == "discover":
+            if tab == "discover" and not session.get("team_as"):
                 store.set_collab_seen(uid)
         # Active Projects, one definition for the tile and the tab: your
         # open briefs with applications (the pipeline), your closed briefs
@@ -11732,7 +11811,8 @@ def create_app():
         if user is None:
             return login_required_redirect()
         items = store.list_notifications(user["id"])
-        store.mark_notifications_read(user["id"])  # viewing clears the badge
+        if not session.get("team_as"):
+            store.mark_notifications_read(user["id"])  # viewing clears the badge
         return render_template("notifications_real.html", active_page="notifications",
                                items=items, **build_dashboard_context())
 
@@ -11816,14 +11896,24 @@ def create_app():
         plan = user.get("plan") or "artist"
         owner = _is_owner_email(user.get("email"))
         seats = None if owner else plans.team_seats(plan)
+        page = max(0, int(request.args.get("older") or 0)) if (request.args.get("older") or "").isdigit() else 0
+        members = store.list_team(user["id"])
+        for m in members:
+            m["rooms_label"] = team_areas.describe(m.get("areas"))
+            m["rooms_set"] = team_areas.parse(m.get("areas"))
         return render_template("team.html", active_page="team",
-                               members=store.list_team(user["id"]),
+                               members=members,
+                               room_choices=[(k, team_areas.LABELS[k]) for k in team_areas.keys()],
+                               # The platform owner's account is never opened
+                               # from a Portal, so its page says so (review).
+                               team_opens=not owner,
+                               audit_page=page, audit_older=len(store.list_team_audit(user["id"], 1, (page + 1) * 25)) > 0,
                                roles=_TEAM_ROLES,
                                email_configured=emailer.configured(),
                                seats_total=seats, seats_used=store.count_team_seats(user["id"]),
                                can_grant_edit=owner or plans.team_can_edit(plan),
                                can_grant_roster=owner or plans.team_can_roster(plan),
-                               audit=store.list_team_audit(user["id"]),
+                               audit=store.list_team_audit(user["id"], 25, page * 25),
                                **build_dashboard_context())
 
     @app.route("/team/<member_id>/access", methods=["POST"])
@@ -11837,7 +11927,10 @@ def create_app():
                             and (owner or plans.team_can_edit(plan))) else "read"
         roster = (request.form.get("can_roster") == "1" and access == "edit"
                   and (owner or plans.team_can_roster(plan)))
-        store.set_team_access(user["id"], member_id, access, roster)
+        areas = team_areas.from_form(request.form.getlist("areas"))
+        if not areas:
+            return redirect("/team?rooms=none")
+        store.set_team_access(user["id"], member_id, access, roster, areas)
         return redirect("/team")
 
     @app.route("/team/invite", methods=["POST"])
@@ -11865,7 +11958,16 @@ def create_app():
             return jsonify({"ok": False, "error": "Enter a valid email and pick a role."}), 400
         if email == user["email"]:
             return jsonify({"ok": False, "error": "That's you — no invite needed."}), 400
-        invite = store.add_team_invite(user["id"], email, role, access, can_roster)
+        areas = team_areas.from_form(request.form.getlist("areas"))
+        if not areas:
+            return jsonify({"ok": False, "error": "Tick at least one room they can open."}), 400
+        invite = store.add_team_invite(user["id"], email, role, access, can_roster, areas,
+                                       limit=seats)
+        if invite == "full":
+            return jsonify({"ok": False, "error": (
+                "Your %s membership includes %d team seat%s, and they are all taken. "
+                "Remove someone, or move up a plan for more." % (
+                    plans.PLAN_NAMES.get(plan, plan), seats, "" if seats == 1 else "s"))}), 402
         if invite is None:
             return jsonify({"ok": False, "error": "That email is already on your team."}), 400
         link = request.url_root.rstrip("/") + "/team/join/" + invite["invite_token"]
@@ -11934,7 +12036,12 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        return jsonify({"ok": store.remove_team_member(user["id"], member_id)})
+        ok = store.remove_team_member(user["id"], member_id)
+        if ok:
+            # Whoever leaves may have seen the drop-box address: it changes,
+            # so what they saw stops working (team review, 2026-09-19).
+            store.rotate_ingest_token(user["id"])
+        return jsonify({"ok": ok})
 
     @app.route("/onboarding")
     def onboarding():
@@ -12245,6 +12352,11 @@ def create_app():
         return jsonify({"ok": ok})
 
     def _backup_allowed(user):
+        if session.get("team_as") or session.get("acting_as"):
+            return False
+        return _backup_allowed_for(user)
+
+    def _backup_allowed_for(user):
         """Full-database export: owners only.
 
         This zip is every account on the deployment - names, email

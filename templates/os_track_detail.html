@@ -188,7 +188,8 @@
             <div class="mt-1 flex items-center gap-2 text-xs text-gray-300 font-medium">
               <span class="min-w-0 flex-1 truncate">{{ a.name or a.email }}</span>
               <span class="uppercase font-bold {{ 'text-green-400' if a.state == 'signed' else 'text-red-400' if a.state == 'declined' else 'text-amber-400' }}">{{ a.state }}</span>
-              {% if a.state == 'pending' and a.token %}
+              {#- A signing link signs as the collaborator: the account holder's to send, never a team seat's to see. -#}
+              {% if a.state == 'pending' and a.token and not team_seat %}
               <input readonly onclick="this.select()" value="{{ request.url_root.rstrip('/') }}/sign/{{ a.token }}" class="w-36 rounded border border-white/10 bg-black/50 px-1.5 py-0.5 font-mono text-xs text-sb-gold-bright font-medium" title="Signing link — copy and send it yourself if email can't deliver">
               {% endif %}
               {% if a.state != 'signed' %}

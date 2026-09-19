@@ -965,9 +965,14 @@ def init_db():
         )
         # Migration: what a team seat may do (owner, 2026-09-19). 'read' looks,
         # 'edit' works inside the artist's account; can_roster lets an editor
-        # on a Label manage the roster. Every change a seat makes is recorded.
-        for _col, _decl in (("access", "TEXT NOT NULL DEFAULT 'read'"),
-                            ("can_roster", "INTEGER NOT NULL DEFAULT 0")):
+        # on a Label manage the roster; areas are the rooms it may open ('all',
+        # or room keys: team_areas.py). A seat that existed before this was
+        # invited under "your role decides what you see", so it starts
+        # 'pending' and opens nothing until the artist confirms it (review,
+        # 2026-09-19). Every invite since writes its access explicitly.
+        for _col, _decl in (("access", "TEXT NOT NULL DEFAULT 'pending'"),
+                            ("can_roster", "INTEGER NOT NULL DEFAULT 0"),
+                            ("areas", "TEXT NOT NULL DEFAULT 'all'")):
             try:
                 db.execute("ALTER TABLE team_members ADD COLUMN %s %s" % (_col, _decl))
             except sqlite3.OperationalError:
@@ -1404,6 +1409,16 @@ def set_user_name(user_id, name):
 def set_user_plan(user_id, plan):
     with get_db() as db:
         db.execute("UPDATE users SET plan = ? WHERE id = ?", (plan, user_id))
+        # A team seat's grants follow the plan that allows them, here where
+        # every plan change passes: a downgrade takes edit and the roster
+        # away for good, rather than hiding them until an upgrade quietly
+        # brings them back (team review, 2026-09-19).
+        if plan not in ("pro", "label"):
+            db.execute("UPDATE team_members SET access = 'read', can_roster = 0 "
+                       "WHERE owner_id = ? AND (access = 'edit' OR can_roster = 1)", (user_id,))
+        elif plan != "label":
+            db.execute("UPDATE team_members SET can_roster = 0 WHERE owner_id = ? AND can_roster = 1",
+                       (user_id,))
 
 
 def set_stripe_ids(user_id, customer_id, subscription_id):
@@ -4398,7 +4413,7 @@ def list_portal_memberships(member_user_id):
     """Teams this user belongs to (active), with the owner's name."""
     with get_db() as db:
         rows = db.execute(
-            "SELECT t.owner_id, t.role, t.access, u.name AS owner_name FROM team_members t "
+            "SELECT t.owner_id, t.role, t.access, t.areas, u.name AS owner_name FROM team_members t "
             "JOIN users u ON u.id = t.owner_id "
             "WHERE t.member_user_id = ? AND t.status = 'active' ORDER BY t.created",
             (member_user_id,)).fetchall()
@@ -4427,6 +4442,16 @@ def get_or_create_ingest_token(user_id):
         db.execute("INSERT INTO ingest_tokens (user_id, token, created) VALUES (?,?,?)",
                    (user_id, token, _now()))
     return token
+
+
+def rotate_ingest_token(user_id):
+    """A new drop-box address; the old one stops working at once. For when
+    someone who saw it should no longer be able to use it."""
+    token = "sb-" + uuid.uuid4().hex[:16]
+    with get_db() as db:
+        cur = db.execute("UPDATE ingest_tokens SET token = ?, created = ? WHERE user_id = ?",
+                         (token, _now(), user_id))
+    return token if cur.rowcount else None
 
 
 def user_by_ingest_token(token):
@@ -4478,20 +4503,28 @@ def set_dispute_status(user_id, dispute_id, status):
 
 # --- Team ------------------------------------------------------------------------
 
-def add_team_invite(owner_id, email, role, access="read", can_roster=False):
-    """Create an invite; returns the row or None if already on the team."""
+def add_team_invite(owner_id, email, role, access="read", can_roster=False, areas="all",
+                    limit=None):
+    """Create an invite; returns the row, None if already on the team, or
+    "full" when the account's seats are taken. The count and the insert are
+    one statement, so two invites at once cannot both take the last seat
+    (team review, 2026-09-19)."""
     member_id = uuid.uuid4().hex
     token = uuid.uuid4().hex
     access = "edit" if access == "edit" else "read"
     try:
         with get_db() as db:
-            db.execute(
+            cur = db.execute(
                 "INSERT INTO team_members (id, owner_id, email, role, status, invite_token, created, "
-                "access, can_roster) VALUES (?,?,?,?,'invited',?,?,?,?)",
+                "access, can_roster, areas) SELECT ?,?,?,?,'invited',?,?,?,?,? "
+                "WHERE ? IS NULL OR (SELECT COUNT(*) FROM team_members WHERE owner_id = ?) < ?",
                 (member_id, owner_id, email.lower().strip(), role, token, _now(),
-                 access, 1 if (can_roster and access == "edit") else 0))
+                 access, 1 if (can_roster and access == "edit") else 0, areas,
+                 limit, owner_id, limit))
     except sqlite3.IntegrityError:
         return None
+    if not cur.rowcount:
+        return "full"
     return {"id": member_id, "invite_token": token}
 
 
@@ -4678,12 +4711,33 @@ def count_team_seats(owner_id):
     return row["n"] if row else 0
 
 
-def set_team_access(owner_id, member_id, access, can_roster=False):
+def set_team_access(owner_id, member_id, access, can_roster=False, areas=None):
     access = "edit" if access == "edit" else "read"
     with get_db() as db:
-        cur = db.execute("UPDATE team_members SET access = ?, can_roster = ? WHERE id = ? AND owner_id = ?",
-                         (access, 1 if (can_roster and access == "edit") else 0, member_id, owner_id))
+        if areas is None:
+            cur = db.execute("UPDATE team_members SET access = ?, can_roster = ? WHERE id = ? AND owner_id = ?",
+                             (access, 1 if (can_roster and access == "edit") else 0, member_id, owner_id))
+        else:
+            cur = db.execute("UPDATE team_members SET access = ?, can_roster = ?, areas = ? "
+                             "WHERE id = ? AND owner_id = ?",
+                             (access, 1 if (can_roster and access == "edit") else 0, areas,
+                              member_id, owner_id))
     return cur.rowcount > 0
+
+
+def team_seat_position(owner_id, member_user_id):
+    """How many of this account's seats were taken before this member's,
+    or None when they hold none. A seat beyond the plan's count (after a
+    downgrade) opens nothing until one before it is freed."""
+    with get_db() as db:
+        row = db.execute("SELECT created, id FROM team_members WHERE owner_id = ? AND member_user_id = ?",
+                         (owner_id, member_user_id)).fetchone()
+        if row is None:
+            return None
+        n = db.execute("SELECT COUNT(*) FROM team_members WHERE owner_id = ? AND "
+                       "(created < ? OR (created = ? AND id < ?))",
+                       (owner_id, row["created"], row["created"], row["id"])).fetchone()[0]
+    return int(n)
 
 
 def add_team_audit(owner_id, member_user_id, member_name, method, path):
@@ -4693,10 +4747,14 @@ def add_team_audit(owner_id, member_user_id, member_name, method, path):
                    (owner_id, member_user_id, (member_name or "")[:120], method[:10], path[:300], _now()))
 
 
-def list_team_audit(owner_id, limit=25):
+def list_team_audit(owner_id, limit=25, offset=0):
+    """Newest first, with the member's sign-in email: the name was a
+    snapshot of a name anyone can choose (team review, 2026-09-19)."""
     with get_db() as db:
-        rows = db.execute("SELECT * FROM team_audit WHERE owner_id = ? ORDER BY id DESC LIMIT ?",
-                          (owner_id, int(limit))).fetchall()
+        rows = db.execute("SELECT a.*, u.email AS member_email FROM team_audit a "
+                          "LEFT JOIN users u ON u.id = a.member_user_id "
+                          "WHERE a.owner_id = ? ORDER BY a.id DESC LIMIT ? OFFSET ?",
+                          (owner_id, int(limit), int(offset))).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -5041,6 +5099,10 @@ RESET_EXTRA_KEYS = (
 # their work and keep the login); deleting the account removes them.
 DELETE_ONLY_KEYS = (
     ("collab_ratings", "ratee_id"),
+    # The team and the record of what it changed go with the account; a
+    # start over keeps both (team review, 2026-09-19).
+    ("team_members", "owner_id"),
+    ("team_audit", "owner_id"),
 )
 # Rows that belong to the account only through a parent row. Each entry is
 # (child, child column, parent, parent column, parent's user column); the

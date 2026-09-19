@@ -69,8 +69,10 @@
           <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-amber-400">Invited</span>
           <form method="post" action="/roster/{{ m.id }}/remove"><button class="sb-btn sb-btn-secondary sb-btn-sm">Withdraw</button></form>
         </div>
+        {% if not team_seat %}
         <input readonly onclick="this.select()" value="{{ request.url_root.rstrip('/') }}/roster/join/{{ m.invite_token }}"
                class="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-xs text-sb-gold-bright focus:outline-none font-medium">
+        {% endif %}
         {% endif %}
       </div>
       {% endfor %}

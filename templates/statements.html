@@ -79,7 +79,11 @@
           <b id="drop-box-addr">{{ drop_box }}</b>
           <button type="button" id="drop-box-copy" class="sb-btn sb-btn-secondary sb-btn-sm">Copy</button>
           <button type="button" id="dropbox-test-btn" class="sb-btn sb-btn-secondary sb-btn-sm">Send a test</button>
+          <form method="post" action="/statements/dropbox-new" onsubmit="return confirm('Make a new address? The old one stops working at once, so update any forwarding rule that uses it.');">
+            <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm">New address</button>
+          </form>
         </div>
+        {% if request.args.get('dropbox') == 'new' %}<p class="sd-note"><b>New address made.</b> The old one no longer works; update any forwarding rule that used it.</p>{% endif %}
         <p id="dropbox-test-msg" class="sd-note" hidden></p>
         <p class="sd-note">
           {%- if d and d.last_received -%}

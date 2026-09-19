@@ -93,7 +93,7 @@
             {% if l.signed_at %}<br>Signed by {{ l.signed_by }} on {{ l.signed_at[:10] }}{% endif %}
           </div>
           <div class="mt-2 flex flex-wrap items-center gap-2">
-            {% if l.status != 'signed' %}
+            {% if l.status != 'signed' and not team_seat %}
             <span class="break-all font-mono text-xs text-gray-200">{{ public_base }}/licence/{{ l.token }}</span>
             {% endif %}
             {% if l.status not in ('revoked',) %}

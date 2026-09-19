@@ -574,9 +574,10 @@
         <span class="text-sm text-gray-100">
           {%- if request.args.get('team') == 'readonly' %}<strong class="text-white">That change was not saved.</strong> {% endif -%}
           {%- if request.args.get('team') == 'blocked' %}<strong class="text-white">Only {{ team_seat.owner.name }} can open that.</strong> {% endif -%}
+          {%- if request.args.get('team') == 'room' %}<strong class="text-white">That room is not open to you.</strong> {% endif -%}
           You are working in <strong class="text-white">{{ team_seat.owner.name }}</strong>'s account as their {{ team_seat.role }},
-          {% if team_seat.access == 'edit' %}and you can make changes. Every change is recorded under your name.{% else %}with read-only access: look at everything, change nothing.{% endif %}
-          Billing, settings and their team stay with them.
+          {% if team_seat.access == 'edit' %}and you can make changes; they are listed on their Team page under your name.{% else %}with read-only access: look, change nothing.{% endif %}
+          Rooms open to you: {{ team_seat.rooms }}. Billing, settings and their team stay with them.
         </span>
         <form method="post" action="/portal/leave" class="ml-auto">
           <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm">Leave this account</button>
