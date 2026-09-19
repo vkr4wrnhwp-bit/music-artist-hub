@@ -127,7 +127,9 @@ def test_the_deal_onesheet_does_not_claim_growth_it_could_not_measure():
         store.save_pulse_profile(uid, "os-%s" % uuid.uuid4().hex[:8], "King 810")
         store.record_pulse_snapshot(uid, None, None, 9000, day="2026-09-01")
         store.record_pulse_snapshot(uid, None, None, 9200, day="2026-09-02")
-    page = c.get("/deal-room/onesheet")
+    # The export is the press kit's For deals section since 2026-09-19.
+    c.post("/epk/save", json={"sections_on": ["deals"]})
+    page = c.get("/epk")
     assert page.status_code == 200, "an unmeasured snapshot must not break the export"
     body = page.get_data(as_text=True)
     assert "Spotify followers None" not in body

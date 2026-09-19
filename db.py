@@ -2012,6 +2012,12 @@ def set_kv(key, value):
             (key, value, _now()))
 
 
+def delete_kv(key):
+    """Remove one key; a key that was not there is not an error."""
+    with get_db() as db:
+        db.execute("DELETE FROM app_kv WHERE key = ?", (key,))
+
+
 def kv_incr(key, by=1):
     """Add to a counter kept in app_kv, in one statement, so two workers
     counting at once do not lose a count. Returns the new value."""
@@ -5087,6 +5093,11 @@ RESET_KEEPS = frozenset({
     "users", "ingest_tokens", "roster_members", "team_members",
     "audio_usage", "audio_consent", "signal_members", "partner_members",
     "partner_audit", "desk_activity",
+    # Release-Ready: the record of what an artist agreed to for each file
+    # they handed over, and the payments taken for masters, outlive a
+    # start over like the audio consents do. The uploads, previews and
+    # masters themselves go (their r2: keys are collected by the sweep).
+    "release_ready_consents", "release_ready_payments",
 })
 # Rows the account owns under a column the generic user_id sweep never read.
 RESET_EXTRA_KEYS = (

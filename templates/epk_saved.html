@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ e.name }} - Press Kit - saved {{ saved_on }}</title>
+{#- The copy Save to Vault writes (owner, 2026-09-19: "The EPK goes to the
+    vault"). One self-contained web page: the app's tailwind.css (which
+    defines every --sb- token this page reads) is inlined into the first
+    style block below, the photo is carried as data, and the document is the same partial the
+    editor renders, so a saved copy cannot differ from what was on screen.
+    A web page and not a PDF because this server has no PDF engine; the
+    footer says so and says how to make one. -#}
+{% include "_fonts.html" %}
+<style>{{ css | safe }}</style>
+<style>
+  body { margin: 0; background: #fff; color: var(--sb-surface-2); font-family: var(--sb-text); }
+  .kit-wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+  .kit-foot { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--sb-gold); font-size: 12px; color: var(--sb-gold-deep); }
+  @media print { .kit-foot { display: none; } .kit-wrap { padding: 0; } }
+</style>
+</head>
+<body>
+<div class="kit-wrap">
+{% include "_epk_document.html" %}
+<p class="kit-foot">Saved from Street Banker on {{ saved_on }}{% if public_url %}. Live page: {{ base }}{{ public_url }}{% endif %}. This is a web page; print it to make a PDF.</p>
+</div>
+</body>
+</html>

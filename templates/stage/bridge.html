@@ -57,6 +57,9 @@
       when there is a machine on the venue's production network to run it —
       or the simulator, to rehearse the desk.
     </p>
+    {% if team_seat %}
+    <p class="sb-note">Registering a Stage Bridge hands over the device's credentials, so the artist does it from their own account.</p>
+    {% else %}
     <form method="post" action="/stage/{{ show_id }}/bridge/register" class="sb-row sb-row--wrap">
       <input class="sc-in" name="name" aria-label="Device name" placeholder="Name (Rack A, FOH laptop)" style="max-width:16rem;">
       <select class="sc-in" name="adapter" aria-label="Console adapter" style="max-width:16rem;">
@@ -66,6 +69,7 @@
       </select>
       <button class="sc-act sc-act--go" type="submit">Register</button>
     </form>
+    {% endif %}
   </section>
 {% else %}
 
@@ -110,7 +114,7 @@
           <input class="sc-in" name="reason" aria-label="Reason" placeholder="Reason (optional)" style="max-width:14rem;">
           <button class="sc-act sc-act--no" type="submit">EMERGENCY LOCKOUT</button>
         </form>
-        <form method="post" action="/stage/{{ show_id }}/bridge/rotate"><button class="sc-act" type="submit">Rotate credentials</button></form>
+        {% if not team_seat %}<form method="post" action="/stage/{{ show_id }}/bridge/rotate"><button class="sc-act" type="submit">Rotate credentials</button></form>{% endif %}
         <form method="post" action="/stage/{{ show_id }}/bridge/revoke"><button class="sc-act sc-act--no" type="submit">Revoke device</button></form>
       {% endif %}
     </div>

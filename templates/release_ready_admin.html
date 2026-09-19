@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Release-Ready desk - Street Banker{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/release_ready.css?v=1">
+{% endblock %}
+
+{#- The owner's desk for Release-Ready (owner only: release_ready._owner_or_404).
+    Credits are an estimate from RoEx's price list: no RoEx endpoint reports
+    the balance or what a call was charged, and every figure says so. Margin
+    is before Stripe's fees. The RoEx key is shown as set or not set, never
+    its value. -#}
+{% block content %}
+{% set s = data.summary %}
+<div data-no-collapse class="rr rr-admin">
+  {% call sb.plate(none, [900], "Owner · Release-Ready", "Release-Ready desk",
+                   "RoEx credits, jobs, and what each master cost against what it earned.") %}
+    {{ sb.btn("Settings", href="/settings#release-ready") }}
+    {{ sb.btn("Artists' page", href="/creative-studio/release-ready") }}
+  {% endcall %}
+
+  {% if msg %}<div class="rr-band" role="status"><p>{{ msg }}</p></div>{% endif %}
+
+  <section class="rr-card" aria-labelledby="rr-conn-h">
+    <div class="rr-card-head">
+      <div>
+        <p class="rr-kicker">Connection</p>
+        <h2 class="rr-h rr-h--sm" id="rr-conn-h">What this server has</h2>
+      </div>
+      <div class="rr-actions">
+        <form method="post" action="/admin/release-ready/health">{{ sb.btn("Check the RoEx connection", type="submit", size="sm") }}</form>
+        <form method="post" action="/admin/release-ready/run">{{ sb.btn("Run the queue now", type="submit", size="sm") }}</form>
+        <form method="post" action="/admin/release-ready/resume">{{ sb.btn("Resume paused reports", type="submit", size="sm",
+            disabled_reason=(none if data.paused_reports else "No reports are paused.")) }}</form>
+      </div>
+    </div>
+    <div class="rr-state-list">
+      {{ sb.badge("RoEx key: set" if data.key_set else "RoEx key: not set", "good" if data.key_set else "warn") }}
+      {{ sb.badge("Storage (R2): connected" if data.storage else "Storage (R2): not connected", "good" if data.storage else "warn") }}
+      {{ sb.badge("Open to artists" if s.open else "Closed to artists", "good" if s.open else "idle") }}
+      {{ sb.badge("Mix report on every upload" if s.auto_analysis else "Mix report on request only", "info") }}
+      {{ sb.badge("RoEx calls this minute: %d of %d" % (data.rate.this_minute or 0, data.rate.limit or 90), "idle") }}
+    </div>
+  </section>
+
+  <section aria-labelledby="rr-month-h">
+    <h2 class="sr-only" id="rr-month-h">This month</h2>
+    <dl class="rr-tiles">
+      <div class="rr-tile">
+        <dt>Credits used this month</dt>
+        <dd class="rr-num">{{ "{:,}".format(s.used_total) }}</dd>
+        <small>{{ "{:,}".format(s.used_auto) }} on mix reports, {{ "{:,}".format(s.used_paid) }} on paid masters. Estimate from RoEx's price list.</small>
+      </div>
+      <div class="rr-tile">
+        <dt>Report budget left</dt>
+        <dd class="rr-num">{{ "{:,}".format(s.budget_left) }}</dd>
+        <small>of {{ "{:,}".format(s.budget) }} credits a month for automatic mix reports.{% if s.paused %} Reports are paused.{% endif %}</small>
+      </div>
+      <div class="rr-tile">
+        <dt>Masters sold</dt>
+        <dd class="rr-num">{{ data.masters_sold_month }}</dd>
+        <small>This month, at ${{ s.price_master }} a master and ${{ s.price_recombine }} a vocal and a beat.</small>
+      </div>
+      <div class="rr-tile">
+        <dt>Revenue</dt>
+        <dd class="rr-num">${{ data.revenue_month }}</dd>
+        <small>Against about ${{ s.cost_estimate_usd }} of RoEx credits, before Stripe's fees.</small>
+      </div>
+    </dl>
+    <p class="rr-small rr-after">{{ data.estimate_note }}</p>
+  </section>
+
+  <section class="rr-card" aria-labelledby="rr-needs-h">
+    <p class="rr-kicker">Needs you</p>
+    <h2 class="rr-h rr-h--sm" id="rr-needs-h">{{ "Nothing is waiting on you." if not data.needs and not data.payment_problems else "Waiting on you" }}</h2>
+    {% if data.needs %}
+      <div class="rr-after">
+        {% for n in data.needs %}
+          <div class="rr-need">
+            <p><b>{{ n.artist or "An artist" }}</b>: {{ n.type_label }}, {{ n.status_label | lower }}{% if n.paid %}, paid{% endif %}. {{ n.created_day }}.{% if n.error %} RoEx or the step said: "{{ n.error }}"{% endif %}</p>
+            {% if n.type == "mix_analysis" %}
+              <form method="post" action="{{ n.retry_url }}">
+                {{ sb.btn("Run the report again", type="submit", size="sm") }}
+              </form>
+            {% elif n.preview %}
+              {#- An unpaid preview: making it again is free. Releasing the full
+                  master without payment is a different act, with its own box. -#}
+              <form method="post" action="{{ n.retry_url }}">
+                <input type="hidden" name="action" value="preview">
+                {{ sb.btn("Make this preview again (free)", type="submit", size="sm") }}
+              </form>
+              {% if n.has_task %}
+                <form method="post" action="{{ n.retry_url }}">
+                  <input type="hidden" name="action" value="retrieve">
+                  <label><input type="checkbox" name="unpaid_ok" value="1" required> Release the full master without payment. This spends RoEx credits and the artist pays nothing.</label>
+                  {{ sb.btn("Release the full master", type="submit", size="sm", variant="ghost") }}
+                </form>
+              {% endif %}
+            {% else %}
+              <form method="post" action="{{ n.retry_url }}">
+                <input type="hidden" name="action" value="retrieve">
+                {{ sb.btn("Fetch the master again from RoEx's link" if n.link_held else "Try the retrieval again", type="submit", size="sm") }}
+              </form>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% for p in data.payment_problems %}
+      <div class="rr-need">
+        <p>A payment of <span class="rr-num">${{ p.amount }}</span> on {{ (p.claimed_at or "")[:10] }}: {{ p.text }}.</p>
+      </div>
+    {% endfor %}
+  </section>
+
+  <section class="rr-card" aria-labelledby="rr-jobs-h">
+    <p class="rr-kicker">Jobs</p>
+    <h2 class="rr-h rr-h--sm" id="rr-jobs-h">Every job, by kind and where it is</h2>
+    {% if data.counts %}
+      <div class="rr-tbl-wrap">
+        <table class="sb-tbl">
+          <thead><tr><th>Kind</th><th>Where it is</th><th class="num">Jobs</th></tr></thead>
+          <tbody>
+            {% for c in data.counts %}<tr><td>{{ c.type_label }}</td><td>{{ c.status_label }}</td><td class="num">{{ c.n }}</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="rr-empty">No jobs yet.</p>
+    {% endif %}
+  </section>
+
+  {% for heading, kicker, rows in (("By organisation", "Direct accounts and each partner", data.orgs), ("By artist", "Each artist account", data.artists)) %}
+    <section class="rr-card" aria-label="{{ heading }}">
+      <p class="rr-kicker">{{ heading }}</p>
+      <h2 class="rr-h rr-h--sm">{{ kicker }}</h2>
+      {% if rows %}
+        <div class="rr-tbl-wrap">
+          <table class="sb-tbl">
+            <thead><tr><th>Name</th><th class="num">Jobs</th><th class="num">Credits (estimate)</th><th class="num">Masters sold</th><th class="num">Revenue</th><th class="num">RoEx cost (estimate)</th><th class="num">Margin before Stripe fees</th></tr></thead>
+            <tbody>
+              {% for r in rows %}
+                <tr><td>{{ r.name }}</td><td class="num">{{ r.jobs }}</td><td class="num">{{ "{:,}".format(r.credits) }}</td><td class="num">{{ r.masters }}</td><td class="num">${{ r.revenue }}</td><td class="num">${{ r.cost }}</td><td class="num">${{ r.margin }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="rr-empty">Nothing yet.</p>
+      {% endif %}
+    </section>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -156,13 +156,21 @@ def test_transcribing_twice_does_not_double_the_review_queue(desk, application):
     assert first == second
 
 
-def test_a_demo_transcript_says_so_on_the_page(desk):
-    """A fictional transcript that reads as a real one is the most dangerous
-    thing this page could show."""
+def test_the_meeting_pages_are_retired_and_the_transcript_is_kept(desk, application):
+    """The Meetings pages left the Desk (owner, 2026-09-19); an old bookmark
+    lands on the dashboard. The row and its transcript, marked as the mock
+    it is, stay in the database."""
+    import audio_store as astore
     meeting_id = _upload(desk)
     desk.post("/operator-desk/meetings/%s/transcribe" % meeting_id)
-    body = desk.get("/operator-desk/meetings/%s" % meeting_id).get_data(as_text=True)
-    assert "demo transcript" in body.lower() or "fictional" in body.lower()
+    for path in ("/operator-desk/meetings", "/operator-desk/meetings/%s" % meeting_id):
+        r = desk.get(path)
+        assert r.status_code == 302 and r.headers["Location"].endswith("/operator-desk/"), path
+    with application.app_context():
+        meeting = meetings.get_meeting(meeting_id)
+        assert meeting is not None and meeting.get("transcript_id")
+        transcript = astore.get_transcript(None, meeting["transcript_id"])
+    assert transcript is not None and transcript["is_mock"] == 1
 
 
 # --- the approval boundary -------------------------------------------------

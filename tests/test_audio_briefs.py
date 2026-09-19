@@ -115,8 +115,22 @@ def _seed_and_write(application, client):
 
 def test_a_written_brief_contains_the_real_alert_text(application, member):
     brief_id = _seed_and_write(application, member)
-    body = member.get("/signal/briefs/%s" % brief_id).get_data(as_text=True)
-    assert "42 percent" in body
+    with application.app_context():
+        assert "42 percent" in briefs.get_brief(brief_id)["script"]
+
+
+def test_the_brief_pages_are_retired_and_the_row_is_kept(application, member):
+    """Audio Briefs left Signal's menu (owner, 2026-09-19: "bad, bad, bad
+    from signal"); the list and detail pages land on the Signal dashboard
+    and the brief row stays."""
+    brief_id = _seed_and_write(application, member)
+    for path in ("/signal/briefs", "/signal/briefs/%s" % brief_id):
+        r = member.get(path)
+        assert r.status_code == 302 and r.headers["Location"].rstrip("/").endswith("/signal"), path
+    menu = member.get("/signal/").get_data(as_text=True)
+    assert 'href="/signal/briefs"' not in menu and "Audio Briefs" not in menu
+    with application.app_context():
+        assert briefs.get_brief(brief_id) is not None
 
 
 def test_speaking_produces_a_real_playable_file(application, member):
@@ -128,21 +142,15 @@ def test_speaking_produces_a_real_playable_file(application, member):
     assert resp.get_data()[:4] == b"RIFF", "not a well-formed WAV"
 
 
-def test_a_mock_brief_is_labelled_silent_before_the_player(application, member):
-    """Somebody who presses play and hears nothing needs to already know why."""
-    brief_id = _seed_and_write(application, member)
-    member.post("/signal/briefs/%s/speak" % brief_id)
-    body = member.get("/signal/briefs/%s" % brief_id).get_data(as_text=True)
-    assert "silent" in body.lower()
-
-
 def test_the_script_is_kept_beside_the_audio(application, member):
     """Audio cannot be skimmed, searched or quoted, or checked against its
-    source without listening to all of it."""
+    source without listening to all of it. The page that showed the script
+    is retired (2026-09-19); the script stays on the row."""
     brief_id = _seed_and_write(application, member)
     member.post("/signal/briefs/%s/speak" % brief_id)
-    body = member.get("/signal/briefs/%s" % brief_id).get_data(as_text=True)
-    assert "End of brief." in body
+    with application.app_context():
+        brief = briefs.get_brief(brief_id)
+    assert "End of brief." in brief["script"] and brief["job_id"]
 
 
 def test_speaking_twice_does_not_render_twice(application, member):

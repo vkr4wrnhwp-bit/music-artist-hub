@@ -3,7 +3,7 @@
 {% block title %}Team & Settings{% endblock %}
 {% block main %}
 <h1 class="dk-h1">Team &amp; Settings</h1>
-<p class="dk-sub">Who can open the Desk and what they can do once inside. Access is by email — a person signs in to Street Banker with that address and the Desk recognizes them.</p>
+<p class="dk-sub">Who can open the Desk and what they can do once inside. Access is by email: a person signs in to Street Banker with that address and the Desk recognizes them.</p>
 
 <h2 class="dk-h2">Add a person</h2>
 <form class="dk-bar" method="post" action="/operator-desk/team">
@@ -13,7 +13,9 @@
   <select class="dk-mini" name="role">{% for r in vocab.roles %}<option value="{{ r }}" {{ 'selected' if r == 'member' }}>{{ vocab.role_labels[r] }}</option>{% endfor %}</select>
   <button class="dk-btn" type="submit">Add</button>
 </form>
-<p style="font-size:12px;color:var(--dk-faint);margin-top:6px">Adding an email authorizes it — the person also needs a Street Banker account with that exact address. If they don't have one yet, send them to <a href="/signup" style="color:var(--dk-gold)">create an account</a> with it first; the roster below shows whether their sign-in exists yet. No email = a name that can be assigned leads and tasks, but can't sign in.</p>
+{#- Sign-up is shut: accounts exist only by the owner's invitation (owner,
+    2026-09-17), so "create an account" at /signup was a dead end. -#}
+<p style="font-size:12px;color:var(--dk-faint);margin-top:6px">Adding an email authorizes it; the person also needs a Street Banker account with that exact address. Accounts are by invitation only. If they don't have one yet, the owner invites that address first from <a href="/settings#invite-someone" style="color:var(--dk-gold)">Settings, Invite someone</a>, then adds it here. The roster below shows whether their sign-in exists yet. No email = a name that can be assigned leads and tasks, but can't sign in.</p>
 
 <h2 class="dk-h2">Roster</h2>
 <div class="dk-table-wrap"><table class="dk-table">
@@ -28,7 +30,7 @@
         <input type="hidden" name="action" value="email">
         <input type="hidden" name="user_id" value="{{ u.id }}">
         <input class="dk-mini" type="email" name="email" value="{{ u.email or '' }}" placeholder="sign-in email"
-               style="padding:5px 8px;border:1px solid var(--dk-rule);border-radius:var(--sb-r-control);background:var(--dk-paper);width:190px">
+               style="width:190px">
         <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:12px" type="submit">Set</button>
       </form>
       {% if u.email %}
@@ -73,9 +75,9 @@
 <div class="dk-table-wrap"><table class="dk-table">
   <thead><tr><th>Role</th><th>Access</th></tr></thead>
   <tbody>
-    <tr><td>Owner</td><td>Everything — including deleting leads, exporting data, the activity log, and this page.</td></tr>
+    <tr><td>Owner</td><td>Everything, including deleting leads, exporting data, the activity log, and this page.</td></tr>
     <tr><td>Admin</td><td>Add and edit any lead, move stages, run deals, assign tasks. No deletes, exports, or team changes.</td></tr>
-    <tr><td>Team Member</td><td>Add notes, tasks, events, and files anywhere; edit only leads assigned to them. Tasks they create are assigned to themselves.</td></tr>
+    <tr><td>Team Member</td><td>Add notes, tasks and events anywhere; edit only leads assigned to them. Tasks they create are assigned to themselves.</td></tr>
     <tr><td>Viewer</td><td>Read everything, change nothing.</td></tr>
   </tbody>
 </table></div>

@@ -8,13 +8,17 @@
 {% block content %}
 <div class="pd">
 
+  {#- In the rooms layout the Marketing room's cards are the tabs (owner,
+      2026-09-15: "remove the double tabs"); Start a pitch is an action,
+      not a tab, so it stays. Announcements has its own card there. -#}
   <div class="pd-bar" style="border-bottom:1px solid var(--pd-rule);padding-bottom:12px">
+    {% if not rooms_nav %}
     <a class="pd-btn {{ 'pd-btn--ghost' if tab != 'desk' }}" href="/press-desk">Desk</a>
     <a class="pd-btn {{ 'pd-btn--ghost' if tab != 'contacts' }}" href="/press-desk/contacts">Media list</a>
     <a class="pd-btn {{ 'pd-btn--ghost' if tab != 'releases' }}" href="/press-desk/announcements">Announcements</a>
     <a class="pd-btn {{ 'pd-btn--ghost' if tab != 'coverage' }}" href="/press-desk/coverage">Coverage</a>
     <a class="pd-btn pd-btn--ghost" href="/epk">Press kit</a>
-    <a class="pd-btn pd-btn--ghost" href="/artist-profile">One-sheet</a>
+    {% endif %}
     <span style="flex:1"></span>
     <a class="pd-btn" href="/press-desk/pitch/new">Start a pitch</a>
   </div>

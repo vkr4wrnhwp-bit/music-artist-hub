@@ -173,6 +173,11 @@
             <div><span class="font-bold text-gray-200">CTA overlay:</span> {{ p.edit_plan.cta_overlay }}</div>
             <div><span class="font-bold text-gray-200">Notes:</span> {{ p.edit_plan.edit_notes }}</div>
             <ul class="mt-1 list-inside list-disc">{% for item in p.edit_plan.export_checklist %}<li>{{ item }}</li>{% endfor %}</ul>
+            {#- Owner 2026-09-19: the cut is made in Motion, not here. The plan is the brief. -#}
+            <div class="mt-2 flex flex-wrap items-center gap-2 border-t border-white/10 pt-2">
+              <a href="{{ motion.href }}" target="_blank" rel="noopener" class="sb-btn sb-btn-secondary sb-btn-sm">{{ motion.label }}</a>
+              <span>{{ motion.then }} (<a href="{{ motion.vault_href }}" class="font-bold text-sb-gold-bright hover:underline">Vault</a>), then attach it to this post below.</span>
+            </div>
           </div>
         </details>
         {% endif %}
@@ -223,7 +228,7 @@
     {% endfor %}
   </div>
   {% if not vault %}
-  <p class="text-xs text-gray-300 font-medium">Your Vault is empty — <a href="/vault" class="font-bold text-sb-gold-bright hover:underline">upload press shots, covers, or clips</a> and they become attachable here.</p>
+  <p class="text-xs text-gray-300 font-medium">Your Vault is empty — <a href="/vault" class="font-bold text-sb-gold-bright hover:underline">upload press shots, covers, or clips</a> and they become attachable here. Need a clip or a graphic made? <a href="{{ motion.href }}" target="_blank" rel="noopener" class="font-bold text-sb-gold-bright hover:underline">{{ motion.label }}</a>, then upload the finished file to your Vault.</p>
   {% endif %}
 
   {#- ===== CALENDAR: where they land =================================== -#}

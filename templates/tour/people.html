@@ -4,7 +4,7 @@
 {% import "_sb.html" as sb %}
 {% import "tour/_macros.html" as m %}
 <div class="to-head"><div><p class="to-eyebrow">People</p><h1 class="to-h1" style="font-size:20px">Everyone on the run</h1><p class="to-sub">Artist, crew, drivers, venue and promoter contacts. Private phone numbers and emergency contacts need the people permission.</p></div>
-  <div class="to-inline">{% if can('people') %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/people.csv">CSV</a>{% endif %}{% if can('admin') %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/team">Access & invites</a>{% endif %}</div></div>
+  <div class="to-inline">{% if can('people') %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/people.csv">CSV</a>{% endif %}{% if can('admin') and not team_seat %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/team">Access & invites</a>{% endif %}</div></div>
 
 {#- The categories, counted, as chips that filter. The search stays a box. -#}
 <div class="to-bar" style="margin-top:0">

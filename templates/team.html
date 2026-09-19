@@ -83,7 +83,10 @@
           <button data-id="{{ m.id }}" class="remove-btn sb-btn sb-btn-danger sb-btn-sm">Remove</button>
         </div>
         {% if team_opens %}
-        <details class="mt-2 pl-12"{% if pending %} open{% endif %}>
+        {#- Closed even when an invite waits (owner, 2026-09-17: "every page
+            needs the parts closed ... on the dropdown menus"); the summary
+            already says "Confirm what they can open". -#}
+        <details class="mt-2 pl-12">
           <summary class="cursor-pointer text-xs font-bold text-sb-gold-bright">{{ 'Confirm what they can open' if pending else 'Change what they can open' }}</summary>
           <form method="post" action="/team/{{ m.id }}/access" class="mt-2 space-y-2">
             <input type="hidden" name="areas_sent" value="1">
@@ -122,7 +125,7 @@
   </section>
   {% endif %}
 
-  <p class="px-1 text-xs text-gray-300 font-medium">Team members get their own login. They open only the rooms you tick; the Command Center, Actions and your notifications are for someone with every room. Read-only members change nothing. Members who can edit work in their rooms like you do, and the changes they make are listed above under their name. Tour, the Tour Board and the Press Desk do not open to team members yet. Nobody on your team can reach your billing, settings or team.</p>
+  <p class="px-1 text-xs text-gray-300 font-medium">Team members get their own login. They open only the rooms you tick; the Command Center, Actions and your notifications are for someone with every room. Read-only members change nothing. Members who can edit work in their rooms like you do, and the changes they make are listed above under their name. Nobody on your team can reach your billing, settings or team.</p>
 </div>
 
 <script>

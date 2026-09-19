@@ -32,7 +32,7 @@
   <aside>
     <div class="to-panel">
       <div class="to-eyebrow">Production pack</div>
-      <p class="to-sub">A scoped share link gives the house crew the production advance, the plot and tech files, and the times — nothing else. {% if can('admin') %}<a href="/tours/{{ tour['id'] }}/share">Create one</a>.{% endif %}</p>
+      <p class="to-sub">A scoped share link gives the house crew the production advance, the plot and tech files, and the times, and nothing else. {% if can('admin') and not team_seat %}<a href="/tours/{{ tour['id'] }}/share">Create one</a>.{% endif %}</p>
     </div>
   </aside>
 </div>

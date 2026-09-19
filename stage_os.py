@@ -323,6 +323,12 @@ def bridge_act(show_id, user, action):
     # else on the bridge is configuration.
     if action != "lockout" and not allowed(user, "stage_configure"):
         abort(403)
+    if action in ("register", "rotate") and session.get("team_as"):
+        # Registering or rotating hands over a device token and signing key
+        # that work the artist's console and outlive the seat that saw them.
+        # They are the account holder's, like a tour's share and crew links
+        # (review, 2026-09-19). A 403, so the refusal is not a change.
+        abort(403)
     dev = sb.device_for_show(show_id, user["id"])
     if action == "register":
         if dev is not None:

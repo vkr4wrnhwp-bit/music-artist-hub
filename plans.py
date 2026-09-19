@@ -21,7 +21,9 @@ PLANS = [
      ["REACH", "Tour", "Company (coming soon)",
       # Owner, 2026-09-18, replacing "Consulting hours (with ambassadors)",
       # which nothing stood behind.
-      "Consulting with the founder at a member rate: $50 for 30 minutes, $75 for an hour"]),
+      # "At a member rate" read as a discount (owner, 2026-09-19: remove any
+      # suggestion of a discount). The prices are the prices.
+      "Consulting with the founder: $50 for 30 minutes, $75 for an hour"]),
     ("label", "Label", "$199/mo", "Everything, with credits included every month.",
      ["The Room and Motion", "Noise Lab (coming soon)", "Credits included every month",
       "Roster seats and team permissions", "Partner reports"]),
@@ -47,7 +49,12 @@ _ARTIST_PATHS = ("/live", "/links", "/rollout-studio", "/artwork", "/command-cen
                  # upload a master, work on it, keep the result - changed tier
                  # halfway through depending on which door you came in by.
                  "/beats", "/audio-studio",
-                 "/qualification", "/artist-profile",
+                 # Release-Ready spends the owner's RoEx credits; the public
+                 # /creative-studio explainer (an exact match) stays open.
+                 "/creative-studio/release-ready",
+                 # /artist-profile redirects to /epk (2026-09-19), which
+                 # has its own exact-match rule below.
+                 "/qualification",
                  "/vault", "/artist-twin", "/trust-score")
 # /fingerprints is here beside /recovery deliberately. It had no entry at
 # all, so required_tier() returned None for it and a free Fan account could
@@ -201,10 +208,30 @@ def allowed(plan, tier):
     return TIER_RANK.get(plan, 1) >= TIER_RANK.get(tier, 0)
 
 
+# The pages whose sidebar head carries the Royalty Sweep mark ("Track it.
+# Collect it. Sweep it."). The owner, 2026-09-15: the mark "only needs to be
+# under the royalty sweep page". _PRO_PATHS was doing this job and it is the
+# whole money desk (Catalog, Fingerprints, Reports, Deal Room, Sync, Tax,
+# Valuation, /overview...), so every one of those wore it. Kept apart from
+# _PRO_PATHS so the mark can narrow without touching a tier gate. Recovery
+# Cases (/royalty-recovery) is a page of Recovery; the Money queue is a tab
+# of Royalties.
+_SWEEP_MARK_PATHS = ("/royalties", "/statements", "/recovery", "/royalty-recovery",
+                     "/disputes", "/money-queue")
+
+
 def world_for_path(path):
-    """Which product world a path belongs to, for switcher highlighting."""
-    if _matches(path, _PRO_PATHS):
+    """Which product world a path belongs to. The switcher boxes are gone
+    (2026-09-14); what reads this now is the sidebar wordmark (path_world
+    "sweep" draws the Royalty Sweep mark) and the sidebar's fan and label
+    groups (nav_world)."""
+    if _matches(path, _SWEEP_MARK_PATHS):
         return "sweep"
+    if _matches(path, _PRO_PATHS):
+        # The rest of the money desk is Street Banker's, mark and all. Named
+        # rather than None so nav_world does not fall back to a stale
+        # session world ("fan" would take an artist's menu away here).
+        return "promote"
     if path == "/epk" or _matches(path, _ARTIST_PATHS):
         return "promote"
     if _matches(path, ("/services", "/submit", "/roster")):

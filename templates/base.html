@@ -10,7 +10,7 @@
   <title>{% block title %}Royalty Sweep by Street Banker{% endblock %}</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230a0a0a' stroke='white' stroke-width='2'/%3E%3Cpath d='M13 10.5L21 16L13 21.5V10.5Z' fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/css/tailwind.css?v=28">
-  <link rel="stylesheet" href="/static/css/app-chrome.css?v=10">
+  <link rel="stylesheet" href="/static/css/app-chrome.css?v=11">
   {% include "_fonts.html" %}
   {# Chart.js is 69 kB and six pages draw a chart. The rest opt out
      by simply not overriding this block. #}
@@ -575,6 +575,7 @@
           {%- if request.args.get('team') == 'readonly' %}<strong class="text-white">That change was not saved.</strong> {% endif -%}
           {%- if request.args.get('team') == 'blocked' %}<strong class="text-white">Only {{ team_seat.owner.name }} can open that.</strong> {% endif -%}
           {%- if request.args.get('team') == 'room' %}<strong class="text-white">That room is not open to you.</strong> {% endif -%}
+          {%- if request.args.get('team') == 'join' %}<strong class="text-white">A tour invitation is accepted by the person it was sent to, from their own account.</strong> If it was sent to you, leave this account and open the link again. {% endif -%}
           You are working in <strong class="text-white">{{ team_seat.owner.name }}</strong>'s account as their {{ team_seat.role }},
           {% if team_seat.access == 'edit' %}and you can make changes; they are listed on their Team page under your name.{% else %}with read-only access: look, change nothing.{% endif %}
           Rooms open to you: {{ team_seat.rooms }}. Billing, settings and their team stay with them.
@@ -616,7 +617,10 @@
             four across by two down on a desk, two across by four down on
             a phone. Each cell is the mark, then the name with its badge
             under it, so every mark, name and badge sits on the same
-            lines; the grid is app-chrome.css .sb-suites. -#}
+            lines; the grid is app-chrome.css .sb-suites. All three rows
+            sit in the centre of the page (owner, 2026-09-19: "move the
+            suites into the center and then the line below it into the
+            center"). -#}
         <h2 class="sb-label text-gray-300">Tool suites</h2>
         <div class="sb-suites-grid">
           {% for key, href, path, label, desc in tool_suites %}
@@ -906,6 +910,11 @@
     }
     var inLabel = subsequence(label, q);
     if (inLabel >= 0) { return 1000 + inLabel * 20 - label.length * 0.1; }
+    // The words a page is looked for by that are not in its name
+    // (hubs.PALETTE_WORDS): "mastering" finds Release-Ready. Below any
+    // match on a name, above a stray word in a description.
+    var aka = (item.aka || "").toLowerCase();
+    if (aka && aka.indexOf(q) >= 0) { return 900 - aka.indexOf(q) * 0.1; }
     // Only now consider the group and description, and always below any
     // label match, so a real name never loses to a stray word in prose.
     var rest = (item.group + " " + item.desc).toLowerCase();

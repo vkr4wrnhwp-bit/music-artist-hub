@@ -98,6 +98,9 @@ def test_the_rules_hold_for_pages_outside_the_room_cards():
     assert not team_areas.allows("fans", "/api/artist-signal-profile")
     assert team_areas.allows("fans", "/links/fans")
     assert team_areas.allows(team_areas.ALL, "/command-center")
+    assert team_areas.room_for_path("/tour") == "stage", "the old Tour Hub is the Stage room's"
+    assert team_areas.room_for_path("/tour/abc/settlement") == "stage"
+    assert not team_areas.allows("fans", "/tour/abc/add")
     assert team_areas.parse("") == set() and not team_areas.is_all("")
 
 
@@ -123,13 +126,26 @@ def test_an_editor_cannot_empty_or_delete_the_account(path):
     assert store.get_user(owner._id) is not None
 
 
-@pytest.mark.parametrize("path", ["/tours", "/tour-board", "/press-desk", "/backup"])
-def test_pages_that_read_the_member_are_shut_to_seats(path):
+# Tour, the Tour Board and the Press Desk open to seats since they work in
+# the artist's account (tests/test_team_tour.py). What stays shut: the
+# backups, and accepting a tour invitation, which would attach the artist's
+# account to someone else's tour; that banner says how to take it yourself.
+@pytest.mark.parametrize("path,why", [("/backup", "team=blocked"),
+                                      ("/tours/join/some-token", "team=join")])
+def test_pages_that_stay_the_account_holders_are_shut_to_seats(path, why):
     owner, member = _account("label"), _account("artist", "Wanderer")
     _seat(owner, member)
     _open_account(member, owner)
     r = member.get(path)
-    assert r.status_code == 302 and "team=blocked" in r.headers["Location"], path
+    assert r.status_code == 302 and why in r.headers["Location"], path
+
+
+@pytest.mark.parametrize("path", ["/tours", "/tour-board", "/press-desk"])
+def test_tour_board_and_press_desk_open_to_a_seat_with_their_rooms(path):
+    owner, member = _account("label"), _account("artist", "Worker")
+    _seat(owner, member)
+    _open_account(member, owner)
+    assert member.get(path).status_code == 200, path
 
 
 def test_looking_at_notifications_does_not_read_them_for_the_artist():

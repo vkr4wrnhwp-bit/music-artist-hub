@@ -42,7 +42,11 @@ LABELS = {
 EXTRA = {
     "fans": ("/audience", "/voice-of-fan", "/fan-label"),
     "studio": ("/creative-studio", "/stem-src"),
-    "stage": ("/stage", "/showday", "/rider"),
+    # /tour is the old Tour Hub: its GETs lead into /tours and its forms
+    # still write the artist's shows, so it is the Stage room's too. The
+    # Tour Board's outreach tracker posts to /network/outreach, so its
+    # forms follow the Stage room as /tour-board/outreach does.
+    "stage": ("/stage", "/showday", "/rider", "/tour", "/network/outreach"),
     "analytics": ("/stats", "/benchmark", "/territories", "/playlists", "/release-signal",
                   "/world"),
     "business": ("/money-queue", "/royalty-lanes", "/lanes", "/royalty-recovery",
@@ -52,7 +56,9 @@ EXTRA = {
     "publishing": ("/tracks", "/isrc", "/identifiers", "/metadata", "/metadata-passport",
                    "/registration", "/publishing", "/cleared", "/ai-rights"),
     "releases": ("/releases", "/release-check", "/clean-release", "/pitch"),
-    "marketing": ("/press", "/onesheet", "/sheet", "/rollout", "/rollout-studio"),
+    # /onesheet left on 2026-09-19 (owner: "It just needs to be an EPK");
+    # /sheet stays because links already sent keep answering.
+    "marketing": ("/press", "/sheet", "/rollout", "/rollout-studio"),
 }
 
 # Pages that gather every room: only for a seat that has every room.
@@ -142,6 +148,13 @@ def allows(value, path):
         return path[len("/room/"):].split("/")[0] in granted
     room = room_for_path(path)
     return room is None or room in granted
+
+
+def money_open(value):
+    """Whether a seat has the Money and business room. Money shown inside
+    another room's pages (a tour's deals, settlements and expenses)
+    follows this box, not the room it sits in."""
+    return "business" in parse(value)
 
 
 def home(value):

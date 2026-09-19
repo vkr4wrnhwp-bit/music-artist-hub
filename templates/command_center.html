@@ -175,11 +175,19 @@
        a metric yet the tile shows the first step instead of a 0 - a
        zero reads as failure when it actually means "not started". -->
   <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+    {#- "Has data" comes from the same answers the start-here checklist
+        gives (summary.has_link / has_track), so a tile never asks for a
+        first campaign or a first track the checklist has already ticked
+        (owner notes, 2026-09-19). An account with links or songs the
+        score cannot read yet is told what the score needs, not to start. -#}
     {% if summary.campaign_count %}
       {{ sb.kpi("Smart link score", value=summary.links_score, scale="/ 100", href="/links",
                 delta=summary.campaign_count ~ " campaign" ~ ("s" if summary.campaign_count != 1 else ""),
                 target="target 70",
                 value_tone="good" if summary.links_score >= 70 else none) }}
+    {% elif summary.has_link %}
+      {{ sb.kpi("Smart link score", href="/links", empty_label="Not scored",
+                first="Scores read active campaigns", first_href="/links/new") }}
     {% else %}
       {{ sb.kpi("Smart link score", href="/links/new",
                 first="Create your first campaign", first_href="/links/new") }}
@@ -199,6 +207,9 @@
                 delta=summary.catalog_count ~ " track" ~ ("s" if summary.catalog_count != 1 else ""),
                 target="ISRC coverage",
                 value_tone="good" if summary.catalog_health >= 70 else none) }}
+    {% elif summary.has_track %}
+      {{ sb.kpi("Catalog health", href="/catalog", empty_label="Not scored",
+                first="Add your songs to the catalog to score them", first_href="/catalog") }}
     {% else %}
       {{ sb.kpi("Catalog health", href="/catalog",
                 first="Add a track to start scoring", first_href="/catalog") }}
@@ -213,16 +224,33 @@
                 first="Turn on capture to keep them", first_href="/links") }}
     {% endif %}
 
-    {% if summary.campaign_count %}
-      {{ sb.kpi("Link traffic", value=summary.visits, href="/links",
-                delta=summary.clicks ~ " service clicks") }}
+    {#- No zero tiles (owner, 2026-09-15: "if a card shows 0 it needs to
+        not show up"). Traffic counts campaign page views and opens of the
+        older short links; with none yet the tile shows the next step. -#}
+    {% if summary.link_opens %}
+      {{ sb.kpi("Link traffic", value=summary.link_opens, href="/links",
+                delta=(summary.clicks ~ " service click" ~ ("s" if summary.clicks != 1 else ""))
+                      if summary.clicks else none) }}
+    {% elif summary.has_link %}
+      {{ sb.kpi("Link traffic", empty_label="No visits yet",
+                first="Share your link to start counting", first_href="/links") }}
     {% else %}
       {{ sb.kpi("Link traffic", first="Publish a link to start counting", first_href="/links/new") }}
     {% endif %}
 
-    {{ sb.kpi("SB qualification", value=summary.qualification, scale="/ 100", href="/qualification",
-              target="unlocks reach", delta="growth score",
-              value_tone="good" if summary.qualification >= 75 else none) }}
+    {#- The Growth Score in plain words: how set up and active the account
+        is, 0 to 100. What it changes today is where the account sits in
+        the Street Banker team's review list, highest first; nothing
+        switches on by itself, so the tile no longer says "unlocks reach"
+        (owner notes, 2026-09-19). -#}
+    {% if summary.qualification %}
+      {{ sb.kpi("Growth score", value=summary.qualification, scale="/ 100", href="/qualification",
+                delta="setup and activity", target="team reviews highest first",
+                value_tone="good" if summary.qualification >= 75 else none) }}
+    {% else %}
+      {{ sb.kpi("Growth score", href="/qualification",
+                first="See what raises it", first_href="/qualification") }}
+    {% endif %}
   </div>
 
   {#- The money side first (owner, 2026-09-15, by numbered order): the

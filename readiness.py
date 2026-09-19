@@ -238,6 +238,17 @@ def _groups():
                  proof="shows the flags, the key presence and the real job "
                        "and webhook history - a lane that has actually run "
                        "is the honest evidence here"),
+            dict(name="RoEx (Release-Ready)",
+                 on=_try(__import__("roex_client").configured),
+                 env=["ROEX_API_KEY"],
+                 unlocks="Release-Ready in Creative Studio: RoEx's mix report, free "
+                         "30-second previews, and the paid full master. It also needs "
+                         "object storage (R2) above, and stays closed to artists until "
+                         "it is opened in Settings.",
+                 probe="/admin/release-ready",
+                 proof="shows this month's estimated RoEx credits, the jobs and their "
+                       "states, and a Check the RoEx connection button that calls "
+                       "RoEx's /health with the key"),
             dict(name="Stem splitting", on=_present("STEMSPLIT_API_KEY"),
                  env=["STEMSPLIT_API_KEY"], unlocks="Studio Split.",
                  probe="/rack/studio-split/diag",
@@ -277,6 +288,18 @@ def _groups():
                          "accounts and the database export.",
                  caution="Hashed addresses in the source count too, so this "
                          "reading off is not proof you are locked out."),
+            # Owner 2026-09-19: "I believe Sentry is set up." The DSN was
+            # in Render and nothing read it. observability.py reads it now;
+            # this row says whether it found one.
+            dict(name="Error reporting (Sentry)",
+                 on=_try(__import__("observability").configured),
+                 env=["SENTRY_DSN"],
+                 unlocks="Unhandled errors reported to Sentry with cookies, "
+                         "auth headers and any token-like key scrubbed "
+                         "first. Errors only, no performance tracing.",
+                 caution="A presence check on the DSN. A DSN for a deleted "
+                         "project still reads as configured; the proof is "
+                         "an event arriving in the Sentry project."),
         ]),
     ]
 

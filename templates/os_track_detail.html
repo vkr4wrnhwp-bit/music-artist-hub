@@ -4,7 +4,8 @@
 {% block title %}{{ track.title }} - Track Passport - Street Banker{% endblock %}
 
 {% block content %}
-{{ sb.subnav([("/catalog", "Catalog"), (passports_home, "Track Passports")], passports_home) }}
+{#- In the rooms layout the room's cards are the tabs (owner, 2026-09-15: "remove the double tabs"). -#}
+{% if not rooms_nav %}{{ sb.subnav([("/catalog", "Catalog"), (passports_home, "Track Passports")], passports_home) }}{% endif %}
 <div class="mx-auto max-w-[1100px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div>
@@ -19,6 +20,33 @@
       </form>
     </div>
   </div>
+
+  {#- The Release-Ready master stored for this song, if there is one. A fact
+      on the passport, not part of its score: a master in the bucket says
+      nothing about the codes and splits below. -#}
+  {% if rr_master %}
+  <section id="master" class="rounded-2xl border border-sb-gold/30 bg-sb-surface-1 p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="min-w-0">
+        <h2 class="sb-label text-sb-gold">Master</h2>
+        <p class="mt-1 text-sm font-bold text-gray-100">Master stored on {{ rr_master.stored_at }}</p>
+        <p class="mt-0.5 text-xs text-gray-300">{{ rr_master.note }}. {{ rr_master.format }}{% if rr_master.bytes %}, {{ '%.1f' % (rr_master.bytes / 1048576) }} MB{% endif %}. Not counted in the passport's score.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ rr_master.download }}" class="sb-btn sb-btn-primary sb-btn-sm">Download the WAV</a>
+        <a href="{{ rr_master.smart_link }}" class="sb-btn sb-btn-secondary sb-btn-sm">Make a Smart Link</a>
+        <a href="{{ rr_master.rollout }}" class="sb-btn sb-btn-secondary sb-btn-sm">Plan the rollout</a>
+        {% if rr_master.source %}<a href="{{ rr_master.source }}" class="sb-btn sb-btn-ghost sb-btn-sm">Open in Release-Ready</a>{% endif %}
+        {% if rr_master.delete_url %}
+          <form method="post" action="{{ rr_master.delete_url }}" onsubmit="return confirm('Delete this master? Our copy goes and it cannot be brought back.');">
+            <input type="hidden" name="from" value="passport">
+            <button type="submit" class="sb-btn sb-btn-ghost sb-btn-sm">Delete this master</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
 
   <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
     <!-- Passport editor -->

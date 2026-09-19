@@ -27,8 +27,11 @@ FOLDED = {
     "/territories": "royalties", "/royalty-lanes": "royalties",
     "/money-queue": "royalties",
     "/trust-score": "scores", "/insights": "scores", "/qualification": "scores",
-    "/sync/deal-simulator": "deals", "/sync/clearance-packs": "deals", "/deal-room": "deals",
-    "/epk": "press-desk", "/artist-profile": "press-desk",
+    # Sync packs left Deals for the releases on 2026-09-19 (owner: "You're
+    # making a product for sale"); it is an entry of its own now.
+    "/sync/deal-simulator": "deals", "/deal-room": "deals",
+    # /artist-profile redirects to /epk since 2026-09-19 (one document).
+    "/epk": "press-desk",
     # Tier C, folded the same day.
     "/releases": "autopilot", "/documents": "vault", "/tracks": "catalog",
     # Fans, one front (2026-09-06).
@@ -68,7 +71,9 @@ def test_the_sidebar_is_thirty_seven_entries():
     # 36 when "Tour Suite" went the same way on 2026-09-17, except that Tour
     # is this app's own page: the hub listed Tour twice, once here and once
     # as a link to a separate service that had fallen twenty routes behind.
-    assert len(_entries()) == 36
+    # 37 with Release-Ready in Studio (owner's brief, 2026-09-19): RoEx's mix
+    # report, free previews and the paid master, a page of this app's own.
+    assert len(_entries()) == 37
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():
@@ -80,10 +85,10 @@ def test_nothing_parked_or_folded_is_a_sidebar_entry():
     keys = {it[0] for it in _entries()}
     for key in ("capital", "benchmark", "funding", "conflicts", "profile", "mechanicals",
                 "neighboring", "territories", "money-queue", "trust-score", "insights",
-                "connections", "deal-simulator", "sync-packs", "releases", "documents", "tracks",
+                "connections", "deal-simulator", "releases", "documents", "tracks",
                 "fan-label", "fan-club-admin", "network", "overview", "income", "royalty-lanes"):
         assert key not in keys, key
-    for key in ("royalties", "scores", "deals", "press-desk", "reports", "epk"):
+    for key in ("royalties", "scores", "deals", "press-desk", "reports", "epk", "sync-packs"):
         assert key in keys, key
     community = {it[0] for it in hubs.COMMUNITY_GROUP[1]} | {it[0] for it in hubs.ACCOUNT_GROUP[1]}
     assert "fans" in community and "fan-label" not in community and "fan-club-admin" not in community
@@ -184,9 +189,11 @@ def test_a_folded_page_lights_its_front_in_the_sidebar(demo):
     assert on, "Scores should be the highlighted entry while reading Trust"
 
 
-def test_the_press_desk_strip_reaches_the_kit_and_the_one_sheet(demo):
+def test_the_press_desk_strip_reaches_the_kit(demo):
+    """One document (owner, 2026-09-19): the strip reaches the press kit
+    and no one-sheet."""
     body = demo.get("/press-desk").get_data(as_text=True)
-    assert 'href="/epk"' in body and 'href="/artist-profile"' in body
+    assert 'href="/epk"' in body and 'href="/artist-profile"' not in body
     kit = demo.get("/epk").get_data(as_text=True)
     assert 'href="/press-desk"' in kit and 'aria-current="page"' in kit
 

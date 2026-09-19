@@ -106,7 +106,7 @@ def test_a_real_artist_is_never_handed_the_showcase_identity():
     be the default for every account."""
     client, _ = fresh_artist()
     for path in ("/epk", "/artist-profile"):
-        body = client.get(path).get_data(as_text=True)
+        body = client.get(path, follow_redirects=True).get_data(as_text=True)
         leaked = [s for s in SHOWCASE if s in body]
         assert not leaked, "%s hands a real artist: %s" % (path, leaked)
 

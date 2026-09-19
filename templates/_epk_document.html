@@ -1,0 +1,277 @@
+{#- The press kit document. Rendered by the editor (epk.html) and by
+    the copy Save to Vault writes (epk_saved.html), so the two cannot
+    differ. Reads e (the kit) and, when present, deal (the For deals
+    figures, private). -#}
+{% import "landing/_cards.html" as logos %}
+    <!-- ===== The press kit document ===== -->
+    <div id="epk-document" class="rounded-xl border border-sb-surface-2/10 bg-white p-8 shadow-sm">
+
+      {% if e.logo_path %}
+      <div class="flex justify-center pb-6">
+        <img src="{{ e.logo_path }}" alt="{{ e.name }} logo" class="max-h-16 w-auto max-w-[260px] object-contain">
+      </div>
+      {% endif %}
+
+      <!-- Hero -->
+      <header class="flex flex-col gap-6 border-b-2 border-sb-surface-2 pb-8 sm:flex-row sm:items-center">
+        {% if e.photo %}
+        <img id="epk-photo" src="{{ e.photo | media_url }}" alt="{{ e.name }}" class="h-32 w-32 shrink-0 rounded-2xl object-cover shadow-md">
+        {% else %}
+        <span id="epk-photo-fallback" class="grid h-32 w-32 shrink-0 place-items-center rounded-2xl bg-sb-surface-2 text-4xl font-black text-sb-ink">{{ e.initials }}</span>
+        {% endif %}
+        <div class="min-w-0 flex-1">
+          <div class="sb-label text-sb-gold-deep">Official Press Kit</div>
+          <h2 class="mt-1 text-3xl font-black uppercase tracking-tight sm:text-4xl">{{ e.name }}</h2>
+          {# An empty kit says it is empty. It used to say "Synthwave-driven
+             pop for late-night drives" to every artist who had written
+             nothing. #}
+          <p class="mt-2 text-base leading-snug {{ 'text-sb-surface-2/80' if e.profile.tagline else 'text-sb-surface-2/40 italic' }}">
+            {{ e.profile.tagline or 'No tagline yet — add one in the editor.' }}</p>
+          <div class="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
+            {% if e.profile.location %}<span class="rounded-full bg-sb-surface-2 px-3 py-1 text-white">{{ e.profile.location }}</span>{% endif %}
+            {% for g in e.profile.genres %}<span class="rounded-full border border-sb-surface-2/20 px-3 py-1">{{ g }}</span>{% endfor %}
+          </div>
+        </div>
+      </header>
+
+      <!-- Stats -->
+      <section data-section="stats" class="{{ '' if e.sections_on.stats else 'hidden' }} grid grid-cols-2 gap-px border-b border-sb-surface-2/10 bg-sb-surface-2/10 sm:grid-cols-4">
+        {% for s in e.stats %}
+        <div class="bg-white px-2 py-5 text-center">
+          <div class="text-2xl font-black tabular-nums">{{ s.value }}</div>
+          <div class="sb-label mt-1 text-sb-gold-deep">{{ s.label }}</div>
+          <div class="text-xs text-sb-surface-2/50 font-medium">{{ s.sub }}</div>
+        </div>
+        {% endfor %}
+      </section>
+      {# epk_config computes two separate things: stats_are_real (these
+         are the artist's own figures) and stats_are_sample (these are
+         the demo catalogue's, standing in). Reading the sample banner off
+         "not real" made a kit with nothing measured accuse itself of
+         showing somebody else's numbers. #}
+      {% if e.stats_are_sample %}
+      <p class="border-b border-sb-surface-2/10 bg-amber-100 px-4 py-2 text-center text-xs font-semibold text-sb-gold-deep">
+        Sample figures — not your catalog. Upload a royalty statement or add tracks and these switch to your real numbers.
+      </p>
+      {% endif %}
+
+      {# Same order as the published sheet: sound before story.
+         An editor that previews the sections in a different order
+         than the page it publishes is lying to the artist. #}
+      <!-- Top tracks -->
+      <section data-section="tracks" class="{{ '' if e.sections_on.tracks else 'hidden' }} border-b border-sb-surface-2/10 py-7">
+        <h3 class="sb-label text-sb-gold-deep">Top Tracks</h3>
+        <ol class="mt-4 space-y-2">
+          {% for t in e.top_tracks %}
+          <li class="flex items-baseline justify-between gap-4 border-b border-sb-surface-2/5 pb-2 last:border-0">
+            <span class="flex min-w-0 items-baseline gap-3 font-semibold"><span class="w-5 shrink-0 text-right text-sm sb-num text-sb-gold-deep">{{ loop.index }}</span><span class="truncate">{{ t.title }}</span></span>
+            <span class="shrink-0 text-sm sb-num text-sb-surface-2/60">{% if t.streams %}{{ t.streams_compact }} streams{% else %}${{ "{:,.2f}".format(t.earned) }} earned{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ol>
+      </section>
+
+      <!-- Bio -->
+      <section data-section="bio" class="{{ '' if e.sections_on.bio else 'hidden' }} border-b border-sb-surface-2/10 py-7">
+        <h3 class="sb-label text-sb-gold-deep">Biography</h3>
+        <p class="mt-3 max-w-2xl text-base leading-relaxed text-sb-surface-2/85">{{ e.profile.bio }}</p>
+        {% if e.top_platform %}<p class="mt-2 text-xs text-sb-surface-2/55">Strongest platform: <span class="font-bold text-sb-surface-2">{{ e.top_platform }}</span></p>{% endif %}
+      </section>
+
+      <!-- Press -->
+      <section data-section="press" class="{{ '' if e.sections_on.press else 'hidden' }} border-b border-sb-surface-2/10 py-7">
+        <h3 class="sb-label text-sb-gold-deep">Press</h3>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          {% for q in e.profile.press %}
+          <blockquote class="border-l-2 border-sb-gold-deep pl-4">
+            <p class="text-base font-medium leading-snug">“{{ q.quote }}”</p>
+            <footer class="mt-2 text-xs font-bold uppercase tracking-wide text-sb-surface-2/50">— {{ q.source }}</footer>
+          </blockquote>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- Tour dates: the artist's own TOUR first; Bandsintown only when it is the source -->
+      <section data-section="tour" class="{{ '' if e.sections_on.tour else 'hidden' }} border-b border-sb-surface-2/10 py-7">
+        <h3 class="sb-label text-sb-gold-deep">Tour Dates</h3>
+        {% if e.tour_source == 'bandsintown' and e.bandsintown_profile %}<p class="mt-1 text-xs text-sb-surface-2/55 font-medium">{{ "{:,}".format(e.bandsintown_profile.trackers) }} tracking on Bandsintown · {{ e.bandsintown_profile.upcoming }} upcoming</p>{% endif %}
+        {% if e.tour_dates %}
+        <div class="mt-4 divide-y divide-sb-surface-2/10">
+          {% for ev in e.tour_dates %}
+          <div class="flex items-center justify-between gap-3 py-2.5">
+            <div>
+              <div class="text-sm font-bold">{{ ev.venue }}</div>
+              <div class="text-xs text-sb-surface-2/55 font-medium">{{ ev.location }}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs font-bold sb-num">{{ ev.date }}</div>
+              {% if ev.tickets %}<a href="{{ ev.tickets }}" target="_blank" rel="noopener" class="text-xs font-bold uppercase tracking-wide text-sb-gold-deep hover:underline">Tickets ↗</a>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="mt-3 text-xs text-sb-surface-2/50 font-medium">{% if e.tour_source == 'bandsintown' %}From this artist's Bandsintown listing — their tour in Street Banker holds no confirmed date{% else %}Confirmed dates from this artist's own tour in Street Banker{% endif %}</p>
+        {% else %}
+        <p class="mt-3 text-xs text-sb-surface-2/50">No confirmed dates yet — confirm a date in TOUR and it appears here.</p>
+        {% endif %}
+      </section>
+
+      <!-- Media assets -->
+      <section data-section="media" class="border-b border-sb-surface-2/10 py-7 {{ '' if e.sections_on.media else 'hidden' }}">
+        <h3 class="sb-label text-sb-gold-deep">Media Assets</h3>
+        {% if e.assets or e.video_url %}
+        <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {% for a in e.assets %}
+          <a href="{{ a.path | media_url }}" download class="group block overflow-hidden rounded-xl border border-sb-surface-2/15">
+            <img src="{{ a.path | media_url }}" alt="{{ a.label }}" class="aspect-square w-full object-cover transition-transform group-hover:scale-105">
+            <div class="flex items-center justify-between px-2.5 py-2 text-xs font-bold"><span>{{ a.label }}</span><span class="text-sb-gold-deep">↓</span></div>
+          </a>
+          {% endfor %}
+        </div>
+        {% if e.video_thumb %}
+        <a href="{{ e.video_url }}" target="_blank" rel="noopener" class="group relative mt-4 block aspect-video overflow-hidden rounded-xl border border-sb-surface-2/15">
+          <img src="{{ e.video_thumb }}" alt="Artist video" class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]">
+          <span class="absolute inset-0 grid place-items-center bg-black/25">
+            <span class="grid h-14 w-14 place-items-center rounded-full bg-white/90 shadow-lg"><svg class="h-6 w-6 translate-x-0.5 text-sb-surface-2" viewBox="0 0 20 20" fill="currentColor"><path d="M6 4l10 6-10 6z"/></svg></span>
+          </span>
+        </a>
+        {% elif e.video_url %}
+        <a href="{{ e.video_url }}" target="_blank" rel="noopener" class="mt-4 inline-block rounded-lg border border-sb-surface-2/20 px-4 py-2 text-xs font-bold hover:bg-sb-surface-2/5">Watch video ↗</a>
+        {% endif %}
+        {% else %}
+        <p class="mt-3 text-xs text-sb-surface-2/50">No assets uploaded yet — add press photos, a logo, and cover art in the Media Assets panel.</p>
+        {% endif %}
+      </section>
+
+      {#- For deals: the figures the Deal Room one-sheet printed, in the one
+          document (owner, 2026-09-19: "It just needs to be an EPK"). Private:
+          the public slug and the pitch link never render this block (their
+          template has no such section); the editor, the print and the saved
+          copy do when it is on. Only what has a figure behind it is drawn
+          (the zero rule); a sheet with nothing measured says so. -#}
+      {% if deal %}
+      <section data-section="deals" class="{{ '' if e.sections_on.deals else 'hidden' }} border-b border-sb-surface-2/10 py-7">
+        <h3 class="sb-label text-sb-gold-deep">For deals</h3>
+        <p class="mt-1 text-xs font-semibold text-sb-surface-2/60">Prepared {{ deal.today }} for labels, managers and investors. Every figure comes from this artist's connected accounts and uploads; what was not measured is said so. Certification: <span class="font-black text-sb-surface-2">{{ deal.cert.level }}</span>.</p>
+        <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {% if deal.statement_rows %}
+          <div class="rounded-xl border border-sb-gold-deep/40 bg-sb-ink p-3.5">
+            <div class="sb-label text-sb-gold-deep">Collected revenue</div>
+            <div class="mt-1 text-lg font-black tabular-nums">${{ "{:,.2f}".format(deal.statement_total) }}</div>
+            <div class="mt-0.5 text-xs font-medium text-sb-surface-2/60">from uploaded statements ({{ deal.statement_rows }} rows)</div>
+          </div>
+          {% endif %}
+          {% if deal.fans %}
+          <div class="rounded-xl border border-sb-surface-2/15 bg-sb-ink p-3.5">
+            <div class="sb-label text-sb-gold-deep">Fans captured</div>
+            <div class="mt-1 text-lg font-black tabular-nums">{{ "{:,}".format(deal.fans) }}</div>
+            <div class="mt-0.5 text-xs font-medium text-sb-surface-2/60">direct emails and numbers on file</div>
+          </div>
+          {% endif %}
+          {% if deal.summary.tracks %}
+          <div class="rounded-xl border border-sb-surface-2/15 bg-sb-ink p-3.5">
+            <div class="sb-label text-sb-gold-deep">Tracks on record</div>
+            <div class="mt-1 text-lg font-black tabular-nums">{{ deal.summary.tracks }}</div>
+            <div class="mt-0.5 text-xs font-medium text-sb-surface-2/60">{{ deal.summary.passport_avg }}% average passport</div>
+          </div>
+          <div class="rounded-xl border border-sb-surface-2/15 bg-sb-ink p-3.5">
+            <div class="sb-label text-sb-gold-deep">Clean release</div>
+            <div class="mt-1 text-lg font-black tabular-nums">{{ deal.summary.clean_avg }}<span class="text-xs text-sb-surface-2/60">/100</span></div>
+            <div class="mt-0.5 text-xs font-medium text-sb-surface-2/60">catalog average</div>
+          </div>
+          {% endif %}
+          {% if not deal.statement_rows and not deal.fans and not deal.summary.tracks %}
+          <p class="col-span-full text-sm text-sb-surface-2/70">Nothing measured yet. Statements, captured fans and catalog tracks fill this row as they arrive.</p>
+          {% endif %}
+        </div>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl border border-sb-surface-2/15 bg-sb-ink p-4">
+            <div class="sb-label text-sb-gold-deep">Audience growth</div>
+            {% if deal.growth %}
+            <p class="mt-1.5 text-sm">Spotify followers {{ "{:,}".format(deal.growth.first.followers) }} to {{ "{:,}".format(deal.growth.last.followers) }} ({{ '+' if deal.growth.delta >= 0 else '' }}{{ "{:,}".format(deal.growth.delta) }}) between {{ deal.growth.first.day }} and {{ deal.growth.last.day }}, tracked by Street Banker Pulse.</p>
+            {% elif deal.counted %}
+            <p class="mt-1.5 text-sm text-sb-surface-2/70">One Pulse snapshot on file ({{ deal.counted[0].day }}: {{ "{:,}".format(deal.counted[0].followers) }} Spotify followers). A trend appears after the next snapshot lands.</p>
+            {% elif deal.pulse_count %}
+            <p class="mt-1.5 text-sm text-sb-surface-2/70">Pulse is tracking this artist, but Spotify has not returned a follower count for the {{ deal.pulse_count }} snapshot{{ '' if deal.pulse_count == 1 else 's' }} on file. Growth appears here once a count comes back.</p>
+            {% else %}
+            <p class="mt-1.5 text-sm text-sb-surface-2/70">No Pulse snapshots yet. Growth tracking starts when the artist connects their Spotify profile in Pulse.</p>
+            {% endif %}
+          </div>
+          <div class="rounded-xl border border-sb-surface-2/15 bg-sb-ink p-4">
+            <div class="sb-label text-sb-gold-deep">Catalog by release readiness</div>
+            {% if deal.top %}
+            <div class="mt-2 divide-y divide-sb-surface-2/10">
+              {% for r in deal.top %}
+              <div class="flex items-baseline gap-3 py-1.5"><span class="min-w-0 flex-1 truncate text-sm font-bold">{{ r.title }}</span><span class="shrink-0 text-xs font-semibold tabular-nums text-sb-surface-2/60">Clean release {{ r.score }}/100</span></div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-1.5 text-sm text-sb-surface-2/70">No tracks on record yet.</p>
+            {% endif %}
+          </div>
+          <div class="rounded-xl border border-sb-surface-2/15 bg-sb-ink p-4">
+            <div class="sb-label text-sb-gold-deep">Rights position</div>
+            {% if deal.summary.tracks %}
+            <ul class="mt-2 space-y-1 text-xs font-medium">
+              <li>Metadata passports: <b>{{ deal.summary.passport_avg }}%</b> average completion</li>
+              <li>Red rights issues open: <b>{{ deal.summary.reds }}</b></li>
+              <li>Fully signed lockboxes: <b>{{ deal.summary.lockbox_ready }}</b> of {{ deal.summary.tracks }}</li>
+            </ul>
+            {% else %}
+            <p class="mt-1.5 text-sm text-sb-surface-2/70">No tracks on record yet; passports, rights issues and lockboxes are read from them.</p>
+            {% endif %}
+          </div>
+          <div class="rounded-xl border border-sb-surface-2/15 bg-sb-ink p-4">
+            <div class="sb-label text-sb-gold-deep">Royalty lanes claimed</div>
+            {% if deal.lanes_claimed %}
+            <p class="mt-2 text-xs font-medium">{{ deal.lanes_claimed | join(' · ') }}</p>
+            <p class="mt-1 text-xs font-medium text-sb-surface-2/60">Claimed means income observed in this artist's own uploaded statements.</p>
+            {% else %}
+            <p class="mt-2 text-xs font-medium text-sb-surface-2/70">No lanes show observed income yet; statements decide this line, nothing else.</p>
+            {% endif %}
+          </div>
+          <div class="rounded-xl border border-sb-surface-2/15 bg-sb-ink p-4">
+            <div class="sb-label text-sb-gold-deep">Upcoming releases</div>
+            {% if deal.upcoming %}
+            <div class="mt-2 divide-y divide-sb-surface-2/10">
+              {% for c in deal.upcoming %}
+              <div class="flex items-baseline gap-3 py-1.5"><span class="w-24 shrink-0 text-sm font-black tabular-nums">{{ c.release_date }}</span><span class="min-w-0 flex-1 truncate text-sm font-bold">{{ c.title }}</span></div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="mt-1.5 text-sm text-sb-surface-2/70">No scheduled releases on the calendar right now.</p>
+            {% endif %}
+          </div>
+          <div class="rounded-xl border border-sb-gold-deep/40 bg-sb-ink p-4">
+            <div class="sb-label text-sb-gold-deep">Deal terms and the ask</div>
+            <p class="mt-2 text-xs font-medium">Proposed ask: <b>{{ e.deal_ask or 'To discuss' }}</b>. Street Banker never invents a number for this line.</p>
+            {% if e.deal_terms %}<p class="mt-1.5 whitespace-pre-line text-xs font-medium">{{ e.deal_terms }}</p>{% endif %}
+            <p class="mt-1.5 text-xs font-medium text-sb-surface-2/60">Catalog valuation runs from real statement history in the Valuation desk.</p>
+          </div>
+        </div>
+        <p class="mt-3 text-xs font-medium text-sb-surface-2/60">Stream integrity is not scored here: no external stream-level data is connected, so it is left unscored rather than guessed. Statement revenue above is real and verifiable against the uploaded files.</p>
+      </section>
+      {% endif %}
+
+      <!-- Contact -->
+      <section data-section="contact" class="{{ '' if e.sections_on.contact else 'hidden' }} pt-7">
+        <h3 class="sb-label text-sb-gold-deep">Contact</h3>
+        <div class="mt-4 grid gap-3 sm:grid-cols-3">
+          {% for label, value in [('Booking', e.profile.contact.booking), ('Press', e.profile.contact.press), ('Management', e.profile.contact.management)] %}
+          <div class="rounded-xl border border-sb-surface-2/15 bg-sb-ink p-4">
+            <div class="sb-label text-sb-gold-deep">{{ label }}</div>
+            <div class="mt-1 break-all text-xs font-semibold">{{ value }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-4 flex flex-wrap gap-2">
+          {% for soc in e.profile.socials %}
+          <span class="inline-flex items-center gap-2 rounded-full border border-sb-surface-2/15 bg-white px-3 py-1.5">
+            {{ logos.platform_logo(soc.logo, "h-4 w-4") }}
+            <span class="text-xs font-semibold">{{ soc.handle }}</span>
+          </span>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+

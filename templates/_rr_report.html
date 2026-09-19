@@ -1,0 +1,39 @@
+{#- RoEx's mix report, from release_ready.report_view(): RoEx's verdicts in
+    plain words, RoEx's measured figures ("Not measured" when RoEx sent none,
+    never 0) and RoEx's AI-written notes, each labelled as RoEx's. No score
+    and no count of problems: RoEx returns neither, and the owner ruled
+    against making one up (2026-09-19). The dot beside a verdict only
+    repeats RoEx's own word for it. Expects `r.report`. -#}
+{% set rep = r.report %}
+<dl class="rr-verdicts" data-rr-verdicts>
+  {% for v in rep.verdicts %}
+    <div class="rr-verdict{% if v.value == 'Not measured' %} rr-verdict--none{% endif %}">
+      <dt>{{ v.label }}</dt>
+      <dd><span class="rr-dot rr-dot--{{ v.tone or 'idle' }}" aria-hidden="true"></span><span>{{ v.value }}</span></dd>
+    </div>
+  {% endfor %}
+</dl>
+
+<div class="rr-subhead">
+  <h3 class="rr-kicker">{{ rep.figures_label }}</h3>
+  <p class="rr-small">{{ "Read from the master you sent." if rep.is_master else "Read from the mix you sent." }}</p>
+</div>
+<dl class="rr-figs" data-rr-figures>
+  {% for f in rep.figures %}
+    <div class="rr-fig{% if f.value == 'Not measured' %} rr-fig--none{% endif %}">
+      <dt>{{ f.label }}</dt>
+      <dd>{{ f.value }}</dd>
+    </div>
+  {% endfor %}
+</dl>
+
+{% if rep.notes %}
+  <details class="rr-notes">
+    <summary><span>RoEx's notes <span class="rr-small">· {{ rep.notes_label }}</span></span></summary>
+    <div class="rr-notes-body">
+      {% for n in rep.notes %}
+        <p class="rr-note"><b>{{ n.label }}.</b> {{ n.text }}</p>
+      {% endfor %}
+    </div>
+  </details>
+{% endif %}

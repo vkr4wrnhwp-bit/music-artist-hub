@@ -318,11 +318,100 @@ def test_the_coins_ship_and_stay_decorative(page):
     assert band.count('alt=""') == 2
 
 
-def test_the_credit_packs_are_the_real_packs(page):
-    band = page.split('class="sbmem"')[1].split("</section>")[0]
+def _band(body):
+    return body.split('class="sbmem"')[1].split("</section>")[0]
+
+
+def test_no_pack_is_priced_while_packs_are_off_sale(page):
+    """Owner, 2026-09-18: "hide them until we know what the credits
+    actually cost". Billing hid the packs on plans.CREDIT_PACKS_ON_SALE;
+    the app home kept listing 500 for $15, 2,000 for $50 and 5,000 for
+    $100 anyway. While the flag is off there is no pack list at all."""
+    assert plans.CREDIT_PACKS_ON_SALE is False
+    band = _band(page)
+    assert "sbmem-packs" not in band
+    for credits, cents, _label in plans.CREDIT_PACKS.values():
+        assert "$%d" % (cents // 100) not in band, cents
+        assert ">%s<" % "{:,}".format(credits) not in band, credits
+    assert split_home.get_split_home_config()["packs"] == []
+
+
+def test_the_credit_packs_are_the_real_packs_once_on_sale(monkeypatch):
+    monkeypatch.setattr(plans, "CREDIT_PACKS_ON_SALE", True)
+    monkeypatch.setenv("SPLIT_HOME", "1")
+    band = _band(appmod.app.test_client().get("/").get_data(as_text=True))
+    assert "sbmem-packs" in band
     for credits, cents, _label in plans.CREDIT_PACKS.values():
         assert "{:,}".format(credits) in band, credits
         assert "$%d" % (cents // 100) in band, cents
+
+
+def test_the_passes_and_the_plans_link_go_somewhere_real(page, client):
+    """They went to /plan, which is the Artist EQ's recommendation rather
+    than the price list, with #artist, #pro and #label anchors that do not
+    exist on it. No public page lists the memberships but this band, so
+    the bar's Plans scrolls to it and a pass opens Billing, where the three
+    are bought; a visitor who is not signed in signs in first."""
+    band = _band(page)
+    assert "/plan#" not in page
+    assert band.count('href="/billing"') == 3
+    bar = page.split('class="sbbar"')[1].split("</header>")[0]
+    assert 'href="#memberships">Plans</a>' in bar
+    assert '<section class="sbmem" id="memberships"' in page
+    r = client.get("/billing")
+    assert r.status_code in (301, 302) and "/login" in r.headers["Location"]
+    assert "next=%2Fbilling" in r.headers["Location"] or "next=/billing" in r.headers["Location"]
+
+
+def test_each_pass_says_what_on_it_is_not_open_yet(page):
+    """Owner, 2026-09-17: mark them coming soon. The plates are engraved,
+    so the line under each pass says it, built from the list that puts
+    Soon on the suites strip rather than written down a second time."""
+    import hubs
+    pending = hubs.suites_pending()
+    names = {k: label for k, _h, _i, label, _d in hubs.tool_suites()}
+    lines = split_home.coming_soon(("artist", "pro", "label"))
+    band = _band(page)
+    for tier, line in lines.items():
+        if line:
+            assert '<p class="sbmem-soon">%s</p>' % line in band, tier
+    # Every waiting suite is named on the Label pass, which carries them all.
+    for key in pending:
+        assert names[key] in lines["label"], key
+    # A pass names only what it carries: Noise Lab runs on credits, which
+    # only the Label pass includes.
+    if "noise-lab" in pending:
+        assert "Noise Lab" not in lines["artist"] and "Noise Lab" not in lines["pro"]
+    if "artifacts" in pending and "company" in pending:
+        assert lines["pro"] == "Artifacts and Company open soon."
+
+
+def test_a_pass_with_nothing_waiting_says_nothing(monkeypatch):
+    import hubs
+    monkeypatch.setattr(hubs, "suites_pending", lambda: set())
+    assert split_home.coming_soon(("artist", "pro", "label")) == {
+        "artist": "", "pro": "", "label": ""}
+    monkeypatch.setenv("SPLIT_HOME", "1")
+    band = _band(appmod.app.test_client().get("/").get_data(as_text=True))
+    assert "sbmem-soon" not in band
+
+
+def test_the_bottom_lines_are_centred():
+    """Owner, 2026-09-19: "you always push stuff over to the left side
+    margin". The way back is one centred stack, the credits words are
+    centred in their column, and the copyright line of both homepage
+    footers is centred."""
+    css = io.open(os.path.join(HERE, "static", "css", "split-home.css"),
+                  encoding="utf-8").read()
+    back = css.split(".sbback-inner {")[1].split("}")[0]
+    assert "flex-direction: column" in back and "text-align: center" in back
+    assert "space-between" not in back
+    assert ".sbmem-credits-say { text-align: center; }" in css
+    assert "justify-content: center" in css.split(".sbmem-credits-h {")[1].split("}")[0]
+    for name in ("landing.html", "landing_split.html"):
+        t = io.open(os.path.join(HERE, "templates", name), encoding="utf-8").read()
+        line = t.split("{{ f.copyright }}")[0].rsplit("<div", 1)[1]
+        assert "justify-center" in line and "text-center" in line, name
 
 
 def test_there_is_a_way_back_to_the_store(page):

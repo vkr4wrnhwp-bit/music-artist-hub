@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}{{ source.title }} - Release-Ready - Street Banker{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/release_ready.css?v=1">
+{% endblock %}
+
+{#- One upload: RoEx's mix report, the free previews, the buy button and the
+    stored master. Every figure here is RoEx's own and says so; a missing one
+    reads "Not measured", never 0. A master is only called stored once the
+    file is in our bucket (status "stored"). The price is the owner's setting.
+    The page polls its own JSON while RoEx is working (release_ready.js). -#}
+
+{% macro ico(name) -%}
+<svg class="rr-band-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == "lock" -%}<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>
+{%- elif name == "check" -%}<path d="M5 12.5l4.5 4.5L19 7.5"/>
+{%- else -%}<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% block content %}
+{%- set pair = source.kind == "pair" -%}
+{%- set first = not source.previews -%}
+{%- set paid_waiting = source.previews | selectattr("paid") | rejectattr("master") | list -%}
+{%- set support -%}
+  {%- for f in source.files -%}
+    {{ "The vocal" if f.role == "vocal" else ("The beat" if f.role == "beat" else "Your file") }}: {{ f.filename }}, {{ f.length }}{{ ". " if not loop.last else "." }}
+  {%- endfor -%}
+{%- endset -%}
+<div data-no-collapse class="rr" data-rr-page="source"
+     data-rr-source-url="/creative-studio/release-ready/sources/{{ source.id }}.json"
+     data-in-flight="{{ '1' if source.in_flight else '0' }}">
+  {% call sb.plate(none, [900], "Release-Ready · " ~ source.kind_label, source.title, support) %}
+    {{ sb.btn("All uploads", href="/creative-studio/release-ready") }}
+  {% endcall %}
+
+  {% if msg %}
+    <div class="rr-band" role="alert">{{ ico('info') }}<p>{{ msg }}</p></div>
+  {% endif %}
+  {% if state.message %}
+    <div class="rr-band {{ 'rr-band--owner' if state.code == 'owner_only' else 'rr-band--closed' }}" data-state="{{ state.code }}" role="status">
+      {{ ico('lock') }}<p>{{ state.message }}</p>
+    </div>
+  {% endif %}
+  {% if just_paid and not source.masters %}
+    {%- set moving = paid_waiting | selectattr("in_flight") | list -%}
+    {% if moving %}
+      <div class="rr-band rr-band--ok" role="status">{{ ico('check') }}<p>Payment received. We're getting your full master from RoEx. This page updates by itself.</p></div>
+    {% elif paid_waiting %}
+      <div class="rr-band" role="status">{{ ico('info') }}<p>{{ paid_waiting[0].message }}</p></div>
+    {% elif source.stale_payment %}
+      <div class="rr-band" role="status">{{ ico('info') }}<p>{{ (source.previews | selectattr("payment_note") | first).payment_note }}</p></div>
+    {% else %}
+      <div class="rr-band" role="status">{{ ico('info') }}<p>We haven't had Stripe's confirmation of the payment yet. Refresh this page in a minute.</p></div>
+    {% endif %}
+  {% endif %}
+
+  <div class="sb-stages" role="list" aria-label="Where this upload is up to">
+    {%- for st in source.steps %}
+      <span class="sb-stages-i{{ ' sb-stages-i--now' if st.key == source.stage and source.stage != 'stored' }}{{ ' sb-stages-i--done' if st.key in source.stage_done }}"
+            role="listitem"{% if st.key == source.stage %} aria-current="step"{% endif %}>{{ loop.index }}. {{ st.label }}</span>
+    {%- endfor %}
+  </div>
+
+  <div class="rr-fresh" hidden data-rr-fresh role="status">
+    <span>Something new is ready on this page.</span>
+    <button type="button" class="sb-btn sb-btn-secondary sb-btn-sm" data-rr-reload>Show it</button>
+  </div>
+
+  {#- The stored master comes first: it is what the artist came back for. -#}
+  {% for m in source.masters %}
+    <section class="rr-card rr-master" aria-labelledby="rr-master-h-{{ m.id }}" data-rr-job="{{ m.id }}" data-status="{{ m.status }}">
+      <div class="rr-card-head">
+        <div>
+          <p class="rr-kicker">Your master</p>
+          <h2 class="rr-h" id="rr-master-h-{{ m.id }}">{{ m.message or "Your master is stored." }}</h2>
+          <p class="rr-p">{{ m.settings.style_label }}. {{ m.settings.loudness_label }}.{% if pair %} Vocal {{ "%+.1f" | format(m.settings.vocal_gain_db) }} dB.{% endif %} Stored {{ m.master.stored_day }}, in your catalog on the song's Track Passport.</p>
+        </div>
+        <span data-rr-chip>{{ sb.badge(m.chip, m.tone) }}</span>
+      </div>
+      <dl class="rr-master-facts">
+        <div><dt>Format</dt><dd>{{ m.master.format }}</dd></div>
+        {% if m.master.size %}<div><dt>Size</dt><dd>{{ m.master.size }}</dd></div>{% endif %}
+        {% if m.master.measured %}
+          <div><dt>{{ m.master.measured.label }}</dt><dd>{{ m.master.measured.text }}</dd></div>
+        {% endif %}
+        <div><dt>Mastered by</dt><dd>RoEx, through Release-Ready</dd></div>
+      </dl>
+      <div class="rr-master-actions">
+        {{ sb.btn("Download the WAV", href=m.master.url, variant="primary") }}
+        {% if not is_seat %}
+          <form method="post" action="{{ m.master.delete_url }}" data-rr-confirm="Delete this master? Our copy goes and it can't be brought back.">
+            {{ sb.btn("Delete this master", type="submit", variant="ghost") }}
+          </form>
+        {% endif %}
+      </div>
+      <div class="rr-next">
+        {% if m.next.passport %}
+          <a href="{{ m.next.passport }}"><b>Open its Track Passport</b><span>Codes, splits and credits for this song, with the master attached.</span></a>
+        {% endif %}
+        <a href="{{ m.next.smart_link }}"><b>Make a Smart Link</b><span>One link for the release, with real click counts.</span></a>
+        <a href="{{ m.next.rollout }}"><b>Plan the rollout</b><span>Captions, briefs and a posting plan for the release.</span></a>
+      </div>
+    </section>
+  {% endfor %}
+
+  {% if not pair %}
+    {% set r = source.report %}
+    <section class="rr-card" aria-labelledby="rr-report-h"{% if r %} data-rr-job="{{ r.id }}" data-status="{{ r.status }}"{% endif %}>
+      <div class="rr-card-head">
+        <div>
+          <p class="rr-kicker">Step 1 · Mix report</p>
+          <h2 class="rr-h" id="rr-report-h">Mix report by RoEx</h2>
+          {% if r and r.report %}
+            <p class="rr-p rr-p--dim">RoEx checked this {{ "master" if source.is_master else "mix" }}{% if source.genre %} against {{ source.genre }}{% endif %}. Every word and figure here is RoEx's. There's no score: RoEx doesn't give one.</p>
+          {% else %}
+            <p class="rr-p rr-p--dim">RoEx checks loudness, dynamics, clipping, stereo, mono, phase and tone{% if source.genre %} against {{ source.genre }}{% endif %}.</p>
+          {% endif %}
+        </div>
+        {% if r %}<span data-rr-chip>{{ sb.badge(r.chip, r.tone) }}</span>{% endif %}
+      </div>
+      {% if r and r.message %}<p class="rr-p" data-rr-msg>{{ r.message }}</p>{% endif %}
+      {% if r and r.in_flight %}
+        <div class="rr-wait" role="status"><span class="rr-spin" aria-hidden="true"></span>RoEx is working on it. This page updates by itself.</div>
+      {% endif %}
+      {% if r and r.report %}{% include "_rr_report.html" %}{% endif %}
+      {% if source.report_can_run %}
+        {% if state.open and not read_only %}
+          <form method="post" action="/creative-studio/release-ready/sources/{{ source.id }}/report" class="rr-master-actions">
+            {{ sb.btn("Run the report again" if r and r.status in ("failed", "credits_short") else "Get the mix report", type="submit") }}
+          </form>
+        {% elif read_only %}
+          <p class="rr-small">{{ read_only_note }}</p>
+        {% endif %}
+      {% elif source.report_budget_note %}
+        <p class="rr-small rr-after">{{ source.report_budget_note }}</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="rr-card rr-card--gold" aria-labelledby="rr-prev-h">
+    <div class="rr-card-head">
+      <div>
+        <p class="rr-kicker">Step {{ 1 if pair else 2 }} · Previews</p>
+        <h2 class="rr-h" id="rr-prev-h">Free 30-second previews</h2>
+        <p class="rr-p rr-p--dim">{{ source.excerpt_note }}</p>
+      </div>
+      <p class="rr-small rr-num">{{ source.previews_left }} of {{ source.previews_per_file }} free previews left</p>
+    </div>
+
+    {% if source.previews %}
+      <div class="rr-prevs">
+        {% for p in source.previews %}
+          <article class="rr-prev{{ ' rr-prev--stored' if p.master else (' rr-prev--ready' if p.preview else '') }}"
+                   data-rr-job="{{ p.id }}" data-status="{{ p.status }}" aria-labelledby="rr-p-{{ p.id }}">
+            <div class="rr-prev-head">
+              <div>
+                <p class="rr-prev-name">Preview {{ loop.index }}</p>
+                <p class="rr-prev-title" id="rr-p-{{ p.id }}">{{ p.settings.loudness_label }}</p>
+                <p class="rr-prev-meta">{{ p.settings.style_label }}{% if pair %}, vocal {{ "%+.1f" | format(p.settings.vocal_gain_db) }} dB{% endif %} · {{ p.created_day }}</p>
+              </div>
+              <span data-rr-chip>{{ sb.badge(p.chip, p.tone) }}</span>
+            </div>
+            {% if p.master %}
+              <p class="rr-prev-msg">You bought this one. Your master is stored, above.</p>
+            {% elif p.message %}
+              <p class="rr-prev-msg" data-rr-msg>{{ p.message }}</p>
+            {% endif %}
+            {% if p.payment_note %}<p class="rr-prev-msg">{{ p.payment_note }}</p>{% endif %}
+            {% if p.in_flight and not p.paid %}
+              <div class="rr-wait" role="status"><span class="rr-spin" aria-hidden="true"></span>This page updates by itself.</div>
+            {% endif %}
+            {% if p.preview %}
+              <audio controls preload="none" src="{{ p.preview.url }}" aria-label="Preview {{ loop.index }}, {{ p.settings.loudness_label }}"></audio>
+              {% if p.preview.starts_at %}<p class="rr-prev-meta">{{ p.preview.starts_at }} in the song.</p>{% endif %}
+              {% if p.preview.measured %}<p class="rr-measured">{{ p.preview.measured }}</p>{% endif %}
+            {% endif %}
+            {% if p.buy and not p.buy.hidden %}
+              <div class="rr-buy">
+                {% if not state.open %}
+                  {{ sb.btn(p.buy.label, variant="primary", disabled_reason=state.message) }}
+                  <p class="rr-buy-note">{{ state.message }}</p>
+                {% elif p.buy.can %}
+                  <form method="post" action="{{ p.buy.url }}">{{ sb.btn(p.buy.label, type="submit", variant="primary") }}</form>
+                  <p class="rr-buy-note">{{ p.buy.note }}</p>
+                {% else %}
+                  {{ sb.btn(p.buy.label, variant="primary", disabled_reason=p.buy.reason) }}
+                  <p class="rr-buy-note">{{ p.buy.reason }}</p>
+                {% endif %}
+              </div>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="rr-empty">No previews yet. {% if not pair %}They don't need the mix report: make them whenever you like.{% endif %}</p>
+    {% endif %}
+
+    {% if read_only %}
+      <p class="rr-small rr-after">{{ read_only_note }}</p>
+    {% elif state.open and source.previews_left %}
+      {%- set styles = recombine_styles if pair else master_styles -%}
+      {%- set can_two = source.previews_left >= 2 -%}
+      <form class="rr-make" method="post" action="/creative-studio/release-ready/sources/{{ source.id }}/previews"
+            data-rr-make data-left="{{ source.previews_left }}">
+        <p class="rr-kicker">{{ "Make your free previews" if first else "Try other settings" }}</p>
+        <p class="rr-small">{% if first %}Two loudness settings are picked for you. Change them if you like.{% else %}Each preview is new and free. Pick the style and up to two loudness settings.{% endif %}</p>
+        <div class="rr-make-row">
+          {{ sb.field("style", "Mastering style", value=source.defaults.style, options=styles, id="rr-style") }}
+          <fieldset class="rr-levels">
+            <legend class="sb-label">Loudness setting{{ "s, up to two" if can_two else ", one left" }}</legend>
+            <div class="rr-level-opts">
+              {% for code, label in loudness_options %}
+                <label class="rr-level"><input type="checkbox" name="loudness" value="{{ code }}"
+                  {%- if first and code in source.defaults.loudness[:(2 if can_two else 1)] %} checked{% endif %}><span>{{ label }}</span></label>
+              {% endfor %}
+            </div>
+          </fieldset>
+          {% if pair %}
+            <div class="rr-gain">
+              <label class="sb-label" for="rr-gain">Vocal level</label>
+              <div class="rr-gain-row">
+                <input class="sb-fader" id="rr-gain" name="vocal_gain_db" type="range" min="-6" max="6" step="0.5" value="0" data-rr-gain>
+                <output for="rr-gain" data-rr-gain-out>0.0 dB</output>
+              </div>
+              <span class="sb-hint">Moves the vocal against RoEx's automatic balance.</span>
+            </div>
+          {% endif %}
+          {{ sb.btn("Make the free previews", type="submit", variant="primary" if first else "secondary", id="rr-make-btn") }}
+        </div>
+      </form>
+    {% elif source.previews_note %}
+      <p class="rr-small rr-after">{{ source.previews_note }}</p>
+    {% endif %}
+  </section>
+
+  <section class="rr-card rr-danger" aria-label="Delete this upload">
+    <div>
+      <p class="rr-kicker rr-kicker--dim">Delete</p>
+      <p class="rr-p">Deleting removes our copies of this upload and its previews. A master you bought stays on the song's Track Passport until you delete it there.</p>
+    </div>
+    {% if not read_only %}
+      <form method="post" action="/creative-studio/release-ready/sources/{{ source.id }}/delete"
+            data-rr-confirm="Delete this upload and its previews?">
+        {{ sb.btn("Delete this upload", type="submit", variant="danger") }}
+      </form>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/release_ready.js?v=1" defer></script>
+{% endblock %}

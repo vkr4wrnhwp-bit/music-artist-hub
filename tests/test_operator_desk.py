@@ -31,7 +31,12 @@ LEAKS = ["<built-in method", "&lt;built-in method", "[object Object]",
          "dict_values(", "dict_items(", "<bound method", "&lt;bound method"]
 
 DESK_PAGES = ["", "/leads", "/leads/new", "/tasks", "/follow-ups",
-              "/events", "/deals", "/files", "/team", "/activity"]
+              "/events", "/deals", "/team", "/activity"]
+
+# Files, Meetings and Voice Agent left the Desk (owner, 2026-09-19: "bad,
+# bad, bad from signal and operator desk"). Their addresses land on the
+# dashboard; their tables are kept.
+RETIRED_PAGES = ["/files", "/meetings", "/agents"]
 
 
 @pytest.fixture(scope="module")
@@ -132,6 +137,20 @@ def test_desk_pages_are_not_indexed_and_leak_no_objects(owner):
             assert leak not in body, "%s leaked %r" % (page, leak)
 
 
+def test_retired_pages_land_on_the_dashboard_and_left_the_menu(owner):
+    for page in RETIRED_PAGES:
+        r = owner.get(DESK + page)
+        assert r.status_code == 302 and r.headers["Location"].endswith(DESK + "/"), page
+    menu = owner.get(DESK + "/").get_data(as_text=True)
+    for href in ("/operator-desk/files", "/operator-desk/meetings", "/operator-desk/agents"):
+        assert 'href="%s"' % href not in menu, href
+    assert ">Files<" not in menu and ">Meetings<" not in menu and "Voice Agent" not in menu
+    # "Shows & Meetings" stays: it is the events page, not the recorder.
+    assert "Shows &amp; Meetings" in menu
+    # The tables are still there to read.
+    desk_store.list_files()
+
+
 # --- seed -------------------------------------------------------------------
 
 def test_seed_is_five_obviously_fake_leads():
@@ -151,7 +170,7 @@ def test_seed_created_the_three_team_names():
 
 def test_viewer_reads_everything_and_changes_nothing(viewer):
     for page in ("", "/leads", "/tasks", "/follow-ups", "/events",
-                 "/deals", "/files"):
+                 "/deals"):
         assert viewer.get(DESK + page).status_code == 200, page
     assert viewer.get(DESK + "/team").status_code == 403
     assert viewer.get(DESK + "/activity").status_code == 403
@@ -290,6 +309,42 @@ def test_added_admin_can_actually_get_in_after_signing_up(flask_app, owner):
                                      "email": email, "role": "admin"})
     late = _signed_client(flask_app, email, "Late Signup")
     assert late.get(DESK).status_code == 200
+
+
+def test_assignees_come_from_the_roster_plus_other(owner):
+    """The assignee list was a hard-coded ["LJ", "Warren", "Jovan",
+    "Other"], so a person added on Team & Settings could never be picked
+    (audit, 2026-09-19). It is the active roster now, then any name already
+    written on a record, then "Other"."""
+    name = "Roster %s" % uuid.uuid4().hex[:6]
+    owner.post(DESK + "/team", data={"action": "add", "name": name, "role": "member"})
+    names = desk_store.team_names()
+    assert name in names and names[-1] == "Other"
+    assert "LJ" in names and "Warren" in names and "Jovan" in names
+    form = owner.get(DESK + "/leads/new").get_data(as_text=True)
+    assert ">%s</option>" % name in form
+    # A value already stored on a lead still shows, even off the roster.
+    ghost = "Left %s" % uuid.uuid4().hex[:6]
+    lead_id = _sample_lead_id()
+    with get_db() as db:
+        db.execute("UPDATE desk_leads SET assigned_to = ? WHERE id = ?", (ghost, lead_id))
+    assert ghost in desk_store.team_names()
+    assert ">%s</option>" % ghost in owner.get(DESK + "/leads/%s/edit" % lead_id).get_data(as_text=True)
+    with get_db() as db:
+        db.execute("UPDATE desk_leads SET assigned_to = 'LJ' WHERE id = ?", (lead_id,))
+
+
+def test_mentions_follow_the_roster(owner):
+    name = "Mention %s" % uuid.uuid4().hex[:6]
+    owner.post(DESK + "/team", data={"action": "add", "name": name, "role": "member"})
+    found = desk_store.mentions_in("ping @%s and @lj, not @Nobody" % name.upper())
+    assert found == [name, "LJ"]
+
+
+def test_team_page_points_at_the_invitation_not_the_closed_signup(owner):
+    body = owner.get(DESK + "/team").get_data(as_text=True)
+    assert 'href="/signup"' not in body
+    assert 'href="/settings#invite-someone"' in body and "invitation only" in body
 
 
 def test_team_page_adds_people_and_protects_the_owner_from_themselves(

@@ -16,10 +16,15 @@
   <div>
     <div class="sb-label text-sb-gold">Recovery case</div>
     <h1 class="sb-h1 mt-1">Letter to your distributor</h1>
+    {#- Still true with the email link: the link hands the draft to the
+        person's own email app, and Street Banker sends nothing itself
+        (owner, 2026-09-12: "i think you should be able to email out of
+        it"). -#}
     <p class="mt-1 max-w-2xl text-sm text-gray-200">
       About <span class="font-semibold text-gray-100">{{ case.title }}</span>.
-      Edit anything here before you send it — it is a draft, and nothing
-      leaves Street Banker.
+      Edit anything here before you send it: it is a draft, and Street
+      Banker sends nothing itself. Email this letter opens it in your own
+      email app, to send from your own address.
     </p>
   </div>
 
@@ -53,9 +58,14 @@
 
     <div class="mt-3 flex flex-wrap items-center gap-2">
       <button type="button" id="copy-letter" class="sb-btn sb-btn-primary">Copy the letter</button>
+      {#- Built from what is in the fields when it is pressed, not from the
+          draft as it loaded. -#}
+      <a href="mailto:" id="email-letter" class="sb-btn sb-btn-secondary">Email this letter</a>
       <a href="/royalty-recovery/cases" class="sb-btn sb-btn-secondary">Back to cases</a>
       <span id="copied" class="hidden text-xs font-semibold text-green-400">Copied</span>
     </div>
+    <p class="mt-2 text-xs text-gray-300">Put their email address in To and the email opens addressed to them; otherwise your email app asks who it is for.</p>
+    <p id="email-trimmed" class="mt-1 hidden text-xs font-semibold text-amber-300">This letter is too long for an email link, so the email opens shortened. Use Copy the letter and paste the full text into it.</p>
   </section>
 
   <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
@@ -85,6 +95,54 @@
     var sent = document.getElementById("sent-to");
     if (!to || !sent) return;
     to.addEventListener("input", function () { sent.value = to.value; });
+  })();
+
+  /* Email this letter: a mailto: link built from the fields as they are
+     now, so an edit made on the page is the letter that opens. Some email
+     apps drop links much past 2,000 characters, so a very long letter is
+     cut at a word and says so, in the email and on the page. The To field
+     often holds a name ("Symphonic"), which is not an address; only an
+     address goes into the link. */
+  (function () {
+    var link = document.getElementById("email-letter");
+    if (!link) return;
+    var LIMIT = 1900;
+    var NOTE = "\n\n[Shortened to fit an email link. Copy the full letter from Street Banker and paste it here.]";
+    function clean(text) {
+      /* A cut can split an emoji in half, and encodeURIComponent throws
+         on half a pair. */
+      var last = text.charCodeAt(text.length - 1);
+      return (last >= 0xD800 && last <= 0xDBFF) ? text.slice(0, -1) : text;
+    }
+    function build() {
+      var to = document.getElementById("letter-to").value.trim();
+      var subject = clean(document.getElementById("letter-subject").value.slice(0, 250));
+      var body = document.getElementById("letter-body").value;
+      var addr = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(to) ? encodeURIComponent(to) : "";
+      var head = "mailto:" + addr + "?subject=" + encodeURIComponent(subject) + "&body=";
+      var full = head + encodeURIComponent(body);
+      if (full.length <= LIMIT) return { href: full, trimmed: false };
+      var lo = 0, hi = body.length;
+      while (lo < hi) {
+        var mid = Math.ceil((lo + hi) / 2);
+        if ((head + encodeURIComponent(clean(body.slice(0, mid)) + NOTE)).length <= LIMIT) lo = mid;
+        else hi = mid - 1;
+      }
+      var cut = clean(body.slice(0, lo));
+      var space = cut.lastIndexOf(" ");
+      if (space > cut.length * 0.8) cut = cut.slice(0, space);
+      return { href: head + encodeURIComponent(cut.replace(/\s+$/, "") + NOTE), trimmed: true };
+    }
+    function refresh() {
+      var out = build();
+      link.href = out.href;
+      document.getElementById("email-trimmed").classList.toggle("hidden", !out.trimmed);
+    }
+    ["letter-to", "letter-subject", "letter-body"].forEach(function (id) {
+      document.getElementById(id).addEventListener("input", refresh);
+    });
+    link.addEventListener("click", refresh);
+    refresh();
   })();
 
   document.getElementById("copy-letter").addEventListener("click", async () => {

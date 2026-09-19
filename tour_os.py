@@ -52,12 +52,20 @@ import tour_engine as eng
 import tour_store as ts
 import tour_tickets as tickets
 import sales_switch
+import team_areas
 import venue_geo
 import venue_photos
 
 bp = Blueprint("tours", __name__)
 
 _base_url = lambda: ""
+# The account this request works in, the team seat it works through, and
+# the partner staff member acting on the artist's behalf (all set by init
+# from app.py). Through a seat or an act-on-behalf the account is the
+# artist's, not the signed-in person's own (owner, 2026-09-19).
+_current_user = None
+_team_seat = None
+_acting = None
 TOUR_PREFIX = "tour:"
 ALLOWED_FILE_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".csv", ".xlsx",
                      ".xls", ".doc", ".docx", ".txt", ".zip", ".ics", ".heic"}
@@ -221,19 +229,77 @@ MORE_GROUPS = (
 # --- identity & access ------------------------------------------------------
 
 def _me():
+    """The account this request works in. Normally the person signed in;
+    a team seat and a partner acting on the artist's behalf work in the
+    artist's account, so it is the artist here, as on every other page.
+    Tour crew are always themselves."""
+    if _current_user is not None:
+        return _current_user()
     user_id = session.get("user_id")
     return store.get_user(user_id) if user_id else None
 
 
+def _seat():
+    """The team seat this request works through, or None."""
+    return _team_seat() if _team_seat is not None else None
+
+
+def _acting_actor():
+    """The partner staff member acting on the artist's behalf, as the
+    tour's log names them, or None. Their change is theirs, made for the
+    artist, and never in the artist's name (review, 2026-09-19)."""
+    acting = _acting() if _acting is not None else None
+    if not acting:
+        return None
+    return {"id": acting["id"], "name": "%s for %s" % (acting["name"], acting["for"])}
+
+
+def _seat_may_write(seat):
+    """The account holder and tour crew have no seat and are not limited
+    here; a team seat writes only with edit access."""
+    return seat is None or seat.get("access") == "edit"
+
+
+# Routes that stay the account holder's whatever a seat may do: the tour's
+# crew invitations (their join links attach whoever opens them to the tour)
+# and its public share links and their QR codes (a link outlives the seat
+# that saw it). app.py's team gate refuses the same paths first.
+_SEAT_SHUT = frozenset({"team", "team_invite", "team_member",
+                        "share", "share_new", "share_revoke", "share_qr"})
+_SEAT_SHUT_TABS = frozenset({"team", "share"})
+
+
+def _owner_viewer(user, tour):
+    person = None
+    for p in ts.list_people(tour["id"]):
+        if p.get("linked_user_id") == user["id"]:
+            person = p
+            break
+    return {"is_owner": True, "scopes": list(ts.SCOPES), "member": None,
+            "person": person, "user": user, "name": user.get("name") or user["email"]}
+
+
+def _seat_viewer(seat, tour):
+    """A team seat works the artist's own tours as the artist does, under
+    its own name. A tour the artist was invited onto belongs to another
+    account and that invitation was the artist's, not their team's, so it
+    is not found. What stays the account holder's is refused by
+    require_tour (_SEAT_SHUT) and by settings (deleting the tour)."""
+    owner = seat["owner"]
+    if tour["user_id"] != owner["id"]:
+        return None
+    viewer = _owner_viewer(owner, tour)
+    viewer["name"] = seat.get("member_name") or viewer["name"]
+    viewer["seat"] = seat
+    return viewer
+
+
 def _viewer_for(user, tour):
+    seat = _seat()
+    if seat is not None:
+        return _seat_viewer(seat, tour)
     if tour["user_id"] == user["id"]:
-        person = None
-        for p in ts.list_people(tour["id"]):
-            if p.get("linked_user_id") == user["id"]:
-                person = p
-                break
-        return {"is_owner": True, "scopes": list(ts.SCOPES), "member": None,
-                "person": person, "user": user, "name": user.get("name") or user["email"]}
+        return _owner_viewer(user, tour)
     m = ts.get_membership(tour["id"], user["id"])
     if m is None:
         return None
@@ -242,8 +308,19 @@ def _viewer_for(user, tour):
             "name": m.get("name") or user.get("name") or user["email"]}
 
 
+def _seat_money_open(viewer):
+    """A tour's money (deals, settlements, expenses and their files) is the
+    Money and business room's: a team seat without that room works the
+    tour without it, as a crew member without the financials scope does
+    (review, 2026-09-19). Everyone else is unaffected."""
+    seat = viewer.get("seat")
+    return seat is None or team_areas.money_open(seat["areas"])
+
+
 def can(viewer, scope):
     if viewer is None:
+        return False
+    if scope == "financials" and not _seat_money_open(viewer):
         return False
     if viewer.get("is_owner") or "admin" in viewer["scopes"]:
         return True
@@ -265,6 +342,17 @@ def require_tour(*scopes):
             viewer = _viewer_for(user, tour)
             if viewer is None:
                 abort(404)
+            if viewer.get("seat") and fn.__name__ in _SEAT_SHUT:
+                # A refusal, not a change: a 403 for a write keeps it out
+                # of the artist's record of what their team changed.
+                if request.method != "GET":
+                    abort(403)
+                return redirect("/tours/%s?team=blocked" % tour["id"])
+            if not _seat_may_write(viewer.get("seat")) and request.method not in ("GET", "OPTIONS"):
+                # A read-only seat sees the tour as the artist does and
+                # changes nothing. app.py's team gate refuses this first;
+                # this holds if that ever changes.
+                abort(403)
             if scopes and not any(can(viewer, s) for s in scopes):
                 return render_template("tour/denied.html", tour=tour, viewer=viewer,
                                        needed=scopes, active_page="tours"), 403
@@ -274,8 +362,29 @@ def require_tour(*scopes):
     return wrap
 
 
+def _seat_actor(seat):
+    """A team member's change is theirs in the tour's log, made for the
+    artist, and never in the artist's name."""
+    owner = seat["owner"]
+    return {"id": seat["member_id"],
+            "name": "%s for %s" % (seat.get("member_name") or "A team member",
+                                   owner.get("name") or owner.get("email") or "the artist")}
+
+
 def _actor(viewer):
-    return {"id": viewer["user"]["id"], "name": viewer["name"]}
+    if viewer.get("seat"):
+        return _seat_actor(viewer["seat"])
+    return _acting_actor() or {"id": viewer["user"]["id"], "name": viewer["name"]}
+
+
+def _press_contacts_open(viewer):
+    """The artist's Press Desk media list shows inside Tour for the owner.
+    It belongs to the Marketing room, so a team seat sees it only when that
+    room is one of theirs."""
+    if not viewer.get("is_owner"):
+        return False
+    seat = viewer.get("seat")
+    return seat is None or team_areas.allows(seat["areas"], "/press-desk")
 
 
 # --- server-side filters ----------------------------------------------------
@@ -357,8 +466,12 @@ def _changes_for(viewer, tour_id, rows):
     a leg they are not on, a management-only hotel) is not shown to them
     either — the log must not be a side door to the row."""
     boss = viewer["is_owner"] or "admin" in viewer["scopes"]
-    if boss:
+    if boss and can(viewer, "financials"):
         return rows
+    if boss:
+        # A team seat without the Money and business room: every change
+        # but the money ones, whose before and after are the amounts.
+        return [c for c in rows if c["entity_type"] not in ("money", "expense")]
     need = {"money": "financials", "expense": "financials", "guest": "guests", "vip": "vip",
             "member": "admin", "share": "admin", "file": "files"}
     hidden_fields = {"travel": {"confirmation", "seat"}, "lodging": {"confirmation", "payment", "reservation_name"}}
@@ -872,6 +985,8 @@ def _tour_tabs(viewer):
         need = TOUR_TAB_SCOPE.get(key)
         if need and not can(viewer, need):
             continue
+        if viewer.get("seat") and key in _SEAT_SHUT_TABS:
+            continue
         out.append((key, label, path))
     return out
 
@@ -1100,8 +1215,10 @@ def _log(tour, viewer, entity_type, entity_id, label, changes, source="manual", 
         if visibility != "all":
             scope = "admin"
         body = "" if scope else "%s → %s" % (before or "—", after or "—")
+        # The one who made the change is not told of it. For a team seat
+        # that is the member, so the artist still hears what was changed.
         _notify_members(tour, "%s: %s changed" % (label, field.replace("_", " ")), body,
-                        "/tours/%s/changes" % tour["id"], exclude_user_id=viewer["user"]["id"],
+                        "/tours/%s/changes" % tour["id"], exclude_user_id=_actor(viewer)["id"],
                         severity=sev, scope=scope)
 
 
@@ -1118,19 +1235,26 @@ def index():
     user = _me()
     if user is None:
         return redirect(url_for("login", next=request.path))
-    ts.adopt_orphan_shows(user["id"])   # a Hub show on no tour joins one before the list is read
+    seat = _seat()
+    # A team member looking at the artist's tours changes nothing by
+    # looking: no tour is made for the artist on a seat's visit. The
+    # artist's own next visit, or the boot sweep, does both.
+    if seat is None:
+        ts.adopt_orphan_shows(user["id"])   # a Hub show on no tour joins one before the list is read
     # An account with no tours opens onto the Mock Up Tour rather than an
     # empty page: a real routing to click through, marked as an example.
     # Never for an account that already has one, so a real tour is never
     # mixed with the demonstration.
-    if _artist_tier(user):
+    if seat is None and _artist_tier(user):
         try:
             import tour_mockup
             tour_mockup.ensure_for(user)
         except Exception:                       # a demo must never break the page
             current_app.logger.exception("mock up tour")
     mine = ts.list_tours(user["id"])
-    shared = ts.tours_shared_with(user["id"])
+    # Tours the artist was invited onto are another account's; a seat
+    # does not open them (see _seat_viewer).
+    shared = [] if seat is not None else ts.tours_shared_with(user["id"])
     for t in mine + shared:
         shows = ts.list_shows(t["id"])
         t["show_count"] = len(shows)
@@ -1194,6 +1318,9 @@ def create():
     user = _me()
     if user is None:
         return redirect(url_for("login", next="/tours"))
+    seat = _seat()
+    if not _seat_may_write(seat):
+        abort(403)                          # a read-only seat makes nothing (app.py refuses it first)
     if not _artist_tier(user):
         return render_template("upgrade.html", required="artist", plans_list=plans.PLANS,
                                active_page="tours"), 402
@@ -1230,7 +1357,9 @@ def create():
                 continue
             ts.attach_show(tour_id, s["id"], tz)
     tour = ts.get_tour(tour_id)
-    ts.log_change(tour_id, user["id"], {"id": user["id"], "name": user.get("name")}, "tour",
+    actor = (_seat_actor(seat) if seat is not None
+             else _acting_actor() or {"id": user["id"], "name": user.get("name")})
+    ts.log_change(tour_id, user["id"], actor, "tour",
                   tour_id, tour["name"], "created", "", tour["name"], "info")
     if one_off:
         return redirect("/tours/%s/shows/%s" % (tour_id, show_id))
@@ -1258,7 +1387,14 @@ def join(token):
     invite = ts.get_invite(token)
     if invite is None:
         return render_template("tour/join.html", invite=None, active_page="tours"), 404
-    user = _me()
+    # The link attaches whoever accepts it to someone's tour, so it is the
+    # person signed in who accepts, never the account they are working in.
+    # Inside an artist's account through a team seat it is refused: app.py
+    # sends the seat back before this, and this holds if that ever changes.
+    if session.get("team_as"):
+        abort(403)
+    user_id = session.get("user_id")
+    user = store.get_user(user_id) if user_id else None
     if user is None:
         return redirect(url_for("login", next=request.path))
     if ts.accept_invite(token, user["id"]):
@@ -1821,7 +1957,7 @@ def _date_page(user, tour, viewer, show, tab, **extra):
                                 if tab == "travel" and can(viewer, "travel") else None)
         elif key == "guests":
             d["guest_rows"] = rows["guest_rows"]
-            d["contacts"] = press_store.list_contacts(tour["user_id"])[:200] if viewer["is_owner"] else []
+            d["contacts"] = press_store.list_contacts(tour["user_id"])[:200] if _press_contacts_open(viewer) else []
         elif key == "vip":
             d["vip_rows"] = rows["vip_rows"]
             d["vip"] = ts.vip_summary(tid, sid)
@@ -2371,8 +2507,16 @@ def _send_context(tour, show, viewer, user, create_links=False):
     plot_image = store.get_stage_plot_image(tour["user_id"])
     channels = tam.channel_list(plot)
     sender = _sender_for(viewer, user, people)
-    links = {"rider": _rider_url(tour, show, create_links),
-             "production": _production_url(tour, show, create_links)}
+    # The rider page and the production pack are public links that open
+    # without a login, and they outlive whoever saw them. They are the
+    # account holder's to hand out: a team seat composes and sends the
+    # advance without them (none are made or shown), and the page says so.
+    links_held = viewer.get("seat") is not None
+    if links_held:
+        links = {"rider": "", "production": ""}
+    else:
+        links = {"rider": _rider_url(tour, show, create_links),
+                 "production": _production_url(tour, show, create_links)}
     names = (["Stage plot (PNG)"] if plot_image else [])
     names += ["Input list (%d channels)" % len(channels)] if channels else []
     names += [f["file_name"] for f in files if f["category"] in ("rider", "tech_pack", "stage_plot")]
@@ -2382,9 +2526,15 @@ def _send_context(tour, show, viewer, user, create_links=False):
     return {"composed": composed,
             "recipients": tam.candidate_recipients(people, advance_rows, sid),
             "send_files": files, "plot_image": bool(plot_image), "channels": channels,
+            # Press kits saved to the Vault, offered as attachments (owner,
+            # 2026-09-19: "from the vault you can send and attach it to the
+            # advance"). The account's, not the viewer's: a seat sends the
+            # artist's kit.
+            "press_kits": [v for v in store.list_vault_files(tour["user_id"])
+                           if v["kind"] == "press_kit"],
             "sender": sender, "sender_address": emailer.sender(),
             "mail_ready": emailer.configured() and not emailer.using_shared_test_sender(),
-            "links": links, "sends": ts.list_advance_sends(tid, sid)}
+            "links": links, "links_held": links_held, "sends": ts.list_advance_sends(tid, sid)}
 
 
 def _file_bytes(record):
@@ -2427,11 +2577,32 @@ def _build_attachments(tour, ctx, picks):
         add(artist + "-input-list.txt",
             tam.input_list_text(ctx["channels"], tour.get("artist_name") or tour.get("name") or "").encode("utf-8"))
     by_id = {f["id"]: f for f in ctx["send_files"]}
+    kits = {"kit:" + k["id"]: k for k in ctx.get("press_kits", [])}
     for pick in picks:
         record = by_id.get(pick)
         if record is not None:
             add(record["file_name"], _file_bytes(record))
+        elif pick in kits:
+            # A press kit saved to the Vault, sent as the web page it is
+            # (2026-09-19). Unreadable, it is named in `skipped` like any
+            # other file and never reported as sent.
+            add(artist + "-press-kit.html", _vault_bytes(kits[pick]["path"]))
     return out, names, skipped
+
+
+def _vault_bytes(path):
+    """A Vault file read back, or None. The Vault writes to the app's
+    uploads folder or the object store; both shapes are handled."""
+    if not path:
+        return None
+    if blob_store.is_remote(path):
+        return blob_store.fetch(path)
+    try:
+        uploads = os.path.join(os.path.dirname(store.db_path()), "uploads")
+        with open(blob_store.safe_local_path(path, uploads), "rb") as fh:
+            return fh.read()
+    except (OSError, ValueError):
+        return None
 
 
 def _default_picks(ctx):
@@ -2567,7 +2738,7 @@ def travel_edit(user, tour, viewer, tour_id, travel_id):
         ts.log_change(tour_id, tour["user_id"], _actor(viewer), "travel", travel_id, label,
                       "deleted", cur["day_date"], "", "critical")
         _notify_members(tour, "%s removed" % label, cur["day_date"], "/tours/%s/travel" % tour_id,
-                        exclude_user_id=user["id"], severity="critical")
+                        exclude_user_id=_actor(viewer)["id"], severity="critical")
         return _back("/tours/%s/travel" % tour_id)
     changed = ts.update_travel(tour_id, travel_id, _travel_fields())
     after = ts.get_travel(tour_id, travel_id) or cur
@@ -2986,7 +3157,7 @@ def people(user, tour, viewer, tour_id):
     q = request.args.get("q") or ""
     rows = _redact_people(viewer, ts.list_people(tour_id, category=cat or None, search=q))
     members = ts.list_members(tour_id) if can(viewer, "admin") else []
-    contacts = press_store.list_contacts(tour["user_id"])[:300] if viewer["is_owner"] else []
+    contacts = press_store.list_contacts(tour["user_id"])[:300] if _press_contacts_open(viewer) else []
     # The categories as counted chips, over everyone on the run - the
     # filter reads as a row of numbers, not a select.
     everyone = ts.list_people(tour_id)
@@ -3017,7 +3188,7 @@ def person_save(user, tour, viewer, tour_id):
         if p:
             ts.log_change(tour_id, tour["user_id"], _actor(viewer), "person", pid, p["name"], "deleted", p["role"], "", "info")
         return _back("/tours/%s/people" % tour_id)
-    if f.get("from_contact") and viewer["is_owner"]:
+    if f.get("from_contact") and _press_contacts_open(viewer):
         c = press_store.get_contact(tour["user_id"], f.get("from_contact"))
         if c:
             fields.update({"name": c.get("name"), "email": c.get("email"), "company": c.get("outlet") or c.get("company") or "",
@@ -3060,7 +3231,7 @@ def guest_add(user, tour, viewer, tour_id, show_id):
                    "meet_greet": bool(f.get("meet_greet")), "aftershow": bool(f.get("aftershow")),
                    "requested_by": f.get("requested_by") or viewer["name"],
                    "linked_contact_id": f.get("linked_contact_id") or None})
-    if f.get("linked_contact_id") and viewer["is_owner"] and not fields.get("name"):
+    if f.get("linked_contact_id") and _press_contacts_open(viewer) and not fields.get("name"):
         c = press_store.get_contact(tour["user_id"], f.get("linked_contact_id"))
         if c:
             fields.update({"name": c.get("name"), "email": c.get("email"), "company": c.get("outlet") or ""})
@@ -3183,9 +3354,11 @@ def vip_includes(offer):
 
 
 def _vip_context(tour, show):
-    token = ts.ensure_vip_link(tour["id"], show["id"])
+    # The purchase link is the account holder's to share, like the tour's
+    # other public links: a team seat neither sees it nor makes it.
+    token = "" if _seat() is not None else ts.ensure_vip_link(tour["id"], show["id"])
     return {"vip_offers": ts.list_vip_offers(tour["id"], show["id"]),
-            "vip_link": _vip_base_url() + "/vip/" + token,
+            "vip_link": (_vip_base_url() + "/vip/" + token) if token else "",
             "vip_ledger": ts.vip_sales_ledger(tour["id"], show["id"]),
             "vip_sales": ts.list_vip_sales(tour["id"], show["id"]),
             "vip_fee_pct": vip_fee_pct(), "vip_stripe_live": stripe_provider.configured(),
@@ -3966,9 +4139,12 @@ def changes(user, tour, viewer, tour_id):
     rows = ts.list_changes(tour_id, severity_min=None if level == "all" else level, limit=300)
     out = _changes_for(viewer, tour_id, rows)
     acks = ts.ack_state(tour_id, [c["id"] for c in out], user["id"])
-    for c in out:
-        if acks.get(c["id"]) not in ("viewed", "acknowledged"):
-            ts.ack(tour_id, tour["user_id"], c["id"], user["id"], "viewed")
+    # Seen and acknowledged are the artist's own record: a team member
+    # reading this page does not mark anything seen for them.
+    if not viewer.get("seat"):
+        for c in out:
+            if acks.get(c["id"]) not in ("viewed", "acknowledged"):
+                ts.ack(tour_id, tour["user_id"], c["id"], user["id"], "viewed")
     roster = {}
     if can(viewer, "admin"):
         for c in out[:50]:
@@ -3985,6 +4161,10 @@ def changes(user, tour, viewer, tour_id):
 @bp.route("/tours/<tour_id>/changes/<change_id>/ack", methods=["POST"])
 @require_tour("view")
 def change_ack(user, tour, viewer, tour_id, change_id):
+    if viewer.get("seat"):
+        # Acknowledging a critical change says the artist has read it;
+        # only the artist can say that. The page offers no button to a seat.
+        abort(403)
     ts.ack(tour_id, tour["user_id"], change_id, user["id"], "acknowledged")
     return _back("/tours/%s/changes" % tour_id)
 
@@ -4217,7 +4397,7 @@ def import_dates(user, tour, viewer, tour_id):
     shows = ts.list_shows(tour_id)
     days = ts.list_days(tour_id)
     history = ts.list_imports(tour_id)[:10]
-    if request.method == "GET":
+    if request.method != "POST":            # HEAD is answered by this view too; only a POST imports
         return render_template("tour/import.html", **_ctx(user, tour, viewer, "import", shows=shows, history=history))
     source = request.form.get("source") or "paste"
     text = request.form.get("text") or ""
@@ -4742,6 +4922,10 @@ def team_member(user, tour, viewer, tour_id, member_id):
 def settings(user, tour, viewer, tour_id):
     if request.method == "POST":
         if request.form.get("action") == "delete":
+            # Deleting a whole tour is the account holder's, not a team
+            # seat's. The page offers it only to the account holder.
+            if viewer.get("seat"):
+                abort(403)
             if request.form.get("confirm") == tour["name"] and viewer["is_owner"]:
                 ts.delete_tour(tour_id)
                 return redirect("/tours")
@@ -4799,9 +4983,17 @@ def search(user, tour, viewer, tour_id):
 
 # --- wiring -----------------------------------------------------------------
 
-def init(app, base_url):
-    global _base_url
+def init(app, base_url, current_user=None, team_seat=None, acting=None):
+    """`current_user` resolves the account a request works in, `team_seat`
+    the team seat it works through and `acting` the partner staff member
+    acting on the artist's behalf, all from app.py, the way studio and
+    stage_os take theirs. Without them (a bare test) the person signed in
+    is the account and there is no seat and no act-on-behalf."""
+    global _base_url, _current_user, _team_seat, _acting
     _base_url = base_url
+    _current_user = current_user
+    _team_seat = team_seat
+    _acting = acting
     ts.init_tour()
     # The Hub folded into TOUR: any show still sitting on no tour joins one
     # now, so nothing anyone entered there is out of reach.

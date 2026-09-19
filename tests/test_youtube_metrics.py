@@ -474,7 +474,12 @@ def _yt_instrument(body):
     listeners, and the YouTube panel below keeps the views window and the
     channel field."""
     assert 'data-signal="youtube"' in body, "the YouTube instrument is on the bridge"
-    return body.split('data-signal="youtube"')[1].split("</a>")[0].split('data-signal="')[0]
+    # The instrument is a <div> with no </a> of its own; when it is the last
+    # card on the bridge the slice must stop before the "not shown" caption
+    # that names the unread instruments (2026-09-19), or that caption's
+    # "Not measured" is read as the instrument's.
+    return (body.split('data-signal="youtube"')[1].split("</a>")[0]
+            .split('data-signal="')[0].split("Not measured, so not shown")[0])
 
 
 def test_before_a_channel_is_named_the_windows_read_not_measured(artist,
@@ -483,8 +488,11 @@ def test_before_a_channel_is_named_the_windows_read_not_measured(artist,
     body = artist["client"].get("/pulse").get_data(as_text=True)
     section = _yt_section(body)
     assert section.count('<span class="sb-lcd-v">Not measured</span>') == 2, "the views and videos windows"
-    assert '<span class="sbm-v is-none">Not measured</span>' in _yt_instrument(body), "the subscriber instrument"
-    assert "subscribers" in _yt_instrument(body) and "total views" in section
+    # No subscriber reading yet, so no card (owner's rule: a card with no
+    # value does not show); the bridge names it as not measured instead.
+    assert 'data-signal="youtube"' not in body and 'data-unread="youtube"' in body
+    assert "YouTube subscribers" in body.split("Not measured, so not shown:")[1][:300]
+    assert "total views" in section
     assert "Name your channel below" in section
     assert wire.calls == [], "nothing is fetched until the owner names one"
 
@@ -535,7 +543,10 @@ def test_a_hidden_count_reads_not_measured_on_the_page_and_says_why(artist,
     adapter._fetch = lambda url: _channel_body(subs="0", hidden=True)
     body = client.get("/pulse").get_data(as_text=True)
     section = _yt_section(body)
-    assert '<span class="sbm-v is-none">Not measured</span>' in _yt_instrument(body)
+    # A hidden count is no reading, so no card (owner's rule: a card with
+    # no value does not show); the bridge names it as not measured instead.
+    assert 'data-signal="youtube"' not in body and 'data-unread="youtube"' in body
+    assert "YouTube subscribers" in body.split("Not measured, so not shown:")[1][:300]
     assert "hides its subscriber count" in section
     assert '<span class="sb-lcd-v">35,211,870</span>' in section
 
@@ -585,7 +596,8 @@ def test_with_no_key_the_panel_names_the_variable_and_calls_nothing(artist,
         providers.reset_registry(None)
     assert "YOUTUBE_API_KEY" in section
     assert section.count('<span class="sb-lcd-v">Not measured</span>') == 2, "the views and videos windows"
-    assert '<span class="sbm-v is-none">Not measured</span>' in _yt_instrument(body)
+    # No key, no reading, no card; the bridge names YouTube as not measured.
+    assert 'data-signal="youtube"' not in body and 'data-unread="youtube"' in body
     assert wire.calls == []
     assert 'action="/pulse/youtube"' not in section, \
         "no field to fill in until the server has a key"

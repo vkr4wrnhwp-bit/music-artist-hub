@@ -115,7 +115,21 @@
       <p class="cm-cap">The poster gets your message and contact. Terms are between the two of you; Street Banker does not hold funds or broker deals.</p>
     </form>
     {% endif %}
+    {#- Report this post (owner-approved, 2026-09-19): never on your own,
+        once per member per post, and it reaches the Street Banker team. -#}
+    {% if focus.user_id != user.id %}
+      {% if focus_reported %}
+      <p class="cm-cap" role="status" data-reported>Reported. The Street Banker team will look at it.</p>
+      {% else %}
+      <form method="post" action="/marketplace/{{ focus.id }}/report" class="cm-row">
+        <input type="hidden" name="back" value="{{ here }}#brief">
+        <button class="sb-btn sb-btn-ghost sb-btn-sm">Report this post</button>
+      </form>
+      {% endif %}
+    {% endif %}
   </section>
+  {% elif request.args.get('reported') %}
+  <p class="cm-flash" role="status">Reported. The Street Banker team will look at it.</p>
   {% endif %}
 
   <div class="cm-wrap">

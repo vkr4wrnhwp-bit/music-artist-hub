@@ -26,7 +26,8 @@
     {% for n in items %}
     <div class="flex items-start gap-3 rounded-xl border {{ 'border-sb-gold/30 bg-sb-surface-2' if not n.is_read else 'border-white/5 bg-sb-surface-1 opacity-75' }} p-4 transition-colors hover:border-sb-gold/50">
       <span class="mt-0.5 shrink-0 rounded-md px-2 py-1 text-xs font-bold uppercase {{ kind_tone.get(n.kind, 'bg-white/10 text-gray-300') }}">{{ n.kind }}</span>
-      <a href="{{ n.link or '#' }}" class="min-w-0 flex-1">
+      {#- A tour invitation's link attaches whoever opens it to that tour: it is the artist's, never a team seat's to open. -#}
+      <a href="{{ '#' if (team_seat and (n.link or '').startswith('/tours/join/')) else (n.link or '#') }}" class="min-w-0 flex-1">
         <span class="block text-sm font-semibold text-gray-100">{{ n.title }}</span>
         {% if n.body %}<span class="block text-xs text-gray-300">{{ n.body }}</span>{% endif %}
       </a>

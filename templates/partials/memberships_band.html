@@ -25,10 +25,21 @@
    plans.PLANS, which turns a stale plate into a failing build.
 
    Fan is free and has no plate. A photographed metal pass for a free
-   tier would say something about it that is not true. #}
+   tier would say something about it that is not true.
+
+   Where a pass goes. It used to be /plan#artist, which is the Artist EQ's
+   recommendation page, not the price list, and it has no #artist, #pro or
+   #label on it. No public page lists the memberships except this band, so
+   a pass opens Billing, where the three are bought; a visitor who is not
+   signed in is sent to sign in first and lands on Billing after. The bar's
+   Plans link scrolls here, to #memberships.
+
+   The line under a pass names what on it is not open yet (owner,
+   2026-09-17), because the photograph cannot say so; split_home.py
+   builds it from hubs.suites_pending(). #}
 
 {% set sh = split_home %}
-<section class="sbmem" aria-labelledby="sbmem-h">
+<section class="sbmem" id="memberships" aria-labelledby="sbmem-h">
   <div class="sbmem-inner">
     <header class="sbmem-head">
       <h2 class="sbmem-h" id="sbmem-h">Memberships</h2>
@@ -38,7 +49,7 @@
     <ul class="sbmem-trio">
       {% for t in sh.tiers %}
       <li class="sbmem-tier">
-        <a class="sbmem-pass{% if t.top %} is-top{% endif %}" href="/plan#{{ t.key }}"
+        <a class="sbmem-pass{% if t.top %} is-top{% endif %}" href="/billing"
            style="--sbmem-plate: url('{{ t.plate }}'); --sbmem-words: url('{{ t.words }}'); --sbmem-lit: {{ t.lit }}; --sbmem-bloom: {{ t.bloom }};">
           {#- The plate carries the words, so it is the image and it is
               labelled. The three layers over it are light and are
@@ -51,6 +62,7 @@
           </span>
           <span class="sbmem-go">Choose {{ t.name }}</span>
         </a>
+        {% if t.soon %}<p class="sbmem-soon">{{ t.soon }}</p>{% endif %}
       </li>
       {% endfor %}
     </ul>
@@ -65,11 +77,15 @@
           Credits
         </h3>
         <p class="sbmem-credits-note">{{ sh.credit_note }}</p>
+        {#- No list at all while packs are off sale (owner, 2026-09-18: "hide
+            them until we know what the credits actually cost"). -#}
+        {% if sh.packs %}
         <ul class="sbmem-packs">
           {% for p in sh.packs %}
           <li><b>{{ "{:,}".format(p.credits) }}</b><span>credits</span><em>{{ p.price }}</em></li>
           {% endfor %}
         </ul>
+        {% endif %}
       </div>
     </div>
   </div>

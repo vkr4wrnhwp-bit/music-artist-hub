@@ -80,15 +80,18 @@ def register(bp, require, ctx, save_file, desk_prefix):
 
     # --- list -------------------------------------------------------------
 
+    # The Meetings and Voice Agent pages are retired (owner, 2026-09-19: "I
+    # don't care about the meeting recordings and voice agent ... bad, bad,
+    # bad from signal and operator desk"). They left the Desk menu, and the
+    # pages below redirect to the dashboard so an old bookmark lands
+    # somewhere useful. Every table and stored row is kept: nothing here
+    # drops or deletes data. The write routes stay registered with their
+    # guardrails, unlinked.
+
     @bp.route("/meetings")
     @require("view")
     def meetings_index(me):
-        rows = meetings.list_meetings()
-        for row in rows:
-            row["counts"] = meetings.counts(row["id"])
-        return render_template("desk/meetings.html", **ctx(
-            me, meetings=rows, audio_on=_audio_on(),
-            leads=desk_store.list_leads()))
+        return redirect(url_for("desk.dashboard"))
 
     # --- upload -----------------------------------------------------------
 
@@ -197,28 +200,9 @@ def register(bp, require, ctx, save_file, desk_prefix):
     @bp.route("/meetings/<meeting_id>")
     @require("view")
     def meeting_detail(me, meeting_id):
-        meeting = meetings.get_meeting(meeting_id)
-        if meeting is None:
-            abort(404)
-
-        # A job that finished on the vendor's clock settles when somebody
-        # looks at the page, so the transcript is not waiting on a cron.
-        if meeting.get("job_id") and meeting.get("status") not in ("ready", "refused"):
-            job = audio_jobs.poll(None, meeting["job_id"])
-            if job and job.get("status") == "completed" and not meeting.get("transcript_id"):
-                _harvest(meeting_id, job, meeting.get("audio_asset_id"))
-                meeting = meetings.get_meeting(meeting_id)
-
-        transcript = None
-        if meeting.get("transcript_id"):
-            transcript = astore.get_transcript(None, meeting["transcript_id"])
-
-        return render_template("desk/meeting.html", **ctx(
-            me, meeting=meeting, transcript=transcript,
-            candidates=meetings.list_candidates(meeting_id),
-            counts=meetings.counts(meeting_id),
-            audio_on=_audio_on(),
-            job=audio_store_job(meeting.get("job_id"))))
+        # Retired with the Meetings page (2026-09-19); the meeting row, its
+        # transcript and its candidates stay in the database.
+        return redirect(url_for("desk.dashboard"))
 
     # --- approve / dismiss ------------------------------------------------
 
@@ -277,11 +261,8 @@ def register(bp, require, ctx, save_file, desk_prefix):
     @bp.route("/agents")
     @require("view")
     def agents_index(me):
-        return render_template("desk/agents.html", **ctx(
-            me, profiles=agent.list_profiles(),
-            unmet=agent.unmet_human_requests(),
-            sessions=agent.list_sessions(limit=25),
-            agent_on=_agent_on()))
+        # Retired (owner, 2026-09-19); profiles and sessions are kept.
+        return redirect(url_for("desk.dashboard"))
 
     @bp.route("/agents/new", methods=["POST"])
     @require("manage_users")
@@ -323,12 +304,9 @@ def register(bp, require, ctx, save_file, desk_prefix):
     @bp.route("/agents/sessions/<session_id>")
     @require("view")
     def agent_session(me, session_id):
-        session = agent.get_session(session_id)
-        if session is None:
-            abort(404)
-        return render_template("desk/agent_session.html", **ctx(
-            me, session=session,
-            profile=agent.get_profile(session["profile_id"])))
+        # Retired with the Voice Agent page (2026-09-19); the session row
+        # and its report stay in the database.
+        return redirect(url_for("desk.dashboard"))
 
     @bp.route("/agents/sessions/<session_id>/escalate", methods=["POST"])
     @require("note_add")
@@ -374,10 +352,6 @@ def register(bp, require, ctx, save_file, desk_prefix):
 
 
 # --- helpers ----------------------------------------------------------------
-
-def audio_store_job(job_id):
-    return astore.get_job(None, job_id) if job_id else None
-
 
 def _fail(meeting_id, message):
     meetings.set_meeting_job(meeting_id, None, status="failed")
@@ -450,7 +424,7 @@ def _known_people():
     except Exception:
         pass
     try:
-        names.update(n for n in (desk_store.TEAM_NAMES or []) if len(n or "") >= 3)
+        names.update(n for n in desk_store.roster_names() if len(n or "") >= 3)
     except Exception:
         pass
     return sorted(names)

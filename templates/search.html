@@ -9,7 +9,7 @@
   <div>
     <h1 class="sb-h1">Search</h1>
     <p class="mt-1 text-sm text-gray-300">
-      {% if sr.query %}{{ sr.total }} result{{ '' if sr.total == 1 else 's' }} for "{{ sr.query }}"{% else %}Search songs, sources, claims, and disputes.{% endif %}
+      {% if sr.query %}{{ sr.total }} result{{ '' if sr.total == 1 else 's' }} for "{{ sr.query }}"{% else %}Search pages by name, and your statements and disputes.{% endif %}
     </p>
   </div>
 
@@ -25,7 +25,9 @@
   <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
     <h2 class="sb-label text-gray-300">{{ group.type }}</h2>
     <div class="mt-3 space-y-1.5">
-      {% for item in group['items'] %}
+      {#- The groups carry "entries" (search_config); this read group['items']
+          and listed nothing under its own result count (audit, 2026-09-19). -#}
+      {% for item in group.entries %}
       <a href="{{ item.route }}" class="flex items-center gap-3 rounded-lg border border-white/5 bg-white/5 px-3 py-2.5 transition-colors hover:border-amber-500/30 hover:bg-white/10">
         <span class="min-w-0 flex-1">
           <span class="block truncate text-sm font-semibold text-gray-100">{{ item.label }}</span>
@@ -39,7 +41,7 @@
   {% endfor %}
 
   {% if sr.query and sr.total == 0 %}
-  <div class="rounded-2xl border border-dashed border-white/10 py-10 text-center text-sm text-gray-300">No results for "{{ sr.query }}". Try a song title, source, or claim.</div>
+  <div class="rounded-2xl border border-dashed border-white/10 py-10 text-center text-sm text-gray-300">No results for "{{ sr.query }}". Try a page name, a track title, a source, or a dispute.</div>
   {% endif %}
 </div>
 {% endblock %}

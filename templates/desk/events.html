@@ -18,7 +18,7 @@
     <label class="dk-field"><span>Related lead</span>
       <select name="lead_id"><option value="">—</option>
         {% for l in leads %}<option value="{{ l.id }}">{{ l.artist_name }}</option>{% endfor %}</select></label>
-    <label class="dk-field"><span>Attendees (comma-separated)</span><input name="attendees" placeholder="LJ, Warren"></label>
+    <label class="dk-field"><span>Attendees (comma-separated)</span><input name="attendees" placeholder="{{ (vocab.team | reject('equalto', 'Other') | list)[:2] | join(', ') }}"></label>
     <label class="dk-field"><span>Assigned to</span>
       <select name="assigned_to"><option value="">—</option>
         {% for n in vocab.team %}<option>{{ n }}</option>{% endfor %}</select></label>

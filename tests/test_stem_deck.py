@@ -87,7 +87,10 @@ def test_there_is_still_something_without_javascript():
 def test_the_stylesheet_build_moved_so_the_deck_is_styled():
     """The deck's rules are new; a cached stylesheet has none of them."""
     base = _read("templates/base.html")
-    assert "app-chrome.css?v=10" in base   # v10: the phone shell pass
+    # v10: the phone shell pass; v11: the centred suites strip and room
+    # icons (2026-09-19). At least the build that carried the deck.
+    import re
+    assert int(re.search(r"app-chrome\.css\?v=(\d+)", base).group(1)) >= 10
 
 
 def test_every_shell_asks_for_the_same_stylesheet_build():

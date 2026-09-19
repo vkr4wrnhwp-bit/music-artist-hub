@@ -26,7 +26,18 @@
 </div>
 {% endif %}
 
-{% if pitch.mode == 'own_inbox' %}
+{% if kit_file %}
+<div class="pd-note">
+  <strong>Press kit: {{ kit_file.label }}.</strong>
+  <p>{% if pitch.mode == 'platform' %}Sent from Street Banker it goes as an attached file, and the message carries its link too.{% else %}From your own inbox the message carries its link; attach the file yourself if you want it attached (<a href="/vault/{{ kit_file.id }}/download">download it</a>).{% endif %}</p>
+</div>
+{% endif %}
+{% if pitch.mode == 'own_inbox' and team_seat %}
+<div class="pd-note">
+  <strong>These are the artist's to send.</strong>
+  <p>Each message goes out with that contact's own tracked link, which opens their copy without a login. The links are left out of this page for team members, so the artist sends these from their own email.{% if send_state.platform and team_seat.access == 'edit' %} To send a pitch yourself, choose From Street Banker when you make it.{% endif %}</p>
+</div>
+{% elif pitch.mode == 'own_inbox' %}
 <div class="pd-note">
   <strong>These are yours to send.</strong>
   <p>Each message is written out below with that contact's own tracked link in it. Copy one, send it from your own email, then mark it sent — the link keeps working and still reports back when they open it.</p>
@@ -34,7 +45,7 @@
 {% elif not send_state.platform %}
 <div class="pd-note pd-note--warn">
   <strong>This pitch was set to send from Street Banker, which is off.</strong>
-  <p>{{ send_state.reason }} {{ send_state.detail }} The prepared messages below are unaffected — send them from your own inbox and mark them as you go.</p>
+  <p>{{ send_state.reason }} {{ send_state.detail }} {% if team_seat %}The prepared messages below are unaffected. The artist can send them from their own email.{% else %}The prepared messages below are unaffected — send them from your own inbox and mark them as you go.{% endif %}</p>
 </div>
 {% endif %}
 
@@ -47,7 +58,8 @@
     <td>{{ r.outlet or '—' }}</td>
     <td><span class="pd-chip {{ 'pd-chip--ok' if r.status in ('opened','replied','covered') }} {{ 'pd-chip--warn' if r.status in ('failed','passed') }}">{{ vocab.recipient_labels[r.status] }}</span></td>
     <td>{% if r.open_count %}{{ r.open_count }}<div class="pd-muted">{{ r.last_opened[:10] }}</div>{% else %}<span class="pd-muted">—</span>{% endif %}</td>
-    <td><a href="/press/{{ r.token }}" target="_blank" rel="noopener noreferrer">/press/{{ r.token[:8] }}…</a></td>
+    {#- Opening a contact's link counts as their open and tells the artist so: a team seat, or a partner acting for the artist, is shown which link, not a way to open it (press_desk.press_page). -#}
+    <td>{% if team_seat or acting_as_name %}<span class="pd-muted">/press/{{ r.token[:8] }}…</span>{% else %}<a href="/press/{{ r.token }}" target="_blank" rel="noopener noreferrer">/press/{{ r.token[:8] }}…</a>{% endif %}</td>
     <td>
       <form class="pd-inline" method="post" action="/press-desk/recipients/{{ r.id }}/status">
         <input type="hidden" name="back" value="/press-desk/pitch/{{ pitch.id }}">
@@ -71,12 +83,15 @@
     <span class="pd-muted">· {{ r.email or 'no email' }}</span>
   </summary>
   <div style="padding:10px 0 0">
-    <p class="pd-muted" style="margin:0 0 6px"><strong>Subject:</strong> {{ r.subject }}</p>
-    <div class="pd-paper pd-paper--message">{{ r.body }}</div>
-    {% if r.email %}
+    {#- A contact's tracked link opens a public page without a login and keeps working after a seat is gone, so no team seat is handed it: each message reads without it, and there is no "Open in my email" (which would carry it). An editor still marks what the artist sent. -#}
+    <p class="pd-muted" style="margin:0 0 6px"><strong>Subject:</strong> {{ r.subject | replace(r.token, '(their tracked link)') if team_seat else r.subject }}</p>
+    <div class="pd-paper pd-paper--message">{{ r.body | replace(r.token, '(their tracked link)') if team_seat else r.body }}</div>
+    {% if r.email and not (team_seat and team_seat.access != 'edit') %}
     <p style="margin-top:8px">
+      {% if not team_seat %}
       <a class="pd-btn pd-btn--ghost pd-btn--small"
          href="mailto:{{ r.email }}?subject={{ r.subject | urlencode }}&body={{ r.body | urlencode }}">Open in my email</a>
+      {% endif %}
       <form class="pd-inline" method="post" action="/press-desk/recipients/{{ r.id }}/status">
         <input type="hidden" name="back" value="/press-desk/pitch/{{ pitch.id }}">
         <input type="hidden" name="status" value="sent">
