@@ -31,7 +31,10 @@ ROOMS = [
       # but an owner sees it. When Artifacts lands it moves there.
       "apparel"]),
     ("studio", "Studio", "Making the record and keeping its files.",
-     ["audio-studio", "rack", "remix-lab", "studio", "masterclip", "beats",
+     # Release-Ready sits beside The Rack (owner's brief, 2026-09-19): the
+     # Rack is mixing and mastering by hand in the browser, Release-Ready is
+     # RoEx's check, previews and the finished master.
+     ["audio-studio", "rack", "release-ready", "remix-lab", "studio", "masterclip", "beats",
       "vault", "contracts", "artwork"]),
     ("stage", "Stage", "Everything between the booking and the encore.",
      ["tours", "stage-plot", "lights", "live", "tour-board", "passports", "tour-suite"]),

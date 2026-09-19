@@ -238,6 +238,17 @@ def _groups():
                  proof="shows the flags, the key presence and the real job "
                        "and webhook history - a lane that has actually run "
                        "is the honest evidence here"),
+            dict(name="RoEx (Release-Ready)",
+                 on=_try(__import__("roex_client").configured),
+                 env=["ROEX_API_KEY"],
+                 unlocks="Release-Ready in Creative Studio: RoEx's mix report, free "
+                         "30-second previews, and the paid full master. It also needs "
+                         "object storage (R2) above, and stays closed to artists until "
+                         "it is opened in Settings.",
+                 probe="/admin/release-ready",
+                 proof="shows this month's estimated RoEx credits, the jobs and their "
+                       "states, and a Check the RoEx connection button that calls "
+                       "RoEx's /health with the key"),
             dict(name="Stem splitting", on=_present("STEMSPLIT_API_KEY"),
                  env=["STEMSPLIT_API_KEY"], unlocks="Studio Split.",
                  probe="/rack/studio-split/diag",

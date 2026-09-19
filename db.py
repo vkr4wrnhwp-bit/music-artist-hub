@@ -5086,6 +5086,11 @@ RESET_KEEPS = frozenset({
     "users", "ingest_tokens", "roster_members", "team_members",
     "audio_usage", "audio_consent", "signal_members", "partner_members",
     "partner_audit", "desk_activity",
+    # Release-Ready: the record of what an artist agreed to for each file
+    # they handed over, and the payments taken for masters, outlive a
+    # start over like the audio consents do. The uploads, previews and
+    # masters themselves go (their r2: keys are collected by the sweep).
+    "release_ready_consents", "release_ready_payments",
 })
 # Rows the account owns under a column the generic user_id sweep never read.
 RESET_EXTRA_KEYS = (

@@ -906,6 +906,11 @@
     }
     var inLabel = subsequence(label, q);
     if (inLabel >= 0) { return 1000 + inLabel * 20 - label.length * 0.1; }
+    // The words a page is looked for by that are not in its name
+    // (hubs.PALETTE_WORDS): "mastering" finds Release-Ready. Below any
+    // match on a name, above a stray word in a description.
+    var aka = (item.aka || "").toLowerCase();
+    if (aka && aka.indexOf(q) >= 0) { return 900 - aka.indexOf(q) * 0.1; }
     // Only now consider the group and description, and always below any
     // label match, so a real name never loses to a stray word in prose.
     var rest = (item.group + " " + item.desc).toLowerCase();

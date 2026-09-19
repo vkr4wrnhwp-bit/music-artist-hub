@@ -635,6 +635,46 @@ def create_credit_pack_checkout(user_id, email, pack_key, credits, cents, name, 
         return None
 
 
+def create_release_ready_checkout(user_id, email, job_id, kind, cents, title, base_url,
+                                  cancel_path="/creative-studio/release-ready",
+                                  expires_at=None, window=None):
+    """One full master from Release-Ready, paid once (owner, 2026-09-19:
+    $6.99 by default, set in Settings). Tagged so the webhook and the
+    success redirect both know which job it pays for. expires_at (a Unix
+    time) closes the checkout long before RoEx's link to the audio runs
+    out; the same job at the same price in the same window reuses one
+    session (the idempotency key), so a double click cannot open two."""
+    if not configured():
+        return None
+    song = (title or "your song").strip()[:70] or "your song"
+    name = ("Vocal and beat master: " if kind == "recombine" else "Master: ") + song
+    fields = {
+        "mode": "payment",
+        "payment_method_types[0]": "card",
+        "client_reference_id": user_id,
+        "success_url": base_url + "/creative-studio/release-ready/jobs/" + job_id
+                       + "/paid?session_id={CHECKOUT_SESSION_ID}",
+        "cancel_url": base_url + cancel_path,
+        "metadata[kind]": "release_ready",
+        "metadata[job_id]": job_id,
+        "metadata[product]": "recombine" if kind == "recombine" else "master",
+        "line_items[0][quantity]": "1",
+        "line_items[0][price_data][currency]": "usd",
+        "line_items[0][price_data][unit_amount]": str(int(cents)),
+        "line_items[0][price_data][product_data][name]": name[:100],
+        IDEMPOTENCY_FIELD: "rr-checkout:%s:%d" % (job_id, int(cents))
+                           + (":%d" % int(window) if window is not None else ""),
+    }
+    if expires_at:
+        fields["expires_at"] = str(int(expires_at))
+    if email:
+        fields["customer_email"] = email
+    try:
+        return _http("/v1/checkout/sessions", fields)
+    except Exception:
+        return None
+
+
 def get_checkout_session(session_id):
     """Retrieve a checkout session — lets the success redirect grant fan-club
     access instantly instead of waiting on the webhook."""
