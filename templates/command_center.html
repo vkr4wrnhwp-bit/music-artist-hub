@@ -154,7 +154,9 @@
     <p class="sb-label sb-label-gold">Street Banker</p>
     <h1 class="sb-h1 mt-1">Command Center</h1>
     <p class="mt-2 max-w-2xl text-sm text-gray-300">Everything that matters today — every card links to the move that fixes it.</p>
-    <a href="/walkthrough" class="md-tap mt-2 inline-block text-xs font-bold text-sb-gold-bright hover:underline">New here? Take the walkthrough →</a>
+    {#- The demo's tour only: its first step uploads a sample statement,
+        which in a real account reads as real income. -#}
+    {% if is_demo_account %}<a href="/walkthrough" class="md-tap mt-2 inline-block text-xs font-bold text-sb-gold-bright hover:underline">New here? Take the walkthrough →</a>{% endif %}
     {% if not tutor %}
     <form method="post" action="/tutor/toggle" class="mt-1">
       <input type="hidden" name="on" value="1">

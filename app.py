@@ -3194,6 +3194,21 @@ def create_app():
         except Exception:
             return []
 
+    def _epk_store(kit_owner):
+        """The Buy Button store embed for a press kit, or None.
+
+        The embed is the server's own Shopify store (SHOPIFY_DOMAIN and the
+        collection in Render), which is the owner's. It was passed to every
+        press kit, so every artist's public EPK showed the owner's store
+        under the heading Merch, as if it were theirs (found by the
+        2026-09-18 launch check). Only the owner's own kit and the demo
+        showcase carry it now; every other artist shows their own store
+        link and merch items, which they set on their EPK."""
+        email = (kit_owner or {}).get("email") or ""
+        if _is_owner_email(email) or _is_demo_email(email):
+            return shopify_buy.context()
+        return None
+
     @app.route("/epk/<slug>")
     def epk_public(slug):
         prof = store.get_epk_by_slug(slug)
@@ -3228,7 +3243,8 @@ def create_app():
                                                      else epk_config.not_measured_stats())),
                             top_tracks_override=(None if _demo_owner else _epk_real_tracks(prof["user_id"])[0]),
                             top_platform_override=(None if _demo_owner else _epk_real_tracks(prof["user_id"])[1]))
-        return render_template("epk_public.html", e=data, slug=slug, shopify=shopify_buy.context())
+        return render_template("epk_public.html", e=data, slug=slug,
+                               shopify=_epk_store(store.get_user(prof["user_id"])))
 
     @app.route("/epk/share", methods=["POST"])
     def epk_share_save():
@@ -3321,7 +3337,7 @@ def create_app():
                              "Your pitch EPK was opened",
                              "First open today on the private link. "
                              "Play counts land on the EPK editor.", "/epk")
-        return render_template("epk_public.html", e=data, slug=slug, shopify=shopify_buy.context(),
+        return render_template("epk_public.html", e=data, slug=slug, shopify=_epk_store(owner),
                                pitch_token=token,
                                pitch_audio=share["audio"])
 
@@ -8644,6 +8660,13 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # The walkthrough is the demo's tour: step one uploads a sample
+        # statement, and in a real account that became real-looking income
+        # ($1,504.68 on Royalties and Tax, a $36,112 valuation; found by the
+        # 2026-09-18 launch check). A real account gets tutor mode on its
+        # own Command Center instead, which works from its own data.
+        if not _is_demo_email(user.get("email") or ""):
+            return redirect("/command-center")
         return render_template("walkthrough.html", active_page="command-center",
                                user_plan=(user.get("plan") or "artist"),
                                **build_dashboard_context())

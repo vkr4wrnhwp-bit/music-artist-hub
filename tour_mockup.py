@@ -116,6 +116,46 @@ def ensure_for(user):
         else:
             ts.add_day(tour_id, user["id"], r["date"], r["kind"], r["venue"] or r["kind"].title(),
                        r["city"], r["tz"] if eng.valid_tz(r["tz"]) else "", None, r["notes"])
-    ts.record_import(tour_id, user["id"], "csv", "mock-up-tour.tsv", SHEET,
+    ts.record_import(tour_id, user["id"], "csv", IMPORT_FILENAME, SHEET,
                      {"created": {"rows": len(rows)}, "problems": [], "rows": len(rows)})
     return tour_id
+
+
+IMPORT_FILENAME = "mock-up-tour.tsv"
+
+
+def sheet_show_keys():
+    """(date, venue) for every show the sheet invents."""
+    rows, _problems = eng.parse_csv_rows(SHEET)
+    return {(r["date"], r["venue"] or "TBA") for r in rows if r["kind"] == "show"}
+
+
+def is_mock(tour_id):
+    """Was this tour built by ensure_for? Read from its import record, so a
+    renamed Mock Up Tour is still recognised."""
+    with store.get_db() as db:
+        row = db.execute("SELECT 1 FROM tour_imports WHERE tour_id = ? AND filename = ?",
+                         (tour_id, IMPORT_FILENAME)).fetchone()
+    return row is not None
+
+
+def discard_invented_shows(tour_id):
+    """Delete the shows this tour's sheet invented, before the tour goes.
+
+    Deleting a tour sets its shows loose (tour_id = NULL) so a real show is
+    never lost with its tour, and the next visit to Tour adopts loose shows
+    into the account's other tour. For the Mock Up Tour that poured all 36
+    invented rooms into the artist's real routing (found by the 2026-09-18
+    launch check). Only the sheet's own (date, venue) pairs go: a show the
+    artist added to the Mock Up Tour themselves is theirs, and stays loose
+    to be adopted like any other. Returns how many were deleted."""
+    if not is_mock(tour_id):
+        return 0
+    keys = sheet_show_keys()
+    with store.get_db() as db:
+        rows = db.execute("SELECT id, date, venue FROM tour_shows WHERE tour_id = ?",
+                          (tour_id,)).fetchall()
+        doomed = [r["id"] for r in rows if (r["date"], r["venue"]) in keys]
+        for sid in doomed:
+            db.execute("DELETE FROM tour_shows WHERE id = ?", (sid,))
+    return len(doomed)
