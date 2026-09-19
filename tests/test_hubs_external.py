@@ -145,7 +145,8 @@ def test_the_tool_suites_strip_lists_every_off_site_app(artist):
     assert "Merch, collectibles and moments for fans." in strip
     for m in re.finditer(r'<a href="/command-center"([^>]*)>', strip):
         assert "_blank" not in m.group(1)
-    assert strip.count(">Soon<") == 2
+    # Company, Artifacts and (owner, 2026-09-18) Noise Lab.
+    assert strip.count(">Soon<") == 3
 
 
 def test_the_strip_draws_every_suite_as_one_system(artist):
