@@ -4272,7 +4272,7 @@ def test_referral_engine(monkeypatch):
                                content_type="application/json")
     assert store_mod.get_user(rid)["ref_credited"] == 0
     # Ray's first paid invoice credits the referrer half of the referrer's
-    # own month (the demo is Label, $199).
+    # own month (the demo is Label, $199), never more than Ray paid.
     paid = _json.dumps({"type": "invoice.paid", "data": {"object": {
         "customer": "cus_ray", "amount_paid": 1450}}})
     app_obj.test_client().post("/webhooks/stripe", data=paid,
@@ -4282,7 +4282,7 @@ def test_referral_engine(monkeypatch):
     credit_paths = [p for p, f in calls if "balance_transactions" in p]
     assert credit_paths and "cus_referrer" in credit_paths[-1]
     credit_fields = [f for p, f in calls if "balance_transactions" in p][-1]
-    assert credit_fields["amount"] == "-9950"
+    assert credit_fields["amount"] == "-1450"
     assert any("Referral credit applied" in n["title"]
                for n in store_mod.list_notifications(uid))
     assert store_mod.referral_stats(uid)["converted"] >= 1

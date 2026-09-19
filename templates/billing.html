@@ -122,7 +122,7 @@
   {% if request.args.get('changed') == 'pending' %}
   <section class="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 text-center">
     <div class="text-sm font-black uppercase tracking-wide text-amber-300">Waiting on the payment</div>
-    <p class="mt-1 text-xs text-gray-200">Stripe could not take the difference for the new plan yet, so you stay on your current plan. Update your card in Manage Billing and try again.</p>
+    <p class="mt-1 text-xs text-gray-200">Stripe could not take the difference for the new plan yet, so you stay on your current plan. If your bank asked you to confirm the payment, finish it in Manage Billing; otherwise update your card there and try again.</p>
   </section>
   {% elif request.args.get('changed') %}
   <section class="rounded-2xl border border-green-500/30 bg-green-500/10 p-5 text-center">
@@ -232,6 +232,9 @@
       {% endfor %}
     </div>
     {% if real_checkout %}
+    {% if request.args.get('sync') == 'found' %}
+    <p class="mt-3 rounded-lg border border-green-500/25 bg-green-500/5 px-3 py-2 text-xs text-green-300 font-medium">You already have an active subscription, so nothing new was started. Your plan here now matches it.</p>
+    {% endif %}
     {% if request.args.get('sync') == 'none' %}
     <p class="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs text-amber-400/90 font-medium">No active Stripe subscription found for {{ user.email }}. If you just paid, give it a minute and sync again — and make sure you paid while signed into this account.</p>
     {% endif %}

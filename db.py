@@ -3351,13 +3351,29 @@ def mark_ref_credited(user_id):
         db.execute("UPDATE users SET ref_credited = 1 WHERE id = ?", (user_id,))
 
 
+def claim_ref_credit(user_id):
+    """Take this referral's credit for crediting, once: True only for the
+    caller that flipped it, so two workers cannot both credit it."""
+    with get_db() as db:
+        cur = db.execute("UPDATE users SET ref_credited = 1 WHERE id = ? AND ref_credited = 0",
+                         (user_id,))
+    return cur.rowcount == 1
+
+
+def release_ref_credit(user_id):
+    """Give a claim back when Stripe refused the credit."""
+    with get_db() as db:
+        db.execute("UPDATE users SET ref_credited = 0 WHERE id = ?", (user_id,))
+
+
 def list_uncredited_referrals(referrer_id):
-    """Referred users who converted to a real paid subscription but whose
-    referrer credit hasn't been applied yet."""
+    """Referred users whose referrer credit hasn't been applied yet. Whether
+    they have actually paid is the caller's check (the ref_paid flag); a
+    friend who paid once and then cancelled still earned it (2026-09-19)."""
     with get_db() as db:
         rows = db.execute(
-            "SELECT id, email FROM users WHERE referred_by = ? AND ref_credited = 0 "
-            "AND stripe_subscription_id IS NOT NULL", (referrer_id,)).fetchall()
+            "SELECT id, email FROM users WHERE referred_by = ? AND ref_credited = 0",
+            (referrer_id,)).fetchall()
     return [dict(r) for r in rows]
 
 

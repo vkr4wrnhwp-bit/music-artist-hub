@@ -57,6 +57,10 @@ def stripe_on(monkeypatch):
         calls.append((path, dict(fields)))
         if path == "/v1/products":
             return {"id": "prod_" + fields["name"].split()[-1].lower()}
+        if path == "/v1/prices":
+            return {"id": "price_" + fields["product"].split("_")[-1]}
+        if state.get("raise_on") and path.startswith(state["raise_on"]):
+            raise RuntimeError("Stripe timed out")
         if path == "/v1/coupons":
             return {"id": "coup_half"}
         if path == "/v1/checkout/sessions":
@@ -67,8 +71,9 @@ def stripe_on(monkeypatch):
 
     monkeypatch.setattr(sb, "_http", fake_http)
     monkeypatch.setattr(sb, "_http_get", lambda path: dict(state["sub"]))
-    for key in ("stripe_product_artist", "stripe_product_pro", "stripe_product_label", "stripe_ref_coupon_50"):
-        store.set_kv(key, "")
+    for name in ("product_artist", "product_pro", "product_label",
+                 "price_artist", "price_pro", "price_label", "ref_coupon_50"):
+        store.set_kv(sb._kv_key(name), "")
     return calls, state
 
 
@@ -95,7 +100,10 @@ def test_an_upgrade_changes_the_subscription_it_has(stripe_on):
     assert not [p for p, f in calls if p == "/v1/checkout/sessions"], "no second subscription"
     change = [f for p, f in calls if p == "/v1/subscriptions/sub_1" and "items[0][id]" in f][0]
     assert change["items[0][id]"] == "si_1"
-    assert change["items[0][price_data][unit_amount]"] == "7900"
+    # A reusable Price, which a pending update accepts; not inline price_data.
+    assert change["items[0][price]"] == "price_pro" and not any("price_data" in k for k in change)
+    price = [f for p, f in calls if p == "/v1/prices"][0]
+    assert price["unit_amount"] == "7900" and price["recurring[interval]"] == "month"
     assert change["proration_behavior"] == "always_invoice"
     assert change["payment_behavior"] == "pending_if_incomplete"
     assert store.get_user(uid)["plan"] == "pro"
@@ -161,17 +169,22 @@ def _sub(sid, customer, status, cents):
             "items": {"data": [{"id": "si", "price": {"unit_amount": cents}}]}}
 
 
-def test_a_change_made_in_stripe_is_followed_here(stripe_on):
+def test_a_change_made_in_stripe_is_followed_here(stripe_on, monkeypatch):
     _c, uid = _member("artist", sub="sub_s", customer="cus_s")
+    # The handler re-reads the subscription; Stripe now bills Pro.
+    monkeypatch.setattr(sb, "_http_get", lambda path: _sub("sub_s", "cus_s", "active", 7900))
     _hook("customer.subscription.updated", _sub("sub_s", "cus_s", "active", 7900))
     assert store.get_user(uid)["plan"] == "pro"
 
 
-def test_past_due_keeps_the_plan_while_stripe_retries_and_unpaid_ends_it(stripe_on):
+def test_past_due_keeps_the_plan_while_stripe_retries_and_unpaid_ends_it(stripe_on, monkeypatch):
     _c, uid = _member("pro", sub="sub_p", customer="cus_p")
+    now = {"status": "past_due"}
+    monkeypatch.setattr(sb, "_http_get", lambda path: _sub("sub_p", "cus_p", now["status"], 7900))
     _hook("customer.subscription.updated", _sub("sub_p", "cus_p", "past_due", 7900))
     assert store.get_user(uid)["plan"] == "pro"
     assert any("past due" in n["title"].lower() for n in store.list_notifications(uid))
+    now["status"] = "unpaid"
     _hook("customer.subscription.updated", _sub("sub_p", "cus_p", "unpaid", 7900))
     assert store.get_user(uid)["plan"] == "fan"
 
@@ -255,3 +268,170 @@ def test_an_endpoint_set_up_before_the_new_events_is_offered_an_update(monkeypat
     assert sb.webhook_events_current() is False
     store.set_kv("stripe_webhook_events", ",".join(sb.WEBHOOK_EVENTS))
     assert sb.webhook_events_current() is True
+
+
+
+# --- 2026-09-19 review: what must never happen ---------------------------------
+
+def test_a_failed_change_never_opens_a_second_checkout(stripe_on):
+    calls, state = stripe_on
+    state["raise_on"] = "/v1/subscriptions/sub_1"       # the update times out
+    c, uid = _member("artist")
+    r = c.post("/billing/checkout", data={"plan": "pro"})
+    assert r.status_code == 502 and "Nothing new was started" in r.get_data(as_text=True)
+    assert not [p for p, f in calls if p == "/v1/checkout/sessions"]
+    assert store.get_user(uid)["plan"] == "artist"
+    assert store.get_user(uid)["stripe_subscription_id"] == "sub_1"
+
+
+def test_an_unpaid_subscription_is_settled_first_not_doubled(stripe_on):
+    calls, state = stripe_on
+    state["sub"]["status"] = "unpaid"
+    c, _uid = _member("artist")
+    r = c.post("/billing/checkout", data={"plan": "pro"})
+    assert r.status_code == 502 and "bill waiting" in r.get_data(as_text=True)
+    assert not [p for p, f in calls if p == "/v1/checkout/sessions"]
+
+
+def test_two_clicks_do_not_open_two_checkouts(stripe_on):
+    calls, _state = stripe_on
+    c, uid = _member("artist", sub=None, customer=None)
+    store.set_stripe_ids(uid, None, None)
+    store.set_kv("stripe_open_checkout:" + uid, "")
+    c.post("/billing/checkout", data={"plan": "artist"})
+    c.post("/billing/checkout", data={"plan": "artist"})
+    expired = [p for p, f in calls if p.endswith("/expire")]
+    assert expired == ["/v1/checkout/sessions/cs_1/expire"], "the first is closed before the second"
+
+
+def test_a_member_who_already_pays_is_not_sold_a_second_subscription(stripe_on, monkeypatch):
+    calls, _state = stripe_on
+    monkeypatch.setattr(sb, "_http_get", lambda path: {"data": [
+        {"id": "sub_live", "status": "active", "items": {"data": [{"id": "si", "price": {"unit_amount": 7900}}]}}]})
+    c, uid = _member("fan", sub=None, customer="cus_paying")
+    store.set_stripe_ids(uid, "cus_paying", None)
+    r = c.post("/billing/checkout", data={"plan": "pro"})
+    assert r.headers["Location"].endswith("/billing?sync=found")
+    assert not [p for p, f in calls if p == "/v1/checkout/sessions"]
+    u = store.get_user(uid)
+    assert u["plan"] == "pro" and u["stripe_subscription_id"] == "sub_live"
+
+
+def test_the_coupon_is_for_a_first_subscription_only(stripe_on):
+    calls, _state = stripe_on
+    _r, rid = _member("artist")
+    friend, fid = _referred(rid)
+    friend.post("/login", data={"email": store.get_user(fid)["email"], "password": PW})
+    store.set_stripe_ids(fid, "cus_before", None)          # billed before, then cancelled
+    friend.post("/billing/checkout", data={"plan": "artist"})
+    sess = [f for p, f in calls if p == "/v1/checkout/sessions"][-1]
+    assert "discounts[0][coupon]" not in sess
+
+
+def test_the_coupon_name_fits_stripes_limit():
+    assert len(sb.REFERRAL_COUPON_NAME) <= 40
+
+
+def test_a_referral_settles_on_the_checkout_itself_when_invoice_paid_came_first(stripe_on):
+    calls, _state = stripe_on
+    _r, rid = _member("artist", customer="cus_early_ref")
+    _f, fid = _referred(rid)
+    store.set_stripe_ids(fid, None, None)
+    # invoice.paid first: the customer is not linked yet, so nothing happens.
+    _hook("invoice.paid", {"customer": "cus_new_friend", "amount_paid": 1450})
+    assert store.get_user(fid)["ref_credited"] == 0
+    _hook("checkout.session.completed", {"id": "cs_early", "client_reference_id": fid,
+                                         "customer": "cus_new_friend", "subscription": "sub_nf",
+                                         "payment_status": "paid", "amount_total": 1450,
+                                         "metadata": {"plan": "artist"}})
+    assert store.get_user(fid)["ref_credited"] == 1
+    credit = [f for p, f in calls if "balance_transactions" in p][-1]
+    assert credit["amount"] == "-1450" and credit[sb.IDEMPOTENCY_FIELD] == "sb-ref-credit-" + fid
+
+
+def test_a_credit_is_never_more_than_the_friend_paid(stripe_on):
+    calls, _state = stripe_on
+    _r, rid = _member("label", customer="cus_label_ref")
+    _f, fid = _referred(rid)
+    store.set_stripe_ids(fid, "cus_small", "sub_small")
+    _hook("invoice.paid", {"customer": "cus_small", "amount_paid": 1450})
+    credit = [f for p, f in calls if "balance_transactions" in p][-1]
+    assert credit["amount"] == "-1450", "not $99.50 for a $14.50 payment"
+
+
+def test_a_referral_is_claimed_once_even_if_asked_twice_at_once(stripe_on):
+    _calls, _state = stripe_on
+    _r, rid = _member("artist")
+    _f, fid = _referred(rid)
+    assert store.claim_ref_credit(fid) is True
+    assert store.claim_ref_credit(fid) is False, "the second worker gets nothing"
+
+
+def test_a_replayed_checkout_is_handled_once(stripe_on):
+    _c, uid = _member("pro", sub="sub_now", customer="cus_rp")
+    obj = {"id": "cs_old", "client_reference_id": uid, "customer": "cus_rp", "subscription": "sub_old",
+           "payment_status": "paid", "metadata": {"plan": "artist"}}
+    store.set_kv("stripe_cs_done:cs_old", "1")                 # handled long ago
+    _hook("checkout.session.completed", obj)
+    u = store.get_user(uid)
+    assert u["plan"] == "pro" and u["stripe_subscription_id"] == "sub_now"
+
+
+def test_a_late_event_is_checked_against_stripe_before_it_changes_a_plan(stripe_on, monkeypatch):
+    _c, uid = _member("pro", sub="sub_cur", customer="cus_late")
+    monkeypatch.setattr(sb, "_http_get", lambda path: _sub("sub_cur", "cus_late", "active", 7900))
+    # A stale snapshot says Artist; Stripe now says Pro.
+    _hook("customer.subscription.updated", _sub("sub_cur", "cus_late", "active", 2900))
+    assert store.get_user(uid)["plan"] == "pro"
+
+
+def test_the_owner_and_partner_seats_are_never_moved_by_stripe(stripe_on, monkeypatch):
+    email = "owner-%s@example.net" % uuid.uuid4().hex[:8]
+    monkeypatch.setenv("OWNER_EMAILS", email)
+    c = appmod.app.test_client()
+    c.post("/signup", data={"name": "Owner", "email": email, "password": PW})
+    oid = store.get_user_by_email(email)["id"]
+    store.set_user_plan(oid, "label")
+    store.set_stripe_ids(oid, "cus_owner", "sub_owner")
+    monkeypatch.setattr(sb, "_http_get", lambda path: _sub("sub_owner", "cus_owner", "active", 2900))
+    _hook("customer.subscription.updated", _sub("sub_owner", "cus_owner", "active", 2900))
+    _hook("customer.subscription.deleted", {"id": "sub_owner", "customer": "cus_owner"})
+    assert store.get_user(oid)["plan"] == "label"
+
+
+def test_partner_staff_acting_as_an_artist_cannot_charge_their_card(stripe_on):
+    calls, _state = stripe_on
+    c, uid = _member("artist")
+    with c.session_transaction() as sess:
+        sess["acting_as"] = uid
+    import partner_os
+    orig = partner_os.acting_context
+    partner_os.acting_context = lambda staff, subject: store.get_user(subject)
+    try:
+        r = c.post("/billing/checkout", data={"plan": "label"})
+    finally:
+        partner_os.acting_context = orig
+    assert r.status_code == 302 and r.headers["Location"].endswith("/billing")
+    assert not [p for p, f in calls if p.startswith("/v1/subscriptions/") or p == "/v1/checkout/sessions"]
+
+
+def test_ids_are_remembered_per_mode(monkeypatch):
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
+    t = sb._kv_key("price_pro")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live_x")
+    assert sb._kv_key("price_pro") != t and "live" in sb._kv_key("price_pro")
+
+
+def test_the_webhook_is_updated_in_place_when_it_is_ours(monkeypatch):
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
+    monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
+    monkeypatch.delenv("SANDBOX", raising=False)
+    store.set_kv("stripe_webhook_secret", "whsec_ours")
+    posts, deletes = [], []
+    monkeypatch.setattr(sb, "_http_get", lambda path: {"data": [{"id": "we_1", "url": "https://x.test/webhooks/stripe"}]})
+    monkeypatch.setattr(sb, "_http", lambda path, fields: posts.append((path, fields)) or {"id": "we_1"})
+    monkeypatch.setattr(sb, "_http_delete", lambda path: deletes.append(path) or {})
+    out = sb.setup_webhook_endpoint("https://x.test")
+    assert out and deletes == [] and posts[0][0] == "/v1/webhook_endpoints/we_1"
+    assert "invoice.paid" in posts[0][1].values()
+    assert sb.webhook_events_current()
