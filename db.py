@@ -963,6 +963,20 @@ def init_db():
             );
             """
         )
+        # Migration: what a team seat may do (owner, 2026-09-19). 'read' looks,
+        # 'edit' works inside the artist's account; can_roster lets an editor
+        # on a Label manage the roster. Every change a seat makes is recorded.
+        for _col, _decl in (("access", "TEXT NOT NULL DEFAULT 'read'"),
+                            ("can_roster", "INTEGER NOT NULL DEFAULT 0")):
+            try:
+                db.execute("ALTER TABLE team_members ADD COLUMN %s %s" % (_col, _decl))
+            except sqlite3.OperationalError:
+                pass  # column already exists
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS team_audit ("
+            " id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL,"
+            " member_user_id TEXT NOT NULL, member_name TEXT NOT NULL DEFAULT '',"
+            " method TEXT NOT NULL, path TEXT NOT NULL, created TEXT NOT NULL)")
         # Migration: Stripe billing identifiers on users.
         for _col in ("stripe_customer_id", "stripe_subscription_id"):
             try:
@@ -4384,7 +4398,7 @@ def list_portal_memberships(member_user_id):
     """Teams this user belongs to (active), with the owner's name."""
     with get_db() as db:
         rows = db.execute(
-            "SELECT t.owner_id, t.role, u.name AS owner_name FROM team_members t "
+            "SELECT t.owner_id, t.role, t.access, u.name AS owner_name FROM team_members t "
             "JOIN users u ON u.id = t.owner_id "
             "WHERE t.member_user_id = ? AND t.status = 'active' ORDER BY t.created",
             (member_user_id,)).fetchall()
@@ -4464,16 +4478,18 @@ def set_dispute_status(user_id, dispute_id, status):
 
 # --- Team ------------------------------------------------------------------------
 
-def add_team_invite(owner_id, email, role):
+def add_team_invite(owner_id, email, role, access="read", can_roster=False):
     """Create an invite; returns the row or None if already on the team."""
     member_id = uuid.uuid4().hex
     token = uuid.uuid4().hex
+    access = "edit" if access == "edit" else "read"
     try:
         with get_db() as db:
             db.execute(
-                "INSERT INTO team_members (id, owner_id, email, role, status, invite_token, created) "
-                "VALUES (?,?,?,?,'invited',?,?)",
-                (member_id, owner_id, email.lower().strip(), role, token, _now()))
+                "INSERT INTO team_members (id, owner_id, email, role, status, invite_token, created, "
+                "access, can_roster) VALUES (?,?,?,?,'invited',?,?,?,?)",
+                (member_id, owner_id, email.lower().strip(), role, token, _now(),
+                 access, 1 if (can_roster and access == "edit") else 0))
     except sqlite3.IntegrityError:
         return None
     return {"id": member_id, "invite_token": token}
@@ -4652,6 +4668,36 @@ def accept_team_invite(token, member_user_id):
             "joined = ?, invite_token = NULL WHERE invite_token = ? AND status = 'invited'",
             (member_user_id, _now(), token))
     return cur.rowcount > 0
+
+
+def count_team_seats(owner_id):
+    """Seats taken: everyone invited or active on this account's team."""
+    with get_db() as db:
+        row = db.execute("SELECT COUNT(*) AS n FROM team_members WHERE owner_id = ?",
+                         (owner_id,)).fetchone()
+    return row["n"] if row else 0
+
+
+def set_team_access(owner_id, member_id, access, can_roster=False):
+    access = "edit" if access == "edit" else "read"
+    with get_db() as db:
+        cur = db.execute("UPDATE team_members SET access = ?, can_roster = ? WHERE id = ? AND owner_id = ?",
+                         (access, 1 if (can_roster and access == "edit") else 0, member_id, owner_id))
+    return cur.rowcount > 0
+
+
+def add_team_audit(owner_id, member_user_id, member_name, method, path):
+    with get_db() as db:
+        db.execute("INSERT INTO team_audit (owner_id, member_user_id, member_name, method, path, created) "
+                   "VALUES (?,?,?,?,?,?)",
+                   (owner_id, member_user_id, (member_name or "")[:120], method[:10], path[:300], _now()))
+
+
+def list_team_audit(owner_id, limit=25):
+    with get_db() as db:
+        rows = db.execute("SELECT * FROM team_audit WHERE owner_id = ? ORDER BY id DESC LIMIT ?",
+                          (owner_id, int(limit))).fetchall()
+    return [dict(r) for r in rows]
 
 
 def remove_team_member(owner_id, member_id):

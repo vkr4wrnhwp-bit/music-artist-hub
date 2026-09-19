@@ -178,6 +178,25 @@ def suite_tag(key):
     return PLAN_NAMES.get(need, "") if need else ""
 
 
+# Team seats and what a seat may do (owner, 2026-09-19): an Artist's team
+# reads only; a Pro member picks read or edit for each person; a Label can
+# also let an editor manage its roster. Seats per plan; None is no limit.
+# Billing, settings and the team itself always stay with the account holder.
+TEAM_SEATS = {"artist": 2, "pro": 5, "label": None}
+
+
+def team_seats(plan):
+    return TEAM_SEATS.get(plan or "", 0)
+
+
+def team_can_edit(plan):
+    return plan in ("pro", "label")
+
+
+def team_can_roster(plan):
+    return plan == "label"
+
+
 def allowed(plan, tier):
     return TIER_RANK.get(plan, 1) >= TIER_RANK.get(tier, 0)
 
