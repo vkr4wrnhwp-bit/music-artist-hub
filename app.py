@@ -4160,9 +4160,60 @@ def create_app():
                               bool(_demo_locked_account()))
         if room is None:
             abort(404)
+        if room_key == "fans":
+            return _fan_room(user, room)
         return render_template("room.html", active_page="room-" + room_key,
                                room=room, room_images=rooms.images(),
                                **build_dashboard_context())
+
+    def _fan_room_rows(user):
+        """The fans this screen reads: the account's own, or the labelled
+        example for the demo, the same split the Audience screen makes."""
+        import fan_audience
+        if _session_is_demo():
+            return fan_audience.showcase_rows(), fan_audience.showcase(), True
+        return (mls.list_fans(user["id"]),
+                fan_audience.for_account(user["id"], resend_configured=emailer.configured()),
+                False)
+
+    def _fan_room(user, room):
+        """The Fans room's opening screen, the owner's mockup (2026-09-19).
+        fan_room.py says where each figure comes from."""
+        import fan_audience
+        import fan_room
+        rows, audience, showcase = _fan_room_rows(user)
+        club_row = None if showcase else store.get_fan_club(user["id"])
+        members = 0
+        if club_row:
+            members = sum(1 for m in store.list_club_members(user["id"])
+                          if (m.get("status") or "active") == "active")
+        today = datetime.now(timezone.utc).date().isoformat()
+        with store.get_db() as db:
+            open_briefs = db.execute(
+                "SELECT COUNT(*) FROM collab_requests c JOIN users u ON u.id = c.user_id"
+                " WHERE c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
+                " OR substr(c.closes, 1, 10) >= ?)", (today,)).fetchone()[0]
+        fr = fan_room.build(rows, audience, room["cards"], days=request.args.get("days"),
+                            club={"on": bool(club_row), "members": members},
+                            open_briefs=open_briefs,
+                            link_visits=0 if showcase else fan_audience._visits(user["id"]),
+                            showcase=showcase, artist_name=user.get("name") or "")
+        return render_template("room_fans.html", active_page="room-fans", room=room, fr=fr,
+                               **build_dashboard_context())
+
+    @app.route("/room/fans/new.csv")
+    def fan_room_new_csv():
+        """The "Get their emails" move: the contactable fans who joined
+        through a link in the chosen window, as a CSV."""
+        import fan_room
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        rows, _audience, _showcase = _fan_room_rows(user)
+        days = fan_room.days_from(request.args.get("days"))
+        body = fan_room.new_fans_csv(rows, days, datetime.now(timezone.utc).date())
+        return Response(body, mimetype="text/csv", headers={
+            "Content-Disposition": "attachment; filename=street-banker-new-fans-%dd.csv" % days})
 
     @app.route("/admin/nav-layout", methods=["POST"])
     def admin_nav_layout():

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Fan Room - Street Banker{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/fan-room.css?v=4">
+{% endblock %}
+
+{#- THE FAN ROOM - the Fans room's opening screen, built from the owner's
+    mockup (2026-09-19: "for the fans room opening screen use this image and
+    build it to be a exact replica almost"). The layout is the mockup's;
+    every figure is fan_room.build() over this account's records, and the
+    demo account gets the labelled example. Where the mockup's words named
+    something the app does not do (sending welcomes and invites, a live
+    world feed), the words say what the app does instead. -#}
+
+{% macro icon(name, cls="") -%}
+<svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == "discover" -%}<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>
+{%- elif name == "capture" or name == "welcome" -%}<circle cx="9" cy="8" r="3.5"/><path d="M3 19.5c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M18.5 8v6M15.5 11h6"/>
+{%- elif name == "know" or name == "fan-crm" -%}<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="2"/><path d="M5.5 16c.6-1.6 1.7-2.5 3-2.5s2.4.9 3 2.5"/><path d="M14 10h4.5M14 13.5h4.5"/>
+{%- elif name == "activate" -%}<path d="M3 10v4h3l7 4.5v-13L6 10H3z"/><path d="M16.5 9a4 4 0 010 6"/><path d="M19 7a7 7 0 010 10"/>
+{%- elif name == "belong" -%}<circle cx="12" cy="6.5" r="2.4"/><circle cx="5.5" cy="9" r="2"/><circle cx="18.5" cy="9" r="2"/><path d="M2.5 16.5c0-2 1.3-3.5 3-3.5"/><path d="M21.5 16.5c0-2-1.3-3.5-3-3.5"/><path d="M12 20l-3.3-3.2a2.1 2.1 0 013-3l.3.3.3-.3a2.1 2.1 0 013 3z"/>
+{%- elif name == "mail" -%}<rect x="3" y="6" width="18" height="12.5" rx="2"/><path d="M3.5 7.5l8.5 6 8.5-6"/>
+{%- elif name == "diamond" -%}<path d="M6.5 4.5h11l3.5 5-9 10.5L3 9.5z"/><path d="M3 9.5h18"/><path d="M9.5 4.5L12 9.5l2.5-5"/><path d="M12 9.5V20"/>
+{%- elif name == "import" -%}<path d="M12 4v11"/><path d="M7.5 11l4.5 4.5 4.5-4.5"/><path d="M5 19.5h14"/>
+{%- elif name == "fans" -%}<circle cx="12" cy="7" r="3"/><circle cx="5" cy="9.5" r="2.2"/><circle cx="19" cy="9.5" r="2.2"/><path d="M7 20.5v-2a5 5 0 0110 0v2"/><path d="M2 19.5v-1a3 3 0 013-3"/><path d="M22 19.5v-1a3 3 0 00-3-3"/>
+{%- elif name == "fan-club" -%}<path d="M3 8.5a2 2 0 002-2h14a2 2 0 002 2v2a1.5 1.5 0 000 3v2a2 2 0 00-2 2H5a2 2 0 00-2-2v-2a1.5 1.5 0 000-3z"/><path d="M12 15.5l-2.4-2.3a1.6 1.6 0 012.2-2.3l.2.2.2-.2a1.6 1.6 0 012.2 2.3z"/>
+{%- elif name == "marketplace" -%}<path d="M2.5 10.5l4-4 4.5 2 2.5-1.5 5 1 3 3"/><path d="M2.5 10.5l6.5 6.5 1.5-1 1.5 1.5 1.5-1 1.5 1 2-2.5 4.5-4"/><path d="M11 9l-2.5 2.5a1.2 1.2 0 001.7 1.7L13 11"/>
+{%- elif name == "apparel" -%}<path d="M8.5 4l-5.5 3 2 4 2.5-1.2V20h9V9.8L19 11l2-4-5.5-3a3.5 3.5 0 01-7 0z"/>
+{%- elif name == "rocket" -%}<path d="M13.5 15.5l-5-5A14 14 0 0116 4h4v4a14 14 0 01-6.5 7.5z"/><path d="M8.5 10.5H5l2.5-4h4"/><path d="M13.5 15.5V19l4-2.5v-4"/><path d="M6.5 16.5c-1.4 1-2 3-2 3s2-.6 3-2"/>
+{%- elif name == "calendar" -%}<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>
+{%- elif name == "chevron" -%}<path d="M6 9.5l6 6 6-6"/>
+{%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
+{%- elif name == "up" -%}<path d="M6 13l6-6 6 6"/><path d="M6 19l6-6 6 6"/>
+{%- else -%}<circle cx="12" cy="12" r="8"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% block content %}
+<div class="fr" data-no-collapse>
+
+  <section class="fr-hero" aria-labelledby="fr-title">
+    <picture class="fr-hero-photo">
+      <img src="/static/img/door-crowd-1600.webp" srcset="/static/img/door-crowd-900.webp 900w, /static/img/door-crowd-1600.webp 1600w"
+           sizes="(max-width: 860px) 100vw, 80vw" alt="" width="1600" height="700" fetchpriority="high" decoding="async">
+    </picture>
+
+    <div class="fr-hero-top">
+      <div>
+        <p class="fr-eyebrow">Street Banker · Fans</p>
+        <h1 class="fr-title" id="fr-title">Fan Room</h1>
+        <p class="fr-sub">Turn listeners into relationships you own.</p>
+      </div>
+      <div class="fr-controls">
+        {% if fr.artist_name %}
+        <span class="fr-chip" title="The account these figures are for">
+          <span class="fr-avatar" aria-hidden="true">{{ (fr.artist_name[:1] or "?")|upper }}</span>{{ fr.artist_name }}
+        </span>
+        {% endif %}
+        <details class="fr-range">
+          <summary class="fr-chip">
+            {{ icon("calendar", "fr-ico") }}<span>Last {{ fr.days }} days</span>{{ icon("chevron", "fr-ico fr-ico--sm") }}
+          </summary>
+          <div class="fr-range-menu" role="list">
+            {% for n in fr.ranges %}
+            <a role="listitem" href="/room/fans?days={{ n }}"{% if n == fr.days %} aria-current="true"{% endif %}>Last {{ n }} days</a>
+            {% endfor %}
+          </div>
+        </details>
+        <a class="fr-cta" href="/links/new">{{ icon("rocket", "fr-ico") }}Launch fan campaign</a>
+      </div>
+    </div>
+
+    <div class="fr-owned">
+      <p class="fr-kicker">Your owned audience</p>
+      <p class="fr-big"><span class="fr-big-n">{{ fr.total_label }}</span><span class="fr-big-u">fan{{ "" if fr.total == 1 else "s" }}</span></p>
+      <div class="fr-stats">
+        <div class="fr-stat">
+          <span class="fr-stat-n{% if fr.new %} is-up{% endif %}">{% if fr.new %}{{ icon("up", "fr-ico") }}{% endif %}{{ fr.new_label }}</span>
+          <span class="fr-stat-l" title="Fans who joined through your links. An imported list is not counted as new.">new in {{ fr.days }} days</span>
+        </div>
+        <div class="fr-stat">
+          <span class="fr-stat-n">{% if fr.reachable_pct is not none %}{{ fr.reachable_pct }}%{% else %}None yet{% endif %}</span>
+          <span class="fr-stat-l" title="Fans with an email that has not bounced or unsubscribed.">reachable</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {% if fr.showcase %}
+  <p class="fr-showcase"><b>Sample data.</b> This is the demo account: every figure here is generated for the example.</p>
+  {% endif %}
+
+  <section class="fr-life" aria-labelledby="fr-life-h">
+    <div class="fr-life-head">
+      <h2 class="fr-kicker" id="fr-life-h">The fan lifecycle</h2>
+      <p class="fr-kicker fr-kicker--dim">From discovery to a lifetime of support</p>
+    </div>
+    <ol class="fr-life-rail">
+      {% for key, name, line in fr.lifecycle %}
+      <li class="fr-step">
+        <span class="fr-ring">{{ icon(key, "fr-ring-ico") }}</span>
+        <b>{{ name }}</b>
+        <span>{{ line }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <div class="fr-mid">
+    <section class="fr-panel fr-moves" aria-labelledby="fr-moves-h">
+      <div class="fr-panel-head">
+        <h2 class="fr-kicker" id="fr-moves-h">Next best moves</h2>
+        <a class="fr-more" href="/actions">View all actions{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
+      </div>
+      <div class="fr-move-list">
+        {% for m in fr.moves %}
+        <div class="fr-move">
+          <span class="fr-move-ico">{{ icon(m.icon, "fr-ico") }}</span>
+          <div class="fr-move-text">
+            <b>{{ m.title }}</b>
+            <span>{{ m.desc }}</span>
+          </div>
+          <div class="fr-move-reach">
+            {% if m.reach %}<span class="fr-kicker fr-kicker--sm">{{ m.reach_label }}</span><b>{{ m.reach }}</b>{% endif %}
+          </div>
+          <a class="fr-move-cta" href="{{ m.href }}">{{ m.cta }}{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="fr-panel fr-pulse" aria-labelledby="fr-pulse-h">
+      <div class="fr-panel-head">
+        <div>
+          <h2 class="fr-kicker" id="fr-pulse-h">Audience pulse</h2>
+          <p class="fr-kicker fr-kicker--dim fr-kicker--sm">Where your fans are, by city</p>
+        </div>
+        {% if fr.showcase %}<span class="fr-mark fr-mark--sample"><i></i>Sample</span>
+        {% else %}<span class="fr-mark" title="Read from your own records when this page opened"><i></i>Live</span>{% endif %}
+      </div>
+      {% if fr.pulse %}
+      <div class="fr-map" style="--map-w: {{ fr.pulse.w }}; --map-h: {{ fr.pulse.h }};">
+        <svg viewBox="0 0 {{ fr.pulse.w }} {{ fr.pulse.h }}" aria-hidden="true" focusable="false">
+          <defs>
+            <radialGradient id="fr-glow">
+              <stop offset="0" style="stop-color: var(--sb-gold-bright); stop-opacity: .55"/>
+              <stop offset="1" style="stop-color: var(--sb-gold); stop-opacity: 0"/>
+            </radialGradient>
+          </defs>
+          {% for x1, y1, x2, y2 in fr.pulse.lines %}
+          <line class="fr-map-line" x1="{{ x1 }}" y1="{{ y1 }}" x2="{{ x2 }}" y2="{{ y2 }}"/>
+          {% endfor %}
+          {% for d in fr.pulse.dots %}
+          <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r * 3.2 }}" fill="url(#fr-glow)"/>
+          <circle class="fr-map-dot{% if d.label %} is-big{% endif %}" cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r }}"/>
+          {% endfor %}
+        </svg>
+        {% for d in fr.pulse.dots if d.label %}
+        <span class="fr-map-label{% if d.right %} is-left{% endif %}" style="left: {{ (100 * d.x / fr.pulse.w)|round(2) }}%; top: {{ (100 * d.y / fr.pulse.h)|round(2) }}%;">
+          <b>{{ d.city }}</b>{{ "{:,}".format(d.count) }}
+        </span>
+        {% endfor %}
+      </div>
+      <p class="fr-map-foot">{{ fr.pulse.cities }} cit{{ "y" if fr.pulse.cities == 1 else "ies" }} on file{% if fr.pulse.unplotted %}, {{ fr.pulse.unplotted }} off this map{% endif %}. The lines are drawing, not travel.</p>
+      {% else %}
+      <div class="fr-map-empty">
+        <p>No fan cities on file yet.</p>
+        <p>Cities come from your smart links and from the city column of a list you import.</p>
+        <a class="fr-more" href="/fans">Open Audience{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="fr-tools" aria-labelledby="fr-tools-h">
+    <h2 class="fr-kicker" id="fr-tools-h">Explore fan tools</h2>
+    <div class="fr-tiles">
+      {% for t in fr.tiles %}
+      <a class="fr-tile{% if loop.first %} is-lead{% endif %}" href="{{ t.href }}"{% if t.external %} target="_blank" rel="noopener"{% endif %} data-room-card="{{ t.key }}">
+        <span class="fr-tile-top">
+          {{ icon(t.key, "fr-tile-ico") }}
+          <span class="fr-tile-text"><b>{{ t.label }}</b><span>{{ t.desc }}</span></span>
+        </span>
+        <span class="fr-tile-foot">
+          {% if t.status %}<span class="fr-tile-status fr-tone-{{ t.tone }}"><i></i>{{ t.status }}</span>{% else %}<span></span>{% endif %}
+          <span class="fr-tile-go">{{ icon("arrow", "fr-ico fr-ico--sm") }}</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+</div>
+{% endblock %}
