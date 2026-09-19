@@ -36,7 +36,7 @@ def _account(plan="artist", name="Artist"):
 
 
 def _invite(owner, member, access="read", roster=False, role="manager", areas=None):
-    data = {"email": member._email, "role": role, "access": access,
+    data = {"email": member._email, "role": role, "access": access, "areas_sent": "1",
             "areas": list(areas if areas is not None else team_areas.keys())}
     if roster:
         data["can_roster"] = "1"

@@ -4729,14 +4729,15 @@ def team_seat_position(owner_id, member_user_id):
     """How many of this account's seats were taken before this member's,
     or None when they hold none. A seat beyond the plan's count (after a
     downgrade) opens nothing until one before it is freed."""
+    # Insert order, by rowid: two seats made in the same second share a
+    # timestamp, and their random ids put them in no particular order.
     with get_db() as db:
-        row = db.execute("SELECT created, id FROM team_members WHERE owner_id = ? AND member_user_id = ?",
+        row = db.execute("SELECT rowid AS r FROM team_members WHERE owner_id = ? AND member_user_id = ?",
                          (owner_id, member_user_id)).fetchone()
         if row is None:
             return None
-        n = db.execute("SELECT COUNT(*) FROM team_members WHERE owner_id = ? AND "
-                       "(created < ? OR (created = ? AND id < ?))",
-                       (owner_id, row["created"], row["created"], row["id"])).fetchone()[0]
+        n = db.execute("SELECT COUNT(*) FROM team_members WHERE owner_id = ? AND rowid < ?",
+                       (owner_id, row["r"])).fetchone()[0]
     return int(n)
 
 

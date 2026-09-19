@@ -35,7 +35,7 @@ def _account(plan="pro", name="Artist"):
 
 
 def _seat(owner, member, access="read", areas=None, roster=False):
-    data = {"email": member._email, "role": "manager", "access": access,
+    data = {"email": member._email, "role": "manager", "access": access, "areas_sent": "1",
             "areas": list(areas if areas is not None else team_areas.keys())}
     if roster:
         data["can_roster"] = "1"
@@ -77,14 +77,15 @@ def test_every_room_ticked_is_the_whole_account():
 def test_an_invite_needs_at_least_one_room():
     owner = _account("pro")
     r = owner.post("/team/invite", data={"email": "none-%s@example.net" % uuid.uuid4().hex[:6],
-                                         "role": "manager", "areas": []})
+                                         "role": "manager", "areas_sent": "1", "areas": []})
     assert r.status_code == 400 and "at least one room" in r.get_json()["error"]
 
 
 def test_the_artist_changes_the_rooms_later():
     owner, member = _account("pro"), _account("artist", "Movedrooms")
     seat = _seat(owner, member, areas=["fans"])
-    owner.post("/team/%s/access" % seat["id"], data={"access": "read", "areas": ["business"]})
+    owner.post("/team/%s/access" % seat["id"], data={"access": "read", "areas_sent": "1",
+                                                      "areas": ["business"]})
     _open_account(member, owner)
     assert member.get("/royalties").status_code == 200
     assert "team=room" in member.get("/fans").headers["Location"]
@@ -163,7 +164,8 @@ def test_a_seat_from_before_opens_nothing_until_confirmed():
         db.execute("UPDATE team_members SET access = 'pending' WHERE id = ?", (seat["id"],))
     assert _open_account(member, owner).status_code == 404
     assert "Confirm what they can open" in owner.get("/team").get_data(as_text=True)
-    owner.post("/team/%s/access" % seat["id"], data={"access": "read", "areas": ["fans"]})
+    owner.post("/team/%s/access" % seat["id"], data={"access": "read", "areas_sent": "1",
+                                                      "areas": ["fans"]})
     assert _open_account(member, owner).status_code == 302
 
 

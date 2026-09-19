@@ -11927,8 +11927,11 @@ def create_app():
                             and (owner or plans.team_can_edit(plan))) else "read"
         roster = (request.form.get("can_roster") == "1" and access == "edit"
                   and (owner or plans.team_can_roster(plan)))
-        areas = team_areas.from_form(request.form.getlist("areas"))
-        if not areas:
+        # The Team page's form says it carries the room boxes; a request
+        # without them changes access and leaves the rooms as they are.
+        areas = (team_areas.from_form(request.form.getlist("areas"))
+                 if request.form.get("areas_sent") else None)
+        if areas == "":
             return redirect("/team?rooms=none")
         store.set_team_access(user["id"], member_id, access, roster, areas)
         return redirect("/team")
@@ -11958,7 +11961,11 @@ def create_app():
             return jsonify({"ok": False, "error": "Enter a valid email and pick a role."}), 400
         if email == user["email"]:
             return jsonify({"ok": False, "error": "That's you — no invite needed."}), 400
-        areas = team_areas.from_form(request.form.getlist("areas"))
+        # From the Team page the rooms are whatever was ticked, and none is
+        # refused. An invite made any other way opens every room, which is
+        # what a seat opened before rooms existed (owner, 2026-09-19).
+        areas = (team_areas.from_form(request.form.getlist("areas"))
+                 if request.form.get("areas_sent") else team_areas.ALL)
         if not areas:
             return jsonify({"ok": False, "error": "Tick at least one room they can open."}), 400
         invite = store.add_team_invite(user["id"], email, role, access, can_roster, areas,

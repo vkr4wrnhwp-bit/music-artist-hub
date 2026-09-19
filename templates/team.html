@@ -44,7 +44,7 @@
         <span class="self-center rounded-lg border border-white/15 px-3 py-2.5 text-xs font-bold text-gray-200">Read only</span>
         {% endif %}
       </div>
-      {% if team_opens %}{{ room_boxes(room_choices|map('first')|list, 'invite-room') }}{% endif %}
+      {% if team_opens %}<input type="hidden" name="areas_sent" value="1">{{ room_boxes(room_choices|map('first')|list, 'invite-room') }}{% endif %}
       <div class="flex flex-wrap items-center gap-3">
         {% if can_grant_roster %}
         <label class="flex items-center gap-2 text-xs text-gray-200"><input type="checkbox" name="can_roster" value="1"> Can manage the roster (editors only)</label>
@@ -86,6 +86,7 @@
         <details class="mt-2 pl-12"{% if pending %} open{% endif %}>
           <summary class="cursor-pointer text-xs font-bold text-sb-gold-bright">{{ 'Confirm what they can open' if pending else 'Change what they can open' }}</summary>
           <form method="post" action="/team/{{ m.id }}/access" class="mt-2 space-y-2">
+            <input type="hidden" name="areas_sent" value="1">
             {{ room_boxes(m.rooms_set, 'room-' ~ m.id) }}
             <div class="flex flex-wrap items-center gap-3">
               {% if can_grant_edit %}

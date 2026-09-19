@@ -2589,7 +2589,7 @@ def test_partner_portal_role_scoping():
     import db as store_mod
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     view = member.get("/portal/" + uid).get_data(as_text=True)
-    assert "read-only" in view and "Money" in view
+    assert "read only" in view and "Money" in view   # the seat chip since 887eb963
     assert "Promotion" not in view          # accountants don't see promo
     # Non-members are shut out entirely.
     stranger = app_obj.test_client()
@@ -4241,6 +4241,12 @@ def test_referral_engine(monkeypatch):
         return {"id": "cbt_1"}
 
     monkeypatch.setattr(sb, "_http", fake_http)
+    # The referrer's credit is half of what Stripe bills THEM (2026-09-19
+    # second review), so Stripe is asked for their subscription: the demo
+    # is on Label, $199. Nothing in a test reaches the network.
+    monkeypatch.setattr(sb, "_http_get", lambda path: {
+        "id": "sub_referrer", "status": "active", "metadata": {"plan": "label"},
+        "items": {"data": [{"id": "si_r", "price": {"unit_amount": 19900}}]}})
     app_obj = create_app()
     store_mod.set_kv("stripe_ref_coupon_50", "")  # fresh coupon path per run
     artist = _demo(app_obj)
