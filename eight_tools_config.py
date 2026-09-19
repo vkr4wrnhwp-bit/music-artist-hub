@@ -36,17 +36,18 @@ TOOLS = [
 
 # Where a plate sits on the photograph, as a fraction of it. Brushed steel
 # since 2026-09-18 (owner's option 2: vent grilles, a riveted name plate).
-# The eight bays in this photograph are not quite evenly spaced, so each
-# plate's left edge is measured (the dark gaps between plates on the
-# 2508px original) rather than stepped; `step` is their average, kept for
-# the check that the last plate fits.
+# The owner's photograph spaced its bays a few pixels unevenly, so the
+# plates were re-spaced to one exact step (each plate cut, set to 280px of
+# the 2508px original, and laid on a 289.57px pitch with its own gap
+# between). That is what lets the stacked rows line up plate for plate.
+# The photograph's bottom rail was cut to match its top (40px of black
+# either side of the plates), so the rack sits evenly in its frame.
 PLATE = {
     "first_left": 4.027,     # left edge of the first faceplate, per cent
-    "lefts": [4.027, 15.391, 26.834, 38.357, 50.040, 61.643, 73.285, 84.848],
-    "step": 11.546,
-    "width": 11.16,
-    "top": 6.70,
-    "height": 80.54,
+    "step": 11.5459,         # to the next one
+    "width": 11.164,
+    "top": 7.167,
+    "height": 86.177,
     # Inside a plate: the smoked window, the riveted name plate under the
     # vents (between its four rivets), and the dome lamp top right.
     "window_left": 13.6, "window_width": 71.8, "window_top": 21.4, "window_height": 33.5,
@@ -58,10 +59,10 @@ IMAGE = {
     "stem": "/static/img/eight-tools",
     "widths": [900, 1200, 1553, 2508],
     "width": 2508,
-    "height": 627,
+    "height": 586,
     # Bumped when the photograph changes, so the year-long cache that a
     # query string earns cannot keep showing the old rack.
-    "v": 2,
+    "v": 4,
     "alt": ("A rack of eight brushed-steel faceplates in a black rail, one for "
             "each Street Banker tool, each with a lit window and its name on "
             "a riveted plate below it."),
@@ -95,13 +96,40 @@ def _halves(tools):
             k, m, name, d, c, o = tools[n]
             units.append({
                 "key": k, "mark": m, "name": name, "desc": d, "colour": c, "opens": o,
-                "left": round(PLATE["lefts"][n] * 2 - h * 100, 3),
+                "left": round((PLATE["first_left"] + n * PLATE["step"]) * 2 - h * 100, 3),
             })
         out.append({"index": h, "units": units})
     return out
 
 
+# STACKED, THE TABS COME OFF
+# One above the other, each half would show a rack ear: the left one on
+# the top row, the right one on the bottom, so the two rows of four did
+# not line up (owner, 2026-09-18: "crop the mounting tabs off so they
+# line up properly on the 8"). Stacked, each half is cropped to its four
+# plates: the same small margin before the first plate on both rows, and
+# one shared width, so plate 1 sits over plate 5 and both rows are the
+# same size. Side by side (1180px and up) it is one rack again, ears and
+# all. The first row's crop ends at the seam, never on plate five.
+CROP_MARGIN = 0.6   # per cent of a half, before the first plate of a row
+
+
+def _crop(halves, unit_width):
+    starts = [hf["units"][0]["left"] - CROP_MARGIN for hf in halves]
+    span = max(hf["units"][-1]["left"] + unit_width - st for hf, st in zip(halves, starts)) + CROP_MARGIN
+    # The first row may run past the seam into the gap, never onto plate 5.
+    assert starts[0] + span < 100 + halves[1]["units"][0]["left"], "the crop reaches plate five"
+    k = 100 / span
+    for hf, st in zip(halves, starts):
+        hf["start"] = round(st, 3)
+    half = IMAGE["width"] / 2 / IMAGE["height"]   # a half's shape, uncropped
+    return {"k": round(k, 5), "ratio": round(half / k, 5), "half": round(half, 5),
+            "span": round(span, 3)}
+
+
 def get_eight_tools_config():
+    halves = _halves(TOOLS)
+    crop = _crop(halves, PLATE["width"] * 2)
     return {
         "eyebrow": EYEBROW,
         "support": SUPPORT,
@@ -109,10 +137,11 @@ def get_eight_tools_config():
             {"key": k, "mark": m, "name": n, "desc": d, "colour": c, "opens": o}
             for k, m, n, d, c, o in TOOLS
         ],
-        "halves": _halves(TOOLS),
+        "halves": halves,
         # Inside a half, a plate is twice as wide as it is on the whole.
         "unit_width": PLATE["width"] * 2,
         "plate": PLATE,
+        "crop": crop,
         "image": IMAGE,
         "cta": CTA,
         "note": NOTE,

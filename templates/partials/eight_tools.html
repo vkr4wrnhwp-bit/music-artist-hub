@@ -33,9 +33,10 @@
       <p class="sbet-support">{{ et.support }}</p>
     </header>
 
-    <div class="sbet-rack" id="sbet-rack" role="group" aria-label="{{ img.alt }}">
+    <div class="sbet-rack" id="sbet-rack" role="group" aria-label="{{ img.alt }}"
+         style="--k: {{ et.crop.k }}; --bay-ratio: {{ et.crop.ratio }}; --half-ratio: {{ et.crop.half }}">
       {% for half in et.halves %}
-      <div class="sbet-half sbet-half--{{ half.index }}">
+      <div class="sbet-half sbet-half--{{ half.index }}" style="--h: {{ half.index * 100 }}; --s: {{ half.start }}">
         <div class="sbet-bay">
           {#- One photograph, drawn twice. The second copy is decorative;
               the rack's description is on the group above, once. -#}
@@ -57,7 +58,7 @@
           <button type="button" class="sbet-unit" data-key="{{ t.key }}"
                   data-name="{{ t.name }}" data-desc="{{ t.desc }}" data-opens="{{ t.opens }}"
                   aria-describedby="sbet-readout"
-                  style="--c: {{ t.colour }}; left: {{ t.left }}%; width: {{ et.unit_width }}%;
+                  style="--c: {{ t.colour }}; --l: {{ t.left }}; --w: {{ et.unit_width }};
                          top: {{ p.top }}%; height: {{ p.height }}%">
             <span class="sbet-lamp" aria-hidden="true"
                   style="left: {{ p.lamp_left }}%; top: {{ p.lamp_top }}%; width: {{ p.lamp_size }}%"></span>
@@ -78,7 +79,7 @@
 
         {#- Phones only: the names, under the plates they belong to. -#}
         <ol class="sbet-names" aria-hidden="true">
-          {% for t in half.units %}<li style="--c: {{ t.colour }}; left: {{ t.left }}%; width: {{ et.unit_width }}%">{{ t.name }}</li>{% endfor %}
+          {% for t in half.units %}<li style="--c: {{ t.colour }}; --l: {{ t.left }}; --w: {{ et.unit_width }}">{{ t.name }}</li>{% endfor %}
         </ol>
       </div>
       {% endfor %}

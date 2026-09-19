@@ -57,14 +57,21 @@
    ratio is half the photograph's, so the plates keep their shape. */
 .sbet-bay {
   position: relative;
-  aspect-ratio: 1553 / 776.5;
+  /* Stacked, a half is cropped to its own four plates, rack ears off, so
+     the two rows line up plate for plate (owner, 2026-09-18). --k is the
+     zoom that crop needs and --bay-ratio the shape it leaves; both come
+     from eight_tools_config._crop. */
+  aspect-ratio: var(--bay-ratio, 2);
   overflow: hidden;
   border-radius: var(--sb-r-panel);
   box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
   container-type: inline-size;
 }
-.sbet-photo { position: absolute; inset: 0 auto 0 0; width: 200%; }
-.sbet-half--1 .sbet-photo { left: -100%; }
+.sbet-photo {
+  position: absolute; top: 0; bottom: 0;
+  width: calc(200% * var(--k, 1));
+  left: calc((var(--h, 0) + var(--s, 0)) * var(--k, 1) * -1%);
+}
 .sbet-photo img { display: block; width: 100%; height: 100%; }
 
 /* The names under each half, phones only. Each sits at its plate's own
@@ -103,6 +110,20 @@
   transition: opacity .25s ease, filter .25s ease;
 }
 .sbet-unit > span { position: absolute; }
+/* A plate, and its name under the row on a phone, sit where the crop puts
+   them: their place on the half, less where the crop starts, zoomed. */
+.sbet-unit, .sbet-names li {
+  left: calc((var(--l) - var(--s, 0)) * var(--k, 1) * 1%);
+  width: calc(var(--w) * var(--k, 1) * 1%);
+}
+/* Side by side it is one rack again, ears and all: each half is exactly
+   half the picture. After the stacked rules above, so it wins at this width. */
+@media (min-width: 1180px) {
+  .sbet-bay { aspect-ratio: var(--half-ratio, 2); }
+  .sbet-photo { width: 200%; left: 0; }
+  .sbet-half--1 .sbet-photo { left: -100%; }
+  .sbet-unit, .sbet-names li { left: calc(var(--l) * 1%); width: calc(var(--w) * 1%); }
+}
 
 /* The smoked window, lit from behind by the suite's own colour. */
 .sbet-win {
