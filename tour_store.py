@@ -886,6 +886,11 @@ def delete_tour(tour_id):
               "tour_merch_products", "tour_merch_counts", "tour_content",
               "tour_setlists", "tour_changes", "tour_acks", "tour_share_links",
               "tour_imports", "tour_fan_captures", "tour_show_ext"]
+    # The Mock Up Tour's invented shows go with it; everything else is set
+    # loose below, as before. Read before tour_imports is emptied, because
+    # that record is how the Mock Up Tour is recognised.
+    import tour_mockup
+    tour_mockup.discard_invented_shows(tour_id)
     with get_db() as db:
         for t in tables:
             db.execute("DELETE FROM %s WHERE tour_id = ?" % t, (tour_id,))

@@ -1,0 +1,236 @@
+{#- Support, in the corner of every page.
+
+    Every answer it gives was written in support_kb.py by a person. There is
+    no model behind it, so it cannot invent an answer about somebody's
+    royalties, and when nobody has written an answer it says exactly that
+    and passes the question on rather than improvising.
+
+    No script libraries, no third party, nothing leaves this server. -#}
+<div class="sbq" id="sbq">
+  <button type="button" class="sbq-open" id="sbq-open" aria-expanded="false" aria-controls="sbq-panel" aria-label="Ask Street Banker">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false">
+      <path d="M3 5h14v9H8l-4 3v-3H3z"/><path d="M8 8h4M8 11h2"/>
+    </svg>
+    <span>Ask</span>
+  </button>
+
+  <div class="sbq-panel" id="sbq-panel" hidden>
+    <div class="sbq-head">
+      <h2 class="sbq-title">Ask Street Banker</h2>
+      <button type="button" class="sbq-x" id="sbq-x" aria-label="Close">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M5 5l10 10M15 5L5 15"/></svg>
+      </button>
+    </div>
+    <p class="sbq-note">Answers here are written by us, not generated. If nobody has written one, it says so and sends your question on.</p>
+    <form class="sbq-form" id="sbq-form">
+      <label class="sbq-label" for="sbq-q">Your question</label>
+      <textarea id="sbq-q" name="q" rows="2" required
+                placeholder="Where is my money? Why was my cover art rejected?"></textarea>
+      <button type="submit" class="sbq-go">Ask</button>
+    </form>
+    <div class="sbq-out" id="sbq-out" aria-live="polite"></div>
+  </div>
+</div>
+
+<style>
+  .sbq { position: fixed; right: 16px; bottom: 16px; z-index: 60; }
+  .sbq-open {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 14px; border-radius: var(--sb-r-pill); cursor: pointer;
+    border: 1px solid var(--sb-gold);
+    background: var(--sb-surface-2); color: var(--sb-gold-bright);
+    font: inherit; font-size: 13px; font-weight: 700;
+    box-shadow: 0 10px 28px rgba(0,0,0,.5);
+  }
+  .sbq-open svg { width: 18px; height: 18px; }
+  .sbq-open:hover { border-color: var(--sb-gold-bright); }
+  .sbq-panel {
+    width: min(360px, calc(100vw - 32px));
+    max-height: min(70vh, 560px); overflow: auto;
+    padding: 16px; border-radius: var(--sb-r-panel);
+    border: 1px solid rgba(242,239,233,.14);
+    background: var(--sb-surface-1);
+    box-shadow: 0 24px 60px rgba(0,0,0,.6);
+  }
+  .sbq-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .sbq-title { margin: 0; font-size: 15px; font-weight: 800; color: var(--sb-ink); }
+  .sbq-x { background: none; border: 0; cursor: pointer; color: var(--sb-ink-2); padding: 4px; }
+  .sbq-x svg { width: 16px; height: 16px; }
+  .sbq-note { margin: 8px 0 12px; font-size: 12px; line-height: 1.5; color: var(--sb-ink-2); }
+  .sbq-form { display: grid; gap: 8px; }
+  .sbq-label { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--sb-ink-2); }
+  .sbq-form textarea {
+    width: 100%; padding: 10px 12px; border-radius: var(--sb-r-panel); resize: vertical;
+    border: 1px solid rgba(242,239,233,.14); background: rgba(0,0,0,.3);
+    color: var(--sb-ink); font: inherit; font-size: 14px;
+  }
+  .sbq-go {
+    justify-self: start; padding: 9px 16px; border: 0; border-radius: var(--sb-r-panel); cursor: pointer;
+    background: var(--sb-gold); color: var(--sb-on-gold);
+    font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  }
+  .sbq-out:not(:empty) { margin-top: 14px; border-top: 1px solid rgba(242,239,233,.12); padding-top: 12px; }
+  .sbq-q { margin: 0 0 6px; font-size: 13px; font-weight: 800; color: var(--sb-gold-bright); }
+  .sbq-a { margin: 0; font-size: 14px; line-height: 1.55; color: var(--sb-ink); }
+  .sbq-where { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .sbq-where a {
+    padding: 6px 10px; border-radius: var(--sb-r-panel); text-decoration: none;
+    border: 1px solid rgba(212,169,60,.45); color: var(--sb-gold-bright);
+    font-size: 12px; font-weight: 700;
+  }
+  .sbq :focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; }
+  /* On a phone the pill sat on top of whatever was at the foot of the
+     screen: a card's button, a line of the Tool suites (phone pass,
+     2026-09-18). There it is a 44px round button tucked into the corner,
+     clear of the home indicator, and every page keeps room at its foot
+     so the last thing on it can scroll out from under the button. The
+     open panel becomes a sheet the width of the screen. */
+  @media (max-width: 767px) {
+    /* --sbq-lift is the height of a fixed bar pinned to the foot of the
+       screen (the Light Studio dock, the Rack's power strip, the tour
+       bar), measured by the script below, so the button sits above the
+       bar instead of on its right-hand control. The bar's own height
+       already includes the home-indicator inset. */
+    .sbq {
+      right: 12px;
+      bottom: calc(12px + max(var(--sbq-lift, 0px), env(safe-area-inset-bottom, 0px)));
+      transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 0s;
+    }
+    /* Scrolling down to read, the button steps out of the way, so it is
+       never parked on the edge of a card; any scroll back up, the top of
+       the page or the foot of it (which keeps room for it) brings it
+       back. An open panel never hides. */
+    .sbq.is-tucked {
+      transform: translateY(calc(100% + 24px)); opacity: 0; visibility: hidden; pointer-events: none;
+      transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 180ms;
+    }
+    .sbq-open {
+      width: 44px; height: 44px; padding: 0; gap: 0; justify-content: center;
+      background: var(--sb-surface-2);
+      box-shadow: 0 6px 18px rgba(0,0,0,.55);
+    }
+    .sbq-open span {
+      position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip-path: inset(50%); white-space: nowrap;
+    }
+    .sbq-open svg { width: 20px; height: 20px; }
+    .sbq-panel { width: calc(100vw - 24px); max-height: min(75vh, 560px); }
+    #sb-main { padding-bottom: 72px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .sbq, .sbq.is-tucked { transition: none; } }
+  @media print { .sbq { display: none; } }
+</style>
+
+<script>
+(function () {
+  var root = document.getElementById("sbq");
+  if (!root) { return; }
+  var open = document.getElementById("sbq-open");
+  var panel = document.getElementById("sbq-panel");
+  var form = document.getElementById("sbq-form");
+  var box = document.getElementById("sbq-q");
+  var out = document.getElementById("sbq-out");
+
+  function show(on) {
+    panel.hidden = !on;
+    open.hidden = on;
+    open.setAttribute("aria-expanded", on ? "true" : "false");
+    if (on) { box.focus(); } else { open.focus(); }
+  }
+  open.addEventListener("click", function () { show(true); });
+  document.getElementById("sbq-x").addEventListener("click", function () { show(false); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !panel.hidden) { show(false); }
+  });
+
+  // Phones: keep clear of fixed bottom bars, and step aside while the
+  // reader scrolls down (see the CSS above for why).
+  var phone = window.matchMedia ? window.matchMedia("(max-width: 767px)") : null;
+  var docks = [];
+  function lift() {
+    var h = 0, vh = window.innerHeight;
+    docks.forEach(function (el) {
+      var cs = window.getComputedStyle(el);
+      if (cs.position !== "fixed" || cs.display === "none" || cs.visibility === "hidden") { return; }
+      var r = el.getBoundingClientRect();
+      if (r.height > 0 && r.bottom >= vh - 2) { h = Math.max(h, Math.ceil(vh - r.top)); }
+    });
+    root.style.setProperty("--sbq-lift", h + "px");
+  }
+  function watchDocks() {
+    // The tour bar is written after this partial, so look once the page is parsed.
+    docks = ["lx-dock", "rk-dock", "tour-bar"].map(function (id) {
+      return document.getElementById(id);
+    }).filter(Boolean);
+    if (!docks.length) { return; }
+    lift();
+    window.addEventListener("resize", lift);
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(lift);
+      docks.forEach(function (el) { ro.observe(el); });
+    }
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(lift);
+      docks.forEach(function (el) { mo.observe(el, { attributes: true, attributeFilter: ["class", "style", "hidden"] }); });
+    }
+  }
+  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", watchDocks); }
+  else { watchDocks(); }
+  var lastY = window.scrollY || 0;
+  function tuck(on) { root.classList.toggle("is-tucked", on); }
+  window.addEventListener("scroll", function () {
+    var y = window.scrollY || 0;
+    if (!phone || !phone.matches || !panel.hidden) { tuck(false); lastY = y; return; }
+    var dy = y - lastY;
+    if (Math.abs(dy) < 6) { return; }
+    var foot = window.innerHeight + y >= document.documentElement.scrollHeight - 96;
+    tuck(dy > 0 && y > 80 && !foot);
+    lastY = y;
+  }, { passive: true });
+  root.addEventListener("focusin", function () { tuck(false); });
+
+  function text(tag, cls, value) {
+    var el = document.createElement(tag);
+    if (cls) { el.className = cls; }
+    el.textContent = value;
+    return el;
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var q = (box.value || "").trim();
+    if (!q) { return; }
+    out.textContent = "";
+    out.appendChild(text("p", "sbq-a", "Looking..."));
+    fetch("/support/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: q, page: location.pathname })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      out.textContent = "";
+      if (d.kind === "answer") {
+        out.appendChild(text("p", "sbq-q", d.question));
+        out.appendChild(text("p", "sbq-a", d.answer));
+        if (d.where && d.where.length) {
+          var row = document.createElement("div");
+          row.className = "sbq-where";
+          d.where.forEach(function (pair) {
+            var a = document.createElement("a");
+            a.href = pair[1];
+            a.textContent = pair[0];
+            row.appendChild(a);
+          });
+          out.appendChild(row);
+        }
+      } else {
+        out.appendChild(text("p", "sbq-a", d.reply ||
+          "Something went wrong asking. Try again in a moment."));
+      }
+    }).catch(function () {
+      out.textContent = "";
+      out.appendChild(text("p", "sbq-a",
+        "That could not be sent. Check your connection and try again."));
+    });
+  });
+})();
+</script>

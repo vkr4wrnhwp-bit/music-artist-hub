@@ -244,7 +244,7 @@ def test_landing_is_the_twelve_approved_sections_in_order():
     order = [
         "sbhero",                       # 2  hero
         'id="artist-eq"',               # 3  Artist EQ
-        'id="departments"',             # 4  one system, six departments
+        'id="eight-tools"',             # 4  one system, eight tools
         'id="artist-twin-section"',     # 5  AI Artist Twin
         'id="lanes"',                   # 6  three lanes
         'id="creative-studio"',         # 7  Creative Studio
@@ -1159,7 +1159,9 @@ def test_marketplace_post_flow():
     poster = _demo(app_obj)
     page = poster.get("/marketplace").get_data(as_text=True)
     assert "Collab Marketplace" in page and "Nothing here is seeded" in page
-    assert "For Bid" in page and "Royalty Split" in page and "For Fun" in page
+    # The approved screen (owner mock, 2026-09-18) names the deal types
+    # Paid / Royalty split / For fun, in the Deal filter and the post form.
+    assert "Paid" in page and "Royalty split" in page and "For fun" in page
     # Post a real request with terms up front.
     poster.post("/marketplace/post", data={
         "kind": "split", "role": "Vocalist", "genre": "Synthwave",
@@ -1168,7 +1170,12 @@ def test_marketplace_post_flow():
         "ref_url": "https://example.com/scratch"})
     page = poster.get("/marketplace").get_data(as_text=True)
     assert "Velvet topline" in page and "5-15% master" in page
-    assert "Trust" in page and "Hear the reference track" in page
+    assert "Trust" in page
+    # The reference link lives on the opened brief ("View Brief") now.
+    rid = store_mod.list_own_collab_requests(
+        store_mod.get_user_by_email("demo@streetbanker.io")["id"])[0]["id"]
+    assert "Hear the reference track" in poster.get(
+        "/marketplace?brief=%s" % rid).get_data(as_text=True)
     # A second member applies; the poster sees the application + notification.
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     req = store_mod.list_own_collab_requests(uid)[0]
@@ -1184,7 +1191,8 @@ def test_marketplace_post_flow():
                              "contact": "topliner@example.net",
                              "proposal": "10% master"})
     assert r.status_code == 302 and "applied=1" in r.headers["Location"]
-    mine = poster.get("/marketplace").get_data(as_text=True)
+    # Applications received sit on the My Briefs tab of the new screen.
+    mine = poster.get("/marketplace?tab=briefs").get_data(as_text=True)
     assert "Top Liner" in mine and "10% master" in mine
     # Applicants can't apply to their own post; saves toggle.
     own_try = poster.post("/marketplace/%s/apply" % req["id"],
@@ -1211,8 +1219,10 @@ def test_fan_label_vote_flow():
 
 
 def test_fan_dashboard_content():
+    # The demo account sees the Audience screen's labelled showcase
+    # (redesign, 2026-09-18); a real account never does (test_fans_audience).
     body = _demo().get("/fans").get_data(as_text=True)
-    assert "Fan Segments" in body and "Fan Leaderboard" in body
+    assert "Fan Geography" in body and "Fan Lifecycle" in body and "Showcase." in body
 
 
 def test_capital_page_content_and_disclaimer():
@@ -1255,7 +1265,7 @@ def test_label_services_content_from_site():
     hub = client.get("/services").get_data(as_text=True)
     # Platform branding is Street Banker; the AIW Shopify store is only a link.
     assert "Street Banker" in hub
-    assert "artiswarrecords.com" in hub  # store link retained
+    assert "streetbankermusic.com" in hub  # store link retained
     assert "team.summitarts@gmail.com" in hub
     assert "200+" in hub
     dist = client.get("/services/distribution").get_data(as_text=True)
@@ -1500,8 +1510,20 @@ def _fake_deezer(url):
 
 def test_catalog_add_pulls_metadata(monkeypatch):
     import music_apis
+    import signal_providers as sp
     monkeypatch.setattr(music_apis, "_fetch_json", _fake_deezer)
     monkeypatch.setattr(music_apis.time, "sleep", lambda s: None)
+
+    class _MLC:
+        def configured(self):
+            return True
+
+        def lookup(self, isrc=None, title=None, artist=None):
+            return {"works": [{"writers": [{"name": "Fake Writer"}],
+                               "publishers": [{"name": "Fake Publishing Co"}]}]}
+    # Credits come from The MLC's register now, not MusicBrainz (owner,
+    # 2026-09-18: "switch to mlc", "brainz off for customers").
+    monkeypatch.setattr(sp, "mlc_adapter", lambda: _MLC())
     client = _demo()
     client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
     r = client.post("/catalog/add", json={"title": "Meta Song", "artist": "Meta Artist"})
@@ -1807,11 +1829,12 @@ def test_tier_demo_accounts():
         r = app_obj.test_client().post("/login", data={
             "email": email, "password": "sweep"})
         assert r.status_code == 302 and r.headers["Location"].endswith(landing)
-    # The tiers actually gate: artist demo hits the paywall on a Pro page.
+    # Royalty Sweep came down to the Artist membership (owner, 2026-09-17),
+    # so the artist demo opens it; the fan below still meets the paywall.
     artist = app_obj.test_client()
     artist.post("/login", data={"email": "demo-artist@streetbanker.io",
                                 "password": "sweep"})
-    assert artist.get("/overview").status_code == 402
+    assert artist.get("/overview").status_code == 200
     fan = app_obj.test_client()
     fan.post("/login", data={"email": "demo-fan@streetbanker.io",
                              "password": "sweep"})
@@ -2261,12 +2284,12 @@ def test_capital_score_and_spend_optimizer_real():
     body = client.get("/spend-optimizer?budget=1000").get_data(as_text=True)
     assert "Recommended split" in body and "$400.00" in body
     assert "Don't spend it here" in body
-    # Money features stay behind the Pro wall.
-    artist = app_obj.test_client()
-    artist.post("/login", data={"email": "demo-artist@streetbanker.io",
-                                "password": "sweep"})
-    assert artist.get("/capital-score").status_code == 402
-    assert artist.get("/spend-optimizer").status_code == 402
+    # Money features stay behind the paywall: Artist and up since 2026-09-17.
+    fan = app_obj.test_client()
+    fan.post("/login", data={"email": "demo-fan@streetbanker.io",
+                             "password": "sweep"})
+    assert fan.get("/capital-score").status_code == 402
+    assert fan.get("/spend-optimizer").status_code == 402
 
 
 def test_metadata_passport_real():
@@ -2370,12 +2393,12 @@ def test_stripe_checkout_and_webhooks(monkeypatch):
                                  "password": "paypass"})
     # Real accounts see real checkout, not the demo switch.
     body = client.get("/billing").get_data(as_text=True)
-    assert "Subscribe — $29/mo" in body and "Switch (demo)" not in body
+    assert "Subscribe: $79/mo" in body and "Switch (demo)" not in body
     r = client.post("/billing/checkout", data={"plan": "pro"})
     assert r.status_code == 303 and "checkout.stripe.com" in r.headers["Location"]
     path, fields = calls[0]
     assert path == "/v1/checkout/sessions"
-    assert fields["line_items[0][price_data][unit_amount]"] == "2900"
+    assert fields["line_items[0][price_data][unit_amount]"] == "7900"
     assert fields["mode"] == "subscription"
     # Paid demo switching is blocked for real users when Stripe is live.
     uid = store_mod.get_user_by_email("payer2@example.net")["id"]
@@ -2385,7 +2408,7 @@ def test_stripe_checkout_and_webhooks(monkeypatch):
     anon = app_obj.test_client()
     payload = json.dumps({"type": "checkout.session.completed", "data": {"object": {
         "client_reference_id": uid, "customer": "cus_t9", "subscription": "sub_t9",
-        "metadata": {"plan": "pro"}}}})
+        "payment_status": "paid", "metadata": {"plan": "pro"}}}})
     assert anon.post("/webhooks/stripe", data=payload,
                      headers={"Stripe-Signature": "t=1,v1=forged"},
                      content_type="application/json").status_code == 401
@@ -2396,7 +2419,7 @@ def test_stripe_checkout_and_webhooks(monkeypatch):
     assert "Manage Billing" in client.get("/billing").get_data(as_text=True)
     # Cancellation downgrades to the free tier, data untouched.
     p2 = json.dumps({"type": "customer.subscription.deleted",
-                     "data": {"object": {"customer": "cus_t9"}}})
+                     "data": {"object": {"id": "sub_t9", "customer": "cus_t9"}}})
     anon.post("/webhooks/stripe", data=p2, headers=_stripe_sig(p2),
               content_type="application/json")
     assert store_mod.get_user(uid)["plan"] == "fan"
@@ -2411,16 +2434,16 @@ def test_billing_sync_claims_completed_checkout(monkeypatch):
     client.post("/signup", data={"name": "Sync", "email": "sync@example.net",
                                  "password": "syncpass"})
     # Nothing found: honest message, no plan change.
-    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email: None)
+    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email, user_id=None: None)
     r = client.post("/billing/sync")
     assert r.headers["Location"].endswith("?sync=none")
     uid = store_mod.get_user_by_email("sync@example.net")["id"]
     assert store_mod.get_user(uid)["plan"] == "artist"
     # Active sub in Stripe: plan applies, ids stored, notification lands.
-    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email: {
+    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email, user_id=None: {
         "customer_id": "cus_s1", "subscription_id": "sub_s1", "plan": "artist"}
         if email == "sync@example.net" else None)
-    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email: {
+    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email, user_id=None: {
         "customer_id": "cus_s1", "subscription_id": "sub_s1", "plan": "pro"})
     r = client.post("/billing/sync")
     assert "upgraded=1" in r.headers["Location"]
@@ -2436,7 +2459,7 @@ def test_stripe_absent_keeps_honest_demo_switching(monkeypatch):
     client.post("/signup", data={"name": "NoPay", "email": "nopay@example.net",
                                  "password": "nopaypass"})
     body = client.get("/billing").get_data(as_text=True)
-    assert "Switch (demo)" in body and "Subscribe —" not in body
+    assert "Switch (demo)" in body and "Subscribe:" not in body
     assert "no payment is taken" in body
     assert client.post("/webhooks/stripe", data="{}").status_code == 404
     r = client.post("/billing/checkout", data={"plan": "pro"})
@@ -2508,7 +2531,10 @@ def test_fan_club_full_loop(monkeypatch):
     import json
     import db as store_mod
     import links_store as mls
+    import sales_switch
     import stripe_provider as sb
+    # Paid joins sit behind the owner's switch, off by default (2026-09-18).
+    monkeypatch.setattr(sales_switch, "is_on", lambda: True)
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_stripetest")
     monkeypatch.setattr(sb, "_http", lambda path, fields: {
@@ -2563,7 +2589,7 @@ def test_partner_portal_role_scoping():
     import db as store_mod
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     view = member.get("/portal/" + uid).get_data(as_text=True)
-    assert "read-only" in view and "Money" in view
+    assert "read only" in view and "Money" in view   # the seat chip since 887eb963
     assert "Promotion" not in view          # accountants don't see promo
     # Non-members are shut out entirely.
     stranger = app_obj.test_client()
@@ -2628,13 +2654,14 @@ def test_plan_tiers_gate_sections():
     email = "tier%s@x.com" % _uuid.uuid4().hex[:6]
     client.post("/signup", data={"name": "T", "email": email, "password": "secret1",
                                  "account_type": "artist"})
-    # Artist tier: Promote works, Royalty Sweep is gated with the upgrade page.
+    # Artist tier: Promote and Royalty Sweep both open (owner, 2026-09-17);
+    # a suite above the membership is gated with the upgrade page.
     assert client.get("/links").status_code == 200
     assert client.get("/command-center").status_code == 200
-    r = client.get("/overview")
+    assert client.get("/overview").status_code == 200
+    r = client.get("/suites/go/tour")
     assert r.status_code == 402
-    assert "This is a Pro feature" in r.get_data(as_text=True)
-    assert client.get("/statements").status_code == 402
+    assert "Tour opens with Pro" in r.get_data(as_text=True)
     # Demo plan switch unlocks it (labeled demo until Stripe).
     client.post("/plan/switch", data={"plan": "pro"})
     assert client.get("/overview").status_code == 200
@@ -3532,14 +3559,25 @@ def test_webhook_auto_setup(monkeypatch):
     outsider.post("/signup", data={"name": "O", "email": "webhook-outsider@example.net",
                                    "password": "outside1"})
     assert outsider.post("/billing/webhook-setup").status_code == 404
-    artist = _demo(app_obj)
+    # A Label account that is not the owner is refused, the shared demo
+    # login included: the production webhook is the owner's (2026-09-18
+    # launch check; it used to check only for the Label plan).
+    label = _demo(app_obj)
+    assert "Set up webhook automatically" not in label.get("/billing").get_data(as_text=True)
+    assert label.post("/billing/webhook-setup").status_code == 404
+    assert deleted == [] and created == {}
+    monkeypatch.setenv("OWNER_EMAILS", "webhook-owner@example.net")
+    artist = app_obj.test_client()
+    artist.post("/signup", data={"name": "Own", "email": "webhook-owner@example.net",
+                                 "password": "ownerpass1"})
+    artist.post("/login", data={"email": "webhook-owner@example.net", "password": "ownerpass1"})
     # Owner sees the one-click card while the webhook is missing.
     assert "Set up webhook automatically" in artist.get("/billing").get_data(as_text=True)
     r = artist.post("/billing/webhook-setup")
     assert r.status_code == 302 and "webhook=ok" in r.headers["Location"]
     assert deleted == ["/v1/webhook_endpoints/we_old"]  # stale endpoint replaced
     assert created["enabled_events[0]"] == "checkout.session.completed"
-    assert store_mod.get_kv("stripe_webhook_secret") == "whsec_kvstored"
+    assert store_mod.get_kv(sb._kv_key("webhook_secret")) == "whsec_kvstored"
     assert sb.webhook_configured()
     assert "active" in artist.get("/billing").get_data(as_text=True)
     # A webhook signed with the stored secret verifies with no env secret.
@@ -3552,7 +3590,8 @@ def test_webhook_auto_setup(monkeypatch):
         "/webhooks/stripe", data=payload, content_type="application/json",
         headers={"Stripe-Signature": "t=%s,v1=%s" % (t, sig)})
     assert resp.get_json()["ok"]
-    store_mod.set_kv("stripe_webhook_secret", "")  # shared-DB cleanup
+    store_mod.set_kv(sb._kv_key("webhook_secret"), "")  # shared-DB cleanup
+    store_mod.set_kv(sb._kv_key("webhook_events"), "")
 
 
 def test_club_members_area(monkeypatch):
@@ -4202,11 +4241,17 @@ def test_referral_engine(monkeypatch):
         return {"id": "cbt_1"}
 
     monkeypatch.setattr(sb, "_http", fake_http)
+    # The referrer's credit is half of what Stripe bills THEM (2026-09-19
+    # second review), so Stripe is asked for their subscription: the demo
+    # is on Label, $199. Nothing in a test reaches the network.
+    monkeypatch.setattr(sb, "_http_get", lambda path: {
+        "id": "sub_referrer", "status": "active", "metadata": {"plan": "label"},
+        "items": {"data": [{"id": "si_r", "price": {"unit_amount": 19900}}]}})
     app_obj = create_app()
-    store_mod.set_kv("stripe_ref_coupon", "")  # fresh coupon path per run
+    store_mod.set_kv("stripe_ref_coupon_50", "")  # fresh coupon path per run
     artist = _demo(app_obj)
     page = artist.get("/referrals").get_data(as_text=True)
-    assert "/signup?ref=" in page and "first month free" in page
+    assert "/signup?ref=" in page and "50% off their first month" in page
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     code = store_mod.ensure_ref_code(uid)
     # Friend lands on the ref link, signs up, is attributed.
@@ -4218,23 +4263,33 @@ def test_referral_engine(monkeypatch):
     assert store_mod.get_user(rid)["referred_by"] == uid
     assert any("Referral signed up" in n["title"]
                for n in store_mod.list_notifications(uid))
-    # Their first checkout carries the 100%-off-first-month coupon.
+    # Their first checkout carries the 50%-off-first-month coupon.
     friend.post("/billing/checkout", data={"plan": "artist"})
+    coupon = [f for p, f in calls if p == "/v1/coupons"][-1]
+    assert coupon["percent_off"] == "50" and coupon["duration"] == "once"
     sess = [f for p, f in calls if p == "/v1/checkout/sessions"][-1]
     assert sess.get("discounts[0][coupon]") == "coup_free_month"
-    # Conversion webhook: Ray activates, referrer's Stripe balance is credited.
+    # Ray activates. Nothing is credited on the checkout form itself.
     store_mod.set_stripe_ids(uid, "cus_referrer", "sub_referrer")
     payload = _json.dumps({"type": "checkout.session.completed", "data": {"object": {
         "client_reference_id": rid, "customer": "cus_ray", "subscription": "sub_ray",
-        "metadata": {"plan": "artist"}}}})
+        "payment_status": "paid", "metadata": {"plan": "artist"}}}})
     app_obj.test_client().post("/webhooks/stripe", data=payload,
                                headers=_stripe_sig(payload),
+                               content_type="application/json")
+    assert store_mod.get_user(rid)["ref_credited"] == 0
+    # Ray's first paid invoice credits the referrer half of the referrer's
+    # own month (the demo is Label, $199), never more than Ray paid.
+    paid = _json.dumps({"type": "invoice.paid", "data": {"object": {
+        "customer": "cus_ray", "amount_paid": 1450}}})
+    app_obj.test_client().post("/webhooks/stripe", data=paid,
+                               headers=_stripe_sig(paid),
                                content_type="application/json")
     assert store_mod.get_user(rid)["ref_credited"] == 1
     credit_paths = [p for p, f in calls if "balance_transactions" in p]
     assert credit_paths and "cus_referrer" in credit_paths[-1]
     credit_fields = [f for p, f in calls if "balance_transactions" in p][-1]
-    assert credit_fields["amount"] == "-900"
+    assert credit_fields["amount"] == "-1450"
     assert any("Referral credit applied" in n["title"]
                for n in store_mod.list_notifications(uid))
     assert store_mod.referral_stats(uid)["converted"] >= 1
@@ -4245,7 +4300,7 @@ def test_referral_engine(monkeypatch):
                                "password": "solopass1"})
     sid = store_mod.get_user_by_email("solo-ref@example.net")["id"]
     assert store_mod.get_user(sid)["referred_by"] == uid  # normal attribution
-    store_mod.set_kv("stripe_ref_coupon", "")  # shared-DB cleanup
+    store_mod.set_kv("stripe_ref_coupon_50", "")  # shared-DB cleanup
 
 
 def test_light_studio():
@@ -5327,8 +5382,9 @@ def test_login_session_recall_page():
     the photograph, a single sign-in form, the demo strip - real form,
     no invented claims."""
     body = create_app().test_client().get("/login").get_data(as_text=True)
-    assert 'class="lsr-photo"' in body and "hero-band-wide-1100" in body
-    assert "Your decisions." in body           # the statement on the picture
+    # The owner's flight case photograph since 2026-09-19.
+    assert 'class="lsr-photo"' in body and "login-flightcase-900" in body
+    assert "Your decisions." not in body       # the case carries its own words
     assert 'id="lsr-submit"' in body and ">Sign in" in body
     assert "Tour with a sample workspace" in body
     assert "YOUR MIX IS READY" in body          # rendered hidden until JS

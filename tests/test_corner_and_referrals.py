@@ -60,8 +60,10 @@ def test_referrals_read_in_plain_words():
     c = _client(app_obj)
     body = c.get("/referrals").get_data(as_text=True)
     assert "Share your link with another artist." in body
-    assert "$9 off your next bill" in body
-    assert "Joined through your link" in body and "Now paying, $9 earned each" in body
-    assert "How the $9 reaches you:" in body
+    # The offer is 50/50 (owner, 2026-09-18): half off their first month,
+    # half off the referrer's next.
+    assert "50% off their first month" in body and "50% off your next month" in body
+    assert "Joined through your link" in body and "Now paying, half a month earned each" in body
+    assert "How your 50% reaches you:" in body and "$9" not in body
     for gone in ("Give a month, get $9", "Converted · credits applied", "How it settles, honestly", "expiry games"):
         assert gone not in body, gone

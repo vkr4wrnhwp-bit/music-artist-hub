@@ -51,7 +51,7 @@ def test_page_has_the_studio_surfaces(flask_app):
                   "lx-rig-select", "lx-rig-apply", "lx-rig-save", "lx-rig-delete", "lx-rig-name", "lx-rig-venue", "lx-rig-status",
                   "lx-lib-save", "lx-saved", "lx-focus", "lx-detect", "lx-snap", "lx-tap", "lx-zoom-fit"):
         assert 'id="%s"' % el_id in page, el_id
-    assert "lights-engine.js?v=7" in page and "lights.js?v=20" in page and "light-studio.css?v=15" in page
+    assert "lights-engine.js?v=7" in page and "lights.js?v=21" in page and "light-studio.css?v=16" in page
     assert "lx-transport" in page and "__lightsLibrary" in page
     # polish pass: unsaved-work, undo, a11y, rail
     for el_id in ("lx-undo", "lx-redo", "lx-live", "lx-libdirty", "lx-draft-prompt", "lx-draft-keep", "lx-draft-discard",

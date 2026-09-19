@@ -11,10 +11,17 @@
 
 {% set twin = artist_twin %}
 {% set img = twin.image %}
-<section class="sbtw" id="artist-twin-section" aria-labelledby="sbtw-heading">
+{#- The overlay layout is the split home page only: on the long page the
+    two columns sit side by side as they always have. -#}
+<section class="sbtw{% if split_home %} sbtw--over{% endif %}" id="artist-twin-section" aria-labelledby="sbtw-heading">
   <div class="sbtw-inner">
 
     <figure class="sbtw-photo">
+      {#- Two figures crossing the room. Cut-outs from the owner's approved
+          artifact, at his positions. Decorative: the photograph's own alt
+          already describes the scene, so these are hidden from a reader. -#}
+      <i class="sbtw-ghost sbtw-ghost--l" aria-hidden="true"></i>
+      <i class="sbtw-ghost sbtw-ghost--r" aria-hidden="true"></i>
       <picture>
         <source type="image/avif"
                 srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.avif {{ w }}w{{ ', ' if not loop.last }}{% endfor %}"

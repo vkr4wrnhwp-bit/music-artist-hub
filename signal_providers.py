@@ -281,6 +281,11 @@ SOUNDCHARTS_AUTH_LABELS = {"oauth": "OAuth client credentials",
                            "legacy": "legacy app id + api key"}
 
 
+class SoundchartsPaused(ProviderError):
+    """The owner's monthly Soundcharts allowance has stopped new calls for
+    this caller (soundcharts_budget)."""
+
+
 class SoundchartsAdapter(_EnvProvider):
     """Soundcharts, over its customer API (v2).
 
@@ -501,6 +506,20 @@ class SoundchartsAdapter(_EnvProvider):
     # How long a plan refusal (403) is remembered before it is asked again.
     refusal_ttl = 24 * 3600
 
+    def _cache_read_stale(self, key):
+        """The last good answer stored under this key, however old, or
+        None. Served only when the monthly allowance has stopped new calls,
+        so a page shows the last measured figure rather than a blank."""
+        try:
+            import db
+            raw = db.get_kv(key)
+            entry = json.loads(raw) if raw else None
+        except Exception:
+            return None
+        if not entry or entry.get("status") != 200:
+            return None
+        return entry.get("body")
+
     def _cache_write(self, key, body, status=200):
         try:
             import db
@@ -559,6 +578,13 @@ class SoundchartsAdapter(_EnvProvider):
                 return hit
         try:
             body = self._fetch_json(path, **params)
+        except SoundchartsPaused:
+            # The month's allowance has stopped new calls for this caller:
+            # the last answer measured, however old, never a blank.
+            stale = self._cache_read_stale(key or self.cache_key(path, params))
+            if stale is not None:
+                return stale
+            raise
         except ProviderError as e:
             # "Not in your plan" is the account's answer, not the
             # network's: it is the same tomorrow, and on a metered plan
@@ -586,6 +612,16 @@ class SoundchartsAdapter(_EnvProvider):
         url = self.base_url + path
         if params:
             url += ("&" if "?" in path else "?") + urllib.parse.urlencode(params)
+        # Every call that leaves is counted against the owner's monthly
+        # allowance, and none leaves once the caller's share is spent
+        # (soundcharts_budget, 2026-09-19).
+        import soundcharts_budget
+        kind = soundcharts_budget.who()
+        if not soundcharts_budget.allowed(kind):
+            raise SoundchartsPaused(
+                "Soundcharts paused: this month's allowance for %s is spent; "
+                "fresh numbers return next month" % ("customers" if kind == "customers" else "the team"))
+        soundcharts_budget.record(kind)
         if self._fetch is not None:
             return self._fetch(url)
         mode = self.auth_mode()
@@ -1714,7 +1750,7 @@ class MusicBrainzAdapter(_EnvProvider):
 # examples - "the alternative is that we just silently block it". So this
 # names the product and a URL they could reach us at, in the shape their
 # good examples take.
-DISCOGS_USER_AGENT = "StreetBanker/1.0 +https://app.artiswarrecords.com"
+DISCOGS_USER_AGENT = "StreetBanker/1.0 +https://app.streetbankermusic.com"
 
 
 def _discogs_date(released):

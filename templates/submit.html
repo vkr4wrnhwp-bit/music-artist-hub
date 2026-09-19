@@ -3,6 +3,7 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}Submit Music - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% set lb = label %}
 {% set panel = 'relative overflow-hidden rounded-2xl border border-sb-gold/40 bg-gradient-to-b from-sb-surface-2 to-sb-ground shadow-[0_0_60px_rgba(201,162,74,0.07),inset_0_1px_0_rgba(255,255,255,0.05)]' %}
@@ -16,6 +17,7 @@
 {% endmacro %}
 
 {% block content %}
+<div class="acph">
 {% if submit_page_img %}
 <!-- Text-free designed art + ALL copy as real positioned HTML.
      Percent coordinates scale with the image; nudge values to fine-align. -->
@@ -113,7 +115,7 @@
   <!-- Turntable / pitch panel -->
   <div class="mt-12 {{ panel }}">
     {{ gear.corner_screws() }}
-    <div class="grid grid-cols-1 items-center gap-8 p-8 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:p-10">
+    <div class="sub-pitch grid grid-cols-1 items-center gap-8 p-8 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:p-10">
       {% if turntable_img %}
       <figure class="overflow-hidden rounded-xl border border-sb-gold/25">
         <img src="{{ turntable_img }}" alt="Street Banker A&R Desk turntable" class="block h-auto w-full" loading="lazy">
@@ -146,8 +148,8 @@
                     {% endfor %}
                     <circle cx="100" cy="100" r="33" fill="url(#goldlabel)"/>
                     <circle cx="100" cy="100" r="33" fill="none" stroke="#00000035"/>
-                    <text x="100" y="93" text-anchor="middle" font-size="11.5" font-weight="800" letter-spacing="1.5" fill="#14100A" font-family="sans-serif">STREET</text>
-                    <text x="100" y="106" text-anchor="middle" font-size="11.5" font-weight="800" letter-spacing="1.5" fill="#14100A" font-family="sans-serif">BANKER</text>
+                    <text x="100" y="93" text-anchor="middle" font-size="12" font-weight="800" letter-spacing="1.5" fill="#14100A" font-family="sans-serif">STREET</text>
+                    <text x="100" y="106" text-anchor="middle" font-size="12" font-weight="800" letter-spacing="1.5" fill="#14100A" font-family="sans-serif">BANKER</text>
                     <text x="100" y="118" text-anchor="middle" font-size="5.5" font-weight="600" letter-spacing="2.4" fill="#1c1302a0" font-family="sans-serif">A&amp;R DESK</text>
                     <circle cx="100" cy="100" r="3.5" fill="#0B0A08"/>
                   </svg>
@@ -179,7 +181,7 @@
               </g>
             </svg>
           </div>
-          <div class="mt-4 flex items-center justify-between px-1">
+          <div class="sub-deckfoot mt-4 flex items-center justify-between px-1">
             <span class="flex items-center gap-2"><span class="h-2 w-2 animate-pulse rounded-full bg-transparent shadow-[0_0_8px_rgba(251,191,36,0.8)] border"></span><span class="sb-label text-gray-200">Power</span></span>
             <span class="sb-label text-sb-gold">Street Banker A&amp;R Desk</span>
           </div>
@@ -238,7 +240,7 @@
     <div class="px-6 sm:px-10">
       {{ gear.patchbay_gold(from_idx=0, to_idx=2, n=10) }}
     </div>
-    <div class="flex items-center gap-2 px-10 pb-5">
+    <div class="sub-route flex items-center gap-2 px-10 pb-5">
       <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission (streaming link)" class="sb-btn sb-btn-secondary sb-btn-sm">Link</a>
       <a href="mailto:{{ lb.brand.submissions_emails[0] }}?subject=Demo Submission (MP3 attached)" class="sb-btn sb-btn-secondary sb-btn-sm">MP3</a>
       <span class="sb-label ml-auto text-gray-300">Route your signal — link or file, both land here</span>
@@ -252,7 +254,7 @@
     <div class="px-8 pb-7 text-center">
       <div class="flex flex-col items-center gap-1 sm:flex-row sm:justify-center sm:gap-6">
         {% for email in lb.brand.submissions_emails %}
-        <a href="mailto:{{ email }}?subject=Demo Submission" class="text-base font-semibold text-sb-gold-bright hover:underline">{{ email }}</a>
+        <a href="mailto:{{ email }}?subject=Demo Submission" class="acph-tap text-base font-semibold text-sb-gold-bright hover:underline">{{ email }}</a>
         {% if not loop.last %}<span class="hidden text-sb-gold/50 sm:inline">|</span>{% endif %}
         {% endfor %}
       </div>
@@ -266,4 +268,5 @@
   <div class="h-10"></div>
 </div>
 {% endif %}
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

@@ -15,7 +15,7 @@
 {% set cat_done = cat_rows|selectattr('status', 'equalto', 'complete')|list|length %}
 {% set cat_na = cat_rows|selectattr('status', 'equalto', 'na')|list|length %}
 {% set cat_wait = cat_rows|selectattr('status', 'equalto', 'waiting')|list|length %}
-<details class="to-fold to-adv"{% if loop.first %} open{% endif %}>
+<details class="to-fold to-adv">
   <summary><span class="to-fold-title">{{ category|capitalize }}</span><span class="to-fold-note">{{ cat_done }} of {{ cat_rows|length - cat_na }}{% if cat_wait %} · {{ cat_wait }} waiting{% endif %}{% if cat_na %} · {{ cat_na }} n/a{% endif %}</span></summary>
   <div class="to-fold-body">
   <div class="to-table-wrap"><table class="to-table is-stack">

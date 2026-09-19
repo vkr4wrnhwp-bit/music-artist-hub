@@ -31,6 +31,7 @@ import signal_ingest as ingest
 import signal_providers as providers
 import signal_scoring as scoring
 import signal_store as sstore
+import soundcharts_budget
 
 bp = Blueprint("signal", __name__, url_prefix="/signal")
 
@@ -830,7 +831,8 @@ def _render_data_sources(org, member, **extra):
         demo_count=len(mock_only), real_count=real_n,
         retire_reason=("" if real_n else "Add one real artist first"),
         find_q="", find_results=None, find_error="", find_error_needs_credentials=False,
-        notice=request.args.get("notice") or "")
+        notice=request.args.get("notice") or "",
+        soundcharts_month=soundcharts_budget.summary())
     ctx.update(extra)
     return render_template("signal/data_sources.html", **_ctx(org, member, **ctx))
 

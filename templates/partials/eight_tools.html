@@ -1,0 +1,93 @@
+{# Section 4 — one system, eight tools.
+
+   A photographed rack of eight faceplates. Only the lights are drawn: each
+   window carries its suite's mark in its own colour, and they switch on one
+   after another when the section is first reached. After that the rack is
+   lit and still. The only thing that runs it again is the visitor pressing
+   "Play the power-on again", so the page still never changes around
+   somebody who is just reading it.
+
+   The rack is two halves of four. Side by side on a wide screen, one above
+   the other on a phone, and never a sideways scroller (owner, 2026-09-18:
+   "we don't want to have to scroll left and right that's stupid"). That is
+   how his artifact built it; the live page had shipped a scroller instead.
+   Each half shows the same photograph at twice its width, the second
+   shifted left by a half, so the seam falls between plates four and five.
+
+   On a phone a plate's label strip is too narrow for ROYALTY SWEEP at the
+   12px floor, so there the names drop to a row under each half, where they
+   can wrap. They leave the plate visually only: each button keeps its name
+   as text, so a screen reader still hears it.
+
+   Nothing here is a link. Pointing at a tool writes a sentence underneath;
+   the one call to action goes to the plans page. A stranger asking what a
+   tool does must never be handed a password field. #}
+
+{% set et = eight_tools %}
+{% set img = et.image %}
+{% set p = et.plate %}
+<section class="sbet" id="eight-tools" aria-labelledby="sbet-heading">
+  <div class="sbet-inner">
+    <header class="sbet-head">
+      <h2 class="sbet-eyebrow" id="sbet-heading">{{ et.eyebrow }}</h2>
+      <p class="sbet-support">{{ et.support }}</p>
+    </header>
+
+    <div class="sbet-rack" id="sbet-rack" role="group" aria-label="{{ img.alt }}"
+         style="--k: {{ et.crop.k }}; --bay-ratio: {{ et.crop.ratio }}; --half-ratio: {{ et.crop.half }}">
+      {% for half in et.halves %}
+      <div class="sbet-half sbet-half--{{ half.index }}" style="--h: {{ half.index * 100 }}; --s: {{ half.start }}">
+        <div class="sbet-bay">
+          {#- One photograph, drawn twice. The second copy is decorative;
+              the rack's description is on the group above, once. -#}
+          <picture class="sbet-photo" aria-hidden="true">
+            <source type="image/avif"
+                    srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.avif?v={{ img.v }} {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+                    sizes="(min-width: 1180px) 1540px, 200vw">
+            <source type="image/webp"
+                    srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.webp?v={{ img.v }} {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+                    sizes="(min-width: 1180px) 1540px, 200vw">
+            <img src="{{ img.stem }}-1200.jpg?v={{ img.v }}"
+                 srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.jpg?v={{ img.v }} {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+                 sizes="(min-width: 1180px) 1540px, 200vw"
+                 width="{{ img.width }}" height="{{ img.height }}"
+                 alt="" loading="lazy" decoding="async">
+          </picture>
+
+          {% for t in half.units %}
+          <button type="button" class="sbet-unit" data-key="{{ t.key }}"
+                  data-name="{{ t.name }}" data-desc="{{ t.desc }}" data-opens="{{ t.opens }}"
+                  aria-describedby="sbet-readout"
+                  style="--c: {{ t.colour }}; --l: {{ t.left }}; --w: {{ et.unit_width }};
+                         top: {{ p.top }}%; height: {{ p.height }}%">
+            <span class="sbet-lamp" aria-hidden="true"
+                  style="left: {{ p.lamp_left }}%; top: {{ p.lamp_top }}%; width: {{ p.lamp_size }}%"></span>
+            <span class="sbet-win" aria-hidden="true"
+                  style="left: {{ p.window_left }}%; width: {{ p.window_width }}%;
+                         top: {{ p.window_top }}%; height: {{ p.window_height }}%">
+              <svg viewBox="0 0 48 40" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="square" focusable="false">
+                <path d="M3 13V3h11M34 3h11v10M45 27v10H34M14 37H3V27"/>
+                <text x="24" y="26.5" text-anchor="middle" font-family="Archivo, system-ui, sans-serif"
+                      font-weight="900" font-size="17" fill="currentColor" stroke="none">{{ t.mark }}</text>
+              </svg>
+            </span>
+            <span class="sbet-name" style="left: {{ p.window_left }}%; width: {{ p.window_width }}%;
+                                           top: {{ p.label_top }}%; height: {{ p.label_height }}%">{{ t.name }}</span>
+          </button>
+          {% endfor %}
+        </div>
+
+        {#- Phones only: the names, under the plates they belong to. -#}
+        <ol class="sbet-names" aria-hidden="true">
+          {% for t in half.units %}<li style="--c: {{ t.colour }}; --l: {{ t.left }}; --w: {{ et.unit_width }}">{{ t.name }}</li>{% endfor %}
+        </ol>
+      </div>
+      {% endfor %}
+    </div>
+
+    <p class="sbet-readout" id="sbet-readout" aria-live="polite" data-idle="{{ et.note }}">{{ et.note }}</p>
+    <p class="sbet-again"><button type="button" class="sbet-replay" id="sbet-replay" hidden>Play the power-on again</button></p>
+
+    <p class="sbet-cta"><a href="{{ et.cta.href }}">{{ et.cta.label }}</a></p>
+  </div>
+</section>

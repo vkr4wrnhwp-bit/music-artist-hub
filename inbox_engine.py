@@ -61,6 +61,14 @@ KINDS = {
                            if p.get("total") is not None else ""),
         "reply": lambda p: "",
     },
+    "support-question": {
+        "label": "Support question", "group": "platform",
+        "title": lambda p: (p.get("question") or "A question")[:120],
+        "body": lambda p: "Asked from %s%s" % (
+            p.get("page") or "somewhere",
+            (" by %s" % p["account"]) if p.get("account") else " by somebody signed out"),
+        "reply": lambda p: p.get("account") or "",
+    },
     "demo-access": {
         "label": "Demo access request", "group": "platform",
         "title": lambda p: p.get("email") or "Someone",

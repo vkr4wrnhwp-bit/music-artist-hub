@@ -326,7 +326,7 @@ def test_without_the_token_there_is_no_action_and_the_page_names_the_variable(mo
         transport=lambda *a: pytest.fail("must not call out")))
     client, user = _artist(create_app())
     track = _track(client, user)
-    page = client.get("/tracks").get_data(as_text=True)
+    page = client.get("/tracks", follow_redirects=True).get_data(as_text=True)
     assert "Look up on Discogs" not in page
     assert "DISCOGS_TOKEN" in page and "DISCOGS_ENABLED" in page
     assert "No Discogs pressing attached" in page
@@ -348,7 +348,7 @@ def test_a_sandbox_deployment_makes_no_call_even_with_a_token(monkeypatch):
 
     client, user = _artist(create_app())
     track = _track(client, user)
-    page = client.get("/tracks?discogs=%s" % track["id"]).get_data(as_text=True)
+    page = client.get("/tracks?discogs=%s" % track["id"], follow_redirects=True).get_data(as_text=True)
     assert "Look up on Discogs" not in page
     assert "off on this sandbox deployment" in page
     client.post("/tracks/%s/discogs" % track["id"], data={"action": "search"})
@@ -360,13 +360,13 @@ def test_the_lookup_lists_candidates_and_runs_only_when_it_is_asked_for(monkeypa
     client, user = _artist(create_app())
     track = _track(client, user)
 
-    page = client.get("/tracks").get_data(as_text=True)
+    page = client.get("/tracks", follow_redirects=True).get_data(as_text=True)
     assert "Look up on Discogs" in page
     assert fake.calls == [], "opening the page calls nothing"
 
     r = client.post("/tracks/%s/discogs" % track["id"], data={"action": "search"})
     assert r.status_code == 302 and r.headers["Location"].endswith(
-        "/tracks?discogs=%s#passports" % track["id"])
+        "/catalog?view=passports&discogs=%s" % track["id"])
     page = client.get(r.headers["Location"]).get_data(as_text=True)
     # Year, country, label, catalogue number and format, per candidate.
     assert "1987" in page and "UK" in page and "RCA" in page and "PB 41447" in page
@@ -461,7 +461,7 @@ def test_a_typed_catalogue_number_narrows_the_very_first_lookup(monkeypatch):
     assert store.get_discogs_link(user["id"], track["id"]) is None
 
     client.post("/tracks/%s/discogs" % track["id"], data={"action": "search"})
-    page = client.get("/tracks?discogs=%s" % track["id"]).get_data(as_text=True)
+    page = client.get("/tracks?discogs=%s" % track["id"], follow_redirects=True).get_data(as_text=True)
 
     search = [c for c in fake.calls if "/database/search" in c["url"]]
     assert search and "catno=PB+41447" in search[-1]["url"]
@@ -484,7 +484,7 @@ def test_a_typed_catalogue_number_outranks_the_attached_pressings(monkeypatch):
     passport["catalog_number"] = "BMG 74321"
     store.update_os_track_passport(user["id"], track["id"], passport)
     client.post("/tracks/%s/discogs" % track["id"], data={"action": "search"})
-    client.get("/tracks?discogs=%s" % track["id"])
+    client.get("/tracks?discogs=%s" % track["id"], follow_redirects=True)
 
     search = [c for c in fake.calls if "/database/search" in c["url"]]
     assert "catno=BMG+74321" in search[-1]["url"]
@@ -520,7 +520,7 @@ def test_attach_stores_the_link_and_fills_only_empty_passport_fields(monkeypatch
                                    "catalog_number"}
     assert "label" not in link["filled"] and "isrc" not in link["filled"]
 
-    page = client.get("/tracks").get_data(as_text=True)
+    page = client.get("/tracks", follow_redirects=True).get_data(as_text=True)
     assert "Filled from Discogs" in page and "Release on Discogs" in page
     assert "PB 41447" in page
 
@@ -542,7 +542,7 @@ def test_credits_are_shown_and_never_written_into_splits_or_songwriters(monkeypa
     link = store.get_discogs_link(user["id"], track["id"])
     assert {"name": "Stock, Aitken & Waterman", "role": "Producer, Written-By"} in link["credits"]
 
-    page = client.get("/tracks").get_data(as_text=True)
+    page = client.get("/tracks", follow_redirects=True).get_data(as_text=True)
     assert "Credits printed on this pressing" in page
     assert "Mark McGuire" in page and "Engineer" in page
     assert "Producer, Written-By" in page

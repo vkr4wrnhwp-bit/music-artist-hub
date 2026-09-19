@@ -1,0 +1,19 @@
+{#- One of the account's own briefs, stage by stage (collab_market.pipeline).
+    Only the stages the board records are marked done; the rest say where
+    they live or that they are not tracked. Expects `p`. -#}
+<div class="cm-pipe">
+  <div class="cm-pj">
+    <img src="{{ p.photo }}" alt="" aria-hidden="true" loading="lazy">
+    <div><div class="t">{{ p.brief.title }}</div>
+      <div class="m">{{ p.brief.role }}{% if p.brief.genre %} · {{ p.brief.genre }}{% endif %} · {{ p.state_label }}</div></div>
+  </div>
+  {% for s in p.steps %}
+  <div class="cm-pstep {{ s.state }}">
+    <span class="cm-dot" aria-hidden="true">{% if s.state == 'done' %}<svg viewBox="0 0 24 24"><path d="M5 12l5 5L19 7"/></svg>{% endif %}</span>
+    <span class="pt">{{ s.name }}<span class="sr-only"> ({{ 'done' if s.state == 'done' else ('in progress' if s.state == 'now' else 'not started') }})</span></span>
+    {% if s.href %}<a class="pm cm-inline" href="{{ s.href }}">{{ s.note }}</a>{% else %}<span class="pm {{ 'ok' if s.state == 'done' and s.name == 'Applications' }}">{{ s.note }}</span>{% endif %}
+  </div>
+  {% endfor %}
+  <a href="/deal-room" class="sb-btn sb-btn-primary cm-wide">Open the Deal Room</a>
+  <p class="cm-cap">Split sheets and agreements are signed in the Deal Room; this board does not track them.</p>
+</div>

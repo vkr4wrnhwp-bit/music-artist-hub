@@ -1,28 +1,60 @@
 {% extends "base.html" %}
 
 {% block title %}Team - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% block content %}
+<div class="acph">
 <div class="mx-auto max-w-[900px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Team</div>
     <h1 class="sb-h1 mt-1">Team</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-300">Invite the people who run your business with you — manager, accountant, publicist. Invites are real: they get an email, create their own login, and show up here.</p>
+    <p class="mt-1 max-w-2xl text-sm text-gray-300">Invite the people who run your business with you: manager, accountant, publicist. They sign in with their own login{% if team_opens %} and open your account from their Portal. You choose which rooms each person can open, and {% if can_grant_edit %}whether they can only look or can also make changes{% else %}on your plan they can look and change nothing; Pro lets you give someone edit access{% endif %}{% else %}. Your account is the platform's and is never opened from a member's Portal; they see the Portal summary only{% endif %}. Billing, settings and your team always stay with you.</p>
+    <p class="mt-2 text-xs font-bold text-gray-300">{% if seats_total is none %}{{ seats_used }} seat{{ '' if seats_used == 1 else 's' }} used, no limit on your plan.{% else %}{{ seats_used }} of {{ seats_total }} team seats used.{% endif %}</p>
+    {% if request.args.get('rooms') == 'none' %}<p class="mt-2 text-xs font-bold text-red-400">Tick at least one room. To take someone off your team, use Remove.</p>{% endif %}
   </div>
+
+  {#- The rooms a person can open (owner, 2026-09-19: "can we have check
+      boxes on when they invite the person and they an choose?"). -#}
+  {% macro room_boxes(checked, id_prefix) -%}
+  <fieldset class="team-rooms flex flex-wrap gap-x-4 gap-y-2">
+    <legend class="mb-1 w-full text-xs font-bold text-gray-200">Rooms they can open</legend>
+    {% for key, label in room_choices %}
+    <label class="flex items-center gap-2 text-xs text-gray-200" for="{{ id_prefix }}-{{ key }}">
+      <input type="checkbox" id="{{ id_prefix }}-{{ key }}" name="areas" value="{{ key }}"{% if key in checked %} checked{% endif %}> {{ label }}
+    </label>
+    {% endfor %}
+  </fieldset>
+  {%- endmacro %}
 
   <!-- Invite -->
   <section class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-ground p-5">
     <h2 class="sb-label text-gray-300">Invite someone</h2>
-    <form id="invite-form" class="mt-3 flex flex-wrap gap-2">
-      <input name="email" type="email" required placeholder="their@email.com" class="w-full min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-300 focus:border-sb-gold focus:outline-none sm:w-auto">
-      <select name="role" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-gray-200 focus:border-sb-gold focus:outline-none">
-        {% for r in roles %}<option value="{{ r }}">{{ r|capitalize }}</option>{% endfor %}
-      </select>
-      <button type="submit" class="sb-btn sb-btn-primary">Send Invite</button>
+    <form id="invite-form" class="team-invite mt-3 space-y-3">
+      <div class="flex flex-wrap gap-2">
+        <input name="email" type="email" required placeholder="their@email.com" class="w-full min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-300 focus:border-sb-gold focus:outline-none sm:w-auto">
+        <select name="role" aria-label="Role" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-gray-200 focus:border-sb-gold focus:outline-none">
+          {% for r in roles %}<option value="{{ r }}">{{ r|capitalize }}</option>{% endfor %}
+        </select>
+        {% if can_grant_edit %}
+        <select name="access" aria-label="Access" class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-gray-200 focus:border-sb-gold focus:outline-none">
+          <option value="read">Read only</option><option value="edit">Can edit</option>
+        </select>
+        {% else %}
+        <span class="self-center rounded-lg border border-white/15 px-3 py-2.5 text-xs font-bold text-gray-200">Read only</span>
+        {% endif %}
+      </div>
+      {% if team_opens %}<input type="hidden" name="areas_sent" value="1">{{ room_boxes(room_choices|map('first')|list, 'invite-room') }}{% endif %}
+      <div class="flex flex-wrap items-center gap-3">
+        {% if can_grant_roster %}
+        <label class="flex items-center gap-2 text-xs text-gray-200"><input type="checkbox" name="can_roster" value="1"> Can manage the roster (editors only)</label>
+        {% endif %}
+        <button type="submit" class="sb-btn sb-btn-primary ml-auto">Send Invite</button>
+      </div>
     </form>
     <div id="invite-result" class="mt-3 hidden rounded-lg border px-3 py-2.5 text-xs"></div>
     {% if not email_configured %}
-    <p class="mt-2 text-xs text-gray-300 font-medium">Email sending isn't enabled on this server — you'll get a link to send them yourself.</p>
+    <p class="mt-2 text-xs text-gray-300 font-medium">Email sending isn't enabled on this server, so you'll get a link to send them yourself.</p>
     {% endif %}
   </section>
 
@@ -32,27 +64,65 @@
     {% if members %}
     <div class="mt-3 divide-y divide-white/5">
       {% for m in members %}
-      <div class="flex flex-wrap items-center gap-3 py-3" id="member-{{ m.id }}">
-        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sb-gold/15 text-sm font-black text-sb-gold-bright">{{ (m.member_name or m.email)[0]|upper }}</span>
-        <div class="min-w-0 flex-1">
-          <div class="truncate text-sm font-bold">{{ m.member_name or m.email }}</div>
-          <div class="text-xs text-gray-300 font-medium">{{ m.email }} · {{ m.role|capitalize }}</div>
+      {%- set pending = m.access not in ('read', 'edit') -%}
+      <div class="py-3" id="member-{{ m.id }}">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sb-gold/15 text-sm font-black text-sb-gold-bright">{{ (m.member_name or m.email)[0]|upper }}</span>
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-bold">{{ m.member_name or m.email }}</div>
+            <div class="text-xs text-gray-300 font-medium">{{ m.email }} · {{ m.role|capitalize }} ·
+              {%- if pending %} Not confirmed: cannot open your account
+              {%- else %} {{ 'Can edit' if (m.access == 'edit' and can_grant_edit) else 'Read only' }}{% if m.access == 'edit' and not can_grant_edit %} (editing paused on your plan){% endif %}{% if m.can_roster and m.access == 'edit' and can_grant_roster %} · Manages the roster{% endif %} · {{ m.rooms_label }}
+              {%- endif %}</div>
+          </div>
+          {% if m.status == 'active' %}
+          <span class="rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-green-400">Active</span>
+          {% else %}
+          <span class="rounded-full border border-white/15 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-gray-300">Invited</span>
+          {% endif %}
+          <button data-id="{{ m.id }}" class="remove-btn sb-btn sb-btn-danger sb-btn-sm">Remove</button>
         </div>
-        {% if m.status == 'active' %}
-        <span class="rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-green-400">Active</span>
-        {% else %}
-        <span class="rounded-full border border-white/15 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-gray-300">Invited</span>
+        {% if team_opens %}
+        <details class="mt-2 pl-12"{% if pending %} open{% endif %}>
+          <summary class="cursor-pointer text-xs font-bold text-sb-gold-bright">{{ 'Confirm what they can open' if pending else 'Change what they can open' }}</summary>
+          <form method="post" action="/team/{{ m.id }}/access" class="mt-2 space-y-2">
+            <input type="hidden" name="areas_sent" value="1">
+            {{ room_boxes(m.rooms_set, 'room-' ~ m.id) }}
+            <div class="flex flex-wrap items-center gap-3">
+              {% if can_grant_edit %}
+              <select name="access" aria-label="Access for {{ m.email }}" class="rounded-md border border-white/15 bg-black/40 px-2 py-1 text-xs text-gray-200">
+                <option value="read"{% if m.access != 'edit' %} selected{% endif %}>Read only</option>
+                <option value="edit"{% if m.access == 'edit' %} selected{% endif %}>Can edit</option>
+              </select>
+              {% else %}<input type="hidden" name="access" value="read"><span class="text-xs text-gray-300">Read only</span>{% endif %}
+              {% if can_grant_roster %}<label class="text-xs text-gray-200"><input type="checkbox" name="can_roster" value="1"{% if m.can_roster %} checked{% endif %}> Manages the roster</label>{% endif %}
+              <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm">{{ 'Confirm' if pending else 'Save' }}</button>
+            </div>
+          </form>
+        </details>
         {% endif %}
-        <button data-id="{{ m.id }}" class="remove-btn sb-btn sb-btn-danger sb-btn-sm">Remove</button>
       </div>
       {% endfor %}
     </div>
     {% else %}
-    <p class="mt-3 text-sm text-gray-300">No team yet. Invite your first person above — they'll appear here the moment they accept.</p>
+    <p class="mt-3 text-sm text-gray-300">No team yet. Invite your first person above: they'll appear here the moment they accept.</p>
     {% endif %}
   </section>
 
-  <p class="px-1 text-xs text-gray-300 font-medium">Team members get their own login and appear on your roster with their role. Scoped access to your reports and dashboards ships with the Partner Portal — roles are recorded now so permissions apply the day it lands.</p>
+  {% if audit %}
+  <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
+    <h2 class="sb-label text-sb-gold">Changes your team made</h2>
+    <ul class="mt-3 space-y-1.5 text-xs text-gray-200">
+      {% for a in audit %}<li><span class="tabular-nums text-gray-300">{{ a.created[:16]|replace('T', ' ') }}</span> · <strong>{{ a.member_name }}</strong>{% if a.member_email %} ({{ a.member_email }}){% endif %} · {{ a.path }}</li>{% endfor %}
+    </ul>
+    <div class="mt-3 flex gap-3 text-xs font-bold">
+      {% if audit_page > 0 %}<a class="text-sb-gold-bright" href="/team?older={{ audit_page - 1 }}">Newer</a>{% endif %}
+      {% if audit_older %}<a class="text-sb-gold-bright" href="/team?older={{ audit_page + 1 }}">Older</a>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <p class="px-1 text-xs text-gray-300 font-medium">Team members get their own login. They open only the rooms you tick; the Command Center, Actions and your notifications are for someone with every room. Read-only members change nothing. Members who can edit work in their rooms like you do, and the changes they make are listed above under their name. Tour, the Tour Board and the Press Desk do not open to team members yet. Nobody on your team can reach your billing, settings or team.</p>
 </div>
 
 <script>
@@ -65,10 +135,10 @@
     if (data.ok) {
       if (data.emailed) {
         box.className = "mt-3 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2.5 text-xs text-green-400";
-        box.innerHTML = 'Invite emailed \u2713 &nbsp;Backup link in case it does not arrive: <span class="break-all font-mono text-gray-200">' + data.link + "</span>";
+        box.innerHTML = 'Invite emailed \u2713 &nbsp;Backup link in case it does not arrive: <span class="break-all text-gray-200">' + data.link + "</span>";
       } else {
         box.className = "mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-400";
-        box.innerHTML = '<span class="font-bold">The email could not be delivered</span> \u2014 the email service only sends to your own address until a domain is verified in Resend. The invite still works: copy this link and send it to them yourself.<div class="mt-2 flex items-center gap-2"><span class="break-all rounded bg-black/40 px-2 py-1 font-mono text-gray-200">' + data.link + '</span><button type="button" id="invite-copy" class="sb-btn sb-btn-secondary sb-btn-sm shrink-0">Copy</button></div>';
+        box.innerHTML = '<span class="font-bold">The email could not be delivered.</span> The email service only sends to your own address until a domain is verified in Resend. The invite still works: copy this link and send it to them yourself.<div class="mt-2 flex items-center gap-2"><span class="break-all rounded bg-black/40 px-2 py-1 text-gray-200">' + data.link + '</span><button type="button" id="invite-copy" class="sb-btn sb-btn-secondary sb-btn-sm shrink-0">Copy</button></div>';
         document.getElementById("invite-copy").addEventListener("click", (ev) => {
           navigator.clipboard.writeText(data.link);
           ev.target.textContent = "Copied \u2713";
@@ -85,4 +155,5 @@
     if ((await res.json()).ok) document.getElementById("member-" + b.dataset.id).remove();
   }));
 </script>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

@@ -3,7 +3,7 @@
 {% block title %}The Rack - Street Banker{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="/static/css/rack.css?v=1">
+<link rel="stylesheet" href="/static/css/rack.css?v=3">
 
 <header class="rk-page-head">
   <div class="rk-page-id">
@@ -1291,5 +1291,5 @@
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=59"></script>
+<script src="/static/js/rackdsp.js?v=61"></script>
 {% endblock %}

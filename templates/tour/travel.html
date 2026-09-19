@@ -11,7 +11,7 @@
 {% include "tour/_travel_list.html" %}
 {% if can('travel') and not edit %}
 {#- The leg form behind a plus; open on its own only while there are no legs. -#}
-<details class="to-add" id="add-leg"{% if not rows %} open{% endif %}>
+<details class="to-add" id="add-leg">
 <summary><span class="plus" aria-hidden="true">+</span> Add a leg</summary>
 <div class="to-add-body">
 {% with edit=None %}{% include "tour/_travel_form.html" %}{% endwith %}

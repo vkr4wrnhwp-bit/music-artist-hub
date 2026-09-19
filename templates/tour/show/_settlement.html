@@ -25,7 +25,7 @@
   <div class="to-bar" style="margin-bottom:0"><button class="to-btn" type="submit">Save settlement</button> <a class="to-btn to-btn--ghost" href="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/settlement-summary" target="_blank" rel="noopener">Settlement summary</a></div>
 </form>
 
-<details class="to-fold" id="expenses"{% if expenses %} open{% endif %}>
+<details class="to-fold" id="expenses">
   <summary><span class="to-fold-title">Expenses &amp; receipts</span><span class="to-fold-note">{% if expenses %}{{ expenses|length }} logged{% else %}none logged{% endif %}</span></summary>
   <div class="to-fold-body">
   {% if expenses %}

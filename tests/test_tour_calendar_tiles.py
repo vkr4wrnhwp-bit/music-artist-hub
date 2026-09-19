@@ -10,6 +10,10 @@ import re
 
 from tests.test_tour_date_page import _user, _tour, _show, _member_join, flask_app  # noqa: F401
 
+NOTE = ("every fold on every page opens closed now; the owner's rule on "
+        "2026-09-17 was that either all of them are or none of them are, "
+        "and the summary still says what the fold does")
+
 
 def _cal(client, tid, **args):
     q = "&".join("%s=%s" % kv for kv in args.items())
@@ -59,7 +63,8 @@ def test_add_a_day_waits_behind_a_plus_unless_the_calendar_is_empty(flask_app):
     client, owner = _user(flask_app)
     tid = _tour(client)
     html = _cal(client, tid)
-    assert '<details class="to-add" id="add-day" open>' in html, "an empty calendar opens the form: the first day is the page"
+    assert '<details class="to-add" id="add-day">' in html, "closed, %s" % NOTE
+    assert "Add a day" in html, "and the empty calendar still says what to do"
     assert 'name="date"' in html
     _show(client, tid, "2030-05-02", "The Basement East")
     html = _cal(client, tid, month="2030-05")

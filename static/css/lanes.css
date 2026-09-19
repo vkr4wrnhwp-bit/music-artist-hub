@@ -295,3 +295,15 @@
   .sblane-cta, .sblane-primary, .sblane-secondary { transition: none; }
   .sblane-rail { scroll-behavior: auto; }
 }
+
+/* Phone pass (2026-09-18): the 12px type floor at 390px. A desk keeps
+   the clamp above exactly; this only lifts its 11px floor on a phone. */
+@media (max-width: 767px) {
+  .sblane-eyebrow, .sblane-num, .sblane-cta { font-size: 12px; }
+  /* On a phone the unit is shown whole, at the width of the screen, not
+     as a 175vw strip that ran off the right edge with no sign it moved.
+     Its engraving is small here, but each channel is named, in full,
+     in its summary right under it. A tablet keeps the swipe rail. */
+  .sblane-rail { overflow-x: visible; scroll-snap-type: none; margin-inline: 0; padding-inline: 0; }
+  .sblane-unit { width: 100%; max-width: none; }
+}

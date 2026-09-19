@@ -235,6 +235,141 @@ def upsert_fan(user_id, email, campaign_id, name=""):
         return fan_id
 
 
+def set_fan_place(fan_id, country="", city=""):
+    """Where a fan is, when the file said so. Never overwrites something
+    with nothing: a later import that carries no location leaves the
+    location an earlier one recorded."""
+    country, city = (country or "").strip()[:80], (city or "").strip()[:80]
+    if not country and not city:
+        return
+    with get_db() as db:
+        db.execute(
+            "UPDATE ml_fans SET country = CASE WHEN ? <> '' THEN ? ELSE country END,"
+            " city = CASE WHEN ? <> '' THEN ? ELSE city END, updated = ? WHERE id = ?",
+            (country, country, city, city, _now(), fan_id))
+
+
+def confirm_list_import(user_id, draft_id, make_note):
+    """File a previewed list, once, in one transaction. Returns the summary
+    recorded, or None when the draft is not this user's live draft.
+
+    Everything happens on one connection and is committed together: the
+    draft's DELETE, every new fan with its tag, place and consent, the
+    blanks filled on fans already here, and the fan_imports record. Until
+    2026-09-18 confirm deleted the draft first and then filed row by row,
+    four connections and four commits a row (about 7 rows a second on this
+    machine), so a big list could outlive the worker's timeout and leave
+    half a list, no draft and no record. Now a request killed partway
+    leaves the draft in place and nothing written.
+
+    The rows are the preview's. Each is checked against who is on file NOW:
+      - marked new and still not on file: created, tagged "imported", its
+        place as the file gave it, a list_import consent with make_note's
+        sentence;
+      - marked new but on file since the preview (they gave their email on
+        a smart link in between): treated as already here, so no tag and no
+        list_import consent is laid over the way they really arrived;
+      - already here: only a country or city the record is MISSING is
+        filled from the file. A place the record holds is never replaced.
+    The summary recorded is the preview's, corrected by what actually
+    happened, so the counts still add up to the rows read.
+    """
+    if not draft_id:
+        return None
+    now = _now()
+    with get_db() as db:
+        db.execute("DELETE FROM fan_import_drafts WHERE expires < ?", (now,))
+        draft = db.execute(
+            "SELECT * FROM fan_import_drafts WHERE id = ? AND user_id = ? AND expires >= ?",
+            (draft_id, user_id, now)).fetchone()
+        if draft is None:
+            return None
+        # The DELETE is the claim, inside the same transaction as the
+        # writes: a second confirm waits on the lock and then finds nothing.
+        if db.execute("DELETE FROM fan_import_drafts WHERE id = ? AND user_id = ?",
+                      (draft_id, user_id)).rowcount != 1:
+            return None
+        try:
+            summary = json.loads(draft["summary"] or "{}")
+            rows = json.loads(draft["rows"] or "[]")
+        except ValueError:
+            summary, rows = {}, []
+        note = (make_note(dict(draft)) or "")[:500]
+        on_file = {r["email"]: r for r in db.execute(
+            "SELECT id, email, country, city FROM ml_fans WHERE user_id = ?", (user_id,))}
+
+        inserts, consents, fills = [], [], []
+        arrived = gone = 0
+        for row in rows:
+            email = (row.get("email") or "").lower().strip()
+            if not email:
+                continue
+            country = (row.get("country") or "").strip()[:80]
+            city = (row.get("city") or "").strip()[:80]
+            rec = on_file.get(email)
+            if rec is None:
+                if not row.get("new"):
+                    gone += 1  # on file at the preview, deleted since: not re-added
+                    continue
+                fan_id = uuid.uuid4().hex
+                inserts.append((fan_id, user_id, email, (row.get("name") or "").strip(),
+                                None, None, json.dumps(["imported"]), country, city, now, now))
+                consents.append((fan_id, None, "list_import", note, now))
+                on_file[email] = {"id": fan_id, "country": country, "city": city}
+                continue
+            if row.get("new"):
+                arrived += 1
+            fill_country = country if country and not (rec["country"] or "").strip() else ""
+            fill_city = city if city and not (rec["city"] or "").strip() else ""
+            if fill_country or fill_city:
+                fills.append((fill_country, fill_country, fill_city, fill_city, now, rec["id"]))
+
+        db.executemany(
+            "INSERT INTO ml_fans (id, user_id, email, name, first_campaign_id, last_campaign_id,"
+            " tags, country, city, created, updated) VALUES (?,?,?,?,?,?,?,?,?,?,?)", inserts)
+        db.executemany(
+            "INSERT INTO ml_consents (fan_id, campaign_id, consent_type, consent_text, created)"
+            " VALUES (?,?,?,?,?)", consents)
+        db.executemany(
+            "UPDATE ml_fans SET country = CASE WHEN country = '' AND ? <> '' THEN ? ELSE country END,"
+            " city = CASE WHEN city = '' AND ? <> '' THEN ? ELSE city END, updated = ? WHERE id = ?",
+            fills)
+
+        done = dict(summary)
+        done["new"] = len(inserts)
+        done["already_here"] = int(summary.get("already_here") or 0) + arrived
+        done["places_filled"] = len(fills)
+        if arrived:
+            done["arrived_since_preview"] = arrived
+        if gone:
+            done["removed_since_preview"] = gone
+        db.execute("INSERT INTO fan_imports (id, user_id, source, summary, error, cursor, created)"
+                   " VALUES (?,?,?,?,?,?,?)",
+                   (uuid.uuid4().hex, user_id, "list", json.dumps(done), "", "", now))
+    return done
+
+
+def suppress_fan(user_id, email, reason):
+    """Stop contacting this address, and record why.
+
+    A reason rather than a flag: "why is this person not being emailed" is
+    the question anyone actually asks, and a bare boolean cannot answer it.
+    Scoped to the account in the UPDATE itself.
+    """
+    reason = (reason or "").strip()[:120] or "suppressed"
+    with get_db() as db:
+        db.execute("UPDATE ml_fans SET suppressed = ?, suppressed_at = ?, updated = ?"
+                   " WHERE user_id = ? AND email = ?",
+                   (reason, _now(), _now(), user_id, (email or "").lower().strip()))
+
+
+def unsuppress_fan(user_id, email):
+    with get_db() as db:
+        db.execute("UPDATE ml_fans SET suppressed = '', suppressed_at = '', updated = ?"
+                   " WHERE user_id = ? AND email = ?",
+                   (_now(), user_id, (email or "").lower().strip()))
+
+
 _FAN_COUNTERS = ("total_visits", "total_clicks", "total_presaves", "total_captures")
 
 

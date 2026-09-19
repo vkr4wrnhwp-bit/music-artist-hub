@@ -76,7 +76,7 @@
 </table></div>
 {% else %}<p class="to-sub">No expenses logged.</p>{% endif %}
 {#- Eight fields behind a plus; open on its own only while the ledger is empty. -#}
-<details class="to-add" id="add-expense"{% if not expenses %} open{% endif %}>
+<details class="to-add" id="add-expense">
 <summary><span class="plus" aria-hidden="true">+</span> Add expense</summary>
 <div class="to-add-body">
 <form method="post" action="/tours/{{ tour['id'] }}/expenses/add" enctype="multipart/form-data" class="to-form">

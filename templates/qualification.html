@@ -2,9 +2,13 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}Growth Score - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/money-desks.css?v=5">{% endblock %}
 
 {% block content %}
-{{ sb.subnav([("/qualification", "Growth"), ("/trust-score", "Trust"), ("/insights", "Insights")], "/qualification") }}
+{#- The classic sidebar lists only Scores, so the strip is the way to
+    Trust and Insights there. The rooms layout gives each its own card, and
+    the strip would only repeat them (owner, 2026-09-17). -#}
+{% if not rooms_nav %}{{ sb.subnav([("/qualification", "Growth"), ("/trust-score", "Trust"), ("/insights", "Insights")], "/qualification") }}{% endif %}
 <div class="mx-auto max-w-[1000px] space-y-5">
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
@@ -80,7 +84,7 @@
               <input type="hidden" name="category" value="release">
               <button class="sb-btn sb-btn-secondary sb-btn-sm">Create action</button>
             </form>
-            <label class="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-sky-400/90">
+            <label class="md-whatif md-check flex cursor-pointer items-center gap-1.5 text-xs font-bold text-sky-400/90">
               <input type="checkbox" class="whatif-box h-3 w-3 accent-sky-400" data-delta="{{ 10 - pts }}">What if done? (+{{ 10 - pts }})
             </label>
           </div>
@@ -98,7 +102,7 @@
       <h2 class="sb-label text-sb-gold-bright">What Your Score Unlocks</h2>
       <div class="mt-3 space-y-2">
         {% for label, threshold, met in q.unlocks %}
-        <div class="flex items-center gap-3 rounded-lg border {{ 'border-green-500/20 bg-green-500/[0.04]' if met else 'border-white/5 bg-white/5' }} px-3 py-2.5">
+        <div class="md-unlock flex items-center gap-3 rounded-lg border {{ 'border-green-500/20 bg-green-500/[0.04]' if met else 'border-white/5 bg-white/5' }} px-3 py-2.5">
           <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-black {{ 'bg-green-500/20 text-green-400' if met else 'bg-white/10 text-gray-300' }}">{{ '✓' if met else threshold }}</span>
           <span class="text-sm font-semibold {{ 'text-gray-100' if met else 'text-gray-300' }}">{{ label }}</span>
           {% if not met %}<span class="ml-auto text-xs font-bold uppercase text-gray-300">at {{ threshold }} · <span class="text-sb-gold-bright">{{ threshold - q.total }} pts away</span></span>

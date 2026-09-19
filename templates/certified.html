@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Street Banker Certified - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% block content %}
+<div class="acph">
 <div class="mx-auto max-w-[900px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Artist OS</div>
@@ -21,10 +23,10 @@
     <h2 class="sb-label text-sb-gold">The Ladder</h2>
     <div class="mt-3 space-y-2">
       {% for rung in cert.ladder %}
-      <div class="flex items-center gap-3 rounded-xl border {{ 'border-sb-gold/40 bg-sb-gold/5' if rung.passed else 'border-white/10 bg-black/30' }} px-4 py-3">
+      <div class="acph-rung flex items-center gap-3 rounded-xl border {{ 'border-sb-gold/40 bg-sb-gold/5' if rung.passed else 'border-white/10 bg-black/30' }} px-4 py-3">
         <span class="text-lg {{ 'text-green-400' if rung.passed else 'text-gray-300' }}">{{ '✓' if rung.passed else '○' }}</span>
-        <span class="w-32 shrink-0 text-sm font-black {{ 'text-sb-gold-bright' if rung.passed else 'text-gray-300' }}">{{ rung.name }}</span>
-        <span class="min-w-0 flex-1 text-xs {{ 'text-gray-300' if rung.passed else 'text-gray-300' }}">{{ rung.need }}</span>
+        <span class="acph-rung-name w-32 shrink-0 text-sm font-black {{ 'text-sb-gold-bright' if rung.passed else 'text-gray-300' }}">{{ rung.name }}</span>
+        <span class="acph-rung-need min-w-0 flex-1 text-xs {{ 'text-gray-300' if rung.passed else 'text-gray-300' }}">{{ rung.need }}</span>
       </div>
       {% endfor %}
     </div>
@@ -36,7 +38,7 @@
       <div class="rounded-xl border border-white/10 bg-black/30 p-3.5 text-xs text-gray-200"><span class="font-bold text-gray-200">Deal Room + One-Sheet.</span> Your export-ready snapshot for labels, managers, and investors — stronger at every level because the numbers behind it are.</div>
       <div class="rounded-xl border border-white/10 bg-black/30 p-3.5 text-xs text-gray-200"><span class="font-bold text-gray-200">Funding readiness.</span> Capital Score and advance eligibility read the same signals — climbing the ladder is literally underwriting yourself.</div>
       <div class="rounded-xl border border-white/10 bg-black/30 p-3.5 text-xs text-gray-200"><span class="font-bold text-gray-200">Sync pitch eligibility.</span> Sync needs cleared rights — Select and above means your lockboxes can survive a licensing request.</div>
-      <div class="rounded-xl border border-white/10 bg-black/30 p-3.5 text-xs text-gray-200"><span class="font-bold text-gray-200">Label partner review.</span> Upstream Ready flags your submission for review through Art Is War Records' label services desk.</div>
+      <div class="rounded-xl border border-white/10 bg-black/30 p-3.5 text-xs text-gray-200"><span class="font-bold text-gray-200">Label partner review.</span> Upstream Ready flags your submission for review through the Street Banker label services desk.</div>
     </div>
     {% if summary.tracks %}
     <p class="mt-3 text-xs text-gray-300 font-medium">Live tiles: {{ summary.tracks }} track{{ '' if summary.tracks == 1 else 's' }} · {{ summary.passport_avg }}% avg passport · {{ summary.clean_avg }} avg Clean Release{% if summary.lanes_connected %} · {{ summary.lanes_connected }} lanes connected{% endif %} · {{ summary.reds }} red rights issues.</p>
@@ -45,4 +47,5 @@
     {% endif %}
   </section>
 </div>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

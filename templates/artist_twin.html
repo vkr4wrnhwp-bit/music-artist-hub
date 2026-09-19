@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Artist Twin - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/money-desks.css?v=5">{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-[1000px] space-y-5">
+<div class="md-twin mx-auto max-w-[1000px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Artist Twin</div>
     <h1 class="sb-h1 mt-1">Your Private Writing Agent</h1>
@@ -30,7 +31,7 @@
         <div><label class="sb-label text-gray-300">Voice / tone</label>
           <div class="mt-1 grid grid-cols-3 gap-1.5">
             {% for k, label in twin.TONES %}
-            <label class="cursor-pointer rounded-lg border px-2 py-2 text-center text-xs font-bold text-gray-300 transition-colors has-[:checked]:border-sb-gold has-[:checked]:bg-sb-gold/15 has-[:checked]:text-sb-gold-bright {{ '' }}border-white/10">
+            <label class="md-tone cursor-pointer rounded-lg border px-2 py-2 text-center text-xs font-bold text-gray-300 transition-colors has-[:checked]:border-sb-gold has-[:checked]:bg-sb-gold/15 has-[:checked]:text-sb-gold-bright {{ '' }}border-white/10">
               <input type="radio" name="tone" value="{{ k }}" class="sr-only" {{ 'checked' if settings.tone == k }}>{{ label }}
             </label>
             {% endfor %}

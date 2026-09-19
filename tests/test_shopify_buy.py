@@ -38,7 +38,7 @@ def test_unconfigured_is_a_link_not_a_broken_shop(monkeypatch):
     assert shopify_buy.configured() is False
     body = _demo().get("/apparel").get_data(as_text=True)
     assert "The store is not embedded here yet" in body
-    assert "artiswarrecords.com" in body          # the store still opens
+    assert "streetbankermusic.com" in body          # the store still opens
     assert "shopify-collection" not in body       # no empty mount point
     assert "buy-button-storefront" not in body    # and no SDK to hang on
 

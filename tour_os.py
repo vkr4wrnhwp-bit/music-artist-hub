@@ -33,8 +33,8 @@ import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from flask import (Blueprint, Response, abort, redirect, render_template,
-                   request, session, url_for)
+from flask import (Blueprint, Response, abort, current_app, redirect,
+                   render_template, request, session, url_for)
 
 import artist_identity
 import blob_store
@@ -51,6 +51,7 @@ import tour_advance_mail as tam
 import tour_engine as eng
 import tour_store as ts
 import tour_tickets as tickets
+import sales_switch
 import venue_geo
 import venue_photos
 
@@ -1105,7 +1106,9 @@ def _log(tour, viewer, entity_type, entity_id, label, changes, source="manual", 
 
 
 def _artist_tier(user):
-    return plans.allowed(user.get("plan") or "artist", "artist")
+    # Tour is part of Pro (owner, 2026-09-17). Where the suite gates are on,
+    # owning a tour needs Pro; joining one you were invited to never did.
+    return plans.allowed(user.get("plan") or "artist", "pro" if plans.gates_on() else "artist")
 
 
 # --- index & create ---------------------------------------------------------
@@ -1116,6 +1119,16 @@ def index():
     if user is None:
         return redirect(url_for("login", next=request.path))
     ts.adopt_orphan_shows(user["id"])   # a Hub show on no tour joins one before the list is read
+    # An account with no tours opens onto the Mock Up Tour rather than an
+    # empty page: a real routing to click through, marked as an example.
+    # Never for an account that already has one, so a real tour is never
+    # mixed with the demonstration.
+    if _artist_tier(user):
+        try:
+            import tour_mockup
+            tour_mockup.ensure_for(user)
+        except Exception:                       # a demo must never break the page
+            current_app.logger.exception("mock up tour")
     mine = ts.list_tours(user["id"])
     shared = ts.tours_shared_with(user["id"])
     for t in mine + shared:
@@ -1301,6 +1314,7 @@ def home(user, tour, viewer, tour_id):
     # missing rather than showing a button that could do nothing.
     ctx["tickets_sources"] = _ticket_sources()
     ctx["tickets_ready"] = any(ctx["tickets_sources"].values())
+    ctx["tm_switched_off"] = ticketmaster.switched_off()
     ctx["tickets_report"] = session.pop(_tickets_report_key(tour_id), None) if can(viewer, "edit") else None
     ctx["tickets_line"] = tickets.report_line(ctx["tickets_report"]) if ctx["tickets_report"] else ""
     return render_template("tour/home.html", **ctx)
@@ -1391,7 +1405,9 @@ def calendar(user, tour, viewer, tour_id):
     view = request.args.get("view") or "month"
     return render_template("tour/calendar.html", **_ctx(
         user, tour, viewer, "calendar", shows=shows, days=days, readiness=readiness, view=view,
-        add_open=(not days) or request.args.get("add") == "1", **cal))
+        # Only the link opens it. An empty month used to open the Add form
+        # by itself, which made one page disagree with every other one.
+        add_open=request.args.get("add") == "1", **cal))
 
 
 @bp.route("/tours/<tour_id>/mode", methods=["POST"])
@@ -3173,7 +3189,8 @@ def _vip_context(tour, show):
             "vip_ledger": ts.vip_sales_ledger(tour["id"], show["id"]),
             "vip_sales": ts.list_vip_sales(tour["id"], show["id"]),
             "vip_fee_pct": vip_fee_pct(), "vip_stripe_live": stripe_provider.configured(),
-            "vip_mail_off": _vip_mail_off(), "vip_includes": vip_includes}
+            "vip_mail_off": _vip_mail_off(), "vip_includes": vip_includes,
+            "vip_sales_open": sales_switch.is_on(), "vip_sales_closed": sales_switch.CLOSED}
 
 
 def _owner_email(tour):
@@ -3310,14 +3327,16 @@ def vip_public(token):
         artist=tour.get("artist_name") or tour["name"], includes=vip_includes,
         money=lambda cents: "%s %.2f" % (cur, cents / 100.0),
         venue=ts.get_venue(tour["user_id"], show["venue_id"]) if show.get("venue_id") else None,
-        fmt_day=eng.fmt_day_long, fmt_time=eng.fmt_time)
+        fmt_day=eng.fmt_day_long, fmt_time=eng.fmt_time,
+        sales_open=sales_switch.is_on(), sales_closed=sales_switch.CLOSED)
 
 
 @bp.route("/vip/<token>/buy", methods=["POST"])
 def vip_buy(token):
     tour, show = _vip_link_or_404(token)
     back = "/vip/" + token
-    if not stripe_provider.configured():
+    # Online VIP waits for the owner's switch (sales_switch).
+    if not stripe_provider.configured() or not sales_switch.is_on():
         return redirect(back + "?err=closed")
     offer = ts.get_vip_offer(tour["id"], request.form.get("offer_id") or "")
     if not offer or not offer["active"] or offer["show_id"] != show["id"]:

@@ -48,7 +48,7 @@
 
 {% if can('people') and not edit %}
 {#- Nine fields behind a plus; open on its own only while the directory is empty. -#}
-<details class="to-add" id="add-person"{% if not total_people %} open{% endif %}>
+<details class="to-add" id="add-person">
 <summary><span class="plus" aria-hidden="true">+</span> Add a person</summary>
 <div class="to-add-body">
 {% with edit=None %}{% include "tour/_person_form.html" %}{% endwith %}

@@ -3,6 +3,7 @@
 {% import "landing/_cards.html" as logos %}
 
 {% block title %}Catalog - Royalty Sweep{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/money-desks.css?v=5">{% endblock %}
 
 {% set c = catalog %}
 {% set sm = c.summary %}
@@ -100,9 +101,9 @@
       {% endfor %}
     </div>
     {% else %}
-    <div class="mt-4 rounded-xl border border-dashed border-sb-gold/25 py-6 text-center text-xs text-gray-300">
+    <p class="mt-4 rounded-xl border border-dashed border-sb-gold/25 py-6 text-center text-xs text-gray-300">
       Nothing saved yet — <a href="/discover" class="font-semibold text-sb-gold-bright hover:underline">search Discover</a> and hit “+ Catalog” on any track.
-    </div>
+    </p>
     {% endif %}
   </section>
 
@@ -166,7 +167,7 @@
 
   {#- The counters draw once there is a track to count (the zero rule). -#}
   {% if sm.total_tracks %}
-  <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+  <div class="md-cat-stats grid grid-cols-2 gap-3 lg:grid-cols-5">
     <button type="button" class="metric-card rounded-2xl border border-white/5 bg-sb-surface-1 p-4 text-left transition-colors hover:border-amber-500/25" data-goto-tab="Tracks">
       <div class="sb-label text-gray-300">Total Tracks</div>
       <div class="mt-2 text-2xl font-bold tabular-nums">{{ "{:,}".format(sm.total_tracks) }}</div>
@@ -212,7 +213,7 @@
         {% endfor %}
       </div>
 
-      <div class="flex flex-wrap items-center gap-2 px-4 py-3">
+      <div class="md-cat-tools flex flex-wrap items-center gap-2 px-4 py-3">
         <div class="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5">
           <svg class="h-3.5 w-3.5 text-gray-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4"/></svg>
           <input id="track-search" type="text" placeholder="Search tracks..." class="w-32 bg-transparent text-xs text-gray-100 placeholder:text-gray-300 focus:outline-none">
@@ -347,13 +348,13 @@
       <div id="tab-Songwriters" class="tab-panel hidden overflow-x-auto px-4 pb-4">
         {% if my_writers %}
         <div class="mb-4 rounded-xl border border-sb-gold/30 bg-sb-surface-2 p-4">
-          <h3 class="sb-label text-sb-gold-bright">My Songwriters — auto-pulled from MusicBrainz</h3>
+          <h3 class="sb-label text-sb-gold-bright">My Songwriters, from the registries</h3>
           <div class="mt-3 flex flex-wrap gap-2">
             {% for w in my_writers %}
             <span class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-sb-surface-1 px-3 py-1.5 text-xs font-semibold text-gray-100">{{ w.name }}<span class="rounded-md bg-sb-gold/15 px-1.5 py-0.5 text-xs text-sb-gold-bright font-medium">{{ w.songs }} song{{ 's' if w.songs != 1 }}</span></span>
             {% endfor %}
           </div>
-          <p class="mt-2 text-xs text-gray-300 font-medium">Writer credits from the open MusicBrainz database. Splits and shares are set by you — credits here are a starting point, always verify before registering.</p>
+          <p class="mt-2 text-xs text-gray-300 font-medium">Writer credits read from The MLC's register when a track is added (tracks added before 18 September 2026 read them from MusicBrainz). Splits and shares are set by you. Credits here are a starting point: always verify before registering.</p>
         </div>
         {% endif %}
         <table class="w-full text-left text-sm">
@@ -391,7 +392,7 @@
             <span class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-sb-surface-1 px-3 py-1.5 text-xs font-semibold text-gray-100">{{ p.name }}<span class="rounded-md {{ 'bg-green-500/15 text-green-400' if p.kind == 'Publisher' else 'bg-sb-gold/15 text-sb-gold-bright' }} px-1.5 py-0.5 text-xs font-medium">{{ p.kind }} · {{ p.songs }}</span></span>
             {% endfor %}
           </div>
-          <p class="mt-2 text-xs text-gray-300 font-medium">Publishers come from MusicBrainz work credits; labels come from the release record. A distributor isn't published in open databases — for independent releases the label line above is often your distributor.</p>
+          <p class="mt-2 text-xs text-gray-300 font-medium">Publishers come from The MLC's register (MusicBrainz for tracks added before 18 September 2026); labels come from the release record. A distributor isn't published in open databases — for independent releases the label line above is often your distributor.</p>
         </div>
         {% endif %}
         <table class="w-full text-left text-sm">
@@ -480,7 +481,7 @@
       <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
         <div class="flex items-center justify-between">
           <h2 class="sb-label text-gray-300">Metadata Issues</h2>
-          <a href="/recovery?issue=metadata" class="text-xs font-semibold text-amber-400 hover:underline">View All</a>
+          <a href="/recovery?issue=metadata" class="md-tap text-xs font-semibold text-amber-400 hover:underline">View All</a>
         </div>
         <div class="mt-3 space-y-1">
           {% for iss in c.issues %}
@@ -519,7 +520,7 @@
         <a href="/valuation" class="mt-2 block rounded-md border border-white/10 py-2 text-center text-xs font-semibold text-amber-400 transition-colors hover:bg-white/5">View Full Valuation</a>
         {% else %}
         <div class="mt-3 text-2xl font-bold text-gray-300">Not measured</div>
-        <div class="mt-1 text-xs text-gray-300 font-medium">A value needs statements on file. <a href="/valuation" class="underline">Open the valuation</a>.</div>
+        <p class="mt-1 text-xs text-gray-300 font-medium">A value needs statements on file. <a href="/valuation" class="underline">Open the valuation</a>.</p>
         {% endif %}
       </section>
     </aside>
@@ -528,9 +529,9 @@
   <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
     <div class="flex items-center justify-between">
       <h2 class="sb-label text-gray-300">Recently Added</h2>
-      <button type="button" class="text-xs font-semibold text-amber-400 hover:underline" data-goto-tab="Tracks">View All</button>
+      <button type="button" class="md-tap text-xs font-semibold text-amber-400 hover:underline" data-goto-tab="Tracks">View All</button>
     </div>
-    <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div class="md-cat-recent mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {% for item in c.recently_added %}
       <button type="button" class="recent-item flex items-center gap-3 rounded-xl border border-white/5 bg-white/5 p-3 text-left transition-colors hover:border-amber-500/25"
               data-kind="{{ 'release' if item.type in ('Album', 'EP') else 'track' }}" data-title="{{ item.title }}" data-type="{{ item.type }}" data-status="{{ item.status }}">

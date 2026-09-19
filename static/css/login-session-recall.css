@@ -62,17 +62,35 @@ body.lsr {
   object-position: 40% 30%;
   display: block;
 }
-/* The veil: darker toward the console so the seam reads as one frame,
-   and darker at the foot so the statement sits on quiet ground. */
+/* On a phone the band is wider than tall: aim low so the whole rack,
+   MOTION included, stays in the frame. */
+@media (max-width: 860px) {
+  .lsr-photo-img { object-position: 40% 78%; }
+}
+/* The veil: only a thin blend into the console at the seam. The flight
+   case photograph (2026-09-19) keeps its suite rack on the right, which a
+   heavier veil would dim, and there is no statement laid over it to need
+   quiet ground. */
 .lsr-veil {
   position: absolute;
   inset: 0;
+  background: linear-gradient(90deg, transparent 88%, var(--lsr-ground) 100%);
+}
+@media (max-width: 860px) {
+  .lsr-veil { background: linear-gradient(0deg, var(--lsr-ground), transparent 7%); }
+}
+/* A reseller's sign-in (white label): the band photograph, which carries
+   no brand of its own, under the tenant's name and tagline. The flight
+   case says street banker in paint, so a reseller's artists never see it
+   (owner's rule: they see the reseller everywhere). */
+.lsr-veil--brand {
   background:
     linear-gradient(90deg, rgb(11 10 8 / 0.12), rgb(11 10 8 / 0.5) 70%, var(--lsr-ground) 100%),
     linear-gradient(0deg, rgb(11 10 8 / 0.88), transparent 58%);
 }
 @media (max-width: 860px) {
-  .lsr-veil { background: linear-gradient(0deg, var(--lsr-ground), rgb(11 10 8 / 0.22) 62%); }
+  .lsr-veil--brand { background: linear-gradient(0deg, var(--lsr-ground), rgb(11 10 8 / 0.22) 62%); }
+  .lsr-photo-img--band { object-position: 40% 30%; }
 }
 .lsr-over {
   position: absolute;
@@ -117,6 +135,12 @@ body.lsr {
   text-transform: uppercase;
   color: var(--lsr-muted);
 }
+@keyframes lsr-draw {
+  from { transform: scaleX(0); }
+  to   { transform: none; }
+}
+.lsr-over { animation: lsr-rise 640ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.lsr-over-rule { animation: lsr-draw 600ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both; }
 
 /* --- the console ------------------------------------------------------ */
 .lsr-console {
@@ -494,17 +518,11 @@ a.lsr-gold-btn { margin-top: 24px; }
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: none; }
 }
-@keyframes lsr-draw {
-  from { transform: scaleX(0); }
-  to   { transform: none; }
-}
 .lsr-console-inner > * { animation: lsr-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .lsr-console-inner > :nth-child(2) { animation-delay: 60ms; }
 .lsr-console-inner > :nth-child(3) { animation-delay: 110ms; }
 .lsr-console-inner > :nth-child(4) { animation-delay: 160ms; }
 .lsr-console-inner > :nth-child(n+5) { animation-delay: 220ms; }
-.lsr-over { animation: lsr-rise 640ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.lsr-over-rule { animation: lsr-draw 600ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both; }
 
 @media (prefers-reduced-motion: reduce) {
   .lsr *, .lsr *::before, .lsr *::after {

@@ -427,6 +427,9 @@ main:has(> .to) { min-width: 0; }
 .to-add > summary::-webkit-details-marker { display: none; }
 .to-add > summary::before { content: "+"; font-size: 16px; font-weight: 900; line-height: 1; width: 14px; text-align: center; }
 .to-add[open] > summary::before { content: "–"; }
+/* The summaries also carry a <span class="plus">, which printed "+ + Start a tour"
+   next to the drawn sign (and stayed "+" when the fold was open). The drawn one wins. */
+.to-add > summary > .plus { display: none; }
 .to-add-body { padding: 0 14px 14px; }
 
 /* the `+` row: everything this date does not have yet */

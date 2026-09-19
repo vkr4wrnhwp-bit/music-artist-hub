@@ -37,7 +37,7 @@ import io
 import os
 
 from flask import (Blueprint, abort, jsonify, redirect, render_template,
-                   request, send_file, url_for)
+                   request, send_file, session, url_for)
 
 import blob_store
 import studio_config
@@ -208,7 +208,7 @@ _TYPE_LABELS = [
 def studio_new():
     _live()
     user = _user()
-    if request.method == "GET":
+    if request.method != "POST":
         return render_template("studio/new.html", active_page="studio",
                                types=_TYPE_LABELS)
 
@@ -277,6 +277,8 @@ def studio_team_add(project_id):
     person can then OPEN the project) or a named credit with no login."""
     _live()
     user = _user()
+    if session.get("team_as"):
+        abort(403)              # a seat does not hand the artist's projects to others
     _project_or_404(user, project_id)
     team_member_id = (request.form.get("team_member_id") or "").strip()
     display_name = (request.form.get("display_name") or "").strip()
@@ -300,6 +302,8 @@ def studio_team_add(project_id):
 def studio_team_remove(project_id, member_id):
     _live()
     user = _user()
+    if session.get("team_as"):
+        abort(403)
     _project_or_404(user, project_id)
     sstore.remove_member(_partner(user), user["id"], project_id, member_id)
     return redirect(url_for("studio.studio_session", project_id=project_id))
@@ -469,8 +473,10 @@ def _room(project_id, room, template, error=None, status_code=200):
         viewer_role=viewer_role,
         members=sstore.list_members(_partner(user), project_id),
         team_state=studio_metrics.team_state,
+        # The artist's whole team, emails and pending invites: the account
+        # holder's to see, not a seat's (team review, 2026-09-19).
         team_pool=(__import__("db").list_team(user["id"])
-                   if viewer_role == "owner" else []),
+                   if viewer_role == "owner" and not session.get("team_as") else []),
         mix_scores=mix_scores,
         # Every room carries the other sessions. /studio redirects
         # straight into the newest project, so without this the console

@@ -9,7 +9,12 @@
       <a href="/portal" class="sb-label text-sb-gold hover:underline">← Partner Portal</a>
       <h1 class="sb-h1 mt-1">{{ m.owner_name }}</h1>
     </div>
-    <span class="rounded-full border border-sb-gold/40 bg-sb-gold/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright">{{ role }} · read-only</span>
+    <span class="rounded-full border border-sb-gold/40 bg-sb-gold/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright">{{ role }} · {{ 'can edit' if seat_access == 'edit' else 'read only' }}</span>
+    {% if can_open %}
+    <form method="post" action="/portal/{{ m.owner_id }}/open">
+      <button type="submit" class="sb-btn sb-btn-primary sb-btn-sm">Open their account</button>
+    </form>
+    {% endif %}
   </div>
 
   <div class="grid grid-cols-2 gap-3">
@@ -46,6 +51,6 @@
   </section>
   {% endif %}
 
-  <p class="px-1 text-xs text-gray-300 font-medium">You see what your role covers: managers see everything, accountants and attorneys see money, publicists and assistants see promotion. Everything is read-only — changes happen on the artist's own account.</p>
+  <p class="px-1 text-xs text-gray-300 font-medium">You see what your role covers: managers see everything, accountants and attorneys see money, publicists and assistants see promotion. To work in the account itself, press Open their account: {% if seat_access == 'edit' %}you can make changes there, each one recorded under your name.{% else %}you can look at everything there and change nothing.{% endif %}</p>
 </div>
 {% endblock %}

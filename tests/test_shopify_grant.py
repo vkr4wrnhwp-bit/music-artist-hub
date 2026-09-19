@@ -154,6 +154,10 @@ def test_the_owner_can_reconnect_and_the_import_heals_a_stale_token(monkeypatch)
     client = app_obj.test_client()
     email = "shop-%s@example.net" % uuid.uuid4().hex[:8]
     client.post("/signup", data={"name": "Owner", "email": email, "password": "pass-1234"})
+    # The store behind SHOPIFY_* is the owner's, so reading its customers is
+    # the owner's alone since 2026-09-17. This test was already about the
+    # owner; now it has to say so.
+    monkeypatch.setenv("OWNER_EMAILS", email)
     client.post("/login", data={"email": email, "password": "pass-1234"})
     r = client.post("/links/fans/import/shopify")
     assert r.status_code == 302 and calls == ["granted-1", "granted-2"], "the stale token was dropped and the import ran again"

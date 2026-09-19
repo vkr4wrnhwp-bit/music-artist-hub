@@ -47,7 +47,10 @@
     {% endif %}
 
     {% if not joined %}
-    {% if stripe_live %}
+    {% if not sales_open %}
+    {#- The owner's switch (sales_switch): off means fans email for details. -#}
+    <p class="mt-7 rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-center text-xs text-gray-200">{{ sales_closed }}</p>
+    {% elif stripe_live %}
     <form method="post" action="/club/{{ slug }}/join" class="mt-7">
       <input name="email" type="email" required placeholder="your@email.com"
              class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-300 focus:border-white/40 focus:outline-none">

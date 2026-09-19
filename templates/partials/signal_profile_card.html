@@ -17,7 +17,7 @@
     </svg>
     <div class="min-w-0 text-sm">
       <div class="font-bold text-gray-100">{{ signal.profile.recommendedLane or "Custom program" }}</div>
-      <div class="mt-0.5 truncate text-xs text-gray-300">{{ signal.profile.topPriorities | join(" · ") }}</div>
+      <div class="mt-0.5 text-xs text-gray-300">{{ signal.profile.topPriorities | join(" · ") }}</div>
     </div>
     <div class="flex shrink-0 gap-2">
       <a href="/#artist-eq" class="sb-btn sb-btn-secondary sb-btn-sm">Retune my priorities</a>

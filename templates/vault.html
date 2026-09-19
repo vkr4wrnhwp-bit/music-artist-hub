@@ -3,6 +3,7 @@
 
 {% block title %}Asset Vault - Street Banker{% endblock %}
 
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/phone-studio.css?v=1">{% endblock %}
 {% block content %}
 {% if not rooms_nav %}{{ sb.subnav([("/vault", "Files"), ("/vault?view=contracts", "Contracts & licences")],
              "/vault?view=contracts" if view == "contracts" else "/vault") }}{% endif %}

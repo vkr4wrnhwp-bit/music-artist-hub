@@ -5,6 +5,7 @@
 
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/stage-control.css?v=11">
+  <link rel="stylesheet" href="/static/css/phone-studio.css?v=1">
 {% endblock %}
 
 {% block content %}
@@ -15,16 +16,16 @@
             "The technical record a production carries from room to room: who is on stage, what plugs in where, which mix each performer hears, and what has to happen on a cue. Publish a version and it is frozen — a show keeps the version it was advanced against, so editing this later cannot rewrite what a crew already agreed to.",
             position="center 45%") }}
 
-<section class="sb-panel">
+<section class="sb-panel ph-passport-start">
   <h2 class="sb-label sb-label-gold">Start a passport</h2>
   <p class="sb-note">
     One passport per production and format. A festival input list is not a
     theatre input list, so those are two passports, not one with a note on it.
   </p>
   <form method="post" action="/passports/new" class="sb-row sb-row--wrap">
-    {{ sb.field("artist_name", "Artist", placeholder="Prayers") }}
-    {{ sb.field("production_name", "Production", placeholder="No Tengo Calma") }}
-    {{ sb.field("variant", "Format", placeholder="Theatre") }}
+    {{ sb.field("artist_name", "Artist", placeholder="Artist or band name") }}
+    {{ sb.field("production_name", "Production", placeholder="Tour or production name") }}
+    {{ sb.field("variant", "Format", placeholder="Theatre, festival, club") }}
     {{ sb.btn("Create passport", type="submit", variant="primary") }}
   </form>
 </section>
@@ -71,11 +72,11 @@
     {% endfor %}
   </div>
 {% elif showing_archived %}
-  <section class="sb-panel">
+  <section class="sb-panel ph-passport-empty">
     <p class="sb-note">Nothing archived.</p>
   </section>
 {% else %}
-  <section class="sb-panel">
+  <section class="sb-panel ph-passport-empty">
     <p class="sb-note">
       No passports yet. The first one is worth building the week before a
       tour, not the morning of the first show.

@@ -41,9 +41,9 @@
   {% if tickets_ready %}
     {% if tickets_line %}<span class="to-muted">{{ tickets_line }}</span>{% endif %}
     <form method="post" action="/tours/{{ tour['id'] }}/tickets/sync" class="to-inline"><button class="to-btn to-btn--ghost to-btn--small" type="submit">Sync ticket sales</button></form>
-    {% if not tickets_sources['ticketmaster'] %}<span class="to-muted">Ticketmaster is not connected (TICKETMASTER_API_KEY): with a key it would add the ticket link and on-sale status for dates that are not on Eventbrite — never a sold count, which it does not publish.</span>{% endif %}
+    {% if not tickets_sources['ticketmaster'] and not tm_switched_off %}<span class="to-muted">Ticketmaster is not connected (TICKETMASTER_API_KEY): with a key it would add the ticket link and on-sale status for dates that are not on Eventbrite — never a sold count, which it does not publish.</span>{% endif %}
     {% if not tickets_sources['eventbrite'] %}<span class="to-muted">Eventbrite is not connected (EVENTBRITE_TOKEN): Ticketmaster publishes no sold count, so counts here are what you enter.</span>{% endif %}
-  {% else %}<span class="to-muted">Ticket sales: no Eventbrite token on this deployment (EVENTBRITE_TOKEN), and no Ticketmaster key (TICKETMASTER_API_KEY)</span>{% endif %}
+  {% else %}<span class="to-muted">Ticket sales: no Eventbrite token on this deployment (EVENTBRITE_TOKEN){% if not tm_switched_off %}, and no Ticketmaster key (TICKETMASTER_API_KEY){% endif %}</span>{% endif %}
 </div>
 {#- A date with no single listing is never guessed at: it is listed with
     the events that were on that date, each saying which source it came

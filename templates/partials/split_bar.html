@@ -1,0 +1,28 @@
+{# The split page's bar.
+
+   Not the long site's marketing nav. That one carries Platform, Creative
+   + Rollout and Royalty Sweep as anchors into sections that live on the
+   store now, so on this page they scroll nowhere; it also offers "Log in"
+   on the page that is the login, and a Free Sweep button that belongs in
+   the shop window rather than on the front door.
+
+   The owner's mockup had four things and so does this: the mark, the way
+   in, what it costs, and the way back to the story. #}
+
+<header class="sbbar">
+  <div class="sbbar-inner">
+    <a class="sbbar-mark" href="/" aria-label="Street Banker">
+      <img src="/static/img/streetbanker-logo-light.svg" alt="Street Banker"
+           width="920" height="250">
+    </a>
+    <nav class="sbbar-nav" aria-label="Street Banker">
+      {#- The page is the sign-in, so this marks where you are rather than
+          sending you somewhere. -#}
+      <a class="sbbar-here" href="#sbdoor-h" aria-current="page">Sign in</a>
+      <a href="/plan">Plans</a>
+      {#- The story, the press and the store. public_base rather than a
+          written-down host, so it follows the domain. -#}
+      <a href="{{ public_base }}/" rel="noopener">{{ public_base | replace("https://", "") | replace("http://", "") }}</a>
+    </nav>
+  </div>
+</header>

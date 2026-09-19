@@ -4,9 +4,9 @@
 <section class="rounded-2xl border border-sb-gold/40 bg-gradient-to-b from-sb-surface-2 to-sb-ground p-5 shadow-[0_0_50px_rgba(201,162,74,0.08)]">
   <div class="flex flex-wrap items-center justify-between gap-2">
     <h2 class="sb-label text-sb-gold-bright">Your Real Numbers
-      <span class="ml-2 rounded-full border border-green-500/25 bg-green-500/10 px-2 py-0.5 text-xs font-semibold text-green-400">FROM YOUR STATEMENTS — {{ rr.row_count }} rows · {{ rr.source_count }} sources</span>
+      <span class="md-pill ml-2 rounded-full border border-green-500/25 bg-green-500/10 px-2 py-0.5 text-xs font-semibold text-green-400">FROM YOUR STATEMENTS — {{ rr.row_count }} rows · {{ rr.source_count }} sources</span>
     </h2>
-    <a href="/statements" class="text-xs font-semibold text-sb-gold-bright hover:underline">Manage statements →</a>
+    <a href="/statements" class="md-tap text-xs font-semibold text-sb-gold-bright hover:underline">Manage statements →</a>
   </div>
 
   {% if band_mode == 'overview' %}
@@ -134,9 +134,9 @@
   {% endif %}
 </section>
 {% elif user_plan %}
-<div class="rounded-xl border border-dashed border-sb-gold/25 px-4 py-3 text-xs text-gray-300">
+<p class="rounded-xl border border-dashed border-sb-gold/25 px-4 py-3 text-xs text-gray-300">
   <span class="font-bold text-sb-gold-bright">Nothing to read yet.</span>
   Upload a royalty statement and this page fills with your own numbers.
   <a href="/statements" class="ml-1 font-semibold text-sb-gold-bright underline">Upload a statement →</a>
-</div>
+</p>
 {% endif %}

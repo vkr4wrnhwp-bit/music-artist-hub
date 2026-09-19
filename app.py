@@ -44,6 +44,7 @@ import tour_os
 import demo_accounts
 import page_switches
 import rooms
+import team_areas
 import producers
 import distributor_letter
 import recovery_engine
@@ -117,6 +118,11 @@ def _is_owner_email(email):
     return digest in _OWNER_EMAIL_HASHES
 
 
+def _ref_spent_key(email):
+    import hashlib
+    return "ref_spent:" + hashlib.sha256((email or "").strip().lower().encode()).hexdigest()
+
+
 def _grant_owner_plan(user):
     """Put an owner account on the top plan. Idempotent, and a no-op for
     everybody else."""
@@ -126,6 +132,7 @@ def _grant_owner_plan(user):
         store.set_user_plan(user["id"], OWNER_PLAN)
         return True
     return False
+import sb_suite_sso as suite_sso   # one account for every suite: Street Banker hands the artist across
 import tour_hub_rules as touring   # the old Tour Hub's rule set: public rider/show-day pages, Money Queue fallback
 import tour_store
 import artist_identity
@@ -138,6 +145,9 @@ period_year,analyze as analyze_statement, parse_statement,
 from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
 from departments_config import get_departments_config
+from eight_tools_config import get_eight_tools_config
+import fan_list_import
+import split_home
 from artist_twin_config import get_artist_twin_config
 from lanes_config import get_lanes_config
 from creative_config import get_creative_config
@@ -201,7 +211,7 @@ from discover_config import get_discover_data, like_track, follow_artist
 import coverage_check
 import music_apis
 from music_apis import (itunes_search, odesli_lookup, ordered_platform_links,
-                        deezer_track_metadata, musicbrainz_credits, press_mentions)
+                        deezer_track_metadata, press_mentions)
 import links_engine
 import links_store as mls
 import press_store
@@ -216,6 +226,8 @@ import bandsintown_provider as bandsintown
 import tour_dates as tour_dates_feed
 import capital_engine
 import stripe_provider as stripe_billing
+import sales_switch
+import soundcharts_budget
 import royalty_types
 import insights_engine
 import email_provider as emailer
@@ -283,16 +295,30 @@ from royalty_data import (
 )
 
 
+def _team_owner():
+    """The account a team seat is working inside this request, or None.
+    team_seat_gate resolved the seat before any page renders, and
+    current_user() drops team_as the moment the seat is gone."""
+    try:
+        if not session.get("team_as"):
+            return None
+    except RuntimeError:
+        return None
+    return ((getattr(g, "_team_seat", None) or (None, None))[1] or {}).get("owner")
+
+
 def _account_with_user(account):
     """Overlay the signed-in user's identity on the sidebar account chip.
-    Safe outside a request context (tests call this directly)."""
+    Safe outside a request context (tests call this directly). Inside an
+    artist's account through a team seat it is the artist's chip: it said
+    the member's own name, email and plan (team review, 2026-09-19)."""
     try:
         user_id = session.get("user_id")
     except RuntimeError:
         return account
     if not user_id:
         return account
-    user = store.get_user(user_id)
+    user = _team_owner() or store.get_user(user_id)
     if not user:
         return account
     initials = "".join(p[0] for p in user["name"].split()[:2]).upper() or "?"
@@ -305,7 +331,7 @@ def _account_with_user(account):
     # rather than invent a figure.
     plan_key = (user.get("plan") or "artist") if hasattr(user, "get") else "artist"
     return {**account, "name": user["name"], "initials": initials,
-            "email": user["email"], "role": "Artist Account",
+            "email": user["email"], "role": "Team access" if _team_owner() else "Artist Account",
             "plan": plans.PLAN_NAMES.get(plan_key, "Artist"),
             "next_payout": None, "next_payout_in": None}
 
@@ -361,8 +387,8 @@ def _internal_tools():
         user_id = session.get("user_id")
     except RuntimeError:                   # outside a request context (tests)
         return []
-    if not user_id:
-        return []
+    if not user_id or _team_owner():
+        return []                          # none of the member's own, inside an artist's account
     user = store.get_user(user_id)
     if not user:
         return []
@@ -396,6 +422,13 @@ def _internal_tools():
         # email behind a tier anyone could buy.
         out.append({"href": "/admin/review", "label": "Artist accounts"})
         out.append({"href": "/admin/readiness", "label": "Readiness"})
+        # Core, the template builder new suites are made from (owner,
+        # 2026-09-17: "add this into the street banker back side owner
+        # account, it's a template for making new suites"). Another
+        # service, so it opens in a new tab like the suites do.
+        core = (os.environ.get("CORE_BUILDER_URL")
+                or "https://street-banker-core-builder.onrender.com/").strip()
+        out.append({"href": core, "label": "Core builder", "away": True})
     return out
 
 
@@ -697,19 +730,195 @@ def create_app():
             else:
                 return actor
 
-        return store.get_user(user_id)
+        # A team member working inside the artist's account (owner,
+        # 2026-09-19): re-checked on every request, like acting_as, so a
+        # removal, a lock or a downgrade ends it on the next click.
+        team_as = session.get("team_as")
+        if team_as:
+            seat = _team_seat(user_id, team_as)
+            if seat is None:
+                session.pop("team_as", None)
+                session.pop("team_as_name", None)
+            else:
+                return seat["owner"]
+
+        me = store.get_user(user_id)
+        if me and store.account_shut(me) and not _is_owner_email(me.get("email")):
+            # Locked by the owner, or a guest pass that ran out. Shut off,
+            # not deleted: the session ends here and sign-in says why.
+            session.clear()
+            return None
+        return me
+
+    def _team_seat(member_id, owner_id):
+        """What this team member may do inside this account right now, or
+        None. Read once per request. Edit needs the account to be on Pro or
+        Label today, so a downgrade turns an editor into a reader at once.
+        The platform owner's account and the shared demo logins are never
+        opened this way."""
+        key = (member_id, owner_id)
+        cached = getattr(g, "_team_seat", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        seat = None
+        m = store.get_portal_membership(member_id, owner_id)
+        owner = store.get_user(owner_id) if m else None
+        me = store.get_user(member_id) if m else None
+        if (m and owner and me and not store.account_shut(owner) and not store.account_shut(me)
+                and not _is_owner_email(owner.get("email"))
+                and not demo_accounts.is_demo_email(owner.get("email") or "")
+                # A seat the artist has not confirmed opens nothing (team
+                # review, 2026-09-19), nor one beyond the plan's count.
+                and m.get("access") in ("read", "edit")):
+            plan = owner.get("plan") or "artist"
+            limit = plans.team_seats(plan)
+            pos = store.team_seat_position(owner_id, member_id)
+            if limit is None or (pos is not None and pos < limit):
+                edit = m.get("access") == "edit" and plans.team_can_edit(plan)
+                seat = {"owner": owner, "member_id": member_id,
+                        "member_name": me.get("name") or me.get("email") or "",
+                        "member_email": me.get("email") or "",
+                        "role": m.get("role") or "", "access": "edit" if edit else "read",
+                        "can_roster": bool(edit and m.get("can_roster") and plans.team_can_roster(plan)),
+                        "areas": m.get("areas") if m.get("areas") is not None else team_areas.ALL,
+                        "rooms": team_areas.describe(m.get("areas"))}
+        g._team_seat = (key, seat)
+        return seat
+
+    @app.route("/suites/go/<key>")
+    def suite_go(key):
+        """Hand a signed-in artist across to one of the tool suites.
+
+        Street Banker is the account of record. The suite receives a
+        short-lived signed token naming this account (sb_suite_sso) and
+        starts its own session from it, so nobody signs in twice. With no
+        shared secret configured the link is a plain visit, which is what
+        it was before.
+        """
+        if key not in suite_sso.SUITES:
+            abort(404)
+        user = current_user()
+        if not user:
+            return redirect(url_for("login", next=request.path))
+        is_owner = _is_owner_email(user.get("email"))
+        names = {"the-room": "The Room", "noise-lab": "Noise Lab", "reach": "REACH",
+                 "tour": "Tour", "motion": "Motion"}
+        # A suite marked Soon is still being finished: only the owner goes in.
+        if key in hub_defs.suites_pending() and not is_owner:
+            return render_template("suite_soon.html", suite_name=names.get(key, key),
+                                   **build_dashboard_context())
+        # Motion keeps one workspace per deployment until each account gets
+        # its own, so the shared demo logins would see other people's
+        # projects there. Kept out until then (2026-09-18 launch check).
+        if key == "motion" and _is_demo_email(user.get("email") or ""):
+            return render_template("suite_soon.html", suite_name="Motion", demo=True,
+                                   **build_dashboard_context())
+        # The membership decides which suites open (owner, 2026-09-17). The
+        # creation suites spend credits: Label carries them, anybody else
+        # gets in by holding some.
+        wallet = _wallet(user)
+        plan = user.get("plan") or "artist"
+        # The owner's own account opens every door whatever plan it sits on.
+        if not is_owner and not plans.suite_open(plan, key, wallet["total"]):
+            need = plans.suite_access(key)
+            return render_template("upgrade.html", required="label" if need == "credits" else need,
+                                   needs_credits=(need == "credits"),
+                                   suite_name=names.get(key, key),
+                                   plans_list=plans.PLANS, **build_dashboard_context()), 402
+        if not suite_sso.configured():
+            return redirect(suite_sso.suite_base(key) + suite_sso.suite_home(key))
+        return redirect(suite_sso.handoff_url(user, key))
+
+    def _wallet(user):
+        """The account's credit wallet, with this month's Label credits put in
+        first if they have not been. The month is the ref, so however many
+        doors ask, a month is granted once."""
+        if (user.get("plan") or "") == "label":
+            today = datetime.now(timezone.utc)
+            nxt = (today.replace(day=1) + timedelta(days=32)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            store.add_credits(user["id"], plans.LABEL_MONTHLY_CREDITS, "monthly", bucket="monthly",
+                              note="Included with Label for %s" % today.strftime("%B %Y"),
+                              ref="monthly:%s:%s" % (user["id"], today.strftime("%Y-%m")),
+                              expires=nxt.isoformat(timespec="seconds"))
+        return store.credit_balances(user["id"])
+
+    @app.route("/api/suites/credits", methods=["POST"])
+    def suite_credits_call():
+        """A suite asks what an artist holds, or spends some of it. Server to
+        server: the body is a token signed with the suites' shared secret.
+        {"op": "balance"|"spend", "email", "suite", "amount", "ref"}."""
+        body = request.get_json(silent=True) or {}
+        call = suite_sso.verify_credit_call(body.get("token") or request.form.get("token"))
+        if call is None:
+            return jsonify({"ok": False, "error": "unsigned"}), 401
+        who = store.get_user_by_email((call.get("email") or "").strip().lower())
+        suite = call.get("suite") or ""
+        if who is not None and store.account_shut(who):
+            return jsonify({"ok": False, "error": "account shut off"}), 403
+        if who is None or plans.suite_access(suite) != "credits":
+            return jsonify({"ok": False, "error": "unknown account or suite"}), 404
+        if call.get("op") == "spend":
+            try:
+                amount = int(call.get("amount") or 0)
+            except (TypeError, ValueError):
+                amount = 0
+            if amount <= 0 or not call.get("ref"):
+                return jsonify({"ok": False, "error": "a spend needs an amount and a ref"}), 400
+            _wallet(who)
+            after = store.spend_credits(who["id"], amount, suite, note=(call.get("note") or "")[:200],
+                                        ref="spend:%s:%s" % (suite, call["ref"]))
+            if after is None:
+                return jsonify({"ok": False, "error": "not enough credits",
+                                "balance": store.credit_balances(who["id"])}), 402
+            return jsonify({"ok": True, "balance": after})
+        return jsonify({"ok": True, "balance": _wallet(who)})
 
     def login_required_redirect():
         return redirect(url_for("login", next=request.path))
 
+    def _signup_open():
+        """May a stranger register? Owner, 2026-09-17: "make sure no one can
+        make an account unless i give them one". On Render, which is every
+        deployed service, the door is shut unless SIGNUP_MODE=open is set
+        there on purpose. Off Render (the tests, a laptop) it stays open."""
+        mode = (os.environ.get("SIGNUP_MODE") or "").strip().lower()
+        if mode in ("open", "invite"):
+            return mode == "open"
+        return not os.environ.get("RENDER")
+
+    _INVITE_ONLY = ("Street Banker is invitation only right now. "
+                    "Ask Street Banker for an invitation, then open the link it sends you.")
+    # While sign-up is shut, a roster or team link joins an account that
+    # already exists and makes none (owner, 2026-09-19: "yes shut those
+    # also", on the 2026-09-18 exception that let those links mint
+    # accounts). The owner's own invitation from Settings is the only door.
+    _MEMBER_LINK_SHUT = ("Street Banker is invitation only right now, so this link can only add "
+                         "someone who already has an account. Ask Street Banker for an "
+                         "invitation, then open this link again to join.")
+
     @app.route("/signup", methods=["GET", "POST"])
     def signup():
         error = None
+        # An invitation is a link the owner made in Settings: one address,
+        # one plan, one use. With the door shut it is the only way in.
+        invite = store.get_signup_invite(request.values.get("invite") or "")
+        if invite is None and not _signup_open():
+            # The page stays, form and all (owner, 2026-09-17: "I don't want
+            # the sign up page to go away. I just want it to not be able to
+            # sign anybody up"). Submitting it creates nothing and says why.
+            preselect = "fan" if request.args.get("as") == "fan" else "artist"
+            if request.method == "POST":
+                return render_template("signup.html", error=_INVITE_ONLY, preselect=preselect,
+                                       closed=True, invite=None), 403
+            return render_template("signup.html", error=None, preselect=preselect,
+                                   closed=True, invite=None)
         if request.method == "GET" and request.args.get("ref"):
             session["ref_code"] = request.args.get("ref")[:16]
         if request.method == "POST":
             name = (request.form.get("name") or "").strip()
             email = (request.form.get("email") or "").strip().lower()
+            if invite is not None:
+                email = invite["email"]        # the invitation names the address; the form cannot change it
             password = request.form.get("password") or ""
             if not name or "@" not in email or len(password) < 6:
                 error = "Please provide a name, a valid email, and a password of 6+ characters."
@@ -718,16 +927,26 @@ def create_app():
                 if user_id is None:
                     error = "An account with that email already exists."
                 else:
+                    if invite is not None:
+                        store.set_user_plan(user_id, invite["plan"])
+                        store.use_signup_invite(invite["token"], user_id)
+                        if invite.get("guest_hours"):
+                            # The clock starts now, when the guest arrives,
+                            # not when the owner sent the link.
+                            store.set_access_ends(user_id, (datetime.now(timezone.utc) + timedelta(
+                                hours=int(invite["guest_hours"]))).isoformat(timespec="seconds"))
                     _grant_owner_plan(store.get_user(user_id))
                     ref = session.pop("ref_code", None) or request.form.get("ref")
                     referrer = store.user_by_ref_code(ref) if ref else None
+                    if referrer and store.get_kv(_ref_spent_key(email)):
+                        referrer = None     # deleted and came back: once per address
                     if referrer and referrer["id"] != user_id:
                         store.set_referred_by(user_id, referrer["id"])
                         store.notify(referrer["id"], "network", "Referral signed up",
-                                     "%s joined from your link. Your $9 credit "
-                                     "applies when they start a paid plan." % email,
+                                     "%s joined from your link. Your 50%% credit "
+                                     "applies once they have paid for their plan." % email,
                                      "/referrals")
-                    if request.form.get("account_type") == "fan":
+                    if request.form.get("account_type") == "fan" and invite is None:
                         store.set_user_plan(user_id, "fan")
                         session.permanent = True
                         session["user_id"] = user_id
@@ -742,7 +961,8 @@ def create_app():
         # Artist already ticked - a link that names a destination has to
         # arrive there.
         preselect = "fan" if request.args.get("as") == "fan" else "artist"
-        return render_template("signup.html", error=error, preselect=preselect)
+        return render_template("signup.html", error=error, preselect=preselect,
+                               closed=False, invite=invite)
 
     @app.route("/demo-open", methods=["POST"])
     def demo_open():
@@ -775,6 +995,12 @@ def create_app():
             email = (request.form.get("email") or "").strip().lower()
             password = request.form.get("password") or ""
             user = store.get_user_by_email(email)
+            shut = store.account_shut(user) if user and check_password_hash(user["password_hash"], password) else ""
+            if shut and not _is_owner_email(user.get("email")):
+                error = ("Your guest access has ended. Contact Street Banker to continue."
+                         if shut == "ended" else
+                         "This account is locked. Contact Street Banker to continue.")
+                user = None
             if user and check_password_hash(user["password_hash"], password):
                 session["user_id"] = user["id"]
                 # A fresh sign-in is a fresh visit: let the Overview
@@ -793,6 +1019,12 @@ def create_app():
                 session.permanent = bool(request.form.get("remember"))
                 is_demo = (email == "demo@streetbanker.io"
                            or email.startswith("demo-") and email.endswith("@streetbanker.io"))
+                if is_demo:
+                    # The shared demo logins keep the Rack and the audio pages
+                    # open (owner, 2026-09-17: "let them use the rack"): a
+                    # standing balance, granted once per account by its ref.
+                    store.add_credits(user["id"], 100000, "grant", note="Standing demo balance",
+                                      ref="demo-standing:%s" % user["id"])
                 if (user.get("plan") or "artist") == "fan":
                     default = "/discover"
                 elif is_demo:
@@ -800,8 +1032,10 @@ def create_app():
                     default = "/walkthrough"
                 else:
                     default = "/command-center"
-                return redirect(request.args.get("next") or default)
-            error = "Incorrect email or password."
+                # Same-site paths only: ?next=https://elsewhere used to send
+                # a fresh sign-in straight off the site.
+                return redirect(_safe_next(request.args.get("next"), default))
+            error = error or "Incorrect email or password."
         return render_template(
             "login.html", error=error,
             # Tour-rack state: was demo access just requested, and is this
@@ -923,7 +1157,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"error": "auth required"}), 401
-        if request.method == "GET":
+        if request.method != "POST":
             return jsonify({"profile": store.get_artist_signal_profile(user["id"])})
         clean = _clean_signal_profile(request.get_json(silent=True))
         if clean is None:
@@ -1078,6 +1312,8 @@ def create_app():
     def logout():
         session.pop("user_id", None)
         session.pop("signed_in", None)
+        session.pop("team_as", None)
+        session.pop("team_as_name", None)
         return redirect(url_for("login"))
 
     # --- Statements: real CSV ingestion + recovery findings -------------------
@@ -1104,6 +1340,17 @@ def create_app():
                          "/statements")
         return None
 
+    @app.route("/statements/dropbox-new", methods=["POST"])
+    def dropbox_new_address():
+        """A new drop-box address; the old one stops working at once."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if _working_as_someone():
+            return redirect("/statements")
+        store.rotate_ingest_token(user["id"])
+        return redirect("/statements?dropbox=new")
+
     @app.route("/statements/dropbox-test", methods=["POST"])
     def dropbox_test():
         """Round-trip self-test: email a sample CSV to your own drop-box.
@@ -1111,6 +1358,8 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in first."}), 401
+        if _working_as_someone():
+            return jsonify({"ok": False, "error": "Only the account holder can use the drop-box."}), 403
         if not emailer.inbound_configured():
             return jsonify({"ok": False, "error": "Drop-box not configured."}), 400
         import base64 as _b64
@@ -1156,9 +1405,12 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["user"] = user
         ctx["error"] = error
+        # The address is a key to the account: anyone who has it can put
+        # statements in, so it is shown to the account holder only, never
+        # to a team seat or a partner working inside (team review).
         ctx["drop_box"] = (emailer.inbound_address(
             store.get_or_create_ingest_token(user["id"]))
-            if emailer.inbound_configured() else None)
+            if emailer.inbound_configured() and not _working_as_someone() else None)
         ctx["uploads"] = store.get_statements(user["id"])
         ctx["roster"], ctx["act"], rows = _act_scope(store.get_statement_rows(user["id"]))
         ctx["analysis"] = analyze_statement(
@@ -1715,6 +1967,49 @@ def create_app():
 
     # --- Inbox: persisted submissions ------------------------------------------
 
+    # A question a stranger asks is free to answer, because every answer is
+    # written down here already. Sending one to the owner is not free, so
+    # only the escalations are throttled, and per address.
+    _support_asked = {}
+
+    @app.route("/support/ask", methods=["POST"])
+    def support_ask():
+        """Answer from what support has written down, or admit nobody knows.
+
+        There is no model behind this. Every sentence comes from
+        support_kb.ENTRIES, so it cannot invent an answer about an account's
+        money, and a question nobody wrote an answer for goes to the owner
+        rather than being improvised at.
+        """
+        import support_kb
+
+        body = request.get_json(silent=True) or request.form or {}
+        question = (body.get("q") or "").strip()[:2000]
+        page = (body.get("page") or "")[:200]
+        if not question:
+            return jsonify({"kind": "empty"}), 400
+
+        found = support_kb.answer(question)
+        if found:
+            return jsonify({"kind": "answer", "question": found["question"],
+                            "answer": found["answer"], "where": found["where"]})
+
+        user = current_user()
+        note = support_kb.escalation(question, page=page,
+                                     account=(user or {}).get("email") or "")
+        ip = (request.headers.get("X-Forwarded-For", request.remote_addr or "?")
+              .split(",")[0].strip())
+        now = time.time()
+        if len(_support_asked) > 4096:
+            _support_asked.clear()
+        if now - _support_asked.get(ip, 0) > 20:
+            _support_asked[ip] = now
+            try:
+                store.add_inbox("support-question", note)
+            except Exception:
+                current_app.logger.exception("support question")
+        return jsonify({"kind": "unknown", "reply": note["reply"]})
+
     @app.route("/inbox")
     def inbox():
         user = current_user()
@@ -1761,11 +2056,32 @@ def create_app():
         # render the plate from, once as JSON for the component script.
         eq = get_artist_eq_config()
         departments = get_departments_config()
-        return render_template("landing.html", config=config, artist_eq=eq,
+        # After the split the public story lives on the store and this
+        # address is the door to the system. Off unless the owner switched
+        # it in Settings or the deployment sets SPLIT_HOME (split_home.py).
+        # The owner can look at either one without switching it for
+        # anybody: /?home=split and /?home=full. Only owner logins; for
+        # everybody else the parameter does nothing at all, so a link to
+        # it cannot show a stranger a page the owner has not chosen.
+        want = (request.args.get("home") or "").strip().lower()
+        me = current_user()
+        if want in ("split", "full") and me and _is_owner_email(me.get("email")):
+            split_on = want == "split"
+        else:
+            split_on = split_home.enabled()
+
+        page = "landing.html"
+        split_cfg = None
+        if split_on:
+            page = "landing_split.html"
+            split_cfg = split_home.get_split_home_config(_signup_open())
+        return render_template(page, config=config, artist_eq=eq,
+                               split_home=split_cfg,
                                public_base=PUBLIC_BASE_URL,
                                artist_eq_json=json.dumps(eq),
                                departments=departments,
                                departments_json=json.dumps(departments),
+                               eight_tools=get_eight_tools_config(),
                                artist_twin=get_artist_twin_config(),
                                lanes=get_lanes_config(),
                                creative=get_creative_config(),
@@ -1810,7 +2126,7 @@ def create_app():
             state = {
                 "profile": bool((user.get("name") or "").strip()
                                 or (profile_data and profile_data not in ("{}", {}))),
-                "track": bool(store.list_os_tracks(uid)),
+                "track": bool(store.list_os_tracks(uid)) or bool(store.statement_titles(uid, 1)),
                 "link": bool(campaigns) or bool(store.get_db_links(uid)),
                 "rack": bool(store.get_rack_preset(uid)),
                 "rate": bool(store.list_hours_rates(uid)),
@@ -1828,10 +2144,14 @@ def create_app():
                 for key, _t, _w, href, _c in steps:
                     if plans.allowed(plan, plans.required_tier(href)):
                         reachable.add(key)
+            # Plainly started: there is real work in here, so the
+            # walkthrough stops taking the top of the dashboard.
+            settled = bool(state["statement"] or state["campaign"]
+                           or mls.list_fans(uid) or store.list_os_tracks(uid))
         except Exception:
             # A walkthrough is never worth breaking a page over.
             return None
-        return tutor.build(state, reachable)
+        return tutor.build(state, reachable, settled=settled)
 
     @app.route("/tutor/toggle", methods=["POST"])
     def tutor_toggle():
@@ -1863,10 +2183,15 @@ def create_app():
             has_profile = bool(
                 (user.get("name") or "").strip()
                 or (profile_data and profile_data not in ("{}", {})))
+            # Both halves of each answer, so this list and the tutor and
+            # the scores cannot disagree about the same account (Codex
+            # audit, 2026-09-17). A smart link lives in one of two tables
+            # depending on which door made it, and an account's songs are
+            # known from its passports OR from the statements it uploaded.
             state = {
                 "profile": has_profile,
-                "track": bool(store.list_os_tracks(uid)),
-                "link": bool(store.get_db_links(uid)),
+                "track": bool(store.list_os_tracks(uid)) or bool(store.statement_titles(uid, 1)),
+                "link": bool(store.get_db_links(uid)) or bool(mls.list_campaigns(uid)),
                 "rack": bool(store.get_rack_preset(uid)),
                 "rate": bool(store.list_hours_rates(uid)),
             }
@@ -1893,7 +2218,7 @@ def create_app():
         # visit" window does not close behind the reader on a refresh.
         since = None
         if user is not None:
-            if not session.get("seen_rolled"):
+            if not session.get("seen_rolled") and not session.get("team_as"):
                 store.roll_seen(user["id"])
                 session["seen_rolled"] = True
             since = store.get_prev_seen(user["id"])
@@ -2297,6 +2622,30 @@ def create_app():
             return redirect(back)
         return redirect(back)
 
+    def _mlc_credits(isrc):
+        """Writers and publishers for a recording from The MLC, by ISRC, or
+        None: no ISRC, no MLC login on this deployment, no work linked, or
+        The MLC did not answer. The track is saved either way."""
+        isrc = (isrc or "").strip().upper()
+        if not isrc:
+            return None
+        import signal_providers as sp
+        adapter = sp.mlc_adapter()
+        if not adapter.configured():
+            return None
+        try:
+            works = adapter.lookup(isrc=isrc)["works"]
+        except sp.ProviderError:
+            return None
+        if not works:
+            return None
+        work = works[0]
+        writers = [w.get("name") for w in work.get("writers") or [] if w.get("name")]
+        publishers = [p.get("name") for p in work.get("publishers") or [] if p.get("name")]
+        if not writers and not publishers:
+            return None
+        return {"writers": writers, "publishers": publishers, "credits_source": "The MLC"}
+
     @app.route("/catalog/add", methods=["POST"])
     def catalog_add():
         user = current_user()
@@ -2312,8 +2661,13 @@ def create_app():
         # The track stays saved even when the lookup finds nothing.
         meta = deezer_track_metadata(track.get("title"), track.get("artist"))
         if meta:
-            # Second hop: the ISRC unlocks songwriter/publisher credits.
-            credits = musicbrainz_credits(meta.get("isrc"))
+            # Second hop: the ISRC unlocks songwriter/publisher credits,
+            # from The MLC's register. This used MusicBrainz, whose free
+            # service is for non-commercial use, on every paying artist's
+            # add; the owner switched it to The MLC, which Street Banker
+            # already licenses and which carries IPIs and shares
+            # (2026-09-18: "switch to mlc", "brainz off for customers").
+            credits = _mlc_credits(meta.get("isrc"))
             if credits:
                 meta.update(credits)
             store.set_catalog_track_meta(user["id"], track_id, meta)
@@ -2393,7 +2747,11 @@ def create_app():
         from the Recovery page goes back to Recovery; one pressed on the
         case desk stays there. Never an absolute URL."""
         v = (value or "").strip()
-        return v if v.startswith("/") and not v.startswith("//") else default
+        # "/\host" is read by browsers as "//host", another site, and a
+        # line break could smuggle a header.
+        ok = (v.startswith("/") and not v.startswith(("//", "/\\"))
+              and not any(c in v for c in ("\n", "\r")))
+        return v if ok else default
 
     def _strip_case(user_id, case_id):
         """The case the strip edits, with its rail, or None."""
@@ -2974,6 +3332,21 @@ def create_app():
         except Exception:
             return []
 
+    def _epk_store(kit_owner):
+        """The Buy Button store embed for a press kit, or None.
+
+        The embed is the server's own Shopify store (SHOPIFY_DOMAIN and the
+        collection in Render), which is the owner's. It was passed to every
+        press kit, so every artist's public EPK showed the owner's store
+        under the heading Merch, as if it were theirs (found by the
+        2026-09-18 launch check). Only the owner's own kit and the demo
+        showcase carry it now; every other artist shows their own store
+        link and merch items, which they set on their EPK."""
+        email = (kit_owner or {}).get("email") or ""
+        if _is_owner_email(email) or _is_demo_email(email):
+            return shopify_buy.context()
+        return None
+
     @app.route("/epk/<slug>")
     def epk_public(slug):
         prof = store.get_epk_by_slug(slug)
@@ -3008,7 +3381,8 @@ def create_app():
                                                      else epk_config.not_measured_stats())),
                             top_tracks_override=(None if _demo_owner else _epk_real_tracks(prof["user_id"])[0]),
                             top_platform_override=(None if _demo_owner else _epk_real_tracks(prof["user_id"])[1]))
-        return render_template("epk_public.html", e=data, slug=slug, shopify=shopify_buy.context())
+        return render_template("epk_public.html", e=data, slug=slug,
+                               shopify=_epk_store(store.get_user(prof["user_id"])))
 
     @app.route("/epk/share", methods=["POST"])
     def epk_share_save():
@@ -3101,7 +3475,7 @@ def create_app():
                              "Your pitch EPK was opened",
                              "First open today on the private link. "
                              "Play counts land on the EPK editor.", "/epk")
-        return render_template("epk_public.html", e=data, slug=slug, shopify=shopify_buy.context(),
+        return render_template("epk_public.html", e=data, slug=slug, shopify=_epk_store(owner),
                                pitch_token=token,
                                pitch_audio=share["audio"])
 
@@ -3172,21 +3546,29 @@ def create_app():
         store.save_epk(user["id"], overrides)
         return jsonify({"ok": True})
 
+    def _store_epk_photo(user, f):
+        """The one artist-photo uploader: /epk/photo and the collaborator
+        profile's photo form both write through here, so a member has one
+        photo. Returns (path, error)."""
+        if f is None or not f.filename:
+            return None, "Choose an image file."
+        ext = f.filename.rsplit(".", 1)[-1].lower()
+        if ext not in ("png", "jpg", "jpeg", "webp"):
+            return None, "Use a PNG, JPG, or WebP image."
+        fname = "epk_%s.%s" % (user["id"], ext)
+        f.save(os.path.join(UPLOADS_DIR, fname))
+        photo_path = "/uploads/" + fname
+        store.save_epk_photo(user["id"], photo_path)
+        return photo_path, None
+
     @app.route("/epk/photo", methods=["POST"])
     def epk_photo():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in to upload a photo."}), 401
-        f = request.files.get("photo")
-        if f is None or not f.filename:
-            return jsonify({"ok": False, "error": "Choose an image file."}), 400
-        ext = f.filename.rsplit(".", 1)[-1].lower()
-        if ext not in ("png", "jpg", "jpeg", "webp"):
-            return jsonify({"ok": False, "error": "Use a PNG, JPG, or WebP image."}), 400
-        fname = "epk_%s.%s" % (user["id"], ext)
-        f.save(os.path.join(UPLOADS_DIR, fname))
-        photo_path = "/uploads/" + fname
-        store.save_epk_photo(user["id"], photo_path)
+        photo_path, error = _store_epk_photo(user, request.files.get("photo"))
+        if error:
+            return jsonify({"ok": False, "error": error}), 400
         return jsonify({"ok": True, "photo": photo_path})
 
     @app.route("/epk/photo/delete", methods=["POST"])
@@ -3701,19 +4083,35 @@ def create_app():
             # A partner table mid-migration must not take every page down.
             return {"brand": None}
 
-    def _signal_seat(user, is_owner):
-        """Whether this login holds a Signal seat, so the Analytics room
-        offers the Signal card only to someone it will let in (audit,
-        2026-09-15: a Label account got a refusal page). signal_hub's own
-        lookup is used, since it enrols an owner on first sight and
-        mirrors the Operator Desk roster; a bare read would hide the card
-        from an owner who has never opened Signal."""
-        if is_owner:
-            return True
-        try:
-            return signal_hub._member(user)[1] is not None
-        except Exception:
-            return False
+    # _signal_seat lived here until 2026-09-17. It decided whether the
+    # Analytics room drew the Signal card; the card left the room, so the
+    # question stopped being asked. Signal's own guard is unchanged:
+    # signal_hub.require() runs before every handler.
+
+    @app.context_processor
+    def inject_the_door():
+        """Whether a stranger can make an account, and the words to offer
+        them either way.
+
+        Owner, 2026-09-17: "i still want no sign ups until i say so keep
+        that locked". The lock itself is _signup_open, and it holds: no
+        route mints an account while the door is shut. What did not hold
+        was the advertising. Twelve public pages and the footer said
+        "Create an account", which sent a stranger to a page that told
+        them no. The route was honest and the buttons were not.
+
+        So every one of those buttons asks here instead of deciding for
+        itself. Shut, they all offer an invitation; open, each keeps its
+        own specific wording ("Create an account to build one" rather than
+        one label pasted everywhere). Nothing needs a second edit on the
+        day the owner opens sign-up.
+        """
+        shut = not _signup_open()
+
+        def signup_cta(open_label="Create an account"):
+            return "Ask for an invitation" if shut else open_label
+
+        return {"signup_open": not shut, "signup_cta": signup_cta}
 
     @app.context_processor
     def inject_hub_context():
@@ -3746,6 +4144,12 @@ def create_app():
                 (g_[0], [it for it in g_[1] if it[0] not in hidden])
                 for g_ in (label, community, account))
             palette = [e for e in palette if e["key"] not in hidden]
+        # A team seat sees only the rooms the artist opened to it.
+        seat = (getattr(g, "_team_seat", None) or (None, None))[1] if session.get("team_as") else None
+        shut_rooms = team_areas.hidden_page_keys(seat["areas"]) if seat else set()
+        if shut_rooms:
+            nav = hub_defs.without(nav, shut_rooms)
+            palette = [e for e in palette if e["key"] not in shut_rooms]
         # The eight rooms (owner, 2026-09-15, by numbered mockup): the
         # same keys, addresses and switches as the hubs, laid out as rooms.
         # Staging first: on when NAV_ROOMS=1 or the owner switched it.
@@ -3753,9 +4157,10 @@ def create_app():
         if me and rooms.enabled() and (me.get("plan") or "artist") != "fan":
             is_owner = bool(_is_owner_email(me.get("email")))
             demo = bool(_demo_locked_account())
-            rooms_nav = {"rooms": rooms.build(me.get("plan") or "artist", is_owner, demo,
-                                              _signal_seat(me, is_owner)),
-                         "top": rooms.top_rows(is_owner, demo),
+            granted = team_areas.parse(seat["areas"]) if seat else None
+            rooms_nav = {"rooms": [r for r in rooms.build(me.get("plan") or "artist", is_owner, demo)
+                                   if granted is None or r[0] in granted],
+                         "top": [r for r in rooms.top_rows(is_owner, demo) if r[0] not in shut_rooms],
                          "account": rooms.account_rows(is_owner, demo),
                          "back": rooms.back_map()}
         return {"hubs_nav": nav, "hubs_label": label,
@@ -3763,6 +4168,18 @@ def create_app():
                 "hubs_account": account,
                 "rooms_nav": rooms_nav,
                 "tool_suites": hub_defs.tool_suites(),
+                "suite_marks": hub_defs.SUITE_MARKS,
+                "suites_pending": hub_defs.suites_pending(),
+                # The same answer for a sidebar entry, asked by its address.
+                "nav_lock": ((lambda href: "") if not me or _is_owner_email(me.get("email")) else (
+                    lambda held: (lambda href: plans.nav_lock(me.get("plan") or "artist", href, held)))(
+                        0 if (me.get("plan") or "") == "label" else store.credit_balances(me["id"])["total"])),
+                # What this membership cannot open yet: strip key -> the word
+                # the strip shows ("Pro", "Credits"). Empty when signed out.
+                "suite_locks": ({} if not me or _is_owner_email(me.get("email")) else (lambda held: {
+                    k: plans.suite_tag(k) for k in plans.SUITE_ACCESS
+                    if not plans.suite_open(me.get("plan") or "artist", k, held)})(
+                        0 if (me.get("plan") or "") == "label" else store.credit_balances(me["id"])["total"])),
                 "page_hidden": page_hidden,
                 "fan_account_keys": hub_defs.FAN_ACCOUNT_KEYS,
                 "hub_icons": hub_defs.HUB_ICONS,
@@ -3788,13 +4205,63 @@ def create_app():
             return login_required_redirect()
         is_owner = bool(_is_owner_email(user.get("email")))
         room = rooms.get_room(room_key, user.get("plan") or "artist", is_owner,
-                              bool(_demo_locked_account()),
-                              _signal_seat(user, is_owner))
+                              bool(_demo_locked_account()))
         if room is None:
             abort(404)
+        if room_key == "fans":
+            return _fan_room(user, room)
         return render_template("room.html", active_page="room-" + room_key,
                                room=room, room_images=rooms.images(),
                                **build_dashboard_context())
+
+    def _fan_room_rows(user):
+        """The fans this screen reads: the account's own, or the labelled
+        example for the demo, the same split the Audience screen makes."""
+        import fan_audience
+        if _session_is_demo():
+            return fan_audience.showcase_rows(), fan_audience.showcase(), True
+        return (mls.list_fans(user["id"]),
+                fan_audience.for_account(user["id"], resend_configured=emailer.configured()),
+                False)
+
+    def _fan_room(user, room):
+        """The Fans room's opening screen, the owner's mockup (2026-09-19).
+        fan_room.py says where each figure comes from."""
+        import fan_audience
+        import fan_room
+        rows, audience, showcase = _fan_room_rows(user)
+        club_row = None if showcase else store.get_fan_club(user["id"])
+        members = 0
+        if club_row:
+            members = sum(1 for m in store.list_club_members(user["id"])
+                          if (m.get("status") or "active") == "active")
+        today = datetime.now(timezone.utc).date().isoformat()
+        with store.get_db() as db:
+            open_briefs = db.execute(
+                "SELECT COUNT(*) FROM collab_requests c JOIN users u ON u.id = c.user_id"
+                " WHERE c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
+                " OR substr(c.closes, 1, 10) >= ?)", (today,)).fetchone()[0]
+        fr = fan_room.build(rows, audience, room["cards"], days=request.args.get("days"),
+                            club={"on": bool(club_row), "members": members},
+                            open_briefs=open_briefs,
+                            link_visits=0 if showcase else fan_audience._visits(user["id"]),
+                            showcase=showcase, artist_name=user.get("name") or "")
+        return render_template("room_fans.html", active_page="room-fans", room=room, fr=fr,
+                               **build_dashboard_context())
+
+    @app.route("/room/fans/new.csv")
+    def fan_room_new_csv():
+        """The "Get their emails" move: the contactable fans who joined
+        through a link in the chosen window, as a CSV."""
+        import fan_room
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        rows, _audience, _showcase = _fan_room_rows(user)
+        days = fan_room.days_from(request.args.get("days"))
+        body = fan_room.new_fans_csv(rows, days, datetime.now(timezone.utc).date())
+        return Response(body, mimetype="text/csv", headers={
+            "Content-Disposition": "attachment; filename=street-banker-new-fans-%dd.csv" % days})
 
     @app.route("/admin/nav-layout", methods=["POST"])
     def admin_nav_layout():
@@ -3805,6 +4272,18 @@ def create_app():
             return bail
         rooms.set_layout(request.form.get("layout") or "hubs")
         return redirect("/settings?nav=saved#nav-layout")
+
+    @app.route("/admin/home-layout", methods=["POST"])
+    def admin_home_layout():
+        """The owner's choice of front page: the long homepage, or the
+        split one for after the story moves to the store. Owner only,
+        404 to everybody else, and flippable both ways while looking at
+        the page rather than through a redeploy."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        split_home.set_layout(request.form.get("layout") or "full")
+        return redirect("/settings?home=saved#home-layout")
 
     @app.route("/desk/<hub_key>")
     def hub_desk(hub_key):
@@ -3936,6 +4415,8 @@ def create_app():
                      # A crawler bounced to /login never reads the rules.
                      "/robots.txt",
                      "/api/artist-signal-profile",
+                     # The suites' credit call: no session, a signed token.
+                     "/api/suites/credits",
                      # A stranger asking what the Artist Twin does, and how
                      # their music would be treated, must not meet a password
                      # field first. /artist-twin itself stays gated.
@@ -4053,6 +4534,19 @@ def create_app():
             return render_template("upgrade.html", required=tier,
                                    plans_list=plans.PLANS,
                                    **build_dashboard_context()), 402
+        # A page that is really one of the suites opens the way the suite
+        # does. Public links under the same prefixes stay public, and the
+        # owner's own account opens everything.
+        suite = plans.path_suite(request.path)
+        if suite and not _is_public_path(request.path) and not _is_owner_email(user.get("email")):
+            plan = user.get("plan") or "artist"
+            held = 0 if plan == "label" else store.credit_balances(user["id"])["total"]
+            if not plans.suite_open(plan, suite, held):
+                need = plans.suite_access(suite)
+                return render_template("upgrade.html", required="label" if need == "credits" else need,
+                                       needs_credits=(need == "credits"),
+                                       suite_name={"the-room": "The Room", "tour": "Tour"}[suite],
+                                       plans_list=plans.PLANS, **build_dashboard_context()), 402
         return None
 
     def _demo_locked_account():
@@ -4115,7 +4609,10 @@ def create_app():
         ?demo=readonly, which the shell turns into the sentence above;
         a script call gets the same sentence as a 403 JSON answer.
         """
-        if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        # Anything but a read is a write: Flask answers HEAD with the GET
+        # handler, and a handler that writes on "not GET" wrote on HEAD
+        # (team review, 2026-09-19).
+        if request.method in ("GET", "OPTIONS"):
             return None
         if request.path in _DEMO_LOCK_ALLOWED:
             return None
@@ -4130,6 +4627,78 @@ def create_app():
             if ref.query:
                 back += "?" + "&".join(p for p in ref.query.split("&") if not p.startswith("demo="))
         return redirect(back + ("&" if "?" in back else "?") + "demo=readonly")
+
+    # Areas a team seat never reaches, whatever its access: the account
+    # holder's money, settings, team and suites stay theirs (2026-09-19).
+    # /account (start over, delete) and /backup were reachable from a seat;
+    # Tour, the Tour Board and the Press Desk read the signed-in person, not
+    # the account they work in, so they would show and change the member's
+    # own (team review, 2026-09-19). They open to seats when they learn
+    # whose account they are in.
+    _TEAM_BLOCKED = ("/billing", "/settings", "/team", "/admin", "/partner", "/plan/switch",
+                     "/suites/go", "/api/suites", "/referrals", "/portal", "/roster/join",
+                     "/upgrade", "/owner", "/operator-desk", "/signal", "/account", "/backup",
+                     "/tours", "/tour", "/tour-board", "/press-desk")
+    _TEAM_ALLOWED = ("/portal/leave", "/logout")
+    _TEAM_READ_ONLY = ("You have read-only access to this account. Look at everything; "
+                       "changes are made by the artist or a team member who can edit.")
+
+    def _under(path, prefix):
+        return path == prefix or path.startswith(prefix + "/")
+
+    @app.before_request
+    def team_seat_gate():
+        """A team seat inside the artist's account: blocked areas stay shut,
+        a read seat changes nothing, and every change an editor makes is
+        recorded under their name on the artist's Team page."""
+        if not session.get("team_as") or not session.get("user_id"):
+            return None
+        path = request.path
+        if path in _TEAM_ALLOWED or path.startswith("/static/"):
+            return None
+        current_user()                      # resolves the seat, or ends it
+        seat = (getattr(g, "_team_seat", None) or (None, None))[1]
+        if not session.get("team_as") or seat is None:
+            return None
+        writes = request.method not in ("GET", "OPTIONS")
+        home = team_areas.home(seat["areas"])
+        if any(_under(path, p) for p in _TEAM_BLOCKED):
+            if writes and _wants_json():
+                return jsonify({"ok": False, "error": "Only the account holder can do this."}), 403
+            return redirect(home + "?team=blocked")
+        # The rooms the artist ticked for this person (owner, 2026-09-19).
+        if not team_areas.allows(seat["areas"], path):
+            if _wants_json():
+                return jsonify({"ok": False, "error": "That room is not open to you."}), 403
+            return redirect(home + "?team=room")
+        if not writes:
+            return None
+        if seat["access"] != "edit" or (_under(path, "/roster") and not seat["can_roster"]):
+            if _wants_json():
+                return jsonify({"ok": False, "error": _TEAM_READ_ONLY, "team": "readonly"}), 403
+            back = home
+            ref = urllib.parse.urlsplit(request.referrer or "")
+            if ref.path.startswith("/") and (not ref.netloc or ref.netloc == request.host):
+                back = ref.path
+            return redirect(back + "?team=readonly")
+        # Recorded once the change has gone through, not when it is asked
+        # for: a refused or unrouted request is not a change (team review).
+        if request.method != "HEAD":
+            g._team_audit = (seat["owner"]["id"], seat["member_id"], seat["member_name"],
+                             request.method, path)
+        return None
+
+    @app.after_request
+    def _team_audit_write(resp):
+        a = getattr(g, "_team_audit", None)
+        if a and request.url_rule is not None and resp.status_code < 400:
+            store.add_team_audit(*a)
+        return resp
+
+    @app.context_processor
+    def _team_banner():
+        seat = (getattr(g, "_team_seat", None) or (None, None))[1] if session.get("team_as") else None
+        return {"team_seat": seat}
 
     def _page_hidden():
         """The pages switched off, read once per request."""
@@ -4217,7 +4786,9 @@ def create_app():
     def _billing_flags():
         user = current_user()
         return {"stripe_live": stripe_billing.configured(),
-                "is_demo_account": bool(user and _is_demo_email(user["email"]))}
+                "is_demo_account": bool(user and _is_demo_email(user["email"])),
+                # Only an owner may re-create the production Stripe webhook.
+                "viewer_is_owner": bool(user and _is_owner_email(user.get("email")))}
 
     @app.route("/plan/switch", methods=["POST"])
     def plan_switch():
@@ -4236,12 +4807,58 @@ def create_app():
             return redirect(request.referrer or "/billing")
         # With Stripe live, paid tiers go through real checkout — the demo
         # accounts keep instant switching so the tier demos still work.
-        if (stripe_billing.configured() and plan in stripe_billing.PRICES
-                and not _is_demo_email(user["email"])):
+        #
+        # And on a deployed service a paid tier is never granted here even
+        # when Stripe looks unconfigured (2026-09-17). It used to be: a
+        # service missing STRIPE_SECRET_KEY handed out any tier for the
+        # asking, which since Labels may now seat a roster would have let
+        # an account promote itself and then mint accounts. This fails
+        # toward refusing an upgrade rather than giving one away, so a key
+        # that goes missing stops sales instead of starting a giveaway.
+        paid = plan in stripe_billing.PRICES
+        if paid and not _is_demo_email(user["email"]) and (
+                stripe_billing.configured() or os.environ.get("RENDER")):
             return redirect("/billing")
         if plan in plans.TIER_RANK:
             store.set_user_plan(user["id"], plan)
         return redirect(request.referrer or "/billing")
+
+    def _billing_hands_off(user):
+        """Accounts whose card this page must not charge: an artist seated at
+        a partner (the partner holds their tier), and anyone working as an
+        artist through a partner seat, who would be spending that artist's
+        saved card (2026-09-19 review; the same rule as /plan/switch)."""
+        return bool(user.get("partner_id") or session.get("acting_as") or session.get("team_as"))
+
+    def _working_as_someone():
+        """Signed in as yourself but working in somebody else's account."""
+        return bool(session.get("acting_as") or session.get("team_as"))
+
+    def _plan_grant_key(user_id):
+        return "plan_grant:" + user_id
+
+    def _plan_held(user):
+        """A plan Stripe must never move: the owner's, a partner-seated
+        artist's (the partner holds it), and one the owner granted by hand
+        in Settings, which renewals used to undo (2026-09-19 second
+        review)."""
+        user = user or {}
+        return bool(_is_owner_email(user.get("email")) or user.get("partner_id")
+                    or (user.get("id") and store.get_kv(_plan_grant_key(user["id"]))))
+
+    def _notify_owners(title, body, link="/billing"):
+        """Money the app cannot settle alone goes to the people who run the
+        Stripe account."""
+        for u in store.list_users():
+            if _is_owner_email(u.get("email")):
+                store.notify(u["id"], "billing", title, body, link)
+
+    def _checkout_error(message):
+        return render_template("billing_error.html", message=message,
+                               **build_dashboard_context()), 502
+
+    def _open_checkout_key(user_id):
+        return "stripe_open_checkout:" + user_id
 
     @app.route("/billing/checkout", methods=["POST"])
     def billing_checkout():
@@ -4251,18 +4868,138 @@ def create_app():
         plan = request.form.get("plan") or ""
         if not stripe_billing.configured() or plan not in stripe_billing.PRICES:
             return redirect("/billing")
-        coupon = (stripe_billing.ensure_referral_coupon()
-                  if user.get("referred_by") and not user.get("stripe_subscription_id")
-                  else None)
+        if _billing_hands_off(user):
+            return redirect("/billing")
+        # Ids Stripe gave under the sandbox key do not exist under the live
+        # one; an account that checked out in the sandbox kept them and
+        # could never check out again (2026-09-19 second review).
+        if user.get("stripe_customer_id"):
+            known = stripe_billing.customer_exists(user["stripe_customer_id"])
+            if known is None:
+                return _checkout_error("Stripe couldn't be reached just now. Nothing was "
+                                       "started: try again in a minute.")
+            if known is False:
+                store.set_stripe_ids(user["id"], None, None)
+                user = dict(user, stripe_customer_id=None, stripe_subscription_id=None)
+        # A member changes tier on the subscription they already have. This
+        # used to open a second checkout, so the old subscription kept
+        # billing beside the new one (2026-09-18 launch check). Only a
+        # subscription that is gone may lead to a fresh checkout: any other
+        # failure stops here, because the old one may still be billing
+        # (2026-09-19 review).
+        if user.get("stripe_subscription_id"):
+            changed = stripe_billing.change_subscription_plan(user["stripe_subscription_id"], plan)
+            result = changed.get("result")
+            if result in ("changed", "same"):
+                if not _plan_held(user):
+                    store.set_user_plan(user["id"], plan)
+                if result == "changed":
+                    store.notify(user["id"], "billing",
+                                 "You're on %s" % plans.PLAN_NAMES.get(plan, plan),
+                                 "Your subscription moved to %s. Stripe adjusts the "
+                                 "difference on your bill." % plans.PLAN_NAMES.get(plan, plan),
+                                 "/billing")
+                return redirect("/billing?changed=" + plan)
+            if result == "pending":
+                return redirect("/billing?changed=pending")
+            if result != "gone":
+                if changed.get("status") in ("unpaid", "incomplete", "paused"):
+                    return _checkout_error("Your subscription has a bill waiting. Settle it in "
+                                           "Manage Billing first, then change your plan.")
+                return _checkout_error("Stripe couldn't change your plan just now. Nothing new "
+                                       "was started: try again in a minute, or open Manage Billing.")
+            # Gone: forget it, and the paid tier it carried, then check out
+            # again as the same customer (2026-09-19 second review: the tier
+            # stayed on after Stripe said the subscription had ended).
+            store.set_stripe_ids(user["id"], user.get("stripe_customer_id"), None)
+            if not _plan_held(user) and user.get("plan") in stripe_billing.PRICES:
+                store.set_user_plan(user["id"], "fan")
+        # Somebody who already pays, or owes, is never sold a second
+        # subscription, and a checkout already open for this account is
+        # settled first, so two clicks cannot become two subscriptions.
+        if user.get("stripe_customer_id"):
+            live = stripe_billing.active_subscription_for_customer(user["stripe_customer_id"])
+            if live and live.get("error"):
+                return _checkout_error("Stripe couldn't be reached just now. Nothing was "
+                                       "started: try again in a minute.")
+            if live:
+                store.set_stripe_ids(user["id"], user["stripe_customer_id"], live["subscription_id"])
+                if live.get("status") not in ("active", "trialing"):
+                    return _checkout_error("Your subscription has a bill waiting. Settle it in "
+                                           "Manage Billing first, then change your plan.")
+                if not _plan_held(user):
+                    store.set_user_plan(user["id"], live["plan"])
+                return redirect("/billing?sync=found")
+        opened = store.get_kv(_open_checkout_key(user["id"]))
+        if opened:
+            state, sess = stripe_billing.close_open_checkout(opened)
+            if state == "complete":
+                # Paid, and its webhook has not landed yet: claim it here
+                # rather than open a second one. One already handled belongs
+                # to a subscription that has since ended.
+                claimed = _claim_plan_session(sess)
+                if claimed == "retry":
+                    return _checkout_error("Stripe couldn't be reached just now. Nothing was "
+                                           "started: try again in a minute.")
+                if claimed != "done":
+                    return redirect("/billing?upgraded=1")
+            elif state != "closed":
+                return _checkout_error("The checkout you opened a moment ago is still open. "
+                                       "Finish it in that tab, or try again in a minute.")
+            store.set_kv(_open_checkout_key(user["id"]), "")
+        # The referral's 50% is for a first subscription only: never for an
+        # account Stripe has already billed (2026-09-19 review).
+        eligible = (user.get("referred_by") and not user.get("stripe_customer_id")
+                    and not user.get("ref_credited"))
+        coupon = stripe_billing.ensure_referral_coupon() if eligible else None
+        if eligible and not coupon:
+            _notify_owners("Referral discount missing",
+                           "%s joined from a referral and is checking out, but Stripe "
+                           "would not make the 50%% coupon, so they are paying full price. "
+                           "Check the secret key, or refund them half from Stripe."
+                           % user.get("email"))
         session_obj = stripe_billing.create_checkout_session(
             user["id"], user["email"], plan, request.url_root.rstrip("/"),
-            coupon=coupon)
+            coupon=coupon, customer_id=user.get("stripe_customer_id"))
         if not session_obj or not session_obj.get("url"):
-            return render_template("billing_error.html",
-                                   message="Stripe couldn't start checkout — try again "
-                                           "in a minute or contact support.",
-                                   **build_dashboard_context()), 502
+            return _checkout_error("Stripe couldn't start checkout. Try again in a minute or "
+                                   "contact support.")
+        if session_obj.get("id"):
+            store.set_kv(_open_checkout_key(user["id"]), session_obj["id"])
         return redirect(session_obj["url"], code=303)
+
+    @app.route("/billing/credits", methods=["POST"])
+    def billing_credits():
+        """Buy a credit pack. Any membership can; bought credits never expire.
+        Closed while plans.CREDIT_PACKS_ON_SALE is off (owner, 2026-09-18)."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if not plans.CREDIT_PACKS_ON_SALE:
+            return redirect("/billing#credits")
+        pack = plans.CREDIT_PACKS.get(request.form.get("pack") or "")
+        if pack is None or not stripe_billing.configured() or _demo_locked_account():
+            return redirect("/billing#credits")
+        credits, cents, name = pack
+        session_obj = stripe_billing.create_credit_pack_checkout(
+            user["id"], user["email"], request.form.get("pack"), credits, cents, name,
+            request.url_root.rstrip("/"))
+        if not session_obj or not session_obj.get("url"):
+            return redirect("/billing?credits=fail#credits")
+        return redirect(session_obj["url"])
+
+    def _claim_credit_pack(obj):
+        """Fill a wallet from a paid pack session, once, whoever sees it first
+        (the webhook or the success redirect)."""
+        meta = obj.get("metadata") or {}
+        pack = plans.CREDIT_PACKS.get(meta.get("pack") or "")
+        uid = obj.get("client_reference_id")
+        if meta.get("kind") != "credit_pack" or pack is None or obj.get("payment_status") != "paid":
+            return False
+        if not uid or not store.get_user(uid):
+            return False
+        return store.add_credits(uid, pack[0], "pack", bucket="bought", note=pack[2],
+                                 ref="stripe:%s" % obj.get("id"))
 
     @app.route("/billing/sync", methods=["POST"])
     def billing_sync():
@@ -4273,9 +5010,12 @@ def create_app():
             return login_required_redirect()
         if not stripe_billing.configured():
             return redirect("/billing")
-        found = stripe_billing.active_subscription_for_email(user["email"])
+        if _billing_hands_off(user):
+            return redirect("/billing")
+        found = stripe_billing.active_subscription_for_email(user["email"], user_id=user["id"])
         if found:
-            store.set_user_plan(user["id"], found["plan"])
+            if not _plan_held(user):
+                store.set_user_plan(user["id"], found["plan"])
             store.set_stripe_ids(user["id"], found["customer_id"],
                                  found["subscription_id"])
             store.notify(user["id"], "billing",
@@ -4285,33 +5025,89 @@ def create_app():
             _settle_referrals(user["id"])
         return redirect("/billing" + ("?upgraded=1" if found else "?sync=none"))
 
-    def _settle_referrals(new_payer_id):
-        """After a real paid activation: credit this user's referrer, and pay
-        out credits this user earned as a referrer before they had billing.
-        A credit is only claimed as applied when Stripe accepted it."""
-        payer = store.get_user(new_payer_id)
+    def _ref_paid_key(user_id):
+        return "ref_paid:" + user_id
+
+    def _ref_paid_cents_key(user_id):
+        return "ref_paid_cents:" + user_id
+
+    def _credit_referrer(referrer, referred_id, referred_email, cents):
+        """Claim this referral once, in the database, then credit Stripe with
+        a key so a retry cannot credit twice (2026-09-19 review: two workers
+        could both credit). Only a credit Stripe refused gives the claim
+        back. One Stripe did not answer about is looked for on the balance;
+        if it cannot be found the claim stays and the owner is told, because
+        a retry after the key expires would credit twice (second review)."""
+        if not cents or not store.claim_ref_credit(referred_id):
+            return False
+        customer = referrer["stripe_customer_id"]
+        result = stripe_billing.apply_credit(
+            customer, cents,
+            "Street Banker referral: 50%% off for referring %s" % referred_email,
+            idempotency_key="sb-ref-credit-" + referred_id,
+            metadata={"sb_ref_friend": referred_id})
+        if result == "unknown" and stripe_billing.find_credit(customer, "sb_ref_friend", referred_id):
+            result = "ok"
+        if result == "ok":
+            store.notify(referrer["id"], "billing", "Referral credit applied",
+                         "$%.2f, toward half your next month, landed on your Stripe balance: "
+                         "%s paid for their plan." % (cents / 100.0, referred_email), "/referrals")
+            return True
+        if result == "refused":
+            store.release_ref_credit(referred_id)
+            return False
+        _notify_owners("Check a referral credit",
+                       "Stripe did not answer when crediting $%.2f to %s for referring %s. "
+                       "Open that customer in Stripe: if their balance has no \"Street Banker "
+                       "referral\" credit for %s, add $%.2f by hand."
+                       % (cents / 100.0, referrer.get("email"), referred_email,
+                          referred_email, cents / 100.0))
+        return False
+
+    def _billed_plan(user):
+        """The tier Stripe bills this account for now, or None. The plan the
+        app shows can be higher (an owner's grant), and the referral credit
+        is half of what the referrer actually pays (2026-09-19 second
+        review)."""
+        sub = stripe_billing.subscription_state((user or {}).get("stripe_subscription_id"))
+        if sub and sub.get("status") in ("active", "trialing", "past_due"):
+            return stripe_billing.plan_for_subscription(sub)
+        return None
+
+    def _referral_cents(referrer, paid_cents):
+        """Half the referrer's own billed month, and never more than the
+        friend actually paid: a Label referrer earning $99.50 from a $14.50
+        payment would make referrals a way to print credit. Nothing until
+        the friend's payment is known."""
+        if not paid_cents:
+            return 0
+        half = stripe_billing.referrer_credit_cents(_billed_plan(referrer))
+        return min(half, int(paid_cents))
+
+    def _settle_referrals(payer_id, paid_cents=0):
+        """Settle referrals on real money. When this account has just paid
+        (paid_cents > 0), its referrer is credited half their own month,
+        capped at what was paid; a referrer not on a paid plan yet keeps it
+        waiting. And any referral this account earned while it was not
+        paying is settled now that it is."""
+        payer = store.get_user(payer_id)
         if not payer:
             return
         ref_id = payer.get("referred_by")
-        if ref_id and not payer.get("ref_credited"):
+        if ref_id and paid_cents and not payer.get("ref_credited"):
+            store.set_kv(_ref_paid_key(payer_id), "1")
+            if not store.get_kv(_ref_paid_cents_key(payer_id)):
+                store.set_kv(_ref_paid_cents_key(payer_id), str(int(paid_cents)))
             referrer = store.get_user(ref_id)
             if referrer and referrer.get("stripe_customer_id"):
-                if stripe_billing.credit_customer(
-                        referrer["stripe_customer_id"], 900,
-                        "Street Banker referral credit: %s" % payer["email"]):
-                    store.mark_ref_credited(new_payer_id)
-                    store.notify(ref_id, "billing", "Referral credit applied",
-                                 "$9.00 landed on your Stripe balance \u2014 %s "
-                                 "started a paid plan." % payer["email"], "/referrals")
-        if payer.get("stripe_customer_id"):
-            for u in store.list_uncredited_referrals(new_payer_id):
-                if stripe_billing.credit_customer(
-                        payer["stripe_customer_id"], 900,
-                        "Street Banker referral credit: %s" % u["email"]):
-                    store.mark_ref_credited(u["id"])
-                    store.notify(new_payer_id, "billing", "Referral credit applied",
-                                 "$9.00 credit for referring %s." % u["email"],
-                                 "/referrals")
+                _credit_referrer(referrer, payer_id, payer["email"],
+                                 _referral_cents(referrer, int(store.get_kv(_ref_paid_cents_key(payer_id)) or paid_cents)))
+        if payer.get("stripe_customer_id") and stripe_billing.referrer_credit_cents(payer.get("plan")):
+            for u in store.list_uncredited_referrals(payer_id):
+                if store.get_kv(_ref_paid_key(u["id"])) != "1":
+                    continue            # they have not actually paid yet
+                _credit_referrer(payer, u["id"], u["email"],
+                                 _referral_cents(payer, int(store.get_kv(_ref_paid_cents_key(u["id"])) or 0)))
 
     @app.route("/referrals")
     def referrals():
@@ -4330,9 +5126,13 @@ def create_app():
     def billing_webhook_setup():
         # Owner-only: the server creates the Stripe webhook endpoint itself
         # and keeps the signing secret in app_kv — no dashboard copy-paste.
-        user = current_user()
-        if user is None or (user.get("plan") or "") != "label":
-            abort(404)
+        # It used to check only for the Label plan, so any Label customer,
+        # and the shared demo Label login, could delete and re-create the
+        # platform's production webhook. The owner is who runs the Stripe
+        # account, so the owner is who may touch it.
+        user, deny = _owner_or_404()
+        if deny:
+            return deny
         result = stripe_billing.setup_webhook_endpoint(
             request.url_root.rstrip("/"))
         return redirect("/billing?webhook=" + ("ok" if result else "fail"))
@@ -4342,17 +5142,109 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # Someone working in another account never opens its card. An
+        # artist seated at a partner still pays for, and may cancel, the
+        # subscription they already had (2026-09-19 second review).
+        if _working_as_someone():
+            return redirect("/billing")
         if not (stripe_billing.configured() and user.get("stripe_customer_id")):
             return redirect("/billing")
+        if stripe_billing.customer_exists(user["stripe_customer_id"]) is False:
+            store.set_stripe_ids(user["id"], None, None)
+            return redirect("/billing?sync=none")
         session_obj = stripe_billing.create_portal_session(
             user["stripe_customer_id"], request.url_root.rstrip("/") + "/billing")
         if not session_obj or not session_obj.get("url"):
             return redirect("/billing")
         return redirect(session_obj["url"], code=303)
 
+    def _claim_plan_session(obj):
+        """Put an account on the tier a paid membership checkout bought,
+        once, whoever sees the session first (the webhook, or the member's
+        next Subscribe click). Returns:
+          claimed   done now
+          done      handled before
+          skipped   not a paid membership checkout of a known account
+          conflict  the account already has another subscription billing:
+                    nothing is overwritten and the owner is told
+          retry     Stripe could not be asked; try again later
+        The done mark is written last, so a run that failed half way is
+        run again (2026-09-19 second review)."""
+        obj = obj or {}
+        user_id = obj.get("client_reference_id")
+        plan = (obj.get("metadata") or {}).get("plan")
+        paid = obj.get("payment_status") in ("paid", "no_payment_required")
+        sid = obj.get("id") or ""
+        member = store.get_user(user_id) if user_id else None
+        if not (paid and member and plan in stripe_billing.PRICES):
+            return "skipped"
+        done_key = "stripe_cs_done:" + sid
+        if sid and store.get_kv(done_key):
+            return "done"
+        new_sub = obj.get("subscription")
+        stored = member.get("stripe_subscription_id")
+        if stored and new_sub and stored != new_sub:
+            # A late first delivery of an old checkout, or two checkouts
+            # that both went through: the subscription on file wins while
+            # it can still bill (2026-09-19 second review).
+            cur = stripe_billing.subscription_state(stored)
+            if cur is None:
+                return "retry"
+            if cur.get("status") in stripe_billing.BILLING_STATUSES:
+                _notify_owners("Two subscriptions on one account",
+                               "%s has subscription %s on file and checkout %s started %s as "
+                               "well. Both can bill: cancel and refund the extra one in Stripe."
+                               % (member.get("email"), stored, sid or "?", new_sub))
+                store.notify(user_id, "billing", "Two memberships are billing",
+                             "A second checkout went through while your membership was "
+                             "already active. Street Banker has been told; you can also "
+                             "cancel the extra one in Manage Billing.", "/billing")
+                if sid:
+                    store.set_kv(done_key, "1")
+                return "conflict"
+        if not _plan_held(member):
+            store.set_user_plan(user_id, plan)
+        store.set_stripe_ids(user_id, obj.get("customer"), new_sub)
+        store.notify(user_id, "billing",
+                     "Welcome to %s" % plans.PLAN_NAMES.get(plan, plan),
+                     "Your subscription is active: every %s feature is "
+                     "unlocked." % plans.PLAN_NAMES.get(plan, plan),
+                     "/command-center")
+        # The first payment is this session's own: settled here as well as
+        # on invoice.paid, which can arrive before this has linked the
+        # customer (2026-09-19 review).
+        if int(obj.get("amount_total") or 0) > 0:
+            _settle_referrals(user_id, int(obj.get("amount_total")))
+        if sid:
+            store.set_kv(done_key, "1")
+            # Only this session's own mark: a newer checkout the member
+            # opened since stays guarded (2026-09-19 second review).
+            if store.get_kv(_open_checkout_key(user_id)) == sid:
+                store.set_kv(_open_checkout_key(user_id), "")
+        return "claimed"
+
+    def _refund_touches_referral(customer_id, amount_cents, what):
+        """A refunded or disputed payment from a referred friend. A credit
+        not paid yet waits for real money again; one already paid is the
+        owner's to reverse, so they are told."""
+        friend = store.user_by_stripe_customer(customer_id)
+        if not (friend and friend.get("referred_by")):
+            return
+        referrer = store.get_user(friend["referred_by"]) or {}
+        if friend.get("ref_credited"):
+            _notify_owners("Referral credit on a %s payment" % what,
+                           "%s's payment of $%.2f was %s. Their referrer %s already has a "
+                           "referral credit for them: reverse it in Stripe if the %s stands."
+                           % (friend.get("email"), amount_cents / 100.0, what,
+                              referrer.get("email") or "?",
+                              "refund" if what == "refunded" else "dispute"))
+        else:
+            store.set_kv(_ref_paid_key(friend["id"]), "")
+            store.set_kv(_ref_paid_cents_key(friend["id"]), "")
+
     @app.route("/webhooks/stripe", methods=["POST"])
     def stripe_webhook():
-        if not stripe_billing.webhook_configured():
+        if not stripe_billing.webhook_accepts():
             abort(404)
         body = request.get_data()
         if not stripe_billing.verify_webhook(
@@ -4382,19 +5274,64 @@ def create_app():
             # delayed payment method completes unpaid and settles later: the
             # second event carries the same session, now paid.
             tour_os.claim_vip_session(obj)
+        elif etype in ("checkout.session.completed", "checkout.session.async_payment_succeeded") and \
+                (obj.get("metadata") or {}).get("kind") == "credit_pack":
+            _claim_credit_pack(obj)
         elif etype == "checkout.session.completed":
-            user_id = obj.get("client_reference_id")
-            plan = (obj.get("metadata") or {}).get("plan")
-            if user_id and store.get_user(user_id) and plan in stripe_billing.PRICES:
-                store.set_user_plan(user_id, plan)
-                store.set_stripe_ids(user_id, obj.get("customer"),
-                                     obj.get("subscription"))
-                store.notify(user_id, "billing",
-                             "Welcome to %s" % plans.PLAN_NAMES.get(plan, plan),
-                             "Your subscription is active — every %s feature is "
-                             "unlocked." % plans.PLAN_NAMES.get(plan, plan),
-                             "/command-center")
-                _settle_referrals(user_id)
+            # Granted on money, not on a completed form: a session can
+            # complete unpaid (2026-09-18 launch check). Each session is
+            # handled once, so a replay of an old one cannot put back an old
+            # subscription (2026-09-19 review).
+            if _claim_plan_session(obj) == "retry":
+                return jsonify({"ok": False, "error": "Stripe unreachable; retry"}), 503
+        elif etype in ("charge.refunded", "charge.dispute.created"):
+            if etype == "charge.refunded":
+                _refund_touches_referral(obj.get("customer"),
+                                         int(obj.get("amount_refunded") or 0), "refunded")
+            else:
+                charge = stripe_billing.get_charge(obj.get("charge"))
+                if charge is None:
+                    return jsonify({"ok": False, "error": "Stripe unreachable; retry"}), 503
+                _refund_touches_referral(charge.get("customer"),
+                                         int(obj.get("amount") or 0), "disputed")
+        elif etype == "invoice.paid":
+            # A referral settles on real money, not on the checkout form.
+            user = store.user_by_stripe_customer(obj.get("customer"))
+            if user and int(obj.get("amount_paid") or 0) > 0:
+                _settle_referrals(user["id"], int(obj.get("amount_paid")))
+        elif etype == "customer.subscription.updated":
+            # Keeps the plan in step with Stripe whatever changed it: the
+            # portal, the dashboard, or a payment retry running out.
+            user = store.user_by_stripe_customer(obj.get("customer"))
+            held = user and _plan_held(user)
+            if user and not held and obj.get("id") and obj.get("id") == user.get("stripe_subscription_id"):
+                # An event is a snapshot: a late or repeated one would roll
+                # the plan back, so the subscription is read as Stripe holds
+                # it now (2026-09-19 review). When it cannot be read, Stripe
+                # is asked to send the event again rather than the snapshot
+                # being trusted (second review).
+                obj = stripe_billing.subscription_state(obj["id"])
+                if obj is None:
+                    return jsonify({"ok": False, "error": "Stripe unreachable; retry"}), 503
+                status = obj.get("status") or ""
+                tier = stripe_billing.plan_for_subscription(obj)
+                if status in ("active", "trialing") and tier and tier != user.get("plan"):
+                    store.set_user_plan(user["id"], tier)
+                    store.notify(user["id"], "billing",
+                                 "You're on %s" % plans.PLAN_NAMES.get(tier, tier),
+                                 "Your subscription changed in Stripe; your plan here "
+                                 "follows it.", "/billing")
+                elif status in ("unpaid", "incomplete_expired", "canceled"):
+                    store.set_user_plan(user["id"], "fan")
+                    store.notify(user["id"], "billing", "Plan paused",
+                                 "Stripe could not collect your membership, so your "
+                                 "plan moved to the free Fan tier. Your data is "
+                                 "untouched: update your card in Manage Billing to "
+                                 "carry on.", "/billing")
+                elif status == "past_due":
+                    store.notify(user["id"], "billing", "Payment is past due",
+                                 "Stripe could not charge your card. Update it in "
+                                 "Manage Billing to keep your plan.", "/billing")
         elif etype == "customer.subscription.deleted":
             # Fan club cancellations first — they aren't plan subscriptions.
             artist_id = store.cancel_club_member_by_subscription(obj.get("id"))
@@ -4404,7 +5341,11 @@ def create_app():
                              "/fan-club")
                 return jsonify({"ok": True})
             user = store.user_by_stripe_customer(obj.get("customer"))
-            if user:
+            # Only the subscription the account is on ends its plan; an old
+            # or duplicate one ending must not drop a paying member.
+            current_sub = (user or {}).get("stripe_subscription_id")
+            held = user and _plan_held(user)
+            if user and not held and (not current_sub or current_sub == obj.get("id")):
                 store.set_user_plan(user["id"], "fan")
                 store.set_stripe_ids(user["id"], user.get("stripe_customer_id"), None)
                 store.notify(user["id"], "billing", "Subscription ended",
@@ -4413,7 +5354,22 @@ def create_app():
                              "/billing")
         elif etype == "invoice.payment_failed":
             user = store.user_by_stripe_customer(obj.get("customer"))
-            if user:
+            billed = stripe_billing.invoice_subscription_id(obj)
+            ours = user and (not billed or billed == user.get("stripe_subscription_id"))
+            if ours and not obj.get("next_payment_attempt") and not _plan_held(user) \
+                    and user.get("plan") in stripe_billing.PRICES:
+                # Stripe has stopped trying. Depending on a dashboard setting
+                # it cancels, marks unpaid, or leaves the subscription past
+                # due forever, which kept a paid plan with no end (2026-09-19
+                # second review). Paying the invoice in Manage Billing brings
+                # the plan back through customer.subscription.updated.
+                store.set_user_plan(user["id"], "fan")
+                store.notify(user["id"], "billing", "Plan paused",
+                             "Stripe could not collect your membership and has stopped "
+                             "trying, so your plan moved to the free Fan tier. Your data "
+                             "is untouched: pay the bill in Manage Billing to carry on.",
+                             "/billing")
+            elif user:
                 store.notify(user["id"], "billing", "Payment failed",
                              "Stripe couldn't charge your card. Update it in "
                              "Manage Billing to keep your plan.", "/billing")
@@ -4900,6 +5856,8 @@ def create_app():
                                          * (club["price_cents"] if club else 0) / 100, 2),
                                club_url="/club/" + slug,
                                stripe_live=stripe_billing.configured(),
+                               sales_open=sales_switch.is_on(),
+                               sales_closed=sales_switch.CLOSED,
                                **build_dashboard_context())
 
     @app.route("/club/<slug>")
@@ -4933,7 +5891,9 @@ def create_app():
         return render_template("club_public.html", club=club, slug=slug,
                                artist_name=prof["user_name"],
                                joined=bool(request.args.get("joined")),
-                               stripe_live=stripe_billing.configured())
+                               stripe_live=stripe_billing.configured(),
+                               sales_open=sales_switch.is_on(),
+                               sales_closed=sales_switch.CLOSED)
 
     @app.route("/club/<slug>/join", methods=["POST"])
     def club_join(slug):
@@ -4942,7 +5902,8 @@ def create_app():
         if prof is None or club is None or not club["active"]:
             abort(404)
         email = (request.form.get("email") or "").strip().lower()
-        if "@" not in email or not stripe_billing.configured():
+        # Paid joins wait for the owner's switch (sales_switch).
+        if "@" not in email or not stripe_billing.configured() or not sales_switch.is_on():
             return redirect("/club/" + slug)
         session_obj = stripe_billing.create_club_checkout(
             prof["user_id"], club["name"], club["price_cents"], email, slug,
@@ -5144,11 +6105,71 @@ def create_app():
                         headers={"Content-Disposition":
                                  "attachment; filename=roster-report.csv"})
 
+    def _may_seat(user, kind):
+        """May this account put somebody else on Street Banker?
+
+        Until 2026-09-17 the answer was "anybody signed in", which was
+        harmless only because the invitations could not be redeemed while
+        sign-up was shut. Now they can, so the question is real.
+
+        A roster is a Label feature, so roster seats need the Label plan.
+        Team is for every tier - a manager, an accountant, an attorney -
+        so a team seat needs any paid plan, and Fan is not one. The owner
+        may always seat anybody, which is how the owner has always worked.
+        """
+        if user is None:
+            return False
+        if _is_owner_email(user.get("email")):
+            return True
+        plan = (user.get("plan") or "artist").lower()
+        if kind == "roster":
+            return plan == "label"
+        return plan in ("artist", "pro", "label")
+
+    _NO_SEAT = {
+        "roster": "A roster comes with the Label membership.",
+        "team": "Inviting your team comes with a paid membership.",
+    }
+
+    _JOIN_NEEDS_PASSWORD = ("This email already has a Street Banker account. "
+                            "Enter its password to accept, or sign in as it first.")
+
+    def _join_existing_ok(existing):
+        """May this request attach the invitation to an account that
+        already exists? Only its owner may: someone already signed in as
+        exactly that account, or someone who types its password here.
+
+        Both join doors used to sign the visitor into the existing account
+        from the token alone. Anyone who could mint an invitation, which is
+        any paid account for a team seat, could invite a stranger's address
+        (or the owner's), open the link themselves and be signed in as that
+        person with no password (found by the 2026-09-18 launch check). The
+        token proves the invitation was sent; it never proved who opened it.
+        Returns (ok, error)."""
+        me = current_user()
+        if me is not None and me["id"] == existing["id"]:
+            return True, None
+        password = request.form.get("password") or ""
+        if not password or not check_password_hash(existing["password_hash"], password):
+            return False, _JOIN_NEEDS_PASSWORD
+        shut = store.account_shut(existing)
+        if shut and not _is_owner_email(existing.get("email")):
+            return False, ("Your guest access has ended. Contact Street Banker to continue."
+                           if shut == "ended" else
+                           "This account is locked. Contact Street Banker to continue.")
+        return True, None
+
+    def _signed_in_as(email):
+        me = current_user()
+        return bool(me and (me.get("email") or "").lower() == (email or "").lower())
+
     @app.route("/roster/invite", methods=["POST"])
     def roster_invite():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        if not _may_seat(user, "roster"):
+            return redirect("/upgrade?why=roster")
         email = (request.form.get("email") or "").strip().lower()
         if "@" in email and email != user["email"].lower():
             invite = store.add_roster_invite(user["id"], email)
@@ -5174,8 +6195,27 @@ def create_app():
         if request.method == "POST":
             existing = store.get_user_by_email(invite["email"])
             if existing:
+                ok, why = _join_existing_ok(existing)
+                if not ok:
+                    return render_template(
+                        "roster_join.html", invalid=False, invite=invite,
+                        has_account=True, signed_in_as_invitee=False,
+                        error=why), 403
                 artist_id = existing["id"]
             else:
+                if not _signup_open():
+                    return render_template(
+                        "roster_join.html", invalid=False, invite=invite,
+                        has_account=False, closed=True, error=_MEMBER_LINK_SHUT), 403
+                # With sign-up open, the invitation is the authorisation,
+                # the way /signup?invite= is. What is checked is the label:
+                # still an account, and still on the plan that may seat
+                # somebody. A downgrade ends its pending invitations.
+                label = store.get_user(invite["label_id"])
+                if not _may_seat(label, "roster"):
+                    return render_template(
+                        "roster_join.html", invalid=False, invite=invite,
+                        has_account=False, error=_INVITE_ONLY), 403
                 name = (request.form.get("name") or "").strip()
                 password = request.form.get("password") or ""
                 if not name or len(password) < 6:
@@ -5192,7 +6232,8 @@ def create_app():
             return redirect("/command-center")
         return render_template("roster_join.html", invalid=False, invite=invite,
                                has_account=store.get_user_by_email(invite["email"]) is not None,
-                               error=None)
+                               signed_in_as_invitee=_signed_in_as(invite["email"]),
+                               closed=not _signup_open(), error=None)
 
     @app.route("/roster/artist/<artist_id>")
     def roster_artist(artist_id):
@@ -5298,7 +6339,10 @@ def create_app():
         if user is None:
             return login_required_redirect()
         if plans.allowed(user.get("plan") or "artist", plans.required_tier("/catalog")):
-            return redirect("/catalog?view=passports")
+            # Keep the one query the passports section reads, so an old
+            # /tracks?discogs=<id> link still opens that song's lookup.
+            looked_up = request.args.get("discogs")
+            return redirect("/catalog?view=passports" + ("&discogs=%s" % urllib.parse.quote(looked_up) if looked_up else ""))
         ctx = build_dashboard_context()
         ctx["my_tracks"] = store.get_catalog_tracks(user["id"])
         ctx.update(_passport_section(user, ctx["my_tracks"]))
@@ -6267,6 +7311,10 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
+        if session.get("team_as"):
+            # The artist's queue is theirs to drain, and the remote code
+            # drives their rig: a seat gets neither (team review).
+            return jsonify({"ok": True, "code": "", "commands": [], "phone_seen": ""})
         return jsonify(dict(lights_store.drain_remote_commands(user["id"]), ok=True))
 
     @app.route("/lights/remote/<code>")
@@ -6882,6 +7930,28 @@ def create_app():
                                memberships=store.list_portal_memberships(user["id"]),
                                **build_dashboard_context())
 
+    @app.route("/portal/<owner_id>/open", methods=["POST"])
+    def portal_open(owner_id):
+        """Work inside an account this person is on the team of. What they
+        may do there is their seat's access, checked on every request."""
+        uid = session.get("user_id")
+        if not uid:
+            return login_required_redirect()
+        if session.get("acting_as"):
+            return redirect("/portal")
+        seat = _team_seat(uid, owner_id)
+        if seat is None:
+            abort(404)
+        session["team_as"] = owner_id
+        session["team_as_name"] = seat["owner"].get("name") or "the artist"
+        return redirect(team_areas.home(seat["areas"]))
+
+    @app.route("/portal/leave", methods=["POST"])
+    def portal_leave():
+        session.pop("team_as", None)
+        session.pop("team_as_name", None)
+        return redirect("/portal")
+
     @app.route("/portal/<owner_id>")
     def portal_view(owner_id):
         user = current_user()
@@ -6891,14 +7961,16 @@ def create_app():
         if membership is None:
             abort(404)
         role = membership["role"]
+        rooms_open = team_areas.parse(membership.get("areas"))
         money = None
-        if role in ("manager", "accountant", "attorney"):
+        # The summary follows the rooms the artist opened, as the account does.
+        if role in ("manager", "accountant", "attorney") and "business" in rooms_open:
             rows = store.get_statement_rows(owner_id)
             money = {"total": round(sum(r["amount"] for r in rows), 2),
                      "rows": len(rows),
                      "statements": len(store.get_statements(owner_id))}
         promo = None
-        if role in ("manager", "publicist", "assistant"):
+        if role in ("manager", "publicist", "assistant") and "marketing" in rooms_open:
             campaigns = [c for c in mls.list_campaigns(owner_id)
                          if not c.get("archived_at")]
             clicks = views = 0
@@ -6908,8 +7980,11 @@ def create_app():
                 clicks += n.get("service_click", 0) + n.get("click", 0)
             promo = {"campaigns": len(campaigns), "views": views, "clicks": clicks,
                      "fans": len(mls.list_fans(owner_id))}
+        seat = _team_seat(user["id"], owner_id)
         return render_template("portal_view.html", active_page="portal",
                                m=membership, role=role, money=money, promo=promo,
+                               seat_access=(seat or {}).get("access") or "read",
+                               can_open=seat is not None,
                                trust=trust_score.calculate(owner_id)["total"],
                                growth=qualification.calculate(owner_id)["total"],
                                **build_dashboard_context())
@@ -8112,6 +9187,8 @@ def create_app():
                                profile=profile, pulse=pulse, deezer=deezer,
                                metrics=metrics, youtube=youtube,
                                snaps=snaps, peers=peers, my_delta7=my_delta7,
+                               pulse_can_change=_pulse_change_allowed(user),
+                               soundcharts_paused=soundcharts_budget.customers_paused(),
                                milestone=milestone,
                                link_stats={"pageviews": pageviews, "clicks": clicks,
                                            "presaves": presaves},
@@ -8157,6 +9234,19 @@ def create_app():
         return jsonify({"ok": True, "results": results,
                         "refused": refused or ""})
 
+    # Every new Pulse artist costs about two dozen Soundcharts calls from the
+    # owner's monthly allowance, and nothing capped how often an account
+    # could switch (2026-09-18 check: 12 switches, 276 calls). Owner, the
+    # same day: "make pulse only changable on pro accounts". Every account
+    # picks its artist once; changing it, or clearing it to pick again,
+    # comes with Pro and Label. The owner is never held.
+    _PULSE_LOCKED = ("Changing your Pulse artist comes with the Pro membership. "
+                     "Picked the wrong artist? Email hello@streetbankermusic.com.")
+
+    def _pulse_change_allowed(user):
+        return (_is_owner_email(user.get("email"))
+                or (user.get("plan") or "artist") in ("pro", "label"))
+
     @app.route("/pulse/select", methods=["POST"])
     def pulse_select():
         user = current_user()
@@ -8167,6 +9257,9 @@ def create_app():
         name = (p.get("name") or "").strip()[:120]
         if not artist_id or not name:
             return jsonify({"ok": False, "error": "Pick an artist from the search results."}), 400
+        current = store.get_pulse_profile(user["id"])
+        if current and current["artist_id"] != artist_id and not _pulse_change_allowed(user):
+            return jsonify({"ok": False, "error": _PULSE_LOCKED}), 402
         store.save_pulse_profile(user["id"], artist_id, name,
                                  (p.get("image") or "").strip()[:300])
         return jsonify({"ok": True})
@@ -8227,6 +9320,9 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in first."}), 401
+        # Clearing is how a change starts, so it follows the same rule.
+        if store.get_pulse_profile(user["id"]) and not _pulse_change_allowed(user):
+            return jsonify({"ok": False, "error": _PULSE_LOCKED}), 402
         store.clear_pulse_profile(user["id"])
         return jsonify({"ok": True})
 
@@ -8235,6 +9331,13 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # The walkthrough is the demo's tour: step one uploads a sample
+        # statement, and in a real account that became real-looking income
+        # ($1,504.68 on Royalties and Tax, a $36,112 valuation; found by the
+        # 2026-09-18 launch check). A real account gets tutor mode on its
+        # own Command Center instead, which works from its own data.
+        if not _is_demo_email(user.get("email") or ""):
+            return redirect("/command-center")
         return render_template("walkthrough.html", active_page="command-center",
                                user_plan=(user.get("plan") or "artist"),
                                **build_dashboard_context())
@@ -8362,6 +9465,7 @@ def create_app():
                                **build_dashboard_context())
 
     @app.route("/homepage")
+    @app.route("/homepage/")
     def homepage_edit_page():
         _user, bounce = _owner_or_404()
         if bounce:
@@ -8415,7 +9519,7 @@ def create_app():
         user = current_user()
         if user is None:
             return None, login_required_redirect()
-        if not _is_owner_email(user.get("email")):
+        if session.get("team_as") or not _is_owner_email(user.get("email")):
             abort(404)
         return user, None
 
@@ -9174,6 +10278,17 @@ def create_app():
                                c=campaign, providers=social_providers.provider_status(),
                                **build_dashboard_context())
 
+    def _shopify_import_allowed(user):
+        """Reading the connected store's customers is the OWNER'S alone.
+
+        The connection is server configuration (SHOPIFY_*), so it is one
+        store: the owner's. Until 2026-09-17 the button was offered to any
+        signed-in account, which meant a partner's artist could file the
+        owner's customer list as their own fans. Nobody had pressed it.
+        A per-account connection is a different feature; this is the door.
+        """
+        return bool(user and _is_owner_email(user.get("email")))
+
     @app.route("/links/fans")
     def ml_fans():
         user = current_user()
@@ -9185,10 +10300,20 @@ def create_app():
         # Fan CRM is a Fans page (the Fans front: Dashboard, Fan CRM, Fan
         # Club); "fans" is a key in both layouts, so the Fans row lights
         # and the rooms layout goes back to Fans, not Marketing.
+        #
+        # 2026-09-18: it is the Fan CRM tab of the Audience screen, under
+        # the same header. The list import redirects here with ?imp=...;
+        # until now nothing read that back, so an import finished in
+        # silence. The counts shown are the ones the import stored.
+        imp = request.args.get("imp") or ""
+        fan_import_result = _import_result(user["id"], imp)
         return render_template("links_fans.html", active_page="fans",
+                               fan_import_result=fan_import_result,
+                               au_resend=emailer.configured(),
                                fans=fans, q=q, campaign_titles=campaigns,
                                intent_tones=links_engine.INTENT_TONES,
-                               shopify=shopify_customers.status(),
+                               shopify=(shopify_customers.status()
+                                        if _shopify_import_allowed(user) else None),
                                last_import=store.latest_fan_import(user["id"], "shopify"),
                                imp_note={"off": "Shopify is not connected on this service."}.get(
                                    request.args.get("imp") or "", ""),
@@ -9202,6 +10327,8 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        if not _shopify_import_allowed(user):
+            abort(404)
         if not shopify_customers.configured():
             return redirect("/links/fans?imp=off#import")
         last = store.latest_fan_import(user["id"], "shopify")
@@ -9225,6 +10352,158 @@ def create_app():
         store.add_fan_import(user["id"], "shopify", summary, cursor=cursor or "")
         return redirect("/links/fans#import")
 
+    # Where a list import can send the artist back to, by the form it came
+    # from. Anything else is refused rather than followed.
+    _IMPORT_ORIGINS = {"fans": "/fans", "crm": "/links/fans"}
+
+    _IMPORT_ERRORS = {
+        "needs-source": "Say where these people gave you permission, and tick the box, before the list is read.",
+        "unreadable": "That file could not be read as text. Export it as a CSV and try again.",
+        "empty": "There was nothing in the file or the box to read.",
+        "no-address": "No column of email addresses was found. The file needs one, however it is spelled; a bare list of addresses works too.",
+        "stale": "That preview is no longer here: it was confirmed, cancelled, replaced by a newer one or is older than a day. Nothing more was added from it.",
+    }
+
+    def _import_result(user_id, imp):
+        """What the import panel says after a round trip: an error, or the
+        counts of the import that just ran, read back from its own record."""
+        if imp in _IMPORT_ERRORS:
+            return {"error": _IMPORT_ERRORS[imp]}
+        if imp == "done":
+            last_list = store.latest_fan_import(user_id, "list")
+            return (last_list or {}).get("summary") or None
+        return None
+
+    @app.route("/fans/import/preview", methods=["POST"])
+    @app.route("/links/fans/import/list", methods=["POST"])
+    def ml_fans_import_list():
+        """Read a list the artist already has, from a file or pasted text,
+        and show what it would do. Writes no fan.
+
+        Until 2026-09-18 this route filed every row the moment the form was
+        sent, while the page promised a preview first. It now parks the
+        parsed rows as a draft (db.fan_import_drafts) and sends the artist
+        to /fans/import, where nothing is added until they confirm. The old
+        URL is kept and goes the same way, so there is one path in.
+
+        Open to any signed-in account, unlike the Shopify import, which
+        reads the owner's own store and is owner-only. This one reads what
+        the artist hands over, so it is theirs to run.
+
+        Consent is never inferred from the fact that somebody uploaded a
+        file. Where the export carries a status column, fan_list_import
+        leaves out every row that says unsubscribed, cleaned, bounced or
+        never subscribed, whatever is ticked here. Where it does not, the
+        artist's own sentence about where the permission came from is what
+        gets written onto each record.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if _session_is_demo():
+            # The showcase has no import on it (partials/fans_head.html), and
+            # a preview it could confirm would write real rows onto the demo
+            # account (review, 2026-09-18).
+            return redirect("/fans")
+        origin = request.form.get("origin")
+        if origin not in _IMPORT_ORIGINS:
+            origin = "crm" if request.path.startswith("/links/") else "fans"
+        back = _IMPORT_ORIGINS[origin]
+
+        source = (request.form.get("source") or "").strip()[:120]
+        if not request.form.get("confirm") or not source:
+            return redirect(back + "?imp=needs-source#import")
+
+        text = request.form.get("text") or ""
+        upload = request.files.get("file")
+        if upload and upload.filename:
+            try:
+                text = upload.read().decode("utf-8-sig", "replace")
+            except Exception:
+                return redirect(back + "?imp=unreadable#import")
+        if not text.strip():
+            return redirect(back + "?imp=empty#import")
+
+        parsed = fan_list_import.parse(text)
+        if parsed["columns"]["email"] is None:
+            return redirect(back + "?imp=no-address#import")
+        on_file = {f.get("email") or "": f for f in mls.list_fans(user["id"])}
+        summary = fan_list_import.preview(parsed, on_file.keys())
+        rows = fan_list_import.draft_rows(parsed, on_file)
+        # How many fans already here would get a missing place filled in:
+        # the only change confirm makes to them, counted now so the preview
+        # can say it (and say nothing would change when it is 0).
+        summary["places_to_fill"] = sum(1 for r in rows if r.get("fills"))
+        store.put_fan_import_draft(user["id"], origin, source,
+                                   parsed["has_status_column"], summary, rows)
+        return redirect("/fans/import")
+
+    @app.route("/fans/import")
+    def fans_import_preview():
+        """The preview: counts, reasons, a masked sample. Nothing written."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if _session_is_demo():
+            return redirect("/fans")
+        draft = store.get_fan_import_draft(user["id"])
+        if draft is None:
+            return redirect("/fans?imp=stale#import")
+        ctx = build_dashboard_context()
+        ctx.update(draft=draft, s=draft["summary"],
+                   sample=fan_list_import.sample(draft["rows"]),
+                   places_to_fill=int(draft["summary"].get("places_to_fill") or 0),
+                   consent_line=_import_consent_line(draft),
+                   au_resend=emailer.configured(),
+                   au_tab="crm" if draft["origin"] == "crm" else "audience")
+        return render_template("fans_import_preview.html", active_page="fans", **ctx)
+
+    def _import_consent_line(draft):
+        """The sentence written on each new record. Dated the day the box
+        was ticked, which is the day the draft was made, so the preview's
+        quote and the note confirm writes are the same sentence even when
+        confirm comes after midnight (review, 2026-09-18)."""
+        return fan_list_import.consent_note(
+            draft["source"], (draft.get("created") or "")[:10]
+            or datetime.now(timezone.utc).date().isoformat(),
+            bool(draft.get("has_status_column")))
+
+    @app.route("/fans/import/confirm", methods=["POST"])
+    def fans_import_confirm():
+        """File exactly what the preview showed, once.
+
+        links_store.confirm_list_import does it all in one transaction: the
+        draft's DELETE is the claim, so a second press, a replayed form or
+        another account's id finds nothing and writes nothing, and a request
+        killed partway leaves the draft and writes nothing. Fans already
+        here only get a missing place filled; a place they hold is kept."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if _session_is_demo():
+            return redirect("/fans")
+        draft_id = request.form.get("draft_id") or ""
+        origin = (store.get_fan_import_draft(user["id"], draft_id) or {}).get("origin")
+        done = mls.confirm_list_import(user["id"], draft_id, _import_consent_line)
+        if done is None:
+            return redirect("/fans?imp=stale#import")
+        if origin == "crm":
+            return redirect("/links/fans?imp=done#import")
+        return redirect("/fans?imp=done")
+
+    @app.route("/fans/import/cancel", methods=["POST"])
+    def fans_import_cancel():
+        """Throw the draft away. Only the owner's own; nothing was written."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if _session_is_demo():
+            return redirect("/fans")
+        draft_id = request.form.get("draft_id") or ""
+        draft = store.get_fan_import_draft(user["id"], draft_id)
+        store.drop_fan_import_draft(user["id"], draft_id)
+        return redirect(_IMPORT_ORIGINS.get((draft or {}).get("origin"), "/fans"))
+
     @app.route("/links/fans/shopify/reconnect", methods=["POST"])
     def ml_fans_shopify_reconnect():
         """Owner: forget the cached Shopify tokens and mint afresh - the
@@ -9232,6 +10511,8 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        if not _shopify_import_allowed(user):
+            abort(404)
         if shopify_customers.uses_grant():
             shopify_customers.forget_grant()
             shopify_customers.token()
@@ -9253,18 +10534,27 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # A file that leaves this app goes into mail tools. By default it
+        # carries only the contactable: somebody who unsubscribed, bounced
+        # or complained is not in it. ?include=suppressed is the explicit
+        # full record, and every suppressed row says why in its own column.
         import csv as _csv
         import io as _io
+        everyone = request.args.get("include") == "suppressed"
         out = _io.StringIO()
         w = _csv.writer(out)
         w.writerow(["Email", "Name", "Visits", "Clicks", "Pre-saves", "Captures",
-                    "Intent Score", "Intent Level", "First Seen", "Last Active"])
+                    "Intent Score", "Intent Level", "First Seen", "Last Active", "Suppressed"])
         for f in mls.list_fans(user["id"]):
+            why = (f.get("suppressed") or "").strip()
+            if why and not everyone:
+                continue
             w.writerow([f["email"], f["name"], f["total_visits"], f["total_clicks"],
                         f["total_presaves"], f["total_captures"], f["intent_score"],
-                        f["intent_level"], f["created"], f["updated"]])
+                        f["intent_level"], f["created"], f["updated"], why])
+        name = "street-banker-fans-all.csv" if everyone else "street-banker-fans.csv"
         return Response(out.getvalue(), mimetype="text/csv",
-                        headers={"Content-Disposition": "attachment; filename=street-banker-fans.csv"})
+                        headers={"Content-Disposition": "attachment; filename=" + name})
 
     @app.route("/links/create", methods=["POST"])
     def links_create():
@@ -9349,35 +10639,243 @@ def create_app():
             return "%dh ago" % (mins // 60)
         return "%dd ago" % (mins // (60 * 24))
 
-    COLLAB_ROLES = ["Vocalist", "Producer", "Songwriter", "Mixing / Mastering",
-                    "Instrumentalist", "Visuals / Cover Art"]
+    import collab_market as _cm
+    # One role vocabulary for briefs and collaborator profiles.
+    COLLAB_ROLES = _cm.ROLES
 
     @app.route("/marketplace")
     def marketplace():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # The approved Collab Marketplace screen (owner mock, 2026-09-18).
+        # Every count below is a query on the collab tables; see
+        # collab_market.py for what each section is allowed to show.
+        import collab_market
+        tab = request.args.get("tab") or "discover"
+        if tab not in ("discover", "briefs", "applications", "projects"):
+            tab = "discover"
         kind = request.args.get("kind") or None
         role = request.args.get("role") or None
         genre = (request.args.get("genre") or "").strip() or None
-        reqs = store.list_collab_requests(kind, role, genre)
-        today = datetime.now(timezone.utc).date().isoformat()
+        loc = (request.args.get("loc") or "").strip().lower()
+        budget = request.args.get("budget") or ""
+        if budget not in [b[0] for b in collab_market.BUDGET_BANDS] + ["unstated"]:
+            budget = ""
+        q = (request.args.get("q") or "").strip()
+        saved_only = request.args.get("saved") == "1"
+        today_d = datetime.now(timezone.utc).date()
+        today = today_d.isoformat()
+        uid = user["id"]
+        # One rule for "on the board": open, and its closing date (if any)
+        # not yet passed. The tiles count with it and the board reads with
+        # it, with no row cap, so neither stops at a list length.
+        live_sql = ("c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
+                    " OR substr(c.closes, 1, 10) >= ?)")
+        with store.get_db() as db:
+            counts = {row["request_id"]: row["n"] for row in db.execute(
+                "SELECT request_id, COUNT(*) AS n FROM collab_replies "
+                "GROUP BY request_id").fetchall()}
+            sent = [dict(row) for row in db.execute(
+                "SELECT r.*, c.title, c.role, c.kind, c.status, c.closes,"
+                " c.user_id AS owner_id, u.name AS poster_name"
+                " FROM collab_replies r"
+                " JOIN collab_requests c ON c.id = r.request_id"
+                " JOIN users u ON u.id = c.user_id"
+                " WHERE r.user_id = ? ORDER BY r.created DESC",
+                (uid,)).fetchall()]
+            board = [dict(row) for row in db.execute(
+                "SELECT c.*, u.name AS poster_name FROM collab_requests c"
+                " JOIN users u ON u.id = c.user_id WHERE " + live_sql
+                + " ORDER BY c.created DESC", (today,)).fetchall()]
+            tiles = {
+                "open": db.execute(
+                    "SELECT COUNT(*) FROM collab_requests c JOIN users u"
+                    " ON u.id = c.user_id WHERE " + live_sql,
+                    (today,)).fetchone()[0],
+                "mine": db.execute(
+                    "SELECT COUNT(*) FROM collab_requests c"
+                    " WHERE c.user_id = ? AND " + live_sql,
+                    (uid, today)).fetchone()[0],
+                "sent": db.execute(
+                    "SELECT COUNT(*) FROM collab_replies WHERE user_id = ?",
+                    (uid,)).fetchone()[0],
+                "saved": db.execute(
+                    "SELECT COUNT(*) FROM collab_saves s"
+                    " JOIN collab_requests c ON c.id = s.request_id"
+                    " JOIN users u ON u.id = c.user_id"
+                    " WHERE s.user_id = ? AND " + live_sql,
+                    (uid, today)).fetchone()[0],
+            }
         trust_cache = {}
-        for r in reqs:
+
+        def _dress(r):
             r["ago"] = _ago(r["created"])
+            r["applicants"] = counts.get(r["id"], 0)
+            r["days_left"] = collab_market.days_left(r["closes"], today_d)
+            r["closes_label"] = collab_market.short_date(r["closes"], today_d)
+            r["initials"] = collab_market.initials(r.get("poster_name"))
+            r["photo"] = collab_market.ROLE_PHOTOS.get(
+                r["role"], collab_market.DEFAULT_PHOTO)
+            r["chip"] = collab_market.KIND_CHIPS.get(r["kind"], "")
+            r["state"] = collab_market.brief_state(r, today_d)
+            r["state_label"] = collab_market.STATE_LABELS[r["state"]]
+            r["place"] = collab_market.brief_place(r)
+            r["budget_label"] = collab_market.brief_budget(r)
+            return r
+
+        def _with_trust(r):
+            # Scored only for rows on screen: a poster's score is a real
+            # calculation, so it is not run for rows nobody sees.
             if r["user_id"] not in trust_cache:
-                trust_cache[r["user_id"]] = trust_score.calculate(r["user_id"])["total"]
-            r["trust"] = trust_cache[r["user_id"]]
-            r["expired"] = bool(r["closes"]) and r["closes"] < today
-        reqs = [r for r in reqs if not r["expired"]]
-        own = store.list_own_collab_requests(user["id"])
+                t = trust_score.calculate(r["user_id"])
+                trust_cache[r["user_id"]] = (
+                    t["total"], any(pts for _n, pts, _x in t["factors"]))
+            total, measured = trust_cache[r["user_id"]]
+            r["trust"] = total
+            r["trust_label"] = collab_market.trust_label(total, measured)
+            return r
+
+        board = [_dress(r) for r in board]
+        saves = store.list_collab_saves(uid)
+        reqs = [r for r in board
+                if (not kind or r["kind"] == kind)
+                and (not role or r["role"] == role)
+                and (not genre or r["genre"] == genre)
+                and (not saved_only or r["id"] in saves)
+                and collab_market.location_filter(r, loc)
+                and collab_market.budget_filter(r, budget)
+                and (not q or q.lower() in " ".join(
+                    (r["title"], r["role"], r["genre"], r["details"],
+                     r["poster_name"] or "")).lower())]
+        shown = [_with_trust(r) for r in reqs[:collab_market.TABLE_ROWS]]
+        own = store.list_own_collab_requests(uid)
+        replies_by_req = {r["id"]: store.list_collab_replies(r["id"]) for r in own}
+        for r in own:
+            r["applicants"] = len(replies_by_req[r["id"]])
+            r["days_left"] = collab_market.days_left(r["closes"], today_d)
+            r["state"] = collab_market.brief_state(r, today_d)
+            r["state_label"] = collab_market.STATE_LABELS[r["state"]]
+        for a in sent:
+            a["state"] = collab_market.brief_state(a, today_d)
+            a["state_label"] = collab_market.STATE_LABELS[a["state"]]
+            a["sent_label"] = collab_market.short_date(a["created"], today_d)
+        applied_ids = {a["request_id"] for a in sent}
+        recs, rec_basis = collab_market.recommendations(board, uid, own, sent)
+        recs = [_with_trust(r) for r in recs]
+        # Active projects: your briefs still open (and not past their
+        # closing date) that have drawn at least one application - the
+        # only work in progress this board records.
+        projects = [collab_market.pipeline(r, replies_by_req[r["id"]], today_d)
+                    for r in own if r["state"] == "open" and r["applicants"]]
+        latest = (collab_market.pipeline(own[0], replies_by_req[own[0]["id"]],
+                                         today_d) if own else None)
+
+        # COLLABORATOR PROFILES (PROFILES-SPEC.md). Only listed members
+        # come back from the store; the viewer is never matched with
+        # themselves. Matching is against the viewer's own open briefs,
+        # else the viewer's own profile, else nothing (no % shown).
+        open_own = [r for r in own if r["state"] == "open"]
+        me_profile = store.get_collab_profile(uid)
+        # The shared demo login is handed to prospects who are not members:
+        # it never sees a member's profile (it keeps its labelled showcase).
+        demo = _session_is_demo()
+        listed = ([] if demo else
+                  store.list_listed_collab_profiles(exclude_user_id=uid))
+        scored = [(p, collab_market.best_match(p, open_own, me_profile, today_d))
+                  for p in listed]
+        matched = sorted([s for s in scored if s[1]], key=lambda s: -s[1]["pct"])
+        # Best matches first; the slots left are filled with listed members
+        # who share no role or genre (newest first, no % badge), so a listed
+        # member is never dropped from a short row.
+        row = (matched + [s for s in scored if not s[1]])[:3]
+        summaries = store.collab_rating_summary([p["user_id"] for p, _m in row])
+        rec_people = [collab_market.person_card(p, today_d, m,
+                                                summaries.get(p["user_id"]))
+                      for p, m in row]
+        people_unmatched = any(m is None for _p, m in row)
+        # Tiles that need a source. New Matches: listed profiles at or over
+        # the threshold against an open brief of yours, new or changed
+        # since you last opened Discover. Shown only while you have an
+        # open brief to match against.
+        new_matches = None
+        if open_own:
+            seen = store.get_collab_seen(uid)
+            new_matches = sum(
+                1 for p, m in scored
+                if m and m["basis"] == "brief"
+                and m["pct"] >= collab_market.MATCH_THRESHOLD
+                and (not seen or (p.get("updated") or "") > seen))
+            if tab == "discover" and not session.get("team_as"):
+                store.set_collab_seen(uid)
+        # Active Projects, one definition for the tile and the tab: your
+        # open briefs with applications (the pipeline), your closed briefs
+        # with a chosen collaborator still to rate, and OPEN briefs where you
+        # were the one chosen. A finished brief you were chosen for is kept
+        # on the tab under "Finished", and is not counted.
+        rated = store.rated_pairs_by(uid)
+        to_rate = []
+        for r in own:
+            if r["status"] != "closed":
+                continue
+            for a in replies_by_req[r["id"]]:
+                if a.get("chosen") and a["user_id"] != uid \
+                        and (r["id"], a["user_id"]) not in rated:
+                    to_rate.append({"brief": r, "reply": a})
+        chosen_all = store.list_collab_chosen_for(uid)
+        for c in chosen_all:
+            c["state"] = collab_market.brief_state(c, today_d)
+            c["state_label"] = collab_market.STATE_LABELS[c["state"]]
+        chosen_for = [c for c in chosen_all if c["state"] == "open"]
+        chosen_done = [c for c in chosen_all if c["state"] != "open"]
+        active_count = len(projects) + len(to_rate) + len(chosen_for)
+        focus = None
+        brief_id = request.args.get("brief")
+        if brief_id:
+            focus = next((r for r in board if r["id"] == brief_id), None)
+            if focus is None:
+                mine = next((r for r in own if r["id"] == brief_id), None)
+                focus = _dress(dict(mine, poster_name=user["name"])) if mine else None
+            if focus is not None:
+                _with_trust(focus)
+        # The view a save or apply form returns to (the applied flag is
+        # dropped so the flash does not follow the user around).
+        kept = [(k, v) for k, v in request.args.items(multi=True) if k != "applied"]
+        here = request.path + ("?" + urllib.parse.urlencode(kept) if kept else "")
+        trust = trust_score.calculate(uid)
+        trust_rows = [
+            {"name": name, "pts": pts, "note": note,
+             "unmeasured": trust["unmeasured"].get(name),
+             "icon": Markup(collab_market.TRUST_ICONS.get(
+                 name, collab_market.DEFAULT_TRUST_ICON))}
+            for name, pts, note in trust["factors"]]
+        trust_scored = any(r["pts"] for r in trust_rows)
         return render_template(
             "marketplace.html", active_page="marketplace",
-            requests=reqs, kind=kind or "", role=role or "", genre=genre or "",
-            roles=COLLAB_ROLES, user=user,
-            saves=store.list_collab_saves(user["id"]),
-            own=own,
-            replies_by_req={r["id"]: store.list_collab_replies(r["id"]) for r in own},
+            tab=tab, tabs=collab_market.TABS, q=q, saved_only=saved_only,
+            requests=shown, more=len(reqs) - len(shown),
+            kind=kind or "", role=role or "", genre=genre or "",
+            roles=COLLAB_ROLES, user=user, saves=saves, own=own,
+            replies_by_req=replies_by_req, sent=sent, tiles=tiles,
+            applied_ids=applied_ids, here=here,
+            recs=recs, rec_basis=rec_basis, projects=projects, latest=latest,
+            focus=focus, trust=trust, trust_rows=trust_rows,
+            trust_scored=trust_scored, kind_labels=collab_market.KIND_LABELS,
+            genres=sorted({r["genre"] for r in board if r["genre"]}),
+            loc=loc, budget=budget,
+            loc_options=collab_market.location_options(board),
+            budget_bands=collab_market.BUDGET_BANDS,
+            rec_people=rec_people, people_matched=bool(matched),
+            people_unmatched=people_unmatched, chosen_done=chosen_done,
+            post_error=request.args.get("post_error") or "",
+            money_pattern=collab_market.MONEY_PATTERN,
+            me_profile=me_profile, new_matches=new_matches,
+            match_threshold=collab_market.MATCH_THRESHOLD,
+            to_rate=to_rate, chosen_for=chosen_for, active_count=active_count,
+            rated=rated,
+            showcase=(collab_market.SHOWCASE
+                      if _session_is_demo() and not recs and not rec_people
+                      else []),
             **build_dashboard_context())
 
     @app.route("/marketplace/post", methods=["POST"])
@@ -9389,13 +10887,25 @@ def create_app():
         role = (request.form.get("role") or "").strip()
         title = (request.form.get("title") or "").strip()
         if kind in ("bid", "split", "fun") and role and title:
+            lo, hi, money_errors = _cm.read_money_pair(
+                request.form.get("budget_min"), request.form.get("budget_max"),
+                "Budget")
+            if money_errors:
+                # Nothing is saved: a number the member never typed must not
+                # reach the board, the filters or the match.
+                return redirect("/marketplace?tab=briefs&post_error=%s#post"
+                                % urllib.parse.quote(money_errors[0]))
             store.add_collab_request(
                 user["id"], role,
                 (request.form.get("genre") or "").strip(), kind, title,
                 (request.form.get("details") or "").strip(),
                 (request.form.get("terms") or "").strip(),
                 (request.form.get("ref_url") or "").strip(),
-                (request.form.get("closes") or "").strip())
+                (request.form.get("closes") or "").strip(),
+                city=(request.form.get("city") or "").strip(),
+                country=(request.form.get("country") or "").strip(),
+                remote_ok=request.form.get("remote_ok") == "1",
+                budget_min=lo, budget_max=hi)
         return redirect("/marketplace")
 
     @app.route("/marketplace/<req_id>/apply", methods=["POST"])
@@ -9403,19 +10913,21 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        import collab_market
+        back = collab_market.safe_back(request.form.get("back"))
         req = store.get_collab_request(req_id)
         message = (request.form.get("message") or "").strip()
         contact = (request.form.get("contact") or "").strip()
         if (req is None or req["status"] != "open"
                 or req["user_id"] == user["id"] or not message
                 or "@" not in contact):
-            return redirect("/marketplace")
+            return redirect(back)
         store.add_collab_reply(req_id, user["id"], message, contact,
                                (request.form.get("proposal") or "").strip(),
                                (request.form.get("ref_url") or "").strip())
         store.notify(req["user_id"], "network",
                      "New application on your collab request",
-                     "%s applied to “%s” — reach them at %s."
+                     "%s applied to “%s”. Reach them at %s."
                      % (user["name"] or "A member", req["title"], contact),
                      "/marketplace")
         if emailer.configured():
@@ -9430,7 +10942,7 @@ def create_app():
                        _html.escape(req["title"]),
                        _html.escape(message[:500]), _html.escape(contact),
                        _html.escape(contact)), reply_to=contact)
-        return redirect("/marketplace?applied=1")
+        return redirect(collab_market.with_flag(back, "applied=1"))
 
     @app.route("/marketplace/<req_id>/save", methods=["POST"])
     def marketplace_save(req_id):
@@ -9439,7 +10951,8 @@ def create_app():
             return login_required_redirect()
         if store.get_collab_request(req_id):
             store.toggle_collab_save(user["id"], req_id)
-        return redirect("/marketplace")
+        import collab_market
+        return redirect(collab_market.safe_back(request.form.get("back")))
 
     @app.route("/marketplace/<req_id>/close", methods=["POST"])
     def marketplace_close(req_id):
@@ -9456,6 +10969,166 @@ def create_app():
             return login_required_redirect()
         store.delete_collab_request(user["id"], req_id)
         return redirect("/marketplace")
+
+    # --- Collaborator profiles (PROFILES-SPEC.md, owner-approved 2026-09-18) ---
+
+    def _own_card(user, profile, today_d):
+        """The viewer's own card, as others would see it once listed."""
+        epk = store.get_epk(user["id"]) or {}
+        base = dict(profile or {}, user_id=user["id"], name=user["name"],
+                    photo=epk.get("photo") or "")
+        summary = store.collab_rating_summary([user["id"]]).get(user["id"])
+        return _cm.person_card(base, today_d, None, summary)
+
+    @app.route("/marketplace/profile", methods=["GET", "POST"])
+    def marketplace_profile():
+        """The member's own collaborator profile and the opt-in switch.
+        Nobody is listed until they tick "List me in the marketplace"."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        today_d = datetime.now(timezone.utc).date()
+        errors = []
+        profile = store.get_collab_profile(user["id"])
+        demo = _session_is_demo()
+        if request.method == "POST":
+            fields, errors = _cm.clean_profile(request.form)
+            if demo and fields["listed"]:
+                # The shared demo login is not a member: it is never listed.
+                fields["listed"] = 0
+                errors.append("The demo account cannot be listed in the "
+                              "marketplace: it is not a member.")
+            if not errors:
+                store.save_collab_profile(user["id"], fields)
+                return redirect("/marketplace/profile?saved=1")
+            profile = dict(profile or {}, **fields)
+        blank = {"listed": 0, "roles": [], "genres": [], "city": "", "country": "",
+                 "remote_ok": 0, "rate_min": None, "rate_max": None,
+                 "rate_unit": "", "currency": "USD", "availability": "",
+                 "available_from": "", "credits": "", "links": [], "bio": ""}
+        form = dict(blank, **(profile or {}))
+        card = _own_card(user, form, today_d)
+        return render_template(
+            "collab_profile.html", active_page="marketplace", user=user,
+            form=form, card=card, errors=errors, roles=COLLAB_ROLES,
+            is_demo=demo, money_pattern=_cm.MONEY_PATTERN,
+            rate_units=_cm.RATE_UNITS, currencies=_cm.CURRENCIES,
+            max_links=_cm.MAX_LINKS, saved=request.args.get("saved") == "1",
+            photo_error=request.args.get("photo_error") or "",
+            photo_saved=request.args.get("photo") == "1",
+            **build_dashboard_context())
+
+    @app.route("/marketplace/profile/photo", methods=["POST"])
+    def marketplace_profile_photo():
+        """The member's own photo, stored as their EPK photo (one photo per
+        member). Never a placeholder: no upload means initials."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        _path, error = _store_epk_photo(user, request.files.get("photo"))
+        if error:
+            return redirect("/marketplace/profile?photo_error=" +
+                            urllib.parse.quote(error) + "#photo")
+        return redirect("/marketplace/profile?photo=1#photo")
+
+    def _people_cards(user, today_d, only=None):
+        """Listed collaborators with the viewer's match, best first."""
+        uid = user["id"]
+        own = store.list_own_collab_requests(uid)
+        open_own = [r for r in own if _cm.brief_state(r, today_d) == "open"]
+        me = store.get_collab_profile(uid)
+        # The demo login never sees a member's profile (see marketplace()).
+        listed = ([] if _session_is_demo() else
+                  store.list_listed_collab_profiles(exclude_user_id=uid))
+        if only:
+            listed = [p for p in listed if only in (p.get("roles") or [])]
+        scored = [(p, _cm.best_match(p, open_own, me, today_d)) for p in listed]
+        scored.sort(key=lambda s: -(s[1]["pct"] if s[1] else -1))
+        summaries = store.collab_rating_summary([p["user_id"] for p, _m in scored])
+        return ([_cm.person_card(p, today_d, m, summaries.get(p["user_id"]))
+                 for p, m in scored], bool(open_own), me)
+
+    @app.route("/marketplace/people")
+    def marketplace_people():
+        """Every listed collaborator (opt-in only), best match first."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        today_d = datetime.now(timezone.utc).date()
+        role = request.args.get("role") or ""
+        if role not in COLLAB_ROLES:
+            role = ""
+        cards, has_open, me = _people_cards(user, today_d, only=role or None)
+        return render_template(
+            "collab_people.html", active_page="marketplace", user=user,
+            people=cards, role=role, roles=COLLAB_ROLES, has_open=has_open,
+            me_profile=me, is_demo=_session_is_demo(),
+            **build_dashboard_context())
+
+    @app.route("/marketplace/people/<member_id>")
+    def marketplace_person(member_id):
+        """One listed member's profile. Unlisted means not here at all."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        profile = store.get_listed_collab_profile(member_id)
+        if profile is None or (_session_is_demo() and member_id != user["id"]):
+            if member_id == user["id"]:
+                return redirect("/marketplace/profile")
+            abort(404)
+        today_d = datetime.now(timezone.utc).date()
+        is_me = member_id == user["id"]
+        match = None
+        if not is_me:
+            own = store.list_own_collab_requests(user["id"])
+            open_own = [r for r in own if _cm.brief_state(r, today_d) == "open"]
+            match = _cm.best_match(profile, open_own,
+                                   store.get_collab_profile(user["id"]), today_d)
+        summary = store.collab_rating_summary([member_id]).get(member_id)
+        card = _cm.person_card(profile, today_d, match, summary)
+        ratings = store.list_collab_ratings_for(member_id)
+        for g in ratings:
+            g["when"] = _cm.short_date(g["created"], today_d)
+        briefs = [r for r in store.list_own_collab_requests(member_id)
+                  if _cm.brief_state(r, today_d) == "open"]
+        t = trust_score.calculate(member_id)
+        trust_rows = [
+            {"name": name, "pts": pts, "unmeasured": t["unmeasured"].get(name),
+             "icon": Markup(_cm.TRUST_ICONS.get(name, _cm.DEFAULT_TRUST_ICON))}
+            for name, pts, _note in t["factors"]]
+        return render_template(
+            "collab_person.html", active_page="marketplace", user=user,
+            card=card, ratings=ratings, briefs=briefs, is_me=is_me,
+            kind_labels=_cm.KIND_LABELS, trust=t, trust_rows=trust_rows,
+            trust_scored=any(r["pts"] for r in trust_rows),
+            **build_dashboard_context())
+
+    @app.route("/marketplace/<req_id>/choose/<reply_id>", methods=["POST"])
+    def marketplace_choose(req_id, reply_id):
+        """The brief's poster marks an applicant as chosen (or undoes it).
+        A chosen applicant on a closed brief is who may be rated."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        req = store.get_collab_request(req_id)
+        if req is not None and req["user_id"] == user["id"]:
+            store.set_collab_reply_chosen(user["id"], reply_id,
+                                          request.form.get("chosen") == "1")
+        return redirect("/marketplace?tab=briefs#brief-%s" % req_id)
+
+    @app.route("/marketplace/<req_id>/rate/<ratee_id>", methods=["POST"])
+    def marketplace_rate(req_id, ratee_id):
+        """1 to 5 stars and an optional note, once per brief and person,
+        only on a closed brief of yours where you chose them."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        store.add_collab_rating(user["id"], req_id, ratee_id,
+                                request.form.get("stars"),
+                                (request.form.get("note") or "").strip())
+        back = _cm.safe_back(request.form.get("back"),
+                             "/marketplace?tab=projects")
+        return redirect(back)
 
     def _discover_state():
         """This browser's likes and follows.
@@ -9706,17 +11379,55 @@ def create_app():
 
         Same rule as the royalty dashboard, for the same reason: showcase data
         handed to a real artist reads as their own.
+
+        2026-09-18: this is now the Audience screen from the owner's approved
+        mockup, built by fan_audience over the same records. ?export=csv with
+        region=... is the "Use this selection" step: the contactable fans in
+        the ticked places, as a CSV. Suppressed fans are never in it.
         """
-        import fan_dashboard
+        import fan_audience
+
+        user = current_user()
+        showcase = _session_is_demo() or user is None
+
+        if request.args.get("export") == "csv":
+            if user is None:
+                return login_required_redirect()
+            keys = [k for k in request.args.getlist("region") if k]
+            if not keys:
+                return redirect("/fans")
+            rows = fan_audience.selection_rows(
+                fan_audience.showcase_rows() if showcase else mls.list_fans(user["id"]), keys)
+            import csv as _csv
+            import io as _io
+            out = _io.StringIO()
+            w = _csv.writer(out)
+            w.writerow(["Email", "Name", "City", "Country"])
+            for f in rows:
+                w.writerow([f.get("email") or "", f.get("name") or "",
+                            f.get("city") or "", f.get("country") or ""])
+            return Response(out.getvalue(), mimetype="text/csv", headers={
+                "Content-Disposition": "attachment; filename=street-banker-fans-selection.csv"})
 
         ctx = build_dashboard_context()
-        user = current_user()
-        if _session_is_demo() or user is None:
-            ctx["fans"] = get_fan_dashboard_data()
-            ctx["fans"]["is_real"] = False
+        if showcase:
+            ctx["audience"] = fan_audience.showcase()
         else:
-            ctx["fans"] = fan_dashboard.fan_dashboard_for(user["id"])
-        ctx["shopify_import"] = shopify_customers.status()
+            ctx["audience"] = fan_audience.for_account(
+                user["id"], resend_configured=emailer.configured())
+        ctx["shopify_import"] = (shopify_customers.status()
+                                 if _shopify_import_allowed(user) else None)
+        if not showcase:
+            ctx["fan_import_result"] = _import_result(user["id"], request.args.get("imp") or "")
+        # FIRST RUN (owner-approved mockup, 2026-09-18). A real account with
+        # nobody on file gets the import as the page, not a screen of empty
+        # panels; from the first fan it is the Audience screen as before.
+        # The showcase never sees this: it always has its generated rows.
+        if not showcase and not ctx["audience"]["total"]:
+            ctx["last_list_import"] = store.latest_fan_import(user["id"], "list")
+            ctx["pending_draft"] = store.get_fan_import_draft(user["id"])
+            ctx["import_max_rows"] = fan_list_import.MAX_ROWS
+            return render_template("fans_first_run.html", active_page="fans", **ctx)
         return render_template("fans.html", active_page="fans", **ctx)
 
     @app.route("/capital")
@@ -10100,7 +11811,8 @@ def create_app():
         if user is None:
             return login_required_redirect()
         items = store.list_notifications(user["id"])
-        store.mark_notifications_read(user["id"])  # viewing clears the badge
+        if not session.get("team_as"):
+            store.mark_notifications_read(user["id"])  # viewing clears the badge
         return render_template("notifications_real.html", active_page="notifications",
                                items=items, **build_dashboard_context())
 
@@ -10161,7 +11873,17 @@ def create_app():
         ctx["billing"] = get_billing_data(ctx["account"])
         ctx["plan_cards"] = plans.PLANS
         ctx["user"] = user
-        ctx["webhook_live"] = stripe_billing.webhook_configured()
+        ctx["webhook_live"] = stripe_billing.webhook_accepts()
+        ctx["webhook_current"] = stripe_billing.webhook_events_current()
+        sid = request.args.get("session_id") or ""
+        if request.args.get("credits") == "1" and sid:
+            paid = stripe_billing.get_checkout_session(sid)
+            if paid and paid.get("client_reference_id") == user["id"]:
+                _claim_credit_pack(paid)
+        ctx["wallet"] = _wallet(user)
+        ctx["credit_packs"] = [(k,) + v for k, v in plans.CREDIT_PACKS.items()]
+        ctx["credit_packs_on_sale"] = plans.CREDIT_PACKS_ON_SALE
+        ctx["credit_history"] = store.credit_history(user["id"], 12)
         return render_template("billing.html", active_page="billing", **ctx)
 
     _TEAM_ROLES = ("manager", "accountant", "publicist", "attorney", "assistant")
@@ -10171,24 +11893,88 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        plan = user.get("plan") or "artist"
+        owner = _is_owner_email(user.get("email"))
+        seats = None if owner else plans.team_seats(plan)
+        page = max(0, int(request.args.get("older") or 0)) if (request.args.get("older") or "").isdigit() else 0
+        members = store.list_team(user["id"])
+        for m in members:
+            m["rooms_label"] = team_areas.describe(m.get("areas"))
+            m["rooms_set"] = team_areas.parse(m.get("areas"))
         return render_template("team.html", active_page="team",
-                               members=store.list_team(user["id"]),
+                               members=members,
+                               room_choices=[(k, team_areas.LABELS[k]) for k in team_areas.keys()],
+                               # The platform owner's account is never opened
+                               # from a Portal, so its page says so (review).
+                               team_opens=not owner,
+                               audit_page=page, audit_older=len(store.list_team_audit(user["id"], 1, (page + 1) * 25)) > 0,
                                roles=_TEAM_ROLES,
                                email_configured=emailer.configured(),
+                               seats_total=seats, seats_used=store.count_team_seats(user["id"]),
+                               can_grant_edit=owner or plans.team_can_edit(plan),
+                               can_grant_roster=owner or plans.team_can_roster(plan),
+                               audit=store.list_team_audit(user["id"], 25, page * 25),
                                **build_dashboard_context())
+
+    @app.route("/team/<member_id>/access", methods=["POST"])
+    def team_member_access(member_id):
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        plan = user.get("plan") or "artist"
+        owner = _is_owner_email(user.get("email"))
+        access = "edit" if (request.form.get("access") == "edit"
+                            and (owner or plans.team_can_edit(plan))) else "read"
+        roster = (request.form.get("can_roster") == "1" and access == "edit"
+                  and (owner or plans.team_can_roster(plan)))
+        # The Team page's form says it carries the room boxes; a request
+        # without them changes access and leaves the rooms as they are.
+        areas = (team_areas.from_form(request.form.getlist("areas"))
+                 if request.form.get("areas_sent") else None)
+        if areas == "":
+            return redirect("/team?rooms=none")
+        store.set_team_access(user["id"], member_id, access, roster, areas)
+        return redirect("/team")
 
     @app.route("/team/invite", methods=["POST"])
     def team_invite():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in first."}), 401
+        if not _may_seat(user, "team"):
+            return jsonify({"ok": False, "error": _NO_SEAT["team"]}), 402
         email = (request.form.get("email") or "").strip().lower()
         role = request.form.get("role") or "manager"
+        plan = user.get("plan") or "artist"
+        owner = _is_owner_email(user.get("email"))
+        seats = None if owner else plans.team_seats(plan)
+        if seats is not None and store.count_team_seats(user["id"]) >= seats:
+            return jsonify({"ok": False, "error": (
+                "Your %s membership includes %d team seat%s, and they are all taken. "
+                "Remove someone, or move up a plan for more." % (
+                    plans.PLAN_NAMES.get(plan, plan), seats, "" if seats == 1 else "s"))}), 402
+        access = "edit" if (request.form.get("access") == "edit"
+                            and (owner or plans.team_can_edit(plan))) else "read"
+        can_roster = (request.form.get("can_roster") == "1" and access == "edit"
+                      and (owner or plans.team_can_roster(plan)))
         if "@" not in email or role not in _TEAM_ROLES:
             return jsonify({"ok": False, "error": "Enter a valid email and pick a role."}), 400
         if email == user["email"]:
             return jsonify({"ok": False, "error": "That's you — no invite needed."}), 400
-        invite = store.add_team_invite(user["id"], email, role)
+        # From the Team page the rooms are whatever was ticked, and none is
+        # refused. An invite made any other way opens every room, which is
+        # what a seat opened before rooms existed (owner, 2026-09-19).
+        areas = (team_areas.from_form(request.form.getlist("areas"))
+                 if request.form.get("areas_sent") else team_areas.ALL)
+        if not areas:
+            return jsonify({"ok": False, "error": "Tick at least one room they can open."}), 400
+        invite = store.add_team_invite(user["id"], email, role, access, can_roster, areas,
+                                       limit=seats)
+        if invite == "full":
+            return jsonify({"ok": False, "error": (
+                "Your %s membership includes %d team seat%s, and they are all taken. "
+                "Remove someone, or move up a plan for more." % (
+                    plans.PLAN_NAMES.get(plan, plan), seats, "" if seats == 1 else "s"))}), 402
         if invite is None:
             return jsonify({"ok": False, "error": "That email is already on your team."}), 400
         link = request.url_root.rstrip("/") + "/team/join/" + invite["invite_token"]
@@ -10214,8 +12000,24 @@ def create_app():
         if request.method == "POST":
             existing = store.get_user_by_email(invite["email"])
             if existing:
+                ok, why = _join_existing_ok(existing)
+                if not ok:
+                    return render_template("team_join.html", invalid=False,
+                                           invite=invite, has_account=True,
+                                           signed_in_as_invitee=False, error=why), 403
                 member_id = existing["id"]
             else:
+                if not _signup_open():
+                    return render_template("team_join.html", invalid=False, invite=invite,
+                                           has_account=False, closed=True,
+                                           error=_MEMBER_LINK_SHUT), 403
+                # Same rule as the roster door: with sign-up open the
+                # invitation authorises the account, and the account that
+                # issued it must still be allowed to.
+                inviter = store.get_user(invite["owner_id"])
+                if not _may_seat(inviter, "team"):
+                    return render_template("team_join.html", invalid=False,
+                                           invite=invite, error=_INVITE_ONLY), 403
                 name = (request.form.get("name") or "").strip()
                 password = request.form.get("password") or ""
                 if not name or len(password) < 6:
@@ -10233,14 +12035,20 @@ def create_app():
             return redirect("/command-center")
         return render_template("team_join.html", invalid=False, invite=invite,
                                has_account=store.get_user_by_email(invite["email"]) is not None,
-                               error=None)
+                               signed_in_as_invitee=_signed_in_as(invite["email"]),
+                               closed=not _signup_open(), error=None)
 
     @app.route("/team/<member_id>/remove", methods=["POST"])
     def team_remove(member_id):
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        return jsonify({"ok": store.remove_team_member(user["id"], member_id)})
+        ok = store.remove_team_member(user["id"], member_id)
+        if ok:
+            # Whoever leaves may have seen the drop-box address: it changes,
+            # so what they saw stops working (team review, 2026-09-19).
+            store.rotate_ingest_token(user["id"])
+        return jsonify({"ok": ok})
 
     @app.route("/onboarding")
     def onboarding():
@@ -10551,6 +12359,11 @@ def create_app():
         return jsonify({"ok": ok})
 
     def _backup_allowed(user):
+        if session.get("team_as") or session.get("acting_as"):
+            return False
+        return _backup_allowed_for(user)
+
+    def _backup_allowed_for(user):
         """Full-database export: owners only.
 
         This zip is every account on the deployment - names, email
@@ -10590,6 +12403,7 @@ def create_app():
     def settings():
         user = current_user()
         return render_template("settings.html", active_page="settings",
+                               home_split=split_home.enabled(),
                                notification_kinds=store.NOTIFICATION_KINDS,
                                muted_kinds=(store.muted_kinds(user["id"]) if user else set()),
                                can_backup=_backup_allowed(current_user()),
@@ -10598,6 +12412,14 @@ def create_app():
                                deleted=request.args.get("deleted"),
                                reset=request.args.get("reset"),
                                granted=request.args.get("granted"),
+                               invited=request.args.get("invited"),
+                               signup_open=_signup_open(),
+                               **_accounts_panel(user),
+                               account_msg=request.args.get("account"),
+                               cleared=request.args.get("cleared"),
+                               signup_invites=([dict(i, link=public_url("/signup?invite=" + i["token"]))
+                                                for i in store.list_signup_invites()]
+                                               if user and _is_owner_email(user.get("email")) else []),
                                granted_to=request.args.get("to"),
                                granted_mail=request.args.get("emailed"),
                                granted_why=request.args.get("why"),
@@ -10611,6 +12433,10 @@ def create_app():
                                demo_locked_accounts=(store.list_demo_locked()
                                                      if user and _is_owner_email(user.get("email")) else []),
                                is_owner=bool(user and _is_owner_email(user.get("email"))),
+                               online_sales_on=sales_switch.is_on(),
+                               soundcharts_month=(soundcharts_budget.summary()
+                                                  if user and _is_owner_email(user.get("email")) else None),
+                               online_sales_contact=sales_switch.CONTACT,
                                **build_dashboard_context())
 
     def _page_groups():
@@ -10656,6 +12482,134 @@ def create_app():
                     pass
         return redirect("/settings?reset=1#start-over")
 
+    @app.route("/admin/soundcharts-budget", methods=["POST"])
+    def admin_soundcharts_budget():
+        """The owner sets this month's Soundcharts allowance (the plan's
+        monthly calls). Owner only; a 404 for everyone else."""
+        user, deny = _owner_or_404()
+        if deny:
+            return deny
+        try:
+            soundcharts_budget.set_budget(int((request.form.get("budget") or "").replace(",", "")))
+        except ValueError:
+            return redirect("/settings?soundcharts=bad#soundcharts")
+        return redirect("/settings?soundcharts=saved#soundcharts")
+
+    @app.route("/admin/online-sales", methods=["POST"])
+    def admin_online_sales():
+        """The owner's switch for online VIP packages and paid fan club
+        joins (sales_switch). Owner only; a 404 for everyone else."""
+        user, deny = _owner_or_404()
+        if deny:
+            return deny
+        sales_switch.set_on(request.form.get("on") == "1")
+        return redirect("/settings#online-sales")
+
+    @app.route("/admin/invite", methods=["POST"])
+    def admin_invite():
+        """The owner gives somebody an account: an invitation link for one
+        address on one plan, good for one use. Owner only, 404 to the rest."""
+        user, bail = _owner_or_404()
+        if bail:
+            return bail
+        email = (request.form.get("email") or "").strip().lower()
+        plan = (request.form.get("plan") or "artist").strip().lower()
+        if "@" not in email or plan not in plans.TIER_RANK:
+            return redirect("/settings?invited=bad#invite-someone")
+        if store.get_user_by_email(email) is not None:
+            return redirect("/settings?invited=exists#invite-someone")
+        store.add_signup_invite(email, plan, user["id"],
+                                guest_hours=72 if request.form.get("guest") else 0)
+        return redirect("/settings?invited=ok#invite-someone")
+
+    def _clearable_fan_accounts(scope, rows=None):
+        """The Fan accounts a bulk clear-out may take, and the ones it holds
+        back. Held back always: the owner, the shared demo logins, an account
+        a partner owns, and anyone who has paid for anything. A bulk button
+        must never be able to reach somebody's paid account; those are dealt
+        with one at a time or not at all."""
+        go, held = [], []
+        for a in (rows if rows is not None else store.list_accounts()):
+            if (a.get("plan") or "") != "fan":
+                continue
+            if (_is_owner_email(a.get("email")) or _is_demo_email(a.get("email") or "")
+                    or a.get("partner_id") or a.get("has_paid")):
+                held.append(a)
+                continue
+            if scope == "never" and not a.get("never_returned"):
+                continue
+            go.append(a)
+        return go, held
+
+    def _accounts_panel(user):
+        """Everything the owner's Accounts panel shows, or nothing at all.
+
+        Hundreds of Fan accounts registered themselves while sign-up was open
+        (owner, 2026-09-17), so the panel has to say when each one arrived and
+        whether it ever came back: that is what separates a fan from a script.
+        """
+        if not (user and _is_owner_email(user.get("email"))):
+            return {"all_accounts": [], "account_counts": {}, "clear_counts": {},
+                    "plan_filter": ""}
+        rows, counts = [], {}
+        for a in store.list_accounts():
+            plan = a.get("plan") or "artist"
+            counts[plan] = counts.get(plan, 0) + 1
+            rows.append(dict(a, shut=store.account_shut(a),
+                             is_owner_row=bool(_is_owner_email(a.get("email"))),
+                             is_demo_row=bool(_is_demo_email(a.get("email") or ""))))
+        counts["all"] = len(rows)
+        never, held = _clearable_fan_accounts("never", rows)
+        every, _ = _clearable_fan_accounts("all", rows)
+        keep = (request.args.get("plan") or "").strip().lower()
+        if keep in plans.TIER_RANK:
+            rows = [r for r in rows if (r.get("plan") or "artist") == keep]
+        return {"all_accounts": rows, "account_counts": counts, "plan_filter": keep,
+                "clear_counts": {"never": len(never), "all": len(every), "held": len(held)}}
+
+    @app.route("/admin/accounts/clear", methods=["POST"])
+    def admin_accounts_clear():
+        """Clear out the Fan accounts that registered themselves while sign-up
+        was open. The owner presses it, the word is typed rather than clicked,
+        and the count is on the page before the press. Everything a cleared
+        account owned goes with it, in one transaction each."""
+        user, bail = _owner_or_404()
+        if bail:
+            return bail
+        scope = request.form.get("scope") or ""
+        if scope not in ("never", "all"):
+            return redirect("/settings?cleared=bad#accounts")
+        if (request.form.get("confirm") or "").strip() != "DELETE":
+            return redirect("/settings?cleared=unconfirmed#accounts")
+        go, _held = _clearable_fan_accounts(scope)
+        for row in go:
+            store.delete_user_everything(row["id"])
+        return redirect("/settings?cleared=%d#accounts" % len(go))
+
+    @app.route("/admin/account", methods=["POST"])
+    def admin_account():
+        """The owner's door on any account: lock, unlock, give a guest 72 more
+        hours, or make a guest permanent. Nothing here deletes anything."""
+        user, bail = _owner_or_404()
+        if bail:
+            return bail
+        target = store.get_user(request.form.get("user_id") or "")
+        action = request.form.get("action") or ""
+        if target is None or _is_owner_email(target.get("email")):
+            return redirect("/settings?account=unknown#accounts")
+        if action == "lock":
+            store.set_account_locked(target["id"], True)
+        elif action == "unlock":
+            store.set_account_locked(target["id"], False)
+        elif action == "extend":
+            store.set_access_ends(target["id"], (datetime.now(timezone.utc) + timedelta(hours=72))
+                                  .isoformat(timespec="seconds"))
+        elif action == "permanent":
+            store.set_access_ends(target["id"], None)
+        else:
+            return redirect("/settings?account=unknown#accounts")
+        return redirect("/settings?account=%s#accounts" % action)
+
     @app.route("/admin/plan", methods=["POST"])
     def admin_plan():
         """An owner sets the plan on any account by address.
@@ -10675,6 +12629,11 @@ def create_app():
         if plan not in plans.TIER_RANK:
             return redirect("/settings?granted=badplan#grant-plan")
         store.set_user_plan(target["id"], plan)
+        # A paid tier granted by hand holds: renewals and plan changes in
+        # Stripe no longer move it (2026-09-19 second review). Granting a
+        # free tier hands the account back to its subscription.
+        store.set_kv(_plan_grant_key(target["id"]),
+                     plan if plan in stripe_billing.PRICES else "")
         # The account is told twice: a notification inside the app, and
         # an email (owner, 2026-09-14: "we do need it to send a email
         # saying they have access now to a plan"). The page reports what
@@ -10792,6 +12751,11 @@ def create_app():
             return redirect("/settings?deleted=billing#delete-account")
 
         keys = store.stored_keys_for_user(user["id"])
+        if user.get("referred_by") or user.get("stripe_customer_id"):
+            # Deleting and signing up again must not earn the referral's 50%
+            # and the referrer's credit a second time (2026-09-19 second
+            # review). Only a hash of the address is kept.
+            store.set_kv(_ref_spent_key(user.get("email")), "1")
         store.delete_user_everything(user["id"])
         session.clear()
         if keys and blob_store.configured():

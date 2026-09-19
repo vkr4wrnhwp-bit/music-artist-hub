@@ -1,0 +1,68 @@
+{# The door. Section 1 of the split home page.
+
+   Rebuilt three times. The first version was a headline and a form on a
+   flat band, which made the front door the plainest screen in the
+   product. The second put the owner's crowd photograph behind everything,
+   which he had generated for the sidebar and had not agreed to here. The
+   third stood a tall billboard BESIDE the sign-in.
+
+   This one is his call from 2026-09-18: "the hero image needs to be much
+   bigger and overlay the text on it with the sign up". The picture is his
+   wide billboard, and it fills the whole door. The billboard itself sits
+   centre-right, so the words and the sign-in go bottom LEFT, over the man
+   walking in the foreground, where they cover street and not the poster.
+
+   And the sign-in is not a box any more: "login doesn't have to be a big
+   box like that. It can just be a few, you know, bars across the bottom
+   of it". Email, password and the button in one row, the remember line
+   under them. The labels stay in the markup for screen readers; the page
+   only hides them from sight (split-home.css).
+
+   The form is partials/login_session_recall.html, the same one /login
+   serves: same field names, ids, autocomplete tokens, password toggle and
+   saved-session script. lsr_slim only swaps the placeholders, because with
+   the labels out of sight the fields have to say what they are.
+
+   The stages rail that used to sit under this is gone. The owner: "you
+   have 8 bullets made like the 8 suite names this makes no sense". #}
+
+{% set sh = split_home %}
+<section class="sbdoor" aria-labelledby="sbdoor-h">
+  <div class="sbdoor-inner">
+
+    <figure class="sbdoor-poster">
+      {#- One photograph at three widths. A phone's banner is 350px tall and
+          cover-cropped, so it draws the picture about 622px wide; a desktop
+          draws it at the door's full width or wider. -#}
+      <img src="/static/img/door-billboard-wide.webp"
+           srcset="/static/img/door-billboard-wide-800.webp 800w, /static/img/door-billboard-wide-1280.webp 1280w, /static/img/door-billboard-wide.webp 1672w"
+           sizes="(max-width: 899px) 622px, max(100vw, 178vh)"
+           alt="A wide Street Banker Suite billboard on a brick wall beside a wet New York street at night, the Empire State Building lit down the avenue to the left. The billboard carries the wordmark, the eight suite marks and the line More artists. A brighter tomorrow, with a lone figure carrying a guitar case walking into a lit doorway. People with umbrellas pass in the rain."
+           width="1672" height="941" fetchpriority="high" decoding="async">
+    </figure>
+
+    <div class="sbdoor-side">
+      <div class="sbdoor-words">
+        <p class="sbdoor-eyebrow"><i aria-hidden="true"></i>{{ sh.hero.eyebrow }}</p>
+        <h1 class="sbdoor-h" id="sbdoor-h">{{ sh.hero.headline }}</h1>
+        <p class="sbdoor-lede">{{ sh.hero.lede }}</p>
+      </div>
+
+      <div class="sbdoor-form">
+        {% with lsr_slim = true %}{% include "partials/login_session_recall.html" %}{% endwith %}
+        <p class="sbdoor-fine">
+          {%- if sh.signup_open %}
+          <strong>{{ sh.hero.open }}</strong>
+          <a href="{{ sh.hero.open_link[1] }}">{{ sh.hero.open_link[0] }}</a>
+          {%- else %}
+          {#- Sign-up creates nothing until the owner opens it, so the line
+              says invitation rather than inviting somebody to fill in a form
+              that will refuse them. -#}
+          <strong>{{ sh.hero.closed }}</strong>
+          <a href="{{ sh.hero.closed_link[1] }}">{{ sh.hero.closed_link[0] }}</a>
+          {%- endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+</section>

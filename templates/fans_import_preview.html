@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Import preview - Royalty Sweep{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/fans-audience.css?v=3">
+  <link rel="stylesheet" href="/static/css/fans-first-run.css?v=2">
+{% endblock %}
+
+{#- THE IMPORT PREVIEW (2026-09-18). Both import forms (the first-run page and
+    the Fan CRM tab) come here, so there is one path in. Everything on this
+    page is read from the draft in db.fan_import_drafts; no fan has been
+    written. "Confirm and import" files exactly these rows, once; "Cancel"
+    throws the draft away. The counts add up to the rows read, and where they
+    do not the page says so instead of showing the number. -#}
+
+{% block content %}
+<div class="au mx-auto max-w-[1200px]" data-no-collapse>
+  {% set au_no_import = true %}
+  {% include "partials/fans_head.html" %}
+
+  <div class="fr">
+    <section class="fr-prev-head" aria-labelledby="fr-prev-h">
+      <p class="fr-eyebrow">Fans <span>/ import preview</span></p>
+      <h2 class="fr-hero-title" id="fr-prev-h">Here is what this list would do. Nothing is added yet.</h2>
+      <p class="fr-hero-sub">Read from <b>{{ draft.source }}</b>: {{ "{:,}".format(s.read) }} {{ "row" if s.read == 1 else "rows" }}. Confirm to file the ones below, or cancel and nothing changes.</p>
+    </section>
+    <div class="fr-meta">
+      <div class="fr-meta-cell"><span class="fr-meta-k">Will come in</span><span class="fr-meta-v big gold" data-fr-prev="new">{{ "{:,}".format(s.new) }}</span></div>
+      <div class="fr-meta-cell"><span class="fr-meta-k">Already on file</span><span class="fr-meta-v big" data-fr-prev="already">{{ "{:,}".format(s.already_here) }}</span></div>
+      <div class="fr-meta-cell"><span class="fr-meta-k">Left out</span><span class="fr-meta-v big" data-fr-prev="skipped">{{ "{:,}".format(s.skipped) }}</span></div>
+      <div class="fr-meta-cell"><span class="fr-meta-k">Carry a location</span>
+        {% if s.has_location %}
+        <span class="fr-meta-v big" data-fr-prev="located">{{ "{:,}".format(s.located) }} <small>of {{ "{:,}".format(s.new + s.already_here) }}</small></span>
+        {% else %}
+        <span class="fr-meta-v" data-fr-prev="located">None in this file</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="fr-grid">
+      <section class="fr-card" aria-labelledby="fr-ledger-h">
+        <div class="fr-alt-head"><h3 class="fr-h3" id="fr-ledger-h">Every row, accounted for</h3><span class="fr-tag">Adds up to the rows read</span></div>
+        {% if s.adds_up %}
+        <ul class="fr-ledger">
+          <li class="in"><span>Will come in as new fans</span><span class="n">{{ "{:,}".format(s.new) }}</span></li>
+          <li><span>Already on file, left as they are</span><span class="n">{{ "{:,}".format(s.already_here) }}</span></li>
+          {% if places_to_fill %}
+          <li class="sub"><span>Of those, a missing city or country filled in from the file. A place a record already holds is kept.</span><span class="n">{{ "{:,}".format(places_to_fill) }}</span></li>
+          {% endif %}
+          <li><span>Left out</span><span class="n">{{ "{:,}".format(s.skipped) }}</span></li>
+          {% for why, n in s.reasons.items() %}
+          <li class="sub"><span>{{ why[:1]|upper }}{{ why[1:] }}</span><span class="n">{{ "{:,}".format(n) }}</span></li>
+          {% else %}
+          <li class="sub none"><span>No row was left out</span><span class="n"></span></li>
+          {% endfor %}
+          <li class="total"><span>Rows read</span><span class="n">{{ "{:,}".format(s.read) }}</span></li>
+        </ul>
+        {% else %}
+        <p class="fr-alert" role="alert">These counts do not add up to the {{ "{:,}".format(s.read) }} rows read, so they are not shown. That is a bug, not a rounding error; tell Street Banker, and do not confirm this list.</p>
+        {% endif %}
+        {% if s.truncated %}
+        <p class="fr-alert" role="alert">The file was longer than the limit and was cut off after {{ "{:,}".format(s.read) }} rows. Only those are in this preview. Split the file and run the rest after.</p>
+        {% endif %}
+        {% if not s.has_status_column %}
+        <p class="fr-help">This file carried no subscribed or unsubscribed column, so nothing in it was left out for consent. Your word below is the only record.</p>
+        {% endif %}
+      </section>
+
+      <section class="fr-card" aria-labelledby="fr-sample-h">
+        <div class="fr-alt-head"><h3 class="fr-h3" id="fr-sample-h">A few of the rows</h3><span class="fr-tag">Addresses masked</span></div>
+        {% if sample %}
+        <table class="fr-sample">
+          <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Place</th></tr></thead>
+          <tbody>
+            {% for row in sample %}
+            <tr>
+              <td class="{{ 'dim' if not row.name }}">{{ row.name or "No name" }}{% if not row.new %} <span class="fr-tag">On file</span>{% endif %}</td>
+              <td>{{ row.email }}</td>
+              {% set place = [row.city, row.country]|select|join(", ") %}
+              <td class="{{ 'dim' if not place }}">{{ place or "Not in the file" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="fr-help">A place is shown exactly as the file gave it. A row that shows Not in the file lands under Unknown on the map; nothing is guessed from an address.</p>
+        {% else %}
+        <p class="fr-help">No row in this list can come in, so there is nothing to show.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <section class="fr-card fr-confirm" aria-labelledby="fr-confirm-h">
+      <h3 class="fr-h3" id="fr-confirm-h">Written on every new record</h3>
+      <p class="fr-quote">{{ consent_line }}</p>
+      <div class="fr-actions">
+        {% if s.adds_up and (s.new or places_to_fill) %}
+        <form method="post" action="/fans/import/confirm">
+          <input type="hidden" name="draft_id" value="{{ draft.id }}">
+          <button class="fr-btn fr-btn--primary" type="submit">{% if s.new %}Confirm and import {{ "{:,}".format(s.new) }}{% else %}Confirm: fill in {{ "{:,}".format(places_to_fill) }} missing {{ "place" if places_to_fill == 1 else "places" }}{% endif %}</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/fans/import/cancel">
+          <input type="hidden" name="draft_id" value="{{ draft.id }}">
+          <button class="fr-btn fr-btn--ghost" type="submit">Cancel</button>
+        </form>
+        <span class="fr-actions-note">{% if s.adds_up and (s.new or places_to_fill) %}Confirm files these rows and nothing else. Cancel throws this preview away; nothing has been written.{% else %}Nothing in this list would change your records. Cancel throws this preview away.{% endif %} It keeps until {{ draft.expires[:16]|replace("T", " ") }} UTC.</span>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

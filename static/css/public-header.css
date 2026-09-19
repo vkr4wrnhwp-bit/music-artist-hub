@@ -89,6 +89,23 @@
 @media (min-width: 1024px) { .sbh-nav { display: flex; } }
 @media (min-width: 1180px) { .sbh-nav { gap: 30px; } }
 
+/* Between 1024 and 1180 the bar carried the logo, the whole menu, Log in
+   and the call to action, and ran out of room: Log in wrapped under itself
+   and the button sat against the edge of the window (outside audit,
+   2026-09-17). Nothing wraps in a header bar, and the row keeps its
+   breathing room at the edge instead. */
+.sbh-inner { flex-wrap: nowrap; }
+.sbh-right { flex-wrap: nowrap; }
+.sbh-login { white-space: nowrap; }
+.sbh-cta { white-space: nowrap; }
+@media (min-width: 1024px) and (max-width: 1179px) {
+  .sbh-inner { gap: 16px; padding: 0 20px; }
+  .sbh-nav { gap: 16px; }
+  .sbh-right { gap: 14px; }
+  .sbh-logo { width: 150px; }
+  .sbh-cta { padding: 0 13px; letter-spacing: 0.06em; }
+}
+
 .sbh-link {
   position: relative;
   font-size: 12px;

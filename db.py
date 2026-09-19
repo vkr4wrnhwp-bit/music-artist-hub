@@ -512,6 +512,28 @@ def init_db():
                 cursor TEXT NOT NULL DEFAULT '',
                 created TEXT NOT NULL
             );
+            -- A read list waiting for the artist to confirm it (2026-09-18).
+            -- "Preview the import" parks the parsed rows here and writes no
+            -- fan; "Confirm and import" claims the row and files exactly
+            -- what it holds. One live draft per user. Unusable after 24
+            -- hours, and deleted by the next read or write of any draft
+            -- (get, claim, put all purge expired rows), so a list of other
+            -- people's addresses does not sit on disk or in the nightly
+            -- backup for longer than it has to.
+            -- Held server-side, never in the cookie: 50,000 rows do not fit
+            -- in one, and a cookie is the visitor's to edit.
+            CREATE TABLE IF NOT EXISTS fan_import_drafts (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                origin TEXT NOT NULL DEFAULT 'fans',
+                source TEXT NOT NULL DEFAULT '',
+                has_status_column INTEGER NOT NULL DEFAULT 0,
+                summary TEXT NOT NULL DEFAULT '{}',
+                rows TEXT NOT NULL DEFAULT '[]',
+                created TEXT NOT NULL,
+                expires TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_fan_import_drafts_user ON fan_import_drafts(user_id);
             CREATE TABLE IF NOT EXISTS ingest_tokens (
                 user_id TEXT PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
@@ -941,6 +963,25 @@ def init_db():
             );
             """
         )
+        # Migration: what a team seat may do (owner, 2026-09-19). 'read' looks,
+        # 'edit' works inside the artist's account; can_roster lets an editor
+        # on a Label manage the roster; areas are the rooms it may open ('all',
+        # or room keys: team_areas.py). A seat that existed before this was
+        # invited under "your role decides what you see", so it starts
+        # 'pending' and opens nothing until the artist confirms it (review,
+        # 2026-09-19). Every invite since writes its access explicitly.
+        for _col, _decl in (("access", "TEXT NOT NULL DEFAULT 'pending'"),
+                            ("can_roster", "INTEGER NOT NULL DEFAULT 0"),
+                            ("areas", "TEXT NOT NULL DEFAULT 'all'")):
+            try:
+                db.execute("ALTER TABLE team_members ADD COLUMN %s %s" % (_col, _decl))
+            except sqlite3.OperationalError:
+                pass  # column already exists
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS team_audit ("
+            " id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL,"
+            " member_user_id TEXT NOT NULL, member_name TEXT NOT NULL DEFAULT '',"
+            " method TEXT NOT NULL, path TEXT NOT NULL, created TEXT NOT NULL)")
         # Migration: Stripe billing identifiers on users.
         for _col in ("stripe_customer_id", "stripe_subscription_id"):
             try:
@@ -1021,6 +1062,26 @@ def init_db():
             db.execute("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'artist'")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: where a fan is, and whether they may be contacted.
+        #
+        # An imported list is the reason both exist (owner, 2026-09-18:
+        # sort fans by region, and act on a region). Region is READ from
+        # the file and left blank when the file does not carry it - never
+        # guessed from an email domain, which is how a list acquires
+        # confident nonsense. A fan with no country is not dropped from
+        # every group; they are Unknown, and Unknown is selectable.
+        #
+        # `suppressed` holds a REASON rather than a flag, because "why is
+        # this person not being emailed" is the question anyone actually
+        # asks. Empty means contactable.
+        for _col in ("country TEXT NOT NULL DEFAULT ''",
+                     "city TEXT NOT NULL DEFAULT ''",
+                     "suppressed TEXT NOT NULL DEFAULT ''",
+                     "suppressed_at TEXT NOT NULL DEFAULT ''"):
+            try:
+                db.execute("ALTER TABLE ml_fans ADD COLUMN %s" % _col)
+            except sqlite3.OperationalError:
+                pass  # column already exists
         # Migration: referral engine columns on users.
         for _col in ("ref_code TEXT", "referred_by TEXT",
                      "ref_credited INTEGER NOT NULL DEFAULT 0"):
@@ -1052,6 +1113,15 @@ def init_db():
             db.execute("ALTER TABLE users ADD COLUMN demo_lock INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: the owner's door on an account (2026-09-17). `locked`
+        # is the owner's switch; `access_ends` is a guest pass running out.
+        # Either one shuts the account off. Neither deletes anything.
+        for ddl in ("ALTER TABLE users ADD COLUMN locked INTEGER NOT NULL DEFAULT 0",
+                    "ALTER TABLE users ADD COLUMN access_ends TEXT"):
+            try:
+                db.execute(ddl)
+            except sqlite3.OperationalError:
+                pass  # column already exists
         # Migration: which recording a document belongs to. Coverage per
         # song was previously read from a hardcoded presence map, so it
         # could never reflect an upload; the vault now needs somewhere to
@@ -1237,8 +1307,68 @@ def init_db():
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS recovery_cases_live_finding"
                    " ON recovery_cases (user_id, finding_key)"
                    " WHERE finding_key <> '' AND closed_at IS NULL")
+        _migrate_collab_profiles(db)
     link_song_tables()
     link_document_store()
+
+
+def _migrate_collab_profiles(db):
+    """Collaborator profiles (owner brief PROFILES-SPEC.md, 2026-09-18).
+
+    Additive only: two new tables, one small last-seen table, and guarded
+    columns on the two collab tables. Every existing row keeps its meaning:
+    a brief with no location or budget says "Not stated", a reply is not
+    chosen until its poster marks it, and nobody is listed until they
+    switch "List me in the marketplace" on themselves (listed DEFAULT 0).
+    """
+    db.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS collab_profiles (
+            user_id TEXT PRIMARY KEY,
+            listed INTEGER NOT NULL DEFAULT 0,
+            roles TEXT NOT NULL DEFAULT '[]',
+            genres TEXT NOT NULL DEFAULT '[]',
+            city TEXT NOT NULL DEFAULT '',
+            country TEXT NOT NULL DEFAULT '',
+            remote_ok INTEGER NOT NULL DEFAULT 0,
+            rate_min INTEGER,
+            rate_max INTEGER,
+            rate_unit TEXT NOT NULL DEFAULT '',
+            currency TEXT NOT NULL DEFAULT 'USD',
+            availability TEXT NOT NULL DEFAULT '',
+            available_from TEXT NOT NULL DEFAULT '',
+            credits TEXT NOT NULL DEFAULT '',
+            links TEXT NOT NULL DEFAULT '[]',
+            bio TEXT NOT NULL DEFAULT '',
+            created TEXT NOT NULL,
+            updated TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS collab_ratings (
+            id TEXT PRIMARY KEY,
+            request_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            ratee_id TEXT NOT NULL,
+            stars INTEGER NOT NULL,
+            note TEXT NOT NULL DEFAULT '',
+            created TEXT NOT NULL,
+            UNIQUE (request_id, user_id, ratee_id)
+        );
+        CREATE TABLE IF NOT EXISTS collab_seen (
+            user_id TEXT PRIMARY KEY,
+            matches_seen TEXT NOT NULL DEFAULT ''
+        );
+        """)
+    for table, ddl in (
+            ("collab_replies", "chosen INTEGER NOT NULL DEFAULT 0"),
+            ("collab_requests", "city TEXT NOT NULL DEFAULT ''"),
+            ("collab_requests", "country TEXT NOT NULL DEFAULT ''"),
+            ("collab_requests", "remote_ok INTEGER NOT NULL DEFAULT 0"),
+            ("collab_requests", "budget_min INTEGER"),
+            ("collab_requests", "budget_max INTEGER")):
+        try:
+            db.execute("ALTER TABLE %s ADD COLUMN %s" % (table, ddl))
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def _now():
@@ -1279,6 +1409,16 @@ def set_user_name(user_id, name):
 def set_user_plan(user_id, plan):
     with get_db() as db:
         db.execute("UPDATE users SET plan = ? WHERE id = ?", (plan, user_id))
+        # A team seat's grants follow the plan that allows them, here where
+        # every plan change passes: a downgrade takes edit and the roster
+        # away for good, rather than hiding them until an upgrade quietly
+        # brings them back (team review, 2026-09-19).
+        if plan not in ("pro", "label"):
+            db.execute("UPDATE team_members SET access = 'read', can_roster = 0 "
+                       "WHERE owner_id = ? AND (access = 'edit' OR can_roster = 1)", (user_id,))
+        elif plan != "label":
+            db.execute("UPDATE team_members SET can_roster = 0 WHERE owner_id = ? AND can_roster = 1",
+                       (user_id,))
 
 
 def set_stripe_ids(user_id, customer_id, subscription_id):
@@ -1312,6 +1452,51 @@ def get_user(user_id):
     with get_db() as db:
         row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     return dict(row) if row else None
+
+
+def set_account_locked(user_id, on):
+    with get_db() as db:
+        db.execute("UPDATE users SET locked = ? WHERE id = ?", (1 if on else 0, user_id))
+
+
+def set_access_ends(user_id, when_iso):
+    """When this account's guest pass runs out (ISO, UTC), or None for an
+    account with no end."""
+    with get_db() as db:
+        db.execute("UPDATE users SET access_ends = ? WHERE id = ?", (when_iso, user_id))
+
+
+def account_shut(user, now=None):
+    """Why this account is shut off: "locked", "ended", or "" when it is
+    open. Shut off is not deleted: everything in the account stays."""
+    if not user:
+        return ""
+    if user.get("locked"):
+        return "locked"
+    ends = user.get("access_ends") or ""
+    now = now or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return "ended" if ends and ends <= now else ""
+
+
+def list_accounts():
+    """Every account, newest first, for the owner's panel. No password hash."""
+    with get_db() as db:
+        rows = db.execute("SELECT id, email, name, plan, created, last_seen, locked, access_ends, "
+                          "partner_id, stripe_customer_id FROM users ORDER BY created DESC").fetchall()
+        paying = {r["member_email"] for r in db.execute(
+            "SELECT member_email FROM club_members WHERE status = 'active'").fetchall()}
+    out = []
+    for r in rows:
+        row = dict(r)
+        # "Never came back": signed in no later than the hour it was made, or
+        # never at all. That is the shape a script leaves behind; a person
+        # who came back the next day does not look like this.
+        seen, made = (row.get("last_seen") or ""), (row.get("created") or "")
+        row["never_returned"] = (not seen) or (seen[:13] <= made[:13])
+        row["has_paid"] = bool(row.get("stripe_customer_id")
+                               or (row.get("email") or "").lower() in paying)
+        out.append(row)
+    return out
 
 
 def set_demo_lock(user_id, on):
@@ -1495,6 +1680,23 @@ def get_gap_checks(user_id):
             result = {}
         out[r["track_key"]] = {"isrc": r["isrc"], "checked": r["checked"], "result": result}
     return out
+
+
+def statement_titles(user_id, limit=500):
+    """The recordings this account's own statements name, deduplicated.
+
+    An account can hold tens of thousands of statement rows and still be
+    asked to "add a track", because the checklist read the passports table
+    and nothing else (Codex audit, 2026-09-17). The app already knows these
+    songs exist; it just had not been asked.
+    """
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT DISTINCT r.title FROM statement_rows r "
+            "JOIN statements s ON s.id = r.statement_id "
+            "WHERE s.user_id = ? AND r.title IS NOT NULL AND TRIM(r.title) != '' "
+            "LIMIT ?", (user_id, limit)).fetchall()
+    return [r["title"].strip() for r in rows]
 
 
 def get_statement_rows(user_id, statement_id=None):
@@ -1808,6 +2010,19 @@ def set_kv(key, value):
             "INSERT INTO app_kv (key, value, updated) VALUES (?,?,?) "
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated=excluded.updated",
             (key, value, _now()))
+
+
+def kv_incr(key, by=1):
+    """Add to a counter kept in app_kv, in one statement, so two workers
+    counting at once do not lose a count. Returns the new value."""
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO app_kv (key, value, updated) VALUES (?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + ? AS TEXT), "
+            "updated = excluded.updated",
+            (key, str(int(by)), _now(), int(by)))
+        row = db.execute("SELECT value FROM app_kv WHERE key = ?", (key,)).fetchone()
+    return int(row["value"]) if row else 0
 
 
 # --- EPK profiles --------------------------------------------------------------
@@ -2719,14 +2934,21 @@ def delete_outreach(user_id, item_id):
 # --- Collaboration Marketplace ----------------------------------------------------
 
 def add_collab_request(user_id, role, genre, kind, title, details, terms,
-                       ref_url, closes):
+                       ref_url, closes, city="", country="", remote_ok=False,
+                       budget_min=None, budget_max=None):
+    """Location and budget are optional: left out, they stay unstated
+    (empty / NULL) and the board shows "Not stated", never a guess."""
     req_id = uuid.uuid4().hex
     with get_db() as db:
         db.execute(
             "INSERT INTO collab_requests (id, user_id, role, genre, kind, title,"
-            " details, terms, ref_url, closes, created) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            " details, terms, ref_url, closes, created, city, country,"
+            " remote_ok, budget_min, budget_max)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (req_id, user_id, role[:60], genre[:60], kind, title[:120],
-             details[:1000], terms[:120], ref_url[:300], closes[:10], _now()))
+             details[:1000], terms[:120], ref_url[:300], closes[:10], _now(),
+             (city or "")[:60], (country or "")[:60], 1 if remote_ok else 0,
+             budget_min, budget_max))
     return req_id
 
 
@@ -2778,6 +3000,8 @@ def delete_collab_request(user_id, req_id):
         db.execute("DELETE FROM collab_requests WHERE id = ? AND user_id = ?",
                    (req_id, user_id))
         db.execute("DELETE FROM collab_replies WHERE request_id = ?", (req_id,))
+        db.execute("DELETE FROM collab_ratings WHERE request_id = ? AND user_id = ?",
+                   (req_id, user_id))
 
 
 def add_collab_reply(req_id, user_id, message, contact, proposal, ref_url):
@@ -2815,6 +3039,236 @@ def list_collab_saves(user_id):
         rows = db.execute("SELECT request_id FROM collab_saves WHERE user_id = ?",
                           (user_id,)).fetchall()
     return {r["request_id"] for r in rows}
+
+
+# --- Collaborator profiles (PROFILES-SPEC.md) ------------------------------------
+#
+# The privacy line is `listed`: every read that can reach ANOTHER member
+# goes through list_listed_collab_profiles / get_listed_collab_profile,
+# and both filter on listed = 1 in SQL. get_collab_profile is the owner's
+# own read for the edit page and the viewer's own match basis.
+
+_PROFILE_JSON = ("roles", "genres", "links")
+
+
+def _profile_row(row):
+    d = dict(row)
+    for k in _PROFILE_JSON:
+        try:
+            d[k] = json.loads(d.get(k) or "[]")
+        except ValueError:
+            d[k] = []
+    return d
+
+
+def get_collab_profile(user_id):
+    """The owner's own record, listed or not (None when never saved)."""
+    with get_db() as db:
+        row = db.execute("SELECT * FROM collab_profiles WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    return _profile_row(row) if row else None
+
+
+def save_collab_profile(user_id, fields):
+    """Insert or replace the account's own profile. `fields` is already
+    cleaned by collab_market.clean_profile; nothing here invents a value.
+
+    Microsecond stamps: "New Matches" compares this with the viewer's
+    last look (set_collab_seen), and a save in the same second as that
+    look must still count as newer."""
+    now = _now_fine()
+    cols = ("listed", "roles", "genres", "city", "country", "remote_ok",
+            "rate_min", "rate_max", "rate_unit", "currency", "availability",
+            "available_from", "credits", "links", "bio")
+    vals = [json.dumps(fields[c]) if c in _PROFILE_JSON else fields[c]
+            for c in cols]
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO collab_profiles (user_id, %s, created, updated)"
+            " VALUES (?, %s, ?, ?) ON CONFLICT(user_id) DO UPDATE SET %s,"
+            " updated = excluded.updated"
+            % (", ".join(cols), ", ".join("?" * len(cols)),
+               ", ".join("%s = excluded.%s" % (c, c) for c in cols)),
+            [user_id] + vals + [now, now])
+
+
+def _listable_sql():
+    """The WHERE clause every read of ANOTHER member's profile shares, with
+    its arguments. Listed is not enough on its own:
+      * a showcase login (demo_accounts) or a demo-locked account is never
+        a member, so it is never listed, whatever its row says;
+      * a locked account, or a guest whose access has ended, cannot sign in
+        to switch the listing off, so it leaves the marketplace the moment
+        it is shut and comes back only if it is opened again."""
+    import demo_accounts
+    emails = sorted(demo_accounts.EMAILS)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    clause = (" p.listed = 1 AND COALESCE(u.demo_lock, 0) = 0"
+              " AND COALESCE(u.locked, 0) = 0"
+              " AND (COALESCE(u.access_ends, '') = '' OR u.access_ends > ?)"
+              " AND LOWER(u.email) NOT IN (%s)" % ",".join("?" * len(emails)))
+    return clause, [now] + emails
+
+
+def list_listed_collab_profiles(exclude_user_id=None):
+    """Every member who switched "List me in the marketplace" on and can
+    still answer (_listable_sql), with the name and EPK photo the card
+    shows. Unlisted members never leave SQL."""
+    clause, args = _listable_sql()
+    q = ("SELECT p.*, u.name AS name, e.photo AS photo FROM collab_profiles p"
+         " JOIN users u ON u.id = p.user_id"
+         " LEFT JOIN epk_profiles e ON e.user_id = p.user_id"
+         " WHERE" + clause)
+    if exclude_user_id:
+        q += " AND p.user_id <> ?"
+        args.append(exclude_user_id)
+    q += " ORDER BY p.updated DESC"
+    with get_db() as db:
+        rows = db.execute(q, args).fetchall()
+    return [_profile_row(r) for r in rows]
+
+
+def get_listed_collab_profile(user_id):
+    """One member's card, only while they are listed and listable
+    (_listable_sql); None otherwise."""
+    clause, args = _listable_sql()
+    with get_db() as db:
+        row = db.execute(
+            "SELECT p.*, u.name AS name, e.photo AS photo FROM collab_profiles p"
+            " JOIN users u ON u.id = p.user_id"
+            " LEFT JOIN epk_profiles e ON e.user_id = p.user_id"
+            " WHERE p.user_id = ? AND" + clause, [user_id] + args).fetchone()
+    return _profile_row(row) if row else None
+
+
+def set_collab_reply_chosen(owner_id, reply_id, chosen):
+    """The brief's poster marks (or unmarks) an applicant as chosen.
+    Only the poster of the brief the reply belongs to can; returns
+    whether a row changed. Unmarking withdraws the poster's rating of that
+    applicant on that brief: a rating stands only on a choice that stands."""
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE collab_replies SET chosen = ? WHERE id = ? AND request_id IN"
+            " (SELECT id FROM collab_requests WHERE user_id = ?)",
+            (1 if chosen else 0, reply_id, owner_id))
+        if cur.rowcount and not chosen:
+            db.execute(
+                "DELETE FROM collab_ratings WHERE user_id = ? AND EXISTS"
+                " (SELECT 1 FROM collab_replies r WHERE r.id = ?"
+                " AND r.request_id = collab_ratings.request_id"
+                " AND r.user_id = collab_ratings.ratee_id)",
+                (owner_id, reply_id))
+    return cur.rowcount > 0
+
+
+def can_rate_collab(rater_id, req_id, ratee_id):
+    """A rating needs a brief the rater posted, that the rater CLOSED, and
+    an application on it from the ratee that the rater marked chosen."""
+    with get_db() as db:
+        row = db.execute(
+            "SELECT 1 FROM collab_requests c JOIN collab_replies r"
+            " ON r.request_id = c.id WHERE c.id = ? AND c.user_id = ?"
+            " AND c.status = 'closed' AND r.user_id = ? AND r.chosen = 1"
+            " AND r.user_id <> c.user_id",
+            (req_id, rater_id, ratee_id)).fetchone()
+    return row is not None
+
+
+def add_collab_rating(rater_id, req_id, ratee_id, stars, note):
+    """Once per (brief, rater, ratee). Returns False when not allowed or
+    already rated; the first rating stands."""
+    if not can_rate_collab(rater_id, req_id, ratee_id):
+        return False
+    try:
+        stars = int(stars)
+    except (TypeError, ValueError):
+        return False
+    if stars < 1 or stars > 5:
+        return False
+    with get_db() as db:
+        cur = db.execute(
+            "INSERT OR IGNORE INTO collab_ratings (id, request_id, user_id,"
+            " ratee_id, stars, note, created) VALUES (?,?,?,?,?,?,?)",
+            (uuid.uuid4().hex, req_id, rater_id, ratee_id, stars,
+             (note or "")[:300], _now()))
+    return cur.rowcount > 0
+
+
+# The read side re-checks the part of the basis the POSTER owns: a rating
+# counts only while the rater's brief exists and is still closed. The
+# "chosen" half was checked when the rating was written (can_rate_collab)
+# and is withdrawn explicitly when the poster unmarks the applicant
+# (set_collab_reply_chosen) or deletes the brief (delete_collab_request).
+# Nothing here reads a row the RATEE owns, so the rated member cannot make
+# ratings about them disappear by clearing their own data (Start over).
+_RATING_BASIS = (" FROM collab_ratings g"
+                 " JOIN collab_requests c ON c.id = g.request_id"
+                 " AND c.user_id = g.user_id AND c.status = 'closed'"
+                 " WHERE g.ratee_id <> g.user_id")
+
+
+def collab_rating_summary(ratee_ids):
+    """{ratee_id: {"count", "mean", "clients"}} for those with ratings.
+    Nobody without a rating is in the result: no zero, no default."""
+    ids = [i for i in ratee_ids if i]
+    if not ids:
+        return {}
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT g.ratee_id, COUNT(*) AS n, AVG(g.stars) AS mean,"
+            " COUNT(DISTINCT g.user_id) AS clients" + _RATING_BASIS
+            + " AND g.ratee_id IN (%s) GROUP BY g.ratee_id"
+            % ",".join("?" * len(ids)), ids).fetchall()
+    return {r["ratee_id"]: {"count": r["n"], "mean": r["mean"],
+                            "clients": r["clients"]} for r in rows}
+
+
+def list_collab_ratings_for(ratee_id):
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT g.id, g.stars, g.note, g.created, c.title"
+            + _RATING_BASIS + " AND g.ratee_id = ? ORDER BY g.created DESC",
+            (ratee_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def rated_pairs_by(rater_id):
+    """{(request_id, ratee_id)} the account has already rated."""
+    with get_db() as db:
+        rows = db.execute("SELECT request_id, ratee_id FROM collab_ratings"
+                          " WHERE user_id = ?", (rater_id,)).fetchall()
+    return {(r["request_id"], r["ratee_id"]) for r in rows}
+
+
+def list_collab_chosen_for(user_id):
+    """Briefs by other members where this account was marked chosen."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT c.*, u.name AS poster_name FROM collab_replies r"
+            " JOIN collab_requests c ON c.id = r.request_id"
+            " JOIN users u ON u.id = c.user_id"
+            " WHERE r.user_id = ? AND r.chosen = 1 AND c.user_id <> ?"
+            " ORDER BY c.created DESC", (user_id, user_id)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_collab_seen(user_id):
+    with get_db() as db:
+        row = db.execute("SELECT matches_seen FROM collab_seen WHERE user_id = ?",
+                         (user_id,)).fetchone()
+    return row["matches_seen"] if row else ""
+
+
+def _now_fine():
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
+def set_collab_seen(user_id, when=None):
+    with get_db() as db:
+        db.execute("INSERT INTO collab_seen (user_id, matches_seen) VALUES (?,?)"
+                   " ON CONFLICT(user_id) DO UPDATE SET"
+                   " matches_seen = excluded.matches_seen",
+                   (user_id, when or _now_fine()))
 
 
 def add_board_listing(user_id, kind, title, region, window, genre, details):
@@ -2926,13 +3380,29 @@ def mark_ref_credited(user_id):
         db.execute("UPDATE users SET ref_credited = 1 WHERE id = ?", (user_id,))
 
 
+def claim_ref_credit(user_id):
+    """Take this referral's credit for crediting, once: True only for the
+    caller that flipped it, so two workers cannot both credit it."""
+    with get_db() as db:
+        cur = db.execute("UPDATE users SET ref_credited = 1 WHERE id = ? AND ref_credited = 0",
+                         (user_id,))
+    return cur.rowcount == 1
+
+
+def release_ref_credit(user_id):
+    """Give a claim back when Stripe refused the credit."""
+    with get_db() as db:
+        db.execute("UPDATE users SET ref_credited = 0 WHERE id = ?", (user_id,))
+
+
 def list_uncredited_referrals(referrer_id):
-    """Referred users who converted to a real paid subscription but whose
-    referrer credit hasn't been applied yet."""
+    """Referred users whose referrer credit hasn't been applied yet. Whether
+    they have actually paid is the caller's check (the ref_paid flag); a
+    friend who paid once and then cancelled still earned it (2026-09-19)."""
     with get_db() as db:
         rows = db.execute(
-            "SELECT id, email FROM users WHERE referred_by = ? AND ref_credited = 0 "
-            "AND stripe_subscription_id IS NOT NULL", (referrer_id,)).fetchall()
+            "SELECT id, email FROM users WHERE referred_by = ? AND ref_credited = 0",
+            (referrer_id,)).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -3775,6 +4245,85 @@ def latest_fan_import(user_id, source):
     return d
 
 
+FAN_IMPORT_DRAFT_HOURS = 24
+
+
+def _draft_row(row):
+    d = dict(row)
+    try:
+        d["summary"] = json.loads(d.get("summary") or "{}")
+        d["rows"] = json.loads(d.get("rows") or "[]")
+    except ValueError:
+        d["summary"], d["rows"] = {}, []
+    d["has_status_column"] = bool(d.get("has_status_column"))
+    return d
+
+
+def _purge_expired_drafts(db, now):
+    """Delete every expired draft, anybody's. The table holds at most one
+    row per user, so this is cheap; it runs on every draft read and write,
+    so an expired list is gone the next time anyone touches a draft."""
+    db.execute("DELETE FROM fan_import_drafts WHERE expires < ?", (now,))
+
+
+def put_fan_import_draft(user_id, origin, source, has_status_column, summary, rows):
+    """Park a read list for the artist to confirm. Replaces any draft the
+    user already had (one live draft each) and clears everybody's expired
+    ones on the way. Returns the new draft's id."""
+    draft_id = uuid.uuid4().hex
+    now = datetime.now(timezone.utc)
+    with get_db() as db:
+        db.execute("DELETE FROM fan_import_drafts WHERE user_id = ? OR expires < ?",
+                   (user_id, now.isoformat(timespec="seconds")))
+        db.execute("INSERT INTO fan_import_drafts (id, user_id, origin, source,"
+                   " has_status_column, summary, rows, created, expires)"
+                   " VALUES (?,?,?,?,?,?,?,?,?)",
+                   (draft_id, user_id, origin or "fans", (source or "")[:120],
+                    1 if has_status_column else 0, json.dumps(summary or {}),
+                    json.dumps(rows or []), now.isoformat(timespec="seconds"),
+                    (now + timedelta(hours=FAN_IMPORT_DRAFT_HOURS)).isoformat(timespec="seconds")))
+    return draft_id
+
+
+def get_fan_import_draft(user_id, draft_id=None):
+    """The user's live draft (or that exact one, if it is theirs and live).
+    None for a stale, foreign or unknown id."""
+    now = _now()
+    with get_db() as db:
+        _purge_expired_drafts(db, now)
+        if draft_id:
+            row = db.execute("SELECT * FROM fan_import_drafts WHERE id = ? AND user_id = ?"
+                             " AND expires >= ?", (draft_id, user_id, now)).fetchone()
+        else:
+            row = db.execute("SELECT * FROM fan_import_drafts WHERE user_id = ? AND expires >= ?"
+                             " ORDER BY created DESC, rowid DESC LIMIT 1", (user_id, now)).fetchone()
+    return _draft_row(row) if row is not None else None
+
+
+def claim_fan_import_draft(user_id, draft_id):
+    """Take the draft out of the table and hand it back, once. The DELETE is
+    the claim: a second confirm of the same draft, a double click, or
+    another account's id finds nothing and gets None."""
+    if not draft_id:
+        return None
+    with get_db() as db:
+        _purge_expired_drafts(db, _now())
+        row = db.execute("SELECT * FROM fan_import_drafts WHERE id = ? AND user_id = ?"
+                         " AND expires >= ?", (draft_id, user_id, _now())).fetchone()
+        if row is None:
+            return None
+        gone = db.execute("DELETE FROM fan_import_drafts WHERE id = ? AND user_id = ?",
+                          (draft_id, user_id)).rowcount
+    return _draft_row(row) if gone == 1 else None
+
+
+def drop_fan_import_draft(user_id, draft_id):
+    """Cancel. Only the owner's own draft; returns whether one went."""
+    with get_db() as db:
+        return db.execute("DELETE FROM fan_import_drafts WHERE id = ? AND user_id = ?",
+                          (draft_id or "", user_id)).rowcount == 1
+
+
 def latest_recovery_mlc_sweep(user_id):
     with get_db() as db:
         row = db.execute("SELECT * FROM recovery_mlc_sweeps WHERE user_id = ?"
@@ -3864,7 +4413,7 @@ def list_portal_memberships(member_user_id):
     """Teams this user belongs to (active), with the owner's name."""
     with get_db() as db:
         rows = db.execute(
-            "SELECT t.owner_id, t.role, u.name AS owner_name FROM team_members t "
+            "SELECT t.owner_id, t.role, t.access, t.areas, u.name AS owner_name FROM team_members t "
             "JOIN users u ON u.id = t.owner_id "
             "WHERE t.member_user_id = ? AND t.status = 'active' ORDER BY t.created",
             (member_user_id,)).fetchall()
@@ -3893,6 +4442,16 @@ def get_or_create_ingest_token(user_id):
         db.execute("INSERT INTO ingest_tokens (user_id, token, created) VALUES (?,?,?)",
                    (user_id, token, _now()))
     return token
+
+
+def rotate_ingest_token(user_id):
+    """A new drop-box address; the old one stops working at once. For when
+    someone who saw it should no longer be able to use it."""
+    token = "sb-" + uuid.uuid4().hex[:16]
+    with get_db() as db:
+        cur = db.execute("UPDATE ingest_tokens SET token = ?, created = ? WHERE user_id = ?",
+                         (token, _now(), user_id))
+    return token if cur.rowcount else None
 
 
 def user_by_ingest_token(token):
@@ -3944,18 +4503,28 @@ def set_dispute_status(user_id, dispute_id, status):
 
 # --- Team ------------------------------------------------------------------------
 
-def add_team_invite(owner_id, email, role):
-    """Create an invite; returns the row or None if already on the team."""
+def add_team_invite(owner_id, email, role, access="read", can_roster=False, areas="all",
+                    limit=None):
+    """Create an invite; returns the row, None if already on the team, or
+    "full" when the account's seats are taken. The count and the insert are
+    one statement, so two invites at once cannot both take the last seat
+    (team review, 2026-09-19)."""
     member_id = uuid.uuid4().hex
     token = uuid.uuid4().hex
+    access = "edit" if access == "edit" else "read"
     try:
         with get_db() as db:
-            db.execute(
-                "INSERT INTO team_members (id, owner_id, email, role, status, invite_token, created) "
-                "VALUES (?,?,?,?,'invited',?,?)",
-                (member_id, owner_id, email.lower().strip(), role, token, _now()))
+            cur = db.execute(
+                "INSERT INTO team_members (id, owner_id, email, role, status, invite_token, created, "
+                "access, can_roster, areas) SELECT ?,?,?,?,'invited',?,?,?,?,? "
+                "WHERE ? IS NULL OR (SELECT COUNT(*) FROM team_members WHERE owner_id = ?) < ?",
+                (member_id, owner_id, email.lower().strip(), role, token, _now(),
+                 access, 1 if (can_roster and access == "edit") else 0, areas,
+                 limit, owner_id, limit))
     except sqlite3.IntegrityError:
         return None
+    if not cur.rowcount:
+        return "full"
     return {"id": member_id, "invite_token": token}
 
 
@@ -3965,6 +4534,154 @@ def list_team(owner_id):
             "SELECT t.*, u.name AS member_name FROM team_members t "
             "LEFT JOIN users u ON u.id = t.member_user_id "
             "WHERE t.owner_id = ? ORDER BY t.created", (owner_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _signup_invites(db):
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS signup_invites ("
+        "token TEXT PRIMARY KEY, email TEXT NOT NULL, plan TEXT NOT NULL DEFAULT 'artist', "
+        "created_by TEXT, created TEXT NOT NULL, used_by TEXT, used_at TEXT)")
+    try:
+        # Hours of access the account gets from the moment it is made; 0 is no end.
+        db.execute("ALTER TABLE signup_invites ADD COLUMN guest_hours INTEGER NOT NULL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+
+
+def _credits(db):
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS credit_ledger ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, "
+        "bucket TEXT NOT NULL, delta INTEGER NOT NULL, kind TEXT NOT NULL, "
+        "suite TEXT, note TEXT, ref TEXT, expires TEXT, created TEXT NOT NULL)")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_ref "
+               "ON credit_ledger (ref) WHERE ref IS NOT NULL")
+
+
+def credit_balances(user_id, now=None):
+    """The wallet: {"monthly", "bought", "total", "monthly_expires"}. Included
+    credits count only until they lapse; bought credits never lapse. A bucket
+    never reads below zero."""
+    now = now or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_db() as db:
+        _credits(db)
+        grant = db.execute(
+            "SELECT id, expires FROM credit_ledger WHERE user_id = ? AND bucket = 'monthly' "
+            "AND kind = 'monthly' ORDER BY id DESC LIMIT 1", (user_id,)).fetchone()
+        monthly, lapses = 0, None
+        if grant and (grant["expires"] or "") > now:
+            lapses = grant["expires"]
+            monthly = db.execute(
+                "SELECT COALESCE(SUM(delta), 0) FROM credit_ledger WHERE user_id = ? "
+                "AND bucket = 'monthly' AND id >= ?", (user_id, grant["id"])).fetchone()[0]
+        bought = db.execute(
+            "SELECT COALESCE(SUM(delta), 0) FROM credit_ledger WHERE user_id = ? "
+            "AND bucket = 'bought'", (user_id,)).fetchone()[0]
+    monthly, bought = max(0, monthly), max(0, bought)
+    return {"monthly": monthly, "bought": bought, "total": monthly + bought,
+            "monthly_expires": lapses}
+
+
+def add_credits(user_id, amount, kind, bucket="bought", note="", ref=None, expires=None):
+    """Put credits in a wallet. `ref` makes it happen once: a second call with
+    the same ref (a Stripe session seen by both the webhook and the redirect,
+    a month already granted) adds nothing and returns False."""
+    import sqlite3
+    amount = int(amount)
+    if amount <= 0:
+        return False
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    try:
+        with get_db() as db:
+            _credits(db)
+            db.execute("INSERT INTO credit_ledger (user_id, bucket, delta, kind, note, ref, expires, created) "
+                       "VALUES (?,?,?,?,?,?,?,?)", (user_id, bucket, amount, kind, note, ref, expires, now))
+    except sqlite3.IntegrityError:
+        return False
+    return True
+
+
+def spend_credits(user_id, amount, suite, note="", ref=None):
+    """Take credits out, included ones first so bought ones last. Returns the
+    new balances, or None when the wallet cannot cover it (nothing is taken).
+    A repeated `ref` takes nothing twice and returns the balances as they are."""
+    import sqlite3
+    amount = int(amount)
+    if amount <= 0:
+        return None
+    have = credit_balances(user_id)
+    if ref:
+        with get_db() as db:
+            _credits(db)
+            if db.execute("SELECT 1 FROM credit_ledger WHERE ref IN (?, ?)",
+                          (ref + ":m", ref + ":b")).fetchone():
+                return have
+    if have["total"] < amount:
+        return None
+    from_monthly = min(have["monthly"], amount)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    try:
+        with get_db() as db:
+            _credits(db)
+            if from_monthly:
+                db.execute("INSERT INTO credit_ledger (user_id, bucket, delta, kind, suite, note, ref, created) "
+                           "VALUES (?,?,?,?,?,?,?,?)", (user_id, "monthly", -from_monthly, "spend", suite, note,
+                                                      ref and ref + ":m", now))
+            if amount - from_monthly:
+                db.execute("INSERT INTO credit_ledger (user_id, bucket, delta, kind, suite, note, ref, created) "
+                           "VALUES (?,?,?,?,?,?,?,?)", (user_id, "bought", from_monthly - amount, "spend", suite, note,
+                                                      ref and ref + ":b", now))
+    except sqlite3.IntegrityError:
+        pass
+    return credit_balances(user_id)
+
+
+def credit_history(user_id, limit=30):
+    with get_db() as db:
+        _credits(db)
+        rows = db.execute("SELECT * FROM credit_ledger WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                          (user_id, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_signup_invite(email, plan, created_by, guest_hours=0):
+    """An owner's invitation to make one account, for one address, on one
+    plan. A second invitation for the same unused address replaces the first,
+    so an old link never outlives the one the owner just sent."""
+    import secrets
+    token = secrets.token_urlsafe(24)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_db() as db:
+        _signup_invites(db)
+        db.execute("DELETE FROM signup_invites WHERE email = ? AND used_by IS NULL", (email,))
+        db.execute("INSERT INTO signup_invites (token, email, plan, created_by, created, guest_hours) "
+                   "VALUES (?,?,?,?,?,?)", (token, email, plan, created_by, now, int(guest_hours or 0)))
+    return token
+
+
+def get_signup_invite(token):
+    """The unused invitation behind a token, or None."""
+    if not token:
+        return None
+    with get_db() as db:
+        _signup_invites(db)
+        row = db.execute("SELECT * FROM signup_invites WHERE token = ? AND used_by IS NULL", (token,)).fetchone()
+    return dict(row) if row else None
+
+
+def use_signup_invite(token, user_id):
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_db() as db:
+        _signup_invites(db)
+        db.execute("UPDATE signup_invites SET used_by = ?, used_at = ? WHERE token = ? AND used_by IS NULL",
+                   (user_id, now, token))
+
+
+def list_signup_invites(limit=25):
+    with get_db() as db:
+        _signup_invites(db)
+        rows = db.execute("SELECT * FROM signup_invites ORDER BY created DESC LIMIT ?", (limit,)).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -3984,6 +4701,62 @@ def accept_team_invite(token, member_user_id):
             "joined = ?, invite_token = NULL WHERE invite_token = ? AND status = 'invited'",
             (member_user_id, _now(), token))
     return cur.rowcount > 0
+
+
+def count_team_seats(owner_id):
+    """Seats taken: everyone invited or active on this account's team."""
+    with get_db() as db:
+        row = db.execute("SELECT COUNT(*) AS n FROM team_members WHERE owner_id = ?",
+                         (owner_id,)).fetchone()
+    return row["n"] if row else 0
+
+
+def set_team_access(owner_id, member_id, access, can_roster=False, areas=None):
+    access = "edit" if access == "edit" else "read"
+    with get_db() as db:
+        if areas is None:
+            cur = db.execute("UPDATE team_members SET access = ?, can_roster = ? WHERE id = ? AND owner_id = ?",
+                             (access, 1 if (can_roster and access == "edit") else 0, member_id, owner_id))
+        else:
+            cur = db.execute("UPDATE team_members SET access = ?, can_roster = ?, areas = ? "
+                             "WHERE id = ? AND owner_id = ?",
+                             (access, 1 if (can_roster and access == "edit") else 0, areas,
+                              member_id, owner_id))
+    return cur.rowcount > 0
+
+
+def team_seat_position(owner_id, member_user_id):
+    """How many of this account's seats were taken before this member's,
+    or None when they hold none. A seat beyond the plan's count (after a
+    downgrade) opens nothing until one before it is freed."""
+    # Insert order, by rowid: two seats made in the same second share a
+    # timestamp, and their random ids put them in no particular order.
+    with get_db() as db:
+        row = db.execute("SELECT rowid AS r FROM team_members WHERE owner_id = ? AND member_user_id = ?",
+                         (owner_id, member_user_id)).fetchone()
+        if row is None:
+            return None
+        n = db.execute("SELECT COUNT(*) FROM team_members WHERE owner_id = ? AND rowid < ?",
+                       (owner_id, row["r"])).fetchone()[0]
+    return int(n)
+
+
+def add_team_audit(owner_id, member_user_id, member_name, method, path):
+    with get_db() as db:
+        db.execute("INSERT INTO team_audit (owner_id, member_user_id, member_name, method, path, created) "
+                   "VALUES (?,?,?,?,?,?)",
+                   (owner_id, member_user_id, (member_name or "")[:120], method[:10], path[:300], _now()))
+
+
+def list_team_audit(owner_id, limit=25, offset=0):
+    """Newest first, with the member's sign-in email: the name was a
+    snapshot of a name anyone can choose (team review, 2026-09-19)."""
+    with get_db() as db:
+        rows = db.execute("SELECT a.*, u.email AS member_email FROM team_audit a "
+                          "LEFT JOIN users u ON u.id = a.member_user_id "
+                          "WHERE a.owner_id = ? ORDER BY a.id DESC LIMIT ? OFFSET ?",
+                          (owner_id, int(limit), int(offset))).fetchall()
+    return [dict(r) for r in rows]
 
 
 def remove_team_member(owner_id, member_id):
@@ -4322,6 +5095,16 @@ RESET_EXTRA_KEYS = (
     ("hours_submissions", "owner_id"), ("board_threads", "poster_id"),
     ("board_messages", "from_user_id"), ("studio_comments", "author_id"),
 )
+# Rows ABOUT the account that other members wrote. Start over keeps them
+# (a rated member must not be able to erase what other people said about
+# their work and keep the login); deleting the account removes them.
+DELETE_ONLY_KEYS = (
+    ("collab_ratings", "ratee_id"),
+    # The team and the record of what it changed go with the account; a
+    # start over keeps both (team review, 2026-09-19).
+    ("team_members", "owner_id"),
+    ("team_audit", "owner_id"),
+)
 # Rows that belong to the account only through a parent row. Each entry is
 # (child, child column, parent, parent column, parent's user column); the
 # child goes before the parent so nothing is orphaned. The delete sweep
@@ -4444,6 +5227,12 @@ def delete_user_everything(user_id):
         # so a deleted account leaves no statement rows, click logs or
         # consents behind under a parent that no longer exists.
         removed.update(_wipe_account_rows(db, user_id, keep=("users",)))
+        names = _table_names(db)
+        for table, key in DELETE_ONLY_KEYS:
+            if table in names:
+                cur = db.execute('DELETE FROM "%s" WHERE "%s" = ?' % (table, key),
+                                 (user_id,))
+                removed[table] = removed.get(table, 0) + cur.rowcount
         for table, key in _tables_keyed_by_user(db):
             cur = db.execute('DELETE FROM "%s" WHERE "%s" = ?' % (table, key), (user_id,))
             if cur.rowcount:

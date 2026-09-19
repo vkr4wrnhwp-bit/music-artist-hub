@@ -2,6 +2,7 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}ACRCloud registry - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/money-desks.css?v=5">{% endblock %}
 
 {% block content %}
 {#- Every internal page opens with the shared plate band, never a landing
@@ -10,6 +11,8 @@
             "Street Banker · Beats", "ACRCloud registry",
             "Two things ACRCloud can do beyond naming a clip. Register your own masters into your custom bucket, so their index knows what is yours. Then scan a long recording - a DJ set, a livestream rip, a podcast - and get every track it detected with a start and an end. Nothing here runs on a schedule; every call happens because you pressed a button.",
             position="center 45%") }}
+
+<div class="md-acr">
 
 {% if notice %}
 <section class="sb-panel">
@@ -213,4 +216,5 @@
     <p class="sb-note">No scan has been run from this account yet.</p>
   {% endif %}
 </section>
+</div>
 {% endblock %}

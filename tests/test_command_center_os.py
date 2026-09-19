@@ -41,7 +41,7 @@ def test_overview_and_the_command_center_are_one_page():
 def test_the_windows_are_grouped_like_the_sidebar_with_a_lamp_only_for_previews():
     client = _demo()
     body = client.get("/command-center").get_data(as_text=True)
-    os_ = body.split('id="os"')[1]
+    os_ = body.split('id="os"')[1].split('id="sb-tool-suites"')[0]
     groups = cc.module_groups()
     names = [g for g, _ in groups]
     assert "Launch Engine" in names and "Royalty Sweep & Banking" in names

@@ -22,14 +22,27 @@ import page_switches
 
 ROOMS = [
     ("fans", "Fans", "The people who follow you and what they get.",
-     ["fans", "fan-crm", "fan-club", "discover", "marketplace"]),
+     ["fans", "fan-crm", "fan-club", "discover", "marketplace",
+      # Apparel & Merch is parked here, not placed here. It left the
+      # Marketing room on 2026-09-17 because the owner is taking merch to
+      # Artifacts, and Artifacts has no page yet; a card in no room is an
+      # address with no door, so it waits in the room whose people buy
+      # merch. It is switched off in Settings > Pages meanwhile, so nobody
+      # but an owner sees it. When Artifacts lands it moves there.
+      "apparel"]),
     ("studio", "Studio", "Making the record and keeping its files.",
      ["audio-studio", "rack", "remix-lab", "studio", "masterclip", "beats",
       "vault", "contracts", "artwork"]),
     ("stage", "Stage", "Everything between the booking and the encore.",
      ["tours", "stage-plot", "lights", "live", "tour-board", "passports", "tour-suite"]),
     ("analytics", "Analytics", "What is measured, by whom, and how it moved.",
-     ["pulse", "signal", "scores", "trust-score", "insights", "artist-twin", "reports"]),
+     # Signal left this room on 2026-09-17 (owner: "signal needs to be
+     # removed from public view on analytics"). It is the catalog
+     # intelligence the Operator Desk feeds, not something an artist
+     # operates, and Analytics is a customer room. It is reached from the
+     # desk, which links it. Access did not change: signal_hub.require()
+     # guards every handler, and that was always the boundary.
+     ["pulse", "scores", "trust-score", "insights", "artist-twin", "reports"]),
     ("business", "Business", "The money, the paperwork and the people.",
      ["royalties", "statements", "recovery", "cases", "disputes", "valuation", "revenue-os",
       "tax", "hours", "deals", "deal-simulator", "sync-packs", "team", "portal",
@@ -39,8 +52,12 @@ ROOMS = [
     ("releases", "Releases", "From finished master to the stores.",
      ["autopilot", "release-calendar", "release-check", "distribution", "submit"]),
     ("marketing", "Marketing", "Getting heard and getting written about.",
+     # Apparel & Merch left this room on 2026-09-17: merch is something you
+     # make and sell, not a way of getting heard, and it moves to Artifacts
+     # when that suite lands. The page and its address are unchanged; only
+     # where it is listed has.
      ["links", "rollout", "press-desk", "press-contacts", "press-coverage", "epk", "onesheet",
-      "reach", "referrals", "apparel"]),
+      "reach", "referrals"]),
 ]
 
 # Rows above the rooms, and the group under them.
@@ -79,6 +96,9 @@ EXTRA = {
     "fan-crm": ("/links/fans", "M4 5h12v10H4z|M4 8h12|M7 11h3|M7 13h5", "Fan CRM", "Everyone who left a name or a number, in one list.", "fans"),
     "fan-club": ("/fan-club", "M10 3l2 4 4 .6-3 3 .7 4.4L10 13l-3.7 2 .7-4.4-3-3L8 7z", "Fan Club", "Paid membership, run by you.", "fans"),
     "contracts": ("/vault?view=contracts", "M5 3h8l3 3v11H5z|M13 3v3h3|M8 12l2 2 3-4|M8 8h4", "Contracts and licences", "The paperwork that proves who gets paid, with renewal reminders.", "vault"),
+    # Deliberately in no room (2026-09-17). Signal is internal: the
+    # Operator Desk links it, and no customer room holds it. The entry
+    # stays so the card has one definition if it is ever placed again.
     "signal": ("/signal", "M3 12h3l2-6 3 10 2-5 2 2h2|M15 5a3 3 0 010 4", "Signal", "Early reads on where the music is moving, from the providers connected here.", "pulse"),
     "trust-score": ("/trust-score", "M10 2l2.4 4.9 5.6.8-4 3.9.9 5.4-4.9-2.6-4.9 2.6.9-5.4-4-3.9 5.6-.8z", "Trust score", "How complete and consistent your record is.", "scores"),
     "insights": ("/insights", "M10 3a5 5 0 00-3 9v2h6v-2a5 5 0 00-3-9z|M8 17h4", "Insights", "What your own numbers say this week.", "scores"),
@@ -113,6 +133,17 @@ def set_layout(value):
     db.set_kv("nav_layout", "rooms" if value == "rooms" else "hubs")
 
 
+# Cards this layout names differently from the classic sidebar. In the
+# sidebar "Scores" is the parent of Trust and Insights, reached by the tab
+# strip on its page; in a room each of the three is its own card, so the
+# card says which score it is (owner, 2026-09-17). The page has read
+# "Growth Score" all along, so this is the card catching up.
+RENAMES = {
+    "scores": ("Growth Score",
+               "How ready you are to grow, scored from your own record."),
+}
+
+
 def catalogue():
     """{key: (href, icon, label, desc)} for every card any room can hold,
     read from the hub definitions and the groups, plus the unfolded pages."""
@@ -125,6 +156,10 @@ def catalogue():
             out[key] = (href, icon, label, desc)
     for key, (href, icon, label, desc, _parent) in EXTRA.items():
         out[key] = (href, icon, label, desc)
+    for key, (label, desc) in RENAMES.items():
+        if key in out:
+            href, icon, _l, _d = out[key]
+            out[key] = (href, icon, label, desc)
     return out
 
 
@@ -190,7 +225,7 @@ def _state(key, href, live, hidden):
     return "live" if key in live else "sample"
 
 
-def build(user_plan=None, owner=False, demo=False, signal_seat=True):
+def build(user_plan=None, owner=False, demo=False):
     """The rooms for one person: [(key, name, purpose, icon, cards)], each
     card (key, href, icon, label, desc, state). A hidden page stays for
     an owner, badged; it leaves for everybody else. A locked demo loses
@@ -207,8 +242,6 @@ def build(user_plan=None, owner=False, demo=False, signal_seat=True):
             if key not in cat:
                 continue                       # a flag-gated entry this deployment lacks
             if key in LABEL_ONLY and user_plan != "label":
-                continue
-            if key == "signal" and not signal_seat:
                 continue
             href, icon, label, desc = cat[key]
             state = _state(key, href, live, hidden)
@@ -247,8 +280,8 @@ def _rows(keys, owner, demo):
     return out
 
 
-def get_room(key, user_plan=None, owner=False, demo=False, signal_seat=True):
-    for room in build(user_plan, owner, demo, signal_seat):
+def get_room(key, user_plan=None, owner=False, demo=False):
+    for room in build(user_plan, owner, demo):
         if room[0] == key:
             return {"key": room[0], "name": room[1], "purpose": room[2],
                     "icon": room[3], "cards": room[4]}

@@ -1,0 +1,160 @@
+/* MONEY DESKS ON A PHONE - the phone pass of 2026-09-18.
+ *
+ * Linked only from the money-desk templates (Command Center, Actions,
+ * Qualification, Artist Twin, Inbox, Catalog, Valuation, Revenue OS,
+ * Deal Room, Disputes, Reports, Hours, Tax, the ACRCloud registry and
+ * the rest of that group), so nothing here reaches another page.
+ *
+ * Every rule sits under a max-width query: at 768px and up these pages
+ * render exactly as they did. Tokens only - the design-system lock reads
+ * this file. Type sits on the 12px floor; radii are the system's three. */
+
+@media (max-width: 767px) {
+
+  /* --- controls a thumb can hit ----------------------------------- */
+  #sb-main .sb-btn { min-height: 44px; }
+  #sb-main .sb-badge { font-size: 12px; }
+
+  /* Fields: 44px tall, and 16px type so iOS does not zoom the page when
+     one takes focus. A field that sits inside its own bordered box (the
+     "$ rate" pairs, the search boxes) takes the height itself and the
+     box stops padding around it, or the box would grow to 60px. */
+  #sb-main select,
+  #sb-main textarea,
+  #sb-main input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=range]):not([type=color]):not(.sr-only) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  #sb-main div:has(> input.bg-transparent) { padding-top: 0; padding-bottom: 0; }
+  #sb-main div:has(> input.bg-transparent) > input.bg-transparent { flex: 1 1 auto; min-width: 0; }
+  /* The shell gives every field a border (app-chrome.css); inside the
+     "$" box that drew a box within a box. The outer box is the field. */
+  #sb-main div:has(> input.bg-transparent) > input.bg-transparent { border: 0; box-shadow: none; padding-left: 4px; padding-right: 0; }
+  #sb-main div:has(> input.bg-transparent:focus) { border-color: var(--sb-gold); }
+  #sb-main input[type=checkbox]:not(.sr-only),
+  #sb-main input[type=radio]:not(.sr-only) { width: 22px; height: 22px; flex: none; }
+
+  /* A checkbox with its words: the whole 44px chip is the box. The native
+     input lies over the chip, invisible, so a tap anywhere on it toggles
+     and it still announces as a checkbox; the square is drawn. */
+  #sb-main .md-check { position: relative; display: inline-flex; align-items: center; min-height: 44px; margin: 0;
+                       padding: 0 14px 0 40px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-control); }
+  #sb-main .md-check > input[type=checkbox] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+  #sb-main .md-check::before { content: ""; position: absolute; left: 13px; top: 50%; width: 18px; height: 18px; margin-top: -9px;
+                               border: 2px solid var(--sb-ink-3); border-radius: var(--sb-r-control); }
+  #sb-main .md-check:has(> input:checked) { border-color: var(--sb-info); }
+  #sb-main .md-check:has(> input:checked)::before { border-color: var(--sb-info); background: var(--sb-info); box-shadow: inset 0 0 0 3px var(--sb-ground); }
+  #sb-main .md-check:has(> input:focus-visible) { box-shadow: var(--sb-focus); }
+
+  /* A small text link or button that is a control, not prose. */
+  #sb-main .md-tap { display: inline-flex; align-items: center; min-height: 44px; }
+
+  /* A drawer's close cross. */
+  #payout-drawer-close,
+  #cd-close { width: 44px; height: 44px; display: grid; place-items: center; }
+
+  /* A pill set inline after a heading breaks across two lines on a
+     phone; on its own line it reads as one tag. */
+  #sb-main .md-pill { display: table; margin: 6px 0 0; line-height: 1.5; }
+
+  /* A two-part form row squeezed side by side becomes one column. */
+  #sb-main .md-stack { grid-template-columns: minmax(0, 1fr); }
+  #sb-main .md-stack > * { width: 100%; }
+
+  /* Stat tiles two across instead of one tall column. */
+  #sb-main .md-stats2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #sb-main .md-stats2 > * { min-width: 0; }
+  #sb-main .md-full { width: 100%; }
+
+  /* --- Command Center ---------------------------------------------- */
+  /* The page title comes first on a phone. The tutor and Start-here
+     panels ran about 1,000px before it, so the first screen had no name.
+     The main column lets its children join the flex column so the title
+     alone can be ordered to the top; everything else keeps its order. */
+  #sb-main .md-cc { display: flex; flex-direction: column; }
+  #sb-main .md-cc > * { width: 100%; min-width: 0; }
+  #sb-main .md-cc > .md-cc-main { display: contents; }
+  #sb-main .md-cc .md-cc-title { order: -1; }
+  #sb-main .md-cc > section { margin: 20px 0 0; }   /* the next block brings its own 20px */
+
+  /* A setup step: the words take the full width, the button goes under
+     them instead of squeezing them into a six-word column. */
+  #sb-main .md-step { flex-wrap: wrap; }
+  #sb-main .md-step > div.flex-1 { flex-basis: calc(100% - 32px); }
+  #sb-main .md-step > a { margin-left: 28px; min-height: 44px; display: inline-flex; align-items: center; }
+
+  /* The goal ring is 96px across: the percentage fits, "of $25,000 goal"
+     does not. The goal is already written under the bar. */
+  #goal-ring-pct + #goal-ring-label { display: none; }
+
+  /* The health gauge: the arc on top, the score under it, not on the
+     needle's pivot. */
+  #sb-main .md-gauge { height: 128px; }
+  #sb-main .md-gauge > svg { height: auto; }
+  #sb-main .md-meter-link { display: flex; align-items: center; min-height: 36px; }
+
+  /* What changed: the labels wrap instead of cutting off at "co...". */
+  #sb-main .md-changed .truncate { white-space: normal; overflow: visible; }
+
+  /* The board: two windows across, icon and title, so forty windows are
+     a page and not five screens. A preview lamp drops under the title. */
+  #sb-main .md-os { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #sb-main .md-os .sb-mod { padding: 10px; min-height: 56px; }
+  #sb-main .md-os .sb-mod-head { flex-wrap: wrap; gap: 8px; margin-bottom: 0; }
+  #sb-main .md-os .sb-mod-title { flex: 1 1 0; min-width: 0; font-size: 13px; line-height: 1.3; }
+  #sb-main .md-os .sb-mod-state { flex-basis: 100%; padding-left: 34px; }
+
+  /* --- Actions: the status filter as real tabs --------------------- */
+  #sb-main .md-filter a { display: inline-flex; align-items: center; min-height: 44px; padding-left: 14px; padding-right: 14px; }
+
+  /* --- Qualification ----------------------------------------------- */
+  #sb-main .md-whatif { min-height: 44px; }
+  #sb-main .md-unlock { flex-wrap: wrap; }
+  #sb-main .md-unlock > .ml-auto { flex-basis: 100%; margin-left: 36px; }
+
+  /* --- Artist Twin: the whole row is the switch -------------------- */
+  /* The consent and tone inputs were 1px screen-reader boxes with the
+     label as the target. Laid over the label they are the target, full
+     size, and still announce as a checkbox or radio. */
+  #sb-main .md-twin label:has(> input.sr-only) { position: relative; min-height: 44px; }
+  #sb-main .md-twin label:has(> input.sr-only) > input.sr-only {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    margin: 0; padding: 0; clip: auto; white-space: normal;
+    opacity: 0; cursor: pointer;
+  }
+  #sb-main .md-twin label.md-tone { display: grid; place-items: center; }
+  #sb-main .md-twin label:has(> input.sr-only:focus-visible) { box-shadow: var(--sb-focus); }
+
+  /* --- Catalog ----------------------------------------------------- */
+  /* The ring tiles. At half a phone's width the ring either covered the
+     label ("UNREGISTERE") or the words squeezed to one per line, and a
+     40px ring cannot hold "82.7%" at the 12px floor. On a phone each
+     ring tile takes a full row, words on the left and the ring on the
+     right, and the ring is the arc alone: the same figure is written in
+     the line under the count. The two plain counters stay two across. */
+  #sb-main .md-cat-stats .metric-card:has(> .relative) { grid-column: 1 / -1; gap: 16px; }
+  #sb-main .md-cat-stats .metric-card > .relative { width: 44px; height: 44px; }
+  #sb-main .md-cat-stats .metric-card > .relative > div { display: none; }
+  #sb-main .md-cat-recent { grid-template-columns: minmax(0, 1fr); }
+  #sb-main .md-cert > div.flex-1 { flex-basis: 100%; }
+  #sb-main .md-cat-tools > * { flex: 1 1 140px; }
+  #sb-main .md-cat-tools > a.ml-auto { flex: 0 0 auto; min-height: 44px; }
+
+  /* --- Valuation --------------------------------------------------- */
+  #sb-main .md-val-table th,
+  #sb-main .md-val-table td { padding-right: 10px; }
+  #sb-main .md-val-table td:first-child { min-width: 7.5em; }
+  #sb-main .md-drivers > a { flex-wrap: wrap; }
+  #sb-main .md-drivers > a > span.flex-1 { flex-basis: 100%; }
+
+  /* --- ACRCloud registry: the panels had no inside edge ------------- */
+  #sb-main .md-acr > .sb-panel { padding: 16px; margin-top: 16px; }
+  #sb-main .md-acr .sb-note { margin: 8px 0 0; font-size: 14px; line-height: 1.55; color: var(--sb-ink-2); overflow-wrap: anywhere; }
+  #sb-main .md-acr .sb-note b { color: var(--sb-ink); }
+}
+
+/* A keyboard shortcut means nothing on a touch screen. Not a width rule:
+   a desk with a mouse keeps the hint at any width. */
+@media (hover: none) {
+  .md-kbd-hint { display: none; }
+}

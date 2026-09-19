@@ -2,8 +2,13 @@
 
    Six strategic channels, a live output panel, and a signal trace drawn
    from the six values. Everything that reads out, moves or responds is
-   markup and script; the room around it is a photograph with its centre
-   painted out, used as a frame and nothing else.
+   markup and script, on the section's own near-black.
+
+   There used to be a photograph of a studio room behind it, faded right
+   down. The owner had it removed on 2026-09-18: at that opacity it read
+   as faint racks ghosting behind the controls rather than a room, and it
+   competed with the console. The eq-room files stay; Beats, Remix Lab and
+   the product tour still use them.
 
    The controls are native range inputs — rotated upright with CSS on
    desktop, left horizontal on phones. Keyboard, touch and screen-reader
@@ -11,12 +16,6 @@
 
 {% set eq = artist_eq %}
 <section class="sbeq" id="artist-eq" aria-labelledby="sbeq-heading">
-  <picture class="sbeq-room" aria-hidden="true">
-    <source type="image/avif" srcset="/static/img/eq-room-900.avif 900w, /static/img/eq-room-1200.avif 1200w, /static/img/eq-room-1600.avif 1600w" sizes="100vw">
-    <source type="image/webp" srcset="/static/img/eq-room-900.webp 900w, /static/img/eq-room-1200.webp 1200w, /static/img/eq-room-1600.webp 1600w" sizes="100vw">
-    <img src="/static/img/eq-room-1200.jpg" alt="" loading="lazy" decoding="async"
-         width="1535" height="1024">
-  </picture>
 
   <div class="sbeq-inner">
     {# --- presets -------------------------------------------------------- #}
@@ -43,6 +42,10 @@
        measurement of anything. It holds still under
        prefers-reduced-motion and while off screen; without JavaScript
        the server-drawn trace below stands alone. #}
+    {# The unit: one photographed faceplate (wide screens). The analyzer sits
+       in its display window and the six faders ride its slots. Below 901px
+       the same markup stacks as plain controls. #}
+    <div class="sbeq-unit">
     <div class="sbeq-trace">
       <div class="sbeq-panel-label">System output</div>
       <canvas id="sbeq-analyzer" class="sbeq-analyzer" aria-hidden="true"></canvas>
@@ -63,39 +66,40 @@
         </g>
       </svg>
     </div>
+      <div class="sbeq-panel-label">Balance what matters</div>
+      <div class="sbeq-channels">
+        {% for ch in eq.channels %}
+        <div class="sbeq-channel" data-channel="{{ ch.key }}">
+          <span class="sbeq-ch-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"
+                 stroke-linecap="round" stroke-linejoin="round">
+              {% for d in ch.icon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
+            </svg>
+          </span>
+          <span class="sbeq-ch-name" id="sbeq-name-{{ ch.key }}">{{ ch.short }}</span>
+          <span class="sbeq-lamp" aria-hidden="true"></span>
+
+          <div class="sbeq-fader">
+            <span class="sbeq-scale" aria-hidden="true"><i>10</i><i>5</i><i>0</i></span>
+            <input type="range" class="sbeq-range" id="sbeq-{{ ch.key }}"
+                   min="0" max="10" step="0.5"
+                   value="{{ eq.default_values[ch.key] }}"
+                   aria-labelledby="sbeq-name-{{ ch.key }}"
+                   aria-describedby="sbeq-desc-{{ ch.key }}"
+                   data-key="{{ ch.key }}">
+          </div>
+
+          <output class="sbeq-value" for="sbeq-{{ ch.key }}"
+                  id="sbeq-out-{{ ch.key }}">{{ "%.1f"|format(eq.default_values[ch.key]) }}</output>
+          <p class="sbeq-ch-desc" id="sbeq-desc-{{ ch.key }}">{{ ch.desc }}</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
 
     <div class="sbeq-console">
       {# --- channels ---------------------------------------------------- #}
       <div class="sbeq-channels-wrap">
-        <div class="sbeq-panel-label">Balance what matters</div>
-        <div class="sbeq-channels">
-          {% for ch in eq.channels %}
-          <div class="sbeq-channel" data-channel="{{ ch.key }}">
-            <span class="sbeq-ch-icon" aria-hidden="true">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"
-                   stroke-linecap="round" stroke-linejoin="round">
-                {% for d in ch.icon.split('|') if d %}<path d="{{ d }}"/>{% endfor %}
-              </svg>
-            </span>
-            <span class="sbeq-ch-name" id="sbeq-name-{{ ch.key }}">{{ ch.short }}</span>
-            <span class="sbeq-lamp" aria-hidden="true"></span>
-
-            <div class="sbeq-fader">
-              <span class="sbeq-scale" aria-hidden="true"><i>10</i><i>5</i><i>0</i></span>
-              <input type="range" class="sbeq-range" id="sbeq-{{ ch.key }}"
-                     min="0" max="10" step="0.5"
-                     value="{{ eq.default_values[ch.key] }}"
-                     aria-labelledby="sbeq-name-{{ ch.key }}"
-                     aria-describedby="sbeq-desc-{{ ch.key }}"
-                     data-key="{{ ch.key }}">
-            </div>
-
-            <output class="sbeq-value" for="sbeq-{{ ch.key }}"
-                    id="sbeq-out-{{ ch.key }}">{{ "%.1f"|format(eq.default_values[ch.key]) }}</output>
-            <p class="sbeq-ch-desc" id="sbeq-desc-{{ ch.key }}">{{ ch.desc }}</p>
-          </div>
-          {% endfor %}
-        </div>
 
         {# Everything that used to sit above the console, and the note
            that used to sit under the score, now fill the space the six

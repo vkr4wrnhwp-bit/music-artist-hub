@@ -52,7 +52,7 @@ def build(prov, provider_artist_id, today=None):
     end = today or datetime.now(timezone.utc).date()
     start = end - timedelta(days=WINDOW_DAYS)
     out = {"label": getattr(prov, "label", "the provider"), "provider_artist_id": provider_artist_id,
-           "window_days": WINDOW_DAYS, "refused": [], "failed": [], "empty": []}
+           "window_days": WINDOW_DAYS, "refused": [], "failed": [], "empty": [], "paused": []}
     calls = {
         "profile": lambda: prov.get_profile(provider_artist_id),
         "audience": lambda: prov.get_audience_all(provider_artist_id, start, end),
@@ -67,7 +67,12 @@ def build(prov, provider_artist_id, today=None):
         except Exception as e:                                  # noqa: BLE001
             text = str(e)
             out[key] = None
-            (out["refused"] if "403" in text else out["failed"]).append(key)
+            # The owner's monthly allowance stopping a call is neither the
+            # plan refusing nor the vendor failing (soundcharts_budget).
+            if text.startswith("Soundcharts paused"):
+                out["paused"].append(key)
+            else:
+                (out["refused"] if "403" in text else out["failed"]).append(key)
             continue
         out[key] = value
         if not value:

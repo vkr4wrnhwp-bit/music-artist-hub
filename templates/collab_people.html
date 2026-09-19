@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Collaborators - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/collab-market.css?v=2"><link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
+
+{#- Every member who listed themselves (opt-in), best match first. The same
+    people card as the Recommended row; nobody unlisted ever reaches it. -#}
+
+{% block content %}
+<div class="acph">
+{% call sb.plate(none, [900, 1400, 1672],
+                 "Street Banker · Collab Marketplace", "Collaborators",
+                 "Members who chose to be found, matched to your briefs.") %}
+  <a href="/marketplace" class="sb-btn sb-btn-secondary">Back to the marketplace</a>
+  <a href="/marketplace/profile" class="sb-btn sb-btn-primary">{{ 'Your profile' if me_profile else 'List yourself' }}</a>
+{% endcall %}
+
+<div class="cm mx-auto max-w-[1200px]" data-no-collapse>
+  <section class="cm-card" aria-labelledby="cm-ppl-h">
+    <div class="cm-chead">
+      <div><h2 id="cm-ppl-h">{{ people | length }} {{ 'other ' if me_profile and me_profile.listed }}listed collaborator{{ '' if people | length == 1 else 's' }}{% if role %} offering {{ role }}{% endif %}</h2>
+        <p class="cm-cap">{% if has_open %}Each % is scored against your open briefs; open "Why" on a card for the rules.{% else %}You have no open brief, so any % is scored against your own profile's genres. <a class="cm-inline" href="/marketplace?tab=briefs#post">Post a brief</a> to match on role, budget and location too.{% endif %}</p></div>
+    </div>
+    <form method="get" action="/marketplace/people" class="cm-filters" data-cm-autosubmit>
+      <label class="cm-fil"><span>Role</span>
+        <select name="role"><option value="">All roles</option>{% for r in roles %}<option value="{{ r }}" {{ 'selected' if role == r }}>{{ r }}</option>{% endfor %}</select></label>
+      <button class="sb-btn sb-btn-secondary sb-btn-sm cm-fgo">Filter</button>
+      {% if role %}<a class="cm-link" href="/marketplace/people">Clear</a>{% endif %}
+    </form>
+    {% if people %}
+    <div class="cm-recs">
+      {% for c in people %}{% include "partials/collab_person_card.html" %}{% endfor %}
+    </div>
+    {% else %}
+    <div class="cm-empty">
+      <img src="/static/img/collab-role-mixing.webp" alt="" aria-hidden="true" loading="lazy">
+      <p>{% if is_demo %}The demo account does not see members' profiles: they listed themselves for members only.{% elif role %}No {{ 'other ' if me_profile and me_profile.listed }}listed member offers {{ role }} yet.{% elif me_profile and me_profile.listed %}No other member has listed themselves yet. You are listed, so members see you here.{% else %}No member has listed themselves yet. Profiles appear here only when their owner switches "List me in the marketplace" on.{% endif %}</p>
+      {% if not is_demo and not (me_profile and me_profile.listed) %}<a href="/marketplace/profile" class="sb-btn sb-btn-primary sb-btn-sm">List me in the marketplace</a>{% endif %}
+    </div>
+    {% endif %}
+  </section>
+</div>
+</div>{#- /acph: account-phone.css scope -#}
+{% endblock %}
+
+{% block scripts %}<script src="/static/js/collab-market.js?v=1" defer></script>{% endblock %}

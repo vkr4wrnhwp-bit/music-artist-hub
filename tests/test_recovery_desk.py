@@ -136,7 +136,13 @@ def test_the_page_stands_the_bases_up_and_groups_the_ledger(artist):
 def test_a_case_opened_from_a_row_returns_to_recovery_with_the_strip_open(artist):
     _upload(artist)
     body = artist.get("/recovery").get_data(as_text=True)
-    form = body.split('data-finding="gap-hungry-gods"')[1].split("</form>")[-2]
+    # The form that opens a case, found by where it posts. This used to be
+    # "the second-to-last form on the page", which broke the day base.html
+    # gained another form (the support widget, 2026-09-17) and would have
+    # broken again on the next one.
+    after = body.split('data-finding="gap-hungry-gods"')[1]
+    form = next(chunk for chunk in after.split("</form>")
+                if "/royalty-recovery/cases/from-finding" in chunk)
     fields = dict(__import__("re").findall(r'name="(\w+)" value="([^"]*)"', form))
     assert fields["next"] == "/recovery"
     r = artist.post("/royalty-recovery/cases/from-finding", data=fields)

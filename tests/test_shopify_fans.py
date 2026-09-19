@@ -60,10 +60,20 @@ def _connect(monkeypatch, fake):
     monkeypatch.setattr(sc, "_post", fake)
 
 
-def _artist(app_obj):
+def _artist(app_obj, monkeypatch=None):
+    """The account that sees the store import.
+
+    Since 2026-09-17 that is the OWNER and nobody else: SHOPIFY_* is server
+    configuration, so the connection is one store, the owner's, and the
+    button used to offer its customer list to every signed-in account.
+    Tests about the import therefore run as the owner; the one about
+    another account not seeing it lives in test_fan_import_owner_only.py.
+    """
     email = "sf-%s@example.net" % uuid.uuid4().hex[:8]
     client = app_obj.test_client()
     client.post("/signup", data={"name": "Ava", "email": email, "password": PASSWORD})
+    if monkeypatch is not None:
+        monkeypatch.setenv("OWNER_EMAILS", email)
     client.post("/login", data={"email": email, "password": PASSWORD})
     return client, store.get_user_by_email(email)
 
@@ -137,7 +147,7 @@ def test_the_page_offers_the_import_only_when_connected_and_keeps_every_run(monk
     monkeypatch.delenv("SHOPIFY_ADMIN_TOKEN", raising=False)
     monkeypatch.setenv("SHOPIFY_DOMAIN", "art-is-war.myshopify.com")
     app_obj = create_app()
-    client, user = _artist(app_obj)
+    client, user = _artist(app_obj, monkeypatch)
     page = client.get("/links/fans").get_data(as_text=True)
     assert 'id="import"' in page and "Shopify is not connected" not in page and "SHOPIFY_ADMIN_TOKEN" in page
     assert "Import subscribed customers" not in page
@@ -170,7 +180,7 @@ def test_a_capped_run_continues_from_its_cursor(monkeypatch):
     _connect(monkeypatch, fake)
     monkeypatch.setattr(sc, "MAX_PAGES", 1)
     app_obj = create_app()
-    client, user = _artist(app_obj)
+    client, user = _artist(app_obj, monkeypatch)
     client.post("/links/fans/import/shopify")
     first = store.latest_fan_import(user["id"], "shopify")
     assert first["cursor"] == "c1" and first["summary"]["imported"] == 2
@@ -185,9 +195,12 @@ def test_a_capped_run_continues_from_its_cursor(monkeypatch):
 def test_the_fan_dashboard_offers_the_import_on_its_empty_state(monkeypatch):
     _connect(monkeypatch, Fake())
     app_obj = create_app()
-    client, user = _artist(app_obj)
+    client, user = _artist(app_obj, monkeypatch)
     page = client.get("/fans").get_data(as_text=True)
-    assert "No fans captured yet" in page and "Import subscribed Shopify customers" in page
+    # 2026-09-18: a real account with nobody on file gets the owner-approved
+    # first-run page at /fans, not the old "No fans captured yet" panel
+    # (tests/test_fans_first_run.py locks it). Updated deliberately.
+    assert "Your audience already exists" in page and "Import subscribed Shopify customers" in page
     monkeypatch.delenv("SHOPIFY_ADMIN_TOKEN", raising=False)
     page = client.get("/fans").get_data(as_text=True)
     assert "Import subscribed Shopify customers" not in page

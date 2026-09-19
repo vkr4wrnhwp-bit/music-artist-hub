@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Your collaborator profile - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/collab-market.css?v=2"><link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
+
+{#- The member's own collaborator profile (PROFILES-SPEC.md part 2). Opt-in:
+    nobody sees this card, matches it or counts it until the member ticks
+    "List me in the marketplace". Every field is optional except a role to
+    list; what is left blank shows as "Not stated". -#}
+
+{% block content %}
+<div class="acph">
+{% call sb.plate(none, [900, 1400, 1672],
+                 "Street Banker · Collab Marketplace", "Your collaborator profile",
+                 "What other members see when they look for someone to work with.") %}
+  <a href="/marketplace" class="sb-btn sb-btn-secondary">Back to the marketplace</a>
+  {% if form.listed %}<a href="/marketplace/people/{{ user.id }}" class="sb-btn sb-btn-primary">See your public profile</a>{% endif %}
+{% endcall %}
+
+<div class="cm mx-auto max-w-[1200px]" data-no-collapse>
+  {% if saved %}<p class="cm-notice" role="status">Profile saved.{% if form.listed %} You are listed in the marketplace.{% else %} You are not listed: nobody else can see it.{% endif %}</p>{% endif %}
+  {% if errors %}
+  <div class="cm-errors" role="alert"><b>Not saved yet.</b>
+    <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+  {% endif %}
+
+  <div class="cm-wrap">
+    <form method="post" action="/marketplace/profile" class="cm-card cm-form cm-pform" aria-labelledby="cm-pf-h">
+      <h2 id="cm-pf-h">Your details</h2>
+
+      <label class="cm-switch">
+        <input type="checkbox" name="listed" value="1" {{ 'checked' if form.listed }}>
+        <span class="cm-switch-ui" aria-hidden="true"></span>
+        <span><b>List me in the marketplace</b>
+          <span class="cm-cap cm-block">{% if is_demo %}The demo account is not a member, so it cannot be listed. You can try every other field.{% else %}Off by default. While it is off, no other member can see, match or count you. Switch it off any time and you disappear at once.{% endif %}</span></span>
+      </label>
+
+      <fieldset class="cm-fs">
+        <legend>Roles you take on</legend>
+        <div class="cm-checks">
+          {% for r in roles %}<label class="cm-check"><input type="checkbox" name="roles" value="{{ r }}" {{ 'checked' if r in form.roles }}> {{ r }}</label>{% endfor %}
+        </div>
+        <p class="cm-cap">The same roles briefs ask for. At least one is needed to list yourself.</p>
+      </fieldset>
+
+      <label class="cm-fl" for="pf-genres">Genres (comma separated, up to 6)</label>
+      <input id="pf-genres" name="genres" value="{{ form.genres | join(', ') }}" placeholder="Hip Hop, R&B, Afrobeats">
+
+      <fieldset class="cm-fs">
+        <legend>Where you work</legend>
+        <div class="cm-fields">
+          <input name="city" value="{{ form.city }}" maxlength="60" placeholder="City" aria-label="City">
+          <input name="country" value="{{ form.country }}" maxlength="60" placeholder="Country" aria-label="Country">
+        </div>
+        <label class="cm-check"><input type="checkbox" name="remote_ok" value="1" {{ 'checked' if form.remote_ok }}> I work remotely</label>
+      </fieldset>
+
+      <fieldset class="cm-fs">
+        <legend>Your rate</legend>
+        <div class="cm-fields">
+          <input name="rate_min" inputmode="decimal" pattern="{{ money_pattern }}" title="A plain amount such as 300, 1,500 or 2k" value="{{ form.rate_min if form.rate_min is not none else '' }}" placeholder="From" aria-label="Rate from">
+          <input name="rate_max" inputmode="decimal" pattern="{{ money_pattern }}" title="A plain amount such as 300, 1,500 or 2k" value="{{ form.rate_max if form.rate_max is not none else '' }}" placeholder="Up to" aria-label="Rate up to">
+          <select name="currency" aria-label="Currency">{% for code, sym in currencies.items() %}<option value="{{ code }}" {{ 'selected' if form.currency == code }}>{{ code }} ({{ sym }})</option>{% endfor %}</select>
+          <select name="rate_unit" aria-label="Rate per">
+            <option value="" {{ 'selected' if not form.rate_unit }}>Not stated</option>
+            {% for k, lbl in rate_units.items() %}<option value="{{ k }}" {{ 'selected' if form.rate_unit == k }}>{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <p class="cm-cap">One amount in each box, such as 300 or 2k. Leave it blank and your card says "Not stated". Budget matching only counts a rate in USD.</p>
+      </fieldset>
+
+      <fieldset class="cm-fs">
+        <legend>Availability</legend>
+        <div class="cm-fields">
+          <select name="availability" aria-label="Availability">
+            <option value="" {{ 'selected' if not form.availability }}>Not stated</option>
+            <option value="available" {{ 'selected' if form.availability == 'available' }}>Available now</option>
+            <option value="from" {{ 'selected' if form.availability == 'from' }}>Available from a date</option>
+            <option value="booked" {{ 'selected' if form.availability == 'booked' }}>Booked</option>
+          </select>
+          <input type="date" name="available_from" value="{{ form.available_from }}" aria-label="Available from (when you pick a date)">
+        </div>
+      </fieldset>
+
+      <label class="cm-fl" for="pf-credits">Credits (one line)</label>
+      <input id="pf-credits" name="credits" value="{{ form.credits }}" maxlength="160" placeholder="What you have worked on, in your own words">
+
+      <fieldset class="cm-fs">
+        <legend>Links to your work (up to {{ max_links }})</legend>
+        {% for i in range(max_links) %}
+        <input type="url" name="links" value="{{ form.links[i] if form.links | length > i else '' }}" placeholder="https://" aria-label="Link {{ i + 1 }}">
+        {% endfor %}
+      </fieldset>
+
+      <label class="cm-fl" for="pf-bio">About you</label>
+      <textarea id="pf-bio" name="bio" rows="4" maxlength="600" placeholder="How you work, what you are after">{{ form.bio }}</textarea>
+
+      <button class="sb-btn sb-btn-primary">Save profile</button>
+      <p class="cm-cap">Your profile page also shows your Trust Score signals and any ratings from briefs you were chosen for. Nothing here is emailed or shared outside Street Banker.</p>
+    </form>
+
+    <aside class="cm-col" aria-label="Preview and photo">
+      <section class="cm-card" aria-labelledby="cm-prev-h">
+        <h2 id="cm-prev-h">How your card looks</h2>
+        <p class="cm-cap">{% if form.listed %}Listed: members see this card.{% else %}Not listed: only you can see this preview.{% endif %} {% if errors %}It shows what you typed, which is not saved yet.{% else %}This is your card as last saved.{% endif %}</p>
+        <div class="cm-recs cm-one">{% with c = card, preview = true %}{% include "partials/collab_person_card.html" %}{% endwith %}</div>
+      </section>
+
+      <section class="cm-card" id="photo" aria-labelledby="cm-photo-h">
+        <h2 id="cm-photo-h">Your photo</h2>
+        <p class="cm-cap">{% if card.photo %}This is your press kit photo; changing it here changes it on your EPK too.{% else %}No photo yet, so your card shows your initials. Upload one and it becomes your press kit photo too.{% endif %}</p>
+        {% if photo_error %}<p class="cm-err" role="alert">{{ photo_error }}</p>{% endif %}
+        {% if photo_saved %}<p class="cm-notice" role="status">Photo saved.</p>{% endif %}
+        <form method="post" action="/marketplace/profile/photo" enctype="multipart/form-data" class="cm-form">
+          <label class="cm-fl" for="pf-photo">PNG, JPG or WebP</label>
+          <input id="pf-photo" type="file" name="photo" accept="image/png,image/jpeg,image/webp" required>
+          <button class="sb-btn sb-btn-secondary sb-btn-sm">Upload photo</button>
+        </form>
+      </section>
+    </aside>
+  </div>
+</div>
+</div>{#- /acph: account-phone.css scope -#}
+{% endblock %}

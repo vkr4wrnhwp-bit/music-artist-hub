@@ -118,3 +118,15 @@ a.sd-st.carried:hover { text-decoration: underline; }
 .sd-scope select:focus-visible { outline: none; box-shadow: var(--sb-focus); }
 .sd-scope-note { font-size: 13px; color: var(--sb-ink-2); }
 .sd-scope-note a { color: var(--sb-gold-bright); font-weight: 700; }
+
+/* THE PHONE (2026-09-18): the text-sized controls grow to a thumb. The
+ * gap tag drops under the track title instead of wrapping beside it. */
+@media (max-width: 560px) {
+  .sd-link { display: inline-flex; align-items: center; min-height: 44px; }
+  .sd-table .gap-tag { display: flex; align-items: center; min-height: 32px; margin-left: 0; }
+  .sd-more summary { display: flex; align-items: center; min-height: 44px; }
+  /* The file field takes the whole row so "No file chosen" reads in full;
+     "Upload & analyse" goes on its own full-width row under it. */
+  .sd-field input[type="file"] { flex: 1 1 100%; min-height: 44px; min-width: 0; }
+  .sd-field > button { flex: 1 1 100%; justify-content: center; }
+}

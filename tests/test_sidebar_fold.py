@@ -65,7 +65,10 @@ def test_the_sidebar_is_thirty_seven_entries():
     # (owner: "remove noise lab and the room from studio"). They are their
     # own products with their own sign-in, so they live on the tool suites
     # strip instead of inside a hub of Street Banker's own pages.
-    assert len(_entries()) == 37
+    # 36 when "Tour Suite" went the same way on 2026-09-17, except that Tour
+    # is this app's own page: the hub listed Tour twice, once here and once
+    # as a link to a separate service that had fallen twenty routes behind.
+    assert len(_entries()) == 36
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():
@@ -105,9 +108,9 @@ def test_the_acr_desk_is_reachable_gated_and_lights_its_own_entry():
     assert "fingerprints" in {it[0] for it in studio[3]}, "it belongs beside Beats"
 
     # Same tier as the finding source it feeds.
-    assert plans.required_tier("/fingerprints/") == plans.required_tier("/recovery") == "pro"
-    assert plans.required_tier("/fingerprints/scans/abc") == "pro"
-    assert not plans.allowed("fan", "pro") and not plans.allowed("artist", "pro")
+    assert plans.required_tier("/fingerprints/") == plans.required_tier("/recovery") == "artist"
+    assert plans.required_tier("/fingerprints/scans/abc") == "artist"
+    assert not plans.allowed("fan", "artist")
 
     # In the palette, and not badged as example data.
     assert "fingerprints" in {row["key"] for row in hubs.command_index()}

@@ -157,3 +157,35 @@
 .rv-scan .scope { display: flex; align-items: center; gap: 8px; }
 .rv-scan .scope select { padding: 6px 10px; border-radius: var(--sb-r-control); border: 1px solid var(--sb-line-strong); background: var(--sb-ground); color: var(--sb-gold-bright); font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color-scheme: dark; }
 .rv-scan .scope select:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+
+/* THE PHONE (2026-09-18). At 390px the cases panel ran off the right
+ * edge: its grid track was sized by the three totals side by side. The
+ * totals stack as label and figure on a line; a finding reads title,
+ * figure, state and step top to bottom; the small controls grow to a
+ * thumb. Nothing here applies above 760px. */
+@media (max-width: 760px) {
+  .rv-cases { grid-template-columns: minmax(0, 1fr); }
+  .rv-cases > * { min-width: 0; }
+}
+@media (max-width: 520px) {
+  .rv-totals { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .rv-totals > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .rv-totals .v { margin-top: 0; font-size: 20px; }
+  /* `.rv-totals div` also boxes the label and the figure inside each
+     total; on a phone the three totals are one box each. */
+  .rv-totals > div > div { padding: 0; border: 0; background: none; }
+  .rv-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .rv-row .amt { text-align: left; }
+  .rv-row .act { justify-content: flex-start; }
+  .rv-grp { flex-wrap: wrap; }
+  .rv-check .cap a { display: inline-flex; align-items: center; min-height: 44px; }
+  .rv-more summary { display: flex; align-items: center; min-height: 44px; }
+  .rv-link { min-height: 44px; }
+  .rv-case .r1, .rv-case .r2 { grid-template-columns: minmax(0, 1fr); padding-right: 14px; }
+  .rv-case .r1 { padding-top: 56px; }
+  .rv-case .x { width: 44px; height: 44px; }
+  .rv-f input, .rv-f select { min-height: 44px; font-size: 16px; }
+  .rv-colkey { gap: 8px; padding: 6px 0 0; }
+  .rv-cols { gap: 8px; padding: 0; }
+  .rv-col .val { font-size: 16px; }
+}

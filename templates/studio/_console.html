@@ -76,7 +76,7 @@
 {% macro readiness_panel(readiness) %}
 <section class="sb-panel p-4">
   <h2 class="sb-label sb-label-gold">What works here</h2>
-  <ul class="mt-3 space-y-2.5">
+  <ul class="ph-studio-caps mt-3 space-y-2.5">
     {%- for key, ok, headline, detail in readiness %}
       <li class="flex gap-3">
         <span class="sb-badge sb-badge-{{ 'good' if ok else 'idle' }} shrink-0">{{ "on" if ok else "off" }}</span>

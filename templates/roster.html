@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Label Roster - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% block content %}
+<div class="acph">
 <div class="mx-auto max-w-[1000px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Label Mode</div>
@@ -67,8 +69,10 @@
           <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-amber-400">Invited</span>
           <form method="post" action="/roster/{{ m.id }}/remove"><button class="sb-btn sb-btn-secondary sb-btn-sm">Withdraw</button></form>
         </div>
+        {% if not team_seat %}
         <input readonly onclick="this.select()" value="{{ request.url_root.rstrip('/') }}/roster/join/{{ m.invite_token }}"
                class="mt-2 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-xs text-sb-gold-bright focus:outline-none font-medium">
+        {% endif %}
         {% endif %}
       </div>
       {% endfor %}
@@ -100,4 +104,5 @@
 
   <p class="px-1 text-xs text-gray-300 font-medium">Roster numbers come from what each artist has actually connected and uploaded — statements, fans, links, shows. No estimates, no padding.</p>
 </div>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

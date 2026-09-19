@@ -13,7 +13,7 @@ working shown, not an oracle.
 EYEBROW = "AI Artist Twin"
 HEADLINE = ["Know the artist.", "Test the move."]
 SUPPORT = ("The Artist Twin learns your music, visuals, audience, catalog and "
-           "goals—then helps evaluate releases, artwork, campaigns and "
+           "goals, then helps evaluate releases, artwork, campaigns and "
            "opportunities before you commit.")
 EXAMPLE_LABEL = "Example Artist Twin assessment"
 MICROCOPY = ("Your Artist Twin supports your decisions. It does not replace "

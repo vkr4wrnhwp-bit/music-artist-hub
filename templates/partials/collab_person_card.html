@@ -1,0 +1,37 @@
+{#- One listed collaborator (collab_market.person_card), the owner's people
+    card from static/_mock_collab.html. Every field is the member's own entry
+    or says it is not stated; the photo is their own EPK photo or their
+    initials, never a stand-in face. The match % always carries its reasons.
+    Expects `c`; `preview` (optional) drops the View Profile link. -#}
+<article class="cm-rec cm-person">
+  <div class="cm-shot{{ ' is-initials' if not c.photo }}">
+    {% if c.match %}<span class="cm-match" title="{{ c.why }}">{{ c.match.pct }}% match</span>{% endif %}
+    {% if c.photo %}<img src="{{ c.photo }}" alt="Photo of {{ c.name }}" loading="lazy">{% else %}<span class="cm-initials" aria-hidden="true">{{ c.initials }}</span>{% endif %}
+  </div>
+  <div class="cm-rec-b">
+    <div class="cm-who">{{ c.name }}</div>
+    <div class="cm-role">{{ c.role_line }}</div>
+    <div class="cm-where"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17.2s5.2-3.5 5.2-7.6A5.2 5.2 0 004.8 9.6c0 4.1 5.2 7.6 5.2 7.6z"/><circle cx="10" cy="9.4" r="1.7"/></svg><span class="cm-place">{% if c.where %}{{ c.where }}{% else %}<span class="cm-dim">Location not stated</span>{% endif %}{% if c.remote %} <span class="cm-chip">Remote</span>{% endif %}</span></div>
+    <div class="cm-tags">{% for g in c.genres %}<span class="cm-chip">{{ g }}</span>{% else %}<span class="cm-dim cm-small">Genres not stated</span>{% endfor %}{% if c.genres_more %}<span class="cm-chip" title="{{ c.genres_more }} more genre{{ '' if c.genres_more == 1 else 's' }} on the profile">+{{ c.genres_more }}</span>{% endif %}</div>
+    <div class="cm-credits"><b>Credits</b> · {{ c.credits or 'Not stated' }}</div>
+    <div class="cm-split">
+      <div class="sp"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M13.2 6.2H8.4a2.1 2.1 0 000 4.2h3.2a2.1 2.1 0 010 4.2H6.4"/></svg><div>{% if c.rate %}<div class="k">{% for part in c.rate.split('–') %}{{ part }}{% if not loop.last %}–<wbr>{% endif %}{% endfor %}</div><div class="v">{{ c.unit or 'rate' }}</div>{% else %}<div class="k">Rate</div><div class="v">Not stated</div>{% endif %}</div></div>
+      <div class="sp"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.4" width="14" height="12.6" rx="2"/><path d="M3 8.4h14M7 2.6v3M13 2.6v3"/></svg><div><div class="k">Availability</div><div class="v {{ 'on' if c.avail == 'Available now' }}">{{ c.avail }}</div></div></div>
+    </div>
+    <div class="cm-trustline">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.6l6 2.4v4.2c0 4.3-6 8.2-6 8.2s-6-3.9-6-8.2V5z"/></svg>
+      <span data-trusted>{{ c.trusted }}</span>
+      {% if c.mean %}<span class="cm-stars"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2l2.4 5 5.6.7-4.1 3.8 1.1 5.5L10 14.3 5 17l1.1-5.5L2 7.7l5.6-.7z"/></svg>{{ c.mean }} <i>({{ c.count }})</i><span class="sr-only"> average of {{ c.count }} rating{{ '' if c.count == 1 else 's' }}</span></span>{% endif %}
+    </div>
+    {% if c.match %}
+    <details class="cm-why">
+      <summary>Why {{ c.match.pct }}%</summary>
+      <ul>
+        {% for r in c.match.reasons %}<li class="{{ 'hit' if r.hit else ('miss' if r.counted else 'skip') }}">{{ r.text }}</li>{% endfor %}
+      </ul>
+      <p>{% if c.match.basis == 'brief' %}Scored against your open brief "{{ c.match.brief_title }}". {% else %}Scored against your own profile: you have no open brief. {% endif %}{{ 'Your brief' if c.match.basis == 'brief' else 'Your profile' }} sets the rules: one it does not state is left out of the %; one they have not answered counts as not met.</p>
+    </details>
+    {% endif %}
+    {% if not preview %}<a class="sb-btn sb-btn-secondary sb-btn-sm cm-wide" href="/marketplace/people/{{ c.user_id }}">View Profile</a>{% endif %}
+  </div>
+</article>

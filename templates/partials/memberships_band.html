@@ -1,0 +1,76 @@
+{# Memberships and the credit wallet.
+
+   Three engraved metal passes, photographed by the owner, and the light
+   that runs up the letters when you hover one.
+
+   Each pass is two images stacked in the same box. The plate is the
+   metal with the engraving cut into it, unlit. The words are the same
+   engraving as an alpha mask, and that mask is what the light is poured
+   through: .sbmem-glow and .sbmem-bloom carry a gradient that is parked
+   below the bottom edge at rest and slides to the top on hover. Because
+   the engraving is stacked lines, the rising edge crosses them one line
+   at a time, from MONTHLY CREDITS up to LABEL. That is the effect the
+   owner built and asked for back by name.
+
+   .sbmem-sheen is masked by the plate instead of the words, so the
+   highlight travels across the metal and stops at its edge rather than
+   sliding over the page.
+
+   There was a version of this band with blank plates and live type set
+   over them, which is normally the right call - a price change is an
+   edit rather than a new photograph. It cannot do this, though: live
+   text lights as one block, and the one-line-at-a-time reveal is the
+   point. So the engraving stays in the photograph, and
+   tests/test_split_home.py asserts every engraved price still matches
+   plans.PLANS, which turns a stale plate into a failing build.
+
+   Fan is free and has no plate. A photographed metal pass for a free
+   tier would say something about it that is not true. #}
+
+{% set sh = split_home %}
+<section class="sbmem" aria-labelledby="sbmem-h">
+  <div class="sbmem-inner">
+    <header class="sbmem-head">
+      <h2 class="sbmem-h" id="sbmem-h">Memberships</h2>
+      <p class="sbmem-sub">Three passes. Move up when the work calls for it.</p>
+    </header>
+
+    <ul class="sbmem-trio">
+      {% for t in sh.tiers %}
+      <li class="sbmem-tier">
+        <a class="sbmem-pass{% if t.top %} is-top{% endif %}" href="/plan#{{ t.key }}"
+           style="--sbmem-plate: url('{{ t.plate }}'); --sbmem-words: url('{{ t.words }}'); --sbmem-lit: {{ t.lit }}; --sbmem-bloom: {{ t.bloom }};">
+          {#- The plate carries the words, so it is the image and it is
+              labelled. The three layers over it are light and are
+              hidden from the accessibility tree. -#}
+          <span class="sbmem-card" role="img"
+                aria-label="{{ t.name }} pass, {{ t.finish }}: {{ t.reads }}">
+            <i class="sbmem-bloom" aria-hidden="true"></i>
+            <i class="sbmem-glow" aria-hidden="true"></i>
+            <i class="sbmem-sheen" aria-hidden="true"></i>
+          </span>
+          <span class="sbmem-go">Choose {{ t.name }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <div class="sbmem-credits">
+      <img class="sbmem-pile" src="/static/img/credit-pile.webp"
+           width="760" height="449" loading="lazy" decoding="async" alt="">
+      <div class="sbmem-credits-say">
+        <h3 class="sbmem-credits-h">
+          <img class="sbmem-coin" src="/static/img/credit-coin.webp"
+               width="320" height="317" loading="lazy" decoding="async" alt="">
+          Credits
+        </h3>
+        <p class="sbmem-credits-note">{{ sh.credit_note }}</p>
+        <ul class="sbmem-packs">
+          {% for p in sh.packs %}
+          <li><b>{{ "{:,}".format(p.credits) }}</b><span>credits</span><em>{{ p.price }}</em></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>

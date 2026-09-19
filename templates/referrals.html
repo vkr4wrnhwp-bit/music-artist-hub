@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 
 {% block title %}Referrals - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% block content %}
+<div class="acph">
 <div class="mx-auto max-w-[800px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Growth</div>
     <h1 class="sb-h1 mt-1">Referrals</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-300">Share your link with another artist. They get their <span class="text-gray-200">first month free</span> on any paid plan. When they pay for their first month after that, you get <span class="text-gray-200">$9 off your next bill</span>.</p>
+    <p class="mt-1 max-w-2xl text-sm text-gray-300">Share your link with another artist. They get <span class="text-gray-200">50% off their first month</span> on any paid plan. Once they have paid for it, you get <span class="text-gray-200">50% off your next month</span>.</p>
   </div>
 
   <div class="grid grid-cols-2 gap-3">
@@ -16,7 +18,7 @@
       <div class="mt-1 text-2xl font-black tabular-nums">{{ stats.signups }}</div>
     </div>
     <div class="rounded-2xl border border-sb-gold/30 bg-sb-surface-2 p-4">
-      <div class="sb-label text-gray-300">Now paying, $9 earned each</div>
+      <div class="sb-label text-gray-300">Now paying, half a month earned each</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-sb-ink">{{ stats.converted }}</div>
     </div>
   </div>
@@ -25,15 +27,15 @@
     <h2 class="sb-label text-gray-300">Your link</h2>
     <div class="mt-2 flex flex-wrap gap-2">
       <input id="ref-link" readonly value="{{ ref_link }}" onclick="this.select()"
-             class="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 font-mono text-xs text-sb-gold-bright focus:outline-none">
+             class="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-xs text-sb-gold-bright focus:outline-none">
       <button id="ref-copy" class="sb-btn sb-btn-primary">Copy</button>
     </div>
     <p class="mt-2 text-xs text-gray-300 font-medium">Put it in group chats, your bio, or a QR code on the merch table. It does not expire.</p>
   </section>
 
   <div class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5 text-xs leading-relaxed text-gray-300 font-medium">
-    <span class="font-bold uppercase tracking-wide text-gray-300">How the $9 reaches you:</span>
-    as a credit on your billing account, applied the moment the artist you referred makes their first payment{% if not stripe_live %}. Payments are not switched on for this service yet, so no referral can complete here for now{% endif %}. If you are not paying for a plan yet, the credits wait and come off your first bill. No gift cards, no points, and they do not expire.
+    <span class="font-bold uppercase tracking-wide text-gray-300">How your 50% reaches you:</span>
+    as a credit on your billing account worth half your own monthly price (never more than what they paid), applied once the artist you referred has paid for their first month{% if not stripe_live %}. Payments are not switched on for this service yet, so no referral can complete here for now{% endif %}. If you are not on a paid plan yet, the credit waits and comes off a bill once you are. No gift cards, no points, and it does not expire.
   </div>
 </div>
 
@@ -47,4 +49,5 @@ document.getElementById("ref-copy").addEventListener("click", function () {
   });
 });
 </script>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

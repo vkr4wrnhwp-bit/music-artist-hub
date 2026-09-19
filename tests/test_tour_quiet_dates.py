@@ -60,7 +60,8 @@ def test_content_folds_the_nights_nobody_touched(flask_app):
     html = client.get("/tours/%s/content" % tid).get_data(as_text=True)
     grid = html.split('id="nights"')[1]
     head, fold = grid.split('<details class="to-fold to-quiet">')
-    assert head.count('<details class="to-night"') == 3 and head.count('<details class="to-night" open') == 1
+    assert head.count('<details class="to-night"') == 3
+    assert head.count('<details class="to-night" open') == 0,         "closed like every other fold (owner, 2026-09-17)"
     assert fold.startswith("<summary>3 nights with nothing assigned yet</summary>") and fold.count('<details class="to-night"') == 3
 
 

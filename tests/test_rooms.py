@@ -36,6 +36,9 @@ def _hubs(body):
     return re.findall(r'data-hub="([a-z-]+)"', body.split("</aside>")[0])
 
 
+# test_the_signal_card_shows_only_to_a_login_that_holds_a_seat was removed
+# on 2026-09-18: Signal left the Analytics room entirely (owner), so there
+# is no card to gate. tests/test_signal_is_internal.py holds the new rule.
 def test_every_sidebar_entry_and_every_folded_page_has_a_room():
     keys = {k for _r, _n, _p, ks in rooms.ROOMS for k in ks} | set(rooms.TOP_KEYS) | set(rooms.ACCOUNT_KEYS)
     for _hk, _name, _tag, items in hubs.HUBS:
@@ -189,7 +192,7 @@ def test_every_card_a_room_offers_opens_a_page_with_the_way_back(monkeypatch):
         store.set_kv("nav_layout", "")
     c = _client(app_obj, "label")
     wrong = []
-    for rkey, _name, _purpose, _icon, cards in rooms.build("label", False, False, signal_seat=False):
+    for rkey, _name, _purpose, _icon, cards in rooms.build("label", False, False):
         for key, href, _i, _l, _d, state in cards:
             if state == "external":
                 continue
@@ -199,22 +202,6 @@ def test_every_card_a_room_offers_opens_a_page_with_the_way_back(monkeypatch):
                 wrong.append((rkey, key, href, r.status_code))
     assert wrong == []
     assert 'id="sb-room-back"' in c.get("/vault?view=contracts").get_data(as_text=True)
-
-
-def test_the_signal_card_shows_only_to_a_login_that_holds_a_seat(monkeypatch):
-    monkeypatch.setenv("NAV_ROOMS", "1")
-    app_obj = create_app()
-    with app_obj.app_context():
-        store.set_kv("nav_layout", "")
-    c = _client(app_obj, "label")
-    page = c.get("/room/analytics").get_data(as_text=True)
-    assert 'data-room-card="signal"' not in page and 'data-room-card="pulse"' in page
-    owner = _client(app_obj, "pro")
-    monkeypatch.setenv("OWNER_EMAILS", owner._email)
-    page = owner.get("/room/analytics").get_data(as_text=True)
-    assert 'data-room-card="signal"' in page
-    body = owner.get("/signal", follow_redirects=True).get_data(as_text=True)
-    assert 'id="sb-room-back"' in body and 'href="/room/analytics"' in body and "Back to Analytics" in body
 
 
 def test_artist_accounts_keep_the_rooms_sidebar_on_the_fan_world_pages(monkeypatch):

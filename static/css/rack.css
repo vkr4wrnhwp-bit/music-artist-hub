@@ -1324,3 +1324,80 @@
 closing tag lines) ==== */
 /* ==== 2. SPEC-2 §2.4 — shell addendum (the dock's responsive hides) ==== */
 /* ==== 3. SPEC-3A 0.8 · 4. SPEC-3B §5 · 5. SPEC-3C §6 · 6. SPEC-3D 1.2 — unit-local rules, pasted at Stage 3 ==== */
+
+/* ---- phone pass + cleaner LEDs (2026-09-18) ------------------------------
+   1. The LED ladders (gain reduction, peak, the dock peak, and the split,
+      tempo and loudness progress) were one smooth gradient cut into lamps by
+      a mask. Each lamp showed a sliver of the blend, the colours slid along
+      the ladder as it filled, and the last lamp was often a lit half-lamp:
+      that is what read as CGI. Now every lamp is one flat colour fixed to
+      its place on the ladder (green, then gold, then red, measured on the
+      whole ladder: the script sizes the colour band to the ladder, not the
+      fill), the unlit lamps show as dim lamps in the well, and the script
+      lights whole lamps only (rackdsp.js, ledWidth). The jewel lamps lose the radial
+      highlight and the wide bloom: a flat lamp with a tight glow.
+   2. On a phone the engraving goes from 11px to 12px, the type floor. The
+      SVG scale text inside the VU and the loudness graph is in its own user
+      units and is left alone. */
+.rk-seg {
+  border-radius: 2px;
+  background:
+    repeating-linear-gradient(90deg, rgba(201,162,74,.16) 0 5px, transparent 5px 8px),
+    var(--rk-well);
+  box-shadow: inset 0 1px 1px rgba(0,0,0,.6);
+}
+.rk-seg::after { background: repeating-linear-gradient(90deg, transparent 0 5px, var(--rk-well) 5px 8px); }
+.rk-seg > div, .rk-seg-fill, #rk-gr, #rk-peak, #rk-peak2 { background-repeat: no-repeat; }
+#rk-gr { background-image: linear-gradient(90deg, var(--sb-gold) 0 70%, var(--sb-crit) 70% 100%); }
+/* the zone edges on a whole lamp (8px pitch), where round() is supported */
+#rk-gr { background-image: linear-gradient(90deg, var(--sb-gold) 0 round(down, 70%, 8px), var(--sb-crit) round(down, 70%, 8px) 100%); }
+#rk-peak, #rk-peak2 { background-image: linear-gradient(90deg, var(--sb-good) 0 65%, var(--sb-gold-bright) 65% 85%, var(--sb-crit) 85% 100%); }
+#rk-peak, #rk-peak2 { background-image: linear-gradient(90deg, var(--sb-good) 0 round(down, 65%, 8px), var(--sb-gold-bright) round(down, 65%, 8px) round(down, 85%, 8px), var(--sb-crit) round(down, 85%, 8px) 100%); }
+#rk-roughsplit-fill, #rk-tk-fill, #rk-ldn-fill, .rk-seg-fill:not(#rk-gr):not(#rk-peak):not(#rk-peak2) { background-image: none; background-color: var(--sb-gold); }
+.lamp.on { background: var(--sb-gold-bright); box-shadow: inset 0 0 0 1px rgba(0,0,0,.35), 0 0 4px rgba(232,185,80,.55); }
+.lamp.grn { background: var(--sb-good); box-shadow: inset 0 0 0 1px rgba(0,0,0,.35), 0 0 4px rgba(121,180,115,.5); }
+.rk-ledwrap b.on.rk-la::before { background: var(--sb-gold-bright); box-shadow: 0 0 4px rgba(232,185,80,.55); }
+.rk-ledwrap b.on.rk-lb::before { background: var(--sb-good); box-shadow: 0 0 4px rgba(121,180,115,.5); }
+/* The per-module level meters (.rk-lvl) were the last smooth ramp: a
+   green-to-red blend that stretched with the level and a lit edge that
+   stopped anywhere. Now they are the same instrument as the ladders
+   above at their size: 3px lamps on a 4px pitch, dim lamps showing in
+   the well, flat colour zones fixed to the meter (the script sizes the
+   band to the meter and lights whole lamps), and no recolouring of the
+   whole bar when it clips: the red lamps at the top already say so. */
+.rk-lvl {
+  border-radius: 1px;
+  background:
+    repeating-linear-gradient(90deg, rgba(201,162,74,.16) 0 3px, transparent 3px 4px),
+    var(--rk-well);
+  box-shadow: inset 0 1px 1px rgba(0,0,0,.6);
+}
+.rk-lvl::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 3px, var(--rk-well) 3px 4px);
+}
+.rk-lvl i, .rk-lvl.is-hot i {
+  background: linear-gradient(90deg, var(--sb-good) 0 65%, var(--sb-gold-bright) 65% 85%, var(--sb-crit) 85% 100%)
+    left center / 100% 100% no-repeat;
+}
+/* The power lamp on the strip: a flat lit lamp in a thin dark bezel with a
+   tight glow, not a glossy bead with a highlight and a wide halo. */
+.pw-led {
+  width: 8px; height: 8px;
+  background: var(--sb-good);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.55), 0 0 4px rgba(121,180,115,.45);
+}
+
+@media (max-width: 640px) {
+  .brass .ln2, .tlabel .vnum, .tlabel .vname, .tlabel .vrole, .ru-tag, .ru-sub, .lg, .ru-ex-tag,
+  .ru-ex-prose kbd, .sw, .rk-ledwrap b, .rk-key-note, .rk-jack-end, .rk-man-label, .rk-bnc-src,
+  .rk-bnc-row .bn-t, .rk-bnc-plan, .rk-bnc-done, .k-label, .k-value, #rk-grdb2, #rk-peakdb,
+  .rk-lcd-cap, .pick .cap, #rk-zone > span:first-child, #rk-zone-bands, .lane .ln, .lane .ld,
+  .lane .sw, #rk-hookmap-cap, #rk-tk-tempoval, #rk-tk-centsval, #rk-tk-alts .sw, .rk-cost,
+  .rk-eyebrow, .flow, .flow-node, .rk-legend, .rk-seg-val, .rk-segsw .cap, #rk-cabview-cap, #rk-studiomode,
+  .ldn-name, .ldn-t { font-size: 12px; }
+}
+@media (pointer: coarse) {
+  #rk-cnv-lufs, #rk-tk-target, #rk-studiomode { min-height: 44px; }
+  .lane .sw { min-height: 44px; min-width: 44px; }
+}

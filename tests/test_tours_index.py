@@ -9,11 +9,16 @@ import re
 import tour_store as ts
 from tests.test_tour_date_page import _user, _tour, _show, flask_app  # noqa: F401
 
+NOTE = ("every fold on every page opens closed now; the owner's rule on "
+        "2026-09-17 was that either all of them are or none of them are, "
+        "and the summary still says what the fold does")
+
 
 def test_the_index_is_rows_and_three_pluses(flask_app):
     client, owner = _user(flask_app)
     html = client.get("/tours").get_data(as_text=True)
-    assert '<details class="to-add" id="start-tour" open>' in html, "nothing to list: the first form is open"
+    assert '<details class="to-add" id="start-tour">' in html, "closed, %s" % NOTE
+    assert "Start a tour" in html, "and an empty page still says what to do"
     assert '<details class="to-add" id="one-off">' in html and 'name="first" value="import"' in html
     tid = _tour(client)
     _show(client, tid)

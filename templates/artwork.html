@@ -4,6 +4,8 @@
 
 {% set aw = artwork %}
 
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/phone-studio.css?v=1">{% endblock %}
+
 {% block content %}
 {% set gfonts = aw.fonts | selectattr("google", "defined") | map(attribute="google") | list %}
 {% if gfonts %}
@@ -40,6 +42,18 @@
   .bench { background: radial-gradient(120% 90% at 50% 0%, var(--sb-on-gold) 0%, var(--sb-ground) 65%); }
   @media (prefers-reduced-motion: no-preference) {
     .proof svg, .proof img { transition: opacity .2s ease; }
+  }
+  /* Phone pass (2026-09-18): the sliders were a 2px line you had to land a
+     finger on. On a phone each one is a 44px row with the same 2px line
+     drawn through its middle and a bigger thumb; the align buttons, Reset
+     and the colour wells are 44px targets too. */
+  @media (max-width: 767px) {
+    .studio input[type="range"] { height: 44px; margin-top: 0;
+      background: linear-gradient(rgba(239,233,220,.14), rgba(239,233,220,.14)) center / 100% 2px no-repeat; }
+    .studio input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
+    .studio input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
+    .align-btn, #text-reset-btn { min-height: 44px; }
+    .studio input[type="color"] { height: 44px; }
   }
 </style>
 

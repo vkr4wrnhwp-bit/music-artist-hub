@@ -11,6 +11,10 @@
     <button class="to-btn to-btn--ghost to-btn--small" type="button" data-copy="#vip-link">Copy link</button>
     <a class="to-btn to-btn--ghost to-btn--small" href="{{ vip_link }}" target="_blank" rel="noopener">Open</a>
   </div>
+  {% if not vip_sales_open %}
+  {#- The owner's switch (sales_switch). The link still opens; it says to email. -#}
+  <div class="to-inline" style="margin-top:8px">{{ sb.lamp("by arrangement", "warn") }} <span class="to-muted">Street Banker has online VIP sales switched off for now. Fans who open the link are told: {{ vip_sales_closed }}</span></div>
+  {% endif %}
   {% if not vip_stripe_live or vip_mail_off %}
   <div class="to-inline" style="margin-top:8px">
     {% if not vip_stripe_live %}{{ sb.lamp("not live", "crit") }} <span class="to-muted">No payment provider is connected on this deployment; the link opens but nothing can be bought.</span>{% endif %}

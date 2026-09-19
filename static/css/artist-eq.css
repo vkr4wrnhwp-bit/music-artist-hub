@@ -26,28 +26,6 @@
   padding: clamp(48px, 7vw, 96px) 0;
 }
 
-/* The room, used as a frame. Its centre was painted out of the file, so
-   the console sits in a real hole rather than on top of a picture of a
-   console. */
-.sbeq-room {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  display: block;
-}
-.sbeq-room img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  opacity: 0.85;
-}
-@media (max-width: 900px) {
-  /* On a phone the gear would sit behind the controls. Keep a hint of it
-     at the edges and let the console own the middle. */
-  .sbeq-room img { opacity: 0.35; object-position: 50% 30%; }
-}
-
 /* The section runs the full width of the page so its own near-black is
    the ground rather than a dark card on white. The console keeps the
    measurements it was approved at: this max-width and padding reproduce
@@ -498,4 +476,189 @@
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/* --- the photographed unit (owner, 2026-09-17) ----------------------------
+   On wide screens the analyzer and the six faders live on ONE photographed
+   faceplate: eq-unit-plate is the unit with its caps off, eq-unit-cap is a
+   cap cut from its sister photograph. Nothing on the plate is drawn: the
+   only moving parts are the cap (the range input's thumb), the lamp glow and
+   the analyzer's bars in the display window. All positions are fractions of
+   the photograph (1672 x 941), so the unit scales as one object. The plate
+   is brushed steel since 2026-09-18 (owner: "i want to change the brass
+   face plate also"): the steel photograph's baked-in caps are painted out,
+   and the cap's brass trim is recoloured silver to match. Below 901px
+   six photographed faders would be too small to touch, so the plain controls
+   above stay as they are. */
+@media (min-width: 901px) {
+  .sbeq-unit {
+    /* Sized by the column it sits in, never by the window: it fills that
+       column edge to edge. Everything inside is measured in the unit's own
+       width (cqw), so it scales as one object. */
+    container-type: inline-size;
+    position: relative;
+    align-self: center;
+    width: 100%;
+    aspect-ratio: 1672 / 941;
+    margin: 0 0 30px;
+    background: #0B0A09 url("/static/img/eq-unit-plate.jpg?v=2") center / 100% 100% no-repeat;
+    background-image: image-set(url("/static/img/eq-unit-plate.webp?v=2") type("image/webp"), url("/static/img/eq-unit-plate.jpg?v=2") type("image/jpeg"));
+    border-radius: 6px;
+    box-shadow: 0 30px 70px rgb(0 0 0 / 0.6);
+  }
+  .sbeq-unit > .sbeq-panel-label,
+  .sbeq-unit .sbeq-trace > .sbeq-panel-label,
+  .sbeq-unit .sbeq-ch-icon,
+  .sbeq-unit .sbeq-scale {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  /* the display window */
+  .sbeq-unit .sbeq-trace {
+    position: absolute; left: 10.47%; top: 11.16%; width: 79.07%; height: 24.97%;
+    align-self: auto; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  }
+  .sbeq-unit .sbeq-analyzer { height: 100%; margin: 0; opacity: 0.94; mix-blend-mode: screen; }
+  .sbeq-unit .sbeq-trace svg { width: 100%; height: 100%; }
+  /* six columns, each centred on its photographed slot */
+  .sbeq-unit .sbeq-channels { position: absolute; inset: 0; margin: 0; display: block; }
+  .sbeq-unit .sbeq-channel {
+    position: absolute; top: 0; height: 100%; width: 11%;
+    margin: 0 0 0 -5.5%; padding: 0; border: 0; background: none; box-shadow: none;
+    display: block;
+  }
+  .sbeq-unit .sbeq-channel:nth-child(1) { left: 14.11%; --l: 14.11; }
+  .sbeq-unit .sbeq-channel:nth-child(2) { left: 25.84%; --l: 25.84; }
+  .sbeq-unit .sbeq-channel:nth-child(3) { left: 37.62%; --l: 37.62; }
+  .sbeq-unit .sbeq-channel:nth-child(4) { left: 49.52%; --l: 49.52; }
+  .sbeq-unit .sbeq-channel:nth-child(5) { left: 61.30%; --l: 61.30; }
+  .sbeq-unit .sbeq-channel:nth-child(6) { left: 73.15%; --l: 73.15; }
+  /* engraved name between the window and the lamp */
+  .sbeq-unit .sbeq-ch-name {
+    position: absolute; left: -20%; right: -20%; top: 39.4%;
+    text-align: center; font-size: clamp(12px, calc(100cqw * 0.0098), 14px);
+    font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--sb-paper-ink); text-shadow: 0 1px 0 rgb(255 255 255 / 0.4);
+  }
+  /* the photographed jewel lamp, lit from behind by the channel's value */
+  .sbeq-unit .sbeq-lamp {
+    position: absolute; left: 50%; top: 44.6%; width: 26%; height: auto; aspect-ratio: 1;
+    margin: 0; transform: translate(-50%, -50%); border: 0; border-radius: 50%;
+    background: radial-gradient(circle, rgb(255 190 80 / 0.95) 0%, rgb(255 140 30 / 0.55) 45%, transparent 72%);
+    box-shadow: 0 0 calc(100cqw * 0.012) rgb(255 150 40 / 0.7);
+    opacity: var(--lit, 0.75); mix-blend-mode: screen; pointer-events: none;
+  }
+  /* the fader: travel runs tick to tick (492..755 of 941), centre at 66.26% */
+  .sbeq-unit .sbeq-fader { position: absolute; left: 50%; top: 66.26%; width: 0; height: 0; display: block; }
+  .sbeq-unit .sbeq-range {
+    position: absolute; left: 0; top: 0; margin: 0;
+    width: calc(100cqw * 0.2233); height: calc(100cqw * 0.0562);
+    transform: translate(-50%, -50%) rotate(-90deg);
+  }
+  .sbeq-unit .sbeq-range::-webkit-slider-runnable-track { height: 100%; background: transparent; box-shadow: none; }
+  .sbeq-unit .sbeq-range::-moz-range-track { height: 100%; background: transparent; box-shadow: none; }
+  .sbeq-unit .sbeq-range::-webkit-slider-thumb {
+    width: calc(100cqw * 0.066); height: calc(100cqw * 0.0562); margin-top: 0;
+    border: 0; border-radius: 6px;
+    background: url("/static/img/eq-unit-cap.png?v=2") center / 100% 100% no-repeat;
+    box-shadow: -7px 0 12px rgb(0 0 0 / 0.55), -2px 0 3px rgb(0 0 0 / 0.5);
+  }
+  .sbeq-unit .sbeq-range::-moz-range-thumb {
+    width: calc(100cqw * 0.066); height: calc(100cqw * 0.0562);
+    border: 0; border-radius: 6px;
+    background: url("/static/img/eq-unit-cap.png?v=2") center / 100% 100% no-repeat;
+    box-shadow: -7px 0 12px rgb(0 0 0 / 0.55), -2px 0 3px rgb(0 0 0 / 0.5);
+  }
+  .sbeq-unit .sbeq-range:focus-visible { outline-offset: 2px; }
+  /* the reading under the slot, the description under the unit */
+  .sbeq-unit .sbeq-value {
+    position: absolute; left: -20%; right: -20%; top: 86.4%; text-align: center;
+    font-size: clamp(13px, calc(100cqw * 0.0115), 16px); font-weight: 800; color: var(--sb-paper-ink);
+    font-variant-numeric: tabular-nums; background: none; border: 0; padding: 0;
+  }
+  /* One description at a time, on the line under the unit: six side by side
+     do not fit at this size. It belongs to the fader being touched. */
+  .sbeq-unit .sbeq-ch-desc {
+    position: absolute; top: 102%; left: calc((5.5 - var(--l)) * 1cqw); width: 100cqw; margin: 0;
+    text-align: center; font-size: 13px; line-height: 1.4; color: var(--eq-muted);
+    opacity: 0; transition: opacity 0.15s; pointer-events: none;
+  }
+  /* The faders left this card for the unit, so the card goes too. What is
+     left is two lines of type under the unit: the name of the thing and
+     what it does, then how to use it with the buttons at the end of the
+     line. No box around words that do not need one. */
+  .sbeq-channels-wrap {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 28px;
+    border: 0; border-radius: 0; background: none; box-shadow: none; padding: 0;
+  }
+  .sbeq-channels-wrap .sbeq-head { display: block; margin: 0; padding: 0; border: 0; max-width: none; }
+  .sbeq-head .sbeq-eyebrow, .sbeq-head .sbeq-title, .sbeq-head .sbeq-support,
+  .sbeq-head .sbeq-instruction, .sbeq-head .sbeq-score-note { display: inline; margin: 0; }
+  .sbeq-head .sbeq-eyebrow { margin-right: 12px; }
+  .sbeq-head .sbeq-title { margin-right: 14px; font-size: clamp(20px, 1.9vw, 28px); line-height: 1.15; }
+  .sbeq-head .sbeq-support { font-size: 15px; }
+  .sbeq-head .sbeq-support::after { content: "\A"; white-space: pre; }
+  .sbeq-head .sbeq-instruction, .sbeq-head .sbeq-score-note { font-size: 13px; line-height: 1.5; color: var(--eq-muted); }
+  .sbeq-head .sbeq-instruction { margin-right: 6px; }
+  .sbeq-channels-wrap .sbeq-ctas { margin: 0; flex-wrap: nowrap; }
+  .sbeq-unit .sbeq-channel:hover .sbeq-ch-desc,
+  .sbeq-unit .sbeq-channel:focus-within .sbeq-ch-desc { opacity: 1; }
+}
+
+/* --- the composition (owner, 2026-09-17: "you have so much empty space") --
+   On a wide screen the section is one spread, not a stack of boxes.
+     line 1   ARTIST EQ  TUNE YOUR ARTIST SYSTEM.  Set your priorities...
+     line 2   the focus presets, as a rail
+     then     the photographed unit | the readiness panel, side by side
+     under    how to use it, the honesty note, then the two buttons
+   The wrappers dissolve (display: contents) so each piece can take its own
+   place in the grid without the markup changing. Columns 1 and 2 are sized
+   by the eyebrow and the title; everything else spans, so the unit's width
+   is simply the spread minus the panel. */
+@media (min-width: 1100px) {
+  .sbeq-inner {
+    max-width: 1440px;
+    padding: 0 clamp(32px, 4vw, 64px);
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) minmax(340px, 35%);
+    column-gap: 24px;
+    row-gap: 14px;
+    align-items: start;
+  }
+  .sbeq-console, .sbeq-channels-wrap, .sbeq-channels-wrap .sbeq-head { display: contents; }
+
+  .sbeq-head .sbeq-eyebrow { grid-column: 1; grid-row: 1; align-self: baseline; margin: 0; }
+  .sbeq-head .sbeq-title { grid-column: 2; grid-row: 1; align-self: baseline; margin: 0; font-size: clamp(22px, 2vw, 30px); line-height: 1.05; white-space: nowrap; }
+  .sbeq-head .sbeq-support { grid-column: 3 / 5; grid-row: 1; align-self: baseline; margin: 0; font-size: 15px; }
+  .sbeq-head .sbeq-support::after { content: none; }
+
+  .sbeq-presets-wrap {
+    grid-column: 1 / 5; grid-row: 2; display: flex; align-items: center; gap: 18px;
+    border: 0; border-radius: 0; background: none; padding: 0;
+  }
+  .sbeq-presets-wrap .sbeq-panel-label { flex: none; }
+  .sbeq-presets { flex: 1; margin-top: 0; }
+
+  .sbeq-unit { grid-column: 1 / 4; grid-row: 3; }
+  .sbeq-output { grid-column: 4; grid-row: 3 / 7; align-self: start; }
+  .sbeq-head .sbeq-instruction { grid-column: 1 / 4; grid-row: 4; margin: 0; font-size: 14px; color: #DED8CD; }
+  .sbeq-head .sbeq-score-note { grid-column: 1 / 4; grid-row: 5; margin: 0; font-size: 12px; }
+  .sbeq-channels-wrap .sbeq-ctas { grid-column: 1 / 4; grid-row: 6; margin: 6px 0 0; }
+}
+
+/* --- phone: the 12px type floor (phone pass, 2026-09-18) -----------------
+   Below 901px the console is plain stacked controls, and its engraved
+   10-11px captions measured as the 42 pieces of tiny text on the home page
+   at 390px. The desk unit above 900px keeps its sizes exactly. */
+@media (max-width: 900px) {
+  .sbeq-eyebrow,
+  .sbeq-panel-label,
+  .sbeq-preset,
+  .sbeq-ch-name,
+  .sbeq-ch-desc,
+  .sbeq-score-note,
+  .sbeq-module-note,
+  .sbeq-setup { font-size: 12px; }
+  .sbeq-lane-why { font-size: 12.5px; }
+  .sbeq-preset { letter-spacing: 0.06em; }
+  .sbeq-panel-label { letter-spacing: 0.18em; }
 }

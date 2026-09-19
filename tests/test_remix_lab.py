@@ -247,7 +247,8 @@ def test_the_photographs_are_real_files_and_decorative(page):
     # Every image on the page is decorative and says so; the header logo
     # is the one image that carries meaning and lives in the shared partial.
     for tag in re.findall(r"<img[^>]*>", page):
-        if "streetbanker-logo" in tag:
+        if "streetbanker-logo" in tag or "/static/img/suites/" in tag:
+            # the suite wordmarks on the shared footer strip name their suite
             continue
         assert 'alt=""' in tag, tag
 
@@ -312,7 +313,7 @@ def test_the_submit_is_never_disabled(page):
 
 
 def test_the_static_assets_were_bumped(page):
-    assert "remix-lab.css?v=9" in page
+    assert "remix-lab.css?v=10" in page
     assert "remix-lab.js?v=4" in page
     sw = open(_os.path.join(_HERE, "static", "js", "sw.js"), encoding="utf-8").read()
     # A MINIMUM, not an exact match. Pinning the literal version made
@@ -363,7 +364,7 @@ def test_the_brief_page_never_shows_mock_numbers_as_measured(monkeypatch):
         content_type="multipart/form-data")
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert "remix-lab.css?v=9" in body
+    assert "remix-lab.css?v=10" in body
     assert "Not detected — by design" in body
     assert "Placeholder — not a measurement" in body
     assert "sbrl-read-seg--measured" not in body

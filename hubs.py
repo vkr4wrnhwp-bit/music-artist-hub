@@ -20,7 +20,7 @@ HUBS = [
         # MASTERCLIP OS, the video render factory, on its own service like
         # the two above (owner, 2026-09-15: "missing the video edit tool").
         # Motion is MASTERCLIP's proper name (owner, 2026-09-15).
-        ("masterclip", "https://masterclip.onrender.com/", "M3 5h14v10H3z|M3 8h14|M6 5v10M14 5v10|M9 10l3-1.5v3z", "Motion", "Cinematic video from your masters and art, in its own suite (opens Motion)."),
+        ("masterclip", "/suites/go/motion", "M3 5h14v10H3z|M3 8h14|M6 5v10M14 5v10|M9 10l3-1.5v3z", "Motion", "Cinematic video from your masters and art, in its own suite (opens Motion)."),
         ("artwork", "/artwork", "M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z", "Cover Art", "Generate and manage release artwork."),
         ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Vault", "Stems, bounces and press assets - and the contracts and licences beside them."),
         ("beats", "/beats", "M5 14a3 3 0 106 0 3 3 0 00-6 0z|M11 14V4l5 2v8|M14 12a2 2 0 104 0 2 2 0 00-4 0z", "Beats", "Beat registry, licences, cleared list, usage cases."),
@@ -39,7 +39,7 @@ HUBS = [
         # other platforms should be visible"). It stays a tab of Press too.
         ("epk", "/epk", "M4 3h9l3 3v11H4z|M13 3v3h3|M7 9h6M7 12h6M7 15h4", "Press Kit", "Your electronic press kit on one link: bio, photos, tracks and the figures that are measured."),
         ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press", "Media list, pitches and coverage — with the press kit and one-sheet they send."),
-        ("reach", "https://street-banker-v2-workflows.onrender.com/reach/", "M3 10a7 7 0 0114 0|M6 10a4 4 0 018 0|M10 10v7|M8 17h4", "REACH", "Paid promotion and outreach, in its own room (opens the REACH app)."),
+        ("reach", "/suites/go/reach", "M3 10a7 7 0 0114 0|M6 10a4 4 0 018 0|M10 10v7|M8 17h4", "REACH", "Paid promotion and outreach, in its own room (opens the REACH app)."),
         ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Daily follower and popularity snapshots, growth over time, and your link engagement."),
     ]),
     ("stage", "Live Stage Suite", "Everything between the booking and the encore — shows, plots, lights, and the rider.", [
@@ -52,8 +52,14 @@ HUBS = [
          "Stage Plot", "One drawing per act, attached to every advance you send. Draw it here before there is a tour."),
         ("lights", "/lights", "M10 2v4|M4 6l2 2|M16 6l-2 2|M6 12a4 4 0 118 0v4H6z", "Light Studio", "Cue programming with real DMX output."),
         ("tour-board", "/tour-board", "M7 8a3 3 0 116 0 3 3 0 01-6 0z|M2 17c1-3 4-4 8-4s7 1 8 4", "Team-Up Board", "Artists and venues finding each other."),
-        # The Tour suite, the owner's tour app on its own service (2026-09-15).
-        ("tour-suite", "https://street-banker-tour-open-preview-3.onrender.com/", "M3 15h14|M5 15V9l5-4 5 4v6|M8 15v-3h4v3|M15 4l2 2", "Tour Suite", "The tour app on its own service: routing, advancing and the road, in one suite (opens Tour).")
+        # Tour used to be listed twice: this hub's "Tour" and a "Tour Suite"
+        # that opened the separate service. An audit on 2026-09-17 found that
+        # service is a fork from August, twenty routes behind this app's Tour
+        # (VIP, ticket sync, advance sending, venue photos, setlists, the show
+        # page the owner approved) and asleep on a free instance, so the link
+        # cost a cold start to reach the older copy. One Tour, and it is this
+        # one; the strip's TO mark points here too, from TOOL_SUITES_OWN. The
+        # suite is rebuilt from this code after partner week.
     ]),
     ("money", "Royalty Sweep & Banking", "The money side — find it, claim it, value it, and keep the books straight.", [
         # Overview is a tab of the Command Center front (2026-09-07: "overview
@@ -74,7 +80,7 @@ HUBS = [
 
 # Groups outside the five hubs.
 LABEL_GROUP = ("Label Services", [
-    ("services", "/services", "M4 6h12v10H4z|M4 9h12M8 6V4h4v2", "Services", "Art Is War Records label services."),
+    ("services", "/services", "M4 6h12v10H4z|M4 9h12M8 6V4h4v2", "Services", "Street Banker label services."),
     ("apparel", "/apparel", "M6 6l4-2 2 2 2-2 4 2-2 4h-1v6H9v-6H8L6 6z", "Apparel & Merch", "The store's own checkout, on the page you are on."),
     ("submit", "/submit", "M10 4v9M6 8l4-4 4 4|M4 15h12", "Submit Music", "Send music to the label desk."),
     # /admin/review is NOT here. It lists every account on the deployment
@@ -135,7 +141,12 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "artist-twin",
              "revenue-os", "overview", "royalties", "recovery",
              "valuation", "links", "rollout", "artwork", "services", "submit",
-             "inbox", "settings", "discover", "catalog", "command-center",
+             "inbox", "settings", "catalog", "command-center",
+             # F-5 (audit 2026-09-18): the badges were backwards. The Collab
+             # Marketplace is a real db-backed board (nothing seeded), so it
+             # is live; Discover shows example artists, so it is NOT here and
+             # wears the Sample badge.
+             "marketplace",
              "actions", "autopilot", "scores",
              "vault", "pulse", "team", "tax",
              "income", "disputes", "fans", "portal",
@@ -237,9 +248,21 @@ def tool_suites():
     out = []
     for _hk, _name, _tag, items in nav_hubs():
         for key, href, icon, label, desc in items:
-            if href.startswith(("http://", "https://")):
+            if is_away(href):
                 out.append((key, href, icon, label, desc))
-    return list(TOOL_SUITES_OWN) + out + list(TOOL_SUITES_PENDING)
+    every = list(TOOL_SUITES_OWN) + out + list(TOOL_SUITES_PENDING)
+    # The owner's order for the eight (suite artwork, 2026-09-17): TR NL RE RS
+    # TO CO AR MO. Anything not named keeps its place after them.
+    rank = {k: i for i, k in enumerate(SUITE_ORDER)}
+    return sorted(every, key=lambda row: rank.get(row[0], len(rank)))
+
+
+def is_away(href):
+    """True for a link that leaves this app: another service outright, or
+    one of the suites reached through the sign-in hand-off at /suites/go/
+    (sb_suite_sso), which lands on another service after one redirect.
+    The sidebar, the strip and the palette open these in a new tab."""
+    return href.startswith(("http://", "https://", "/suites/go/"))
 
 
 # Suites the owner has named but not yet addressed (2026-09-15: "have
@@ -251,17 +274,53 @@ def tool_suites():
 # noise lab and the room from studio"). They are their own products with
 # their own sign-in, so they belong on the suites strip rather than in a
 # hub of Street Banker's own pages.
+SUITE_ORDER = ("the-room", "noise-lab", "reach", "royalty-sweep", "tour-suite", "company", "artifacts", "masterclip")
+
+# Suites that have an address but are not open to members yet: they keep
+# their place and their link on the strip, marked Soon, and the door sends
+# everyone but the owner to a Coming soon page (owner, 2026-09-18, on Noise
+# Lab: "soon as we need to finish it").
+SUITES_SOON = {"noise-lab"}
+
+
+# The strip entries that are waiting; everything else is live.
+def suites_pending():
+    return {row[0] for row in TOOL_SUITES_PENDING} | SUITES_SOON
+
+
 TOOL_SUITES_OWN = (
-    ("noise-lab", "https://street-banker-v2-workflows.onrender.com/noise-lab/", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Build your own effects and pedal chains for playing live (opens the Noise Lab app)."),
-    ("the-room", "https://street-banker-v2-workflows.onrender.com/song-builder", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Songwriting, arrangement and production: build the record part by part, in its own app.")
+    # Royalty Sweep is this app: rights, royalties, clarity. It sits on the
+    # strip with the other seven (owner, 2026-09-17: "yes put royalty sweep in
+    # the footer") and opens the Royalties desk in this tab.
+    ("royalty-sweep", "/royalties", "M4 6h12M4 10h12M4 14h8", "Royalty Sweep", "Rights, royalties and clarity: the money desk of this app."),
+    ("noise-lab", "/suites/go/noise-lab", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Build your own effects and pedal chains for playing live (opens the Noise Lab app)."),
+    ("the-room", "/suites/go/the-room", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Songwriting, arrangement and production: build the record part by part, in its own app."),
+    ("tour-suite", "/tours", "M3 15h14|M5 15V9l5-4 5 4v6|M8 15v-3h4v3|M15 4l2 2", "Tour", "Route it, advance it, play it, settle it: the tour desk of this app."),
 )
 
 TOOL_SUITES_PENDING = (
     ("company", "/command-center", "M3 17V6l7-3 7 3v11H3z|M8 17v-5h4v5|M7 9h.01M13 9h.01", "Company",
-     "The company desk, coming to the suites. Opens the Command Center for now."),
+     "Your team, your partners and your paperwork. Coming to the suites; opens the Command Center for now."),
     ("artifacts", "/command-center", "M4 4h12v12H4z|M4 9h12|M9 9v7|M7 6.5h.01", "Artifacts",
-     "The artifacts workbench, coming to the suites. Opens the Command Center for now."),
+     "Merch, collectibles and moments for fans. Coming to the suites; opens the Command Center for now."),
 )
+
+# The suites strip draws every suite the same way (owner, 2026-09-17: "fix the
+# images in the footer to be the same size and look"): one bracket frame, a
+# two-letter monogram, the suite's own colour, as on the owner's flight-case
+# artwork. The marks the owner sent were each built differently (frame
+# shape, line weight, glow), so they are drawn here as one system instead of
+# resized. Keyed by strip key: (monogram, colour).
+SUITE_MARKS = {
+    "noise-lab": ("NL", "#F2E600"),
+    "the-room": ("TR", "#FF7A1A"),
+    "masterclip": ("MO", "#12C8FF"),
+    "reach": ("RE", "#1E9BFF"),
+    "royalty-sweep": ("RS", "#19E68C"),
+    "tour-suite": ("TO", "#FF2D2D"),
+    "company": ("CO", "#FF2DD1"),
+    "artifacts": ("AR", "#9B5CFF"),
+}
 
 
 def command_index():
@@ -316,8 +375,10 @@ def get_hub(key):
 _STUDIO_ITEM = (
     "studio", "/studio",
     "M3 5h14v10H3z|M3 15h14|M6 8v4|M9 7v6|M12 9v3|M15 8v4",
-    "Studio",
-    "Sessions, versions and approvals for the record you are finishing.",
+    # "Studio" inside a room called Studio said nothing about the work
+    # (owner, 2026-09-17). The page keeps its Control Room heading.
+    "Mix Check",
+    "Check a mix or master before it goes out: loudness, headroom, versions and approvals.",
 )
 
 

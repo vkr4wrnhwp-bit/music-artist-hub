@@ -332,3 +332,24 @@
   }
   .sbcs-feature-row { scroll-behavior: auto; }
 }
+
+/* Phone pass (2026-09-18): the 12px type floor at 390px. A desk keeps
+   the clamp above exactly; this only lifts its 11px floor on a phone. */
+@media (max-width: 767px) {
+  .sbcs-eyebrow, .sbcs-feature { font-size: 12px; }
+  .sbcs-workflow-btn { min-height: 44px; }
+}
+/* The four labels were a sideways strip cut off mid-word ("CAMPAIGN AS")
+   with nothing to say it scrolled. On a phone they sit two by two, every
+   label whole and still a 46px target. */
+@media (max-width: 640px) {
+  .sbcs-feature-row {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible; scroll-snap-type: none;
+  }
+  .sbcs-feature-row > li { min-width: 0; }
+  .sbcs-feature-row > li:nth-child(odd) { border-left: 0; }
+  .sbcs-feature-row > li:nth-child(n+3) { border-top: 1px solid var(--cs-line); }
+  .sbcs-feature { padding: 10px 8px; }
+  .sbcs-feature-line { text-align: center; }
+}

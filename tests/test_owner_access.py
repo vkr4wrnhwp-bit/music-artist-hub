@@ -68,6 +68,9 @@ def test_the_owner_can_reach_the_pages_a_free_account_cannot():
     app_obj = create_app()
     owner = _account(app_obj, OWNER)
     other = _account(app_obj, NOT_OWNER)
+    # Royalty Sweep is part of Artist now, so the account that is refused
+    # is a free one.
+    store.set_user_plan(store.get_user_by_email(NOT_OWNER)["id"], "fan")
 
     for path in ("/overview", "/royalties", "/catalog", "/reports"):
         assert owner.get(path).status_code == 200, "owner blocked from %s" % path

@@ -26,7 +26,7 @@
 
 {% if can('schedule') or can('edit') %}
 {#- Eleven fields behind a plus; open on its own only while nothing is scheduled. -#}
-<details class="to-add" id="add-item"{% if not by_day %} open{% endif %}>
+<details class="to-add" id="add-item">
 <summary><span class="plus" aria-hidden="true">+</span> Add an item on any date</summary>
 <div class="to-add-body">
 <form method="post" action="/tours/{{ tour['id'] }}/schedule/add" class="to-form">

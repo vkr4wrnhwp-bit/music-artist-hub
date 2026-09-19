@@ -1,6 +1,6 @@
 """Shopify Buy Buttons — the store's checkout, inside the app.
 
-The store at artiswarrecords.com is the ecosystem's real commerce
+The store at streetbankermusic.com is the ecosystem's real commerce
 engine, and the app has only ever linked out to it. A link is a
 handoff: the fan leaves, the cart is somewhere else, and whatever
 brought them here does not follow them. Buy Buttons put the same

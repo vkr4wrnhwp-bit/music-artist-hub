@@ -122,7 +122,7 @@ MODULES = [
     ("/tour-board", "Team-Up Board", "Artists seeking tour partners and venues seeking acts \u2014 real listings only.", "live", None),
     ("/rack", "The Rack", "Mix and master in the browser: 12-band EQ, tube stage, cab & mic sim, compressor, LUFS loudness against platform targets, WAV export \u2014 nothing is uploaded.", "live", None),
     ("/roster", "Label Mode", "Roster seats for the Label tier: invite artists, see the whole roster's real numbers.", "live", None),
-    ("/referrals", "Referrals", "Give a month, get $9: your link, your signups, credits on your Stripe balance.", "live", None),
+    ("/referrals", "Referrals", "Half off each way: your link, your sign-ups, credits on your Stripe balance.", "live", None),
     ("/lights", "Light Studio", "Cue your light show to the song — stage preview plus real DMX out to an ENTTEC interface.", "live", None),
     ("/tracks", "Track Passports", "Per-track rights and metadata spine: passport, clean-release score, royalty lanes, lockbox.", "live", None),
     ("/money-queue", "Money Queue", "What is costing you money, criticals first — every action names its fix and its basis.", "live", None),

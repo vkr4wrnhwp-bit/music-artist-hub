@@ -33,7 +33,7 @@
     <div class="mt-4 flex flex-wrap items-center gap-1.5 text-xs font-bold uppercase">
       <span class="tracking-[0.15em] text-gray-300">Milestones:</span>
       {% for key, label, href, on in cal.preset_links %}
-      <a href="{{ href }}" class="rounded-full border px-2.5 py-1 {{ 'border-sb-gold bg-sb-gold/10 text-gray-200' if on else 'border-white/10 text-gray-300 hover:border-sb-gold/40' }}"{% if on %} aria-current="true"{% endif %}>{{ label }}</a>
+      <a href="{{ href }}" class="ph-ms-pill rounded-full border px-2.5 py-1 {{ 'border-sb-gold bg-sb-gold/10 text-gray-200' if on else 'border-white/10 text-gray-300 hover:border-sb-gold/40' }}"{% if on %} aria-current="true"{% endif %}>{{ label }}</a>
       {% endfor %}
       <span class="ml-1 normal-case tracking-normal text-gray-300">overlays plan checkpoints computed from each release date — nothing is stored or predicted</span>
     </div>

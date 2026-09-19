@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Audience - Royalty Sweep{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/fans-audience.css?v=3">
+  <link rel="stylesheet" href="/static/css/fans-first-run.css?v=2">
+  <link rel="stylesheet" href="/static/css/account-phone.css?v=3">
+{% endblock %}
+
+{#- FANS, FIRST RUN - the owner's approved mockup (_mockup/APPROVED-first-run.png,
+    2026-09-18: "do the fans empty state with the leftovers"). /fans shows this
+    to a real signed-in account with nobody on file, instead of a screen of
+    empty panels; from the first fan it is the Audience screen (fans.html).
+    The demo showcase never reaches it.
+
+    "Preview the import" is literal: the form goes to /fans/import/preview,
+    which reads the list, holds it as a draft and writes no fan. Nothing is
+    added until "Confirm and import" on the preview (tests/test_fans_first_run.py).
+
+    The pictures are decoration: a crowd band and three silhouettes, never
+    a face standing in for a real fan. -#}
+{% set a = audience %}
+{% set r = fan_import_result %}
+
+{% block content %}
+<div class="acph">
+<div class="au mx-auto max-w-[1200px]" data-no-collapse>
+  {% set au_tab = "audience" %}{% set au_resend = a.resend_configured %}{% set au_no_import = true %}
+  {% include "partials/fans_head.html" %}
+
+  <div class="fr">
+    <section class="fr-hero" aria-labelledby="fr-hero-h">
+      <img class="fr-hero-img" src="/static/img/fans-firstrun-crowd.webp" alt="" width="1600" height="400" decoding="async">
+      <div class="fr-hero-scrim" aria-hidden="true"></div>
+      <div class="fr-hero-edge" aria-hidden="true"></div>
+      <div class="fr-hero-body">
+        <p class="fr-eyebrow">Fans <span>/ first run</span></p>
+        <h2 class="fr-hero-title" id="fr-hero-h">Your audience already exists. Bring it in.</h2>
+        <p class="fr-hero-sub">This page fills from a list you already own. You do not have to start again from zero and wait for strangers to type an email address.</p>
+      </div>
+    </section>
+
+    <div class="fr-meta">
+      <div class="fr-meta-cell"><span class="fr-meta-k">Fans on file</span><span class="fr-meta-v" data-fr-stat="total">None yet</span></div>
+      <div class="fr-meta-cell"><span class="fr-meta-k">Last import</span><span class="fr-meta-v" data-fr-stat="last">
+        {%- if last_list_import and last_list_import.summary -%}
+          {{ last_list_import.created[:10] }}, {{ "{:,}".format(last_list_import.summary.new or 0) }} added
+        {%- else -%}None yet{%- endif -%}</span></div>
+      <div class="fr-meta-cell"><span class="fr-meta-k">Engagement scores</span><span class="fr-meta-v">Not measured</span></div>
+    </div>
+
+    <div class="fr-grid">
+      <form id="import" class="fr-card fr-import" method="post" action="/fans/import/preview" enctype="multipart/form-data" aria-labelledby="fr-import-h">
+        <input type="hidden" name="origin" value="fans">
+        <div class="fr-head">
+          <div>
+            <h2 class="fr-h2" id="fr-import-h">Import the list you already have</h2>
+            <p class="fr-lead">Choose a file or paste the addresses. Columns are read rather than demanded, so an export can arrive exactly as the other tool wrote it.</p>
+          </div>
+          <span class="fr-step">Start here</span>
+        </div>
+
+        {% if r and r.error %}
+        <p class="fr-alert" role="alert">{{ r.error }}</p>
+        {% elif r %}
+        <p class="fr-alert fr-alert--gold" role="status">The last list added {{ "{:,}".format(r.new or 0) }} of {{ "{:,}".format(r.read or 0) }} rows read; the rest were already on file or left out under a reason. Nobody is on file yet.</p>
+        {% endif %}
+        {% if pending_draft %}
+        <p class="fr-alert fr-alert--gold" role="status">A preview of {{ "{:,}".format(pending_draft.summary.read or 0) }} rows is waiting and nothing from it has been added. <a href="/fans/import">Open the preview</a></p>
+        {% endif %}
+
+        <ul class="fr-chips" aria-label="Exports this reads">
+          <li>Mailchimp</li><li>Klaviyo</li><li>Bandcamp</li><li>Eventbrite</li><li>Squarespace</li><li>A spreadsheet</li>
+          <li class="fr-chips-note">Commas, semicolons, tabs or pipes. Up to {{ "{:,}".format(import_max_rows) }} rows a file.</li>
+        </ul>
+
+        <div class="fr-ways">
+          <div class="fr-way">
+            <div class="fr-way-top">
+              <span class="fr-way-ico" aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M8 1H3.2A1.2 1.2 0 0 0 2 2.2v9.6A1.2 1.2 0 0 0 3.2 13h7.6A1.2 1.2 0 0 0 12 11.8V5z"/><path d="M8 1v4h4"/></svg></span>
+              <span class="fr-way-title">Choose a file</span>
+            </div>
+            <label class="fr-way-label" for="fr-file">A CSV, TSV or TXT export, straight out of the other tool.</label>
+            <input class="fr-file" id="fr-file" name="file" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain">
+            <p class="fr-way-hint">Nothing is uploaded until you press Preview.</p>
+          </div>
+
+          <div class="fr-or" aria-hidden="true"><span>or</span></div>
+
+          <div class="fr-way">
+            <div class="fr-way-top">
+              <span class="fr-way-ico" aria-hidden="true"><svg viewBox="0 0 14 14"><path d="M2 3.5h10M2 7h10M2 10.5h6"/></svg></span>
+              <span class="fr-way-title">Paste a list</span>
+            </div>
+            <label class="fr-way-label" for="fr-paste">One address a line, or a block copied from anywhere.</label>
+            <textarea class="fr-paste" id="fr-paste" name="text" placeholder="name@example.com&#10;another@example.com"></textarea>
+            {#- The server takes up to about 500 KB of pasted text (Werkzeug's
+                form-field limit), a few thousand rows. A file has no such limit
+                below the parser's own row cap, so big lists go that way. -#}
+            <p class="fr-way-hint">For a list of more than a few thousand, choose the file instead.</p>
+          </div>
+        </div>
+
+        <div class="fr-consent">
+          <label class="fr-tick" for="fr-ok">
+            <input type="checkbox" id="fr-ok" name="confirm" value="1" required>
+            <span class="fr-tick-text">These people agreed to hear from me, and I hold the record of it.<span class="fr-req">Required</span></span>
+          </label>
+          <div class="fr-field">
+            <label class="fr-label" for="fr-source">Where the permission came from</label>
+            <input class="fr-input" id="fr-source" name="source" type="text" maxlength="120" placeholder="Mailchimp list, opted in at the merch table" required>
+            <p class="fr-help">This is written onto every row that comes in. A file with no consent column is not permission, so your word becomes the record, and it says so.</p>
+          </div>
+        </div>
+
+        <div class="fr-reasons">
+          <p class="fr-reasons-k">Every row that does not come in is counted under a reason</p>
+          <ul>
+            <li>No email address</li>
+            <li>Not a readable email address</li>
+            <li>Their list says unsubscribed</li>
+            <li>The same address twice in this file</li>
+            <li>Already on file</li>
+          </ul>
+          <p>The reasons add up to the rows read. If they do not add up, the page says so rather than showing you a number it cannot stand behind.</p>
+        </div>
+
+        <div class="fr-actions">
+          <button class="fr-btn fr-btn--primary" type="submit">Preview the import</button>
+          <span class="fr-actions-note">You see the counts first. Nothing is added to Fans until you confirm them.</span>
+        </div>
+      </form>
+
+      <div class="fr-side">
+        <section class="fr-card fr-alt" aria-labelledby="fr-alt-h">
+          <div class="fr-alt-head">
+            <h3 class="fr-h3" id="fr-alt-h">No list yet</h3>
+            <span class="fr-tag">Second way in</span>
+          </div>
+          <p>A smart link plays on every service and asks for an email on the way through. Use it when there is genuinely nothing to import, or run it alongside the list you brought.</p>
+          <div class="fr-alt-row">
+            <a class="fr-btn fr-btn--ghost" href="/links/new">Create a smart link</a>
+            <a class="fr-link" href="/links">See your links</a>
+          </div>
+          {% if shopify_import and shopify_import.on %}
+          <div class="fr-alt-row">
+            <form method="post" action="/links/fans/import/shopify"><button class="fr-link" type="submit">Import subscribed Shopify customers now</button></form>
+            <span class="fr-help">Files them straight away, with no preview.</span>
+          </div>
+          {% endif %}
+        </section>
+
+        <section class="fr-card" aria-labelledby="fr-needs-h">
+          <div class="fr-alt-head">
+            <h3 class="fr-h3" id="fr-needs-h">What the file needs</h3>
+            <span class="fr-tag">Read, not demanded</span>
+          </div>
+          <ul class="fr-needs">
+            <li><span class="fr-needs-k">Required</span><span class="fr-needs-v">One column of email addresses, however it is spelled.</span></li>
+            <li><span class="fr-needs-k">Optional</span><span class="fr-needs-v">Name, or first and last. City and country. A subscribed or unsubscribed column.</span></li>
+            <li><span class="fr-needs-k">Never invented</span><span class="fr-needs-v">A location the file does not carry stays empty. It is not guessed from an email address.</span></li>
+          </ul>
+        </section>
+
+        <section class="fr-card" aria-labelledby="fr-next-h">
+          <h3 class="fr-h3" id="fr-next-h">What happens after that</h3>
+          <ol class="fr-steps">
+            <li><span class="fr-steps-n">1</span><span class="fr-steps-t"><b>The list lands here.</b> Each row carries where it came from and what you confirmed, so consent is never guessed at later.</span></li>
+            <li><span class="fr-steps-n">2</span><span class="fr-steps-t"><b>Share a smart link.</b> Every visit, click and pre-save on it scores the fan who made it, not anything assumed about them.</span></li>
+            <li><span class="fr-steps-n">3</span><span class="fr-steps-t"><b>Mail them from your own tool.</b> Sending from Fans is not in this build. The Audience screen downloads the contactable fans as a CSV, by place.</span></li>
+          </ol>
+          <p class="fr-foot">Until someone on the list visits or clicks one of your links, engagement reads <b>Not measured yet</b>.</p>
+        </section>
+
+        <section class="fr-card fr-people" aria-label="Where people land">
+          <span class="fr-sils" aria-hidden="true">
+            <img src="/static/img/fans-firstrun-silhouette-a.webp" alt="" width="30" height="30" loading="lazy">
+            <img src="/static/img/fans-firstrun-silhouette-b.webp" alt="" width="30" height="30" loading="lazy">
+            <img src="/static/img/fans-firstrun-silhouette-c.webp" alt="" width="30" height="30" loading="lazy">
+          </span>
+          <p>People land in a table right here, one row each, with where they came from and what they agreed to.</p>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/static/js/fans-audience.js?v=2" defer></script>
+</div>{#- /acph: account-phone.css scope -#}
+{% endblock %}

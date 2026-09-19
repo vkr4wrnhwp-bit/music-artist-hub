@@ -1,25 +1,25 @@
 """Config-driven data for the Label Services section.
 
-Content adapted from artiswarrecords.com (Art Is War Records / SummitArts).
-No public pricing tiers exist on the source site, so services use
+One brand (owner, 2026-09-17): Art Is War Records and SummitArts are
+retired and everything is Street Banker, including the store, which moved
+to streetbankermusic.com. No public pricing tiers exist, so services use
 "request a quote / custom package" CTAs rather than invented prices.
 """
 
 BRAND = {
-    # Platform branding is Street Banker everywhere; Art Is War Records is
-    # the external Shopify store's identity (linked, not the app's brand).
+    # Street Banker everywhere, in the app and in the store. There is no
+    # second brand any more.
     "name": "Street Banker",
     "sub": "Label Services",
     "tagline": "Music Marketing, Management & Label",
     # The live Shopify store — the ecosystem's real commerce engine.
-    "store_url": "https://www.artiswarrecords.com",
+    "store_url": "https://streetbankermusic.com",
     "store_label": "Shop Apparel & Merch",
     "contact_email": "team.summitarts@gmail.com",
     "submissions_emails": ["team.summitarts@gmail.com", "artiswarrecords@gmail.com"],
     "consulting_contact": "Lucas Joyner",
     "socials": [
-        {"label": "Facebook", "handle": "/artiswarrecords", "url": "https://facebook.com/artiswarrecords/", "logo": "other"},
-        {"label": "Instagram", "handle": "@summitartsgroup", "url": "https://instagram.com/summitartsgroup", "logo": "other"},
+        {"label": "Instagram", "handle": "@street_banker_music", "url": "https://instagram.com/street_banker_music", "logo": "other"},
         {"label": "YouTube", "handle": "Street Banker", "url": "https://youtube.com", "logo": "youtube"},
     ],
 }

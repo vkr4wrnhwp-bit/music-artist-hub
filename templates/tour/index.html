@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}TOUR - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/tour-os.css?v=26">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/tour-os.css?v=27"><link rel="stylesheet" href="/static/css/phone-studio.css?v=1">{% endblock %}
 {% block content %}
 {% import "tour/_macros.html" as m %}
 {% import "_sb.html" as sb %}
@@ -80,7 +80,7 @@
   {% if can_own %}
   {#- Three ways in, each behind a plus; the first opens on its own only
       while there is nothing to list. -#}
-  <details class="to-add" id="start-tour"{% if not mine and not shared %} open{% endif %}>
+  <details class="to-add" id="start-tour">
   <summary><span class="plus" aria-hidden="true">+</span> Start a tour</summary>
   <div class="to-add-body">
   <form method="post" action="/tours/new" class="to-form">
@@ -127,7 +127,7 @@
   <form method="post" action="/tours/seed-demo" class="to-bar"><button class="to-btn to-btn--ghost" type="submit">Load the example tour (demo account only)</button></form>
   {% endif %}
   {% else %}
-  <div class="to-note"><strong>Owning a tour needs the Artist tier.</strong> You can still open any tour you were invited to. <a href="/plan">See plans</a>.</div>
+  <div class="to-note"><strong>Owning a tour needs a membership that includes Tour.</strong> You can still open any tour you were invited to. <a href="/plan">See plans</a>.</div>
   {% endif %}
 </div>
 {% endblock %}

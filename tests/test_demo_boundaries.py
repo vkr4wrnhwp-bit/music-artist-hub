@@ -148,7 +148,7 @@ def test_a_granted_plan_is_announced_by_email_and_in_the_app(monkeypatch):
     assert mail["to"] == [target._email] and mail["reply_to"] == owner._email
     assert mail["subject"] == "You have Street Banker Pro access"
     assert "Pro</strong> plan" in mail["html"] and "/login" in mail["html"]
-    assert "Royalty Sweep: statements, recovery, catalog" in mail["html"]
+    assert "REACH" in mail["html"] and "Tour" in mail["html"]   # what Pro adds since 2026-09-17
     assert "No card was charged" in mail["html"]
     with app_obj.app_context():
         notes = store.list_notifications(store.get_user_by_email(target._email)["id"])

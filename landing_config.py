@@ -160,7 +160,7 @@ def get_landing_config():
             ],
             "socials": [
                 {"label": "Instagram",
-                 "href": "https://instagram.com/summitartsgroup"},
+                 "href": "https://instagram.com/street_banker_music"},
             ],
             "copyright": "© 2026 Street Banker LLC. All rights reserved.",
         },

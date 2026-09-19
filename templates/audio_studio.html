@@ -3,6 +3,7 @@
 
 {% block title %}Audio Studio - Street Banker{% endblock %}
 
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/phone-studio.css?v=1">{% endblock %}
 {% block content %}
 {%- set status_tone = {"ready": "good", "queued": "info", "running": "info",
                        "draft": "idle", "refused": "warn", "failed": "crit"} -%}
@@ -48,9 +49,15 @@
         </div>
         <p class="asx-lane-note">{{ lane.note }}</p>
 
+        {#- Every card is the same shape and every card opens closed (owner,
+            2026-09-17: "either all are or none are"). A lane that is off says
+            so behind the same fold a lane that is on puts its form behind,
+            rather than printing its whole explanation on the card. -#}
         {% if not lane.on %}
           <div class="asx-spacer"></div>
-          {% if lane.key == 'voice_vault' %}
+          <details class="asx-open">
+            <summary><span class="sb-btn sb-btn-secondary sb-btn-sm"><span class="asx-when-closed">Why it is off</span><span class="asx-when-open">Close</span></span></summary>
+            {% if lane.key == 'voice_vault' %}
             {#- Not a flag problem. The gate wants a recorded owner-verification
                 consent and nothing in the app can write one yet, so the lane
                 would refuse every submission. Saying "needs a flag" would send
@@ -62,25 +69,26 @@
               built here, so this lane is switched off rather than accepting a
               registration it would refuse.
             </p>
-          {% else %}
+            {% else %}
             <p class="asx-lane-flag">
               Not switched on for this account yet.
             </p>
-          {% endif %}
+            {% endif %}
+          </details>
         {% elif lane.key == 'voice_vault' %}
-          {# The Vault is not an upload. It records a reference to a voice the
-             OWNER verified through the vendor's own process. A manager
-             cannot register somebody else's voice from here. #}
-          <p class="asx-lane-flag">
-            <strong>Only the person whose voice it is can
-            register it.</strong> Street Banker never holds the voice model —
-            it records a reference to one verified through the provider, and
-            the permission around it. Starting here will ask the owner to
-            complete that verification themselves.
-          </p>
           <div class="asx-spacer"></div>
           <details class="asx-open">
             <summary><span class="sb-btn sb-btn-secondary sb-btn-sm"><span class="asx-when-closed">Begin a registration</span><span class="asx-when-open">Close</span></span></summary>
+            {# The Vault is not an upload. It records a reference to a voice the
+               OWNER verified through the vendor's own process. A manager
+               cannot register somebody else's voice from here. #}
+            <p class="asx-lane-flag">
+              <strong>Only the person whose voice it is can
+              register it.</strong> Street Banker never holds the voice model.
+              It records a reference to one verified through the provider, and
+              the permission around it. Starting here will ask the owner to
+              complete that verification themselves.
+            </p>
             <form method="post" action="{{ url_for('audio_studio.studio_new') }}" class="asx-form">
               <input type="hidden" name="lane" value="{{ lane.key }}">
               {{ sb.field("owner_person_id", "Who the voice belongs to",

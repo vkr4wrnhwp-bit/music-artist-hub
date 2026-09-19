@@ -1,7 +1,9 @@
 """The owner's own apps on other services, listed in the sidebar.
 
-Noise Lab and The Room live on the v2 workflows service, REACH on its own;
-each has its own login. They join the hubs as entries whose href is
+Noise Lab, The Room, REACH and Tour are suites on their own services. They
+no longer have their own login: each link goes through /suites/go/<key>,
+where Street Banker, the account of record, hands the signed-in artist
+across (sb_suite_sso). Motion is still a plain link. They join the hubs as entries whose href is
 absolute, and everything that renders a hub entry - the sidebar, the hub
 desk tiles, the command palette - opens one in a new tab and says so.
 They are real apps, not previews, so they are never badged Sample.
@@ -18,21 +20,27 @@ import hubs
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 EXTERNAL = {
-    # The real REACH is the one inside V2: 52 of 55 shared source files are
-    # identical to the tour service's copy, and every difference is V2 ahead -
-    # the plugin surface, the Street Banker identity bridge, and a catalog
-    # delete the older copy still gets wrong (compared 2026-09-15).
-    "reach": ("launch", "https://street-banker-v2-workflows.onrender.com/reach/"),
-    "masterclip": ("studio", "https://masterclip.onrender.com/"),
-    "tour-suite": ("stage", "https://street-banker-tour-open-preview-3.onrender.com/"),
+    "reach": ("launch", "/suites/go/reach"),
+    "masterclip": ("studio", "/suites/go/motion"),
+}
+
+# On the strip, but in this app: no hand-off, no new tab. Royalty Sweep
+# always was. Tour joined it on 2026-09-17, when an audit found the separate
+# Tour service was an August fork twenty routes behind this app's Tour and
+# asleep on a free instance, so the strip mark sent people to the older copy
+# and made them wait for it to wake up. The suite is rebuilt from this code
+# after partner week.
+IN_APP_STRIP = {
+    "royalty-sweep": "/royalties",
+    "tour-suite": "/tours",
 }
 
 # Two suites that are no longer hub entries at all: their own products with
 # their own sign-in, on the suites strip only (owner, 2026-09-15: "remove
 # noise lab and the room from studio").
 STRIP_ONLY = {
-    "noise-lab": "https://street-banker-v2-workflows.onrender.com/noise-lab/",
-    "the-room": "https://street-banker-v2-workflows.onrender.com/song-builder",
+    "noise-lab": "/suites/go/noise-lab",
+    "the-room": "/suites/go/the-room",
 }
 
 
@@ -53,7 +61,7 @@ def test_the_three_apps_are_hub_entries_with_https_hrefs():
         assert key in items, key
         got_hub, (_k, got_href, icon, label, desc) = items[key]
         assert got_hub == hub and got_href == href
-        assert href.startswith("https://")
+        assert href.startswith(("https://", "/suites/go/"))
         assert icon and label and desc
         assert hubs.get_hub(hub)["modules"]
     # Neighbours: Motion after Audio Studio in Studio & Assets, REACH after
@@ -121,7 +129,7 @@ def test_the_tool_suites_strip_lists_every_off_site_app(artist):
     """The owner's model (2026-09-15): Street Banker is the desk, the
     off-site apps are its tool suites. They get a strip of their own under
     every signed-in page, read from the same entries the rooms read."""
-    assert [k for k, *_ in hubs.tool_suites()] == ["noise-lab", "the-room", "masterclip", "reach", "tour-suite", "company", "artifacts"]
+    assert [k for k, *_ in hubs.tool_suites()] == ["the-room", "noise-lab", "reach", "royalty-sweep", "tour-suite", "company", "artifacts", "masterclip"]
     body = artist.get("/vault").get_data(as_text=True)
     strip = body.split('id="sb-tool-suites"')[1].split("</footer>")[0]
     for key, (_hub, href) in EXTERNAL.items():
@@ -131,8 +139,51 @@ def test_the_tool_suites_strip_lists_every_off_site_app(artist):
     assert "Tool suites" in strip and "(opens in a new tab)" in strip
     assert "Sample" not in strip
     # Company and Artifacts wait for their addresses: on the strip, marked
-    # Soon, opening the Command Center in this tab (owner, 2026-09-15).
-    for pending in ("Company", "Artifacts"):
-        m = re.search(r'<a href="/command-center"[^>]*title="The %s[^"]*"([^>]*)>' % pending.lower(), strip)
-        assert m and "_blank" not in m.group(1), pending
-    assert strip.count(">Soon<") == 2
+    # Soon, opening the Command Center in this tab (owner, 2026-09-15). What
+    # each of them will be is the owner's own words (2026-09-17).
+    assert "Your team, your partners and your paperwork." in strip
+    assert "Merch, collectibles and moments for fans." in strip
+    for m in re.finditer(r'<a href="/command-center"([^>]*)>', strip):
+        assert "_blank" not in m.group(1)
+    # Company, Artifacts and (owner, 2026-09-18) Noise Lab.
+    assert strip.count(">Soon<") == 3
+
+
+def test_the_strip_draws_every_suite_as_one_system(artist):
+    """Owner, 2026-09-17: "fix the images in the footer to be the same size and
+    look". Every suite is the same bracket frame and two-letter monogram in
+    its own colour, with its name beside it; none is a differently built image."""
+    assert set(hubs.SUITE_MARKS) == {"noise-lab", "the-room", "masterclip", "reach", "royalty-sweep", "tour-suite", "company", "artifacts"}
+    assert len({c for _m, c in hubs.SUITE_MARKS.values()}) == len(hubs.SUITE_MARKS)
+    labels = {k: label for k, _h, _i, label, _d in hubs.tool_suites()}
+    body = artist.get("/vault").get_data(as_text=True)
+    strip = body.split('id="sb-tool-suites"')[1].split("</footer>")[0]
+    assert "<img" not in strip
+    frames = re.findall(r'<svg class="h-10 w-12 shrink-0" viewBox="0 0 48 40"[^>]*>\s*<path d="([^"]+)"/>', strip)
+    assert len(frames) == len(hubs.SUITE_MARKS) and len(set(frames)) == 1
+    for key, (letters, colour) in hubs.SUITE_MARKS.items():
+        assert re.search(r'fill="%s" stroke="none">%s</text>\s*</svg>\s*%s' % (re.escape(colour), letters, re.escape(labels[key])), strip), key
+
+
+def test_the_in_app_strip_entries_stay_in_this_tab(artist):
+    """Royalty Sweep and Tour sit on the strip with the other six, but they
+    are pages of this app: no hand-off, no new tab, and no "Soon"."""
+    import hubs
+    rows = {k: href for k, href, *_ in hubs.tool_suites()}
+    for key, href in IN_APP_STRIP.items():
+        assert rows[key] == href, key
+        assert not hubs.is_away(href), key
+        assert key not in hubs.suites_pending(), key
+    body = artist.get("/command-center").get_data(as_text=True)
+    for href in IN_APP_STRIP.values():
+        m = re.search(r'<a href="%s"[^>]*target="_blank"' % re.escape(href), body)
+        assert m is None, href
+
+
+def test_tour_is_listed_once(artist):
+    """It used to be twice: "Tour" in the Live Stage hub and a "Tour Suite"
+    that opened the other service. One Tour, and it is this app's."""
+    import hubs
+    hrefs = [href for _h, _n, _t, items in hubs.nav_hubs() for _k, href, *_ in items]
+    assert hrefs.count("/tours") == 1
+    assert "/suites/go/tour" not in hrefs
