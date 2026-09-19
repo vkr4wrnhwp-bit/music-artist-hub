@@ -941,7 +941,9 @@ def create_app():
                     default = "/walkthrough"
                 else:
                     default = "/command-center"
-                return redirect(request.args.get("next") or default)
+                # Same-site paths only: ?next=https://elsewhere used to send
+                # a fresh sign-in straight off the site.
+                return redirect(_safe_next(request.args.get("next"), default))
             error = error or "Incorrect email or password."
         return render_template(
             "login.html", error=error,
@@ -2607,7 +2609,11 @@ def create_app():
         from the Recovery page goes back to Recovery; one pressed on the
         case desk stays there. Never an absolute URL."""
         v = (value or "").strip()
-        return v if v.startswith("/") and not v.startswith("//") else default
+        # "/\host" is read by browsers as "//host", another site, and a
+        # line break could smuggle a header.
+        ok = (v.startswith("/") and not v.startswith(("//", "/\\"))
+              and not any(c in v for c in ("\n", "\r")))
+        return v if ok else default
 
     def _strip_case(user_id, case_id):
         """The case the strip edits, with its rail, or None."""
@@ -4492,7 +4498,9 @@ def create_app():
     def _billing_flags():
         user = current_user()
         return {"stripe_live": stripe_billing.configured(),
-                "is_demo_account": bool(user and _is_demo_email(user["email"]))}
+                "is_demo_account": bool(user and _is_demo_email(user["email"])),
+                # Only an owner may re-create the production Stripe webhook.
+                "viewer_is_owner": bool(user and _is_owner_email(user.get("email")))}
 
     @app.route("/plan/switch", methods=["POST"])
     def plan_switch():
@@ -4644,9 +4652,13 @@ def create_app():
     def billing_webhook_setup():
         # Owner-only: the server creates the Stripe webhook endpoint itself
         # and keeps the signing secret in app_kv — no dashboard copy-paste.
-        user = current_user()
-        if user is None or (user.get("plan") or "") != "label":
-            abort(404)
+        # It used to check only for the Label plan, so any Label customer,
+        # and the shared demo Label login, could delete and re-create the
+        # platform's production webhook. The owner is who runs the Stripe
+        # account, so the owner is who may touch it.
+        user, deny = _owner_or_404()
+        if deny:
+            return deny
         result = stripe_billing.setup_webhook_endpoint(
             request.url_root.rstrip("/"))
         return redirect("/billing?webhook=" + ("ok" if result else "fail"))
@@ -5487,6 +5499,38 @@ def create_app():
         "team": "Inviting your team comes with a paid membership.",
     }
 
+    _JOIN_NEEDS_PASSWORD = ("This email already has a Street Banker account. "
+                            "Enter its password to accept, or sign in as it first.")
+
+    def _join_existing_ok(existing):
+        """May this request attach the invitation to an account that
+        already exists? Only its owner may: someone already signed in as
+        exactly that account, or someone who types its password here.
+
+        Both join doors used to sign the visitor into the existing account
+        from the token alone. Anyone who could mint an invitation, which is
+        any paid account for a team seat, could invite a stranger's address
+        (or the owner's), open the link themselves and be signed in as that
+        person with no password (found by the 2026-09-18 launch check). The
+        token proves the invitation was sent; it never proved who opened it.
+        Returns (ok, error)."""
+        me = current_user()
+        if me is not None and me["id"] == existing["id"]:
+            return True, None
+        password = request.form.get("password") or ""
+        if not password or not check_password_hash(existing["password_hash"], password):
+            return False, _JOIN_NEEDS_PASSWORD
+        shut = store.account_shut(existing)
+        if shut and not _is_owner_email(existing.get("email")):
+            return False, ("Your guest access has ended. Contact Street Banker to continue."
+                           if shut == "ended" else
+                           "This account is locked. Contact Street Banker to continue.")
+        return True, None
+
+    def _signed_in_as(email):
+        me = current_user()
+        return bool(me and (me.get("email") or "").lower() == (email or "").lower())
+
     @app.route("/roster/invite", methods=["POST"])
     def roster_invite():
         user = current_user()
@@ -5519,6 +5563,12 @@ def create_app():
         if request.method == "POST":
             existing = store.get_user_by_email(invite["email"])
             if existing:
+                ok, why = _join_existing_ok(existing)
+                if not ok:
+                    return render_template(
+                        "roster_join.html", invalid=False, invite=invite,
+                        has_account=True, signed_in_as_invitee=False,
+                        error=why), 403
                 artist_id = existing["id"]
             else:
                 # The invitation is the authorisation, the way
@@ -5547,6 +5597,7 @@ def create_app():
             return redirect("/command-center")
         return render_template("roster_join.html", invalid=False, invite=invite,
                                has_account=store.get_user_by_email(invite["email"]) is not None,
+                               signed_in_as_invitee=_signed_in_as(invite["email"]),
                                error=None)
 
     @app.route("/roster/artist/<artist_id>")
@@ -11190,6 +11241,11 @@ def create_app():
         if request.method == "POST":
             existing = store.get_user_by_email(invite["email"])
             if existing:
+                ok, why = _join_existing_ok(existing)
+                if not ok:
+                    return render_template("team_join.html", invalid=False,
+                                           invite=invite, has_account=True,
+                                           signed_in_as_invitee=False, error=why), 403
                 member_id = existing["id"]
             else:
                 # Same rule as the roster door: the invitation authorises
@@ -11216,6 +11272,7 @@ def create_app():
             return redirect("/command-center")
         return render_template("team_join.html", invalid=False, invite=invite,
                                has_account=store.get_user_by_email(invite["email"]) is not None,
+                               signed_in_as_invitee=_signed_in_as(invite["email"]),
                                error=None)
 
     @app.route("/team/<member_id>/remove", methods=["POST"])

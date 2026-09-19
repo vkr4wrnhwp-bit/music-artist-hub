@@ -37,8 +37,18 @@
           <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password"
                  class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
         </div>
+        {% elif signed_in_as_invitee %}
+        <p class="text-xs text-gray-300">You're signed in as {{ invite.email }}. Accepting links this account to the team.</p>
         {% else %}
-        <p class="text-xs text-gray-300">You already have a Street Banker account with this email — accepting links it to the team.</p>
+        {#- An existing account is joined by its owner only: the link proves
+            an invitation was sent, not who opened it (2026-09-18). -#}
+        <p class="text-xs text-gray-300">{{ invite.email }} already has a Street Banker account. Enter its password to accept.</p>
+        <div>
+          <label for="password" class="sb-label text-gray-300">Your password</label>
+          <input type="password" id="password" name="password" required autocomplete="current-password"
+                 class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+        </div>
+        <p class="text-xs text-gray-300"><a href="/forgot" class="font-semibold text-amber-400 hover:underline">Forgot it? Reset your password</a></p>
         {% endif %}
         <button type="submit" class="w-full rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/25">Accept Invite</button>
       </form>

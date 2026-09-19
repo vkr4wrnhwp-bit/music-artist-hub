@@ -33,8 +33,16 @@
         <input name="password" type="password" required placeholder="Create a password (6+ characters)"
                class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-300 focus:border-white/40 focus:outline-none">
         <p class="text-xs text-gray-300 font-medium">This creates your free Street Banker account for {{ invite.email }}.</p>
+        {% elif signed_in_as_invitee %}
+        <p class="text-xs text-gray-300 font-medium">You're signed in as <span class="font-bold text-gray-200">{{ invite.email }}</span>. Accepting adds this account to the roster.</p>
         {% else %}
-        <p class="text-xs text-gray-300 font-medium">You already have an account for <span class="font-bold text-gray-200">{{ invite.email }}</span> — accepting signs you in.</p>
+        {#- An existing account is joined by its owner only: the link proves
+            an invitation was sent, not who opened it (2026-09-18). -#}
+        <p class="text-xs text-gray-300 font-medium"><span class="font-bold text-gray-200">{{ invite.email }}</span> already has a Street Banker account. Enter its password to accept.</p>
+        <label for="rj-password" class="sr-only">Your password</label>
+        <input id="rj-password" name="password" type="password" required autocomplete="current-password" placeholder="Your password"
+               class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder-gray-300 focus:border-white/40 focus:outline-none">
+        <p class="text-xs text-gray-300 font-medium"><a href="/forgot" class="font-bold text-sb-gold-bright hover:underline">Forgot it? Reset your password</a></p>
         {% endif %}
         <button class="w-full rounded-xl bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep px-5 py-3.5 text-sm font-black uppercase tracking-wide text-sb-on-gold transition-transform hover:scale-[1.01]">Accept &amp; Join the Roster</button>
       </form>
