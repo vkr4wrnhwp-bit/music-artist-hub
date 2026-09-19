@@ -5,7 +5,8 @@
 <div class="to-head"><div><p class="to-eyebrow">What changed</p><h1 class="to-h1" style="font-size:20px">Who changed what, and whether it was seen</h1><p class="to-sub">Information, Important, Critical. Critical changes ask everyone to acknowledge; admins see who has.</p></div>
 {#- The acknowledgement prompt lives here since the home became the month (2026-09-07). -#}
 {% set ns = namespace(n=0) %}{% for c in rows if c['severity'] == 'critical' and acks[c['id']] != 'acknowledged' %}{% set ns.n = ns.n + 1 %}{% endfor %}
-{% if ns.n %}<div class="to-note to-note--warn" id="unack"><strong>{{ ns.n }} critical change{{ '' if ns.n == 1 else 's' }} waiting for your acknowledgement.</strong> Each one has an Acknowledge button below.</div>{% endif %}
+{#- Seen and acknowledged are the artist's own record; a team seat neither reads it as theirs nor writes it (tour_os.changes). -#}
+{% if ns.n and not team_seat %}<div class="to-note to-note--warn" id="unack"><strong>{{ ns.n }} critical change{{ '' if ns.n == 1 else 's' }} waiting for your acknowledgement.</strong> Each one has an Acknowledge button below.</div>{% endif %}
   <div class="to-inline"><a class="to-tab {{ 'is-on' if level == 'important' }}" href="?level=important">Important+</a><a class="to-tab {{ 'is-on' if level == 'critical' }}" href="?level=critical">Critical</a><a class="to-tab {{ 'is-on' if level == 'all' }}" href="?level=all">Everything</a></div></div>
 {% if rows %}
 {% for c in rows %}
@@ -14,10 +15,10 @@
   <div>
     <div><b>{{ c['entity_type']|replace('_',' ')|capitalize }}</b>{% if c['entity_label'] %} · {{ c['entity_label'] }}{% endif %} · {{ c['field']|replace('_',' ') }}</div>
     <div><del>{{ c['before'] or '—' }}</del> <ins>{{ c['after'] or '—' }}</ins></div>
-    <small>{{ c['created'][:16]|replace('T',' ') }} UTC · {{ c['actor_name'] or 'system' }}{% if c['source'] != 'manual' %} · via {{ c['source'] }}{% endif %}{% if acks[c['id']] is defined %} · you: {{ acks[c['id']] }}{% endif %}</small>
+    <small>{{ c['created'][:16]|replace('T',' ') }} UTC · {{ c['actor_name'] or 'system' }}{% if c['source'] != 'manual' %} · via {{ c['source'] }}{% endif %}{% if acks[c['id']] is defined and not team_seat %} · you: {{ acks[c['id']] }}{% endif %}</small>
     {% if c['id'] in roster %}<small>Acknowledged by: {% set acked = roster[c['id']]|selectattr('state','equalto','acknowledged')|list %}{% if acked %}{% for a in acked %}{{ name_by_user[a['viewer_id']] if a['viewer_id'] in name_by_user else 'member' }}{{ ', ' if not loop.last }}{% endfor %}{% else %}nobody yet{% endif %} · seen by {{ roster[c['id']]|length }}</small>{% endif %}
   </div>
-  <div>{{ m.sev(c['severity']) }}{% if c['severity'] == 'critical' and acks[c['id']] != 'acknowledged' %}<form method="post" action="/tours/{{ tour['id'] }}/changes/{{ c['id'] }}/ack" style="margin-top:6px"><button class="to-btn to-btn--small" type="submit">Acknowledge</button></form>{% endif %}</div>
+  <div>{{ m.sev(c['severity']) }}{% if c['severity'] == 'critical' and acks[c['id']] != 'acknowledged' and not team_seat %}<form method="post" action="/tours/{{ tour['id'] }}/changes/{{ c['id'] }}/ack" style="margin-top:6px"><button class="to-btn to-btn--small" type="submit">Acknowledge</button></form>{% endif %}</div>
 </div>
 {% endfor %}
 {% else %}{{ m.empty("Nothing at this level yet", "Time, place, hotel and travel edits land here with before and after.") }}{% endif %}

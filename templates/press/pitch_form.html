@@ -50,7 +50,11 @@
       <input type="radio" name="mode" value="own_inbox" checked>
       <span>
         <span class="pd-who">From your own inbox</span>
+        {% if team_seat %}
+        <span class="pd-muted">The desk writes each message for the artist to send from their own email. Each carries the contact's tracked link, which team members are not shown.</span>
+        {% else %}
         <span class="pd-muted">The desk writes each message and hands it to you to send. The journalist sees your real address, and replies come straight back to you.</span>
+        {% endif %}
       </span>
     </label>
     <label {{ 'style=opacity:0.55' if not send_state.platform }}>

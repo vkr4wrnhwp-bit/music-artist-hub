@@ -21,9 +21,15 @@ import email_provider as emailer
 
 bp = Blueprint("board", __name__)
 _base_url = lambda: ""
+# The account this request works in, set by init from app.py. Through a
+# team seat it is the artist's account, not the member's own (owner,
+# 2026-09-19): the seat posts, replies and reads threads as the artist.
+_current_user = None
 
 
 def _me():
+    if _current_user is not None:
+        return _current_user()
     uid = session.get("user_id")
     return store.get_user(uid) if uid else None
 
@@ -115,8 +121,10 @@ def post():
     user = _me()
     if user is None:
         return _login()
-    if request.method == "GET":
+    if request.method != "POST":
         # Old bookmark / typed URL: open the board with the post form unfolded.
+        # HEAD lands here too (Flask answers it with this view): only a POST
+        # posts a listing.
         qs = request.query_string.decode("utf-8", "replace")
         return redirect("/tour-board?new=1" + ("&" + qs if qs else ""))
     kind = request.form.get("kind") or ""
@@ -253,7 +261,10 @@ def thread(thread_id):
             store.notify(other, "network", "New message on “%s”" % t["listing_title"],
                          "%s: %s" % (user.get("name") or "A member", body[:120]), "/tour-board/thread/%s" % thread_id)
         return redirect("/tour-board/thread/%s" % thread_id)
-    bs.mark_read(thread_id, user["id"])
+    # A team member reading the artist's messages leaves them unread for
+    # the artist, as notifications are.
+    if not session.get("team_as"):
+        bs.mark_read(thread_id, user["id"])
     l = bs.get_listing(t["listing_id"])
     return render_template("board/thread.html", **_ctx(
         user, t=t, l=l, messages=bs.thread_messages(thread_id), i_am_poster=user["id"] == t["poster_id"],
@@ -368,8 +379,9 @@ def watch_delete(watch_id):
     return redirect("/tour-board")
 
 
-def init(app, base_url):
-    global _base_url
+def init(app, base_url, current_user=None):
+    global _base_url, _current_user
     _base_url = base_url
+    _current_user = current_user
     bs.init_board()
     app.register_blueprint(bp)

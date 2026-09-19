@@ -21,7 +21,7 @@
 <p class="to-sub">Everything on this tour belongs to the account that owns it. Export it any time from <a href="/tours/{{ tour['id'] }}/exports">Exports</a>. Fan captures recorded at shows: {{ fan_capture['records'] }} ({{ fan_capture['consented'] }} with consent) — capture forms are an architecture here, not a live kiosk; records come from imports or the API.</p>
 {% if imports %}<p class="to-sub">{{ imports|length }} import{{ '' if imports|length == 1 else 's' }} on record — see <a href="/tours/{{ tour['id'] }}/import">Import</a>.</p>{% endif %}
 
-{% if viewer['is_owner'] %}
+{% if viewer['is_owner'] and not team_seat %}
 <details style="margin-top:18px"><summary class="to-muted" style="cursor:pointer">Delete this tour</summary>
   <form method="post" action="/tours/{{ tour['id'] }}/settings" class="to-form" style="margin-top:8px">
     <input type="hidden" name="action" value="delete">

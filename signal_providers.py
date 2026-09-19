@@ -2776,6 +2776,17 @@ class BandsintownAdapter(MusicIntelligenceProvider):
         return self.events_for_name(name.strip())
 
 
+# Resolves the account a request works in (app.py registers it). Through a
+# team seat that is the artist's account, not the member signed in; without
+# it the adapter falls back to the session's own user id.
+_account_resolver = None
+
+
+def set_account_resolver(fn):
+    global _account_resolver
+    _account_resolver = fn
+
+
 class TourDatesAdapter(MusicIntelligenceProvider):
     """The artist's own TOUR, read first-hand (tour_dates.py): confirmed
     and advanced upcoming dates, for live events only.
@@ -2814,6 +2825,8 @@ class TourDatesAdapter(MusicIntelligenceProvider):
         try:
             from flask import has_request_context, session
             if has_request_context():
+                if _account_resolver is not None:
+                    return _account_resolver()
                 return session.get("user_id")
         except Exception:
             return None

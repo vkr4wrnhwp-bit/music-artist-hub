@@ -6,11 +6,16 @@
 {% if vip_link is defined %}
 <div class="to-panel is-warm" id="vip-sell" style="margin-bottom:12px">
   <div class="to-eyebrow">Sell online</div>
+  {% if vip_link and not team_seat %}
   <div class="to-inline" style="margin-top:6px">
     <input class="to-input" type="text" readonly value="{{ vip_link }}" id="vip-link" aria-label="Purchase link to share" style="min-height:36px;padding:6px 10px;width:min(100%, 420px)">
     <button class="to-btn to-btn--ghost to-btn--small" type="button" data-copy="#vip-link">Copy link</button>
     <a class="to-btn to-btn--ghost to-btn--small" href="{{ vip_link }}" target="_blank" rel="noopener">Open</a>
   </div>
+  {% else %}
+  {#- The purchase link is the account holder's to share (tour_os._vip_context). -#}
+  <p class="to-sub" style="margin-top:6px">The purchase link for this date is {{ (team_seat.owner.name if team_seat else '') or 'the artist' }}'s to share.</p>
+  {% endif %}
   {% if not vip_sales_open %}
   {#- The owner's switch (sales_switch). The link still opens; it says to email. -#}
   <div class="to-inline" style="margin-top:8px">{{ sb.lamp("by arrangement", "warn") }} <span class="to-muted">Street Banker has online VIP sales switched off for now. Fans who open the link are told: {{ vip_sales_closed }}</span></div>

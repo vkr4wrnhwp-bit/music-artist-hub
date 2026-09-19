@@ -23,7 +23,8 @@
 {% for mm in members %}
 <details class="to-panel" style="margin-bottom:8px">
   <summary style="cursor:pointer"><b>{{ mm['name'] or mm['email'] }}</b> <span class="to-muted">{{ mm['email'] }} · {{ mm['role']|replace('_',' ') }}</span> {{ m.chip('confirmed' if mm['status'] == 'active' else 'pending') }}{% if mm['status'] == 'invited' %} <span class="to-muted">invited, not yet joined</span>{% endif %}</summary>
-  {% if mm['join_url'] %}<div style="margin-top:8px"><span class="to-muted">Join link:</span> <input class="to-input" readonly value="{{ mm['join_url'] }}" onclick="this.select()" style="min-height:32px;padding:4px 8px;font-size:12px"></div>{% endif %}
+  {#- The join link attaches whoever opens it to this tour: the account holder's to send, never a team seat's to see. -#}
+  {% if mm['join_url'] and not team_seat %}<div style="margin-top:8px"><span class="to-muted">Join link:</span> <input class="to-input" readonly value="{{ mm['join_url'] }}" onclick="this.select()" style="min-height:32px;padding:4px 8px;font-size:12px"></div>{% endif %}
   {# One form, two submit buttons, and the action rides on the BUTTON - a
      hidden action input here would be serialised first and shadow the
      Remove button's value. #}
