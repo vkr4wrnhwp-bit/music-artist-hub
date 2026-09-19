@@ -484,7 +484,10 @@
    cap cut from its sister photograph. Nothing on the plate is drawn: the
    only moving parts are the cap (the range input's thumb), the lamp glow and
    the analyzer's bars in the display window. All positions are fractions of
-   the photograph (1636 x 911), so the unit scales as one object. Below 901px
+   the photograph (1672 x 941), so the unit scales as one object. The plate
+   is brushed steel since 2026-09-18 (owner: "i want to change the brass
+   face plate also"): the steel photograph's baked-in caps are painted out,
+   and the cap's brass trim is recoloured silver to match. Below 901px
    six photographed faders would be too small to touch, so the plain controls
    above stay as they are. */
 @media (min-width: 901px) {
@@ -496,10 +499,10 @@
     position: relative;
     align-self: center;
     width: 100%;
-    aspect-ratio: 1636 / 911;
+    aspect-ratio: 1672 / 941;
     margin: 0 0 30px;
-    background: #0B0A09 url("/static/img/eq-unit-plate.jpg") center / 100% 100% no-repeat;
-    background-image: image-set(url("/static/img/eq-unit-plate.webp") type("image/webp"), url("/static/img/eq-unit-plate.jpg") type("image/jpeg"));
+    background: #0B0A09 url("/static/img/eq-unit-plate.jpg?v=2") center / 100% 100% no-repeat;
+    background-image: image-set(url("/static/img/eq-unit-plate.webp?v=2") type("image/webp"), url("/static/img/eq-unit-plate.jpg?v=2") type("image/jpeg"));
     border-radius: 6px;
     box-shadow: 0 30px 70px rgb(0 0 0 / 0.6);
   }
@@ -511,7 +514,7 @@
   }
   /* the display window */
   .sbeq-unit .sbeq-trace {
-    position: absolute; left: 9.4%; top: 8.6%; width: 81%; height: 25.2%;
+    position: absolute; left: 10.47%; top: 11.16%; width: 79.07%; height: 24.97%;
     align-self: auto; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
   }
   .sbeq-unit .sbeq-analyzer { height: 100%; margin: 0; opacity: 0.94; mix-blend-mode: screen; }
@@ -523,32 +526,32 @@
     margin: 0 0 0 -5.5%; padding: 0; border: 0; background: none; box-shadow: none;
     display: block;
   }
-  .sbeq-unit .sbeq-channel:nth-child(1) { left: 13.39%; --l: 13.39; }
-  .sbeq-unit .sbeq-channel:nth-child(2) { left: 25.37%; --l: 25.37; }
-  .sbeq-unit .sbeq-channel:nth-child(3) { left: 37.41%; --l: 37.41; }
-  .sbeq-unit .sbeq-channel:nth-child(4) { left: 49.57%; --l: 49.57; }
-  .sbeq-unit .sbeq-channel:nth-child(5) { left: 61.67%; --l: 61.67; }
-  .sbeq-unit .sbeq-channel:nth-child(6) { left: 73.84%; --l: 73.84; }
+  .sbeq-unit .sbeq-channel:nth-child(1) { left: 14.11%; --l: 14.11; }
+  .sbeq-unit .sbeq-channel:nth-child(2) { left: 25.84%; --l: 25.84; }
+  .sbeq-unit .sbeq-channel:nth-child(3) { left: 37.62%; --l: 37.62; }
+  .sbeq-unit .sbeq-channel:nth-child(4) { left: 49.52%; --l: 49.52; }
+  .sbeq-unit .sbeq-channel:nth-child(5) { left: 61.30%; --l: 61.30; }
+  .sbeq-unit .sbeq-channel:nth-child(6) { left: 73.15%; --l: 73.15; }
   /* engraved name between the window and the lamp */
   .sbeq-unit .sbeq-ch-name {
-    position: absolute; left: -20%; right: -20%; top: 35.7%;
+    position: absolute; left: -20%; right: -20%; top: 39.4%;
     text-align: center; font-size: clamp(12px, calc(100cqw * 0.0098), 14px);
     font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
-    color: #2A2110; text-shadow: 0 1px 0 rgb(255 240 200 / 0.35);
+    color: var(--sb-paper-ink); text-shadow: 0 1px 0 rgb(255 255 255 / 0.4);
   }
   /* the photographed jewel lamp, lit from behind by the channel's value */
   .sbeq-unit .sbeq-lamp {
-    position: absolute; left: 50%; top: 42.5%; width: 26%; height: auto; aspect-ratio: 1;
+    position: absolute; left: 50%; top: 44.6%; width: 26%; height: auto; aspect-ratio: 1;
     margin: 0; transform: translate(-50%, -50%); border: 0; border-radius: 50%;
     background: radial-gradient(circle, rgb(255 190 80 / 0.95) 0%, rgb(255 140 30 / 0.55) 45%, transparent 72%);
     box-shadow: 0 0 calc(100cqw * 0.012) rgb(255 150 40 / 0.7);
     opacity: var(--lit, 0.75); mix-blend-mode: screen; pointer-events: none;
   }
-  /* the fader: travel runs tick to tick (462..722 of 911), centre at 65% */
-  .sbeq-unit .sbeq-fader { position: absolute; left: 50%; top: 65%; width: 0; height: 0; display: block; }
+  /* the fader: travel runs tick to tick (492..755 of 941), centre at 66.26% */
+  .sbeq-unit .sbeq-fader { position: absolute; left: 50%; top: 66.26%; width: 0; height: 0; display: block; }
   .sbeq-unit .sbeq-range {
     position: absolute; left: 0; top: 0; margin: 0;
-    width: calc(100cqw * 0.2249); height: calc(100cqw * 0.0562);
+    width: calc(100cqw * 0.2233); height: calc(100cqw * 0.0562);
     transform: translate(-50%, -50%) rotate(-90deg);
   }
   .sbeq-unit .sbeq-range::-webkit-slider-runnable-track { height: 100%; background: transparent; box-shadow: none; }
@@ -556,20 +559,20 @@
   .sbeq-unit .sbeq-range::-webkit-slider-thumb {
     width: calc(100cqw * 0.066); height: calc(100cqw * 0.0562); margin-top: 0;
     border: 0; border-radius: 6px;
-    background: url("/static/img/eq-unit-cap.png") center / 100% 100% no-repeat;
+    background: url("/static/img/eq-unit-cap.png?v=2") center / 100% 100% no-repeat;
     box-shadow: -7px 0 12px rgb(0 0 0 / 0.55), -2px 0 3px rgb(0 0 0 / 0.5);
   }
   .sbeq-unit .sbeq-range::-moz-range-thumb {
     width: calc(100cqw * 0.066); height: calc(100cqw * 0.0562);
     border: 0; border-radius: 6px;
-    background: url("/static/img/eq-unit-cap.png") center / 100% 100% no-repeat;
+    background: url("/static/img/eq-unit-cap.png?v=2") center / 100% 100% no-repeat;
     box-shadow: -7px 0 12px rgb(0 0 0 / 0.55), -2px 0 3px rgb(0 0 0 / 0.5);
   }
   .sbeq-unit .sbeq-range:focus-visible { outline-offset: 2px; }
   /* the reading under the slot, the description under the unit */
   .sbeq-unit .sbeq-value {
-    position: absolute; left: -20%; right: -20%; top: 85.2%; text-align: center;
-    font-size: clamp(13px, calc(100cqw * 0.0115), 16px); font-weight: 800; color: #2A2110;
+    position: absolute; left: -20%; right: -20%; top: 86.4%; text-align: center;
+    font-size: clamp(13px, calc(100cqw * 0.0115), 16px); font-weight: 800; color: var(--sb-paper-ink);
     font-variant-numeric: tabular-nums; background: none; border: 0; padding: 0;
   }
   /* One description at a time, on the line under the unit: six side by side

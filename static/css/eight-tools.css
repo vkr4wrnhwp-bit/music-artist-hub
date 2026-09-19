@@ -157,17 +157,17 @@
   font-stretch: 75%;
   letter-spacing: .03em;
   text-transform: uppercase;
-  /* The name is the thing a reader is scanning for, so it takes the
-     brightest ink. The dim state below drops to --sb-ink-3, and the gap
-     between the two is what the power-on is visibly doing. */
-  color: var(--sb-ink);
-  text-shadow: 0 -1px 0 rgba(0, 0, 0, .9);
+  /* Engraved into the riveted steel name plate: dark ink with a light
+     lip under it, the way a stamped plate catches the light. The dim
+     state below is the plate before it powers on. */
+  color: var(--sb-paper-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .45);
 }
 
 /* Before the sequence runs, and between its steps, a plate is dark. */
 .sbet-rack.is-arming .sbet-unit:not(.is-on) .sbet-win,
 .sbet-rack.is-arming .sbet-unit:not(.is-on) .sbet-lamp { opacity: 0; }
-.sbet-rack.is-arming .sbet-unit:not(.is-on) .sbet-name { color: var(--sb-ink-3); }
+.sbet-rack.is-arming .sbet-unit:not(.is-on) .sbet-name { color: var(--sb-paper-ink-3); }
 
 .sbet-unit.is-flash .sbet-win { filter: brightness(1.7); }
 
@@ -238,5 +238,5 @@
   /* Lit from the start. The sequence never runs. */
   .sbet-rack.is-arming .sbet-unit .sbet-win,
   .sbet-rack.is-arming .sbet-unit .sbet-lamp { opacity: 1; }
-  .sbet-rack.is-arming .sbet-unit .sbet-name { color: var(--sb-ink-2); }
+  .sbet-rack.is-arming .sbet-unit .sbet-name { color: var(--sb-paper-ink); }
 }

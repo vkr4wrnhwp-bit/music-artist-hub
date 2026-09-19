@@ -41,13 +41,13 @@
               the rack's description is on the group above, once. -#}
           <picture class="sbet-photo" aria-hidden="true">
             <source type="image/avif"
-                    srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.avif {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+                    srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.avif?v={{ img.v }} {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
                     sizes="(min-width: 1180px) 1540px, 200vw">
             <source type="image/webp"
-                    srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.webp {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+                    srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.webp?v={{ img.v }} {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
                     sizes="(min-width: 1180px) 1540px, 200vw">
-            <img src="{{ img.stem }}-1200.jpg"
-                 srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.jpg {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+            <img src="{{ img.stem }}-1200.jpg?v={{ img.v }}"
+                 srcset="{% for w in img.widths %}{{ img.stem }}-{{ w }}.jpg?v={{ img.v }} {{ w }}w{% if not loop.last %}, {% endif %}{% endfor %}"
                  sizes="(min-width: 1180px) 1540px, 200vw"
                  width="{{ img.width }}" height="{{ img.height }}"
                  alt="" loading="lazy" decoding="async">

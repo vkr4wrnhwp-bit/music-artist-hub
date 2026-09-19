@@ -34,28 +34,37 @@ TOOLS = [
     ("masterclip", "MO", "Motion", "Video and visuals for every release.", "#12C8FF", "Credits"),
 ]
 
-# Where a plate sits on the photograph, as a fraction of it. The rack is
-# eight identical bays across one wide frame, so the geometry is a step
-# rather than a table of measurements.
+# Where a plate sits on the photograph, as a fraction of it. Brushed steel
+# since 2026-09-18 (owner's option 2: vent grilles, a riveted name plate).
+# The eight bays in this photograph are not quite evenly spaced, so each
+# plate's left edge is measured (the dark gaps between plates on the
+# 2508px original) rather than stepped; `step` is their average, kept for
+# the check that the last plate fits.
 PLATE = {
-    "first_left": 3.75,      # left edge of the first faceplate, per cent
-    "step": 11.58,           # to the next one
-    "width": 11.25,
-    "top": 7.0,
-    "height": 83.6,
-    # Inside a plate: the smoked window and the label strip under it.
-    "window_left": 13.3, "window_width": 74.2, "window_top": 24.6, "window_height": 34.9,
-    "label_top": 68.7, "label_height": 9.6,
-    "lamp_left": 78.2, "lamp_top": 15.1, "lamp_size": 9.0,
+    "first_left": 4.027,     # left edge of the first faceplate, per cent
+    "lefts": [4.027, 15.391, 26.834, 38.357, 50.040, 61.643, 73.285, 84.848],
+    "step": 11.546,
+    "width": 11.16,
+    "top": 6.70,
+    "height": 80.54,
+    # Inside a plate: the smoked window, the riveted name plate under the
+    # vents (between its four rivets), and the dome lamp top right.
+    "window_left": 13.6, "window_width": 71.8, "window_top": 21.4, "window_height": 33.5,
+    "label_top": 78.8, "label_height": 9.0,
+    "lamp_left": 80.2, "lamp_top": 12.3, "lamp_size": 11.0,
 }
 
 IMAGE = {
     "stem": "/static/img/eight-tools",
-    "widths": [900, 1200, 1553],
-    "width": 1553,
-    "height": 388,
-    "alt": ("A rack of eight faceplates in a steel rail, one for each Street "
-            "Banker tool, each with a lit window and a name below it."),
+    "widths": [900, 1200, 1553, 2508],
+    "width": 2508,
+    "height": 627,
+    # Bumped when the photograph changes, so the year-long cache that a
+    # query string earns cannot keep showing the old rack.
+    "v": 2,
+    "alt": ("A rack of eight brushed-steel faceplates in a black rail, one for "
+            "each Street Banker tool, each with a lit window and its name on "
+            "a riveted plate below it."),
 }
 
 # The one thing to press. Not a suite: those need an account, and a stranger
@@ -86,7 +95,7 @@ def _halves(tools):
             k, m, name, d, c, o = tools[n]
             units.append({
                 "key": k, "mark": m, "name": name, "desc": d, "colour": c, "opens": o,
-                "left": round((PLATE["first_left"] + n * PLATE["step"]) * 2 - h * 100, 3),
+                "left": round(PLATE["lefts"][n] * 2 - h * 100, 3),
             })
         out.append({"index": h, "units": units})
     return out
