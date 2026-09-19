@@ -15,6 +15,11 @@ HUBS = [
     ]),
     ("studio", "Studio & Assets", "Make the record and keep its paperwork straight — audio, art, files, and passports.", [
         ("rack", "/rack", "M3 4h14v4H3z|M3 12h14v4H3z|M6 6h.01|M6 14h.01|M13 6h2|M13 14h2", "The Rack", "Mix and master in the browser: EQ, tube, compressor, LUFS loudness against platform targets, WAV export."),
+        # Release-Ready (owner's brief, 2026-09-19): RoEx's mix report, free
+        # 30-second previews and the paid full master, in the main app's
+        # Creative Studio. The page says "not connected" or "opens soon"
+        # until the key, the storage and the owner's switch are all there.
+        ("release-ready", "/creative-studio/release-ready", "M3 9v2|M6 6v8|M9 4v12|M12 7v6|M13.5 14l2 2 3.5-4.5", "Release-Ready", "Upload a mix, or a vocal and a beat. RoEx checks it and makes free 30-second previews; buy the full master when you like one."),
         ("remix-lab", "/remix-lab", "M15.5 6.5A6 6 0 004.9 8.2|M4.5 13.5A6 6 0 0015.1 11.8|M16 3v4h-4|M4 17v-4h4", "Remix Lab", "One master in, a measured remix brief back."),
         ("audio-studio", "/audio-studio", "M4 10h2v4H4z|M8 6h2v12H8z|M12 8h2v8h-2z|M16 11h2v2h-2z", "Audio Studio", "Dub a release, cut campaign audio, split stems, register a voice."),
         # MASTERCLIP OS, the video render factory, on its own service like
@@ -208,6 +213,16 @@ def live_keys():
             keys.append("live")
     except Exception:
         pass
+    # Release-Ready is live only when an artist can actually use it: RoEx
+    # connected, private storage connected, and opened by the owner. Until
+    # then its card and palette entry must not read as a working page
+    # (review, 2026-09-19); like Remix Lab without its engine, it is not live.
+    try:
+        import release_ready_settings
+        if release_ready_settings.available():
+            keys.append("release-ready")
+    except Exception:
+        pass
     return keys
 
 
@@ -327,6 +342,15 @@ SUITE_MARKS = {
 }
 
 
+# Words a page is looked for by that are not in its name. The palette ranks
+# these below a match on the name itself and above a stray word in a
+# description, so "mastering" finds Release-Ready without anybody having to
+# know what the page is called.
+PALETTE_WORDS = {
+    "release-ready": "master mastering release ready roex mix report previews loudness",
+}
+
+
 def command_index():
     """Every destination as one flat list, for the command palette.
 
@@ -347,6 +371,7 @@ def command_index():
         seen.add(key)
         out.append({"key": key, "href": href, "label": label,
                     "desc": desc, "group": group,
+                    "aka": PALETTE_WORDS.get(key, ""),
                     "live": key in live_now})
 
     live_now = live_keys()

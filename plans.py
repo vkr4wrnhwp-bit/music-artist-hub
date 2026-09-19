@@ -49,6 +49,9 @@ _ARTIST_PATHS = ("/live", "/links", "/rollout-studio", "/artwork", "/command-cen
                  # upload a master, work on it, keep the result - changed tier
                  # halfway through depending on which door you came in by.
                  "/beats", "/audio-studio",
+                 # Release-Ready spends the owner's RoEx credits; the public
+                 # /creative-studio explainer (an exact match) stays open.
+                 "/creative-studio/release-ready",
                  "/qualification", "/artist-profile",
                  "/vault", "/artist-twin", "/trust-score")
 # /fingerprints is here beside /recovery deliberately. It had no entry at

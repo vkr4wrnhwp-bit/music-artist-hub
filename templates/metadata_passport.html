@@ -72,6 +72,9 @@
       <a href="/tracks/{{ r.t.id }}" class="flex items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3 hover:border-sb-gold/40">
         <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ 'bg-red-500' if r.rep.overall == 'red' else 'bg-amber-400' if r.rep.overall == 'yellow' else 'bg-green-500' }}"></span>
         <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ r.t.title }}</span>
+        {#- A Release-Ready master is stored for this song: a marker, not part
+            of the passport's score. -#}
+        {% if rr_masters and r.t.id in rr_masters %}<span class="sb-badge sb-badge-good" title="Mastered by RoEx through Release-Ready. Not counted in the score.">Master stored</span>{% endif %}
         <span class="text-xs sb-num text-gray-300 font-medium">{{ r.rep.pct }}% · {{ r.rep.reds }} red</span>
       </a>
       {% endfor %}

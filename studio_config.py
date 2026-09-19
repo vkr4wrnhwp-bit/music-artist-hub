@@ -132,6 +132,16 @@ def provider_configured():
                 and (os.environ.get("STUDIO_PROVIDER_API_KEY") or "").strip())
 
 
+def _release_ready_open():
+    """Creative Studio's Release-Ready can make a master for an artist right
+    now: RoEx connected, storage connected, and opened by the owner."""
+    try:
+        import release_ready_settings
+        return release_ready_settings.available()
+    except Exception:
+        return False
+
+
 def readiness():
     """What actually works on this deployment, component by component.
 
@@ -163,7 +173,10 @@ def readiness():
          "Renders are sent to the configured provider."
          if provider_configured() else
          "Mastering and mixing renders are disabled. Analysis, preview and "
-         "version tracking all work without one."),
+         "version tracking all work without one."
+         # Said only when it is true: Release-Ready is connected and open.
+         + (" Finished masters are made in Release-Ready, through RoEx."
+            if _release_ready_open() else "")),
         ("worker", False, "No background worker",
          "This deployment runs a single web service with a 180-second request "
          "timeout. Work that cannot finish inside a request is queued and "

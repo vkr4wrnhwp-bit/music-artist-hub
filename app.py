@@ -229,6 +229,9 @@ import capital_engine
 import stripe_provider as stripe_billing
 import sales_switch
 import soundcharts_budget
+import release_ready               # Creative Studio's Release-Ready: RoEx mix report, previews, paid master
+import release_ready_settings
+import release_ready_store
 import royalty_types
 import insights_engine
 import email_provider as emailer
@@ -426,6 +429,8 @@ def _internal_tools():
         # The reseller back office (/resellers) was built and linked from
         # nowhere (audit, 2026-09-19). Owner only, like its route.
         out.append({"href": "/resellers", "label": "Resellers"})
+        # RoEx credits, jobs, and cost against revenue for Release-Ready.
+        out.append({"href": "/admin/release-ready", "label": "Release-Ready desk"})
         # Core, the template builder new suites are made from (owner,
         # 2026-09-17: "add this into the street banker back side owner
         # account, it's a template for making new suites"). Another
@@ -5397,6 +5402,12 @@ def create_app():
         elif etype in ("checkout.session.completed", "checkout.session.async_payment_succeeded") and \
                 (obj.get("metadata") or {}).get("kind") == "credit_pack":
             _claim_credit_pack(obj)
+        elif etype in ("checkout.session.completed", "checkout.session.async_payment_succeeded") and \
+                (obj.get("metadata") or {}).get("kind") == "release_ready":
+            # A Release-Ready master: claimed once, whoever gets here first
+            # (this or the success redirect); only then is RoEx asked for it.
+            if release_ready.claim_session(obj) == "retry":
+                return jsonify({"ok": False, "error": "database unavailable; retry"}), 503
         elif etype == "checkout.session.completed":
             # Granted on money, not on a completed form: a session can
             # complete unpaid (2026-09-18 launch check). Each session is
@@ -5408,12 +5419,18 @@ def create_app():
             if etype == "charge.refunded":
                 _refund_touches_referral(obj.get("customer"),
                                          int(obj.get("amount_refunded") or 0), "refunded")
+                # A Release-Ready master paid with this charge stops counting
+                # as revenue on the owner's desk (review, 2026-09-19).
+                release_ready.money_back(obj.get("payment_intent"), "refunded",
+                                         int(obj.get("amount_refunded") or 0))
             else:
                 charge = stripe_billing.get_charge(obj.get("charge"))
                 if charge is None:
                     return jsonify({"ok": False, "error": "Stripe unreachable; retry"}), 503
                 _refund_touches_referral(charge.get("customer"),
                                          int(obj.get("amount") or 0), "disputed")
+                release_ready.money_back(obj.get("payment_intent") or charge.get("payment_intent"),
+                                         "disputed", int(obj.get("amount") or 0))
         elif etype == "invoice.paid":
             # A referral settles on real money, not on the checkout form.
             user = store.user_by_stripe_customer(obj.get("customer"))
@@ -5921,6 +5938,9 @@ def create_app():
                    for t in store.list_os_tracks(user["id"])]
         return render_template("metadata_passport.html", active_page="identifiers",
                                rows=rows, overall=overall, os_rows=os_rows,
+                               # Tracks with a Release-Ready master stored:
+                               # a marker, not part of the passport's score.
+                               rr_masters=release_ready_store.masters_by_track(user["id"]),
                                field_labels=[lbl for _, lbl in _PASSPORT_FIELDS],
                                **build_dashboard_context())
 
@@ -6367,6 +6387,9 @@ def create_app():
         snap = _artist_snapshot(artist_id, today)
         return render_template("roster_artist.html", active_page="roster",
                                member=member, snap=snap,
+                               # Release-Ready work, status only: no audio,
+                               # no downloads, no buying (label view).
+                               rr_rows=release_ready_store.status_rows(artist_id),
                                **build_dashboard_context())
 
     @app.route("/roster/<member_id>/remove", methods=["POST"])
@@ -6549,7 +6572,33 @@ def create_app():
                                lockbox=artist_os.lockbox_report(track),
                                fields=artist_os.PASSPORT_FIELDS,
                                passport_notes=artist_os.PASSPORT_NOTES,
+                               rr_master=_rr_master_block(user["id"], track),
                                **build_dashboard_context())
+
+    def _rr_master_block(user_id, track):
+        """The Release-Ready master stored for this Track Passport, if any:
+        when, a download through the owner-checked route, and where next.
+        Not part of the passport's completeness score."""
+        job = release_ready_store.masters_by_track(user_id).get(track["id"])
+        if not job:
+            return None
+        title = (track.get("title") or "").strip()
+        src = release_ready_store.get_source(job["source_id"]) or {}
+        # The upload's page is gone once the upload is deleted, so this
+        # block is where the master is deleted from then (review, 2026-09-19).
+        # Only the account holder: a seat cannot delete a paid master.
+        seat = bool(session.get("team_as") or session.get("acting_as"))
+        return {"stored_at": release_ready.day(job.get("stored_at")),
+                "note": "Mastered by RoEx through Release-Ready",
+                "format": release_ready.master_format(job),
+                "download": job.get("output_url"),
+                "bytes": job.get("master_bytes"),
+                "source": ("%s/sources/%s" % (release_ready.PAGE, job["source_id"])
+                           if src and not src.get("deleted_at") else None),
+                "delete_url": ("%s/jobs/%s/master/delete" % (release_ready.PAGE, job["id"])
+                               if not seat else None),
+                "smart_link": "/links/new?" + urllib.parse.urlencode({"title": title}),
+                "rollout": "/rollout-studio/new"}
 
     def _track_mlc_state(user_id, track):
         """What the passport page may say about The MLC: whether the
@@ -9951,7 +10000,15 @@ def create_app():
             abort(404)
         result = contract_reminders.run(emailer=emailer, public_url=public_url)
         store.set_kv("reminders_last_run", json.dumps(result))
-        return jsonify({"ok": True, "run": result})
+        # The same daily run moves Release-Ready's queue: reports paused on
+        # the budget when it allows again, polls that came due, and an alert
+        # for a paid master not stored after 30 minutes. It never starts a
+        # paid RoEx retrieval that was not paid for.
+        try:
+            rr = release_ready.run_due()
+        except Exception as exc:           # noqa: BLE001 - reminders already ran
+            rr = {"error": type(exc).__name__}
+        return jsonify({"ok": True, "run": result, "release_ready": rr})
 
     VAULT_KINDS = ("cover_art", "master", "stems", "press_photo", "video", "file")
     VAULT_EXTS = ("png", "jpg", "jpeg", "webp", "gif", "wav", "mp3", "flac",
@@ -12671,6 +12728,13 @@ def create_app():
                                online_sales_on=sales_switch.is_on(),
                                soundcharts_month=(soundcharts_budget.summary()
                                                   if user and _is_owner_email(user.get("email")) else None),
+                               # Release-Ready's owner card: prices, the credit
+                               # budget and this month's use. Never the key.
+                               rr_month=(dict(release_ready_settings.summary(),
+                                              key_set=release_ready.roex.configured(),
+                                              storage=release_ready.storage_ready())
+                                         if user and _is_owner_email(user.get("email")) else None),
+                               rr_msg=request.args.get("rr"),
                                online_sales_contact=sales_switch.CONTACT,
                                **build_dashboard_context())
 
@@ -13819,6 +13883,13 @@ def create_app():
     # Every lane is off until its own flag is set, and the page says so per
     # lane rather than hiding what the product does.
     audio_studio.init(app, current_user=current_user)
+    # Release-Ready (owner's brief, 2026-09-19): a mix report, two free
+    # previews and a paid master, through RoEx. roex_client is the only
+    # module that talks to RoEx; the page is closed to artists until the
+    # owner opens it in Settings.
+    release_ready.init(app, current_user=current_user, notify_owners=_notify_owners,
+                       is_owner_email=_is_owner_email, public_url=public_url,
+                       demo_locked=_demo_locked_account)
     # Street Banker Studio. Every route re-checks studio_v1 rather than
     # trusting registration time: blueprints are module-level singletons
     # and this factory runs at import, so a flag read here would freeze.

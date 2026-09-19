@@ -13,6 +13,11 @@ services:
       # Render dashboard (Environment tab). Never commit it.
       - key: DEMO_PASSWORD
         sync: false
+      # Release-Ready (Creative Studio): the RoEx Tonn API key. Paste it in
+      # the Render dashboard (Environment tab) once RoEx has approved the
+      # account and credits are bought. Never commit it.
+      - key: ROEX_API_KEY
+        sync: false
       # Persistent storage (Starter instance + 1GB disk): database and all
       # uploads (documents, covers, EPK photos, sync audio) live under this
       # path together, so the one disk below covers everything.
