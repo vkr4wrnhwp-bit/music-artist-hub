@@ -2,8 +2,8 @@
 the coverage they produce.
 
 Per-artist and private. Everything here is keyed by user_id and read
-only through press_desk.py, which resolves the artist from the session
-before any of these functions are reached.
+only through press_desk.py, which resolves the artist's account (for a
+team seat, the account it works in) before any of these are reached.
 
 Four decisions worth stating, because they shape everything else:
 

@@ -6,7 +6,7 @@
     questions from Advance, files from Production. Money never. -#}
 
 {% if sent %}
-<div class="to-note"><strong>Sent.</strong> The venue has the packet{% if request.args.get('skipped') %} — {{ request.args.get('skipped') }} attachment{{ '' if request.args.get('skipped') == '1' else 's' }} could not be read and went out as a link instead{% endif %}. Their reply goes to {{ sender['email'] }}; paste it into the <a href="?tab=inbox">Advance inbox</a> and the answers land on the checklist.</div>
+<div class="to-note"><strong>Sent.</strong> The venue has the packet.{% if request.args.get('skipped') %} {{ request.args.get('skipped') }} attachment{{ '' if request.args.get('skipped') == '1' else 's' }} could not be read and {% if links_held %}{{ 'was' if request.args.get('skipped') == '1' else 'were' }} left out{% else %}went out as a link instead{% endif %}.{% endif %} Their reply goes to {{ sender['email'] }}; paste it into the <a href="?tab=inbox">Advance inbox</a> and the answers land on the checklist.</div>
 {% elif fail == 'sender' %}
 <div class="to-note to-note--warn"><strong>Not sent.</strong> This deployment's email sender is Resend's shared test address, which only delivers to the account owner's own inbox. Set <code>EMAIL_FROM</code> to an address on a domain verified in Resend and the button works. Nothing was sent, so nothing looks sent.</div>
 {% elif fail == 'to' %}
@@ -51,7 +51,7 @@
           <p class="to-sub">No rider or tech files on this show or the tour yet. Attach them under <a href="?tab=production">Production</a> and they are offered here.</p>
         {% endif %}
       </div>
-      <p class="to-muted">Attachments are capped at 18 MB together; anything over that is left out and named, and the links below still carry it.</p>
+      <p class="to-muted">Attachments are capped at 18 MB together; anything over that is left out and named{% if not links_held %}, and the links below still carry it{% endif %}.</p>
 
       <div class="to-bar">
         <button class="to-btn" type="submit" {% if not mail_ready %}disabled aria-disabled="true"{% endif %}>Send the advance</button>
@@ -63,8 +63,13 @@
   <aside>
     <div class="to-panel">
       <div class="to-eyebrow">Links in the email</div>
+      {% if links_held %}
+      {#- Public links that open without a login are the account holder's to hand out (tour_os._send_context). -#}
+      <p class="to-sub">The tech rider page and the production pack open without a login, so they are {{ team_seat.owner.name or 'the artist' }}'s to send. An advance you send goes out without them. The attachments you tick still go.</p>
+      {% else %}
       <p class="to-sub"><b>Tech rider page</b> — stage plot, input list, times and backline, no login: {% if links['rider'] %}<a href="{{ links['rider'] }}" target="_blank" rel="noopener">open</a>{% else %}<span class="to-muted">created when you send</span>{% endif %}</p>
       <p class="to-sub"><b>Production pack</b> — this show's production advance, files and times for the house crew: {% if links['production'] %}<a href="{{ links['production'] }}" target="_blank" rel="noopener">open</a>{% else %}<span class="to-muted">created when you send</span>{% endif %}</p>
+      {% endif %}
     </div>
 
     <div class="to-panel">

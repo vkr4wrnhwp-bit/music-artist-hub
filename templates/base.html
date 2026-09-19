@@ -575,6 +575,7 @@
           {%- if request.args.get('team') == 'readonly' %}<strong class="text-white">That change was not saved.</strong> {% endif -%}
           {%- if request.args.get('team') == 'blocked' %}<strong class="text-white">Only {{ team_seat.owner.name }} can open that.</strong> {% endif -%}
           {%- if request.args.get('team') == 'room' %}<strong class="text-white">That room is not open to you.</strong> {% endif -%}
+          {%- if request.args.get('team') == 'join' %}<strong class="text-white">A tour invitation is accepted by the person it was sent to, from their own account.</strong> If it was sent to you, leave this account and open the link again. {% endif -%}
           You are working in <strong class="text-white">{{ team_seat.owner.name }}</strong>'s account as their {{ team_seat.role }},
           {% if team_seat.access == 'edit' %}and you can make changes; they are listed on their Team page under your name.{% else %}with read-only access: look, change nothing.{% endif %}
           Rooms open to you: {{ team_seat.rooms }}. Billing, settings and their team stay with them.

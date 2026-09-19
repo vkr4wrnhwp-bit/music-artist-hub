@@ -26,7 +26,7 @@
       <div class="to-bar" style="flex-wrap:wrap;gap:8px">
         <a class="to-btn to-btn--small" href="/stage/{{ show['id'] }}">Engineer Desk</a>
         <a class="to-btn to-btn--ghost to-btn--small" href="/stage/{{ show['id'] }}/bridge">Stage Bridge</a>
-        <a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/share">Performer QR (share link)</a>
+        {% if not team_seat %}<a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/share">Performer QR (share link)</a>{% endif %}
         <a class="to-btn to-btn--ghost to-btn--small" href="/passports/{{ stage.attached.passport.id }}/versions">Change log</a>
         {% if can('production') and stage.attached.open %}
           <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/stage" style="display:inline">

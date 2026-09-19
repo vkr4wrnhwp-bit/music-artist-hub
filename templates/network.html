@@ -212,7 +212,7 @@
   <!-- My Network -->
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
 
-    {% with outreach_back='/network?tab=my' %}{% include "partials/outreach_pipeline.html" %}{% endwith %}
+    {% if not outreach_shut %}{% with outreach_back='/network?tab=my' %}{% include "partials/outreach_pipeline.html" %}{% endwith %}{% endif %}
 
     <section id="my-network" class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5 lg:col-span-1">
       <h2 class="sb-label text-gray-300">Connections</h2>

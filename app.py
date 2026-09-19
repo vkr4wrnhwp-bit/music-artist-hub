@@ -789,6 +789,35 @@ def create_app():
         g._team_seat = (key, seat)
         return seat
 
+    def current_team_seat():
+        """The team seat this request works through, or None. The artist's
+        own session, a tour crew member and a partner acting for an artist
+        have none. Resolved the same way current_user() resolves it, so a
+        seat that has gone is None here too."""
+        if not session.get("team_as"):
+            return None
+        current_user()                      # resolves the seat, or ends it
+        if not session.get("team_as"):
+            return None
+        return (getattr(g, "_team_seat", None) or (None, None))[1]
+
+    def current_acting():
+        """The partner staff member working this request in an artist's
+        account through act-on-behalf, or None. Tour uses it to file a
+        change under the person who made it rather than the artist, so
+        the artist still hears about it (review, 2026-09-19). Resolved the
+        way current_user() resolves it, so an act-on-behalf that has ended
+        is None here too."""
+        if not session.get("acting_as"):
+            return None
+        artist = current_user()             # re-checks the permission, or ends it
+        if artist is None or not session.get("acting_as"):
+            return None
+        staff = store.get_user(session.get("user_id")) or {}
+        return {"id": session.get("user_id"),
+                "name": staff.get("name") or staff.get("email") or "A partner",
+                "for": artist.get("name") or artist.get("email") or "the artist"}
+
     @app.route("/suites/go/<key>")
     def suite_go(key):
         """Hand a signed-in artist across to one of the tool suites.
@@ -4665,16 +4694,36 @@ def create_app():
 
     # Areas a team seat never reaches, whatever its access: the account
     # holder's money, settings, team and suites stay theirs (2026-09-19).
-    # /account (start over, delete) and /backup were reachable from a seat;
-    # Tour, the Tour Board and the Press Desk read the signed-in person, not
-    # the account they work in, so they would show and change the member's
-    # own (team review, 2026-09-19). They open to seats when they learn
-    # whose account they are in.
+    # /account (start over, delete) and /backup were reachable from a seat.
+    # Tour, the Tour Board and the Press Desk now work in the account a
+    # request is in, as Studio does, so they open to seats through their
+    # rooms (Stage; the Press Desk is Marketing). What in them stays the
+    # account holder's is shut here:
+    #   /tours/join  a tour crew invitation's link makes whoever accepts it
+    #                a member of that tour. From a seat it would attach the
+    #                ARTIST's account to someone else's tour (owner,
+    #                2026-09-19). tour_os refuses it for a seat as well.
+    # Accepting a team or roster invitation (/team, /roster/join) and
+    # opening a seat (/portal) are the same kind of door and stay shut.
     _TEAM_BLOCKED = ("/billing", "/settings", "/team", "/admin", "/partner", "/plan/switch",
                      "/suites/go", "/api/suites", "/referrals", "/portal", "/roster/join",
                      "/upgrade", "/owner", "/operator-desk", "/signal", "/account", "/backup",
-                     "/tours", "/tour", "/tour-board", "/press-desk")
+                     "/tours/join")
     _TEAM_ALLOWED = ("/portal/leave", "/logout")
+
+    def _team_blocked_inside(path):
+        """The account holder's pages whose id sits mid-path, which no
+        prefix above can name: a tour's crew invitations and their join
+        links (/tours/<id>/team...), its public share links and their QR
+        codes (/tours/<id>/share...; a link outlives the seat that saw
+        it), and the old Tour Hub forms that mint a show's public rider
+        link or mail it out (/tour/<id>/share, /tour/<id>/send-advance).
+        tour_os refuses the tour pages to a seat as well."""
+        parts = path.strip("/").split("/")
+        if len(parts) >= 3 and parts[0] == "tours" and parts[2] in ("team", "share"):
+            return True
+        return len(parts) == 3 and parts[0] == "tour" and parts[2] in ("share", "send-advance")
+
     _TEAM_READ_ONLY = ("You have read-only access to this account. Look at everything; "
                        "changes are made by the artist or a team member who can edit.")
 
@@ -4697,15 +4746,23 @@ def create_app():
             return None
         writes = request.method not in ("GET", "OPTIONS")
         home = team_areas.home(seat["areas"])
-        if any(_under(path, p) for p in _TEAM_BLOCKED):
+        if any(_under(path, p) for p in _TEAM_BLOCKED) or _team_blocked_inside(path):
             if writes and _wants_json():
                 return jsonify({"ok": False, "error": "Only the account holder can do this."}), 403
-            return redirect(home + "?team=blocked")
+            # A tour invitation may be the member's own, so that banner
+            # says how they take it rather than that it is the artist's.
+            return redirect(home + ("?team=join" if _under(path, "/tours/join") else "?team=blocked"))
         # The rooms the artist ticked for this person (owner, 2026-09-19).
         if not team_areas.allows(seat["areas"], path):
             if _wants_json():
                 return jsonify({"ok": False, "error": "That room is not open to you."}), 403
             return redirect(home + "?team=room")
+        if request.method == "HEAD" and request.content_length:
+            # Flask answers HEAD with the GET view and a HEAD is not
+            # recorded below. One carrying a form body is no browser's
+            # read, so it is refused rather than left to each view to
+            # tell from a POST (review, 2026-09-19).
+            return ("", 400)
         if not writes:
             return None
         if seat["access"] != "edit" or (_under(path, "/roster") and not seat["can_roster"]):
@@ -4728,6 +4785,34 @@ def create_app():
         a = getattr(g, "_team_audit", None)
         if a and request.url_rule is not None and resp.status_code < 400:
             store.add_team_audit(*a)
+        return resp
+
+    @app.before_request
+    def acting_as_change_note():
+        """A partner staff member acting on an artist's behalf works the
+        artist's account as the artist. Each change they make goes on the
+        partner's audit trail under their own name, next to the start and
+        stop of the act-on-behalf (review, 2026-09-19): an impersonation
+        whose changes are not on the record is not on the record. Read
+        here, before the view can end the act-on-behalf, and written
+        after, once the change has gone through."""
+        if not session.get("acting_as") or request.method in ("GET", "OPTIONS", "HEAD"):
+            return None
+        path = request.path
+        if _under(path, "/partner") or path == "/logout" or path.startswith("/static/"):
+            return None
+        acting = current_acting()
+        member = partner_store.member_for_user(acting["id"]) if acting else None
+        if member:
+            g._acting_audit = (member["partner_id"], member, session.get("acting_as"),
+                               "%s %s" % (request.method, path))
+        return None
+
+    @app.after_request
+    def _acting_as_change_write(resp):
+        a = getattr(g, "_acting_audit", None)
+        if a and request.url_rule is not None and resp.status_code < 400:
+            partner_store.audit(a[0], "act_as.change", actor=a[1], subject_user_id=a[2], detail=a[3])
         return resp
 
     @app.context_processor
@@ -6891,8 +6976,11 @@ def create_app():
 
     def _tour_dates_url(user_id):
         """Where /tour lands now: the newest tour's Dates page, or the TOUR
-        index (which offers to bring unattached shows onto a tour)."""
-        tour_store.adopt_orphan_shows(user_id)   # an old /tour link never lands on a dead page
+        index (which offers to bring unattached shows onto a tour). A team
+        member's visit adopts nothing: no tour is made for the artist by a
+        seat looking (the artist's own visit and the boot sweep do it)."""
+        if not session.get("team_as"):
+            tour_store.adopt_orphan_shows(user_id)   # an old /tour link never lands on a dead page
         tours = tour_store.list_tours(user_id)
         return "/tours/%s/shows" % tours[0]["id"] if tours else "/tours"
 
@@ -6944,9 +7032,10 @@ def create_app():
         show = store.get_tour_show(user["id"], show_id)
         if show is None:
             abort(404)
-        if not show.get("tour_id"):
+        if not show.get("tour_id") and not session.get("team_as"):
             # Not on a tour yet: adopt it onto one now, the way the boot
-            # sweep does, so an old link lands on its date page.
+            # sweep does, so an old link lands on its date page. Not on a
+            # team seat's visit, which lands on /tours instead.
             tour_store.adopt_orphan_shows(user["id"])
             show = store.get_tour_show(user["id"], show_id) or show
         if show.get("tour_id"):
@@ -6968,6 +7057,11 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        seat = current_team_seat()
+        if seat and not team_areas.money_open(seat["areas"]):
+            # A show's deal and settlement are the Money and business
+            # room's, as they are inside Tour (review, 2026-09-19).
+            abort(403)
         settlement = {k: (request.form.get(k) or "").strip()[:60]
                       for k in ("deal_type", "guarantee", "door_gross", "split_pct",
                                 "merch_gross", "merch_cut_pct", "expenses", "notes")}
@@ -11309,7 +11403,13 @@ def create_app():
         user = current_user()
         ctx = build_dashboard_context()
         ctx["network"] = get_network_data(request.args, _network_state())
-        ctx["outreach"] = store.list_outreach(user["id"]) if user else []
+        # The outreach tracker is the Tour Board's (Stage room). This page
+        # is in no room, so a team seat without Stage is not shown it here
+        # either (review, 2026-09-19).
+        seat = current_team_seat()
+        shut = bool(seat and not team_areas.allows(seat["areas"], "/tour-board/outreach"))
+        ctx["outreach"] = store.list_outreach(user["id"]) if user and not shut else []
+        ctx["outreach_shut"] = shut
         ctx["outreach_stages"] = store.OUTREACH_STAGES
         return render_template("network.html", active_page="network", **ctx)
 
@@ -13655,13 +13755,24 @@ def create_app():
         return response
 
     operator_desk.init(app, is_owner_email=_is_owner_email)
+    # Tour, the Tour Board and the Press Desk work in the account a request
+    # is in, as Studio and every other page do: the artist's for a team
+    # seat and for a partner acting on the artist's behalf (owner,
+    # 2026-09-19). tour_os also takes the seat, for what stays the account
+    # holder's, and the acting partner, so a change is filed under the
+    # person who made it (review, 2026-09-19).
     # Press links are baked into emails and read days later, so they are
     # built from the canonical address rather than whichever host the
     # request happened to arrive on.
-    press_desk.init(app, base_url=lambda: PUBLIC_BASE_URL)
+    press_desk.init(app, base_url=lambda: PUBLIC_BASE_URL, current_user=current_user)
     # TOUR: invitation and share links are pasted into messages and read
     # later, so they too are built from the canonical address.
-    tour_os.init(app, base_url=lambda: PUBLIC_BASE_URL)
+    tour_os.init(app, base_url=lambda: PUBLIC_BASE_URL, current_user=current_user,
+                 team_seat=current_team_seat, acting=current_acting)
+    # Signal's reading of the artist's own tour dates follows the same
+    # account as Tour (it read the signed-in person's).
+    import signal_providers as _sp
+    _sp.set_account_resolver(lambda: (current_user() or {}).get("id"))
     # Signal: the A&R / distribution / rights intelligence layer. Access is a
     # row in its own roster, seeded from the Operator Desk roster and the
     # owner predicate - no person's name lives in the module.
@@ -13715,7 +13826,7 @@ def create_app():
     live.init(app, current_user=current_user)
     # Team-Up Board: renew and thread links go into emails, so they are
     # built from the canonical address too.
-    board.init(app, base_url=lambda: PUBLIC_BASE_URL)
+    board.init(app, base_url=lambda: PUBLIC_BASE_URL, current_user=current_user)
     # Show Passport. Takes current_user and the dashboard context so a
     # passport page wears the same shell as every other internal page rather
     # than becoming a second-looking product inside the first.

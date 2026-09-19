@@ -39,6 +39,10 @@ from flask import (Blueprint, abort, redirect, render_template, request,
 bp = Blueprint("press", __name__)
 
 _base_url = lambda: ""          # replaced by init()
+# The account this request works in, set by init from app.py. Through a
+# team seat it is the artist's account, not the member's own (owner,
+# 2026-09-19).
+_current_user = None
 
 DEFAULT_SUBJECT = "{artist} — {title}"
 
@@ -57,10 +61,14 @@ Thanks,
 
 def artist_required(fn):
     """The global login wall already turns anonymous visitors away; this
-    resolves the artist and hands it to the handler."""
+    resolves the artist and hands it to the handler: the account the
+    request works in, which for a team seat is the artist's."""
     def guarded(*args, **kwargs):
-        user_id = session.get("user_id")
-        user = store.get_user(user_id) if user_id else None
+        if _current_user is not None:
+            user = _current_user()
+        else:
+            user_id = session.get("user_id")
+            user = store.get_user(user_id) if user_id else None
         if user is None:
             return redirect(url_for("login", next=request.path))
         return fn(user, *args, **kwargs)
@@ -401,7 +409,11 @@ def press_page(token):
     if release is None:
         abort(404)
 
-    first = press_store.mark_opened(token)
+    # A team member inside the artist's account, or a partner acting on
+    # the artist's behalf, is not the journalist: their look is not an
+    # open, and the artist is not told it was.
+    first = (None if session.get("team_as") or session.get("acting_as")
+             else press_store.mark_opened(token))
     if first is not None:
         contact = press_store.get_contact(recipient["user_id"],
                                           recipient["contact_id"]) or {}
@@ -421,11 +433,13 @@ def press_page(token):
 
 # --- wiring -----------------------------------------------------------------
 
-def init(app, base_url):
+def init(app, base_url, current_user=None):
     """Register the Press Desk. `base_url` is a callable returning the
     address links are built from — it must be the canonical one, because
-    a link baked into an email outlives the request that made it."""
-    global _base_url
+    a link baked into an email outlives the request that made it.
+    `current_user` resolves the account a request works in."""
+    global _base_url, _current_user
     _base_url = base_url
+    _current_user = current_user
     press_store.init_press()
     app.register_blueprint(bp)
