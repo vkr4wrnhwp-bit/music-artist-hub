@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ e.name }} - Press Kit - saved {{ saved_on }}</title>
 {#- The copy Save to Vault writes (owner, 2026-09-19: "The EPK goes to the
-    vault"). One self-contained web page: the app's stylesheet is inlined,
-    the photo is carried as data, and the document is the same partial the
+    vault"). One self-contained web page: the app's tailwind.css (which
+    defines every --sb- token this page reads) is inlined into the first
+    style block below, the photo is carried as data, and the document is the same partial the
     editor renders, so a saved copy cannot differ from what was on screen.
     A web page and not a PDF because this server has no PDF engine; the
     footer says so and says how to make one. -#}

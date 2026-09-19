@@ -43,7 +43,9 @@ def _account(plan="pro", name="Artist"):
 
 
 def _seat(owner, member, access="edit", areas=None):
-    data = {"email": member._email, "role": "manager", "access": access,
+    # areas_sent: without it an invite means every room (2524e165), and
+    # these tests are about seats that hold only some.
+    data = {"email": member._email, "role": "manager", "access": access, "areas_sent": "1",
             "areas": list(areas if areas is not None else team_areas.keys())}
     r = owner.post("/team/invite", data=data)
     assert r.get_json().get("ok"), r.get_json()
