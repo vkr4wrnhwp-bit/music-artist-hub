@@ -51,7 +51,7 @@ def test_rendered_pages_carry_no_header_picture_and_the_two_keepers_do():
         assert 'class="pp-plate-img"' not in body, path
         assert 'class="pp-plate"' in body, path
     login = anon.get("/login").get_data(as_text=True)
-    assert "hero-band-wide" in login, "the login keeps its picture"
+    assert "login-flightcase" in login, "the login keeps its picture"
     home = anon.get("/").get_data(as_text=True)
     assert "/static/img/" in home, "the homepage keeps its photographs"
 

@@ -5375,8 +5375,9 @@ def test_login_session_recall_page():
     the photograph, a single sign-in form, the demo strip - real form,
     no invented claims."""
     body = create_app().test_client().get("/login").get_data(as_text=True)
-    assert 'class="lsr-photo"' in body and "hero-band-wide-1100" in body
-    assert "Your decisions." in body           # the statement on the picture
+    # The owner's flight case photograph since 2026-09-19.
+    assert 'class="lsr-photo"' in body and "login-flightcase-900" in body
+    assert "Your decisions." not in body       # the case carries its own words
     assert 'id="lsr-submit"' in body and ">Sign in" in body
     assert "Tour with a sample workspace" in body
     assert "YOUR MIX IS READY" in body          # rendered hidden until JS
