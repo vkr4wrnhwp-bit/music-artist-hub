@@ -3544,7 +3544,18 @@ def test_webhook_auto_setup(monkeypatch):
     outsider.post("/signup", data={"name": "O", "email": "webhook-outsider@example.net",
                                    "password": "outside1"})
     assert outsider.post("/billing/webhook-setup").status_code == 404
-    artist = _demo(app_obj)
+    # A Label account that is not the owner is refused, the shared demo
+    # login included: the production webhook is the owner's (2026-09-18
+    # launch check; it used to check only for the Label plan).
+    label = _demo(app_obj)
+    assert "Set up webhook automatically" not in label.get("/billing").get_data(as_text=True)
+    assert label.post("/billing/webhook-setup").status_code == 404
+    assert deleted == [] and created == {}
+    monkeypatch.setenv("OWNER_EMAILS", "webhook-owner@example.net")
+    artist = app_obj.test_client()
+    artist.post("/signup", data={"name": "Own", "email": "webhook-owner@example.net",
+                                 "password": "ownerpass1"})
+    artist.post("/login", data={"email": "webhook-owner@example.net", "password": "ownerpass1"})
     # Owner sees the one-click card while the webhook is missing.
     assert "Set up webhook automatically" in artist.get("/billing").get_data(as_text=True)
     r = artist.post("/billing/webhook-setup")
