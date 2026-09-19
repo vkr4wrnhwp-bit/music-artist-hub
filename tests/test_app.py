@@ -1510,8 +1510,20 @@ def _fake_deezer(url):
 
 def test_catalog_add_pulls_metadata(monkeypatch):
     import music_apis
+    import signal_providers as sp
     monkeypatch.setattr(music_apis, "_fetch_json", _fake_deezer)
     monkeypatch.setattr(music_apis.time, "sleep", lambda s: None)
+
+    class _MLC:
+        def configured(self):
+            return True
+
+        def lookup(self, isrc=None, title=None, artist=None):
+            return {"works": [{"writers": [{"name": "Fake Writer"}],
+                               "publishers": [{"name": "Fake Publishing Co"}]}]}
+    # Credits come from The MLC's register now, not MusicBrainz (owner,
+    # 2026-09-18: "switch to mlc", "brainz off for customers").
+    monkeypatch.setattr(sp, "mlc_adapter", lambda: _MLC())
     client = _demo()
     client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
     r = client.post("/catalog/add", json={"title": "Meta Song", "artist": "Meta Artist"})
