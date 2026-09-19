@@ -104,6 +104,17 @@
     </details>
   {% endif %}
 
+  {% set sc = soundcharts_month %}
+  <h2 class="sg-h2">Soundcharts calls this month ({{ sc.month }})</h2>
+  <div class="sg-table-wrap"><table class="sg-table" data-testid="soundcharts-month">
+    <thead><tr><th scope="col">Who</th><th scope="col">Calls</th><th scope="col">Stops at</th></tr></thead>
+    <tbody>
+      <tr><td>Customers (Artist Pulse)</td><td>{{ '{:,}'.format(sc.customers) }}</td><td>{{ '{:,}'.format(sc.customer_ceiling) }} in total{% if sc.customers_paused %}, paused now{% endif %}</td></tr>
+      <tr><td>Team (Signal, Operator Desk)</td><td>{{ '{:,}'.format(sc.team) }}</td><td>{{ '{:,}'.format(sc.budget) }} in total{% if sc.team_paused %}, paused now{% endif %}</td></tr>
+      <tr><td>Total</td><td>{{ '{:,}'.format(sc.total) }}</td><td>{{ '{:,}'.format(sc.budget) }}, the owner's monthly budget</td></tr>
+    </tbody>
+  </table></div>
+
   <h2 class="sg-h2">Preferred provider per capability</h2>
   <div class="sg-table-wrap"><table class="sg-table">
     <thead><tr><th scope="col">Capability</th><th scope="col">Serving it now</th></tr></thead>

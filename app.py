@@ -221,6 +221,7 @@ import tour_dates as tour_dates_feed
 import capital_engine
 import stripe_provider as stripe_billing
 import sales_switch
+import soundcharts_budget
 import royalty_types
 import insights_engine
 import email_provider as emailer
@@ -8660,6 +8661,7 @@ def create_app():
                                metrics=metrics, youtube=youtube,
                                snaps=snaps, peers=peers, my_delta7=my_delta7,
                                pulse_can_change=_pulse_change_allowed(user),
+                               soundcharts_paused=soundcharts_budget.customers_paused(),
                                milestone=milestone,
                                link_stats={"pageviews": pageviews, "clicks": clicks,
                                            "presaves": presaves},
@@ -11828,6 +11830,8 @@ def create_app():
                                                      if user and _is_owner_email(user.get("email")) else []),
                                is_owner=bool(user and _is_owner_email(user.get("email"))),
                                online_sales_on=sales_switch.is_on(),
+                               soundcharts_month=(soundcharts_budget.summary()
+                                                  if user and _is_owner_email(user.get("email")) else None),
                                online_sales_contact=sales_switch.CONTACT,
                                **build_dashboard_context())
 
@@ -11873,6 +11877,19 @@ def create_app():
                 except Exception:          # noqa: BLE001 - rows are gone; do not fail the reset
                     pass
         return redirect("/settings?reset=1#start-over")
+
+    @app.route("/admin/soundcharts-budget", methods=["POST"])
+    def admin_soundcharts_budget():
+        """The owner sets this month's Soundcharts allowance (the plan's
+        monthly calls). Owner only; a 404 for everyone else."""
+        user, deny = _owner_or_404()
+        if deny:
+            return deny
+        try:
+            soundcharts_budget.set_budget(int((request.form.get("budget") or "").replace(",", "")))
+        except ValueError:
+            return redirect("/settings?soundcharts=bad#soundcharts")
+        return redirect("/settings?soundcharts=saved#soundcharts")
 
     @app.route("/admin/online-sales", methods=["POST"])
     def admin_online_sales():

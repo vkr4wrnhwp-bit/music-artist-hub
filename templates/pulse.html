@@ -11,6 +11,10 @@
       <div class="sb-label text-sb-gold">Street Banker · Artist Pulse</div>
       <h1 class="sb-h1 mt-1">Artist Pulse</h1>
       <p class="mt-1 max-w-2xl text-sm text-gray-300">Your live numbers, straight from the platforms and from Soundcharts where it is connected. Spotify no longer sends follower, popularity or genre figures to apps like this one, so those read from Soundcharts or stay unmeasured. No screenshots, no guesswork.</p>
+      {% if soundcharts_paused %}
+      {#- The owner's monthly Soundcharts allowance (soundcharts_budget). -#}
+      <p class="mt-2 max-w-2xl rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-200">Fresh Soundcharts numbers are paused until next month. What shows here is the last set measured, with its date; nothing is filled in.</p>
+      {% endif %}
     </div>
     {% if profile %}
     {% if pulse_can_change %}

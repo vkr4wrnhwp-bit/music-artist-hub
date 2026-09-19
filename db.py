@@ -1983,6 +1983,19 @@ def set_kv(key, value):
             (key, value, _now()))
 
 
+def kv_incr(key, by=1):
+    """Add to a counter kept in app_kv, in one statement, so two workers
+    counting at once do not lose a count. Returns the new value."""
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO app_kv (key, value, updated) VALUES (?,?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + ? AS TEXT), "
+            "updated = excluded.updated",
+            (key, str(int(by)), _now(), int(by)))
+        row = db.execute("SELECT value FROM app_kv WHERE key = ?", (key,)).fetchone()
+    return int(row["value"]) if row else 0
+
+
 # --- EPK profiles --------------------------------------------------------------
 
 def save_epk(user_id, data):
