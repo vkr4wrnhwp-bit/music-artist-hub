@@ -1,0 +1,73 @@
+{# Connect Hypeddit.
+
+   Hypeddit's gates, pre-saves and smart links collect a fan's email and
+   then keep it. Its Account Settings > Automation page has one field, a
+   webhook URL meant for Zapier or Make; we are that URL. Hypeddit sends a
+   test record when the address is saved, then one record per fan who
+   finishes a gate. It does not publish its field names, so the last
+   delivery is shown raw here, addresses masked, so the artist can see
+   whether the email came through (owner, 2026-09-19).
+
+   The address is the artist's secret: not shown to the showcase account
+   (hypeddit is None) nor to a team seat below edit. #}
+
+{% if hypeddit and not (team_seat and team_seat.access != 'edit') %}
+<section id="hypeddit" class="mt-6 rounded-2xl border border-sb-gold/25 bg-sb-surface-1 p-5">
+  <h2 class="sb-label text-sb-gold-bright">Connect Hypeddit</h2>
+  <p class="mt-2 max-w-2xl text-sm text-gray-300">
+    Every fan who finishes one of your Hypeddit download gates, link gates,
+    pre-saves or smart links lands here, tagged Hypeddit, with the consent
+    logged and intent scored. Hypeddit posts them to your own address:
+  </p>
+
+  <div class="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
+    <span id="hypeddit-url" class="min-w-0 flex-1 break-all text-sm text-gray-100">{{ hypeddit.url }}</span>
+    <button type="button" class="sb-btn sb-btn-secondary sb-btn-sm"
+            onclick="navigator.clipboard.writeText(document.getElementById('hypeddit-url').textContent.trim()).then(()=>{this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
+  </div>
+
+  <ol class="mt-3 space-y-1 text-sm text-gray-200">
+    <li>1. In Hypeddit open Account Settings, then Automation.</li>
+    <li>2. Paste the address into the webhook field.</li>
+    <li>3. Press Next. Hypeddit says Successfully Updated and sends a test here.</li>
+  </ol>
+
+  <p class="mt-3 text-sm text-gray-100">
+    {% if hypeddit.connected %}
+      Connected: {{ "{:,}".format(hypeddit.count) }} {{ "fan has" if hypeddit.count == 1 else "fans have" }} come in, last at {{ hypeddit.last[:16]|replace("T", " ") }} UTC.
+    {% else %}
+      Waiting for Hypeddit's test.
+    {% endif %}
+  </p>
+
+  {% if hypeddit.last_delivery %}
+  <details class="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
+    <summary class="cursor-pointer text-sm font-bold text-gray-200">What Hypeddit sent</summary>
+    <p class="mt-2 text-xs text-gray-300">
+      Received {{ hypeddit.last_delivery.at[:16]|replace("T", " ") }} UTC,
+      {% if hypeddit.last_delivery.kind == 'fan' %}filed as a fan.{% elif hypeddit.last_delivery.kind == 'test' %}Hypeddit's test record, not filed.{% elif hypeddit.last_delivery.kind == 'dropped' %}over today's limit, not filed.{% else %}no email address found, not filed.{% endif %}
+      {% if hypeddit.last_delivery.note %}{{ hypeddit.last_delivery.note }}{% endif %}
+    </p>
+    {% if hypeddit.last_delivery.fields %}
+    <ul class="mt-2 space-y-1 text-xs text-gray-200">
+      {% for f in hypeddit.last_delivery.fields %}
+      <li class="break-all"><span class="text-sb-gold-bright">{{ f.key }}</span>: {{ f.value }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="mt-2 text-xs text-gray-300">The delivery had no fields in it.</p>
+    {% endif %}
+    <p class="mt-3 text-xs text-gray-300">
+      Hypeddit does not publish its field names. Check the first delivery
+      here; if an email did not come through, tell us.
+    </p>
+  </details>
+  {% endif %}
+
+  <form method="post" action="/links/fans/hypeddit/rotate" class="mt-4 flex flex-wrap items-center gap-3"
+        onsubmit="return confirm('Make a new address? The one above stops working at once, and you will need to paste the new one into Hypeddit.')">
+    <button class="sb-btn sb-btn-secondary sb-btn-sm">Make a new address</button>
+    <span class="text-xs text-gray-300">If the address was pasted somewhere it should not have been. The old one stops working at once.</span>
+  </form>
+</section>
+{% endif %}

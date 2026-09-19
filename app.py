@@ -147,6 +147,7 @@ from artist_eq_config import get_artist_eq_config
 from departments_config import get_departments_config
 from eight_tools_config import get_eight_tools_config
 import fan_list_import
+import hypeddit_ingest
 import split_home
 from artist_twin_config import get_artist_twin_config
 from lanes_config import get_lanes_config
@@ -1215,6 +1216,37 @@ def create_app():
             store.notify(user_id, "statement", "Emailed statement failed to parse",
                          "; ".join(errors)[:300], "/statements")
         return jsonify({"ok": True, "ingested": ingested, "errors": errors})
+
+    @app.route("/webhooks/hypeddit/<token>", methods=["GET", "POST"])
+    def hypeddit_webhook(token):
+        """Hypeddit's automation webhook, one address per account.
+
+        The token in the URL is the authorisation (it is the artist's
+        secret, minted on the Fan CRM page, rotated there too). An
+        unknown one is 404. A known one is always answered 200 quickly,
+        whatever was in the body, so Hypeddit never retries a delivery
+        into a duplicate; what the body held is logged for the artist.
+        GET answers without filing anything, because some automation
+        tools ping an address before they trust it. Field names are not
+        documented by Hypeddit, so hypeddit_ingest reads JSON, a form
+        body or query fields and finds the address wherever it sits.
+        """
+        user_id = hypeddit_ingest.user_for_token(token)
+        if user_id is None:
+            return jsonify({"ok": False, "error": "unknown address"}), 404
+        if request.method == "GET":
+            return jsonify({"ok": True, "listening": True})
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, (dict, list)):
+            if request.form:
+                payload = request.form.to_dict(flat=True)
+            else:
+                payload = request.args.to_dict(flat=True)
+        try:
+            hypeddit_ingest.receive(user_id, payload)
+        except Exception as exc:                      # noqa: BLE001
+            app.logger.exception("hypeddit delivery for %s failed: %s", user_id, exc)
+        return jsonify({"ok": True})
 
     def _reset_serializer():
         from itsdangerous import URLSafeTimedSerializer
@@ -10320,7 +10352,32 @@ def create_app():
                                last_import=store.latest_fan_import(user["id"], "shopify"),
                                imp_note={"off": "Shopify is not connected on this service."}.get(
                                    request.args.get("imp") or "", ""),
+                               hypeddit=_hypeddit_panel(user),
                                **build_dashboard_context())
+
+    def _hypeddit_panel(user):
+        """What the Connect Hypeddit panel needs, or None when there is no
+        panel: the showcase account files nothing, and a read seat is
+        not shown the artist's secret address (the template hides it for
+        any seat below edit)."""
+        if _session_is_demo():
+            return None
+        token = hypeddit_ingest.get_or_create_token(user["id"])
+        data = hypeddit_ingest.status(user["id"])
+        data["url"] = hypeddit_ingest.webhook_url(request.host, token)
+        return data
+
+    @app.route("/links/fans/hypeddit/rotate", methods=["POST"])
+    def ml_fans_hypeddit_rotate():
+        """A new Hypeddit address; the old one stops working at once. For
+        when the address was pasted somewhere it should not have been."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        if _session_is_demo():
+            abort(404)
+        hypeddit_ingest.rotate_token(user["id"])
+        return redirect("/links/fans#hypeddit")
 
     @app.route("/links/fans/import/shopify", methods=["POST"])
     def ml_fans_import_shopify():

@@ -2012,6 +2012,12 @@ def set_kv(key, value):
             (key, value, _now()))
 
 
+def delete_kv(key):
+    """Remove one key; a key that was not there is not an error."""
+    with get_db() as db:
+        db.execute("DELETE FROM app_kv WHERE key = ?", (key,))
+
+
 def kv_incr(key, by=1):
     """Add to a counter kept in app_kv, in one statement, so two workers
     counting at once do not lose a count. Returns the new value."""
