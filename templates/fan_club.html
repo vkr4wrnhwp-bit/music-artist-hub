@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Fan Club - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% block content %}
+<div class="acph">
 {% import "_sb.html" as sb %}
 {#- In the rooms layout Fan CRM and Fan Club are cards of the Fans room, so the strip would be a second row of tabs. -#}
 {% if not rooms_nav %}{{ sb.subnav([("/fans", "Dashboard"), ("/links/fans", "Fan CRM"), ("/fan-club", "Fan Club")], request.path) }}{% endif %}
@@ -26,7 +28,7 @@
   {% endif %}
   {% endif %}
 
-  <div class="grid grid-cols-3 gap-3">
+  <div class="fc-tiles grid grid-cols-3 gap-3">
     <div class="rounded-2xl border border-sb-gold/30 bg-sb-surface-2 p-4">
       <div class="sb-label text-gray-300">Monthly Recurring</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-sb-ink">${{ "{:,.2f}".format(mrr) }}</div>
@@ -59,7 +61,7 @@
         </div>
         <div>
           <label class="sb-label text-gray-300">Price / month</label>
-          <div class="mt-1 flex items-center gap-1 rounded-lg border border-white/15 bg-black/40 px-3">
+          <div class="fc-price mt-1 flex items-center gap-1 rounded-lg border border-white/15 bg-black/40 px-3">
             <span class="text-sm font-bold text-gray-300">$</span>
             <input name="price" type="number" min="1" max="500" step="0.5" value="{{ '%g' % (club.price_cents / 100) if club else '5' }}"
                    class="w-full bg-transparent py-2.5 text-sm font-black sb-num text-white focus:outline-none">
@@ -147,4 +149,5 @@
 
   <p class="px-1 text-xs text-gray-300 font-medium">Members pay through Stripe-hosted checkout — no card data touches this server. Cancellations flow back automatically via webhook and members stay in your Fan CRM either way.</p>
 </div>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

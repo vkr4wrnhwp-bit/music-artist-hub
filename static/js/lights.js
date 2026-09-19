@@ -255,7 +255,18 @@
     if (!buffer) {
       wg.fillStyle = "#070708"; wg.fillRect(0, 0, w, h);
       wg.fillStyle = "#8b857b"; wg.font = "600 12px -apple-system, Segoe UI, Roboto, sans-serif"; wg.textAlign = "center";
-      wg.fillText("Load a song — its waveform lands here; click to seek, wheel to zoom, drag a cue flag to retime it.", w / 2, h / 2 + 4);
+      // Wrapped to the lane: on a phone the one long line ran off both
+      // edges of the canvas and read as a broken sentence.
+      var words = "Load a song — its waveform lands here; click to seek, wheel to zoom, drag a cue flag to retime it.".split(" ");
+      var lines = [], line = "";
+      for (var wi = 0; wi < words.length; wi++) {
+        var trial = line ? line + " " + words[wi] : words[wi];
+        if (line && wg.measureText(trial).width > w - 24) { lines.push(line); line = words[wi]; }
+        else line = trial;
+      }
+      if (line) lines.push(line);
+      var y0 = h / 2 + 4 - (lines.length - 1) * 8;
+      for (var li = 0; li < lines.length; li++) wg.fillText(lines[li], w / 2, y0 + li * 16);
       wg.textAlign = "left";
       return;
     }

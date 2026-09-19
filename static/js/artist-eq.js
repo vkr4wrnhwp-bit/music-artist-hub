@@ -158,10 +158,25 @@
     try { ctx = cv.getContext("2d"); } catch (e) { return null; }
     if (!ctx) { return null; }
 
-    var BARS = 48;
+    /* The ladder is drawn like a real LED meter (owner, 2026-09-18: the
+       lights "cleaner and less CGI looking"). What made it read as a
+       render: 48 bars squeezed into a phone's width, every edge on a
+       fractional pixel so each lamp was a soft blur, two see-through golds
+       stacked over a see-through ghost, and a hairline grid behind it all.
+       Now: as many columns as fit at a lamp's real pitch, every lamp on
+       whole device pixels so its edges are sharp, one flat opaque lamp
+       colour with the top lit lamp a step brighter, the peak hold a whole
+       lamp on the same grid, and the unlit lamps a flat dark shade. */
+    var MAX_BARS = 48, MIN_BARS = 16, COL_PITCH = 12;   /* CSS px per column */
+    var BARS = MAX_BARS;
     var env = [], caps = [];
-    for (var i = 0; i < BARS; i++) { env[i] = 0; caps[i] = 0; }
+    for (var i = 0; i < MAX_BARS; i++) { env[i] = 0; caps[i] = 0; }
     var visible = true, rafId = null, lastTs = 0;
+
+    /* the console brass (artist-eq.css --eq-brass), a step up for the top
+       lamp, and two flat darks for an unlit lamp and one inside the curve */
+    var LAMP = "rgb(201,168,106)", LAMP_TOP = "rgb(230,205,150)";
+    var LAMP_OFF = "rgb(30,28,25)", LAMP_SET = "rgb(46,42,35)";
 
     var reduced = { matches: false };
     try {
@@ -178,7 +193,16 @@
       var dpr = window.devicePixelRatio || 1;
       var W = Math.max(1, Math.round(w * dpr)), H = Math.max(1, Math.round(h * dpr));
       if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
-      return { w: w, h: h, dpr: dpr };
+      return { w: w, h: h, dpr: dpr, W: W, H: H };
+    }
+
+    /* The envelope at the current column count: the six values through
+       the same curve the trace line always used. */
+    function shape() {
+      for (var i = 0; i < BARS; i++) {
+        var v = BARS > 1 ? catmull(sixNow, (i / (BARS - 1)) * (KEYS.length - 1)) : sixNow[0];
+        env[i] = Math.max(0, Math.min(1, v));
+      }
     }
 
     /* One organic motion model, deterministic on purpose: low bands sway
@@ -187,76 +211,71 @@
        envelope — the bars live under the curve the visitor set. */
     function life(i, t) {
       var f = i / BARS;
-      var slow = Math.sin(t * (0.7 + f * 0.5) + i * 0.55);
-      var mid = Math.sin(t * (1.9 + f * 1.6) + i * 1.7);
+      var slow = Math.sin(t * (0.7 + f * 0.5) + i * 0.55 * (48 / BARS));
+      var mid = Math.sin(t * (1.9 + f * 1.6) + i * 1.7 * (48 / BARS));
       var fast = Math.sin(t * (3.8 + f * 2.4) + i * 3.1);
       var v = 0.63 + 0.21 * slow + 0.11 * mid + 0.05 * fast;
       return Math.max(0.06, Math.min(1, v));
     }
 
     function drawFrame(t, still) {
-      var m = fit(), w = m.w, h = m.h;
-      ctx.setTransform(m.dpr, 0, 0, m.dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
+      var m = fit(), dpr = m.dpr;
+      /* Drawn in device pixels, so every lamp edge is a whole pixel. */
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, m.W, m.H);
 
-      var padX = 6, top = 8, base = h - 6;
-      var span = w - padX * 2;
-      var slot = span / BARS, gap = Math.max(1.5, slot * 0.22), bw = slot - gap;
-      var segP = 6, segH = 4;                      /* the LED ladder pitch */
+      var want = Math.max(MIN_BARS, Math.min(MAX_BARS, Math.floor((m.w - 12) / COL_PITCH)));
+      if (want !== BARS) { BARS = want; shape(); }
 
-      /* faint grid so the strip reads as an instrument, not a chart */
-      ctx.strokeStyle = "rgba(242,238,230,0.06)";
-      ctx.lineWidth = 1;
-      for (var g = 1; g <= 3; g++) {
-        var gy = top + ((base - top) * g) / 4;
-        ctx.beginPath(); ctx.moveTo(padX, gy); ctx.lineTo(w - padX, gy); ctx.stroke();
-      }
+      var padX = Math.round(6 * dpr), padTop = Math.round(8 * dpr), padBot = Math.round(6 * dpr);
+      var span = m.W - padX * 2;
+      var slot = Math.floor(span / BARS);
+      var gapX = Math.max(1, Math.round(slot * 0.3));
+      var bw = slot - gapX;
+      var x0 = padX + Math.floor((span - slot * BARS) / 2) + Math.floor(gapX / 2);
+      var segH = Math.max(2, Math.round(3 * dpr));
+      var segP = segH + Math.max(1, Math.round(2 * dpr));    /* the lamp pitch */
+      var base = m.H - padBot;
+      var nSeg = Math.max(1, Math.floor((base - padTop) / segP));
 
       for (var i = 0; i < BARS; i++) {
-        var x = padX + i * slot + gap / 2;
-        var envPx = env[i] * (base - top);
+        var x = x0 + i * slot;
         var level = still ? env[i] : env[i] * life(i, t);
-        var levelPx = level * (base - top);
-
-        /* ghost ladder to the envelope: the region the visitor set */
-        ctx.fillStyle = "rgba(242,238,230,0.045)";
-        var nGhost = Math.floor(envPx / segP);
-        for (var s = 0; s < nGhost; s++) {
-          ctx.fillRect(x, base - (s + 1) * segP, bw, segH);
-        }
-        /* lit segments to the moving level */
-        var nLit = Math.floor(levelPx / segP);
-        for (var s2 = 0; s2 < nLit; s2++) {
-          ctx.fillStyle = s2 >= nLit - 2 ? "rgba(224,196,140,0.95)" : "rgba(201,168,106,0.66)";
-          ctx.fillRect(x, base - (s2 + 1) * segP, bw, segH);
-        }
-        /* peak-hold cap: rises instantly, falls slowly */
+        var nSet = Math.round(env[i] * nSeg);
+        var nLit = Math.round(level * nSeg);
+        /* peak hold: rises instantly, falls slowly */
         if (still) { caps[i] = env[i]; }
         else if (level > caps[i]) { caps[i] = level; }
-        var capPx = caps[i] * (base - top);
-        if (capPx > 2) {
-          ctx.fillStyle = "rgba(224,196,140,0.9)";
-          ctx.fillRect(x, base - capPx - 2, bw, 2);
+        var nCap = Math.round(caps[i] * nSeg);
+        for (var s = 0; s < nSeg; s++) {
+          var y = base - (s + 1) * segP + (segP - segH);
+          if (s < nLit) { ctx.fillStyle = s === nLit - 1 ? LAMP_TOP : LAMP; }
+          else if (s === nCap - 1 && nCap > nLit) { ctx.fillStyle = LAMP_TOP; }
+          else if (s < nSet) { ctx.fillStyle = LAMP_SET; }   /* the region the visitor set */
+          else { ctx.fillStyle = LAMP_OFF; }
+          ctx.fillRect(x, y, bw, segH);
         }
       }
 
       /* the envelope line — literally the curve the six faders set */
+      var top = padTop, bottom = base;
       ctx.strokeStyle = "#C9A24A";
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.6 * dpr;
       ctx.lineJoin = "round";
       ctx.beginPath();
       for (var b = 0; b < BARS; b++) {
-        var lx = padX + b * slot + slot / 2;
-        var ly = base - env[b] * (base - top);
+        var lx = x0 + b * slot + bw / 2;
+        var ly = bottom - env[b] * (bottom - top);
         if (b === 0) { ctx.moveTo(lx, ly); } else { ctx.lineTo(lx, ly); }
       }
       ctx.stroke();
       /* dots at the six anchors, on the same track the line runs */
       ctx.fillStyle = "#C9A24A";
+      var first = x0 + bw / 2, last = x0 + (BARS - 1) * slot + bw / 2;
       for (var k = 0; k < KEYS.length; k++) {
-        var ax = padX + slot / 2 + (k / (KEYS.length - 1)) * (span - slot);
-        var ay = base - Math.max(0, Math.min(1, sixNow[k])) * (base - top);
-        ctx.beginPath(); ctx.arc(ax, ay, 2.6, 0, Math.PI * 2); ctx.fill();
+        var ax = first + (k / (KEYS.length - 1)) * (last - first);
+        var ay = bottom - Math.max(0, Math.min(1, sixNow[k])) * (bottom - top);
+        ctx.beginPath(); ctx.arc(ax, ay, 2.6 * dpr, 0, Math.PI * 2); ctx.fill();
       }
     }
 
@@ -304,10 +323,7 @@
     return {
       setValues: function (values) {
         sixNow = KEYS.map(function (k) { return clamp(values[k]) / 10; });
-        for (var i = 0; i < BARS; i++) {
-          var v = catmull(sixNow, (i / (BARS - 1)) * (KEYS.length - 1));
-          env[i] = Math.max(0, Math.min(1, v));
-        }
+        shape();
         if (reduced.matches || !visible) { drawFrame(lastTs, true); }
         else { kick(); }
       },

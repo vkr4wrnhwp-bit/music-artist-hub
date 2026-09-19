@@ -6,6 +6,8 @@
 
 {% set e = epk %}
 
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/phone-studio.css?v=1">{% endblock %}
+
 {% block content %}
 {{ sb.subnav([("/press-desk", "Desk"), ("/press-desk/contacts", "Media list"), ("/press-desk/announcements", "Announcements"), ("/press-desk/coverage", "Coverage"), ("/epk", "Press kit"), ("/artist-profile", "One-sheet")], "/epk", label="Press") }}
 <div id="press-office" class="mx-auto max-w-[1300px] overflow-hidden rounded-2xl bg-sb-ink text-sb-surface-2 shadow-[0_0_60px_rgba(201,162,74,0.1)]">
@@ -384,7 +386,7 @@
           <!-- Cover color -->
           <div>
             <label class="sb-label text-sb-surface-2/55">Cover color</label>
-            <div class="mt-1.5 flex items-center gap-2">
+            <div class="ph-swatches mt-1.5 flex items-center gap-2">
               {% for c in ['#1A1714', '#14100A', '#14100A', '#14100A', '#7FA8E8', '#14100A'] %}
               <button type="button" aria-label="Cover colour {{ c }}" class="bg-swatch h-7 w-7 rounded-md border {{ 'border-sb-gold-deep ring-1 ring-sb-gold-deep' if e.bg_color == c else 'border-sb-surface-2/20' }}" style="background-color: {{ c }};" data-color="{{ c }}" title="{{ c }}"></button>
               {% endfor %}
@@ -457,7 +459,7 @@
             <label class="sb-label text-sb-surface-2/55">Featured Merch (up to 4 — name, price, product link)</label>
             {% for i in range(4) %}
             {% set item = epk.merch[i] if epk.merch|length > i else None %}
-            <div class="mt-1.5 grid grid-cols-[1fr_72px_1fr] gap-1.5">
+            <div class="ph-merch-row mt-1.5 grid grid-cols-[1fr_72px_1fr] gap-1.5">
               <input aria-label="Tee, vinyl, hoodie…" id="f-m{{ i }}-title" value="{{ item.title if item else '' }}" placeholder="Tee, vinyl, hoodie…" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-2.5 py-1.5 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
               <input aria-label="$30" id="f-m{{ i }}-price" value="{{ item.price if item else '' }}" placeholder="$30" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-2.5 py-1.5 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">
               <input aria-label="https://…/products/…" id="f-m{{ i }}-url" value="{{ item.url if item else '' }}" placeholder="https://…/products/…" class="rounded-lg border border-sb-surface-2/15 bg-sb-ink px-2.5 py-1.5 text-xs text-sb-surface-2 placeholder-sb-surface-2/35 focus:border-sb-gold-deep focus:outline-none">

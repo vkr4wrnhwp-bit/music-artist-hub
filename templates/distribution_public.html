@@ -8,7 +8,7 @@
     the public page, which asked them to create an account). -#}
 {% extends "base.html" if user_plan else "public_base.html" %}
 {% import "_sb.html" as sb %}
-{% block head_scripts %}{% if user_plan %}<link rel="stylesheet" href="/static/css/public-page.css?v=1">{% endif %}{% endblock %}
+{% block head_scripts %}{% if user_plan %}<link rel="stylesheet" href="/static/css/public-page.css?v=2">{% endif %}{% endblock %}
 {% set plate = {"stem": none} %}
 {% set plate_eyebrow_html %}Global Distribution{% endset %}
 {% set plate_title_html %}How a release gets out{% endset %}

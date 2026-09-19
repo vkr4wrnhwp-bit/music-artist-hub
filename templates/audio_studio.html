@@ -3,6 +3,7 @@
 
 {% block title %}Audio Studio - Street Banker{% endblock %}
 
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/phone-studio.css?v=1">{% endblock %}
 {% block content %}
 {%- set status_tone = {"ready": "good", "queued": "info", "running": "info",
                        "draft": "idle", "refused": "warn", "failed": "crit"} -%}

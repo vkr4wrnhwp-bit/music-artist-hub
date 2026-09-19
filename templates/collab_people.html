@@ -2,12 +2,13 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}Collaborators - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/collab-market.css?v=2">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/collab-market.css?v=2"><link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {#- Every member who listed themselves (opt-in), best match first. The same
     people card as the Recommended row; nobody unlisted ever reaches it. -#}
 
 {% block content %}
+<div class="acph">
 {% call sb.plate(none, [900, 1400, 1672],
                  "Street Banker · Collab Marketplace", "Collaborators",
                  "Members who chose to be found, matched to your briefs.") %}
@@ -40,6 +41,7 @@
     {% endif %}
   </section>
 </div>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}
 
 {% block scripts %}<script src="/static/js/collab-market.js?v=1" defer></script>{% endblock %}

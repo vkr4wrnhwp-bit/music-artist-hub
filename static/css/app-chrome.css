@@ -909,3 +909,110 @@ details.asx-open[open] .asx-when-closed { display: none; }
   .sd-deck { grid-template-columns: auto auto auto; grid-auto-rows: min-content; }
   .sd-deck .sd-wave, .sd-deck .sd-time { grid-column: 1 / -1; }
 }
+
+/* ==========================================================================
+   THE SHELL ON A PHONE (phone pass, owner 2026-09-18: "mobile view needs
+   alot of work"). Everything here either lives in a max-width query or
+   draws the same thing at 1024px and up that the markup drew before.
+   ========================================================================== */
+
+/* --- the phone top bar ---------------------------------------------------
+ * The bracketed wordmark was set 16px tall, which drew it 59px wide with
+ * its words about 7px high. 30px tall is ~110px wide: legible, and still
+ * leaves room for the three 44px buttons beside it. The link itself is a
+ * 44px target. */
+.sb-mbrand { min-height: 44px; }
+.sb-mbrand-sb { height: 30px; }
+@media (max-width: 359px) { .sb-mbrand-sb { height: 26px; } }
+
+/* --- the drawer on a phone -----------------------------------------------
+ * The menu opens as a full-width list under the bar. Its rows were 36px;
+ * on a touch screen each is a 44px row. The desk sidebar is untouched. */
+@media (max-width: 1023px) {
+  #sb-nav a.flex,
+  #sb-nav .hub-items a { min-height: 44px; }
+  #sb-menu input[type="search"] { font-size: 16px; min-height: 32px; }  /* 16px: iOS does not zoom the page */
+  #sb-corner-inbox, #sb-corner-bell { width: 44px; height: 44px; }
+  #sb-room-back { min-height: 44px; }
+}
+
+/* --- the plate on a phone ------------------------------------------------
+ * One band, no picture on most pages: it needs no floor height, and the
+ * name scales with the screen instead of jumping from 34px to 26px. */
+@media (max-width: 640px) {
+  .sb-plate { min-height: 0; }
+  .sb-plate-inner { padding: 16px 16px 14px; flex-basis: 100%; }
+  .sb-plate-title { font-size: clamp(22px, 7vw, 28px); }
+  .sb-plate-support { margin-top: 8px; font-size: 14px; }
+  .sb-plate-actions { padding: 0 16px 14px; margin-left: 0; }
+}
+
+/* --- the Tool suites strip -------------------------------------------------
+ * One even grid: four across and two down on a desk, two across and four
+ * down on a phone. A cell is the mark, then the name with its badge
+ * under it, so the marks share one column line, the names share one
+ * baseline row and the badges line up under them. The name is a bare
+ * text node after the mark (tests/test_hubs_external.py reads it there),
+ * which a grid wraps in its own anonymous cell; the mark spans both rows
+ * and the badge is placed in row two. */
+.sb-suites {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--sb-line);
+}
+.sb-suites-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px 16px;
+  max-width: 1100px;
+}
+.sb-suite {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  /* Fixed rows, so a name sits on the same line whether or not a badge
+     is under it: row one ends at the mark's middle, row two holds the
+     badge. Together they are the mark's own 40px. */
+  grid-template-rows: minmax(20px, auto) 18px;
+  align-content: center;
+  align-items: end;
+  column-gap: 10px;
+  row-gap: 3px;
+  min-height: 56px;
+  padding: 6px 8px;
+  border-radius: var(--sb-r-control);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--sb-ink);
+  text-decoration: none;
+  transition: background-color var(--sb-fast) var(--sb-ease);
+}
+.sb-suite:hover { background: var(--sb-surface-2); }
+.sb-suite:focus-visible { outline: none; box-shadow: var(--sb-focus); }
+.sb-suite > svg { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+/* A name with no badge under it sits on the mark's centre line; with a
+   badge, the name and badge together are centred on the mark. */
+.sb-suite:not(:has(.sb-suite-badge)) { grid-template-rows: 40px; align-items: center; }
+.sb-suite:not(:has(.sb-suite-badge)) > svg { grid-row: 1; }
+.sb-suite-ico { width: 20px; height: 20px; justify-self: center; }
+.sb-suite-badge {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: start;
+  align-self: start;
+  padding: 1px 6px;
+  border-radius: var(--sb-r-control);
+  background: var(--sb-surface-3);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 16px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--sb-ink-2);
+}
+@media (max-width: 767px) {
+  .sb-suites-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
+  .sb-suites { margin-top: 40px; }
+  .sb-suite { column-gap: 8px; padding: 6px 4px; }
+}

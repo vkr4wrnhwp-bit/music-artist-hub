@@ -1,0 +1,99 @@
+/* Phone pass (owner, 2026-09-18: "mobile view needs alot of work") for the
+   Studio, Launch and Stage pages. Loaded only by those pages' templates, and
+   every rule sits inside a phone breakpoint, so the desk and tablet layouts
+   are exactly what they were.
+
+   What it does on a phone:
+     - every control inside the page body is at least 44px tall. A native
+       checkbox or radio is drawn at its own size in the middle of its box,
+       so giving it a 44px height gives it a 44px tap row without making the
+       box itself bigger;
+     - a native range is 44px tall, so the thumb can be taken hold of;
+     - the badge's 11px engraving is 12px, the type floor.
+   The shell's own chrome (the Tool suites strip and the Ask button) is left
+   alone: it has its own phone rules. */
+
+@media (max-width: 767px) {
+  main .sb-btn:not(#sb-tool-suites *):not(#sbq *) { min-height: 44px; }
+  main .sb-badge { font-size: 12px; }
+
+  main :is(input[type=checkbox], input[type=radio]):not(.sr-only):not(.hidden):not(#sb-tool-suites *):not(#sbq *) {
+    height: 44px; margin-top: 0; margin-bottom: 0;
+  }
+  main input[type=range]:not(.fader):not(.lx-mix-hue) { height: 44px; }
+
+  main :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]):not([type=color]):not(.sr-only), select):not(#sbq *) {
+    min-height: 44px;
+  }
+  main input[type=color] { min-height: 44px; min-width: 44px; }
+}
+
+/* ---- /passports: the start form ------------------------------------------
+   The panel had no padding and its note and row classes had no rules, so on
+   a phone the copy ran into the panel's edges at 16px and the fields sat on
+   the border. */
+@media (max-width: 1023px) {
+  .ph-passport-start { padding: 16px; margin-top: 16px; }
+  .ph-passport-start .sb-note { margin: 8px 0 12px; font-size: 14px; line-height: 1.5; color: var(--sb-ink-2); }
+  .ph-passport-start form { display: flex; flex-direction: column; gap: 12px; }
+  .ph-passport-start form .sb-btn { align-self: flex-start; }
+  .ph-passport-empty { padding: 16px; margin-top: 16px; }
+  .ph-passport-empty .sb-note { margin: 0; font-size: 14px; line-height: 1.5; color: var(--sb-ink-2); }
+}
+
+/* ---- /studio: "What works here" -------------------------------------------
+   The on/off badge sat in its own narrow column and drew as a tall pill
+   beside four lines of text. On a phone it goes on its own line above. */
+@media (max-width: 639px) {
+  .ph-studio-caps > * { flex-direction: column; align-items: flex-start; gap: 6px; }
+}
+
+/* ---- /epk: the press office ----------------------------------------------
+   Two paddings stacked (the office's 24px, then each card's 20 to 32px) left
+   the one-sheet about 250px wide; the merch rows ran their link field off
+   the card, and each asset row squeezed its name into one word a line. */
+@media (max-width: 767px) {
+  #press-office button:not(.section-jump) { min-height: 44px; }
+  #press-office summary { padding-top: 14px; padding-bottom: 14px; }
+  #press-office #epk-rail a.inline-block { display: inline-flex; align-items: center; min-height: 44px; }
+  #epk-layout { padding: 12px; gap: 16px; }
+  #epk-document { padding: 20px 16px; }
+  #epk-document [data-section=stats] .text-2xl { font-size: 20px; line-height: 1.15; }
+  #epk-rail > section { padding: 16px; }
+  #epk-rail details { padding-top: 0; padding-bottom: 0; }
+  #epk-rail details[open] { padding-bottom: 12px; }
+  .ph-swatches { flex-wrap: wrap; }
+  .ph-swatches .bg-swatch, .ph-swatches input[type=color] { width: 44px; height: 44px; }
+  .ph-merch-row { grid-template-columns: minmax(0, 1fr) 88px; }
+  .ph-merch-row > input:last-child { grid-column: 1 / -1; }
+  .asset-block { flex-wrap: wrap; }
+  .asset-block > .min-w-0 { flex: 1 1 calc(100% - 60px); }
+  .asset-block > label { min-height: 44px; display: inline-flex; align-items: center; }
+  .asset-block > label:last-of-type, .asset-block > .asset-remove { margin-left: auto; }
+  .asset-block > .asset-vault { flex: 1 1 auto; width: auto; }
+}
+
+/* ---- /stage-plot: the "What's on stage" rows ------------------------------ */
+@media (max-width: 767px) {
+  .sp-item { min-height: 44px; padding-top: 0; padding-bottom: 0; }
+}
+
+/* ---- /releases/autopilot: the milestone pills ----------------------------- */
+@media (max-width: 767px) {
+  .ph-ms-pill { display: inline-flex; align-items: center; min-height: 44px; padding-left: 14px; padding-right: 14px; }
+}
+
+/* ---- /beats: the "Nothing here scans for you" fold ------------------------ */
+@media (max-width: 767px) {
+  .bt-state summary { min-height: 44px; }
+}
+
+/* ---- /links: the copy buttons on each link row ---------------------------- */
+@media (max-width: 767px) {
+  .copy-link-btn { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+}
+
+/* ---- /desk/launch: the release filter ------------------------------------- */
+@media (max-width: 767px) {
+  .desk-pill { min-height: 44px; }
+}

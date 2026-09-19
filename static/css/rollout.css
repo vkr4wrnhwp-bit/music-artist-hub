@@ -367,3 +367,10 @@
   .sbro-cta, .sbro-sample-btn, .sbro-cap-label, .sbro-cap-line,
   .sbro-stage-btn { transition: none; }
 }
+
+/* Phone pass (2026-09-18): the 12px type floor at 390px. A desk keeps
+   the clamp above exactly; this only lifts its 11px floor on a phone. */
+@media (max-width: 767px) {
+  .sbro-eyebrow { font-size: 12px; }
+  .sbro-sample-btn { min-height: 44px; }
+}

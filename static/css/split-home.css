@@ -650,3 +650,18 @@
 @media (prefers-reduced-motion: reduce) {
   .sbmem-card { transition: none; }
 }
+
+/* ---- phone pass (2026-09-18) ------------------------------------------ */
+/* Every control on the door is a 44px target on a phone: the two bar
+ * links, the show-password eye and the invitation link under the form.
+ * The footer's six link columns were one 1,300px-tall list; on a phone
+ * they sit two across, with the mark full width above them. A desk
+ * keeps its layout exactly: all of this is under 900px. */
+@media (max-width: 899px) {
+  .sbbar-nav a { display: inline-flex; align-items: center; min-height: 44px; }
+  .sbbar-here { padding-bottom: 0; border-bottom: 0; box-shadow: inset 0 -2px 0 var(--sb-gold); }
+  .sbhome .lsr-pw-toggle { min-width: 44px; min-height: 44px; }
+  .sbdoor-fine a { display: inline-flex; align-items: center; min-height: 44px; }
+  .sbhome-foot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; row-gap: 32px; }
+  .sbhome-foot-grid > :first-child { grid-column: 1 / -1; }
+}

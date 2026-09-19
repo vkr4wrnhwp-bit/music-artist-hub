@@ -3,6 +3,7 @@
 {% block title %}Audience - Royalty Sweep{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/fans-audience.css?v=3">
+  <link rel="stylesheet" href="/static/css/account-phone.css?v=3">
 {% endblock %}
 
 {#- THE AUDIENCE SCREEN - the owner's approved mockup (static/_mock_audience.html,
@@ -36,6 +37,7 @@
 {%- endmacro %}
 
 {% block content %}
+<div class="acph">
 <div class="au mx-auto max-w-[1200px]" data-no-collapse>
   {% set au_tab = "audience" %}{% set au_resend = a.resend_configured %}{% set au_no_import = a.showcase %}
   {% include "partials/fans_head.html" %}
@@ -417,4 +419,5 @@
   </section>
 </div>
 <script src="/static/js/fans-audience.js?v=2" defer></script>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

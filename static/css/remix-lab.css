@@ -1785,3 +1785,21 @@
     animation: none !important;
   }
 }
+
+/* --- phone pass (2026-09-18) -------------------------------------------------
+   The signal-path hairlines ran 14px past the column onto the page gutter;
+   the six feature panels and the four output cards each stood a phone
+   screen's third tall with the icon on its own row. On a phone the icon sits
+   beside the words, and the output card drops its 250px floor. */
+@media (max-width: 639px) {
+  .sbrl-step::before, .sbrl-step::after { right: 0; }
+  .sbrl-features li { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: start; gap: 4px 14px; padding: 16px; }
+  .sbrl-features p { margin-top: 4px; }
+  .sbrl-out { display: grid; grid-template-columns: 56px minmax(0, 1fr); grid-auto-rows: auto; align-content: start; gap: 4px 14px; min-height: 0; padding: 16px; }
+  .sbrl-out-obj { grid-row: 1 / span 3; width: 56px; height: 56px; margin: 0; }
+  .sbrl-out-obj .sbrl-i { width: 28px; height: 28px; }
+  .sbrl-out-title { padding-right: 84px; }
+  .sbrl-out-cta { min-height: 44px; padding-top: 0; }
+  .sbrl-out-badge { top: 12px; right: 12px; }
+  .sbrl-pill span { min-height: 44px; }
+}

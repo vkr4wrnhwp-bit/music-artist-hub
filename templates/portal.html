@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Partner Portal - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% block content %}
+<div class="acph">
 <div class="mx-auto max-w-[900px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Partner Portal</div>
@@ -29,4 +31,5 @@
   </section>
   {% endif %}
 </div>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

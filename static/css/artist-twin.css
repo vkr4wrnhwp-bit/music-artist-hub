@@ -330,3 +330,9 @@
 @media (prefers-reduced-motion: reduce) {
   .sbtw-summary, .sbtw-icon, .sbtw-chev svg, .sbtw-cta, .sbtw-cta-2 { transition: none; }
 }
+
+/* Phone pass (2026-09-18): the 12px type floor at 390px. A desk keeps
+   the clamp above exactly; this only lifts its 11px floor on a phone. */
+@media (max-width: 767px) {
+  .sbtw-eyebrow { font-size: 12px; }
+}

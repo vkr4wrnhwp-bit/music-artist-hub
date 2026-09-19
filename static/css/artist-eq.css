@@ -641,3 +641,21 @@
   .sbeq-head .sbeq-score-note { grid-column: 1 / 4; grid-row: 5; margin: 0; font-size: 12px; }
   .sbeq-channels-wrap .sbeq-ctas { grid-column: 1 / 4; grid-row: 6; margin: 6px 0 0; }
 }
+
+/* --- phone: the 12px type floor (phone pass, 2026-09-18) -----------------
+   Below 901px the console is plain stacked controls, and its engraved
+   10-11px captions measured as the 42 pieces of tiny text on the home page
+   at 390px. The desk unit above 900px keeps its sizes exactly. */
+@media (max-width: 900px) {
+  .sbeq-eyebrow,
+  .sbeq-panel-label,
+  .sbeq-preset,
+  .sbeq-ch-name,
+  .sbeq-ch-desc,
+  .sbeq-score-note,
+  .sbeq-module-note,
+  .sbeq-setup { font-size: 12px; }
+  .sbeq-lane-why { font-size: 12.5px; }
+  .sbeq-preset { letter-spacing: 0.06em; }
+  .sbeq-panel-label { letter-spacing: 0.18em; }
+}

@@ -35,7 +35,7 @@
 /* 2 · instruments: four across, the stream columns spanning two */
 .ry-bridge { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 900px) { .ry-bridge { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { .ry-bridge { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .ry-bridge { grid-template-columns: minmax(0, 1fr); } }
 .ry-bridge .sbm-frame.wide { grid-column: span 2; }
 @media (max-width: 520px) { .ry-bridge .sbm-frame.wide { grid-column: span 1; } }
 .ry-cells { display: grid; gap: 3px; }
@@ -131,3 +131,24 @@
 .ry-ro-go:hover { text-decoration: underline; }
 .ry-ro-go:focus-visible { outline: none; box-shadow: var(--sb-focus); border-radius: var(--sb-r-control); }
 @media (max-width: 640px) { .ry-ro-r { grid-template-columns: 1fr; } .ry-ro-n, .ry-ro-go { text-align: left; } }
+
+/* THE PHONE (2026-09-18). At 390px the by-stream instrument was wider
+ * than the screen: its one grid track was sized by the widest thing in
+ * it (two unbreakable tags and four columns), so the frame ran off the
+ * right edge and took the reported-earnings and lanes frames with it.
+ * The track is now minmax(0, 1fr) above; here the tags wrap, the four
+ * columns close up, and the small controls grow to a thumb. */
+@media (max-width: 520px) {
+  .ry-bridge > * { min-width: 0; }
+  .ry-bridge .sbm-lbl { flex-wrap: wrap; row-gap: 6px; }
+  .ry-bridge .sbm-lbl > span { flex-wrap: wrap; }
+  /* Four equal columns that may not grow past a quarter each; the key
+     under them in sentence case so "Mechanical" fits its quarter. */
+  .ry-cols { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 0; }
+  .ry-colkey { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 6px 0 0; letter-spacing: 0; text-transform: none; }
+  .ry-col .val { font-size: 14px; }
+  .ry .sbm-prov a { display: inline-flex; align-items: center; min-height: 44px; }
+  .ry-link { min-height: 44px; }
+  .ry-more summary { display: flex; align-items: center; min-height: 44px; }
+  .ry-ro-go { display: inline-flex; align-items: center; min-height: 44px; }
+}

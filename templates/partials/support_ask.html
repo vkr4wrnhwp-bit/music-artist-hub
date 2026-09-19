@@ -7,7 +7,7 @@
 
     No script libraries, no third party, nothing leaves this server. -#}
 <div class="sbq" id="sbq">
-  <button type="button" class="sbq-open" id="sbq-open" aria-expanded="false" aria-controls="sbq-panel">
+  <button type="button" class="sbq-open" id="sbq-open" aria-expanded="false" aria-controls="sbq-panel" aria-label="Ask Street Banker">
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false">
       <path d="M3 5h14v9H8l-4 3v-3H3z"/><path d="M8 8h4M8 11h2"/>
     </svg>
@@ -79,6 +79,45 @@
     font-size: 12px; font-weight: 700;
   }
   .sbq :focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; }
+  /* On a phone the pill sat on top of whatever was at the foot of the
+     screen: a card's button, a line of the Tool suites (phone pass,
+     2026-09-18). There it is a 44px round button tucked into the corner,
+     clear of the home indicator, and every page keeps room at its foot
+     so the last thing on it can scroll out from under the button. The
+     open panel becomes a sheet the width of the screen. */
+  @media (max-width: 767px) {
+    /* --sbq-lift is the height of a fixed bar pinned to the foot of the
+       screen (the Light Studio dock, the Rack's power strip, the tour
+       bar), measured by the script below, so the button sits above the
+       bar instead of on its right-hand control. The bar's own height
+       already includes the home-indicator inset. */
+    .sbq {
+      right: 12px;
+      bottom: calc(12px + max(var(--sbq-lift, 0px), env(safe-area-inset-bottom, 0px)));
+      transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 0s;
+    }
+    /* Scrolling down to read, the button steps out of the way, so it is
+       never parked on the edge of a card; any scroll back up, the top of
+       the page or the foot of it (which keeps room for it) brings it
+       back. An open panel never hides. */
+    .sbq.is-tucked {
+      transform: translateY(calc(100% + 24px)); opacity: 0; visibility: hidden; pointer-events: none;
+      transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 180ms;
+    }
+    .sbq-open {
+      width: 44px; height: 44px; padding: 0; gap: 0; justify-content: center;
+      background: var(--sb-surface-2);
+      box-shadow: 0 6px 18px rgba(0,0,0,.55);
+    }
+    .sbq-open span {
+      position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip-path: inset(50%); white-space: nowrap;
+    }
+    .sbq-open svg { width: 20px; height: 20px; }
+    .sbq-panel { width: calc(100vw - 24px); max-height: min(75vh, 560px); }
+    #sb-main { padding-bottom: 72px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .sbq, .sbq.is-tucked { transition: none; } }
   @media print { .sbq { display: none; } }
 </style>
 
@@ -103,6 +142,52 @@
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && !panel.hidden) { show(false); }
   });
+
+  // Phones: keep clear of fixed bottom bars, and step aside while the
+  // reader scrolls down (see the CSS above for why).
+  var phone = window.matchMedia ? window.matchMedia("(max-width: 767px)") : null;
+  var docks = [];
+  function lift() {
+    var h = 0, vh = window.innerHeight;
+    docks.forEach(function (el) {
+      var cs = window.getComputedStyle(el);
+      if (cs.position !== "fixed" || cs.display === "none" || cs.visibility === "hidden") { return; }
+      var r = el.getBoundingClientRect();
+      if (r.height > 0 && r.bottom >= vh - 2) { h = Math.max(h, Math.ceil(vh - r.top)); }
+    });
+    root.style.setProperty("--sbq-lift", h + "px");
+  }
+  function watchDocks() {
+    // The tour bar is written after this partial, so look once the page is parsed.
+    docks = ["lx-dock", "rk-dock", "tour-bar"].map(function (id) {
+      return document.getElementById(id);
+    }).filter(Boolean);
+    if (!docks.length) { return; }
+    lift();
+    window.addEventListener("resize", lift);
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(lift);
+      docks.forEach(function (el) { ro.observe(el); });
+    }
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(lift);
+      docks.forEach(function (el) { mo.observe(el, { attributes: true, attributeFilter: ["class", "style", "hidden"] }); });
+    }
+  }
+  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", watchDocks); }
+  else { watchDocks(); }
+  var lastY = window.scrollY || 0;
+  function tuck(on) { root.classList.toggle("is-tucked", on); }
+  window.addEventListener("scroll", function () {
+    var y = window.scrollY || 0;
+    if (!phone || !phone.matches || !panel.hidden) { tuck(false); lastY = y; return; }
+    var dy = y - lastY;
+    if (Math.abs(dy) < 6) { return; }
+    var foot = window.innerHeight + y >= document.documentElement.scrollHeight - 96;
+    tuck(dy > 0 && y > 80 && !foot);
+    lastY = y;
+  }, { passive: true });
+  root.addEventListener("focusin", function () { tuck(false); });
 
   function text(tag, cls, value) {
     var el = document.createElement(tag);

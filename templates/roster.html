@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}Label Roster - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% block content %}
+<div class="acph">
 <div class="mx-auto max-w-[1000px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Label Mode</div>
@@ -100,4 +102,5 @@
 
   <p class="px-1 text-xs text-gray-300 font-medium">Roster numbers come from what each artist has actually connected and uploaded — statements, fans, links, shows. No estimates, no padding.</p>
 </div>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

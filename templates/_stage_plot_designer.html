@@ -68,8 +68,10 @@
     wrap.innerHTML = "";
     SP.CATALOG.forEach(function (c) {
       var n = state.items[c.key] || 0;
-      var row = document.createElement("div");
-      row.className = "flex items-center gap-2 rounded-lg border px-2.5 py-2 " +
+      // A label, so the whole row ticks the box: tapping the name used to
+      // do nothing, and on a phone the 16px box was the only target.
+      var row = document.createElement("label");
+      row.className = "sp-item flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 " +
         (n ? "border-sb-gold/40 bg-sb-gold/10" : "border-white/10 bg-black/30");
       var cb = document.createElement("input");
       cb.type = "checkbox"; cb.checked = n > 0; cb.className = "h-4 w-4 accent-sb-gold";
@@ -85,6 +87,7 @@
       if (c.max > 1 && n > 0) {
         var qty = document.createElement("select");
         qty.className = "rounded border border-white/15 bg-black/50 px-1.5 py-1 text-xs text-white";
+        qty.setAttribute("aria-label", "How many: " + c.label);
         for (var i = 1; i <= c.max; i++) {
           var o = document.createElement("option");
           o.value = i; o.textContent = "×" + i; o.selected = i === n;

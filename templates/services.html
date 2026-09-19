@@ -17,7 +17,7 @@
 
 {% block title %}Label Services - Street Banker{% endblock %}
 {% block description %}{{ lb.brand.tagline }}{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/public-page.css?v=1">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/public-page.css?v=2"><link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% macro service_icon(key) %}
 {% set paths = {
@@ -29,6 +29,7 @@
 {% endmacro %}
 
 {% block content %}
+<div class="acph">
 <div class="pp{% if user_plan %} pp-main{% endif %}">
   {% if user_plan %}
   {#- Signed in, the page opens with the shared band like every other app
@@ -70,11 +71,12 @@
     own terms.</p>
 
   <h2 class="pp-h2">Get In Touch</h2>
-  <p class="pp-text"><a href="mailto:{{ lb.brand.contact_email }}">{{ lb.brand.contact_email }}</a></p>
+  <p class="pp-text"><a class="acph-tap" href="mailto:{{ lb.brand.contact_email }}">{{ lb.brand.contact_email }}</a></p>
   <div class="pp-actions" style="margin-top: 14px;">
     {% for soc in lb.brand.socials %}
     <a href="{{ soc.url }}" target="_blank" rel="noopener noreferrer" class="pp-btn pp-btn--quiet">{{ soc.label }} <span style="color: var(--pp-muted);">{{ soc.handle }}</span></a>
     {% endfor %}
   </div>
 </div>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

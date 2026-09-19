@@ -2,6 +2,7 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}Hours Desk - Street Banker{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/money-desks.css?v=5">{% endblock %}
 
 {% macro money(v) %}${{ "{:,.2f}".format(v or 0) }}{% endmacro %}
 {% macro hrs(v) %}{{ "{:g}".format(v or 0) }}h{% endmacro %}
@@ -15,7 +16,7 @@
   </div>
 
   <!-- Headline: agreed money only, in both directions -->
-  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="md-stats2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
     <div class="rounded-2xl border border-sb-gold/30 bg-sb-surface-2 p-4">
       <div class="sb-label text-gray-300 sm:text-xs sm:tracking-[0.25em]">Owed to you</div>
       <div class="mt-1 text-2xl font-black tabular-nums text-sb-ink">{{ money(summary.owed_to_you) }}</div>
@@ -200,8 +201,8 @@
           <span class="text-sm font-bold text-gray-300">$</span>
           <input name="rate" type="number" step="0.01" min="0" placeholder="rate" required class="w-20 bg-transparent py-2 text-sm text-white placeholder-gray-300 focus:outline-none">
         </div>
-        <input name="min_hours" type="number" step="0.25" min="0" placeholder="min h" class="w-20 rounded-lg border border-white/15 bg-black/40 px-2 py-2 text-sm text-white placeholder-gray-300 focus:border-sb-gold focus:outline-none">
-        <label class="-my-2 flex items-center gap-2 py-2 text-xs text-gray-300 sm:col-span-2 sm:my-0 sm:gap-1.5 sm:py-0 font-medium"><input type="checkbox" name="bookable" class="h-5 w-5 accent-sb-gold sm:h-3.5 sm:w-3.5">Bookable publicly</label>
+        <input name="min_hours" type="number" step="0.25" min="0" placeholder="min h" class="md-full w-20 rounded-lg border border-white/15 bg-black/40 px-2 py-2 text-sm text-white placeholder-gray-300 focus:border-sb-gold focus:outline-none">
+        <label class="md-check -my-2 flex items-center gap-2 py-2 text-xs text-gray-300 sm:col-span-2 sm:my-0 sm:gap-1.5 sm:py-0 font-medium"><input type="checkbox" name="bookable" class="h-5 w-5 accent-sb-gold sm:h-3.5 sm:w-3.5">Bookable publicly</label>
         <button class="sb-btn sb-btn-primary">Save</button>
       </form>
     </div>
@@ -337,7 +338,7 @@
     <div class="mt-4 divide-y divide-white/5 rounded-xl border border-white/10">
     {% for row in plan.rows %}
       <div class="flex items-stretch gap-3 px-3 py-1.5">
-        <div class="w-12 shrink-0 pt-0.5 font-mono text-xs tabular-nums text-gray-300 font-medium">{{ row.label }}</div>
+        <div class="w-12 shrink-0 pt-0.5 text-xs tabular-nums text-gray-300 font-medium">{{ row.label }}</div>
         <div class="min-w-0 flex-1 space-y-1">
         {% for it in row.blocks %}
           {% if it.starts_here %}

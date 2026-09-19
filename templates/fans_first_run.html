@@ -4,6 +4,7 @@
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/fans-audience.css?v=3">
   <link rel="stylesheet" href="/static/css/fans-first-run.css?v=2">
+  <link rel="stylesheet" href="/static/css/account-phone.css?v=3">
 {% endblock %}
 
 {#- FANS, FIRST RUN - the owner's approved mockup (_mockup/APPROVED-first-run.png,
@@ -22,6 +23,7 @@
 {% set r = fan_import_result %}
 
 {% block content %}
+<div class="acph">
 <div class="au mx-auto max-w-[1200px]" data-no-collapse>
   {% set au_tab = "audience" %}{% set au_resend = a.resend_configured %}{% set au_no_import = true %}
   {% include "partials/fans_head.html" %}
@@ -183,4 +185,5 @@
   </div>
 </div>
 <script src="/static/js/fans-audience.js?v=2" defer></script>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

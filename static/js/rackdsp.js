@@ -19,6 +19,20 @@ function sbWhenRunning(c, fn) {
 
 (function () {
   "use strict";
+  // LED ladders light whole lamps only (rack.css: 5px lamp, 3px gap, an
+  // 8px pitch). A width in percent cut the top lamp in half most of the
+  // time, which is one of the things that made the meters read as CGI.
+  var lastPeak = 0;
+  function ledWidth(el, frac) {
+    var w = el && el.parentNode ? el.parentNode.clientWidth : 0;
+    frac = Math.max(0, Math.min(1, frac || 0));
+    if (!w) return (frac * 100) + "%";
+    // The colour zones belong to the ladder, not to the lit part of it:
+    // the band is sized to the whole ladder so a lamp keeps its colour.
+    el.style.backgroundSize = w + "px 100%";
+    var lamps = Math.round(frac * w / 8);
+    return Math.min(w, lamps * 8) + "px";
+  }
   var EQ_BANDS = [
     {f: 40, type: "lowshelf", label: "40"},
     {f: 80, type: "peaking", label: "80"},
@@ -786,7 +800,17 @@ function sbWhenRunning(c, fn) {
       // Rise instantly, fall slowly. A meter that falls as fast as it rises
       // is a flicker at any tempo with transients in it.
       m.peak = peak > m.peak ? peak : m.peak * 0.86 + peak * 0.14;
-      el.fill.style.right = ((1 - Math.min(1, m.peak)) * 100).toFixed(1) + "%";
+      // Whole lamps only (rack.css: 3px lamp, 1px gap, a 4px pitch), and
+      // the colour band sized to the meter, so a lamp keeps its colour
+      // instead of the blend sliding along as the level moves.
+      var w = el.wrap.clientWidth;
+      if (w) {
+        var lit = Math.round(Math.min(1, m.peak) * w / 4);
+        el.fill.style.backgroundSize = w + "px 100%";
+        el.fill.style.right = Math.max(0, w - lit * 4) + "px";
+      } else {
+        el.fill.style.right = ((1 - Math.min(1, m.peak)) * 100).toFixed(1) + "%";
+      }
       el.wrap.classList.toggle("is-hot", m.peak > 0.98);
     });
   }
@@ -3418,7 +3442,7 @@ function sbWhenRunning(c, fn) {
     // Compressor-side gain reduction bar (same real reduction value)
     var grBar = document.getElementById("rk-gr");
     if (grBar) {
-      grBar.style.width = Math.min(100, vuPos / 20 * 100) + "%";
+      grBar.style.width = ledWidth(grBar, vuPos / 20);
       document.getElementById("rk-grdb2").textContent =
         vuPos > 0.05 ? "−" + vuPos.toFixed(1) + " dB" : "0.0 dB";
     }
@@ -3450,14 +3474,15 @@ function sbWhenRunning(c, fn) {
         timeEl.textContent = mmss(playPos()) + " / " + mmss(dtt);
       }
       var pk2 = document.getElementById("rk-peak2");
-      if (pk2) pk2.style.width = document.getElementById("rk-peak").style.width;
+      if (pk2) pk2.style.width = ledWidth(pk2, lastPeak);
     }
     if (live && playing && timeData) {
       var peak = 0;
       for (var t = 0; t < timeData.length; t += 4) {
         peak = Math.max(peak, Math.abs(timeData[t] - 128) / 128);
       }
-      document.getElementById("rk-peak").style.width = Math.min(100, peak * 100) + "%";
+      lastPeak = peak;
+      document.getElementById("rk-peak").style.width = ledWidth(document.getElementById("rk-peak"), peak);
       document.getElementById("rk-peakdb").textContent =
         peak > 0.001 ? (20 * Math.log10(peak)).toFixed(1) + " dB" : "−∞";
     }
@@ -4156,7 +4181,12 @@ function sbWhenRunning(c, fn) {
   function tkPaintChroma(res) {
     var svg = document.getElementById("rk-tk-chroma");
     if (!svg) { return; }
-    var W = 480, H = 76, base = 62;
+    // On a phone the 480-unit drawing is about 290px wide, so its 10-unit
+    // note names drew at 6px. There the names are 20 units (12px) and the
+    // bars give up the room they need.
+    var bw = svg.getBoundingClientRect().width, small = bw > 0 && bw < 400;
+    var W = 480, H = 76, base = small ? 54 : 62, tall = small ? 44 : 52;
+    var fs = small ? "20" : "10";
     svg.innerHTML = "";
     svg.appendChild(svgEl("path", {d: "M0 " + base + "h" + W,
                                    stroke: "#6b665b", "stroke-width": 1}));
@@ -4169,21 +4199,21 @@ function sbWhenRunning(c, fn) {
     for (i = 0; i < 12; i++) {
       var x = 6 + i * 39.5;
       var lit = res && i === res.root;
-      var h = vals && max > 0 ? Math.max(1, (vals[i] / max) * 52) : 1;
+      var h = vals && max > 0 ? Math.max(1, (vals[i] / max) * tall) : 1;
       svg.appendChild(svgEl("rect", {
         x: x, y: base - h, width: 27, height: h, rx: 1.5,
         fill: lit ? "#a37c2a" : (vals ? "#7b7669" : "#8f8a7e"),
         opacity: vals ? 1 : 0.4}));
       var lab = svgEl("text", {x: x + 13.5, y: H - 2, "text-anchor": "middle",
                                fill: lit ? "#2e2920" : "#4c4536",
-                               "font-size": "10", "font-weight": "800",
+                               "font-size": fs, "font-weight": "800",
                                "font-family": "Arial Narrow, Arial, sans-serif"});
       lab.textContent = names[i];
       svg.appendChild(lab);
     }
     if (!vals) {
-      var hint = svgEl("text", {x: W / 2, y: 22, "text-anchor": "middle",
-                                fill: "#4c4536", "font-size": "10",
+      var hint = svgEl("text", {x: W / 2, y: small ? 28 : 22, "text-anchor": "middle",
+                                fill: "#4c4536", "font-size": fs,
                                 "font-weight": "800", "letter-spacing": "2",
                                 "font-family": "Arial Narrow, Arial, sans-serif"});
       hint.textContent = "NO ANALYSIS YET";
@@ -4614,10 +4644,15 @@ function sbWhenRunning(c, fn) {
       return isFinite(v);
     });
     if (vals.length < 2) {
-      var hint = svgEl("text", {x: W / 2, y: H / 2 + 3, "text-anchor": "middle",
-                                fill: "#4c4536", "font-size": "10",
+      // 600 units drawn about 290px wide on a phone: 26 units is 12px.
+      var hbw = svg.getBoundingClientRect().width;
+      var hintFs = hbw > 0 && hbw < 400 ? "26" : "10";
+      var hint = svgEl("text", {x: W / 2, y: H / 2 + (hintFs === "10" ? 3 : 9), "text-anchor": "middle",
+                                fill: "#4c4536", "font-size": hintFs,
                                 "font-weight": "800", "letter-spacing": "2",
                                 "font-family": "Arial Narrow, Arial, sans-serif"});
+      // rack.css sets the graph's text at 9 units, which beats an attribute.
+      if (hintFs !== "10") { hint.style.fontSize = hintFs + "px"; }
       hint.textContent = res ? "TOO SHORT FOR A SHORT-TERM CURVE"
                              : "NOT MEASURED YET";
       svg.appendChild(hint);

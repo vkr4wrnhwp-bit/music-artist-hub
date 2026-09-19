@@ -344,6 +344,14 @@
 .pp-legal a { color: var(--pp-muted); text-decoration: none; }
 .pp-legal a:hover { color: var(--pp-ink); text-decoration: underline; }
 .pp-footer p { margin: 0; margin-left: auto; }
+/* Phone pass (2026-09-18): the way back and the three legal links were
+   19px tall. On a phone each is a 44px target; a desk is unchanged. */
+@media (max-width: 767px) {
+  .pp-back, .pp-legal a { display: inline-flex; align-items: center; min-height: 44px; }
+  .pp-legal { align-items: center; gap: 4px; }
+  .pp-legal a { padding: 0 8px; }
+  .pp-legal a:first-child { padding-left: 0; }
+}
 
 .pp a:focus-visible, .pp button:focus-visible { outline: 2px solid var(--pp-gold); outline-offset: 2px; }
 

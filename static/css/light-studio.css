@@ -419,3 +419,18 @@ details.lx-more summary { cursor: pointer; font-size: 12px; letter-spacing: 0.14
 .lx-note-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 9px; }
 .lx-note-reply { display: flex; gap: 6px; flex: 1 1 240px; min-width: 0; }
 .lx-note-reply .lx-input { flex: 1 1 auto; min-width: 0; }
+
+/* Phone pass (2026-09-18). Every field, select, fold and slider in the
+   studio is a 44px target on a phone; they were 28 to 34px, and the
+   sliders 16px. The hue strip is a 44px row with its 8px band of hues
+   drawn through the middle. */
+@media (max-width: 767px) {
+  .lx .lx-input, .lx .lx-select, .lx select, .lx .lx-field input, .lx .lx-set-item input,
+  .lx input:is([type=text], [type=number], [type=search], [type=url]) { min-height: 44px; }
+  .lx input[type=range]:not(.lx-mix-hue) { height: 44px; }
+  .lx details > summary { padding-top: 13px; padding-bottom: 13px; }
+  .lx .lx-mix-hue { height: 44px; background-size: 100% 8px; background-position: center; background-repeat: no-repeat; }
+  .lx .lx-mix-hue::-webkit-slider-thumb { width: 22px; height: 22px; }
+  .lx .lx-mix-hue::-moz-range-thumb { width: 22px; height: 22px; }
+  .lx .lx-btn, .lx .lx-btn--small { min-height: 44px; }
+}

@@ -4,9 +4,11 @@
 
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/fans-audience.css?v=3">
+  <link rel="stylesheet" href="/static/css/account-phone.css?v=3">
 {% endblock %}
 
 {% block content %}
+<div class="acph">
 {#- The Fan CRM tab of the Audience screen (owner, 2026-09-18: "everything in
     fans besides collab and discover can be in one screen"). Same header as
     /fans; search, remove, export and import work as they always did. -#}
@@ -114,4 +116,5 @@
 {% include "partials/fan_list_import.html" %}
 </div>
 <script src="/static/js/fans-audience.js?v=2" defer></script>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

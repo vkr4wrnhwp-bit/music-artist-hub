@@ -2,7 +2,7 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}Your collaborator profile - Street Banker{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/collab-market.css?v=2">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/collab-market.css?v=2"><link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {#- The member's own collaborator profile (PROFILES-SPEC.md part 2). Opt-in:
     nobody sees this card, matches it or counts it until the member ticks
@@ -10,6 +10,7 @@
     list; what is left blank shows as "Not stated". -#}
 
 {% block content %}
+<div class="acph">
 {% call sb.plate(none, [900, 1400, 1672],
                  "Street Banker · Collab Marketplace", "Your collaborator profile",
                  "What other members see when they look for someone to work with.") %}
@@ -120,4 +121,5 @@
     </aside>
   </div>
 </div>
+</div>{#- /acph: account-phone.css scope -#}
 {% endblock %}

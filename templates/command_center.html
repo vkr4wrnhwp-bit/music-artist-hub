@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 {% import "_sb.html" as sb %}
-{% block head_scripts %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endblock %}
+{% block head_scripts %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="/static/css/money-desks.css?v=5">{% endblock %}
 
 {% block title %}Command Center - Street Banker{% endblock %}
 
 {% block content %}
+{#- .md-cc: on a phone the page title is ordered above the tutor and
+    Start-here panels (money-desks.css); a desk keeps this order. -#}
+<div class="md-cc">
 {% if tutor %}
 <!-- Tutor mode: the whole product as an ordered walkthrough. Opt-in,
      never gates anything, and every tick is a real query - a step is
@@ -60,7 +64,7 @@
       </summary>
       <ol class="mt-1.5 space-y-1.5 pl-2">
         {% for step in stage.steps %}
-        <li class="flex items-start gap-3 rounded-lg border px-3 py-2.5
+        <li class="md-step flex items-start gap-3 rounded-lg border px-3 py-2.5
                    {{ 'border-white/5 bg-black/20' if step.done
                       else ('border-sb-gold/30 bg-black/30' if tutor.next and step.key == tutor.next.key
                             else 'border-white/10 bg-black/20') }}">
@@ -120,7 +124,7 @@
 
   <ol class="mt-4 space-y-1.5">
     {% for step in firstrun.steps %}
-    <li class="flex items-start gap-3 rounded-lg border px-3 py-2.5
+    <li class="md-step flex items-start gap-3 rounded-lg border px-3 py-2.5
                {{ 'border-white/5 bg-black/20' if step.done
                   else ('border-sb-gold/30 bg-black/30' if step.key == firstrun.next.key
                         else 'border-white/10 bg-black/20') }}">
@@ -141,21 +145,21 @@
     {% endfor %}
   </ol>
 
-  <p class="mt-3 text-xs text-gray-300 font-medium">Each line is checked against your account, not against whether you clicked something — remove the thing and the step comes back. Press <kbd class="rounded border border-white/15 px-1 text-gray-300">Ctrl</kbd>+<kbd class="rounded border border-white/15 px-1 text-gray-300">K</kbd> any time to jump straight to a page.</p>
+  <p class="mt-3 text-xs text-gray-300 font-medium">Each line is checked against your account, not against whether you clicked something — remove the thing and the step comes back.<span class="md-kbd-hint"> Press <kbd class="rounded border border-white/15 px-1 text-gray-300">Ctrl</kbd>+<kbd class="rounded border border-white/15 px-1 text-gray-300">K</kbd> any time to jump straight to a page.</span></p>
 </section>
 {% endif %}
 
-<div class="mx-auto max-w-[1300px] space-y-5">
-  <div>
+<div class="md-cc-main mx-auto max-w-[1300px] space-y-5">
+  <div class="md-cc-title">
     <p class="sb-label sb-label-gold">Street Banker</p>
     <h1 class="sb-h1 mt-1">Command Center</h1>
     <p class="mt-2 max-w-2xl text-sm text-gray-300">Everything that matters today — every card links to the move that fixes it.</p>
-    <a href="/walkthrough" class="mt-2 inline-block text-xs font-bold text-sb-gold-bright hover:underline">New here? Take the walkthrough →</a>
+    <a href="/walkthrough" class="md-tap mt-2 inline-block text-xs font-bold text-sb-gold-bright hover:underline">New here? Take the walkthrough →</a>
     {% if not tutor %}
     <form method="post" action="/tutor/toggle" class="mt-1">
       <input type="hidden" name="on" value="1">
       <input type="hidden" name="back" value="/command-center">
-      <button type="submit" class="text-xs font-bold text-sb-gold-bright hover:underline">Or turn on tutor mode — a step-by-step guide through the whole desk →</button>
+      <button type="submit" class="md-tap text-left text-xs font-bold text-sb-gold-bright hover:underline">Or turn on tutor mode — a step-by-step guide through the whole desk →</button>
     </form>
     {% endif %}
   </div>
@@ -260,7 +264,7 @@
       <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
         <div class="flex items-center justify-between">
           <h2 class="sb-label text-gray-300">Open Actions</h2>
-          <a href="/actions" class="text-xs font-semibold text-sb-gold-bright hover:underline">All actions →</a>
+          <a href="/actions" class="md-tap text-xs font-semibold text-sb-gold-bright hover:underline">All actions →</a>
         </div>
         {% if cc_actions %}
         <div class="mt-3 space-y-2">
@@ -316,7 +320,7 @@
        maintained in Python for a purely visual mapping. #}
     {% for group, items in module_groups %}
     <h3 class="sb-label mt-5 text-gray-300" id="os-{{ loop.index }}">{{ group }}</h3>
-    <div class="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div class="md-os mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {% for route, name, blurb, status, disc in items %}
         {% set ikey =
              "money"    if ("/royalty" in route or "/revenue" in route or "/deal" in route
@@ -338,6 +342,7 @@
     {% endfor %}
   </section>
 </div>
+</div>{#- /.md-cc -#}
 {% endblock %}
 
 {% block scripts %}{% include "_front_scripts.html" %}{% endblock %}

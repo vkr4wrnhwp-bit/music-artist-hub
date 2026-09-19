@@ -2,6 +2,10 @@
 
 {% block title %}{{ hub.name }} - Street Banker{% endblock %}
 
+{#- The phone pass for the Studio, Launch and Stage desks only (2026-09-18);
+    the other desks are someone else's pass and keep their sheet list. -#}
+{% block head_scripts %}{% if hub.key in ('studio', 'launch', 'stage') %}<link rel="stylesheet" href="/static/css/phone-studio.css?v=1">{% endif %}{% endblock %}
+
 {% block content %}
 <div class="mx-auto max-w-[1050px] space-y-6">
   <div>

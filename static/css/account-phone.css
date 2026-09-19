@@ -1,0 +1,153 @@
+/* ACCOUNT + COMMUNITY PAGES ON A PHONE (phone pass, 2026-09-18).
+ *
+ * Loaded only by the community and account pages (/fans, /links/fans,
+ * /fan-club, /discover, /marketplace and its profile and people pages,
+ * /services, /apparel, /submit, /settings, /team, /billing, /portal,
+ * /roster, /referrals, /certified). Every rule is scoped to .acph, the
+ * wrapper those templates put round their content, so the shared shell
+ * (header, drawer, suites footer, Ask button) is never touched, and every
+ * rule sits inside a max-width query, so 768px and up is exactly as before.
+ *
+ * What it does: primary controls reach 44px, form fields are 16px so iOS
+ * does not zoom into them, checkboxes and radios get a 44px hit box drawn
+ * as a 22px box, and a few page layouts stack instead of squeezing. */
+
+@media (max-width: 767px) {
+  /* --- controls: 44px ------------------------------------------------- */
+  .acph .sb-btn,
+  .acph button[type="submit"],
+  .acph .acph-tap { min-height: 44px; }
+  .acph .sb-btn-sm { font-size: 14px; padding-left: 14px; padding-right: 14px; }
+  .acph .acph-tap { display: inline-flex; align-items: center; }
+  .acph .acph-tap.block { display: flex; }
+
+  .acph select,
+  .acph textarea,
+  .acph input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="file"]):not([type="color"]) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  /* --- checkboxes and radios: a 44px target drawn as a 22px box ---------
+     The negative margin keeps the 22px footprint the rows were laid out
+     for; the extra hit area overlaps the row's own padding. Inputs a page
+     already hides behind its own drawing (.au-row, .cm-switch) are left
+     alone. */
+  .acph input[type="checkbox"]:not(.au-row input):not(.cm-switch input),
+  .acph input[type="radio"] {
+    -webkit-appearance: none;
+    appearance: none;
+    position: relative;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    margin: -11px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    vertical-align: middle;
+  }
+  .acph input[type="checkbox"]:not(.au-row input):not(.cm-switch input)::before,
+  .acph input[type="radio"]::before {
+    content: "";
+    position: absolute;
+    inset: 11px;
+    border: 2px solid var(--sb-ink-3);
+    border-radius: var(--sb-r-control);
+    background: var(--sb-ground);
+    transition: background var(--sb-fast), border-color var(--sb-fast);
+  }
+  .acph input[type="radio"]::before { border-radius: var(--sb-r-pill); }
+  .acph input[type="checkbox"]:not(.au-row input):not(.cm-switch input):checked::before,
+  .acph input[type="radio"]:checked::before {
+    background: var(--sb-gold-bright);
+    border-color: var(--sb-gold-bright);
+  }
+  .acph input[type="checkbox"]:not(.au-row input):not(.cm-switch input):checked::after {
+    content: "";
+    position: absolute;
+    left: 19px;
+    top: 15px;
+    width: 6px;
+    height: 11px;
+    border: solid var(--sb-on-gold);
+    border-width: 0 2.5px 2.5px 0;
+    transform: rotate(45deg);
+  }
+  .acph input[type="radio"]:checked::after {
+    content: "";
+    position: absolute;
+    inset: 18px;
+    border-radius: var(--sb-r-pill);
+    background: var(--sb-on-gold);
+  }
+  .acph input[type="checkbox"]:not(.au-row input):not(.cm-switch input):focus-visible::before,
+  .acph input[type="radio"]:focus-visible::before { box-shadow: var(--sb-focus); }
+  .acph input[type="checkbox"]:disabled::before,
+  .acph input[type="radio"]:disabled::before { opacity: .45; }
+
+  /* --- /fans, /links/fans ---------------------------------------------- */
+  .acph .au-link,
+  .acph .au-btn { min-height: 44px; }
+  .acph .fr-link { display: inline-flex; align-items: center; min-height: 44px; }
+  .acph button.fr-link { padding-bottom: 0; }
+
+  /* --- /discover --------------------------------------------------------- */
+  /* /certified: a rung is its name on one line and the requirement under
+     it at full width, not a 110px column wrapping to four short lines. */
+  .acph .acph-rung { flex-wrap: wrap; row-gap: 4px; }
+  .acph .acph-rung-name { width: auto; flex: 1 1 0; min-width: 0; }
+  .acph .acph-rung-need { flex: 1 1 100%; padding-left: 30px; }
+  .acph .dc-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding-left: 14px; padding-right: 14px; font-size: 13px; }
+  .acph .like-btn { width: 44px; height: 44px; top: 0; right: 0; background: transparent; }
+  .acph .like-btn::before {
+    content: ""; position: absolute; inset: 8px; border-radius: var(--sb-r-pill);
+    background: rgba(0, 0, 0, 0.45); z-index: -1;
+  }
+  .acph .like-btn { isolation: isolate; }
+  .acph .follow-btn { min-height: 44px; min-width: 88px; font-size: 13px; }
+  .acph .dc-avatar { width: 44px; height: 44px; }
+  .acph .dc-artist { display: flex; align-items: center; min-height: 32px; }
+
+  /* --- /marketplace ------------------------------------------------------ */
+  /* Five tabs wrap into rows instead of running off the right edge. */
+  .acph .cm-tabs { flex-wrap: wrap; gap: 0 20px; overflow: visible; }
+  .acph .cm-tabs a { display: inline-flex; align-items: center; min-height: 44px; padding-bottom: 0; }
+  .acph .cm-search { height: 44px; }
+  .acph .cm-fil { flex: 1 1 100%; height: auto; min-height: 44px; }
+  .acph .cm-fil select { flex: 1; min-height: 42px; max-width: none; }
+  .acph .cm-link { min-height: 44px; }
+  .acph .cm-pstep a.pm { display: inline-flex; align-items: center; min-height: 44px; }
+  /* A link inside a sentence keeps the sentence's flow; padding cancelled
+     by an equal negative margin makes its box taller without moving text. */
+  .acph .cm-note .cm-inline { display: inline-block; padding: 12px 0; margin: -12px 0; }
+  .acph .cm-check { min-height: 44px; gap: 14px; }
+  .acph .cm-checks { gap: 0 20px; }
+
+  /* --- /services (signed in) -------------------------------------------
+     The page's own column padding sat inside the app's, so the text ran
+     36px in from each edge; and the letter-spaced buttons ran off it. */
+  .acph .pp-main { padding-left: 0; padding-right: 0; padding-top: 0; }
+  .acph .pp-actions .pp-btn { flex: 1 1 100%; flex-wrap: wrap; gap: 4px 10px; padding: 10px 16px; letter-spacing: .14em; text-align: center; }
+  .acph .pp-step-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 2px; }
+
+  /* --- /submit ------------------------------------------------------------ */
+  .acph .sub-deckfoot { flex-wrap: wrap; gap: 6px 12px; }
+  .acph .sub-deckfoot > :last-child { margin-left: auto; text-align: right; }
+  .acph .sub-route { flex-wrap: wrap; padding-left: 20px; padding-right: 20px; }
+  .acph .sub-route .sb-btn { flex: 1 1 0; }
+  .acph .sub-route .sb-label { flex: 1 1 100%; margin-left: 0; text-align: center; }
+  .acph .sub-pitch { padding: 20px; gap: 24px; }
+
+  /* --- /fan-club ----------------------------------------------------------
+     Three tiles in 358px squeezed "Not open yet" onto two lines; two on a
+     row, the status tile across the foot. */
+  .acph .fc-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .acph .fc-tiles > :last-child { grid-column: 1 / -1; }
+  .acph .fc-price input { border: 0; box-shadow: none; }
+
+  /* --- /team -------------------------------------------------------------- */
+  .acph .team-invite input[type="email"] { flex: 1 1 100%; }
+  .acph .team-invite select { flex: 1 1 0; }
+}

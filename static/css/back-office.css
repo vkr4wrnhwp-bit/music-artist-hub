@@ -206,3 +206,19 @@
 @media (prefers-reduced-motion: reduce) {
   .sbbo * { transition-duration: 0.01ms !important; }
 }
+
+/* Phone pass (2026-09-18): the 12px type floor at 390px. A desk keeps
+   the clamp above exactly; this only lifts its 11px floor on a phone. */
+@media (max-width: 767px) {
+  .sbbo-eyebrow { font-size: 12px; }
+  .sbbo-cta-2 { display: inline-flex; align-items: center; min-height: 44px; }
+}
+
+/* The long home's footer (landing.html), phone pass 2026-09-18. Its five
+   link columns stacked into one list about 1,300px tall; below 900px they
+   sit two across under the full-width mark, as on the split home. A desk
+   keeps its six-column row exactly: all of this is under 900px. */
+@media (max-width: 899px) {
+  .sbfoot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; row-gap: 32px; }
+  .sbfoot-grid > :first-child { grid-column: 1 / -1; }
+}
