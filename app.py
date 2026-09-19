@@ -821,6 +821,13 @@ def create_app():
 
     _INVITE_ONLY = ("Street Banker is invitation only right now. "
                     "Ask Street Banker for an invitation, then open the link it sends you.")
+    # While sign-up is shut, a roster or team link joins an account that
+    # already exists and makes none (owner, 2026-09-19: "yes shut those
+    # also", on the 2026-09-18 exception that let those links mint
+    # accounts). The owner's own invitation from Settings is the only door.
+    _MEMBER_LINK_SHUT = ("Street Banker is invitation only right now, so this link can only add "
+                         "someone who already has an account. Ask Street Banker for an "
+                         "invitation, then open this link again to join.")
 
     @app.route("/signup", methods=["GET", "POST"])
     def signup():
@@ -5710,9 +5717,12 @@ def create_app():
                         error=why), 403
                 artist_id = existing["id"]
             else:
-                # The invitation is the authorisation, the way
-                # /signup?invite= is, so the shut public door does not
-                # stand in a Label's way. What is checked is the label:
+                if not _signup_open():
+                    return render_template(
+                        "roster_join.html", invalid=False, invite=invite,
+                        has_account=False, closed=True, error=_MEMBER_LINK_SHUT), 403
+                # With sign-up open, the invitation is the authorisation,
+                # the way /signup?invite= is. What is checked is the label:
                 # still an account, and still on the plan that may seat
                 # somebody. A downgrade ends its pending invitations.
                 label = store.get_user(invite["label_id"])
@@ -5737,7 +5747,7 @@ def create_app():
         return render_template("roster_join.html", invalid=False, invite=invite,
                                has_account=store.get_user_by_email(invite["email"]) is not None,
                                signed_in_as_invitee=_signed_in_as(invite["email"]),
-                               error=None)
+                               closed=not _signup_open(), error=None)
 
     @app.route("/roster/artist/<artist_id>")
     def roster_artist(artist_id):
@@ -11417,9 +11427,13 @@ def create_app():
                                            signed_in_as_invitee=False, error=why), 403
                 member_id = existing["id"]
             else:
-                # Same rule as the roster door: the invitation authorises
-                # the account, and the account that issued it must still
-                # be allowed to.
+                if not _signup_open():
+                    return render_template("team_join.html", invalid=False, invite=invite,
+                                           has_account=False, closed=True,
+                                           error=_MEMBER_LINK_SHUT), 403
+                # Same rule as the roster door: with sign-up open the
+                # invitation authorises the account, and the account that
+                # issued it must still be allowed to.
                 inviter = store.get_user(invite["owner_id"])
                 if not _may_seat(inviter, "team"):
                     return render_template("team_join.html", invalid=False,
@@ -11442,7 +11456,7 @@ def create_app():
         return render_template("team_join.html", invalid=False, invite=invite,
                                has_account=store.get_user_by_email(invite["email"]) is not None,
                                signed_in_as_invitee=_signed_in_as(invite["email"]),
-                               error=None)
+                               closed=not _signup_open(), error=None)
 
     @app.route("/team/<member_id>/remove", methods=["POST"])
     def team_remove(member_id):

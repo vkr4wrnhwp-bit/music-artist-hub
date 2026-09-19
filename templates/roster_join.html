@@ -26,6 +26,11 @@
 
       {% if error %}<p class="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400 font-medium">{{ error }}</p>{% endif %}
 
+      {% if closed and not has_account %}
+      {#- Sign-up is shut: this link joins an account that exists, and
+          makes none (owner, 2026-09-19). -#}
+      {% if not error %}<p class="mt-4 text-sm text-gray-200">Street Banker is invitation only right now, so this link can only add someone who already has an account. Ask Street Banker for an invitation, then open this link again to join.</p>{% endif %}
+      {% else %}
       <form method="post" class="mt-4 space-y-2.5">
         {% if not has_account %}
         <input name="name" required placeholder="Your artist name"
@@ -46,6 +51,7 @@
         {% endif %}
         <button class="w-full rounded-xl bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep px-5 py-3.5 text-sm font-black uppercase tracking-wide text-sb-on-gold transition-transform hover:scale-[1.01]">Accept &amp; Join the Roster</button>
       </form>
+      {% endif %}
     </div>
     {% endif %}
   </main>

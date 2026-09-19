@@ -57,9 +57,49 @@ def _account(app_obj, plan="artist"):
     return c
 
 
-# --- the door opens for a Label -------------------------------------------
+# --- while sign-up is shut, a member's link makes no account ---------------
+# Owner, 2026-09-19: "yes shut those also". The 2026-09-18 exception that let
+# roster and team links mint accounts is closed while public sign-up is shut;
+# they still join an account that exists. The owner's own invitation is the
+# only door. The tests below that seat NEW people open sign-up first.
 
-def test_a_label_seats_a_roster_artist_while_a_stranger_is_refused(app_obj):
+def test_while_shut_a_roster_or_team_link_makes_no_account(app_obj):
+    label = _account(app_obj, "label")
+    newcomer = _addr("newcomer")
+    label.post("/roster/invite", data={"email": newcomer})
+    with app_obj.app_context():
+        rtoken = [m for m in store.list_roster(label._id) if m["email"] == newcomer][0]["invite_token"]
+    page = app_obj.test_client().get("/roster/join/" + rtoken).get_data(as_text=True)
+    assert "can only add someone who already has an account" in page and 'name="password"' not in page
+    r = app_obj.test_client().post("/roster/join/" + rtoken, data={"name": "New", "password": PW})
+    assert r.status_code == 403
+    artist = _account(app_obj, "artist")
+    manager = _addr("manager-shut")
+    artist.post("/team/invite", data={"email": manager, "role": "manager"})
+    with app_obj.app_context():
+        ttoken = [m for m in store.list_team(artist._id) if m["email"] == manager][0]["invite_token"]
+    r = app_obj.test_client().post("/team/join/" + ttoken, data={"name": "New", "password": PW})
+    assert r.status_code == 403
+    with app_obj.app_context():
+        assert store.get_user_by_email(newcomer) is None and store.get_user_by_email(manager) is None
+
+
+def test_while_shut_a_link_still_joins_an_account_that_exists(app_obj):
+    label = _account(app_obj, "label")
+    existing = _account(app_obj, "artist")
+    label.post("/roster/invite", data={"email": existing._email})
+    with app_obj.app_context():
+        token = [m for m in store.list_roster(label._id) if m["email"] == existing._email][0]["invite_token"]
+    r = app_obj.test_client().post("/roster/join/" + token, data={"password": PW})
+    assert r.status_code == 302
+    with app_obj.app_context():
+        assert store.get_roster_member(label._id, existing._id) is not None
+
+
+# --- the door opens for a Label ------------------------------------------
+
+def test_a_label_seats_a_roster_artist_while_a_stranger_is_refused(app_obj, monkeypatch):
+    monkeypatch.setenv("SIGNUP_MODE", "open")
     label = _account(app_obj, "label")
     artist_email = _addr("signed")
 
@@ -77,7 +117,8 @@ def test_a_label_seats_a_roster_artist_while_a_stranger_is_refused(app_obj):
     with app_obj.app_context():
         assert store.get_user_by_email(artist_email) is not None
 
-    # And the public door is still shut, which is the whole point.
+    # The public door is the owner's switch; the members' links follow it.
+    monkeypatch.delenv("SIGNUP_MODE", raising=False)
     stranger = _addr("stranger")
     app_obj.test_client().post("/signup", data={"name": "No", "email": stranger,
                                                 "password": PW})
@@ -85,7 +126,8 @@ def test_a_label_seats_a_roster_artist_while_a_stranger_is_refused(app_obj):
         assert store.get_user_by_email(stranger) is None
 
 
-def test_a_paying_artist_seats_a_manager(app_obj):
+def test_a_paying_artist_seats_a_manager(app_obj, monkeypatch):
+    monkeypatch.setenv("SIGNUP_MODE", "open")
     artist = _account(app_obj, "artist")
     manager = _addr("manager")
     r = artist.post("/team/invite", data={"email": manager, "role": "manager"})
@@ -100,8 +142,9 @@ def test_a_paying_artist_seats_a_manager(app_obj):
         assert store.get_user_by_email(manager) is not None
 
 
-def test_the_invitation_names_the_address_and_the_form_cannot_move_it(app_obj):
+def test_the_invitation_names_the_address_and_the_form_cannot_move_it(app_obj, monkeypatch):
     """Otherwise one invitation is an account for anybody who gets it."""
+    monkeypatch.setenv("SIGNUP_MODE", "open")
     label = _account(app_obj, "label")
     invited = _addr("invited")
     label.post("/roster/invite", data={"email": invited})
@@ -137,9 +180,10 @@ def test_only_a_label_can_seat_a_roster(app_obj):
             assert store.get_user_by_email(target) is None, plan
 
 
-def test_a_label_that_downgrades_has_no_live_invitations_left(app_obj):
+def test_a_label_that_downgrades_has_no_live_invitations_left(app_obj, monkeypatch):
     """Checked at redemption, not only when the invitation was written, so
     a cancelled Label cannot keep seating people from a stack of links."""
+    monkeypatch.setenv("SIGNUP_MODE", "open")
     label = _account(app_obj, "label")
     later = _addr("later")
     label.post("/roster/invite", data={"email": later})

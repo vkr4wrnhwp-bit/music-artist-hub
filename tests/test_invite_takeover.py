@@ -121,7 +121,10 @@ def test_signed_in_as_that_account_it_accepts_without_asking_again(app_obj, door
 
 
 @pytest.mark.parametrize("door,mint,plan", DOORS)
-def test_a_new_address_still_becomes_an_account_from_the_invitation(app_obj, door, mint, plan):
+def test_a_new_address_still_becomes_an_account_from_the_invitation(app_obj, door, mint, plan, monkeypatch):
+    # Only with sign-up open: while it is shut these links make no account
+    # (owner, 2026-09-19; tests/test_customer_invites.py).
+    monkeypatch.setenv("SIGNUP_MODE", "open")
     inviter = _account(app_obj, plan)
     fresh = _addr("fresh")
     token = mint(app_obj, inviter, fresh)

@@ -25,6 +25,11 @@
       {% if error %}
       <div class="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">{{ error }}</div>
       {% endif %}
+      {% if closed and not has_account %}
+      {#- Sign-up is shut: this link joins an account that exists, and
+          makes none (owner, 2026-09-19). -#}
+      {% if not error %}<p class="mt-4 text-sm text-gray-200">Street Banker is invitation only right now, so this link can only add someone who already has an account. Ask Street Banker for an invitation, then open this link again to join.</p>{% endif %}
+      {% else %}
       <form method="post" class="mt-4 space-y-3">
         {% if not has_account %}
         <div>
@@ -52,6 +57,7 @@
         {% endif %}
         <button type="submit" class="w-full rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-400 transition-colors hover:bg-amber-500/25">Accept Invite</button>
       </form>
+      {% endif %}
       {% endif %}
     </div>
     <p class="mt-5 text-center text-xs text-gray-300 font-medium"><a href="/terms" class="hover:text-white">Terms</a> · <a href="/privacy" class="hover:text-white">Privacy</a></p>
