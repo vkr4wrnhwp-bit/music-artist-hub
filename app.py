@@ -4602,12 +4602,34 @@ def create_app():
         plan = request.form.get("plan") or ""
         if not stripe_billing.configured() or plan not in stripe_billing.PRICES:
             return redirect("/billing")
+        # A member changes tier on the subscription they already have. This
+        # used to open a second checkout, so the old subscription kept
+        # billing beside the new one (2026-09-18 launch check).
+        if user.get("stripe_subscription_id"):
+            current = user.get("plan") or "artist"
+            if current == plan:
+                return redirect("/billing")
+            upgrade = plans.TIER_RANK.get(plan, 0) > plans.TIER_RANK.get(current, 0)
+            changed = stripe_billing.change_subscription_plan(
+                user["stripe_subscription_id"], plan, upgrade)
+            if changed and not changed["pending"]:
+                store.set_user_plan(user["id"], plan)
+                store.notify(user["id"], "billing",
+                             "You're on %s" % plans.PLAN_NAMES.get(plan, plan),
+                             "Your subscription moved to %s. Stripe adjusts the "
+                             "difference on your bill." % plans.PLAN_NAMES.get(plan, plan),
+                             "/billing")
+                return redirect("/billing?changed=" + plan)
+            if changed and changed["pending"]:
+                return redirect("/billing?changed=pending")
+            # The subscription is gone or cancelled: a fresh checkout below,
+            # as the customer Stripe already knows.
         coupon = (stripe_billing.ensure_referral_coupon()
                   if user.get("referred_by") and not user.get("stripe_subscription_id")
                   else None)
         session_obj = stripe_billing.create_checkout_session(
             user["id"], user["email"], plan, request.url_root.rstrip("/"),
-            coupon=coupon)
+            coupon=coupon, customer_id=user.get("stripe_customer_id"))
         if not session_obj or not session_obj.get("url"):
             return render_template("billing_error.html",
                                    message="Stripe couldn't start checkout — try again "
@@ -4669,33 +4691,45 @@ def create_app():
             _settle_referrals(user["id"])
         return redirect("/billing" + ("?upgraded=1" if found else "?sync=none"))
 
+    def _ref_paid_key(user_id):
+        return "ref_paid:" + user_id
+
     def _settle_referrals(new_payer_id):
-        """After a real paid activation: credit this user's referrer, and pay
-        out credits this user earned as a referrer before they had billing.
+        """After a real payment (an invoice.paid with money in it): credit
+        this user's referrer, and pay out what this user earned as a
+        referrer before they were paying. The referrer's reward is 50% off
+        their next month, so the credit is half of THEIR tier's price; a
+        referrer on no paid tier yet keeps it waiting for their first bill.
         A credit is only claimed as applied when Stripe accepted it."""
         payer = store.get_user(new_payer_id)
         if not payer:
             return
         ref_id = payer.get("referred_by")
         if ref_id and not payer.get("ref_credited"):
+            store.set_kv(_ref_paid_key(new_payer_id), "1")
             referrer = store.get_user(ref_id)
-            if referrer and referrer.get("stripe_customer_id"):
+            cents = stripe_billing.referrer_credit_cents((referrer or {}).get("plan"))
+            if referrer and referrer.get("stripe_customer_id") and cents:
                 if stripe_billing.credit_customer(
-                        referrer["stripe_customer_id"], 900,
-                        "Street Banker referral credit: %s" % payer["email"]):
+                        referrer["stripe_customer_id"], cents,
+                        "Street Banker referral: 50%% off for referring %s" % payer["email"]):
                     store.mark_ref_credited(new_payer_id)
                     store.notify(ref_id, "billing", "Referral credit applied",
-                                 "$9.00 landed on your Stripe balance \u2014 %s "
-                                 "started a paid plan." % payer["email"], "/referrals")
-        if payer.get("stripe_customer_id"):
+                                 "$%.2f, half your next month, landed on your Stripe "
+                                 "balance: %s paid for their plan." % (cents / 100.0, payer["email"]),
+                                 "/referrals")
+        cents = stripe_billing.referrer_credit_cents(payer.get("plan"))
+        if payer.get("stripe_customer_id") and cents:
             for u in store.list_uncredited_referrals(new_payer_id):
+                if store.get_kv(_ref_paid_key(u["id"])) != "1":
+                    continue            # they have not actually paid yet
                 if stripe_billing.credit_customer(
-                        payer["stripe_customer_id"], 900,
-                        "Street Banker referral credit: %s" % u["email"]):
+                        payer["stripe_customer_id"], cents,
+                        "Street Banker referral: 50%% off for referring %s" % u["email"]):
                     store.mark_ref_credited(u["id"])
                     store.notify(new_payer_id, "billing", "Referral credit applied",
-                                 "$9.00 credit for referring %s." % u["email"],
-                                 "/referrals")
+                                 "$%.2f, half your next month, for referring %s."
+                                 % (cents / 100.0, u["email"]), "/referrals")
 
     @app.route("/referrals")
     def referrals():
@@ -4776,7 +4810,10 @@ def create_app():
         elif etype == "checkout.session.completed":
             user_id = obj.get("client_reference_id")
             plan = (obj.get("metadata") or {}).get("plan")
-            if user_id and store.get_user(user_id) and plan in stripe_billing.PRICES:
+            # Granted on money, not on a completed form: a session can
+            # complete unpaid (2026-09-18 launch check).
+            paid = obj.get("payment_status") in ("paid", "no_payment_required")
+            if paid and user_id and store.get_user(user_id) and plan in stripe_billing.PRICES:
                 store.set_user_plan(user_id, plan)
                 store.set_stripe_ids(user_id, obj.get("customer"),
                                      obj.get("subscription"))
@@ -4785,7 +4822,38 @@ def create_app():
                              "Your subscription is active — every %s feature is "
                              "unlocked." % plans.PLAN_NAMES.get(plan, plan),
                              "/command-center")
-                _settle_referrals(user_id)
+        elif etype == "invoice.paid":
+            # A referral settles on the new artist's first real payment, not
+            # on the checkout form (with a free first month that paid the
+            # referrer on $0).
+            user = store.user_by_stripe_customer(obj.get("customer"))
+            if user and int(obj.get("amount_paid") or 0) > 0:
+                _settle_referrals(user["id"])
+        elif etype == "customer.subscription.updated":
+            # Keeps the plan in step with Stripe whatever changed it: the
+            # portal, the dashboard, or a payment retry running out.
+            user = store.user_by_stripe_customer(obj.get("customer"))
+            if user and obj.get("id") and obj.get("id") == user.get("stripe_subscription_id"):
+                status = obj.get("status") or ""
+                tier = stripe_billing.plan_for_subscription(obj)
+                if status in ("active", "trialing") and tier and tier != user.get("plan"):
+                    store.set_user_plan(user["id"], tier)
+                    store.notify(user["id"], "billing",
+                                 "You're on %s" % plans.PLAN_NAMES.get(tier, tier),
+                                 "Your subscription changed in Stripe; your plan here "
+                                 "follows it.", "/billing")
+                elif status in ("unpaid", "incomplete_expired", "canceled"):
+                    store.set_user_plan(user["id"], "fan")
+                    store.notify(user["id"], "billing", "Plan paused",
+                                 "Stripe could not collect your membership, so your "
+                                 "plan moved to the free Fan tier. Your data is "
+                                 "untouched: update your card in Manage Billing to "
+                                 "carry on.", "/billing")
+                elif status == "past_due":
+                    store.notify(user["id"], "billing", "Payment is past due",
+                                 "Stripe could not charge your card and will try "
+                                 "again. Update it in Manage Billing to keep your "
+                                 "plan.", "/billing")
         elif etype == "customer.subscription.deleted":
             # Fan club cancellations first — they aren't plan subscriptions.
             artist_id = store.cancel_club_member_by_subscription(obj.get("id"))
@@ -4795,7 +4863,10 @@ def create_app():
                              "/fan-club")
                 return jsonify({"ok": True})
             user = store.user_by_stripe_customer(obj.get("customer"))
-            if user:
+            # Only the subscription the account is on ends its plan; an old
+            # or duplicate one ending must not drop a paying member.
+            current_sub = (user or {}).get("stripe_subscription_id")
+            if user and (not current_sub or current_sub == obj.get("id")):
                 store.set_user_plan(user["id"], "fan")
                 store.set_stripe_ids(user["id"], user.get("stripe_customer_id"), None)
                 store.notify(user["id"], "billing", "Subscription ended",
@@ -11273,6 +11344,7 @@ def create_app():
         ctx["plan_cards"] = plans.PLANS
         ctx["user"] = user
         ctx["webhook_live"] = stripe_billing.webhook_configured()
+        ctx["webhook_current"] = stripe_billing.webhook_events_current()
         sid = request.args.get("session_id") or ""
         if request.args.get("credits") == "1" and sid:
             paid = stripe_billing.get_checkout_session(sid)

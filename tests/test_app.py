@@ -2393,7 +2393,7 @@ def test_stripe_checkout_and_webhooks(monkeypatch):
                                  "password": "paypass"})
     # Real accounts see real checkout, not the demo switch.
     body = client.get("/billing").get_data(as_text=True)
-    assert "Subscribe — $79/mo" in body and "Switch (demo)" not in body
+    assert "Subscribe: $79/mo" in body and "Switch (demo)" not in body
     r = client.post("/billing/checkout", data={"plan": "pro"})
     assert r.status_code == 303 and "checkout.stripe.com" in r.headers["Location"]
     path, fields = calls[0]
@@ -2408,7 +2408,7 @@ def test_stripe_checkout_and_webhooks(monkeypatch):
     anon = app_obj.test_client()
     payload = json.dumps({"type": "checkout.session.completed", "data": {"object": {
         "client_reference_id": uid, "customer": "cus_t9", "subscription": "sub_t9",
-        "metadata": {"plan": "pro"}}}})
+        "payment_status": "paid", "metadata": {"plan": "pro"}}}})
     assert anon.post("/webhooks/stripe", data=payload,
                      headers={"Stripe-Signature": "t=1,v1=forged"},
                      content_type="application/json").status_code == 401
@@ -2419,7 +2419,7 @@ def test_stripe_checkout_and_webhooks(monkeypatch):
     assert "Manage Billing" in client.get("/billing").get_data(as_text=True)
     # Cancellation downgrades to the free tier, data untouched.
     p2 = json.dumps({"type": "customer.subscription.deleted",
-                     "data": {"object": {"customer": "cus_t9"}}})
+                     "data": {"object": {"id": "sub_t9", "customer": "cus_t9"}}})
     anon.post("/webhooks/stripe", data=p2, headers=_stripe_sig(p2),
               content_type="application/json")
     assert store_mod.get_user(uid)["plan"] == "fan"
@@ -2459,7 +2459,7 @@ def test_stripe_absent_keeps_honest_demo_switching(monkeypatch):
     client.post("/signup", data={"name": "NoPay", "email": "nopay@example.net",
                                  "password": "nopaypass"})
     body = client.get("/billing").get_data(as_text=True)
-    assert "Switch (demo)" in body and "Subscribe —" not in body
+    assert "Switch (demo)" in body and "Subscribe:" not in body
     assert "no payment is taken" in body
     assert client.post("/webhooks/stripe", data="{}").status_code == 404
     r = client.post("/billing/checkout", data={"plan": "pro"})
@@ -4241,10 +4241,10 @@ def test_referral_engine(monkeypatch):
 
     monkeypatch.setattr(sb, "_http", fake_http)
     app_obj = create_app()
-    store_mod.set_kv("stripe_ref_coupon", "")  # fresh coupon path per run
+    store_mod.set_kv("stripe_ref_coupon_50", "")  # fresh coupon path per run
     artist = _demo(app_obj)
     page = artist.get("/referrals").get_data(as_text=True)
-    assert "/signup?ref=" in page and "first month free" in page
+    assert "/signup?ref=" in page and "50% off their first month" in page
     uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
     code = store_mod.ensure_ref_code(uid)
     # Friend lands on the ref link, signs up, is attributed.
@@ -4256,23 +4256,33 @@ def test_referral_engine(monkeypatch):
     assert store_mod.get_user(rid)["referred_by"] == uid
     assert any("Referral signed up" in n["title"]
                for n in store_mod.list_notifications(uid))
-    # Their first checkout carries the 100%-off-first-month coupon.
+    # Their first checkout carries the 50%-off-first-month coupon.
     friend.post("/billing/checkout", data={"plan": "artist"})
+    coupon = [f for p, f in calls if p == "/v1/coupons"][-1]
+    assert coupon["percent_off"] == "50" and coupon["duration"] == "once"
     sess = [f for p, f in calls if p == "/v1/checkout/sessions"][-1]
     assert sess.get("discounts[0][coupon]") == "coup_free_month"
-    # Conversion webhook: Ray activates, referrer's Stripe balance is credited.
+    # Ray activates. Nothing is credited on the checkout form itself.
     store_mod.set_stripe_ids(uid, "cus_referrer", "sub_referrer")
     payload = _json.dumps({"type": "checkout.session.completed", "data": {"object": {
         "client_reference_id": rid, "customer": "cus_ray", "subscription": "sub_ray",
-        "metadata": {"plan": "artist"}}}})
+        "payment_status": "paid", "metadata": {"plan": "artist"}}}})
     app_obj.test_client().post("/webhooks/stripe", data=payload,
                                headers=_stripe_sig(payload),
+                               content_type="application/json")
+    assert store_mod.get_user(rid)["ref_credited"] == 0
+    # Ray's first paid invoice credits the referrer half of the referrer's
+    # own month (the demo is Label, $199).
+    paid = _json.dumps({"type": "invoice.paid", "data": {"object": {
+        "customer": "cus_ray", "amount_paid": 1450}}})
+    app_obj.test_client().post("/webhooks/stripe", data=paid,
+                               headers=_stripe_sig(paid),
                                content_type="application/json")
     assert store_mod.get_user(rid)["ref_credited"] == 1
     credit_paths = [p for p, f in calls if "balance_transactions" in p]
     assert credit_paths and "cus_referrer" in credit_paths[-1]
     credit_fields = [f for p, f in calls if "balance_transactions" in p][-1]
-    assert credit_fields["amount"] == "-900"
+    assert credit_fields["amount"] == "-9950"
     assert any("Referral credit applied" in n["title"]
                for n in store_mod.list_notifications(uid))
     assert store_mod.referral_stats(uid)["converted"] >= 1
@@ -4283,7 +4293,7 @@ def test_referral_engine(monkeypatch):
                                "password": "solopass1"})
     sid = store_mod.get_user_by_email("solo-ref@example.net")["id"]
     assert store_mod.get_user(sid)["referred_by"] == uid  # normal attribution
-    store_mod.set_kv("stripe_ref_coupon", "")  # shared-DB cleanup
+    store_mod.set_kv("stripe_ref_coupon_50", "")  # shared-DB cleanup
 
 
 def test_light_studio():
