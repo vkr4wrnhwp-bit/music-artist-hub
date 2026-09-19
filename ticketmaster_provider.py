@@ -80,12 +80,29 @@ def _key():
     return (os.environ.get("TICKETMASTER_API_KEY") or "").strip()
 
 
+def enabled():
+    """Is Ticketmaster switched on? Off on every deployed service unless
+    TICKETMASTER_ENABLED=on (owner, 2026-09-18: "off", until Ticketmaster
+    confirms a paid product may use the Discovery API). On a laptop and in
+    the tests it follows the key, the same arrangement as the sign-up door."""
+    mode = (os.environ.get("TICKETMASTER_ENABLED") or "").strip().lower()
+    if mode in ("on", "off"):
+        return mode == "on"
+    return not os.environ.get("RENDER")
+
+
+def switched_off():
+    """A key is present but the switch is off, so the page says nothing
+    about connecting one."""
+    return bool(_key()) and not enabled() and not sandbox.active()
+
+
 def configured():
     # A sandbox deployment reports no provider even when a key is
     # present: the whole app already knows how to behave without one.
     if sandbox.active():
         return False
-    return bool(_key())
+    return bool(_key()) and enabled()
 
 
 # The last time Ticketmaster refused the key outright, kept for the run

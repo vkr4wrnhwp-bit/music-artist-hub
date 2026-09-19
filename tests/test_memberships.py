@@ -47,7 +47,10 @@ def test_the_suite_door_refuses_and_says_why(monkeypatch):
     assert r.status_code == 402 and "REACH opens with Pro" in r.get_data(as_text=True)
     r = artist.get("/suites/go/the-room")
     body = r.get_data(as_text=True)
-    assert r.status_code == 402 and "The Room runs on credits" in body and "/billing#credits" in body
+    # Credit packs are off sale (owner, 2026-09-18), so the page no longer
+    # sends anyone to buy one; Label is the way in.
+    assert r.status_code == 402 and "The Room runs on credits" in body
+    assert "The Label membership includes credits every month" in body and "buy a credit pack" not in body
     pro, _ = _client("pro")
     assert pro.get("/suites/go/reach").status_code == 302
     assert artist.get("/royalties").status_code == 200

@@ -14,7 +14,10 @@
 </div>
 {% endif %}
 {% if error %}<p class="to-sub" id="err">{{ sb.lamp(error, "warn") }}</p>{% endif %}
-{% if not live %}
+{% if not sales_open %}
+{#- The owner's switch (sales_switch): off means fans email for details. -#}
+<div class="to-panel" id="closed"><div class="to-eyebrow">By arrangement</div><p class="to-sub">{{ sales_closed }}</p></div>
+{% elif not live %}
 <div class="to-panel" id="closed"><div class="to-eyebrow">Not open yet</div><p class="to-sub">No payment provider is connected on this deployment, so nothing can be bought here yet.</p></div>
 {% endif %}
 {% if offers %}
@@ -29,7 +32,7 @@
     <div class="to-figs"><span class="to-fig"><span>price</span><b>{{ money(o['price_cents']) }}</b></span>{% if o['capacity'] %}<span class="to-fig"><span>left</span><b>{{ o['left'] }}</b></span>{% endif %}</div>
     <div class="to-buy">
     {% if o['sold_out'] %}{{ sb.lamp("sold out", "crit") }}
-    {% elif live %}
+    {% elif live and sales_open %}
       <form method="post" action="/vip/{{ token }}/buy" class="to-form">
         <input type="hidden" name="offer_id" value="{{ o['id'] }}">
         <label class="to-field"><span>Name</span><input name="name" required maxlength="120" autocomplete="name"></label>

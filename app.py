@@ -205,7 +205,7 @@ from discover_config import get_discover_data, like_track, follow_artist
 import coverage_check
 import music_apis
 from music_apis import (itunes_search, odesli_lookup, ordered_platform_links,
-                        deezer_track_metadata, musicbrainz_credits, press_mentions)
+                        deezer_track_metadata, press_mentions)
 import links_engine
 import links_store as mls
 import press_store
@@ -220,6 +220,7 @@ import bandsintown_provider as bandsintown
 import tour_dates as tour_dates_feed
 import capital_engine
 import stripe_provider as stripe_billing
+import sales_switch
 import royalty_types
 import insights_engine
 import email_provider as emailer
@@ -731,17 +732,30 @@ def create_app():
         user = current_user()
         if not user:
             return redirect(url_for("login", next=request.path))
+        is_owner = _is_owner_email(user.get("email"))
+        names = {"the-room": "The Room", "noise-lab": "Noise Lab", "reach": "REACH",
+                 "tour": "Tour", "motion": "Motion"}
+        # A suite marked Soon is still being finished: only the owner goes in.
+        if key in hub_defs.suites_pending() and not is_owner:
+            return render_template("suite_soon.html", suite_name=names.get(key, key),
+                                   **build_dashboard_context())
+        # Motion keeps one workspace per deployment until each account gets
+        # its own, so the shared demo logins would see other people's
+        # projects there. Kept out until then (2026-09-18 launch check).
+        if key == "motion" and _is_demo_email(user.get("email") or ""):
+            return render_template("suite_soon.html", suite_name="Motion", demo=True,
+                                   **build_dashboard_context())
         # The membership decides which suites open (owner, 2026-09-17). The
         # creation suites spend credits: Label carries them, anybody else
         # gets in by holding some.
         wallet = _wallet(user)
         plan = user.get("plan") or "artist"
         # The owner's own account opens every door whatever plan it sits on.
-        if not _is_owner_email(user.get("email")) and not plans.suite_open(plan, key, wallet["total"]):
+        if not is_owner and not plans.suite_open(plan, key, wallet["total"]):
             need = plans.suite_access(key)
             return render_template("upgrade.html", required="label" if need == "credits" else need,
                                    needs_credits=(need == "credits"),
-                                   suite_name={"the-room": "The Room", "noise-lab": "Noise Lab", "reach": "REACH", "tour": "Tour", "motion": "Motion"}.get(key, key),
+                                   suite_name=names.get(key, key),
                                    plans_list=plans.PLANS, **build_dashboard_context()), 402
         if not suite_sso.configured():
             return redirect(suite_sso.suite_base(key) + suite_sso.suite_home(key))
@@ -2513,6 +2527,30 @@ def create_app():
             return redirect(back)
         return redirect(back)
 
+    def _mlc_credits(isrc):
+        """Writers and publishers for a recording from The MLC, by ISRC, or
+        None: no ISRC, no MLC login on this deployment, no work linked, or
+        The MLC did not answer. The track is saved either way."""
+        isrc = (isrc or "").strip().upper()
+        if not isrc:
+            return None
+        import signal_providers as sp
+        adapter = sp.mlc_adapter()
+        if not adapter.configured():
+            return None
+        try:
+            works = adapter.lookup(isrc=isrc)["works"]
+        except sp.ProviderError:
+            return None
+        if not works:
+            return None
+        work = works[0]
+        writers = [w.get("name") for w in work.get("writers") or [] if w.get("name")]
+        publishers = [p.get("name") for p in work.get("publishers") or [] if p.get("name")]
+        if not writers and not publishers:
+            return None
+        return {"writers": writers, "publishers": publishers, "credits_source": "The MLC"}
+
     @app.route("/catalog/add", methods=["POST"])
     def catalog_add():
         user = current_user()
@@ -2528,8 +2566,13 @@ def create_app():
         # The track stays saved even when the lookup finds nothing.
         meta = deezer_track_metadata(track.get("title"), track.get("artist"))
         if meta:
-            # Second hop: the ISRC unlocks songwriter/publisher credits.
-            credits = musicbrainz_credits(meta.get("isrc"))
+            # Second hop: the ISRC unlocks songwriter/publisher credits,
+            # from The MLC's register. This used MusicBrainz, whose free
+            # service is for non-commercial use, on every paying artist's
+            # add; the owner switched it to The MLC, which Street Banker
+            # already licenses and which carries IPIs and shares
+            # (2026-09-18: "switch to mlc", "brainz off for customers").
+            credits = _mlc_credits(meta.get("isrc"))
             if credits:
                 meta.update(credits)
             store.set_catalog_track_meta(user["id"], track_id, meta)
@@ -4574,10 +4617,13 @@ def create_app():
 
     @app.route("/billing/credits", methods=["POST"])
     def billing_credits():
-        """Buy a credit pack. Any membership can; bought credits never expire."""
+        """Buy a credit pack. Any membership can; bought credits never expire.
+        Closed while plans.CREDIT_PACKS_ON_SALE is off (owner, 2026-09-18)."""
         user = current_user()
         if user is None:
             return login_required_redirect()
+        if not plans.CREDIT_PACKS_ON_SALE:
+            return redirect("/billing#credits")
         pack = plans.CREDIT_PACKS.get(request.form.get("pack") or "")
         if pack is None or not stripe_billing.configured() or _demo_locked_account():
             return redirect("/billing#credits")
@@ -5245,6 +5291,8 @@ def create_app():
                                          * (club["price_cents"] if club else 0) / 100, 2),
                                club_url="/club/" + slug,
                                stripe_live=stripe_billing.configured(),
+                               sales_open=sales_switch.is_on(),
+                               sales_closed=sales_switch.CLOSED,
                                **build_dashboard_context())
 
     @app.route("/club/<slug>")
@@ -5278,7 +5326,9 @@ def create_app():
         return render_template("club_public.html", club=club, slug=slug,
                                artist_name=prof["user_name"],
                                joined=bool(request.args.get("joined")),
-                               stripe_live=stripe_billing.configured())
+                               stripe_live=stripe_billing.configured(),
+                               sales_open=sales_switch.is_on(),
+                               sales_closed=sales_switch.CLOSED)
 
     @app.route("/club/<slug>/join", methods=["POST"])
     def club_join(slug):
@@ -5287,7 +5337,8 @@ def create_app():
         if prof is None or club is None or not club["active"]:
             abort(404)
         email = (request.form.get("email") or "").strip().lower()
-        if "@" not in email or not stripe_billing.configured():
+        # Paid joins wait for the owner's switch (sales_switch).
+        if "@" not in email or not stripe_billing.configured() or not sales_switch.is_on():
             return redirect("/club/" + slug)
         session_obj = stripe_billing.create_club_checkout(
             prof["user_id"], club["name"], club["price_cents"], email, slug,
@@ -8537,6 +8588,7 @@ def create_app():
                                profile=profile, pulse=pulse, deezer=deezer,
                                metrics=metrics, youtube=youtube,
                                snaps=snaps, peers=peers, my_delta7=my_delta7,
+                               pulse_can_change=_pulse_change_allowed(user),
                                milestone=milestone,
                                link_stats={"pageviews": pageviews, "clicks": clicks,
                                            "presaves": presaves},
@@ -8582,6 +8634,19 @@ def create_app():
         return jsonify({"ok": True, "results": results,
                         "refused": refused or ""})
 
+    # Every new Pulse artist costs about two dozen Soundcharts calls from the
+    # owner's monthly allowance, and nothing capped how often an account
+    # could switch (2026-09-18 check: 12 switches, 276 calls). Owner, the
+    # same day: "make pulse only changable on pro accounts". Every account
+    # picks its artist once; changing it, or clearing it to pick again,
+    # comes with Pro and Label. The owner is never held.
+    _PULSE_LOCKED = ("Changing your Pulse artist comes with the Pro membership. "
+                     "Picked the wrong artist? Email hello@streetbankermusic.com.")
+
+    def _pulse_change_allowed(user):
+        return (_is_owner_email(user.get("email"))
+                or (user.get("plan") or "artist") in ("pro", "label"))
+
     @app.route("/pulse/select", methods=["POST"])
     def pulse_select():
         user = current_user()
@@ -8592,6 +8657,9 @@ def create_app():
         name = (p.get("name") or "").strip()[:120]
         if not artist_id or not name:
             return jsonify({"ok": False, "error": "Pick an artist from the search results."}), 400
+        current = store.get_pulse_profile(user["id"])
+        if current and current["artist_id"] != artist_id and not _pulse_change_allowed(user):
+            return jsonify({"ok": False, "error": _PULSE_LOCKED}), 402
         store.save_pulse_profile(user["id"], artist_id, name,
                                  (p.get("image") or "").strip()[:300])
         return jsonify({"ok": True})
@@ -8652,6 +8720,9 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in first."}), 401
+        # Clearing is how a change starts, so it follows the same rule.
+        if store.get_pulse_profile(user["id"]) and not _pulse_change_allowed(user):
+            return jsonify({"ok": False, "error": _PULSE_LOCKED}), 402
         store.clear_pulse_profile(user["id"])
         return jsonify({"ok": True})
 
@@ -11209,6 +11280,7 @@ def create_app():
                 _claim_credit_pack(paid)
         ctx["wallet"] = _wallet(user)
         ctx["credit_packs"] = [(k,) + v for k, v in plans.CREDIT_PACKS.items()]
+        ctx["credit_packs_on_sale"] = plans.CREDIT_PACKS_ON_SALE
         ctx["credit_history"] = store.credit_history(user["id"], 12)
         return render_template("billing.html", active_page="billing", **ctx)
 
@@ -11683,6 +11755,8 @@ def create_app():
                                demo_locked_accounts=(store.list_demo_locked()
                                                      if user and _is_owner_email(user.get("email")) else []),
                                is_owner=bool(user and _is_owner_email(user.get("email"))),
+                               online_sales_on=sales_switch.is_on(),
+                               online_sales_contact=sales_switch.CONTACT,
                                **build_dashboard_context())
 
     def _page_groups():
@@ -11727,6 +11801,16 @@ def create_app():
                 except Exception:          # noqa: BLE001 - rows are gone; do not fail the reset
                     pass
         return redirect("/settings?reset=1#start-over")
+
+    @app.route("/admin/online-sales", methods=["POST"])
+    def admin_online_sales():
+        """The owner's switch for online VIP packages and paid fan club
+        joins (sales_switch). Owner only; a 404 for everyone else."""
+        user, deny = _owner_or_404()
+        if deny:
+            return deny
+        sales_switch.set_on(request.form.get("on") == "1")
+        return redirect("/settings#online-sales")
 
     @app.route("/admin/invite", methods=["POST"])
     def admin_invite():

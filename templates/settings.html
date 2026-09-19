@@ -279,6 +279,16 @@
         {% endif %}
       </section>
 
+      <section id="online-sales" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
+        <h2 class="sb-label text-sb-gold-bright">Online sales</h2>
+        <p class="mt-2 text-sm text-gray-300">Owner only. Artists' VIP packages and paid fan club joins take their fans' money into your Stripe account, and you settle with the artist by hand. While this is off, artists can still set them up, and a fan who opens the page is asked to email {{ online_sales_contact }} for details.</p>
+        <p class="mt-3 text-sm font-bold {{ 'text-green-400' if online_sales_on else 'text-amber-300' }}">Online sales are {{ 'on' if online_sales_on else 'off' }}.</p>
+        <form method="post" action="/admin/online-sales" class="mt-3">
+          <input type="hidden" name="on" value="{{ '0' if online_sales_on else '1' }}">
+          <button type="submit" class="sb-btn {{ 'sb-btn-secondary' if online_sales_on else 'sb-btn-primary' }} w-full">{{ 'Turn online sales off' if online_sales_on else 'Turn online sales on' }}</button>
+        </form>
+      </section>
+
       <section id="invite-someone" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
         <h2 class="sb-label text-sb-gold-bright">Invite someone</h2>
         <p class="mt-2 text-sm text-gray-300">Owner only. {% if signup_open %}Sign-up is open on this deployment, so anyone can register.{% else %}Sign-up is closed: the only way to get an account is an invitation from here.{% endif %} An invitation is a link for one address, on one plan, and it works once. Copy it and send it yourself.</p>

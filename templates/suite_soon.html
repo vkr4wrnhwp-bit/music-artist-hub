@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}{{ suite_name }} - Street Banker{% endblock %}
+
+{#- A suite that is not open to this account yet: one marked Soon on the
+    strip (owner, 2026-09-18, Noise Lab: "soon as we need to finish it"), or
+    Motion for the shared demo logins until every account has its own
+    Motion workspace. Said plainly, with the way back. -#}
+{% block content %}
+<div class="mx-auto max-w-[640px] py-10 text-center">
+  <div class="sb-label text-sb-gold">Street Banker</div>
+  <h1 class="sb-h1 mt-2">{% if demo %}{{ suite_name }} is not in the demo{% else %}{{ suite_name }} is coming soon{% endif %}</h1>
+  <p class="mx-auto mt-3 max-w-lg text-sm text-gray-300">{% if demo %}{{ suite_name }} opens for members from their own account. The shared demo login does not go in.{% else %}{{ suite_name }} is being finished. It will open here, from this same button, when it is ready.{% endif %}</p>
+  <a href="/command-center" class="sb-btn sb-btn-secondary mt-6 inline-block">Back to the Command Center</a>
+</div>
+{% endblock %}

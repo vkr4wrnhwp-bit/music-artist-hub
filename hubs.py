@@ -276,9 +276,16 @@ def is_away(href):
 # hub of Street Banker's own pages.
 SUITE_ORDER = ("the-room", "noise-lab", "reach", "royalty-sweep", "tour-suite", "company", "artifacts", "masterclip")
 
-# The strip entries that are waiting for an address; everything else is live.
+# Suites that have an address but are not open to members yet: they keep
+# their place and their link on the strip, marked Soon, and the door sends
+# everyone but the owner to a Coming soon page (owner, 2026-09-18, on Noise
+# Lab: "soon as we need to finish it").
+SUITES_SOON = {"noise-lab"}
+
+
+# The strip entries that are waiting; everything else is live.
 def suites_pending():
-    return {row[0] for row in TOOL_SUITES_PENDING}
+    return {row[0] for row in TOOL_SUITES_PENDING} | SUITES_SOON
 
 
 TOOL_SUITES_OWN = (

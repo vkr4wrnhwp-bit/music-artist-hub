@@ -43,6 +43,12 @@
     </div>
   </div>
 
+  {% if not sales_open %}
+  {#- The owner's switch (sales_switch): paid joins wait for it. -#}
+  <section class="rounded-2xl border border-amber-500/30 bg-sb-surface-2 p-5">
+    <p class="text-sm text-gray-200">Street Banker has paid fan club joins switched off for now. You can set the club up; fans who open its page are told: {{ sales_closed }}</p>
+  </section>
+  {% endif %}
   {% if not stripe_live %}
   <section class="rounded-2xl border border-amber-500/30 bg-sb-surface-2 p-5">
     <p class="text-sm text-gray-200">Memberships charge through Stripe, which isn't configured on this server — the club can be set up but can't take joins yet. Nothing here pretends otherwise.</p>

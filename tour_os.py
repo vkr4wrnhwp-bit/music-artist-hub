@@ -51,6 +51,7 @@ import tour_advance_mail as tam
 import tour_engine as eng
 import tour_store as ts
 import tour_tickets as tickets
+import sales_switch
 import venue_geo
 import venue_photos
 
@@ -1313,6 +1314,7 @@ def home(user, tour, viewer, tour_id):
     # missing rather than showing a button that could do nothing.
     ctx["tickets_sources"] = _ticket_sources()
     ctx["tickets_ready"] = any(ctx["tickets_sources"].values())
+    ctx["tm_switched_off"] = ticketmaster.switched_off()
     ctx["tickets_report"] = session.pop(_tickets_report_key(tour_id), None) if can(viewer, "edit") else None
     ctx["tickets_line"] = tickets.report_line(ctx["tickets_report"]) if ctx["tickets_report"] else ""
     return render_template("tour/home.html", **ctx)
@@ -3187,7 +3189,8 @@ def _vip_context(tour, show):
             "vip_ledger": ts.vip_sales_ledger(tour["id"], show["id"]),
             "vip_sales": ts.list_vip_sales(tour["id"], show["id"]),
             "vip_fee_pct": vip_fee_pct(), "vip_stripe_live": stripe_provider.configured(),
-            "vip_mail_off": _vip_mail_off(), "vip_includes": vip_includes}
+            "vip_mail_off": _vip_mail_off(), "vip_includes": vip_includes,
+            "vip_sales_open": sales_switch.is_on(), "vip_sales_closed": sales_switch.CLOSED}
 
 
 def _owner_email(tour):
@@ -3324,14 +3327,16 @@ def vip_public(token):
         artist=tour.get("artist_name") or tour["name"], includes=vip_includes,
         money=lambda cents: "%s %.2f" % (cur, cents / 100.0),
         venue=ts.get_venue(tour["user_id"], show["venue_id"]) if show.get("venue_id") else None,
-        fmt_day=eng.fmt_day_long, fmt_time=eng.fmt_time)
+        fmt_day=eng.fmt_day_long, fmt_time=eng.fmt_time,
+        sales_open=sales_switch.is_on(), sales_closed=sales_switch.CLOSED)
 
 
 @bp.route("/vip/<token>/buy", methods=["POST"])
 def vip_buy(token):
     tour, show = _vip_link_or_404(token)
     back = "/vip/" + token
-    if not stripe_provider.configured():
+    # Online VIP waits for the owner's switch (sales_switch).
+    if not stripe_provider.configured() or not sales_switch.is_on():
         return redirect(back + "?err=closed")
     offer = ts.get_vip_offer(tour["id"], request.form.get("offer_id") or "")
     if not offer or not offer["active"] or offer["show_id"] != show["id"]:

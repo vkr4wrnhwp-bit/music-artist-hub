@@ -77,10 +77,8 @@ ENGRAVED = {
 }
 
 CREDIT_NOTE = (
-    "The Room, Noise Lab and Motion spend credits, because every render "
-    "costs real compute. One wallet covers all three. Label includes "
-    "credits every month, any membership can buy a pack, and bought "
-    "credits never expire.")
+    "The Room and Motion run on credits, because every render costs real "
+    "compute. Label includes credits every month. Noise Lab is coming soon.")
 
 
 def enabled():

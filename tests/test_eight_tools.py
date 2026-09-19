@@ -68,8 +68,9 @@ def test_each_one_says_what_it_is_and_what_opens_it(section):
     for tool in cfg.get_eight_tools_config()["tools"]:
         assert 'data-desc="%s"' % tool["desc"] in section, tool["name"]
         assert 'data-opens="%s"' % tool["opens"] in section, tool["name"]
-    # Company and Artifacts are marked, not quietly sold.
-    assert section.count('data-opens="Soon"') == 2
+    # Company, Artifacts and (owner, 2026-09-18) Noise Lab are marked, not
+    # quietly sold.
+    assert section.count('data-opens="Soon"') == 3
 
 
 def test_it_is_one_photograph_and_one_description(section):

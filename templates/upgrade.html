@@ -8,7 +8,7 @@
     <div class="sb-label text-sb-gold">Street Banker</div>
     {% if needs_credits %}
     <h1 class="sb-h1 mt-2">{{ suite_name }} runs on credits</h1>
-    <p class="mx-auto mt-2 max-w-lg text-sm text-gray-300">Every render in {{ suite_name }} costs real compute, so it spends credits. The Label membership includes credits every month, and any membership can <a href="/billing#credits" class="font-bold text-sb-gold-bright underline">buy a credit pack</a>. Bought credits never expire.</p>
+    <p class="mx-auto mt-2 max-w-lg text-sm text-gray-300">Every render in {{ suite_name }} costs real compute, so it runs on credits. The Label membership includes credits every month.</p>
     {% else %}
     <h1 class="sb-h1 mt-2">{% if suite_name %}{{ suite_name }} opens with {{ plan_names.get(required, required) }}{% else %}This is a {{ plan_names.get(required, required) }} feature{% endif %}</h1>
     {% endif %}

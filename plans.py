@@ -16,11 +16,14 @@ PLANS = [
     ("artist", "Artist", "$29/mo", "Street Banker, Royalty Sweep and Artifacts.",
      ["Street Banker: links, rollouts, press kit, fan tools",
       "Royalty Sweep: statements, recovery, catalog, valuation",
-      "Artifacts", "Credit packs open The Room, Noise Lab and Motion"]),
+      "Artifacts (coming soon)"]),
     ("pro", "Pro", "$79/mo", "Everything in Artist plus REACH, Tour and Company.",
-     ["REACH", "Tour", "Company", "Consulting hours (with ambassadors)"]),
+     ["REACH", "Tour", "Company (coming soon)",
+      # Owner, 2026-09-18, replacing "Consulting hours (with ambassadors)",
+      # which nothing stood behind.
+      "Consulting with the founder at a member rate: $50 for 30 minutes, $75 for an hour"]),
     ("label", "Label", "$199/mo", "Everything, with credits included every month.",
-     ["The Room, Noise Lab and Motion", "Credits included every month",
+     ["The Room and Motion", "Noise Lab (coming soon)", "Credits included every month",
       "Roster seats and team permissions", "Partner reports"]),
 ]
 PLAN_NAMES = {key: name for key, name, _, _, _ in PLANS}
@@ -93,7 +96,11 @@ SUITE_ACCESS = {
 LABEL_MONTHLY_CREDITS = 1000
 
 # Packs any membership can buy: key -> (credits, cents, name). Bought credits
-# never expire.
+# never expire. NOT ON SALE (owner, 2026-09-18: "hide them until we know what
+# the credits actually cost"): nothing spends a credit per render yet, so a
+# pack would be a permanent unlock sold as a metered one. Label's included
+# credits still open The Room and Motion. Turn this on once burn rates exist.
+CREDIT_PACKS_ON_SALE = False
 CREDIT_PACKS = {
     "pack-500": (500, 1500, "500 credits"),
     "pack-2000": (2000, 5000, "2,000 credits"),

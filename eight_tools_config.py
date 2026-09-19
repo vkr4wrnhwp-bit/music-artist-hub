@@ -25,7 +25,7 @@ SUPPORT = "Everything behind the artist, working together."
 # (key, mark, name, what it does, colour, what opens it)
 TOOLS = [
     ("the-room", "TR", "The Room", "Write, build and finish songs.", "#FF7A1A", "Credits"),
-    ("noise-lab", "NL", "Noise Lab", "Build your own effects and pedal chains for playing live.", "#F2E600", "Credits"),
+    ("noise-lab", "NL", "Noise Lab", "Build your own effects and pedal chains for playing live.", "#F2E600", "Soon"),
     ("reach", "RE", "REACH", "Find your audience, and the people who can move it.", "#1E9BFF", "Pro"),
     ("royalty-sweep", "RS", "Royalty Sweep", "Rights, royalties and clarity: the money desk.", "#19E68C", "Artist"),
     ("tour-suite", "TO", "Tour", "Route it, advance it, play it, settle it.", "#FF2D2D", "Pro"),

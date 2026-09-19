@@ -80,11 +80,11 @@ ENTRIES = [
     {
         "id": "credits",
         "question": "How do credits work?",
-        "answer": ("The Room, Noise Lab and Motion cost real computing time every time "
-                   "they make something, so they spend credits instead of being folded "
-                   "into a flat price. One wallet covers all three. A Label membership "
-                   "includes credits each month and those lapse when the next month's "
-                   "arrive. Credits you buy in a pack never expire and are spent last."),
+        "answer": ("The Room and Motion cost real computing time every time they make "
+                   "something, so they run on credits instead of being folded into a "
+                   "flat price. A Label membership includes credits each month, and "
+                   "those lapse when the next month's arrive. Credit packs are not on "
+                   "sale yet. Noise Lab is coming soon."),
         "where": [("Credits", "/billing#credits")],
         "tags": "credits credit pack wallet balance run out spend the room noise lab motion",
     },
