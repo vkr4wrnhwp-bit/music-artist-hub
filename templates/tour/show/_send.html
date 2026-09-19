@@ -50,6 +50,16 @@
         {% if not send_files %}
           <p class="to-sub">No rider or tech files on this show or the tour yet. Attach them under <a href="?tab=production">Production</a> and they are offered here.</p>
         {% endif %}
+        {#- A press kit saved to the Vault, attached as the file it is
+            (owner, 2026-09-19: "from the vault you can send and attach
+            it to the advance"). Off by default: a venue advance is
+            about the show, and the kit goes when the artist wants it. -#}
+        {% for k in press_kits %}
+          {{ m.check('attach', k['label'] ~ ' (web page, from the Vault)', on=False, value='kit:' ~ k['id']) }}
+        {% endfor %}
+        {% if press_kits is defined and not press_kits %}
+          <p class="to-sub">No press kit saved to the Vault yet. Save one from the <a href="/epk">Press Office</a> and it is offered here.</p>
+        {% endif %}
       </div>
       <p class="to-muted">Attachments are capped at 18 MB together; anything over that is left out and named, and the links below still carry it.</p>
 

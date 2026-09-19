@@ -4,7 +4,9 @@ Three private dialects of the same instrument - a track with a fill sized
 by an inline width - lived in tour-os.css and signal.css beside the one in
 app-chrome.css. They are gone; the pages draw the shared .sb-meter, and
 Signal, which sits on ivory, gets the meter's paper variant rather than a
-copy of its own.
+copy of its own. (Signal moved from ivory to the app's black and gold on
+2026-09-19; the paper variant of the meter stays in app-chrome.css for the
+report sheets, but Signal no longer wears it.)
 """
 import io
 import os
@@ -64,10 +66,14 @@ def test_the_fill_is_block_level_or_every_ladder_reads_empty():
     assert re.search(r"\.sb-meter-fill \{\s*display: block;", css)
 
 
-def test_signal_loads_the_chrome_sheet_and_declares_paper():
+def test_signal_loads_the_chrome_sheet_on_the_dark_ground():
+    # Signal was ivory (sb-on-paper) until the owner's 2026-09-19 ruling:
+    # black and gold like the rest of the app. The shared meter now draws
+    # in its dark default, so the paper class must NOT be on the body.
     shell = _read("templates/signal/_shell.html")
     assert "/static/css/app-chrome.css?v=" in shell
-    assert 'class="sg-body sb-on-paper"' in shell
+    assert 'class="sg-body"' in shell
+    assert "sb-on-paper" not in shell
     # signal.css must come after, so its cell sizing wins.
     assert shell.index("app-chrome.css") < shell.index("signal.css")
 
@@ -111,6 +117,6 @@ def test_signal_scores_draw_on_the_shared_meter(flask_app):
     org = sstore.default_org()
     sstore.upsert_member(org["id"], email, "Scout", "owner", user_id=user["id"])
     body = client.get("/signal").get_data(as_text=True)
-    assert 'class="sg-body sb-on-paper"' in body
+    assert 'class="sg-body"' in body and "sb-on-paper" not in body
     if "sg-score" in body:                     # the board lists scored artists
         assert 'class="sb-meter' in body and "sg-bar" not in body

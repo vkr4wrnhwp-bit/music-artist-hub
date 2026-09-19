@@ -2,7 +2,7 @@
 {% import "_sb.html" as sb %}
 {% import "_gear.html" as gear %}
 
-{% block title %}Statements - Royalty Sweep{% endblock %}
+{% block title %}{{ 'Tax' if view == 'tax' else 'Statements' }} - Royalty Sweep{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/meters.css?v=2">
   <link rel="stylesheet" href="/static/css/statements.css?v=4">
@@ -18,6 +18,22 @@
 {% set d = desk %}
 
 {% block content %}
+{#- Tax is a view of this page (owner, 2026-09-19: "move tax center with
+    statements"); in the rooms layout the room's cards are the tabs. -#}
+{% if not rooms_nav %}{{ sb.subnav([("/statements", "Statements"), ("/statements?view=tax", "Tax")],
+             "/statements?view=tax" if view == "tax" else "/statements") }}{% endif %}
+{% if view == "tax" %}
+{% call sb.plate(none, [900, 1400, 1672],
+                 "Street Banker · Royalty Sweep", "Tax",
+                 "Your royalty income organized by tax year, straight from the statements you uploaded: the numbers your accountant asks for in April.") %}
+  <a href="/statements" class="sb-btn sb-btn-secondary">Statements</a>
+  {% if tax_years %}<a href="/reports/royalty-report/download.csv" class="sb-btn sb-btn-secondary">Download CSV</a>{% endif %}
+{% endcall %}
+
+<div class="mx-auto max-w-[1000px] space-y-5">
+  {% include "statements_tax.html" %}
+</div>
+{% else %}
 {% call sb.plate(none, [900, 1400, 1672],
                  "Street Banker · Royalty Sweep", "Statements",
                  "Your distributor, PRO and MLC statements, read line by line. Every figure on this page is computed from the files you uploaded; an estimate is marked as one.") %}
@@ -25,6 +41,7 @@
   {#- After an upload the next move is the findings, then the desk that
       reads them (audit, 2026-09-15: the page had no way on). -#}
   {% if a and (a.unmatched_revenue or a.coverage_gaps) %}<a href="/recovery" class="sb-btn sb-btn-primary">See the findings on Recovery</a>{% endif %}
+  <a href="/statements?view=tax" class="sb-btn sb-btn-secondary">Tax</a>
   <a href="/royalties" class="sb-btn sb-btn-secondary">Royalties</a>
 {% endcall %}
 
@@ -352,4 +369,5 @@
   </section>
   {% endif %}
 </div>
+{% endif %}
 {% endblock %}

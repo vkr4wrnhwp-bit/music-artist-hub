@@ -10,7 +10,7 @@
 
 {% block content %}
 {#- In the rooms layout the room's cards are the tabs (owner, 2026-09-15: "remove the double tabs"). -#}
-{% if not rooms_nav %}{{ sb.subnav([("/press-desk", "Desk"), ("/press-desk/contacts", "Media list"), ("/press-desk/announcements", "Announcements"), ("/press-desk/coverage", "Coverage"), ("/epk", "Press kit"), ("/artist-profile", "One-sheet")], "/epk", label="Press") }}{% endif %}
+{% if not rooms_nav %}{{ sb.subnav([("/press-desk", "Desk"), ("/press-desk/contacts", "Media list"), ("/press-desk/announcements", "Announcements"), ("/press-desk/coverage", "Coverage"), ("/epk", "Press kit")], "/epk", label="Press") }}{% endif %}
 <div id="press-office" class="mx-auto max-w-[1300px] overflow-hidden rounded-2xl bg-sb-ink text-sb-surface-2 shadow-[0_0_60px_rgba(201,162,74,0.1)]">
 
   <!-- ===== Press Office top bar ===== -->
@@ -32,173 +32,24 @@
         {% endif %}
         {% endif %}
         <button type="button" onclick="window.print()" class="rounded-lg bg-sb-surface-2 px-4 py-1.5 text-xs font-bold text-white hover:bg-sb-surface-2/85">Export PDF</button>
+        {% if user %}
+        {#- Save to Vault (owner, 2026-09-19: "The EPK goes to the vault").
+            Files the kit as last saved; a web page, because this server
+            has no PDF engine, and the note below says so. -#}
+        <form method="post" action="/epk/vault-save" class="inline">
+          <button type="submit" id="vault-save-btn" class="rounded-lg border border-sb-gold-deep/50 bg-sb-gold-deep/10 px-4 py-1.5 text-xs font-bold text-sb-gold-deep hover:bg-sb-gold-deep/20" title="Files a dated copy of this kit, as last saved, in your Vault as a web page">Save to Vault</button>
+        </form>
+        {% endif %}
       </div>
     </div>
   </div>
+  {% if just_saved %}
+  <div class="border-b border-sb-gold-deep/30 bg-sb-gold-deep/[0.08] px-6 py-2 text-xs font-semibold text-sb-surface-2" role="status">Saved to your Vault as a web page. This server has no PDF engine, so open the copy and print it to PDF from the browser. From the Vault it can be downloaded, attached to a tour advance, or sent with a press pitch. <a href="/vault" class="font-bold text-sb-gold-deep hover:underline">Open the Vault</a></div>
+  {% endif %}
 
   <div id="epk-layout" class="grid grid-cols-1 gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_330px]">
 
-    <!-- ===== The press kit document (white editorial one-sheet) ===== -->
-    <div id="epk-document" class="rounded-xl border border-sb-surface-2/10 bg-white p-8 shadow-sm">
-
-      {% if e.logo_path %}
-      <div class="flex justify-center pb-6">
-        <img src="{{ e.logo_path }}" alt="{{ e.name }} logo" class="max-h-16 w-auto max-w-[260px] object-contain">
-      </div>
-      {% endif %}
-
-      <!-- Hero -->
-      <header class="flex flex-col gap-6 border-b-2 border-sb-surface-2 pb-8 sm:flex-row sm:items-center">
-        {% if e.photo %}
-        <img id="epk-photo" src="{{ e.photo | media_url }}" alt="{{ e.name }}" class="h-32 w-32 shrink-0 rounded-2xl object-cover shadow-md">
-        {% else %}
-        <span id="epk-photo-fallback" class="grid h-32 w-32 shrink-0 place-items-center rounded-2xl bg-sb-surface-2 text-4xl font-black text-sb-ink">{{ e.initials }}</span>
-        {% endif %}
-        <div class="min-w-0 flex-1">
-          <div class="sb-label text-sb-gold-deep">Official Press Kit</div>
-          <h2 class="mt-1 text-3xl font-black uppercase tracking-tight sm:text-4xl">{{ e.name }}</h2>
-          {# An empty kit says it is empty. It used to say "Synthwave-driven
-             pop for late-night drives" to every artist who had written
-             nothing. #}
-          <p class="mt-2 text-base leading-snug {{ 'text-sb-surface-2/80' if e.profile.tagline else 'text-sb-surface-2/40 italic' }}">
-            {{ e.profile.tagline or 'No tagline yet — add one in the editor.' }}</p>
-          <div class="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
-            {% if e.profile.location %}<span class="rounded-full bg-sb-surface-2 px-3 py-1 text-white">{{ e.profile.location }}</span>{% endif %}
-            {% for g in e.profile.genres %}<span class="rounded-full border border-sb-surface-2/20 px-3 py-1">{{ g }}</span>{% endfor %}
-          </div>
-        </div>
-      </header>
-
-      <!-- Stats -->
-      <section data-section="stats" class="{{ '' if e.sections_on.stats else 'hidden' }} grid grid-cols-2 gap-px border-b border-sb-surface-2/10 bg-sb-surface-2/10 sm:grid-cols-4">
-        {% for s in e.stats %}
-        <div class="bg-white px-2 py-5 text-center">
-          <div class="text-2xl font-black tabular-nums">{{ s.value }}</div>
-          <div class="sb-label mt-1 text-sb-gold-deep">{{ s.label }}</div>
-          <div class="text-xs text-sb-surface-2/50 font-medium">{{ s.sub }}</div>
-        </div>
-        {% endfor %}
-      </section>
-      {# epk_config computes two separate things: stats_are_real (these
-         are the artist's own figures) and stats_are_sample (these are
-         the demo catalogue's, standing in). Reading the sample banner off
-         "not real" made a kit with nothing measured accuse itself of
-         showing somebody else's numbers. #}
-      {% if e.stats_are_sample %}
-      <p class="border-b border-sb-surface-2/10 bg-amber-100 px-4 py-2 text-center text-xs font-semibold text-sb-gold-deep">
-        Sample figures — not your catalog. Upload a royalty statement or add tracks and these switch to your real numbers.
-      </p>
-      {% endif %}
-
-      {# Same order as the published sheet: sound before story.
-         An editor that previews the sections in a different order
-         than the page it publishes is lying to the artist. #}
-      <!-- Top tracks -->
-      <section data-section="tracks" class="{{ '' if e.sections_on.tracks else 'hidden' }} border-b border-sb-surface-2/10 py-7">
-        <h3 class="sb-label text-sb-gold-deep">Top Tracks</h3>
-        <ol class="mt-4 space-y-2">
-          {% for t in e.top_tracks %}
-          <li class="flex items-baseline justify-between gap-4 border-b border-sb-surface-2/5 pb-2 last:border-0">
-            <span class="flex min-w-0 items-baseline gap-3 font-semibold"><span class="w-5 shrink-0 text-right text-sm sb-num text-sb-gold-deep">{{ loop.index }}</span><span class="truncate">{{ t.title }}</span></span>
-            <span class="shrink-0 text-sm sb-num text-sb-surface-2/60">{% if t.streams %}{{ t.streams_compact }} streams{% else %}${{ "{:,.2f}".format(t.earned) }} earned{% endif %}</span>
-          </li>
-          {% endfor %}
-        </ol>
-      </section>
-
-      <!-- Bio -->
-      <section data-section="bio" class="{{ '' if e.sections_on.bio else 'hidden' }} border-b border-sb-surface-2/10 py-7">
-        <h3 class="sb-label text-sb-gold-deep">Biography</h3>
-        <p class="mt-3 max-w-2xl text-base leading-relaxed text-sb-surface-2/85">{{ e.profile.bio }}</p>
-        {% if e.top_platform %}<p class="mt-2 text-xs text-sb-surface-2/55">Strongest platform: <span class="font-bold text-sb-surface-2">{{ e.top_platform }}</span></p>{% endif %}
-      </section>
-
-      <!-- Press -->
-      <section data-section="press" class="{{ '' if e.sections_on.press else 'hidden' }} border-b border-sb-surface-2/10 py-7">
-        <h3 class="sb-label text-sb-gold-deep">Press</h3>
-        <div class="mt-4 grid gap-4 sm:grid-cols-2">
-          {% for q in e.profile.press %}
-          <blockquote class="border-l-2 border-sb-gold-deep pl-4">
-            <p class="text-base font-medium leading-snug">“{{ q.quote }}”</p>
-            <footer class="mt-2 text-xs font-bold uppercase tracking-wide text-sb-surface-2/50">— {{ q.source }}</footer>
-          </blockquote>
-          {% endfor %}
-        </div>
-      </section>
-
-      <!-- Tour dates: the artist's own TOUR first; Bandsintown only when it is the source -->
-      <section data-section="tour" class="{{ '' if e.sections_on.tour else 'hidden' }} border-b border-sb-surface-2/10 py-7">
-        <h3 class="sb-label text-sb-gold-deep">Tour Dates</h3>
-        {% if e.tour_source == 'bandsintown' and e.bandsintown_profile %}<p class="mt-1 text-xs text-sb-surface-2/55 font-medium">{{ "{:,}".format(e.bandsintown_profile.trackers) }} tracking on Bandsintown · {{ e.bandsintown_profile.upcoming }} upcoming</p>{% endif %}
-        {% if e.tour_dates %}
-        <div class="mt-4 divide-y divide-sb-surface-2/10">
-          {% for ev in e.tour_dates %}
-          <div class="flex items-center justify-between gap-3 py-2.5">
-            <div>
-              <div class="text-sm font-bold">{{ ev.venue }}</div>
-              <div class="text-xs text-sb-surface-2/55 font-medium">{{ ev.location }}</div>
-            </div>
-            <div class="text-right">
-              <div class="text-xs font-bold sb-num">{{ ev.date }}</div>
-              {% if ev.tickets %}<a href="{{ ev.tickets }}" target="_blank" rel="noopener" class="text-xs font-bold uppercase tracking-wide text-sb-gold-deep hover:underline">Tickets ↗</a>{% endif %}
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        <p class="mt-3 text-xs text-sb-surface-2/50 font-medium">{% if e.tour_source == 'bandsintown' %}From this artist's Bandsintown listing — their tour in Street Banker holds no confirmed date{% else %}Confirmed dates from this artist's own tour in Street Banker{% endif %}</p>
-        {% else %}
-        <p class="mt-3 text-xs text-sb-surface-2/50">No confirmed dates yet — confirm a date in TOUR and it appears here.</p>
-        {% endif %}
-      </section>
-
-      <!-- Media assets -->
-      <section data-section="media" class="border-b border-sb-surface-2/10 py-7 {{ '' if e.sections_on.media else 'hidden' }}">
-        <h3 class="sb-label text-sb-gold-deep">Media Assets</h3>
-        {% if e.assets or e.video_url %}
-        <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {% for a in e.assets %}
-          <a href="{{ a.path | media_url }}" download class="group block overflow-hidden rounded-xl border border-sb-surface-2/15">
-            <img src="{{ a.path | media_url }}" alt="{{ a.label }}" class="aspect-square w-full object-cover transition-transform group-hover:scale-105">
-            <div class="flex items-center justify-between px-2.5 py-2 text-xs font-bold"><span>{{ a.label }}</span><span class="text-sb-gold-deep">↓</span></div>
-          </a>
-          {% endfor %}
-        </div>
-        {% if e.video_thumb %}
-        <a href="{{ e.video_url }}" target="_blank" rel="noopener" class="group relative mt-4 block aspect-video overflow-hidden rounded-xl border border-sb-surface-2/15">
-          <img src="{{ e.video_thumb }}" alt="Artist video" class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]">
-          <span class="absolute inset-0 grid place-items-center bg-black/25">
-            <span class="grid h-14 w-14 place-items-center rounded-full bg-white/90 shadow-lg"><svg class="h-6 w-6 translate-x-0.5 text-sb-surface-2" viewBox="0 0 20 20" fill="currentColor"><path d="M6 4l10 6-10 6z"/></svg></span>
-          </span>
-        </a>
-        {% elif e.video_url %}
-        <a href="{{ e.video_url }}" target="_blank" rel="noopener" class="mt-4 inline-block rounded-lg border border-sb-surface-2/20 px-4 py-2 text-xs font-bold hover:bg-sb-surface-2/5">Watch video ↗</a>
-        {% endif %}
-        {% else %}
-        <p class="mt-3 text-xs text-sb-surface-2/50">No assets uploaded yet — add press photos, a logo, and cover art in the Media Assets panel.</p>
-        {% endif %}
-      </section>
-
-      <!-- Contact -->
-      <section data-section="contact" class="{{ '' if e.sections_on.contact else 'hidden' }} pt-7">
-        <h3 class="sb-label text-sb-gold-deep">Contact</h3>
-        <div class="mt-4 grid gap-3 sm:grid-cols-3">
-          {% for label, value in [('Booking', e.profile.contact.booking), ('Press', e.profile.contact.press), ('Management', e.profile.contact.management)] %}
-          <div class="rounded-xl border border-sb-surface-2/15 bg-sb-ink p-4">
-            <div class="sb-label text-sb-gold-deep">{{ label }}</div>
-            <div class="mt-1 break-all text-xs font-semibold">{{ value }}</div>
-          </div>
-          {% endfor %}
-        </div>
-        <div class="mt-4 flex flex-wrap gap-2">
-          {% for soc in e.profile.socials %}
-          <span class="inline-flex items-center gap-2 rounded-full border border-sb-surface-2/15 bg-white px-3 py-1.5">
-            {{ logos.platform_logo(soc.logo, "h-4 w-4") }}
-            <span class="text-xs font-semibold">{{ soc.handle }}</span>
-          </span>
-          {% endfor %}
-        </div>
-      </section>
-    </div>
+    {% include "_epk_document.html" %}
 
     <!-- ===== Right rail: sections + editor ===== -->
     <div id="epk-rail" class="space-y-5">
@@ -209,13 +60,13 @@
           <div class="flex items-center justify-between gap-2 rounded-lg border border-sb-surface-2/10 bg-sb-ink px-3 py-2.5">
             <button type="button" class="section-jump min-w-0 flex-1 text-left" data-section="{{ sec.key }}">
               <span class="block truncate text-sm font-semibold">{{ sec.label }}</span>
-              <span class="section-status text-xs font-bold uppercase tracking-wide {{ 'text-green-700' if sec.status == 'Complete' else ('text-sb-surface-2/40' if sec.status == 'Hidden' else 'text-amber-700') }}">{{ sec.status }}</span>
+              <span class="section-status text-xs font-bold uppercase tracking-wide {{ 'text-green-700' if sec.status == 'Complete' else ('text-sb-surface-2/40' if sec.status in ('Hidden', 'Off') else 'text-amber-700') }}">{{ sec.status }}</span>
             </button>
-            <input type="checkbox" class="section-toggle h-4 w-4 shrink-0 accent-sb-gold-deep" data-section="{{ sec.key }}" {{ 'checked' if sec.on }} title="Show on public EPK">
+            <input type="checkbox" class="section-toggle h-4 w-4 shrink-0 accent-sb-gold-deep" data-section="{{ sec.key }}" {{ 'checked' if sec.on }} title="{{ 'On the print and the saved copy only, never the public page' if sec.private else 'Show on public EPK' }}">
           </div>
           {% endfor %}
         </div>
-        {% if user %}<p class="mt-2 text-xs text-sb-surface-2/45 font-medium">Unchecked sections are hidden from your public EPK and PDF. Saved with your draft.</p>{% endif %}
+        {% if user %}<p class="mt-2 text-xs text-sb-surface-2/45 font-medium">Unchecked sections are hidden from your public EPK and PDF. Saved with your draft. For deals is private: it prints and saves, and never appears on the public page or the pitch link.</p>{% endif %}
       </section>
 
       {% if user %}
@@ -401,6 +252,16 @@
             <span class="text-xs font-bold text-white">Show Royalty Sweep stats on public EPK</span>
           </label>
 
+          {#- The two lines the Deal Room one-sheet left to the artist, now
+              here (2026-09-19). Printed only when For deals is switched on. -#}
+          <div class="rounded-lg border border-sb-surface-2/10 bg-sb-ink p-3">
+            <div class="sb-label text-sb-gold-deep">For deals (private)</div>
+            <p class="mt-1 text-xs font-medium text-sb-surface-2/55">The ask and the terms are yours to write; the figures come from your record. Switch the section on under Press Kit Sections to print it.</p>
+            <label class="sr-only" for="f-deal-ask">Proposed ask</label>
+            <input id="f-deal-ask" value="{{ e.deal_ask }}" placeholder="Proposed ask (blank prints 'To discuss')" class="{{ field }}">
+            <label class="sr-only" for="f-deal-terms">Deal terms</label>
+            <textarea id="f-deal-terms" rows="3" placeholder="Deal terms you are open to: term, territory, splits, what stays yours" class="{{ field }} resize-none">{{ e.deal_terms }}</textarea>
+          </div>
           <button type="button" id="save-btn" class="w-full rounded-lg bg-sb-surface-2 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-sb-surface-2/85">Save My EPK</button>
           <div id="save-error" class="hidden text-xs font-semibold text-red-600"></div>
         </div>
@@ -510,13 +371,29 @@
       </section>
       {% endif %}
 
-      <p class="px-1 text-xs text-sb-surface-2/50 font-medium">Stats and top tracks come from the catalog. Export PDF prints the document exactly as toggled.</p>
+      {% if press_kits %}
+      <section class="rounded-xl border border-sb-surface-2/10 bg-white p-5 shadow-sm">
+        <h2 class="sb-label text-sb-surface-2/60">Saved in the Vault</h2>
+        <p class="mt-1 text-xs font-medium text-sb-surface-2/55">Each save is a dated copy. From the Vault it can be downloaded, attached to a tour advance, or sent with a press pitch.</p>
+        <ul class="mt-2 space-y-1.5">
+          {% for k in press_kits[:5] %}
+          <li class="flex items-center justify-between gap-2 rounded-lg border border-sb-surface-2/10 bg-sb-ink px-3 py-2 text-xs">
+            <span class="truncate font-semibold">{{ k.label }}</span>
+            <span class="flex shrink-0 gap-2 font-bold"><a href="{{ k.path | media_url }}" target="_blank" rel="noopener" class="text-sb-gold-deep hover:underline">Open</a><a href="/vault/{{ k.id }}/download" class="text-sb-gold-deep hover:underline">Download</a></span>
+          </li>
+          {% endfor %}
+        </ul>
+        <a href="/vault" class="mt-2 inline-block text-xs font-bold text-sb-gold-deep hover:underline">All copies in the Vault</a>
+      </section>
+      {% endif %}
+
+      <p class="px-1 text-xs text-sb-surface-2/50 font-medium">Stats and top tracks come from the catalog. Export PDF prints the document exactly as toggled; Save to Vault files it as a web page.</p>
     </div>
   </div>
 </div>
 
 <style>
-  /* Preview mode: hide every editing control, keep only the one-sheet. */
+  /* Preview mode: hide every editing control, keep only the document. */
   #press-office.preview-mode #epk-rail { display: none; }
   #press-office.preview-mode #epk-layout { grid-template-columns: minmax(0, 1fr); max-width: 900px; margin: 0 auto; }
   @media print {
@@ -699,6 +576,8 @@
       merch: [0, 1, 2, 3].map((i) => ({ title: v("f-m" + i + "-title"), price: v("f-m" + i + "-price"), url: v("f-m" + i + "-url") })),
       bg_color: v("f-bg"),
       sections_off: [...document.querySelectorAll(".section-toggle:not(:checked)")].map((cb) => cb.dataset.section),
+      sections_on: [...document.querySelectorAll(".section-toggle:checked")].map((cb) => cb.dataset.section),
+      deal_ask: v("f-deal-ask"), deal_terms: v("f-deal-terms"),
     };
     try {
       const res = await fetch("/epk/save", {

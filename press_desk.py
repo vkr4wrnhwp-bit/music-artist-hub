@@ -28,7 +28,10 @@ On sending, which is the part worth being careful about:
   Recipients marked do-not-contact or bounced are dropped in the store
   while the pitch is built, so no form can reach them.
 """
+import os
+
 import artist_identity
+import blob_store
 import email_provider as emailer
 import db as store
 import press_store
@@ -91,6 +94,53 @@ def send_state():
                        "domain is configured."),
         }
     return {"platform": True, "reason": "", "detail": ""}
+
+
+PRESS_KIT_KIND = "press_kit"        # the Vault kind /epk/vault-save writes
+
+
+def _kit_choices(user):
+    """What the pitch can carry as the press kit: the public kit's link,
+    and every copy saved to the Vault, newest first. Each is
+    (value, label, link, vault_file_id)."""
+    out = []
+    epk = store.get_epk(user["id"]) or {}
+    if epk.get("slug"):
+        out.append(("public", "Public press kit (live page)",
+                    "%s/epk/%s" % (_base_url().rstrip("/"), epk["slug"]), ""))
+    for v in store.list_vault_files(user["id"]):
+        if v["kind"] != PRESS_KIT_KIND:
+            continue
+        url = blob_store.url_for(v["path"])
+        if not url.startswith("http"):
+            url = _base_url().rstrip("/") + url
+        out.append(("vault:" + v["id"], v["label"] or "Press kit", url, v["id"]))
+    return out
+
+
+def _kit_bytes(user, file_id):
+    """A saved press kit read back for an attachment, or None."""
+    row = next((v for v in store.list_vault_files(user["id"])
+                if v["id"] == file_id and v["kind"] == PRESS_KIT_KIND), None)
+    if row is None:
+        return None, ""
+    path = row["path"]
+    if blob_store.is_remote(path):
+        return blob_store.fetch(path), row["label"]
+    try:
+        with open(blob_store.safe_local_path(path, _uploads()), "rb") as fh:
+            return fh.read(), row["label"]
+    except (OSError, ValueError):
+        return None, row["label"]
+
+
+_uploads_dir = None                 # set by init(); the app's UPLOADS_DIR
+
+
+def _uploads():
+    if callable(_uploads_dir):
+        return _uploads_dir()
+    return _uploads_dir or os.path.join(os.path.dirname(store.db_path()), "uploads")
 
 
 def _ctx(user, **extra):
@@ -261,19 +311,27 @@ def pitch_new(user):
                 default_subject=DEFAULT_SUBJECT, default_body=DEFAULT_BODY,
                 error=("Pick an announcement and at least one contact."
                        if not chosen else "Pick an announcement.")))
+        # The press kit, if one was chosen: its link fills {kit}, and a
+        # saved copy is attached by a platform send (2026-09-19).
+        kit_pick = request.form.get("kit") or ""
+        kit_link, kit_file_id = "", ""
+        for value, _label, link, fid in _kit_choices(user):
+            if value == kit_pick:
+                kit_link, kit_file_id = link, fid
         pitch_id, prepared, skipped = press_store.create_pitch(
             user["id"], release_id, chosen,
             request.form.get("subject") or DEFAULT_SUBJECT,
             request.form.get("body") or DEFAULT_BODY,
             request.form.get("mode") or press_store.MODE_OWN_INBOX,
             artist_name=artist_identity.display_name(user),
-            link_base=_base_url())
+            link_base=_base_url(), kit_link=kit_link, kit_file_id=kit_file_id)
         if pitch_id is None:
             abort(404)
         session["press_skipped"] = [list(s) for s in skipped]
         return redirect(url_for("press.pitch", pitch_id=pitch_id))
     return render_template("press/pitch_form.html", **_ctx(
         user, releases=releases_all, contacts=contacts_all,
+        kits=_kit_choices(user),
         default_subject=DEFAULT_SUBJECT, default_body=DEFAULT_BODY, error=""))
 
 
@@ -285,8 +343,12 @@ def pitch(user, pitch_id):
         abort(404)
     release = press_store.get_release(user["id"], record["release_id"])
     skipped = session.pop("press_skipped", [])
+    kit_file = None
+    if record.get("kit_file_id"):
+        kit_file = next((v for v in store.list_vault_files(user["id"])
+                         if v["id"] == record["kit_file_id"]), None)
     return render_template("press/pitch.html", **_ctx(
-        user, pitch=record, release=release,
+        user, pitch=record, release=release, kit_file=kit_file,
         recipients=press_store.pitch_recipients(user["id"], pitch_id),
         skipped=skipped, base_url=_base_url()))
 
@@ -309,6 +371,20 @@ def pitch_send(user, pitch_id):
         return render_template("press/blocked.html", **_ctx(
             user, pitch=record, state=state)), 409
 
+    # A saved press kit goes as a real file on a platform send. When it
+    # cannot be read the send still goes, with the link the message
+    # already carries, and the page says the file did not go.
+    attachments = None
+    if record.get("kit_file_id"):
+        data, label = _kit_bytes(user, record["kit_file_id"])
+        if data:
+            import base64
+            attachments = [{"filename": "%s.html" % (
+                "".join(c if c.isalnum() else "-" for c in (label or "press-kit").lower()).strip("-") or "press-kit"),
+                "content": base64.b64encode(data).decode("ascii")}]
+        else:
+            session["press_kit_missing"] = True
+
     sent, failed = 0, 0
     for recipient in press_store.pitch_recipients(user["id"], pitch_id):
         if recipient["status"] not in ("prepared", "failed"):
@@ -316,7 +392,8 @@ def pitch_send(user, pitch_id):
         if not recipient["email"]:
             continue
         ok = emailer.send(recipient["email"], recipient["subject"],
-                          _as_html(recipient["body"]), reply_to=user["email"])
+                          _as_html(recipient["body"]), reply_to=user["email"],
+                          attachments=attachments)
         press_store.mark_sent(recipient["id"], ok)
         sent += 1 if ok else 0
         failed += 0 if ok else 1
@@ -421,11 +498,14 @@ def press_page(token):
 
 # --- wiring -----------------------------------------------------------------
 
-def init(app, base_url):
+def init(app, base_url, uploads_dir=None):
     """Register the Press Desk. `base_url` is a callable returning the
     address links are built from — it must be the canonical one, because
-    a link baked into an email outlives the request that made it."""
-    global _base_url
+    a link baked into an email outlives the request that made it.
+    `uploads_dir` is the app's uploads folder (a value or a callable), so
+    a saved press kit can be read back for an attachment."""
+    global _base_url, _uploads_dir
     _base_url = base_url
+    _uploads_dir = uploads_dir
     press_store.init_press()
     app.register_blueprint(bp)

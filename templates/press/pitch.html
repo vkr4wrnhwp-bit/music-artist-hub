@@ -26,6 +26,12 @@
 </div>
 {% endif %}
 
+{% if kit_file %}
+<div class="pd-note">
+  <strong>Press kit: {{ kit_file.label }}.</strong>
+  <p>{% if pitch.mode == 'platform' %}Sent from Street Banker it goes as an attached file, and the message carries its link too.{% else %}From your own inbox the message carries its link; attach the file yourself if you want it attached (<a href="/vault/{{ kit_file.id }}/download">download it</a>).{% endif %}</p>
+</div>
+{% endif %}
 {% if pitch.mode == 'own_inbox' %}
 <div class="pd-note">
   <strong>These are yours to send.</strong>

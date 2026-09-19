@@ -49,7 +49,9 @@ _ARTIST_PATHS = ("/live", "/links", "/rollout-studio", "/artwork", "/command-cen
                  # upload a master, work on it, keep the result - changed tier
                  # halfway through depending on which door you came in by.
                  "/beats", "/audio-studio",
-                 "/qualification", "/artist-profile",
+                 # /artist-profile redirects to /epk (2026-09-19), which
+                 # has its own exact-match rule below.
+                 "/qualification",
                  "/vault", "/artist-twin", "/trust-score")
 # /fingerprints is here beside /recovery deliberately. It had no entry at
 # all, so required_tier() returned None for it and a free Fan account could

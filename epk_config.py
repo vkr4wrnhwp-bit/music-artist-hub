@@ -76,8 +76,17 @@ _SECTIONS = [
     {"key": "tour", "label": "Tour Dates", "on": True},
     {"key": "contact", "label": "Contact", "on": True},
     {"key": "media", "label": "Media Assets", "on": True},
+    # For deals: what the Deal Room one-sheet carried before the press kit
+    # became the one document (owner, 2026-09-19: "It just needs to be an
+    # EPK"). Off until the artist switches it on, and private when it is:
+    # the editor, the print and the saved copy show it; the public slug and
+    # the pitch link never do, because its figures include revenue.
+    {"key": "deals", "label": "For deals", "on": False, "private": True},
 ]
 _SECTION_KEYS = {s["key"] for s in _SECTIONS}
+# Sections that start off and are switched on by name (sections_on), the
+# reverse of the default-on ones that are switched off (sections_off).
+_OPT_IN_KEYS = {s["key"] for s in _SECTIONS if not s["on"]}
 
 
 def _fmt_compact(n):
@@ -127,7 +136,15 @@ def normalize_epk_overrides(payload):
         out["bg_color"] = bg if re.fullmatch(r"#[0-9a-fA-F]{6}", bg) else ""
     if "sections_off" in p:
         out["sections_off"] = [k for k in (p.get("sections_off") or [])
-                               if k in _SECTION_KEYS]
+                               if k in _SECTION_KEYS and k not in _OPT_IN_KEYS]
+    if "sections_on" in p:
+        out["sections_on"] = [k for k in (p.get("sections_on") or [])
+                              if k in _OPT_IN_KEYS]
+    # The deal terms and the ask, the two lines the one-sheet left to the
+    # artist ("Proposed ask: [To discuss]"); still theirs to write.
+    for key, cap in (("deal_ask", 200), ("deal_terms", 1200)):
+        if key in p:
+            out[key] = (p.get(key) or "").strip()[:cap]
     video = (p.get("video_url") or "").strip()[:300]
     if "video_url" in p:
         out["video_url"] = video if video.startswith("http") else ""
@@ -358,6 +375,9 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
     tour_dates = tour_dates or []
     video_url = (o.get("video_url") or "").strip()
     off = set(o.get("sections_off") or [])
+    opted = set(o.get("sections_on") or [])
+    deal_ask = (o.get("deal_ask") or "").strip()
+    deal_terms = (o.get("deal_terms") or "").strip()
     complete = {
         "bio": bool(profile["bio"]),
         "stats": True,
@@ -366,13 +386,19 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         "tour": bool(tour_dates),
         "contact": any(profile["contact"].values()),
         "media": bool(assets or video_url),
+        "deals": bool(deal_ask or deal_terms),
     }
     sections = []
     for s in _SECTIONS:
-        on = s["key"] not in off
-        status = "Hidden" if not on else ("Complete" if complete[s["key"]] else "Needs Info")
+        on = (s["key"] in opted) if s["key"] in _OPT_IN_KEYS else (s["key"] not in off)
+        # "Hidden" means hidden from the public page. An opt-in section is
+        # never public, so while it is off it reads "Off", not "Hidden".
+        if not on:
+            status = "Off" if s["key"] in _OPT_IN_KEYS else "Hidden"
+        else:
+            status = "Complete" if complete[s["key"]] else "Needs Info"
         sections.append({"key": s["key"], "label": s["label"], "on": on,
-                         "status": status})
+                         "status": status, "private": bool(s.get("private"))})
     sections_on = {s["key"]: s["on"] for s in sections}
 
     return {
@@ -393,6 +419,8 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
         "top_tracks": top_tracks,
         "sections": sections,
         "sections_on": sections_on,
+        "deal_ask": deal_ask,
+        "deal_terms": deal_terms,
         "video_url": video_url,
         "video_embed": _video_embed(video_url) if video_url else None,
         "video_thumb": _video_thumb(video_url) if video_url else None,

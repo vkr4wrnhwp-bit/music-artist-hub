@@ -32,13 +32,17 @@ HUBS = [
     ]),
     ("launch", "Launch Engine", "From finished master to the world — prepare, release, promote, and measure.", [
         ("autopilot", "/releases/autopilot", "M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6", "Releases", "One release at a time - readiness, the arc, the plan, the kit - and the calendar of all of them."),
+        # Out of Deals and in with the releases (owner, 2026-09-19: "Sync
+        # packs should go more in like releases because it's a sync pack.
+        # You're making a product for sale."). Same address as before.
+        ("sync-packs", "/sync/clearance-packs", "M3 6h14v10H3z|M3 6l2-3h10l2 3|M8 10h4", "Sync Packs", "Cleared, ready-to-send packs: the product you sell to a sync request."),
         ("links", "/links", "M8 11a3 3 0 004 0l2-2a3 3 0 00-4-4l-1 1M12 9a3 3 0 00-4 0l-2 2a3 3 0 004 4l1-1", "Smart Links", "One link per release with real click analytics."),
         ("rollout", "/rollout-studio", "M4 4h12v9H4z|M4 13l3 4M16 13l-3 4M7 8l2 2 4-4", "Rollout Engine", "Generated captions, briefs, and rollout plans."),
         # Back on the sidebar in its own right (owner, 2026-09-15: "epk should
         # be back in the nav bar, anything thats a major usage or plus from
         # other platforms should be visible"). It stays a tab of Press too.
         ("epk", "/epk", "M4 3h9l3 3v11H4z|M13 3v3h3|M7 9h6M7 12h6M7 15h4", "Press Kit", "Your electronic press kit on one link: bio, photos, tracks and the figures that are measured."),
-        ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press", "Media list, pitches and coverage — with the press kit and one-sheet they send."),
+        ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press", "Media list, pitches and coverage, with the press kit they send."),
         # REACH runs no paid promotion (2026-09-19 audit: its paid pitching
         # platforms are adapters switched off), so the line says what it does.
         ("reach", "/suites/go/reach", "M3 10a7 7 0 0114 0|M6 10a4 4 0 018 0|M10 10v7|M8 17h4", "REACH", "Find playlist, press and radio opportunities, pitch them once you approve, track the replies (opens the REACH app)."),
@@ -67,7 +71,9 @@ HUBS = [
         # Overview is a tab of the Command Center front (2026-09-07: "overview
         # and command center need to be in the same window"). Same URL.
         ("royalties", "/royalties", "M4 7l6-3 6 3v6l-6 3-6-3z|M4 7l6 3 6-3M10 10v6", "Royalties", "Every stream, lane, store, track and market from your statements - one page."),
-        ("statements", "/statements", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 9h5M8 12h5M8 15h3M10 3v4h4", "Statements", "Upload or email statements; rows become data."),
+        # Tax is a view of this page (owner, 2026-09-19: "move tax center
+        # with statements"); the Tax Center entry left with it.
+        ("statements", "/statements", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 9h5M8 12h5M8 15h3M10 3v4h4", "Statements", "Upload or email statements; rows become data, and the Tax view files them by year."),
         ("recovery", "/recovery", "M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3l2 2", "Recovery", "Findings pulled from your own uploads."),
         ("cases", "/royalty-recovery/cases", "M4 5h12v10H4z|M4 8h12M8 5V3h4v2M10 11v2", "Recovery Cases", "Tracked claims from open to paid."),
         ("disputes", "/disputes", "M10 3l7 4v5c0 3-3 5-7 5s-7-2-7-5V7z|M10 8v3M10 13v0", "Disputes", "Log and track conflicts on your catalog."),
@@ -75,10 +81,9 @@ HUBS = [
         # The page reads "Profit & Loss" and the owner calls it the P&L, so
         # the entry does too; the address stays /revenue-os.
         ("revenue-os", "/revenue-os", "M4 16V4h12v12z|M7 13V9M10 13V7M13 13v-3", "Profit & Loss", "Income structure across your whole operation."),
-        ("deals", "/deal-room", "M7 9l3-3 3 3M10 6v8|M4 16h12M4 4h4M12 4h4", "Deals", "The Deal Room, the simulator and your sync packs."),
+        ("deals", "/deal-room", "M7 9l3-3 3 3M10 6v8|M4 16h12M4 4h4M12 4h4", "Deals", "The Deal Room and the simulator."),
         ("reports", "/reports", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 10h5M8 13h5", "Reports", "Exports and summaries of everything above."),
         ("hours", "/hours", "M10 3a7 7 0 100 14 7 7 0 000-14z|M10 6v4l3 2|M3 3l2 2M17 3l-2 2", "Hours Desk", "Bill your time, take bookings, approve collaborators."),
-        ("tax", "/tax", "M6 3h8a1 1 0 011 1v13l-2-1.5L11 17l-2-1.5L7 17l-2-1.5V4a1 1 0 011-1z|M8 7h4M8 10h4", "Tax Center", "Income summarized for tax season."),
     ]),
 ]
 
@@ -152,7 +157,10 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              # wears the Sample badge.
              "marketplace",
              "actions", "autopilot", "scores",
-             "vault", "pulse", "team", "tax",
+             "vault", "pulse", "team",
+             # Real packs from the artist's own uploads (it was live through
+             # its Deals parent before it had an entry of its own).
+             "sync-packs",
              "income", "disputes", "fans", "portal",
              "tours", "passports", "stage-plot", "tour-board", "rack", "roster", "referrals",
              # Real registrations and real scan answers, or an honest "not

@@ -69,7 +69,9 @@ def test_certified_and_the_one_sheet_hold_no_zero_summaries(fresh):
     body = _body(fresh, "/certified")
     assert "0% avg passport" not in body
     assert "No tracks on record yet." in body
-    sheet = _body(fresh, "/deal-room/onesheet")
+    # The one-sheet is the press kit's For deals section (2026-09-19).
+    fresh.post("/epk/save", json={"sections_on": ["deals"]})
+    sheet = _body(fresh, "/epk").split('data-section="deals"', 1)[1].split("</section>", 1)[0]
     for banned in ("$0.00", "0 of 0", "0/100"):
         assert banned not in sheet, banned
     assert "Nothing measured yet." in sheet

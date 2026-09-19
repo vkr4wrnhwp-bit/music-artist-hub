@@ -1,21 +1,33 @@
-/* Operator Desk — the internal workspace.
+/* Operator Desk - the internal workspace.
  *
- * Same paper-and-ink language as the public light pages: off-white
- * ground, near-black type, thin rules, amber only for status. Built as
- * an operator tool: tables first, no decoration that costs scanning
- * speed, and nothing that reads as a generic SaaS dashboard.
+ * Black and gold, the same console language as the rest of the app
+ * (owner ruling 2026-09-19: "black and gold just like the rest of the
+ * website"). Ground, then one surface step per panel, ivory type, gold
+ * for the active state and the primary action, the state colours only
+ * for status. Built as an operator tool: tables first, no decoration
+ * that costs scanning speed, and nothing that reads as a generic SaaS
+ * dashboard.
+ *
+ * The dk-* names are kept so the templates need no edit; each is
+ * defined in terms of the app tokens. --dk-paper is the page ground
+ * (the name is historical; the desk was ivory until 2026-09-19).
  */
 
 .dk-body {
-  --dk-paper: var(--sb-paper);
-  --dk-panel: var(--sb-paper-panel);
-  --dk-ink: var(--sb-paper-ink);
-  --dk-muted: var(--sb-paper-ink-2);
-  --dk-faint: var(--sb-paper-ink-3);
-  --dk-rule: var(--sb-paper-line);
-  --dk-rule-soft: var(--sb-paper-line-soft);
-  --dk-gold: var(--sb-paper-gold);
-  --dk-amber: var(--sb-gold-deep);
+  --dk-paper: var(--sb-ground);
+  --dk-panel: var(--sb-surface-1);
+  --dk-raised: var(--sb-surface-2);
+  --dk-hover: var(--sb-surface-3);
+  --dk-ink: var(--sb-ink);
+  --dk-muted: var(--sb-ink-2);
+  --dk-faint: var(--sb-ink-3);
+  --dk-rule: var(--sb-line-strong);
+  --dk-rule-soft: var(--sb-line);
+  --dk-gold: var(--sb-gold);
+  --dk-gold-wash: var(--sb-gold-wash);
+  --dk-gold-line: var(--sb-gold-line);
+  --dk-on-gold: var(--sb-on-gold);
+  --dk-amber: var(--sb-gold-bright);
   --dk-warn-bg: var(--sb-warn-wash);
   --dk-warn-edge: var(--sb-warn);
   --dk-ok: var(--sb-good);
@@ -74,9 +86,9 @@
 }
 .dk-nav:hover { color: var(--dk-ink); }
 .dk-nav.is-active {
-  color: var(--dk-ink);
+  color: var(--dk-amber);
   border-left-color: var(--dk-gold);
-  background: rgb(20 18 16 / 0.04);
+  background: var(--dk-gold-wash);
 }
 .dk-side-foot {
   margin-top: auto;
@@ -86,6 +98,8 @@
   color: var(--dk-faint);
 }
 .dk-side-foot strong { display: block; color: var(--dk-ink); font-size: 12px; }
+.dk-side-foot a { color: var(--dk-muted); }
+.dk-side-foot a:hover { color: var(--dk-amber); }
 
 /* --- main ------------------------------------------------------------------ */
 .dk-main {
@@ -111,7 +125,7 @@
   text-decoration: none;
   color: inherit;
 }
-.dk-card b { display: block; font-size: 22px; font-weight: 900; }
+.dk-card b { display: block; font-size: 22px; font-weight: 900; color: var(--dk-amber); font-variant-numeric: tabular-nums; }
 .dk-card span {
   display: block;
   margin-top: 2px;
@@ -121,7 +135,7 @@
   text-transform: uppercase;
   color: var(--dk-muted);
 }
-a.dk-card:hover { border-color: var(--dk-ink); }
+a.dk-card:hover { border-color: var(--dk-gold); }
 
 .dk-quick { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
 .dk-quick a {
@@ -133,7 +147,8 @@ a.dk-card:hover { border-color: var(--dk-ink); }
   color: var(--dk-muted);
   text-decoration: none;
 }
-.dk-quick a:hover, .dk-quick a.is-on { border-color: var(--dk-ink); color: var(--dk-ink); }
+.dk-quick a:hover { border-color: var(--dk-gold-line); color: var(--dk-ink); background: var(--dk-hover); }
+.dk-quick a.is-on { border-color: var(--dk-gold); color: var(--dk-amber); background: var(--dk-gold-wash); }
 
 /* --- tables ---------------------------------------------------------------- */
 .dk-table-wrap { overflow-x: auto; border: 1px solid var(--dk-rule); border-radius: var(--sb-r-control); background: var(--dk-panel); }
@@ -155,8 +170,9 @@ a.dk-card:hover { border-color: var(--dk-ink); }
   vertical-align: top;
 }
 .dk-table tr:last-child td { border-bottom: 0; }
+.dk-table tbody tr:hover td { background: var(--dk-raised); }
 .dk-table a { color: inherit; font-weight: 700; text-decoration: none; }
-.dk-table a:hover { color: var(--dk-gold); }
+.dk-table a:hover { color: var(--dk-amber); }
 
 /* --- status chips ---------------------------------------------------------- */
 .dk-chip {
@@ -172,7 +188,7 @@ a.dk-card:hover { border-color: var(--dk-ink); }
   color: var(--dk-muted);
 }
 .dk-chip--amber { color: var(--dk-amber); border-color: var(--dk-amber); }
-.dk-chip--ink { background: var(--dk-ink); border-color: var(--dk-ink); color: var(--dk-paper); }
+.dk-chip--ink { background: var(--dk-gold); border-color: var(--dk-gold); color: var(--dk-on-gold); }
 .dk-chip--ok { color: var(--dk-ok); border-color: var(--dk-ok); }
 .dk-chip--warn { color: var(--dk-warn-edge); border-color: var(--dk-warn-edge); }
 
@@ -189,7 +205,7 @@ a.dk-card:hover { border-color: var(--dk-ink); }
   margin-bottom: 6px;
   font-size: 12.5px;
 }
-.dk-warnings a { font-weight: 700; color: inherit; }
+.dk-warnings a { font-weight: 700; color: var(--dk-ink); }
 
 /* --- forms ----------------------------------------------------------------- */
 .dk-form { border: 1px solid var(--dk-rule); border-radius: var(--sb-r-control); background: var(--dk-panel); padding: 16px; }
@@ -209,17 +225,18 @@ a.dk-card:hover { border-color: var(--dk-ink); }
   padding: 8px 10px;
   border: 1px solid var(--dk-rule);
   border-radius: var(--sb-r-control);
-  background: #fff;
+  background: var(--dk-raised);
   font: inherit;
   font-size: 13px;
   color: var(--dk-ink);
+  color-scheme: dark;
   box-sizing: border-box;
 }
 .dk-field textarea { min-height: 74px; resize: vertical; }
 .dk-field input:focus-visible, .dk-field select:focus-visible,
 .dk-field textarea:focus-visible, .dk-btn:focus-visible {
-  outline: 2px solid var(--dk-gold);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--sb-focus);
 }
 .dk-checks { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
 .dk-checks label { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--dk-muted); }
@@ -229,10 +246,10 @@ a.dk-card:hover { border-color: var(--dk-ink); }
   align-items: center;
   min-height: 38px;
   padding: 0 18px;
-  border: 1px solid var(--dk-ink);
+  border: 1px solid var(--dk-gold);
   border-radius: var(--sb-r-control);
-  background: var(--dk-ink);
-  color: var(--dk-paper);
+  background: var(--dk-gold);
+  color: var(--dk-on-gold);
   font: inherit;
   font-size: 12px;
   font-weight: 800;
@@ -241,16 +258,19 @@ a.dk-card:hover { border-color: var(--dk-ink); }
   cursor: pointer;
   text-decoration: none;
 }
-.dk-btn:hover { background: var(--sb-surface-3); }
-.dk-btn--ghost { background: none; color: var(--dk-ink); }
-.dk-btn--ghost:hover { background: rgb(20 18 16 / 0.06); }
+.dk-btn:hover { background: var(--dk-amber); border-color: var(--dk-amber); }
+.dk-btn--ghost { background: none; border-color: var(--dk-rule); color: var(--dk-ink); }
+.dk-btn--ghost:hover { background: var(--dk-hover); border-color: var(--dk-gold-line); }
 .dk-btn--danger { border-color: var(--dk-warn-edge); background: none; color: var(--dk-warn-edge); }
+.dk-btn--danger:hover { background: var(--dk-warn-bg); }
 .dk-inline { display: inline; }
-select.dk-mini {
+select.dk-mini, input.dk-mini {
   padding: 5px 8px;
   border: 1px solid var(--dk-rule);
   border-radius: var(--sb-r-control);
-  background: #fff;
+  background: var(--dk-raised);
+  color: var(--dk-ink);
+  color-scheme: dark;
   font: inherit;
   font-size: 12px;
 }
@@ -264,12 +284,12 @@ select.dk-mini {
   padding: 12px 14px;
   margin-bottom: 10px;
 }
-.dk-note.is-pinned { border-color: var(--dk-gold); }
+.dk-note.is-pinned { border-color: var(--dk-gold); background: var(--dk-raised); }
 .dk-note-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; font-size: 12px; color: var(--dk-faint); }
 .dk-note-head b { color: var(--dk-ink); font-size: 12.5px; }
 .dk-note-body { margin: 8px 0 0; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; }
 .dk-note-meta { margin-top: 8px; font-size: 12px; color: var(--dk-muted); }
-.dk-mention { color: var(--dk-gold); font-weight: 700; }
+.dk-mention { color: var(--dk-amber); font-weight: 700; }
 
 /* --- misc ------------------------------------------------------------------- */
 .dk-empty { padding: 18px; font-size: 13px; color: var(--dk-faint); }
@@ -280,11 +300,18 @@ select.dk-mini {
   padding: 8px 12px;
   border: 1px solid var(--dk-rule);
   border-radius: var(--sb-r-control);
-  background: #fff;
+  background: var(--dk-raised);
+  color: var(--dk-ink);
+  color-scheme: dark;
   font: inherit;
   font-size: 13px;
   min-width: 210px;
 }
+.dk-search:focus-visible, select.dk-mini:focus-visible, input.dk-mini:focus-visible {
+  outline: none;
+  box-shadow: var(--sb-focus);
+}
+.dk-field input::placeholder, .dk-search::placeholder { color: var(--dk-faint); }
 .dk-kv { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 22px; }
 .dk-kv dt { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dk-muted); }
 .dk-kv dd { margin: 1px 0 8px; font-size: 13px; overflow-wrap: anywhere; }
@@ -298,6 +325,9 @@ select.dk-mini {
 }
 .dk-denied h1 { font-size: 17px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; }
 .dk-denied p { color: var(--dk-muted); font-size: 14px; line-height: 1.6; }
+.dk-body code { font-family: inherit; color: var(--dk-amber); }
+.dk-main a:not([class]) { color: var(--dk-amber); }
+.dk-body ::selection { background: var(--dk-gold); color: var(--dk-on-gold); }
 
 /* --- phones ----------------------------------------------------------------- */
 @media (max-width: 860px) {
@@ -312,6 +342,6 @@ select.dk-mini {
   }
   .dk-brand { border: 0; margin: 0; padding: 8px 10px; width: 100%; }
   .dk-nav { border-left: 0; padding: 8px 10px; }
-  .dk-nav.is-active { background: none; color: var(--dk-gold); }
+  .dk-nav.is-active { background: none; color: var(--dk-amber); }
   .dk-side-foot { display: none; }
 }

@@ -44,6 +44,27 @@
     Anything else in braces is left as you typed it.
   </p>
 
+  <h2 class="pd-h2">The press kit</h2>
+  <p class="pd-sub" style="margin-bottom:10px">Pick what <code>{kit}</code> stands for in the message. The public kit is a link. A copy saved to the Vault goes as a link from your own inbox, and as an attached file when it is sent from Street Banker; nothing is called attached that was not sent.</p>
+  <div class="pd-checks">
+    <label>
+      <input type="radio" name="kit" value="" checked>
+      <span><span class="pd-who">No press kit</span><span class="pd-muted">{kit} comes out blank.</span></span>
+    </label>
+    {% for value, label, link, fid in kits %}
+    <label>
+      <input type="radio" name="kit" value="{{ value }}">
+      <span>
+        <span class="pd-who">{{ label }}</span>
+        <span class="pd-muted">{{ 'Saved in the Vault: link, or attached file from Street Banker.' if fid else 'Link to the live page.' }}</span>
+      </span>
+    </label>
+    {% endfor %}
+    {% if not kits %}
+    <p class="pd-sub">No press kit yet. <a href="/epk" style="color:var(--pd-amber)">Build it in the Press Office</a>, then Save to Vault there to have a dated copy to send.</p>
+    {% endif %}
+  </div>
+
   <h2 class="pd-h2">How it goes out</h2>
   <div class="pd-checks">
     <label>

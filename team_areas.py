@@ -52,7 +52,9 @@ EXTRA = {
     "publishing": ("/tracks", "/isrc", "/identifiers", "/metadata", "/metadata-passport",
                    "/registration", "/publishing", "/cleared", "/ai-rights"),
     "releases": ("/releases", "/release-check", "/clean-release", "/pitch"),
-    "marketing": ("/press", "/onesheet", "/sheet", "/rollout", "/rollout-studio"),
+    # /onesheet left on 2026-09-19 (owner: "It just needs to be an EPK");
+    # /sheet stays because links already sent keep answering.
+    "marketing": ("/press", "/sheet", "/rollout", "/rollout-studio"),
 }
 
 # Pages that gather every room: only for a seat that has every room.

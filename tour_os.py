@@ -2382,6 +2382,12 @@ def _send_context(tour, show, viewer, user, create_links=False):
     return {"composed": composed,
             "recipients": tam.candidate_recipients(people, advance_rows, sid),
             "send_files": files, "plot_image": bool(plot_image), "channels": channels,
+            # Press kits saved to the Vault, offered as attachments (owner,
+            # 2026-09-19: "from the vault you can send and attach it to the
+            # advance"). The account's, not the viewer's: a seat sends the
+            # artist's kit.
+            "press_kits": [v for v in store.list_vault_files(tour["user_id"])
+                           if v["kind"] == "press_kit"],
             "sender": sender, "sender_address": emailer.sender(),
             "mail_ready": emailer.configured() and not emailer.using_shared_test_sender(),
             "links": links, "sends": ts.list_advance_sends(tid, sid)}
@@ -2427,11 +2433,32 @@ def _build_attachments(tour, ctx, picks):
         add(artist + "-input-list.txt",
             tam.input_list_text(ctx["channels"], tour.get("artist_name") or tour.get("name") or "").encode("utf-8"))
     by_id = {f["id"]: f for f in ctx["send_files"]}
+    kits = {"kit:" + k["id"]: k for k in ctx.get("press_kits", [])}
     for pick in picks:
         record = by_id.get(pick)
         if record is not None:
             add(record["file_name"], _file_bytes(record))
+        elif pick in kits:
+            # A press kit saved to the Vault, sent as the web page it is
+            # (2026-09-19). Unreadable, it is named in `skipped` like any
+            # other file and never reported as sent.
+            add(artist + "-press-kit.html", _vault_bytes(kits[pick]["path"]))
     return out, names, skipped
+
+
+def _vault_bytes(path):
+    """A Vault file read back, or None. The Vault writes to the app's
+    uploads folder or the object store; both shapes are handled."""
+    if not path:
+        return None
+    if blob_store.is_remote(path):
+        return blob_store.fetch(path)
+    try:
+        uploads = os.path.join(os.path.dirname(store.db_path()), "uploads")
+        with open(blob_store.safe_local_path(path, uploads), "rb") as fh:
+            return fh.read()
+    except (OSError, ValueError):
+        return None
 
 
 def _default_picks(ctx):

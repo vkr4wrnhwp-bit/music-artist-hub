@@ -1,4 +1,4 @@
-"""Signal's state pills are the shared lamp, on paper.
+"""Signal's state pills are the shared lamp (in its dark default since 2026-09-19).
 
 A pill that carries a STATE - on the desk, watching, stale, fresh,
 configured, removed, a severity, an anomaly reading, an evidence status -
@@ -53,7 +53,7 @@ def flask_app():
     return appmod.create_app()
 
 
-def test_the_board_draws_states_as_lamps_on_paper(flask_app):
+def test_the_board_draws_states_as_lamps(flask_app):
     providers.reset_registry(providers.ProviderRegistry(adapters=[]))
     ingest.refresh_universe(max_artists=6, force=True)
     email = "sig-lamp-%s@example.net" % uuid.uuid4().hex[:8]
@@ -71,6 +71,6 @@ def test_the_board_draws_states_as_lamps_on_paper(flask_app):
             r'sb-lamp[^"]*">(credentials present|not configured)<', body)
         assert "sg-pill is-ok" not in body
     board = client.get("/signal").get_data(as_text=True)
-    assert 'class="sg-body sb-on-paper"' in board
+    assert 'class="sg-body"' in board and "sb-on-paper" not in board
     if "Low risk" in board:
         assert 'sb-lamp">Low risk<' in board

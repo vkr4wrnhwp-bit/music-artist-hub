@@ -50,7 +50,7 @@ def test_every_sidebar_entry_and_every_folded_page_has_a_room():
                 continue                           # the corner marks
             assert it[0] in keys, it[0]
     # the unfolded pages are cards, each in exactly one room
-    for key in ("contracts", "track-passports", "onesheet", "press-contacts", "fan-club", "deal-simulator"):
+    for key in ("contracts", "track-passports", "tax", "press-contacts", "fan-club", "deal-simulator"):
         assert rooms.room_for_key(key), key
     seen = [k for _r, _n, _p, ks in rooms.ROOMS for k in ks]
     assert len(seen) == len(set(seen)), "a card sits in one room only"

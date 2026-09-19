@@ -29,11 +29,11 @@ database.
 # be a checklist whose first instruction is a locked door.
 STEPS = [
     ("profile", "Name the artist",
-     "Every public page — your press kit, smart links, one-sheet — reads "
+     "Every public page, your press kit and your smart links, reads "
      "from this. Nothing else looks right until it is filled in.",
-     # The Press Office, not /artist-profile. The one-sheet is a printable
-     # read of this data with no field on it, so the first instruction the
-     # product gives used to open a page where it could not be carried out.
+     # The Press Office. /artist-profile redirects here since 2026-09-19:
+     # the press kit is the one document (owner: "It just needs to be an
+     # EPK").
      "/epk", "Set up the profile"),
     ("track", "Add a track",
      "Tracks are the spine: royalty lanes, registration, metadata and the "

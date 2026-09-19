@@ -135,7 +135,9 @@ MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)
 # Windows whose route the sidebar folds under a front, so they group with it.
 FOLD_FRONTS = {
     "/links/fans": "/fans", "/fan-club": "/fans", "/epk": "/press-desk",
-    "/sync/clearance-packs": "/deal-room", "/sync/deal-simulator": "/deal-room",
+    # Sync packs group with the releases (owner, 2026-09-19: "You're
+    # making a product for sale").
+    "/sync/clearance-packs": "/releases/autopilot", "/sync/deal-simulator": "/deal-room",
     "/tracks": "/catalog", "/money-queue": "/royalties", "/trust-score": "/qualification",
     "/royalty-recovery/cases": "/recovery", "/royalty-recovery/mlc": "/recovery",
 }
