@@ -41,6 +41,10 @@ def _selling(flask_app, **over):
 
 
 def _stripe_on(monkeypatch, calls):
+    # Online sales sit behind the owner's switch, off by default
+    # (sales_switch, 2026-09-18); these tests are about the sale itself.
+    import sales_switch
+    monkeypatch.setattr(sales_switch, "is_on", lambda: True)
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_vip")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_stripetest")
     monkeypatch.setattr(stripe_provider, "_http", lambda path, fields: calls.append((path, fields)) or

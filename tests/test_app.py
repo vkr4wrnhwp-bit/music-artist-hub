@@ -2519,7 +2519,10 @@ def test_fan_club_full_loop(monkeypatch):
     import json
     import db as store_mod
     import links_store as mls
+    import sales_switch
     import stripe_provider as sb
+    # Paid joins sit behind the owner's switch, off by default (2026-09-18).
+    monkeypatch.setattr(sales_switch, "is_on", lambda: True)
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_stripetest")
     monkeypatch.setattr(sb, "_http", lambda path, fields: {
