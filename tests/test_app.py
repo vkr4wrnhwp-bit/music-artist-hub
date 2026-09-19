@@ -2434,16 +2434,16 @@ def test_billing_sync_claims_completed_checkout(monkeypatch):
     client.post("/signup", data={"name": "Sync", "email": "sync@example.net",
                                  "password": "syncpass"})
     # Nothing found: honest message, no plan change.
-    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email: None)
+    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email, user_id=None: None)
     r = client.post("/billing/sync")
     assert r.headers["Location"].endswith("?sync=none")
     uid = store_mod.get_user_by_email("sync@example.net")["id"]
     assert store_mod.get_user(uid)["plan"] == "artist"
     # Active sub in Stripe: plan applies, ids stored, notification lands.
-    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email: {
+    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email, user_id=None: {
         "customer_id": "cus_s1", "subscription_id": "sub_s1", "plan": "artist"}
         if email == "sync@example.net" else None)
-    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email: {
+    monkeypatch.setattr(sb, "active_subscription_for_email", lambda email, user_id=None: {
         "customer_id": "cus_s1", "subscription_id": "sub_s1", "plan": "pro"})
     r = client.post("/billing/sync")
     assert "upgraded=1" in r.headers["Location"]
@@ -3577,7 +3577,7 @@ def test_webhook_auto_setup(monkeypatch):
     assert r.status_code == 302 and "webhook=ok" in r.headers["Location"]
     assert deleted == ["/v1/webhook_endpoints/we_old"]  # stale endpoint replaced
     assert created["enabled_events[0]"] == "checkout.session.completed"
-    assert store_mod.get_kv("stripe_webhook_secret") == "whsec_kvstored"
+    assert store_mod.get_kv(sb._kv_key("webhook_secret")) == "whsec_kvstored"
     assert sb.webhook_configured()
     assert "active" in artist.get("/billing").get_data(as_text=True)
     # A webhook signed with the stored secret verifies with no env secret.
@@ -3590,7 +3590,8 @@ def test_webhook_auto_setup(monkeypatch):
         "/webhooks/stripe", data=payload, content_type="application/json",
         headers={"Stripe-Signature": "t=%s,v1=%s" % (t, sig)})
     assert resp.get_json()["ok"]
-    store_mod.set_kv("stripe_webhook_secret", "")  # shared-DB cleanup
+    store_mod.set_kv(sb._kv_key("webhook_secret"), "")  # shared-DB cleanup
+    store_mod.set_kv(sb._kv_key("webhook_events"), "")
 
 
 def test_club_members_area(monkeypatch):

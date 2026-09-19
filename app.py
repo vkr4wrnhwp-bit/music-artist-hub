@@ -117,6 +117,11 @@ def _is_owner_email(email):
     return digest in _OWNER_EMAIL_HASHES
 
 
+def _ref_spent_key(email):
+    import hashlib
+    return "ref_spent:" + hashlib.sha256((email or "").strip().lower().encode()).hexdigest()
+
+
 def _grant_owner_plan(user):
     """Put an owner account on the top plan. Idempotent, and a no-op for
     everybody else."""
@@ -909,6 +914,8 @@ def create_app():
                     _grant_owner_plan(store.get_user(user_id))
                     ref = session.pop("ref_code", None) or request.form.get("ref")
                     referrer = store.user_by_ref_code(ref) if ref else None
+                    if referrer and store.get_kv(_ref_spent_key(email)):
+                        referrer = None     # deleted and came back: once per address
                     if referrer and referrer["id"] != user_id:
                         store.set_referred_by(user_id, referrer["id"])
                         store.notify(referrer["id"], "network", "Referral signed up",
@@ -4699,6 +4706,29 @@ def create_app():
         saved card (2026-09-19 review; the same rule as /plan/switch)."""
         return bool(user.get("partner_id") or session.get("acting_as") or session.get("team_as"))
 
+    def _working_as_someone():
+        """Signed in as yourself but working in somebody else's account."""
+        return bool(session.get("acting_as") or session.get("team_as"))
+
+    def _plan_grant_key(user_id):
+        return "plan_grant:" + user_id
+
+    def _plan_held(user):
+        """A plan Stripe must never move: the owner's, a partner-seated
+        artist's (the partner holds it), and one the owner granted by hand
+        in Settings, which renewals used to undo (2026-09-19 second
+        review)."""
+        user = user or {}
+        return bool(_is_owner_email(user.get("email")) or user.get("partner_id")
+                    or (user.get("id") and store.get_kv(_plan_grant_key(user["id"]))))
+
+    def _notify_owners(title, body, link="/billing"):
+        """Money the app cannot settle alone goes to the people who run the
+        Stripe account."""
+        for u in store.list_users():
+            if _is_owner_email(u.get("email")):
+                store.notify(u["id"], "billing", title, body, link)
+
     def _checkout_error(message):
         return render_template("billing_error.html", message=message,
                                **build_dashboard_context()), 502
@@ -4716,6 +4746,17 @@ def create_app():
             return redirect("/billing")
         if _billing_hands_off(user):
             return redirect("/billing")
+        # Ids Stripe gave under the sandbox key do not exist under the live
+        # one; an account that checked out in the sandbox kept them and
+        # could never check out again (2026-09-19 second review).
+        if user.get("stripe_customer_id"):
+            known = stripe_billing.customer_exists(user["stripe_customer_id"])
+            if known is None:
+                return _checkout_error("Stripe couldn't be reached just now. Nothing was "
+                                       "started: try again in a minute.")
+            if known is False:
+                store.set_stripe_ids(user["id"], None, None)
+                user = dict(user, stripe_customer_id=None, stripe_subscription_id=None)
         # A member changes tier on the subscription they already have. This
         # used to open a second checkout, so the old subscription kept
         # billing beside the new one (2026-09-18 launch check). Only a
@@ -4726,7 +4767,7 @@ def create_app():
             changed = stripe_billing.change_subscription_plan(user["stripe_subscription_id"], plan)
             result = changed.get("result")
             if result in ("changed", "same"):
-                if not _is_owner_email(user.get("email")):
+                if not _plan_held(user):
                     store.set_user_plan(user["id"], plan)
                 if result == "changed":
                     store.notify(user["id"], "billing",
@@ -4743,30 +4784,56 @@ def create_app():
                                            "Manage Billing first, then change your plan.")
                 return _checkout_error("Stripe couldn't change your plan just now. Nothing new "
                                        "was started: try again in a minute, or open Manage Billing.")
-            # Gone: forget it, and check out again as the same customer.
+            # Gone: forget it, and the paid tier it carried, then check out
+            # again as the same customer (2026-09-19 second review: the tier
+            # stayed on after Stripe said the subscription had ended).
             store.set_stripe_ids(user["id"], user.get("stripe_customer_id"), None)
-        # Somebody who already pays is never sold a second subscription, and
-        # a checkout already open for this account is closed first, so two
-        # clicks cannot become two subscriptions (2026-09-19 review).
+            if not _plan_held(user) and user.get("plan") in stripe_billing.PRICES:
+                store.set_user_plan(user["id"], "fan")
+        # Somebody who already pays, or owes, is never sold a second
+        # subscription, and a checkout already open for this account is
+        # settled first, so two clicks cannot become two subscriptions.
         if user.get("stripe_customer_id"):
             live = stripe_billing.active_subscription_for_customer(user["stripe_customer_id"])
+            if live and live.get("error"):
+                return _checkout_error("Stripe couldn't be reached just now. Nothing was "
+                                       "started: try again in a minute.")
             if live:
                 store.set_stripe_ids(user["id"], user["stripe_customer_id"], live["subscription_id"])
-                if not _is_owner_email(user.get("email")):
+                if live.get("status") not in ("active", "trialing"):
+                    return _checkout_error("Your subscription has a bill waiting. Settle it in "
+                                           "Manage Billing first, then change your plan.")
+                if not _plan_held(user):
                     store.set_user_plan(user["id"], live["plan"])
                 return redirect("/billing?sync=found")
         opened = store.get_kv(_open_checkout_key(user["id"]))
         if opened:
-            closed = stripe_billing.expire_checkout_session(opened)
-            if closed == "complete":
-                return redirect("/billing?upgraded=1")
+            state, sess = stripe_billing.close_open_checkout(opened)
+            if state == "complete":
+                # Paid, and its webhook has not landed yet: claim it here
+                # rather than open a second one. One already handled belongs
+                # to a subscription that has since ended.
+                claimed = _claim_plan_session(sess)
+                if claimed == "retry":
+                    return _checkout_error("Stripe couldn't be reached just now. Nothing was "
+                                           "started: try again in a minute.")
+                if claimed != "done":
+                    return redirect("/billing?upgraded=1")
+            elif state != "closed":
+                return _checkout_error("The checkout you opened a moment ago is still open. "
+                                       "Finish it in that tab, or try again in a minute.")
             store.set_kv(_open_checkout_key(user["id"]), "")
         # The referral's 50% is for a first subscription only: never for an
         # account Stripe has already billed (2026-09-19 review).
-        coupon = (stripe_billing.ensure_referral_coupon()
-                  if user.get("referred_by") and not user.get("stripe_customer_id")
-                  and not user.get("ref_credited")
-                  else None)
+        eligible = (user.get("referred_by") and not user.get("stripe_customer_id")
+                    and not user.get("ref_credited"))
+        coupon = stripe_billing.ensure_referral_coupon() if eligible else None
+        if eligible and not coupon:
+            _notify_owners("Referral discount missing",
+                           "%s joined from a referral and is checking out, but Stripe "
+                           "would not make the 50%% coupon, so they are paying full price. "
+                           "Check the secret key, or refund them half from Stripe."
+                           % user.get("email"))
         session_obj = stripe_billing.create_checkout_session(
             user["id"], user["email"], plan, request.url_root.rstrip("/"),
             coupon=coupon, customer_id=user.get("stripe_customer_id"))
@@ -4821,9 +4888,9 @@ def create_app():
             return redirect("/billing")
         if _billing_hands_off(user):
             return redirect("/billing")
-        found = stripe_billing.active_subscription_for_email(user["email"])
+        found = stripe_billing.active_subscription_for_email(user["email"], user_id=user["id"])
         if found:
-            if not _is_owner_email(user.get("email")):
+            if not _plan_held(user):
                 store.set_user_plan(user["id"], found["plan"])
             store.set_stripe_ids(user["id"], found["customer_id"],
                                  found["subscription_id"])
@@ -4842,27 +4909,56 @@ def create_app():
 
     def _credit_referrer(referrer, referred_id, referred_email, cents):
         """Claim this referral once, in the database, then credit Stripe with
-        a key so a retry cannot credit twice; a refused credit releases the
-        claim (2026-09-19 review: two workers could both credit)."""
+        a key so a retry cannot credit twice (2026-09-19 review: two workers
+        could both credit). Only a credit Stripe refused gives the claim
+        back. One Stripe did not answer about is looked for on the balance;
+        if it cannot be found the claim stays and the owner is told, because
+        a retry after the key expires would credit twice (second review)."""
         if not cents or not store.claim_ref_credit(referred_id):
             return False
-        if stripe_billing.credit_customer(
-                referrer["stripe_customer_id"], cents,
-                "Street Banker referral: 50%% off for referring %s" % referred_email,
-                idempotency_key="sb-ref-credit-" + referred_id):
+        customer = referrer["stripe_customer_id"]
+        result = stripe_billing.apply_credit(
+            customer, cents,
+            "Street Banker referral: 50%% off for referring %s" % referred_email,
+            idempotency_key="sb-ref-credit-" + referred_id,
+            metadata={"sb_ref_friend": referred_id})
+        if result == "unknown" and stripe_billing.find_credit(customer, "sb_ref_friend", referred_id):
+            result = "ok"
+        if result == "ok":
             store.notify(referrer["id"], "billing", "Referral credit applied",
                          "$%.2f, toward half your next month, landed on your Stripe balance: "
                          "%s paid for their plan." % (cents / 100.0, referred_email), "/referrals")
             return True
-        store.release_ref_credit(referred_id)
+        if result == "refused":
+            store.release_ref_credit(referred_id)
+            return False
+        _notify_owners("Check a referral credit",
+                       "Stripe did not answer when crediting $%.2f to %s for referring %s. "
+                       "Open that customer in Stripe: if their balance has no \"Street Banker "
+                       "referral\" credit for %s, add $%.2f by hand."
+                       % (cents / 100.0, referrer.get("email"), referred_email,
+                          referred_email, cents / 100.0))
         return False
 
+    def _billed_plan(user):
+        """The tier Stripe bills this account for now, or None. The plan the
+        app shows can be higher (an owner's grant), and the referral credit
+        is half of what the referrer actually pays (2026-09-19 second
+        review)."""
+        sub = stripe_billing.subscription_state((user or {}).get("stripe_subscription_id"))
+        if sub and sub.get("status") in ("active", "trialing", "past_due"):
+            return stripe_billing.plan_for_subscription(sub)
+        return None
+
     def _referral_cents(referrer, paid_cents):
-        """Half the referrer's own month, and never more than the friend
-        actually paid: a Label referrer earning $99.50 from a $14.50 payment
-        would make referrals a way to print credit (2026-09-19 review)."""
-        half = stripe_billing.referrer_credit_cents((referrer or {}).get("plan"))
-        return min(half, int(paid_cents or 0)) if paid_cents else half
+        """Half the referrer's own billed month, and never more than the
+        friend actually paid: a Label referrer earning $99.50 from a $14.50
+        payment would make referrals a way to print credit. Nothing until
+        the friend's payment is known."""
+        if not paid_cents:
+            return 0
+        half = stripe_billing.referrer_credit_cents(_billed_plan(referrer))
+        return min(half, int(paid_cents))
 
     def _settle_referrals(payer_id, paid_cents=0):
         """Settle referrals on real money. When this account has just paid
@@ -4922,19 +5018,109 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        if _billing_hands_off(user):
+        # Someone working in another account never opens its card. An
+        # artist seated at a partner still pays for, and may cancel, the
+        # subscription they already had (2026-09-19 second review).
+        if _working_as_someone():
             return redirect("/billing")
         if not (stripe_billing.configured() and user.get("stripe_customer_id")):
             return redirect("/billing")
+        if stripe_billing.customer_exists(user["stripe_customer_id"]) is False:
+            store.set_stripe_ids(user["id"], None, None)
+            return redirect("/billing?sync=none")
         session_obj = stripe_billing.create_portal_session(
             user["stripe_customer_id"], request.url_root.rstrip("/") + "/billing")
         if not session_obj or not session_obj.get("url"):
             return redirect("/billing")
         return redirect(session_obj["url"], code=303)
 
+    def _claim_plan_session(obj):
+        """Put an account on the tier a paid membership checkout bought,
+        once, whoever sees the session first (the webhook, or the member's
+        next Subscribe click). Returns:
+          claimed   done now
+          done      handled before
+          skipped   not a paid membership checkout of a known account
+          conflict  the account already has another subscription billing:
+                    nothing is overwritten and the owner is told
+          retry     Stripe could not be asked; try again later
+        The done mark is written last, so a run that failed half way is
+        run again (2026-09-19 second review)."""
+        obj = obj or {}
+        user_id = obj.get("client_reference_id")
+        plan = (obj.get("metadata") or {}).get("plan")
+        paid = obj.get("payment_status") in ("paid", "no_payment_required")
+        sid = obj.get("id") or ""
+        member = store.get_user(user_id) if user_id else None
+        if not (paid and member and plan in stripe_billing.PRICES):
+            return "skipped"
+        done_key = "stripe_cs_done:" + sid
+        if sid and store.get_kv(done_key):
+            return "done"
+        new_sub = obj.get("subscription")
+        stored = member.get("stripe_subscription_id")
+        if stored and new_sub and stored != new_sub:
+            # A late first delivery of an old checkout, or two checkouts
+            # that both went through: the subscription on file wins while
+            # it can still bill (2026-09-19 second review).
+            cur = stripe_billing.subscription_state(stored)
+            if cur is None:
+                return "retry"
+            if cur.get("status") in stripe_billing.BILLING_STATUSES:
+                _notify_owners("Two subscriptions on one account",
+                               "%s has subscription %s on file and checkout %s started %s as "
+                               "well. Both can bill: cancel and refund the extra one in Stripe."
+                               % (member.get("email"), stored, sid or "?", new_sub))
+                store.notify(user_id, "billing", "Two memberships are billing",
+                             "A second checkout went through while your membership was "
+                             "already active. Street Banker has been told; you can also "
+                             "cancel the extra one in Manage Billing.", "/billing")
+                if sid:
+                    store.set_kv(done_key, "1")
+                return "conflict"
+        if not _plan_held(member):
+            store.set_user_plan(user_id, plan)
+        store.set_stripe_ids(user_id, obj.get("customer"), new_sub)
+        store.notify(user_id, "billing",
+                     "Welcome to %s" % plans.PLAN_NAMES.get(plan, plan),
+                     "Your subscription is active: every %s feature is "
+                     "unlocked." % plans.PLAN_NAMES.get(plan, plan),
+                     "/command-center")
+        # The first payment is this session's own: settled here as well as
+        # on invoice.paid, which can arrive before this has linked the
+        # customer (2026-09-19 review).
+        if int(obj.get("amount_total") or 0) > 0:
+            _settle_referrals(user_id, int(obj.get("amount_total")))
+        if sid:
+            store.set_kv(done_key, "1")
+            # Only this session's own mark: a newer checkout the member
+            # opened since stays guarded (2026-09-19 second review).
+            if store.get_kv(_open_checkout_key(user_id)) == sid:
+                store.set_kv(_open_checkout_key(user_id), "")
+        return "claimed"
+
+    def _refund_touches_referral(customer_id, amount_cents, what):
+        """A refunded or disputed payment from a referred friend. A credit
+        not paid yet waits for real money again; one already paid is the
+        owner's to reverse, so they are told."""
+        friend = store.user_by_stripe_customer(customer_id)
+        if not (friend and friend.get("referred_by")):
+            return
+        referrer = store.get_user(friend["referred_by"]) or {}
+        if friend.get("ref_credited"):
+            _notify_owners("Referral credit on a %s payment" % what,
+                           "%s's payment of $%.2f was %s. Their referrer %s already has a "
+                           "referral credit for them: reverse it in Stripe if the %s stands."
+                           % (friend.get("email"), amount_cents / 100.0, what,
+                              referrer.get("email") or "?",
+                              "refund" if what == "refunded" else "dispute"))
+        else:
+            store.set_kv(_ref_paid_key(friend["id"]), "")
+            store.set_kv(_ref_paid_cents_key(friend["id"]), "")
+
     @app.route("/webhooks/stripe", methods=["POST"])
     def stripe_webhook():
-        if not stripe_billing.webhook_configured():
+        if not stripe_billing.webhook_accepts():
             abort(404)
         body = request.get_data()
         if not stripe_billing.verify_webhook(
@@ -4968,33 +5154,22 @@ def create_app():
                 (obj.get("metadata") or {}).get("kind") == "credit_pack":
             _claim_credit_pack(obj)
         elif etype == "checkout.session.completed":
-            user_id = obj.get("client_reference_id")
-            plan = (obj.get("metadata") or {}).get("plan")
             # Granted on money, not on a completed form: a session can
             # complete unpaid (2026-09-18 launch check). Each session is
             # handled once, so a replay of an old one cannot put back an old
             # subscription (2026-09-19 review).
-            paid = obj.get("payment_status") in ("paid", "no_payment_required")
-            done_key = "stripe_cs_done:" + (obj.get("id") or "")
-            member = store.get_user(user_id) if user_id else None
-            if paid and member and plan in stripe_billing.PRICES and not (obj.get("id") and store.get_kv(done_key)):
-                if obj.get("id"):
-                    store.set_kv(done_key, "1")
-                store.set_kv(_open_checkout_key(user_id), "")
-                if not (_is_owner_email(member.get("email")) or member.get("partner_id")):
-                    store.set_user_plan(user_id, plan)
-                store.set_stripe_ids(user_id, obj.get("customer"),
-                                     obj.get("subscription"))
-                store.notify(user_id, "billing",
-                             "Welcome to %s" % plans.PLAN_NAMES.get(plan, plan),
-                             "Your subscription is active — every %s feature is "
-                             "unlocked." % plans.PLAN_NAMES.get(plan, plan),
-                             "/command-center")
-                # The first payment is this session's own: settled here as
-                # well as on invoice.paid, which can arrive before this event
-                # has linked the customer (2026-09-19 review).
-                if int(obj.get("amount_total") or 0) > 0:
-                    _settle_referrals(user_id, int(obj.get("amount_total")))
+            if _claim_plan_session(obj) == "retry":
+                return jsonify({"ok": False, "error": "Stripe unreachable; retry"}), 503
+        elif etype in ("charge.refunded", "charge.dispute.created"):
+            if etype == "charge.refunded":
+                _refund_touches_referral(obj.get("customer"),
+                                         int(obj.get("amount_refunded") or 0), "refunded")
+            else:
+                charge = stripe_billing.get_charge(obj.get("charge"))
+                if charge is None:
+                    return jsonify({"ok": False, "error": "Stripe unreachable; retry"}), 503
+                _refund_touches_referral(charge.get("customer"),
+                                         int(obj.get("amount") or 0), "disputed")
         elif etype == "invoice.paid":
             # A referral settles on real money, not on the checkout form.
             user = store.user_by_stripe_customer(obj.get("customer"))
@@ -5004,12 +5179,16 @@ def create_app():
             # Keeps the plan in step with Stripe whatever changed it: the
             # portal, the dashboard, or a payment retry running out.
             user = store.user_by_stripe_customer(obj.get("customer"))
-            held = user and (_is_owner_email(user.get("email")) or user.get("partner_id"))
+            held = user and _plan_held(user)
             if user and not held and obj.get("id") and obj.get("id") == user.get("stripe_subscription_id"):
                 # An event is a snapshot: a late or repeated one would roll
                 # the plan back, so the subscription is read as Stripe holds
-                # it now (2026-09-19 review).
-                obj = stripe_billing.get_subscription(obj["id"]) or obj
+                # it now (2026-09-19 review). When it cannot be read, Stripe
+                # is asked to send the event again rather than the snapshot
+                # being trusted (second review).
+                obj = stripe_billing.subscription_state(obj["id"])
+                if obj is None:
+                    return jsonify({"ok": False, "error": "Stripe unreachable; retry"}), 503
                 status = obj.get("status") or ""
                 tier = stripe_billing.plan_for_subscription(obj)
                 if status in ("active", "trialing") and tier and tier != user.get("plan"):
@@ -5027,9 +5206,8 @@ def create_app():
                                  "carry on.", "/billing")
                 elif status == "past_due":
                     store.notify(user["id"], "billing", "Payment is past due",
-                                 "Stripe could not charge your card and will try "
-                                 "again. Update it in Manage Billing to keep your "
-                                 "plan.", "/billing")
+                                 "Stripe could not charge your card. Update it in "
+                                 "Manage Billing to keep your plan.", "/billing")
         elif etype == "customer.subscription.deleted":
             # Fan club cancellations first — they aren't plan subscriptions.
             artist_id = store.cancel_club_member_by_subscription(obj.get("id"))
@@ -5042,7 +5220,7 @@ def create_app():
             # Only the subscription the account is on ends its plan; an old
             # or duplicate one ending must not drop a paying member.
             current_sub = (user or {}).get("stripe_subscription_id")
-            held = user and (_is_owner_email(user.get("email")) or user.get("partner_id"))
+            held = user and _plan_held(user)
             if user and not held and (not current_sub or current_sub == obj.get("id")):
                 store.set_user_plan(user["id"], "fan")
                 store.set_stripe_ids(user["id"], user.get("stripe_customer_id"), None)
@@ -5052,7 +5230,22 @@ def create_app():
                              "/billing")
         elif etype == "invoice.payment_failed":
             user = store.user_by_stripe_customer(obj.get("customer"))
-            if user:
+            billed = stripe_billing.invoice_subscription_id(obj)
+            ours = user and (not billed or billed == user.get("stripe_subscription_id"))
+            if ours and not obj.get("next_payment_attempt") and not _plan_held(user) \
+                    and user.get("plan") in stripe_billing.PRICES:
+                # Stripe has stopped trying. Depending on a dashboard setting
+                # it cancels, marks unpaid, or leaves the subscription past
+                # due forever, which kept a paid plan with no end (2026-09-19
+                # second review). Paying the invoice in Manage Billing brings
+                # the plan back through customer.subscription.updated.
+                store.set_user_plan(user["id"], "fan")
+                store.notify(user["id"], "billing", "Plan paused",
+                             "Stripe could not collect your membership and has stopped "
+                             "trying, so your plan moved to the free Fan tier. Your data "
+                             "is untouched: pay the bill in Manage Billing to carry on.",
+                             "/billing")
+            elif user:
                 store.notify(user["id"], "billing", "Payment failed",
                              "Stripe couldn't charge your card. Update it in "
                              "Manage Billing to keep your plan.", "/billing")
@@ -11549,7 +11742,7 @@ def create_app():
         ctx["billing"] = get_billing_data(ctx["account"])
         ctx["plan_cards"] = plans.PLANS
         ctx["user"] = user
-        ctx["webhook_live"] = stripe_billing.webhook_configured()
+        ctx["webhook_live"] = stripe_billing.webhook_accepts()
         ctx["webhook_current"] = stripe_billing.webhook_events_current()
         sid = request.args.get("session_id") or ""
         if request.args.get("credits") == "1" and sid:
@@ -12266,6 +12459,11 @@ def create_app():
         if plan not in plans.TIER_RANK:
             return redirect("/settings?granted=badplan#grant-plan")
         store.set_user_plan(target["id"], plan)
+        # A paid tier granted by hand holds: renewals and plan changes in
+        # Stripe no longer move it (2026-09-19 second review). Granting a
+        # free tier hands the account back to its subscription.
+        store.set_kv(_plan_grant_key(target["id"]),
+                     plan if plan in stripe_billing.PRICES else "")
         # The account is told twice: a notification inside the app, and
         # an email (owner, 2026-09-14: "we do need it to send a email
         # saying they have access now to a plan"). The page reports what
@@ -12383,6 +12581,11 @@ def create_app():
             return redirect("/settings?deleted=billing#delete-account")
 
         keys = store.stored_keys_for_user(user["id"])
+        if user.get("referred_by") or user.get("stripe_customer_id"):
+            # Deleting and signing up again must not earn the referral's 50%
+            # and the referrer's credit a second time (2026-09-19 second
+            # review). Only a hash of the address is kept.
+            store.set_kv(_ref_spent_key(user.get("email")), "1")
         store.delete_user_everything(user["id"])
         session.clear()
         if keys and blob_store.configured():

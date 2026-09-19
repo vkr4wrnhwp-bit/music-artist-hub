@@ -42,7 +42,12 @@ WEBHOOK_EVENTS = ("checkout.session.completed",
                   # first paid invoice that settles a referral (2026-09-19).
                   "customer.subscription.updated",
                   "invoice.paid",
-                  "invoice.payment_failed")
+                  "invoice.payment_failed",
+                  # Money coming back: a referral credit paid on a payment
+                  # that was refunded or disputed is the owner's to reverse
+                  # (2026-09-19 second review).
+                  "charge.refunded",
+                  "charge.dispute.created")
 
 
 def mode():
@@ -74,32 +79,48 @@ def plan_for_subscription(sub):
     return plan_for_amount((items[0].get("price") or {}).get("unit_amount"))
 
 
-def _stored_webhook_secret():
-    """Signing secret saved by the in-app webhook setup. Lazy import keeps
-    this module import-safe before the database exists."""
+# Where the secret lived before it was kept per mode. Its endpoint may be
+# the sandbox's, so it still verifies deliveries (nothing breaks on deploy)
+# but never counts as this mode's endpoint (2026-09-19 second review: after
+# the live key went in, the card said "active" with no live endpoint).
+_LEGACY_SECRET_KEY = "stripe_webhook_secret"
+_LEGACY_EVENTS_KEY = "stripe_webhook_events"
+
+
+def _kv(name):
+    """Lazy import keeps this module import-safe before the database exists."""
     try:
         import db
-        return db.get_kv("stripe_webhook_secret") or ""
+        return db.get_kv(name) or ""
     except Exception:
         return ""
 
 
+def _stored_webhook_secret():
+    """Signing secret the in-app setup saved for this mode's endpoint."""
+    return _kv(_kv_key("webhook_secret"))
+
+
+def _legacy_webhook_secret():
+    return _kv(_LEGACY_SECRET_KEY)
+
+
 def webhook_configured():
+    """This mode has an endpoint whose signing secret the app holds."""
     return bool(os.environ.get("STRIPE_WEBHOOK_SECRET") or _stored_webhook_secret())
 
 
+def webhook_accepts():
+    """Any secret a delivery can be verified with, the old one included."""
+    return bool(webhook_configured() or _legacy_webhook_secret())
+
+
 def webhook_events_current():
-    """Was the stored endpoint set up with today's event list? An endpoint
-    made before a new event was added never receives it, so the owner's
-    billing card offers to update it. An endpoint set up by hand in the
-    dashboard (the env secret) is taken to be the owner's own business."""
-    if os.environ.get("STRIPE_WEBHOOK_SECRET"):
-        return True
-    try:
-        import db
-        return (db.get_kv("stripe_webhook_events") or "") == ",".join(WEBHOOK_EVENTS)
-    except Exception:
-        return True
+    """Was this mode's endpoint set up by the app with today's event list?
+    An endpoint made before an event was added never receives it, and one
+    made by hand in the dashboard (the env secret) cannot be checked, so
+    the owner's billing card offers the one-click update for both."""
+    return _kv(_kv_key("webhook_events")) == ",".join(WEBHOOK_EVENTS)
 
 
 IDEMPOTENCY_FIELD = "__idempotency_key"
@@ -163,20 +184,47 @@ def ensure_referral_coupon():
     return None
 
 
-def credit_customer(customer_id, amount_cents, description, idempotency_key=None):
+def apply_credit(customer_id, amount_cents, description, idempotency_key=None, metadata=None):
     """Negative balance transaction = credit against future invoices. With a
-    key, Stripe applies it once however many times it is asked."""
+    key, Stripe applies it once however many times it is asked.
+
+    Returns "ok", "refused" (Stripe answered no: nothing was applied), or
+    "unknown" (no answer, a timeout or a server error: it may have been
+    applied). Only "refused" may be tried again later; a retry after an
+    "unknown" can credit twice once the key has expired (2026-09-19 second
+    review)."""
     if not (configured() and customer_id):
-        return False
+        return "refused"
     fields = {"amount": str(-abs(int(amount_cents))), "currency": "usd",
               "description": description[:300]}
+    for k, v in (metadata or {}).items():
+        fields["metadata[%s]" % k] = v
     if idempotency_key:
         fields[IDEMPOTENCY_FIELD] = idempotency_key
     try:
         out = _http("/v1/customers/%s/balance_transactions" % customer_id, fields)
-        return bool(out.get("id"))
+    except urllib.error.HTTPError as e:
+        return "refused" if e.code in (400, 402, 404) else "unknown"
     except Exception:
-        return False
+        return "unknown"
+    return "ok" if out.get("id") else "unknown"
+
+
+def credit_customer(customer_id, amount_cents, description, idempotency_key=None):
+    return apply_credit(customer_id, amount_cents, description, idempotency_key) == "ok"
+
+
+def find_credit(customer_id, key, value):
+    """Is there a balance transaction on this customer tagged key=value?
+    True, False, or None when Stripe could not be asked."""
+    if not (configured() and customer_id):
+        return None
+    try:
+        rows = _http_get("/v1/customers/%s/balance_transactions?limit=100"
+                         % urllib.parse.quote(customer_id, safe="")).get("data", [])
+    except Exception:
+        return None
+    return any((r.get("metadata") or {}).get(key) == value for r in rows)
 
 
 def create_checkout_session(user_id, email, plan, base_url, coupon=None, customer_id=None):
@@ -213,6 +261,53 @@ def create_checkout_session(user_id, email, plan, base_url, coupon=None, custome
         return _http("/v1/checkout/sessions", fields)
     except Exception:
         return None
+
+
+def customer_exists(customer_id):
+    """True, False (Stripe has no such customer in this mode, or it was
+    deleted), or None when Stripe could not say. Ids made with the sandbox
+    key do not exist under the live key, and an account that checked out
+    in the sandbox kept them (2026-09-19 second review)."""
+    if not configured() or not customer_id:
+        return False
+    try:
+        cust = _http_get("/v1/customers/" + urllib.parse.quote(customer_id, safe=""))
+    except urllib.error.HTTPError as e:
+        return False if e.code == 404 else None
+    except Exception:
+        return None
+    return not cust.get("deleted")
+
+
+def _plan_products():
+    return {_kv(_kv_key("product_" + p)) for p in PRICES} - {""}
+
+
+def is_plan_subscription(sub):
+    """Is this one of the app's membership subscriptions? A fan club or any
+    other subscription at $29, $79 or $199 is not a tier (2026-09-19 second
+    review: Sync took any of them for one)."""
+    if ((sub or {}).get("metadata") or {}).get("plan") in PRICES:
+        return True
+    products = _plan_products()
+    for it in ((sub or {}).get("items") or {}).get("data") or []:
+        prod = (it.get("price") or {}).get("product")
+        if isinstance(prod, dict):
+            prod = prod.get("id")
+        if prod and prod in products:
+            return True
+    return False
+
+
+def subscription_tier(sub):
+    """The tier of one of our subscriptions: the billed price first, the
+    metadata only when the price says nothing."""
+    tier = plan_for_subscription(sub) or ((sub or {}).get("metadata") or {}).get("plan")
+    return tier if tier in PRICES else None
+
+
+# A subscription in any of these can still bill, so a second must not open.
+BILLING_STATUSES = ("active", "trialing", "past_due", "unpaid", "incomplete", "paused")
 
 
 def ensure_plan_product(plan):
@@ -272,6 +367,29 @@ def get_subscription(subscription_id):
         return _http_get("/v1/subscriptions/" + urllib.parse.quote(subscription_id, safe=""))
     except Exception:
         return None
+
+
+def subscription_state(subscription_id):
+    """Like get_subscription, but a subscription Stripe does not have comes
+    back as {"id": ..., "status": "gone"} and only a failed read is None, so
+    a caller can wait and retry instead of acting on a guess."""
+    if not configured() or not subscription_id:
+        return None
+    try:
+        return _http_get("/v1/subscriptions/" + urllib.parse.quote(subscription_id, safe=""))
+    except urllib.error.HTTPError as e:
+        return {"id": subscription_id, "status": "gone"} if e.code == 404 else None
+    except Exception:
+        return None
+
+
+def invoice_subscription_id(invoice):
+    """The subscription an invoice bills. Newer API versions moved it under
+    parent.subscription_details."""
+    inv = invoice or {}
+    return (inv.get("subscription")
+            or (((inv.get("parent") or {}).get("subscription_details") or {}).get("subscription"))
+            or "")
 
 
 def change_subscription_plan(subscription_id, plan):
@@ -335,41 +453,58 @@ def change_subscription_plan(subscription_id, plan):
 
 
 def active_subscription_for_customer(customer_id):
-    """An active subscription on this customer, as {subscription_id, plan},
-    or None. Used before a new checkout, so a member who already pays is
-    never sold a second subscription."""
+    """A membership subscription on this customer that can still bill, as
+    {subscription_id, plan, status}; None when there is none; or
+    {"error": True} when Stripe could not be asked. Used before a new
+    checkout, so a member who already pays, or owes, is never sold a second
+    subscription. Past due and unpaid count: listing only active ones hid
+    them (2026-09-19 second review)."""
     if not configured() or not customer_id:
         return None
     try:
         subs = _http_get("/v1/subscriptions?" + urllib.parse.urlencode(
-            {"customer": customer_id, "status": "active", "limit": 5})).get("data", [])
+            {"customer": customer_id, "status": "all", "limit": 20})).get("data", [])
     except Exception:
-        return None
+        return {"error": True}
     for sub in subs:
-        plan = plan_for_subscription(sub)
-        if plan:
-            return {"subscription_id": sub["id"], "plan": plan}
+        tier = subscription_tier(sub)
+        if sub.get("status") in BILLING_STATUSES and tier and is_plan_subscription(sub):
+            return {"subscription_id": sub["id"], "plan": tier, "status": sub.get("status")}
     return None
 
 
-def expire_checkout_session(session_id):
-    """Close an open Checkout Session, so two clicks cannot become two
-    subscriptions. Returns "expired", "complete" (it was already paid) or
-    "error"."""
+def close_open_checkout(session_id):
+    """Make sure the checkout this account opened earlier cannot become a
+    second subscription. Returns (state, session):
+      closed    it expired, or is expired now
+      complete  it was paid: the caller claims it instead of opening another
+      error     Stripe could not say: nothing new may open
+    It used to try the expire and read "complete" out of Stripe's error
+    text, and any other text let a second checkout open (2026-09-19 second
+    review)."""
     if not configured() or not session_id:
-        return "error"
-    try:
-        _http("/v1/checkout/sessions/%s/expire" % urllib.parse.quote(session_id, safe=""), {})
-        return "expired"
-    except urllib.error.HTTPError as e:
+        return "error", None
+    path = "/v1/checkout/sessions/" + urllib.parse.quote(session_id, safe="")
+    for attempt in (1, 2):
         try:
-            body = json.loads(e.read().decode("utf-8"))
-            msg = ((body.get("error") or {}).get("message") or "").lower()
+            sess = _http_get(path)
+        except urllib.error.HTTPError as e:
+            return ("closed" if e.code == 404 else "error"), None
         except Exception:
-            msg = ""
-        return "complete" if "complete" in msg else "error"
-    except Exception:
-        return "error"
+            return "error", None
+        status = sess.get("status")
+        if status == "complete":
+            return "complete", sess
+        if status == "expired":
+            return "closed", sess
+        if status != "open" or attempt == 2:
+            return "error", sess
+        try:
+            _http(path + "/expire", {})
+            return "closed", sess
+        except Exception:
+            continue            # paid in the meantime? read it again
+    return "error", None
 
 
 def _http_get(path):
@@ -380,10 +515,15 @@ def _http_get(path):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def active_subscription_for_email(email):
-    """Look up an active subscription by customer email — the webhook-less
+def active_subscription_for_email(email, user_id=None):
+    """Look up a membership subscription by customer email, the webhook-less
     fallback so a completed checkout can always be claimed in-app.
-    Returns {customer_id, subscription_id, plan} or None."""
+    Returns {customer_id, subscription_id, plan} or None.
+
+    Only the app's own membership subscriptions count (a fan club at the
+    same price is not a tier), and one made for another account is not this
+    one's (2026-09-19 second review). Past due still holds the plan while
+    Stripe retries, so it is found as well."""
     if not configured() or not email:
         return None
     try:
@@ -391,26 +531,19 @@ def active_subscription_for_email(email):
             {"email": email, "limit": 5})).get("data", [])
         for cust in customers:
             subs = _http_get("/v1/subscriptions?" + urllib.parse.urlencode(
-                {"customer": cust["id"], "status": "active", "limit": 5})).get("data", [])
+                {"customer": cust["id"], "status": "all", "limit": 20})).get("data", [])
             for sub in subs:
-                # The price is what Stripe bills; metadata can be stale after
-                # a change made anywhere but here (2026-09-19 review).
-                plan = plan_for_subscription(sub) or (sub.get("metadata") or {}).get("plan")
-                if plan not in PRICES:
-                    # Fall back to matching the product name we created.
-                    items = (sub.get("items") or {}).get("data") or []
-                    for it in items:
-                        nickname = ((it.get("price") or {}).get("nickname") or "")
-                        for key, (_, name) in PRICES.items():
-                            if name in nickname:
-                                plan = key
-                    if plan not in PRICES:
-                        for key in PRICES:
-                            if (sub.get("description") or "").lower().find(key) >= 0:
-                                plan = key
-                if plan in PRICES:
+                if sub.get("status") not in ("active", "trialing", "past_due"):
+                    continue
+                if not is_plan_subscription(sub):
+                    continue
+                owner = (sub.get("metadata") or {}).get("user_id")
+                if user_id and owner and owner != user_id:
+                    continue
+                tier = subscription_tier(sub)
+                if tier:
                     return {"customer_id": cust["id"],
-                            "subscription_id": sub["id"], "plan": plan}
+                            "subscription_id": sub["id"], "plan": tier}
         return None
     except Exception:
         return None
@@ -514,6 +647,17 @@ def get_checkout_session(session_id):
         return None
 
 
+def get_charge(charge_id):
+    """A charge as Stripe holds it, or None. A dispute names its charge,
+    not the customer."""
+    if not configured() or not charge_id:
+        return {}
+    try:
+        return _http_get("/v1/charges/" + urllib.parse.quote(charge_id, safe=""))
+    except Exception:
+        return None
+
+
 def create_portal_session(customer_id, return_url):
     """Stripe-hosted billing portal (cancel, card update, invoices)."""
     try:
@@ -543,15 +687,16 @@ def setup_webhook_endpoint(base_url):
         existing = _http_get("/v1/webhook_endpoints?limit=100").get("data", [])
         ours = [ep for ep in existing if ep.get("url") == url]
         if len(ours) == 1 and _stored_webhook_secret():
-            # The endpoint this app made, whose secret it holds: change its
-            # event list in place. Deleting and re-creating it drops the
-            # retries Stripe has queued (2026-09-19 review).
-            fields = {}
+            # The endpoint this app made in this mode, whose secret it
+            # holds: change its event list in place, and switch it back on
+            # if Stripe turned it off after failed deliveries. Deleting and
+            # re-creating it drops the retries Stripe has queued.
+            fields = {"disabled": "false"}
             for i, ev in enumerate(WEBHOOK_EVENTS):
                 fields["enabled_events[%d]" % i] = ev
             updated = _http("/v1/webhook_endpoints/" + ours[0]["id"], fields)
             if updated.get("id"):
-                db.set_kv("stripe_webhook_events", ",".join(WEBHOOK_EVENTS))
+                db.set_kv(_kv_key("webhook_events"), ",".join(WEBHOOK_EVENTS))
                 return {"id": updated["id"], "url": url, "events": len(WEBHOOK_EVENTS)}
         for ep in existing:
             # A secret is only revealed at creation, so stale endpoints for
@@ -565,8 +710,12 @@ def setup_webhook_endpoint(base_url):
         if not (created.get("id") and created.get("secret")):
             return None
         import db
-        db.set_kv("stripe_webhook_secret", created["secret"])
-        db.set_kv("stripe_webhook_events", ",".join(WEBHOOK_EVENTS))
+        db.set_kv(_kv_key("webhook_secret"), created["secret"])
+        db.set_kv(_kv_key("webhook_events"), ",".join(WEBHOOK_EVENTS))
+        # The secret from before it was kept per mode belongs to an endpoint
+        # this one replaces (or to the sandbox): it stops verifying now.
+        db.set_kv(_LEGACY_SECRET_KEY, "")
+        db.set_kv(_LEGACY_EVENTS_KEY, "")
         return {"id": created["id"], "url": url, "events": len(WEBHOOK_EVENTS)}
     except Exception:
         return None
@@ -576,7 +725,7 @@ def verify_webhook(sig_header, body, tolerance=600):
     """Stripe-Signature check: HMAC-SHA256 of '{t}.{body}' with the secret.
     Accepts the env secret or the one saved by in-app webhook setup."""
     secrets = [s for s in (os.environ.get("STRIPE_WEBHOOK_SECRET", ""),
-                           _stored_webhook_secret()) if s]
+                           _stored_webhook_secret(), _legacy_webhook_secret()) if s]
     if not (secrets and sig_header):
         return False
     parts = dict(p.split("=", 1) for p in sig_header.split(",") if "=" in p)

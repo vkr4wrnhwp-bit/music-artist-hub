@@ -69,8 +69,13 @@ def stripe_on(monkeypatch):
             return dict(state["update"])
         return {"id": "cbt_1"}
 
+    def fake_get(path):
+        if path.startswith("/v1/checkout/sessions/"):
+            return dict(state.get("session") or {"id": "cs_1", "status": "open"})
+        return dict(state["sub"])
+
     monkeypatch.setattr(sb, "_http", fake_http)
-    monkeypatch.setattr(sb, "_http_get", lambda path: dict(state["sub"]))
+    monkeypatch.setattr(sb, "_http_get", fake_get)
     for name in ("product_artist", "product_pro", "product_label",
                  "price_artist", "price_pro", "price_label", "ref_coupon_50"):
         store.set_kv(sb._kv_key(name), "")
@@ -137,6 +142,7 @@ def test_a_cancelled_subscription_checks_out_again_as_the_same_customer(stripe_o
     assert r.status_code == 303
     sess = [f for p, f in calls if p == "/v1/checkout/sessions"][-1]
     assert sess["customer"] == "cus_known" and "customer_email" not in sess
+    assert store.get_user(uid)["plan"] == "fan", "an ended subscription leaves no paid tier"
     assert sess["payment_method_types[0]"] == "card"
 
 
@@ -247,6 +253,7 @@ def test_a_referrer_not_yet_paying_is_credited_on_their_first_bill(stripe_on):
     assert store.get_user(fid)["ref_credited"] == 0
     assert not [p for p, f in calls if "balance_transactions" in p]
     # The referrer subscribes to Pro and pays their first bill.
+    _state["sub"]["items"]["data"][0]["price"]["unit_amount"] = 7900
     store.set_user_plan(rid, "pro")
     store.set_stripe_ids(rid, "cus_r2", "sub_r2")
     _hook("invoice.paid", {"customer": "cus_r2", "amount_paid": 7900})
@@ -264,9 +271,9 @@ def test_the_webhook_listens_for_changes_and_payments():
 
 def test_an_endpoint_set_up_before_the_new_events_is_offered_an_update(monkeypatch):
     monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
-    store.set_kv("stripe_webhook_events", "checkout.session.completed")
+    store.set_kv(sb._kv_key("webhook_events"), "checkout.session.completed")
     assert sb.webhook_events_current() is False
-    store.set_kv("stripe_webhook_events", ",".join(sb.WEBHOOK_EVENTS))
+    store.set_kv(sb._kv_key("webhook_events"), ",".join(sb.WEBHOOK_EVENTS))
     assert sb.webhook_events_current() is True
 
 
@@ -307,7 +314,8 @@ def test_two_clicks_do_not_open_two_checkouts(stripe_on):
 def test_a_member_who_already_pays_is_not_sold_a_second_subscription(stripe_on, monkeypatch):
     calls, _state = stripe_on
     monkeypatch.setattr(sb, "_http_get", lambda path: {"data": [
-        {"id": "sub_live", "status": "active", "items": {"data": [{"id": "si", "price": {"unit_amount": 7900}}]}}]})
+        {"id": "sub_live", "status": "active", "metadata": {"plan": "pro"},
+         "items": {"data": [{"id": "si", "price": {"unit_amount": 7900}}]}}]})
     c, uid = _member("fan", sub=None, customer="cus_paying")
     store.set_stripe_ids(uid, "cus_paying", None)
     r = c.post("/billing/checkout", data={"plan": "pro"})
@@ -426,12 +434,12 @@ def test_the_webhook_is_updated_in_place_when_it_is_ours(monkeypatch):
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_x")
     monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
     monkeypatch.delenv("SANDBOX", raising=False)
-    store.set_kv("stripe_webhook_secret", "whsec_ours")
+    store.set_kv(sb._kv_key("webhook_secret"), "whsec_ours")
     posts, deletes = [], []
     monkeypatch.setattr(sb, "_http_get", lambda path: {"data": [{"id": "we_1", "url": "https://x.test/webhooks/stripe"}]})
     monkeypatch.setattr(sb, "_http", lambda path, fields: posts.append((path, fields)) or {"id": "we_1"})
     monkeypatch.setattr(sb, "_http_delete", lambda path: deletes.append(path) or {})
     out = sb.setup_webhook_endpoint("https://x.test")
     assert out and deletes == [] and posts[0][0] == "/v1/webhook_endpoints/we_1"
-    assert "invoice.paid" in posts[0][1].values()
+    assert "invoice.paid" in posts[0][1].values() and posts[0][1]["disabled"] == "false"
     assert sb.webhook_events_current()
