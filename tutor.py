@@ -40,10 +40,10 @@ STAGES = [
     ("start", "Set up the desk",
      "Five things, each one making the next more useful.", [
         ("profile", "Name the artist",
-         "Every public page — your press kit, smart links, one-sheet — "
+         "Every public page, your press kit and your smart links, "
          "reads from this. Nothing else looks right until it is filled in.",
-         # See firstrun.STEPS: the editable page is the Press Office. The
-         # one-sheet at /artist-profile has no field on it.
+         # See firstrun.STEPS: the editable page is the Press Office, and
+         # since 2026-09-19 the press kit is the one document.
          "/epk", "Set up the profile"),
         ("track", "Add a track",
          "Tracks are the spine: royalty lanes, registration, metadata and "

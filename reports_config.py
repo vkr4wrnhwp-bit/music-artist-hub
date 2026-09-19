@@ -39,7 +39,9 @@ REAL_REPORTS = [
     ("Recovery Findings", "Unmatched revenue and coverage gaps from your uploaded statements.", "/reports/recovery.csv", "CSV"),
     ("Fan CRM Export", "Owned fans with consent status and intent scores.", "/links/fans/export.csv", "CSV"),
     ("Royalty Rows", "Raw parsed statement rows for accounting.", "/reports/royalty-report/download.csv", "CSV"),
-    ("Artist One-Sheet", "The label-facing profile with badges and live numbers.", "/artist-profile", "Print / PDF"),
+    # The one-sheet is the EPK (owner, 2026-09-19: "It just needs to be an
+    # EPK. The EPK goes to the vault."); saved copies live in the Vault.
+    ("Press Kit (EPK)", "The one document you send: bio, photos, tracks, measured figures, and the For deals section when it is on. Save to Vault files a dated copy.", "/epk", "Web page / print"),
 ]
 
 

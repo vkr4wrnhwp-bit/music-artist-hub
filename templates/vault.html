@@ -68,7 +68,7 @@
   <div id="vault-grid" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
     {% for a in items %}
     <div class="vault-card overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-sb-surface-2 to-sb-ground" data-type="{{ a.type }}" data-name="{{ (a.name ~ ' ' ~ a.type) | lower }}">
-      {% if a.path and a.type not in ('Lyrics', 'Video', 'Video / Canvas', 'Master', 'Master Bounce', 'Stems', 'File', 'Other File') %}
+      {% if a.path and not a.kit and a.type not in ('Lyrics', 'Video', 'Video / Canvas', 'Master', 'Master Bounce', 'Stems', 'File', 'Other File') %}
       {# media_url resolves both shapes: a disk path unchanged, an "r2:"
          object to a short-lived signed URL. Resolved once so the link and
          the thumbnail share one signature rather than signing twice. #}
@@ -76,6 +76,17 @@
       <a href="{{ src }}" target="_blank"><img src="{{ src }}" alt="{{ a.name }}" class="aspect-[3/2] w-full border-b border-white/5 object-cover" loading="lazy"></a>
       {% else %}
       <div class="grid aspect-[3/2] place-items-center border-b border-white/5 bg-black/30 text-3xl text-gray-300">{{ '♫' if a.type in ('Lyrics', 'Master', 'Master Bounce', 'Stems') else ('▶' if 'Video' in a.type else '▤') }}</div>
+      {#- A saved press kit opens as a page and downloads as one; the tour
+          advance and the press pitch offer it from their own forms
+          (owner, 2026-09-19: "from the vault you can send and attach it"). -#}
+      {% if a.kit %}
+      <div class="flex flex-wrap gap-x-3 gap-y-1 border-b border-white/5 px-3.5 py-2 text-xs font-bold">
+        <a href="{{ a.path | media_url }}" target="_blank" rel="noopener" class="text-sb-gold-bright hover:underline">Open</a>
+        <a href="/vault/{{ a.vid }}/download" class="text-sb-gold-bright hover:underline">Download</a>
+        <a href="/tours" class="text-gray-300 hover:text-white">Attach to a tour advance</a>
+        <a href="/press-desk/pitch/new" class="text-gray-300 hover:text-white">Send with a press pitch</a>
+      </div>
+      {% endif %}
       {% endif %}
       <div class="p-3.5">
         <div class="flex items-center justify-between gap-2">

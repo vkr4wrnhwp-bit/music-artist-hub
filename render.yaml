@@ -18,6 +18,10 @@ services:
       # account and credits are bought. Never commit it.
       - key: ROEX_API_KEY
         sync: false
+      # Error reporting (Sentry). Paste the project DSN in the dashboard;
+      # unset, observability.py never starts the SDK. Never commit it.
+      - key: SENTRY_DSN
+        sync: false
       # Persistent storage (Starter instance + 1GB disk): database and all
       # uploads (documents, covers, EPK photos, sync audio) live under this
       # path together, so the one disk below covers everything.

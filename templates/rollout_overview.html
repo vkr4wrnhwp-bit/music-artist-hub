@@ -61,7 +61,15 @@
 
   <!-- Asset library -->
   <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
-    <h2 class="sb-label text-gray-300">Asset Library</h2>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 class="sb-label text-gray-300">Asset Library</h2>
+      {#- Owner 2026-09-19: video and images are made in Motion and come back through the Vault. -#}
+      <div class="flex flex-wrap items-center gap-2 text-xs">
+        <a href="{{ motion.href }}" target="_blank" rel="noopener" class="sb-btn sb-btn-secondary sb-btn-sm">{{ motion.label }}</a>
+        <span class="text-gray-300">{{ motion.then }}: <a href="{{ motion.vault_href }}" class="font-bold text-sb-gold-bright hover:underline">Vault</a></span>
+      </div>
+    </div>
+    <p class="mt-1 text-xs text-gray-300">{{ motion.note }}</p>
     {% if assets %}
     <div class="mt-3 flex flex-wrap gap-3">
       {% for a in assets %}

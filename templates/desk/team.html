@@ -30,7 +30,7 @@
         <input type="hidden" name="action" value="email">
         <input type="hidden" name="user_id" value="{{ u.id }}">
         <input class="dk-mini" type="email" name="email" value="{{ u.email or '' }}" placeholder="sign-in email"
-               style="padding:5px 8px;border:1px solid var(--dk-rule);border-radius:var(--sb-r-control);background:var(--dk-paper);width:190px">
+               style="width:190px">
         <button class="dk-btn dk-btn--ghost" style="min-height:26px;padding:0 10px;font-size:12px" type="submit">Set</button>
       </form>
       {% if u.email %}

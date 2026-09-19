@@ -26,3 +26,11 @@ elevenlabs==2.65.0
 # contract_reader says "cannot read PDFs yet" without it and the app
 # still boots.
 pypdf==6.18.1
+
+# Error reporting (2026-09-19). The owner had set SENTRY_DSN in Render and
+# nothing read it. observability.py reads it; with the variable unset the
+# import is never attempted, so the app boots without this line too.
+# Pinned like the two above: 2.69.2 is the newest release on PyPI today
+# (checked with `pip index versions sentry-sdk`). The [flask] extra pulls
+# blinker and the Flask integration, nothing with a C toolchain.
+sentry-sdk[flask]==2.69.2

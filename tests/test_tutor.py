@@ -184,7 +184,8 @@ def test_tutor_mode_locks_nothing(flask_app):
     _on(client)
     after = {p: client.get(p).status_code for p in pages}
     assert before == after
-    assert all(code in (200, 302) for code in after.values())
+    # 301: /artist-profile is a permanent redirect to /epk (2026-09-19).
+    assert all(code in (200, 301, 302) for code in after.values())
 
 
 def test_steps_tick_from_real_state_not_clicks(flask_app):

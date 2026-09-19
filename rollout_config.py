@@ -18,6 +18,28 @@ SUPPORT = ("From release calendars to content drops and tour routing—build "
 PRIMARY_CTA = {"label": "Open Rollout Engine", "href": "/rollout"}
 SECONDARY_CTA = {"label": "See a sample rollout"}
 
+# Where video and images get made. Owner, 2026-09-19, asked for a video
+# editor and an image generator in Rollout; the ruling that day was to send
+# everything to Motion and pull it back into the Vault. Street Banker does
+# not edit video or generate images, and no page here may say it does.
+# The link is the suite door (new tab, like every /suites/go/ link). Motion's
+# sign-in landing ignores everything but the token, so no rollout context
+# rides along; the plan stays open in this tab. The finished file comes
+# back by hand through the Vault upload.
+MOTION = {
+    "label": "Make it in Motion",
+    "href": "/suites/go/motion",
+    "then": "Then upload the finished file to your Vault",
+    "vault_href": "/vault",
+    "note": ("Motion opens in a new tab. Street Banker does not cut video "
+             "or generate images itself."),
+}
+
+# The receiving side of the hand-off Motion does not have yet. The endpoint
+# in app.py is a stub that stays invisible until this flag is set; see
+# docs/MOTION_HANDOFF.md for what Motion must expose before it can be built.
+MOTION_HANDOFF_FLAG = "MOTION_HANDOFF_ENABLED"
+
 CAPABILITIES = [
     {"id": "release-calendar", "label": "Release Calendar",
      "line": "Map releases, shows, deadlines, and key campaign moments."},
@@ -32,8 +54,9 @@ CAPABILITIES = [
 WORKFLOW = [
     ("Plan", "Choose release dates, campaign length, target markets, goals and "
              "available assets."),
-    ("Build", "Generate or organise the creative, copy, pitches, emails and "
-              "content required."),
+    ("Build", "Write the captions, pitches and emails here. Make the video "
+              "and images in Motion, then upload the finished files to your "
+              "Vault."),
     ("Schedule", "Assign dates, channels, owners, approvals and tracking links."),
     ("Launch", "Execute the release sequence across approved channels."),
     ("Adapt", "Review results and adjust timing, content, markets or "
@@ -105,6 +128,12 @@ TOUR_SECTIONS = [
                                                 "connection."),
         ("Approval required", "Anything that leaves the workspace passes through "
                               "an approval first."),
+        ("Video and images are made in Motion", "Street Banker does not cut "
+                                                "video or generate images. Each "
+                                                "post's edit plan says what to "
+                                                "make; Motion is where you make "
+                                                "it, and the finished file comes "
+                                                "back through your Vault."),
     ]),
     ("Coming soon", [
         ("Direct social publishing", "Connecting a platform account so an "
@@ -128,4 +157,5 @@ def get_rollout_config():
         "statuses": STATUSES,
         "sample": SAMPLE,
         "image": IMAGE,
+        "motion": MOTION,
     }

@@ -52,7 +52,9 @@ _ARTIST_PATHS = ("/live", "/links", "/rollout-studio", "/artwork", "/command-cen
                  # Release-Ready spends the owner's RoEx credits; the public
                  # /creative-studio explainer (an exact match) stays open.
                  "/creative-studio/release-ready",
-                 "/qualification", "/artist-profile",
+                 # /artist-profile redirects to /epk (2026-09-19), which
+                 # has its own exact-match rule below.
+                 "/qualification",
                  "/vault", "/artist-twin", "/trust-score")
 # /fingerprints is here beside /recovery deliberately. It had no entry at
 # all, so required_tier() returned None for it and a free Fan account could

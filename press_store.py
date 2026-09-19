@@ -94,10 +94,14 @@ PLACEHOLDERS = [
     ("{artist}", "Your artist name"),
     ("{title}", "The announcement headline"),
     ("{link}", "That contact's own tracked link"),
+    # The press kit, chosen on the pitch form: the public kit or a copy
+    # saved to the Vault (owner, 2026-09-19: "from the vault you can ...
+    # mail it out to press"). Blank when none was chosen.
+    ("{kit}", "The press kit link you chose, or nothing"),
 ]
 
 _PLACEHOLDER_RE = re.compile(
-    r"\{(name|outlet|artist|title|link)\}")
+    r"\{(name|outlet|artist|title|link|kit)\}")
 
 
 def _now():
@@ -126,9 +130,21 @@ def _load(text):
 
 # --- schema -----------------------------------------------------------------
 
+def _add_column(db, table, column, decl):
+    cols = {r["name"] for r in db.execute("PRAGMA table_info(%s)" % table)}
+    if column not in cols:
+        db.execute("ALTER TABLE %s ADD COLUMN %s %s" % (table, column, decl))
+
+
 def init_press():
     with get_db() as db:
-        db.executescript("""
+        _init_tables(db)
+        # A pitch can carry a press kit saved in the Vault (2026-09-19).
+        _add_column(db, "press_pitches", "kit_file_id", "TEXT NOT NULL DEFAULT ''")
+
+
+def _init_tables(db):
+    db.executescript("""
             CREATE TABLE IF NOT EXISTS press_contacts (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -515,12 +531,16 @@ def first_name(name):
 # --- pitches ----------------------------------------------------------------
 
 def create_pitch(user_id, release_id, contact_ids, subject, body_template,
-                 mode, artist_name, link_base):
+                 mode, artist_name, link_base, kit_link="", kit_file_id=""):
     """Build one pitch and its per-recipient messages.
 
     Returns (pitch_id, prepared_count, skipped). `skipped` names every
     contact that was left out and why, because a recipient silently
     dropped from a press send is a pitch the artist thinks went out.
+
+    `kit_link` fills {kit} in every message; `kit_file_id` names a press
+    kit saved in the Vault, which a platform send attaches as a file
+    (owner, 2026-09-19). Neither is required.
     """
     release = get_release(user_id, release_id)
     if release is None:
@@ -533,10 +553,12 @@ def create_pitch(user_id, release_id, contact_ids, subject, body_template,
     with get_db() as db:
         db.execute(
             "INSERT INTO press_pitches (id, user_id, release_id, subject, "
-            "body_template, mode, status, created) VALUES (?,?,?,?,?,?,?,?)",
+            "body_template, mode, status, created, kit_file_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
             (pitch_id, user_id, release_id, (subject or "").strip()[:300],
              (body_template or "").strip()[:8000],
-             mode if mode in SEND_MODES else MODE_OWN_INBOX, "draft", now))
+             mode if mode in SEND_MODES else MODE_OWN_INBOX, "draft", now,
+             (kit_file_id or "")[:64]))
 
     for contact_id in contact_ids[:MAX_RECIPIENTS]:
         contact = get_contact(user_id, contact_id)
@@ -562,6 +584,7 @@ def create_pitch(user_id, release_id, contact_ids, subject, body_template,
             "artist": artist_name,
             "title": release["headline"] or release["title"],
             "link": "%s/press/%s" % (link_base.rstrip("/"), token),
+            "kit": kit_link or "",
         }
         with get_db() as db:
             db.execute(

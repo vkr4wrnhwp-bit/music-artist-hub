@@ -47,20 +47,25 @@ ROOMS = [
      # guards every handler, and that was always the boundary.
      ["pulse", "scores", "trust-score", "insights", "artist-twin", "reports"]),
     ("business", "Business", "The money, the paperwork and the people.",
-     ["royalties", "statements", "recovery", "cases", "disputes", "valuation", "revenue-os",
-      "tax", "hours", "deals", "deal-simulator", "sync-packs", "team", "portal",
+     # Tax is a view of Statements now, so its card sits beside that one
+     # (owner, 2026-09-19: "move tax center with statements"). Sync packs
+     # left for Releases the same day: "You're making a product for sale."
+     ["royalties", "statements", "tax", "recovery", "cases", "disputes", "valuation", "revenue-os",
+      "hours", "deals", "deal-simulator", "team", "portal",
       "services", "roster"]),
     ("publishing", "Publishing", "Rights, registrations and identifiers.",
      ["catalog", "track-passports", "fingerprints", "certified"]),
     ("releases", "Releases", "From finished master to the stores.",
-     ["autopilot", "release-calendar", "release-check", "distribution", "submit"]),
+     ["autopilot", "release-calendar", "release-check", "sync-packs", "distribution", "submit"]),
     ("marketing", "Marketing", "Getting heard and getting written about.",
      # Apparel & Merch left this room on 2026-09-17: merch is something you
      # make and sell, not a way of getting heard, and it moves to Artifacts
      # when that suite lands. The page and its address are unchanged; only
      # where it is listed has.
+     # The one-sheet card left on 2026-09-19 (owner: "It just needs to be
+     # an EPK"). /artist-profile redirects to the press kit.
      ["links", "rollout", "press-desk", "press-contacts", "press-announcements",
-      "press-coverage", "epk", "onesheet", "reach", "referrals"]),
+      "press-coverage", "epk", "reach", "referrals"]),
 ]
 
 # Rows above the rooms, and the group under them.
@@ -106,7 +111,9 @@ EXTRA = {
     "trust-score": ("/trust-score", "M10 2l2.4 4.9 5.6.8-4 3.9.9 5.4-4.9-2.6-4.9 2.6.9-5.4-4-3.9 5.6-.8z", "Trust score", "How complete and consistent your record is.", "scores"),
     "insights": ("/insights", "M10 3a5 5 0 00-3 9v2h6v-2a5 5 0 00-3-9z|M8 17h4", "Insights", "What your own numbers say this week.", "scores"),
     "deal-simulator": ("/sync/deal-simulator", "M3 15l4-5 3 3 4-6 3 4|M3 17h14", "Deal Simulator", "Try the terms before you sign them.", "deals"),
-    "sync-packs": ("/sync/clearance-packs", "M3 6h14v10H3z|M3 6l2-3h10l2 3|M8 10h4", "Sync packs", "Cleared, ready-to-send packs for a sync request.", "deals"),
+    # Sync packs is a sidebar entry of its own now (hubs.py, Launch Engine).
+    # Tax is a view of Statements (owner, 2026-09-19).
+    "tax": ("/statements?view=tax", "M6 3h8a1 1 0 011 1v13l-2-1.5L11 17l-2-1.5L7 17l-2-1.5V4a1 1 0 011-1z|M8 7h4M8 10h4", "Tax", "Your statement income filed by tax year.", "statements"),
     "track-passports": ("/catalog?view=passports", "M4 3h12v14H4z|M7 7h6|M7 10h6|M7 13h3|M13 13h.01", "Track Passports", "One page per recording: codes, splits, credits.", "catalog"),
     "release-calendar": ("/releases/autopilot?view=calendar", "M3 5h14v12H3z|M3 9h14|M7 3v4M13 3v4|M7 12h2M11 12h2", "Release Calendar", "Every scheduled drop on one calendar.", "autopilot"),
     "release-check": ("/releases/autopilot?view=ready", "M4 10l4 4 8-8", "Release check", "The store checks before a release goes out.", "autopilot"),
@@ -117,7 +124,6 @@ EXTRA = {
     # the page is a card like its three neighbours.
     "press-announcements": ("/press-desk/announcements", "M4 8h3l6-4v12l-6-4H4z|M7 12l1 4h2l-1-4|M15 8a3 3 0 010 4", "Announcements", "Press releases you write once and send to your media list.", "press-desk"),
     "press-coverage": ("/press-desk/coverage", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5|M6 13l2-2 3 2", "Coverage", "What has been written, kept in one place.", "press-desk"),
-    "onesheet": ("/artist-profile", "M4 3h12v14H4z|M10 6a2 2 0 100 4 2 2 0 000-4z|M6 14c0-2 2-3 4-3s4 1 4 3", "One-sheet", "The one-page artist profile you send.", "epk"),
     "connections": ("/connections", "M6 10h8|M6 6l-3 4 3 4|M14 6l3 4-3 4", "Data and connections", "Which services this account is connected to.", "settings"),
 }
 

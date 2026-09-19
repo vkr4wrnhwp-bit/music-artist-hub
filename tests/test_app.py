@@ -870,9 +870,11 @@ def test_tax_page_real_income_by_year():
                                  "email": "tax%s@x.com" % _uuid.uuid4().hex[:8],
                                  "password": "secret1", "account_type": "artist"})
     client.post("/plan/switch", data={"plan": "pro"})
-    # Empty state points at Statements.
-    body = client.get("/tax").get_data(as_text=True)
-    assert "Tax Center" in body
+    # Tax is a view of Statements (owner, 2026-09-19); the old address
+    # lands on it. Empty state points at the upload.
+    assert client.get("/tax").headers["Location"].endswith("/statements?view=tax")
+    body = client.get("/statements?view=tax").get_data(as_text=True)
+    assert "Tax" in body
     assert ("Upload a royalty statement" in body) or ("Total Reported Income" in body)
     # Upload a statement -> real per-year totals appear.
     csv = ("title,source,amount,period\n"
@@ -881,7 +883,7 @@ def test_tax_page_real_income_by_year():
            "Song B,Spotify,10.00,2025-11\n")
     client.post("/statements", data={"statement": (io.BytesIO(csv.encode()), "tax.csv")},
                 content_type="multipart/form-data")
-    body = client.get("/tax").get_data(as_text=True)
+    body = client.get("/statements?view=tax").get_data(as_text=True)
     assert "2026" in body and "$750.25" in body
     assert "2025" in body and "$10.00" in body
     assert "Over $600" in body            # 1099 flag only on the big year
@@ -2742,10 +2744,9 @@ def test_qualification_score_from_real_data():
 def test_artist_profile_and_vault():
     client = _ml_login(create_app())
     cid = _ml_create(client, title="Sheet Drop")
-    body = client.get("/artist-profile").get_data(as_text=True)
-    assert "Label-Facing One-Sheet" in body and "SB Score" in body
-    assert "Sheet Drop" in body            # campaign history is real
-    assert "Fans owned" in body
+    # The label-facing one-sheet is the press kit now (owner, 2026-09-19).
+    r = client.get("/artist-profile")
+    assert r.status_code == 301 and r.headers["Location"].endswith("/epk")
     vault = client.get("/vault").get_data(as_text=True)
     assert "Archive Drawer" in vault and "Sheet Drop" in vault
     assert "Cover art" in vault and "Manage" in vault
@@ -4584,17 +4585,20 @@ def test_os_p5_certified_and_onesheet():
     artist.post("/tracks/add", data={"title": "Night Drive P5",
                                      "release_title": "Midnight EP",
                                      "release_date": "2026-10-30"})
+    # The Deal Room one-sheet is the press kit's For deals section now
+    # (owner, 2026-09-19: "It just needs to be an EPK").
     sheet = artist.get("/deal-room/onesheet")
-    assert sheet.status_code == 200
-    body = sheet.get_data(as_text=True)
-    assert "Artist One-Sheet" in body
+    assert sheet.status_code == 301 and sheet.headers["Location"].endswith("/epk")
+    artist.post("/epk/save", json={"sections_on": ["deals"]})
+    body = artist.get("/epk").get_data(as_text=True)
+    assert "For deals" in body
     assert "Night Drive P5" in body                 # the artist's real OS track
     assert "from uploaded statements" in body       # revenue names its basis
     assert "not scored" in body                     # no fake stream integrity
-    assert "[To discuss]" in body                   # never invents the ask
-    assert "Print / Save as PDF" in body
-    # Deal Room links to it.
-    assert "/deal-room/onesheet" in artist.get("/deal-room").get_data(as_text=True)
+    assert "To discuss" in body                     # never invents the ask
+    assert "Export PDF" in body and "Save to Vault" in body
+    # Deal Room no longer links to a one-sheet.
+    assert "/deal-room/onesheet" not in artist.get("/deal-room").get_data(as_text=True)
 
 
 def test_os_p5_roster_health_and_export():
@@ -4841,9 +4845,10 @@ def test_onesheet_share_pin_views_and_pitch():
         "file": (_io.BytesIO(b"riff"), "single.wav"), "kind": "master",
         "label": "Lead single"}, content_type="multipart/form-data")
     vids = {v["label"]: v["id"] for v in store_mod.list_vault_files(uid)}
-    # The private one-sheet carries the share panel.
-    page = client.get("/deal-room/onesheet").get_data(as_text=True)
-    assert "Shareable One-Sheet" in page and "Create share link" in page
+    # The page that held the share panel redirects to the press kit
+    # (2026-09-19); links already sent keep answering, so the share
+    # settings still save.
+    assert client.get("/deal-room/onesheet").status_code == 301
     client.post("/onesheet/share", data={
         "action": "save", "pin": "4711", "banner": vids["Press banner"],
         "audio": [vids["Lead single"]]})

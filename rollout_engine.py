@@ -12,6 +12,8 @@ generate_rollout() later without changing callers.
 
 from datetime import date, datetime, timedelta, timezone
 
+from rollout_config import MOTION
+
 CAMPAIGN_GOALS = [
     ("presaves", "Pre-saves"), ("streams", "Streams"), ("email", "Email capture"),
     ("merch", "Merch sales"), ("tickets", "Ticket sales"), ("tiktok", "TikTok sound usage"),
@@ -175,7 +177,9 @@ def generate_rollout(campaign, lyrics="", video_asset_id=None, image_asset_id=No
             "scheduled_date": post_date.strftime("%Y-%m-%d"),
             "asset_id": video_asset_id if kind == "video" else image_asset_id,
         }
-        # Video platforms get an edit decision list, not a fake render.
+        # Video platforms get an edit decision list, not a fake render. The
+        # cut itself happens in Motion (owner, 2026-09-19); the plan says
+        # what to make and where the finished file goes.
         if kind == "video" and video_asset_id:
             ratio, seconds = VIDEO_FORMATS.get(platform, ("9:16", 15))
             post["edit_plan"] = {
@@ -191,9 +195,13 @@ def generate_rollout(campaign, lyrics="", video_asset_id=None, image_asset_id=No
                                    seconds,
                                    "burn the lyric overlay mid-clip, " if lyric and phase in ("lyric_reveal", "snippet") else "",
                                    ratio)),
-                "export_checklist": ["Trim to %ss" % seconds, "Add hook text overlay",
+                "export_checklist": ["In Motion: trim to %ss" % seconds,
+                                     "Add hook text overlay",
                                      "Add CTA end card", "Export %s" % ratio,
+                                     "Upload the finished file to your Vault "
+                                     "and attach it to this post",
                                      "Attach tracked link in bio/caption"],
+                "make_in": MOTION,
             }
         posts.append(post)
     return posts
@@ -211,7 +219,8 @@ def next_action(campaign, posts, assets):
     if drafts:
         return "Review and approve %d draft post%s." % (len(drafts), "s" if len(drafts) != 1 else "")
     if not any(a["asset_type"] == "video" for a in assets):
-        return "Upload a video clip to unlock Reels/TikTok/Shorts edit plans."
+        return ("Upload a video clip to unlock Reels/TikTok/Shorts edit plans. "
+                "No clip yet? Make it in Motion, then upload it to your Vault.")
     approved = [p for p in posts if p["status"] == "approved"]
     if approved:
         return "%d approved post%s ready — post them and mark as posted." % (

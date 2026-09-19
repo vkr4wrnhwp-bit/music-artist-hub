@@ -189,10 +189,10 @@ def test_the_rooms_layout_drops_each_page_s_own_tab_strip(monkeypatch):
     monkeypatch.setattr(rooms, "enabled", lambda: False)
     assert 'href="/press-desk/contacts"' in c.get("/epk").get_data(as_text=True)
     monkeypatch.setattr(rooms, "enabled", lambda: True)
-    for path, tab in (("/epk", "/press-desk/contacts"), ("/artist-profile", "/press-desk/coverage"),
+    for path, tab in (("/epk", "/press-desk/contacts"),
                       ("/press-desk", "/press-desk/coverage"), ("/deal-room", "/sync/deal-simulator"),
-                      ("/sync/deal-simulator", "/sync/clearance-packs"),
-                      ("/sync/clearance-packs", "/deal-room"),
+                      ("/sync/deal-simulator", "/deal-room"),
+                      ("/sync/clearance-packs", "/releases/autopilot"),
                       ("/releases/autopilot", "/releases/autopilot?view=ready")):
         body = c.get(path).get_data(as_text=True)
         assert "sb-subnav-a" not in body, path

@@ -586,6 +586,10 @@ class StaticCacheHeaders:
 
 def create_app():
     app = Flask(__name__)
+    # Error reporting. Owner 2026-09-19: the SENTRY_DSN he set in Render
+    # was read by nothing. observability.init is a no-op without it.
+    import observability
+    observability.init(app)
     # Session key: override via SECRET_KEY env in production.
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "royalty-sweep-demo-session")
     # Session cookie: 31 days when "remember this device" is ticked, and
@@ -1457,6 +1461,31 @@ def create_app():
             return roster, act, [r for r in rows_all if (r.get("artist") or "").strip() == act]
         return roster, "", rows_all
 
+    def _tax_years(rows):
+        """The Tax view of Statements: every uploaded row filed under its
+        tax year, per payor, with the $600 mark. Was the Tax Center's own
+        page; the owner folded it here (2026-09-19: "move tax center with
+        statements"). Returns (years newest first, grand total)."""
+        years = {}
+        for r in rows:
+            # Was (period or "")[:4], which reads "JUN-" out of Symphonic's
+            # "JUN-26" and files a whole catalogue under "Undated" - with
+            # the $600 threshold then evaluated against a bucket that means
+            # nothing. statements_engine.period_year knows the shapes
+            # distributors actually write.
+            year = period_year(r.get("period")) or "Undated"
+            y = years.setdefault(year, {"total": 0.0, "sources": {}, "rows": 0})
+            y["total"] += r["amount"]
+            y["rows"] += 1
+            src = r.get("source") or "Unknown"
+            y["sources"][src] = y["sources"].get(src, 0.0) + r["amount"]
+        year_list = sorted([
+            {"year": k, "total": round(v["total"], 2), "rows": v["rows"],
+             "sources": sorted(v["sources"].items(), key=lambda s: -s[1]),
+             "over_600": v["total"] >= 600}
+            for k, v in years.items()], key=lambda y: y["year"], reverse=True)
+        return year_list, round(sum(y["total"] for y in year_list), 2)
+
     @app.route("/statements", methods=["GET", "POST"])
     def statements():
         user = current_user()
@@ -1474,6 +1503,13 @@ def create_app():
         ctx = build_dashboard_context()
         ctx["user"] = user
         ctx["error"] = error
+        # ?view=tax is the Tax view: the same rows, filed by tax year. A
+        # tab is a view, not an anchor (2026-09-12), and the old /tax page
+        # redirects here (owner, 2026-09-19).
+        ctx["view"] = "tax" if request.args.get("view") == "tax" else "desk"
+        if ctx["view"] == "tax":
+            ctx["tax_years"], ctx["tax_total"] = _tax_years(
+                store.get_statement_rows(user["id"]))
         # The address is a key to the account: anyone who has it can put
         # statements in, so it is shown to the account holder only, never
         # to a team seat or a partner working inside (team review).
@@ -3040,10 +3076,22 @@ def create_app():
         return [{**a, "label": _EPK_KIND_LABELS.get(a["kind"], a["kind"])}
                 for a in assets if a["kind"] in _EPK_KIND_LABELS]
 
-    @app.route("/epk")
-    def epk():
+    # A press kit saved to the Vault files under this kind (owner,
+    # 2026-09-19: "The EPK goes to the vault"). Not in VAULT_KINDS: it is
+    # written by /epk/vault-save, never chosen on the upload form.
+    PRESS_KIT_KIND = "press_kit"
+
+    def _saved_press_kits(user_id):
+        """Every dated copy of the press kit in this artist's Vault,
+        newest first, for the kit page, the tour advance and the pitch."""
+        return [v for v in store.list_vault_files(user_id)
+                if v["kind"] == PRESS_KIT_KIND]
+
+    def _epk_kit_context(user):
+        """Everything the press kit document renders from. One builder for
+        the editor and for the copy saved to the Vault (2026-09-19), so a
+        saved copy cannot differ from what the editor showed."""
         ctx = build_dashboard_context()
-        user = current_user()
         overrides, photo, assets = None, None, []
         if user:
             saved = store.get_epk(user["id"])
@@ -3052,19 +3100,6 @@ def create_app():
             assets = _labeled_assets(store.get_epk_assets(user["id"]))
             ctx["epk_public_url"] = "/epk/" + _ensure_epk_slug(user)
         ctx["user"] = user
-        ctx["asset_kinds"] = _EPK_ASSET_KINDS
-        share = store.get_epk_share(user["id"]) if user else None
-        ctx["pitch_share"] = share
-        ctx["pitch_stats"] = (store.epk_share_stats(share["token"])
-                              if share else {"views": 0, "plays": [],
-                                             "last_view": ""})
-        vault = store.list_vault_files(user["id"]) if user else []
-        ctx["vault_audio"] = [v for v in vault
-                              if v["path"].rsplit(".", 1)[-1].lower()
-                              in ("wav", "mp3", "flac")]
-        ctx["vault_images"] = [v for v in vault
-                               if v["path"].rsplit(".", 1)[-1].lower()
-                               in ("png", "jpg", "jpeg", "webp")]
         tour, bit, tour_source = _epk_tour_dates(user["id"] if user else None,
                                                  overrides)
         ctx["tour_dates_count"] = len(tour) if tour_source == "tour" else 0
@@ -3081,7 +3116,98 @@ def create_app():
                                   top_tracks_override=(_epk_real_tracks(user["id"])[0] if user and not _is_demo_email(user["email"]) else None),
                                   top_platform_override=(_epk_real_tracks(user["id"])[1] if user and not _is_demo_email(user["email"]) else None),
                                   demo=_is_demo_email(user["email"]))
+        # The For deals section: what the Deal Room one-sheet carried
+        # (owner, 2026-09-19: "It just needs to be an EPK"). Private: it
+        # is never on the public slug or the pitch link, only on the
+        # editor, the print and the saved copy.
+        ctx["deal"] = _deal_facts(user["id"]) if user else None
+        ctx["press_kits"] = _saved_press_kits(user["id"]) if user else []
+        return ctx
+
+    @app.route("/epk")
+    def epk():
+        user = current_user()
+        ctx = _epk_kit_context(user)
+        ctx["asset_kinds"] = _EPK_ASSET_KINDS
+        share = store.get_epk_share(user["id"]) if user else None
+        ctx["pitch_share"] = share
+        ctx["pitch_stats"] = (store.epk_share_stats(share["token"])
+                              if share else {"views": 0, "plays": [],
+                                             "last_view": ""})
+        vault = store.list_vault_files(user["id"]) if user else []
+        ctx["vault_audio"] = [v for v in vault
+                              if v["path"].rsplit(".", 1)[-1].lower()
+                              in ("wav", "mp3", "flac")]
+        ctx["vault_images"] = [v for v in vault
+                               if v["path"].rsplit(".", 1)[-1].lower()
+                               in ("png", "jpg", "jpeg", "webp")]
+        ctx["just_saved"] = request.args.get("saved") or ""
         return render_template("epk.html", active_page="press-desk", **ctx)
+
+    def _inline_image(path):
+        """A local photo as a data URI, so the saved copy carries it and
+        opens the same off this server; anything else (an object-store
+        path, a missing file) stays an absolute address."""
+        if path and path.startswith("/uploads/") and not blob_store.is_remote(path):
+            try:
+                local = blob_store.safe_local_path(path, UPLOADS_DIR)
+                with open(local, "rb") as fh:
+                    data = fh.read()
+                if len(data) <= 2 * 1024 * 1024:
+                    import base64
+                    import mimetypes
+                    mime = mimetypes.guess_type(local)[0] or "image/jpeg"
+                    return "data:%s;base64,%s" % (mime, base64.b64encode(data).decode("ascii"))
+            except (OSError, ValueError):
+                pass
+        if not path:
+            return ""
+        url = blob_store.url_for(path)
+        return url if url.startswith("http") else request.url_root.rstrip("/") + url
+
+    @app.route("/epk/vault-save", methods=["POST"])
+    def epk_vault_save():
+        """Save to Vault: the press kit as it stands, rendered as one
+        self-contained web page and filed in the Vault as a new dated
+        version (owner, 2026-09-19: "The EPK goes to the vault. And then
+        from the vault you can send and attach it to the advance or mail
+        it out to press... download it"). A web page, not a PDF: this
+        server has no PDF engine (nothing in requirements.txt renders
+        one), and the page says so rather than naming a format it cannot
+        make. The saved page prints to PDF from any browser."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        ctx = _epk_kit_context(user)
+        stamp = datetime.now(timezone.utc)
+        # The same document partial the editor renders, with the photo
+        # and logo carried inside the file and every other asset given
+        # its absolute address, so the page opens the same anywhere.
+        e = dict(ctx["epk"])
+        e["photo"] = _inline_image(e.get("photo"))
+        e["logo_path"] = _inline_image(e.get("logo_path"))
+        base = request.url_root.rstrip("/")
+        e["assets"] = [{**a, "path": (a["path"] if blob_store.url_for(a["path"]).startswith("http")
+                                      else base + blob_store.url_for(a["path"]))}
+                       for a in (e.get("assets") or [])]
+        try:
+            with open(os.path.join(app.static_folder, "css", "tailwind.css"),
+                      encoding="utf-8") as fh:
+                css = fh.read()
+        except OSError:
+            css = ""
+        html = render_template("epk_saved.html", e=e, deal=ctx["deal"], css=css,
+                               saved_on=stamp.strftime("%Y-%m-%d %H:%M UTC"),
+                               base=base,
+                               public_url=ctx.get("epk_public_url") or "")
+        fname = "presskit_%s_%d.html" % (user["id"], int(stamp.timestamp() * 1000))
+        path = blob_store.save(fname, html.encode("utf-8"),
+                               content_type="text/html; charset=utf-8",
+                               uploads_dir=UPLOADS_DIR)
+        file_id = store.add_vault_file(
+            user["id"], path, "Press kit, saved %s" % stamp.date().isoformat(),
+            PRESS_KIT_KIND)
+        return redirect("/epk?saved=" + file_id)
 
     @app.route("/epk/press/search")
     def epk_press_search():
@@ -6752,47 +6878,61 @@ def create_app():
 
     @app.route("/deal-room/onesheet")
     def deal_onesheet():
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        tracks, ctx, summary, cert = _os_full(user["id"])
+        """The Deal Room one-sheet is the press kit now (owner, 2026-09-19:
+        "there's way too many one sheets... It just needs to be an EPK").
+        What this page carried that the kit lacked - certification, the
+        statement figures, rights position, lanes, the ask - is the kit's
+        optional For deals section, built by _deal_facts() below."""
+        return redirect("/epk", code=301)
+
+    def _deal_facts(user_id):
+        """The deal-facing figures the Deal Room one-sheet used to print,
+        for the press kit's For deals section. Every line names its
+        basis; nothing here is a number the app invented."""
+        tracks, ctx, summary, cert = _os_full(user_id)
         reports = sorted(
-            [{"t": t, "clean": artist_os.clean_release(t, ctx)} for t in tracks],
-            key=lambda r: -r["clean"]["score"])
-        pulse = store.list_pulse_snapshots(user["id"], limit=30)
-        upcoming = [c for c in mls.list_campaigns(user["id"])
-                    if (c.get("release_date") or "") >=
-                    datetime.now(timezone.utc).date().isoformat()]
+            [{"title": t["title"], "score": artist_os.clean_release(t, ctx)["score"]}
+             for t in tracks], key=lambda r: -r["score"])
+        today = datetime.now(timezone.utc).date().isoformat()
+        upcoming = [c for c in mls.list_campaigns(user_id)
+                    if (c.get("release_date") or "") >= today]
         lanes = artist_os.lane_grid(tracks[0], ctx) if tracks else []
-        share = store.get_onesheet_share(user["id"])
-        vault = store.list_vault_files(user["id"])
-        vault_images = [v for v in vault if v["path"].rsplit(".", 1)[-1].lower()
-                        in ("png", "jpg", "jpeg", "webp", "gif")]
-        vault_audio = [v for v in vault if v["path"].rsplit(".", 1)[-1].lower()
-                       in ("wav", "mp3", "flac")]
-        views = (store.onesheet_view_stats(share["token"])
-                 if share else {"total": 0, "recent": []})
-        return render_template("deal_onesheet.html", user=user, cert=cert,
-                               summary=summary, reports=reports[:6],
-                               pulse=pulse, upcoming=upcoming[:5],
-                               lanes_claimed=[l for l in lanes
-                                              if l["state"] == "claimed"],
-                               ctx=ctx, share=share, views=views,
-                               vault_images=vault_images,
-                               vault_audio=vault_audio,
-                               today=datetime.now(timezone.utc).date().isoformat())
+        # Only the Pulse readings that carry a number: a snapshot can say
+        # "not measured", and a growth claim built out of two silences is
+        # not a claim this sheet can put in front of a label.
+        pulse = store.list_pulse_snapshots(user_id, limit=30)
+        counted = [p for p in pulse if p.get("followers") is not None]
+        growth = None
+        if len(counted) >= 2:
+            growth = {"first": counted[0], "last": counted[-1],
+                      "delta": counted[-1]["followers"] - counted[0]["followers"]}
+        return {
+            "cert": cert, "summary": summary,
+            "statement_rows": ctx.get("statement_rows") or 0,
+            "statement_total": ctx.get("statement_total") or 0.0,
+            "fans": ctx.get("fans") or 0,
+            "top": reports[:6],
+            "lanes_claimed": [l["label"] for l in lanes if l["state"] == "claimed"],
+            "upcoming": upcoming[:5],
+            "growth": growth, "pulse_count": len(pulse), "counted": counted,
+            "today": today,
+        }
 
     @app.route("/onesheet/share", methods=["POST"])
     def onesheet_share_save():
-        """Share settings: everything on the public sheet resolves through the
-        artist's own vault listing — nothing else is reachable by id."""
+        """Share settings for the old /sheet/<token> page. The page that
+        held this form redirects to the press kit now (2026-09-19); links
+        already sent keep answering, and the press kit's own private pitch
+        link is the replacement. Everything on the public sheet resolves
+        through the artist's own vault listing - nothing else is reachable
+        by id."""
         user = current_user()
         if user is None:
             return login_required_redirect()
         action = request.form.get("action") or "save"
         if action == "disable":
             store.delete_onesheet_share(user["id"])
-            return redirect("/deal-room/onesheet")
+            return redirect("/epk")
         share = store.get_onesheet_share(user["id"])
         token = (uuid.uuid4().hex[:20] if (share is None or action == "regenerate")
                  else share["token"])
@@ -6812,7 +6952,7 @@ def create_app():
                 audio.append({"path": v["path"],
                               "label": v["label"] or "Untitled"})
         store.upsert_onesheet_share(user["id"], token, pin, banner, audio)
-        return redirect("/deal-room/onesheet")
+        return redirect("/epk")
 
     def _sheet_context(share):
         owner = store.get_user(share["user_id"])
@@ -9056,7 +9196,9 @@ def create_app():
                         "instrumental_url": _sync_audio_upload("instrumental_audio"),
                         "clean_url": _sync_audio_upload("clean_audio")})
                     return redirect("/sync/clearance-packs")
-        return render_template("sync_packs.html", active_page="deals",
+        # Its own sidebar entry beside the releases since 2026-09-19 (owner:
+        # "You're making a product for sale"), so it lights itself.
+        return render_template("sync_packs.html", active_page="sync-packs",
                                packs=store.list_sync_packs(user["id"]), error=error,
                                **build_dashboard_context())
 
@@ -9553,31 +9695,11 @@ def create_app():
 
     @app.route("/artist-profile")
     def artist_profile():
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        saved = store.get_epk(user["id"]) or {}
-        assets = [{**a, "label": a["kind"].replace("_", " ").title()}
-                  for a in store.get_epk_assets(user["id"], public_only=False)]
-        ctx = build_dashboard_context()
-        epk_data = get_epk_data(_epk_account(ctx["account"], user),
-                                ctx["catalog_value"],
-                                overrides=saved.get("data"), photo=saved.get("photo"),
-                                assets=assets,
-                                demo=_is_demo_email(user["email"]))
-        campaigns = []
-        for c in mls.list_campaigns(user["id"]):
-            counts = mls.event_counts(c["id"])
-            campaigns.append({**c, "visits": counts.get("page_view", 0),
-                              "clicks": counts.get("service_click", 0),
-                              "fans": counts.get("email_capture", 0)
-                                      + counts.get("presave_notify", 0),
-                              "eff_status": links_engine.effective_status(c)})
-        return render_template("artist_profile.html", active_page="press-desk",
-                               e=epk_data, q=qualification.calculate(user["id"]),
-                               campaigns=campaigns,
-                               fan_count=len(mls.list_fans(user["id"])),
-                               **ctx)
+        """The label-facing one-sheet was a second read of the press kit
+        with no field on it. The press kit is the one document now (owner,
+        2026-09-19: "It just needs to be an EPK"), so this address lands
+        there; the template was removed with it."""
+        return redirect("/epk", code=301)
 
     # --- The homepage, editable without a deploy ---------------------------
 
@@ -9849,12 +9971,17 @@ def create_app():
     def _render_vault(user, doc_error=None):
         items = []
         for v in store.list_vault_files(user["id"]):
+            # A saved press kit says where it can go from here (owner,
+            # 2026-09-19): the tour advance offers it as an attachment, the
+            # press pitch as a link or an attachment, and Download is here.
+            kit = v["kind"] == PRESS_KIT_KIND
             items.append({"name": v["label"] or "Vault file",
                           "type": v["kind"].replace("_", " ").title(),
                           "path": v["path"], "date": v["created"][:10],
-                          "usage": "Vault upload — yours to deploy",
-                          "status": "Archived", "manage": "/vault",
-                          "vid": v["id"]})
+                          "usage": ("Saved from the press kit as a web page. Attach it to a tour advance or a press pitch, or download it."
+                                    if kit else "Vault upload — yours to deploy"),
+                          "status": "Archived", "manage": "/epk" if kit else "/vault",
+                          "vid": v["id"], "kit": kit})
         for a in store.get_epk_assets(user["id"]):
             items.append({"name": a["kind"].replace("_", " ").title(), "type": "Press asset",
                           "path": a["path"], "date": a["updated"][:10],
@@ -10052,9 +10179,49 @@ def create_app():
         # Handles both shapes: deletes the object, or unlinks the file.
         # A document's file is vault-owned too (doc_ prefix).
         if path and (blob_store.is_remote(path)
-                     or path.startswith(("/uploads/vault_", "/uploads/doc_"))):
+                     or path.startswith(("/uploads/vault_", "/uploads/doc_",
+                                         "/uploads/presskit_"))):
             blob_store.remove(path, uploads_dir=UPLOADS_DIR)
         return redirect("/vault")
+
+    def _vault_file_bytes(path):
+        """A vault file read back for an attachment, or None when it cannot
+        be reached - which the caller reports as itself, never as sent."""
+        if not path:
+            return None
+        if blob_store.is_remote(path):
+            return blob_store.fetch(path)
+        try:
+            with open(blob_store.safe_local_path(path, UPLOADS_DIR), "rb") as fh:
+                return fh.read()
+        except (OSError, ValueError):
+            return None
+
+    @app.route("/vault/<file_id>/download")
+    def vault_download(file_id):
+        """One vault file as a download, by the account that owns it
+        (owner, 2026-09-19: from the vault you can "download it"). The
+        listing is the allowlist, so a guessed id serves nothing."""
+        from flask import send_file
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        row = next((v for v in store.list_vault_files(user["id"], include_documents=True)
+                    if v["id"] == file_id), None)
+        if row is None:
+            abort(404)
+        path = row["path"]
+        if blob_store.is_remote(path):
+            return redirect(blob_store.url_for(path))
+        try:
+            local = blob_store.safe_local_path(path, UPLOADS_DIR)
+        except ValueError:
+            abort(404)
+        if not os.path.exists(local):
+            abort(404)
+        ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+        name = _slugify(row["label"] or "vault-file") + ("." + ext if ext else "")
+        return send_file(local, as_attachment=True, download_name=name)
 
     @app.route("/vault/zip", methods=["POST"])
     def vault_zip():
@@ -10197,7 +10364,8 @@ def create_app():
                               "clicks": sum(p["clicks"] for p in posts),
                               "fans": sum(p["fans"] for p in posts)})
         return render_template("rollout_dashboard.html", active_page="rollout",
-                               campaigns=cards, rollout_user=user, **ctx)
+                               campaigns=cards, rollout_user=user,
+                               motion=rollout_engine.MOTION, **ctx)
 
     @app.route("/rollout-studio/new", methods=["GET", "POST"])
     def rollout_new():
@@ -10246,6 +10414,7 @@ def create_app():
             return redirect("/rollout-studio/%s" % cid)
         return render_template("rollout_new.html", active_page="rollout",
                                engine=rollout_engine, ml_campaigns=ml_campaigns,
+                               motion=rollout_engine.MOTION,
                                **build_dashboard_context())
 
     @app.route("/rollout-studio/<cid>/generate", methods=["POST"])
@@ -10290,6 +10459,7 @@ def create_app():
                     if campaign.get("ml_campaign_id") else {})
         return render_template("rollout_overview.html", active_page="rollout",
                                c=campaign, posts=posts, assets=assets,
+                               motion=rollout_engine.MOTION,
                                ml_campaign=ml_campaign, variants=variants,
                                direction=rollout_engine.creative_direction(campaign),
                                next_action=(
@@ -10407,6 +10577,7 @@ def create_app():
         return render_template(
             "rollout_plan.html", active_page="rollout", c=campaign,
             posts=shown, total_posts=len(posts), view=view,
+            motion=rollout_engine.MOTION,
             by_date=sorted(by_date.items()),
             vault=store.list_vault_files(user["id"]),
             variants=variants, ml_campaign=ml_campaign,
@@ -10463,6 +10634,25 @@ def create_app():
         return render_template("rollout_socials.html", active_page="rollout",
                                c=campaign, providers=social_providers.provider_status(),
                                **build_dashboard_context())
+
+    @app.route("/api/vault/from-motion", methods=["POST"])
+    def vault_from_motion():
+        """The receiving end of a Motion "send to Street Banker Vault"
+        button that Motion does not have yet (owner ruling 2026-09-19:
+        everything is made in Motion and pulled into the Vault).
+
+        A stub behind MOTION_HANDOFF_ENABLED, off by default. Off, the
+        route is a 404 like any address that does not exist. On, it still
+        does nothing but say so: Motion exposes no signed download URL for
+        a finished render and no outbound call, so there is nothing to
+        receive. docs/MOTION_HANDOFF.md is the spec for both halves.
+        """
+        from rollout_config import MOTION_HANDOFF_FLAG
+        if (os.environ.get(MOTION_HANDOFF_FLAG) or "").strip().lower() not in ("1", "true", "yes", "on"):
+            abort(404)
+        return jsonify({"ok": False,
+                        "error": "The Motion hand-off is specified, not built. "
+                                 "See docs/MOTION_HANDOFF.md."}), 501
 
     def _shopify_import_allowed(user):
         """Reading the connected store's customers is the OWNER'S alone.
@@ -12128,33 +12318,15 @@ def create_app():
         return redirect(url_for("notifications"))
 
     @app.route("/tax")
-    def tax():
-        user = current_user()
-        if user is None:
-            return login_required_redirect()
-        rows = store.get_statement_rows(user["id"])
-        years = {}
-        for r in rows:
-            # Was (period or "")[:4], which reads "JUN-" out of Symphonic's
-            # "JUN-26" and files a whole catalogue under "Undated" - with
-            # the $600 threshold then evaluated against a bucket that means
-            # nothing. statements_engine.period_year knows the shapes
-            # distributors actually write.
-            year = period_year(r.get("period")) or "Undated"
-            y = years.setdefault(year, {"total": 0.0, "sources": {}, "rows": 0})
-            y["total"] += r["amount"]
-            y["rows"] += 1
-            src = r.get("source") or "Unknown"
-            y["sources"][src] = y["sources"].get(src, 0.0) + r["amount"]
-        year_list = sorted([
-            {"year": k, "total": round(v["total"], 2), "rows": v["rows"],
-             "sources": sorted(v["sources"].items(), key=lambda s: -s[1]),
-             "over_600": v["total"] >= 600}
-            for k, v in years.items()], key=lambda y: y["year"], reverse=True)
-        return render_template("tax.html", active_page="tax",
-                               years=year_list,
-                               grand_total=round(sum(y["total"] for y in year_list), 2),
-                               **build_dashboard_context())
+    @app.route("/tax-center")
+    @app.route("/tax/<path:_rest>")
+    @app.route("/tax-center/<path:_rest>")
+    def tax(_rest=None):
+        """The Tax Center is the Tax view of Statements now (owner,
+        2026-09-19: "move tax center with statements"). The old addresses
+        stay alive and land on it; _tax_years() beside the statements
+        route does the work the page used to."""
+        return redirect("/statements?view=tax", code=301)
 
     @app.route("/billing")
     def billing():
@@ -13828,7 +14000,8 @@ def create_app():
     # Press links are baked into emails and read days later, so they are
     # built from the canonical address rather than whichever host the
     # request happened to arrive on.
-    press_desk.init(app, base_url=lambda: PUBLIC_BASE_URL, current_user=current_user)
+    press_desk.init(app, base_url=lambda: PUBLIC_BASE_URL, current_user=current_user,
+                    uploads_dir=lambda: UPLOADS_DIR)
     # TOUR: invitation and share links are pasted into messages and read
     # later, so they too are built from the canonical address.
     tour_os.init(app, base_url=lambda: PUBLIC_BASE_URL, current_user=current_user,
