@@ -96,8 +96,10 @@ def test_a_desk_file_can_be_removed_and_stops_downloading(desk_owner):
                               "category": "Other"},
                         content_type="multipart/form-data")
     assert r.status_code == 302
-    files = desk_owner.get("/operator-desk/files").get_data(as_text=True)
-    assert "contract.pdf" in files and "/delete" in files
+    # The Files page is retired (owner, 2026-09-19) and lands on the
+    # dashboard; the record is still in the table and still removable.
+    r = desk_owner.get("/operator-desk/files")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/operator-desk/")
     with desk_owner._app.app_context():
         record = [f for f in desk_store.list_files() if f["file_name"] == "contract.pdf"][0]
     assert desk_owner.get("/operator-desk/files/%s/download" % record["id"]).status_code == 200

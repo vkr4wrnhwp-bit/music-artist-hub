@@ -28,6 +28,21 @@ FORMAT_TONE = {
 }
 
 
+# The signed-in account's own report cards: (title, description, href,
+# kind). They sit above the library on the page, so they live here too and
+# the "Report Types" tile can count every card the page actually shows.
+# It counted the library's six while the page drew twelve (owner notes,
+# 2026-09-19).
+REAL_REPORTS = [
+    ("Executive Report", "Qualification, royalty findings, campaigns, and fan ownership in one partner-ready document.", "/reports/executive", "Print / PDF"),
+    ("Campaign Performance", "Every campaign with visits, clicks, CTR, captures, and SB score.", "/reports/campaigns.csv", "CSV"),
+    ("Recovery Findings", "Unmatched revenue and coverage gaps from your uploaded statements.", "/reports/recovery.csv", "CSV"),
+    ("Fan CRM Export", "Owned fans with consent status and intent scores.", "/links/fans/export.csv", "CSV"),
+    ("Royalty Rows", "Raw parsed statement rows for accounting.", "/reports/royalty-report/download.csv", "CSV"),
+    ("Artist One-Sheet", "The label-facing profile with badges and live numbers.", "/artist-profile", "Print / PDF"),
+]
+
+
 def get_reports_data(user_id, demo=False):
     """`demo` decides whether the example saved schedules are included.
 
@@ -65,14 +80,25 @@ def get_reports_data(user_id, demo=False):
     ]
 
     formats = sorted({r["format"] for r in reports})
+    # Only a signed-in account is shown its own cards.
+    real = list(REAL_REPORTS) if user_id else []
 
+    # The "Generated This Session" tile is gone. The log it counted lives
+    # in one server process's memory per account (royalty_data
+    # _report_history): not this session, cleared by every deploy, and
+    # possibly different between the two web workers. It also drew a 0
+    # on most visits (owner, 2026-09-15: "if a card shows 0 it needs to
+    # not show up"). The list below it says what it is instead.
     return {
         "summary": {
             "total_reports": len(reports),
+            # Every report card the page draws: the account's own above
+            # the library.
+            "cards_shown": len(reports) + len(real),
             "categories": len(categories),
             "scheduled_active": sum(1 for s in scheduled if s["enabled"]),
-            "generated_session": len(history),
         },
+        "real_reports": real,
         "categories": categories,
         "scheduled": scheduled,
         "recent": history,

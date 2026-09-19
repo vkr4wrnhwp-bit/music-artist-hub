@@ -264,11 +264,26 @@ def build_alerts(user_id):
                           "Rows with no track title — money paid but not attributed. Review and claim it.",
                           "/recovery", "royalty_recovery"))
     if summary and summary["coverage_gaps"]:
-        alerts.append(("medium", "%d coverage gap%s across your royalty sources" % (
-                           len(summary["coverage_gaps"]),
-                           "s" if len(summary["coverage_gaps"]) != 1 else ""),
-                       "Tracks earning on some sources but missing from others — est. $%.2f." % summary["gap_estimate_total"],
-                       "/recovery", "royalty_recovery"))
+        # Money first, then the count: "3 coverage gaps" alone told nobody
+        # whether to care (owner notes, 2026-09-19). The engine hands the
+        # findings over already sorted by value, so the first is the
+        # biggest; the figure is its estimate and is labelled as one.
+        gaps = summary["coverage_gaps"]
+        n = len(gaps)
+        est = summary.get("gap_estimate_total") or 0
+        plural = "s" if n != 1 else ""
+        if est > 0:
+            title = ("Est. $%s at stake in %d coverage gap%s across your royalty sources"
+                     % ("{:,.2f}".format(est), n, plural))
+            top = gaps[0]
+            rec = ("Tracks earning on some sources but missing from others. Biggest: "
+                   "“%s”, est. $%s. Estimates come from each track's share of what "
+                   "those stores paid, not a guarantee."
+                   % (top["title"], "{:,.2f}".format(top["estimated_value"])))
+        else:
+            title = "%d coverage gap%s across your royalty sources" % (n, plural)
+            rec = "Tracks earning on some sources but missing from others."
+        alerts.append(("medium", title, rec, "/recovery", "royalty_recovery"))
     # Catalog metadata gaps
     tracks = mls_catalog_tracks(user_id)
     missing_isrc = [t for t in tracks if not (t.get("meta") or {}).get("isrc")]
@@ -286,6 +301,28 @@ def mls_catalog_tracks(user_id):
 
 
 # --- Unified summary ---------------------------------------------------------------
+
+def setup_state(user_id):
+    """The two answers the start-here checklist gives about links and
+    tracks, asked the same way it asks them (app.py _firstrun_panel): a
+    smart link lives in one of two tables depending on which door made
+    it, and an account's songs are known from its passports OR from the
+    statements it uploaded. The score tiles decide "has data" from this,
+    so a tile never asks for a first campaign or a first track the
+    checklist has already ticked (owner notes, 2026-09-19)."""
+    import db as store
+    legacy_links = store.get_db_links(user_id)
+    passports = store.list_os_tracks(user_id)
+    statement_songs = store.statement_titles(user_id, 500)
+    return {
+        "link": bool(legacy_links) or bool(mls.list_campaigns(user_id)),
+        "track": bool(passports) or bool(statement_songs),
+        "legacy_links": len(legacy_links),
+        "legacy_opens": sum(int(l.get("clicks") or 0) for l in legacy_links),
+        "passport_count": len(passports),
+        "statement_songs": len(statement_songs),
+    }
+
 
 def get_summary(user_id):
     campaigns = [c for c in mls.list_campaigns(user_id) if not c.get("archived_at")]
@@ -309,12 +346,20 @@ def get_summary(user_id):
     rollouts = ros.list_campaigns(user_id)
     tracks = mls_catalog_tracks(user_id)
     with_isrc = sum(1 for t in tracks if (t.get("meta") or {}).get("isrc"))
+    setup = setup_state(user_id)
     import qualification
     return {
         "qualification": qualification.calculate(user_id)["total"],
         "links_score": round(sum(scores) / len(scores)) if scores else 0,
         "campaign_count": len(campaigns),
+        # The checklist's answers, for the tiles' "has data" decisions.
+        "has_link": setup["link"],
+        "has_track": setup["track"],
+        "setup": setup,
         "visits": events.get("page_view", 0),
+        # Everyone who opened a link: campaign page views plus opens of the
+        # older short links, which count in their own table.
+        "link_opens": events.get("page_view", 0) + setup["legacy_opens"],
         "clicks": events.get("service_click", 0),
         "fan_count": len(fans),
         "hot_fans": sum(1 for f in fans if f["intent_level"] in ("Hot", "Superfan")),

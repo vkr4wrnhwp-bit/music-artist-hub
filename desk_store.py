@@ -22,8 +22,8 @@ Design notes:
   sharing a pipeline need to see who moved what.
 
   Access is by email, assignment is by name. The roster (desk_users)
-  authorizes logins by email. Assignment fields carry team member names
-  (LJ, Warren, Jovan, Other) so a lead can be assigned to somebody whose
+  authorizes logins by email. Assignment fields carry roster names (plus
+  "Other"; see team_names) so a lead can be assigned to somebody whose
   login has not been linked yet.
 """
 import json
@@ -38,7 +38,11 @@ ROLES = ["owner", "admin", "member", "viewer"]
 ROLE_LABELS = {"owner": "Owner", "admin": "Admin",
                "member": "Team Member", "viewer": "Viewer"}
 
-TEAM_NAMES = ["LJ", "Warren", "Jovan", "Other"]
+# Who a lead, task, follow-up or event can be assigned to. This was a
+# hard-coded ["LJ", "Warren", "Jovan", "Other"] (audit, 2026-09-19), so
+# anyone added on Team & Settings could never be picked. It is the roster
+# now (roster_names, team_names below), plus "Other".
+OTHER_ASSIGNEE = "Other"
 
 CONTACT_ROLES = ["Artist", "Manager", "Producer", "Label", "Estate",
                  "Publisher", "Investor", "Brand", "Other"]
@@ -286,6 +290,43 @@ def list_users():
     return [dict(r) for r in rows]
 
 
+def roster_names():
+    """Names of the active people on the Desk roster, in roster order
+    (owners, admins, members, viewers). The names @-mentions match."""
+    names = []
+    for row in list_users():
+        name = (row.get("name") or "").strip()
+        if row.get("status") == "active" and name and name not in names:
+            names.append(name)
+    return names
+
+
+def _stored_assignees():
+    """Every assignee already written on a lead, task or event. A person
+    who left the roster keeps their assignments, and the form must still
+    show them rather than quietly reset them on the next save."""
+    found = set()
+    with get_db() as db:
+        for sql in ("SELECT DISTINCT assigned_to FROM desk_leads",
+                    "SELECT DISTINCT follow_up_owner FROM desk_leads",
+                    "SELECT DISTINCT assigned_to FROM desk_tasks",
+                    "SELECT DISTINCT assigned_to FROM desk_events"):
+            for row in db.execute(sql).fetchall():
+                value = (row[0] or "").strip()
+                if value:
+                    found.add(value)
+    return found
+
+
+def team_names():
+    """The assignee choices: the active roster, then any name already
+    stored on a record that is not on it, then "Other"."""
+    names = roster_names()
+    extra = sorted(v for v in _stored_assignees()
+                   if v not in names and v != OTHER_ASSIGNEE)
+    return names + extra + [OTHER_ASSIGNEE]
+
+
 def add_user(email, name, role):
     if role not in ROLES:
         raise ValueError("unknown role")
@@ -490,16 +531,24 @@ def list_leads(search=None, stage=None, priority=None, assigned=None,
 
 # --- notes ------------------------------------------------------------------
 
-_MENTION = re.compile(r"@(LJ|Warren|Jovan)\b", re.IGNORECASE)
-
-
 def mentions_in(body):
-    """Case-normalized team names mentioned in a note body."""
-    found = []
-    for match in _MENTION.finditer(body or ""):
-        for name in TEAM_NAMES:
-            if name.lower() == match.group(1).lower() and name not in found:
-                found.append(name)
+    """Roster names @-mentioned in a note body, spelled as the roster
+    spells them, in the order they appear. Was three hard-coded first
+    names; it is whoever is on the roster now (2026-09-19)."""
+    text = body or ""
+    hits = []
+    for name in roster_names():
+        for match in re.finditer("@" + re.escape(name) + r"(?!\w)", text,
+                                 re.IGNORECASE):
+            hits.append((match.start(), -len(name), name))
+    found, taken = [], set()
+    # At one "@", the longest roster name wins ("@Jo Ann" is not "@Jo").
+    for start, _neg_len, name in sorted(hits):
+        if start in taken:
+            continue
+        taken.add(start)
+        if name not in found:
+            found.append(name)
     return found
 
 

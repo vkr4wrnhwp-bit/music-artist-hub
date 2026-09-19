@@ -4,7 +4,8 @@
 {% block title %}Sync Deal Simulator - Street Banker{% endblock %}
 
 {% block content %}
-{{ sb.subnav([("/deal-room", "Deal Room"), ("/sync/deal-simulator", "Simulator"), ("/sync/clearance-packs", "Sync packs")], "/sync/deal-simulator") }}
+{#- In the rooms layout the room's cards are the tabs (owner, 2026-09-15: "remove the double tabs"). -#}
+{% if not rooms_nav %}{{ sb.subnav([("/deal-room", "Deal Room"), ("/sync/deal-simulator", "Simulator"), ("/sync/clearance-packs", "Sync packs")], "/sync/deal-simulator") }}{% endif %}
 <div class="mx-auto max-w-[1000px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Royalty Sweep · Sync Engine</div>

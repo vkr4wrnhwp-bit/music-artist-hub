@@ -1,7 +1,10 @@
 """Street Banker Operator Desk — the internal workspace.
 
-Leads, notes, tasks, follow-ups, shows and meetings, deals, files, team
-and an activity log, for the people running Street Banker. Nothing here
+Leads, notes, tasks, follow-ups, shows and meetings, deals, team and an
+activity log, for the people running Street Banker. Files, meeting
+recordings and the voice agent left the menu on 2026-09-19 (owner: the
+desk is an A&R engine, "not about collecting our data"); their pages
+redirect to the dashboard and their data is kept. Nothing here
 is public and nothing here is for artist accounts: the whole blueprint
 sits behind the app's login wall AND its own roster check.
 
@@ -129,7 +132,8 @@ def _ctx(desk_user, **extra):
             "deal_statuses": desk_store.DEAL_STATUSES,
             "file_categories": desk_store.FILE_CATEGORIES,
             "tags": desk_store.SUGGESTED_TAGS,
-            "team": desk_store.TEAM_NAMES,
+            # The roster plus "Other", and any name already on a record.
+            "team": desk_store.team_names(),
             "roles": desk_store.ROLES,
             "role_labels": desk_store.ROLE_LABELS,
             "lead_fields": desk_store.LEAD_TEXT_FIELDS,
@@ -440,8 +444,12 @@ def deal_status(me, deal_id):
 @bp.route("/files")
 @require("view")
 def files(me):
-    return render_template("desk/files.html", **_ctx(
-        me, files=desk_store.list_files(), leads=desk_store.list_leads()))
+    """Retired (owner, 2026-09-19: "I don't care about the meeting
+    recordings and voice agent and audio briefs and files and all that
+    crap"). An old bookmark lands on the dashboard. The desk_files table and
+    every stored file are kept; a lead's files stay listed on the lead, and
+    download and delete below still work."""
+    return redirect(url_for("desk.dashboard"))
 
 
 @bp.route("/leads/<lead_id>/files", methods=["POST"])

@@ -522,6 +522,19 @@
   border-color: transparent;
 }
 
+/* --- what is not open yet -------------------------------------------- */
+/* The plates name suites that are not open yet, and the photograph cannot
+ * say so (owner, 2026-09-17: mark them coming soon). One quiet line under
+ * the pass does, written by split_home.py from hubs.suites_pending(). */
+
+.sbmem-soon {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--sb-ink-2);
+}
+
 /* --- somebody who asked for less motion ------------------------------ */
 /* The letters still light, because that is how the pass is read. What
  * goes is the travel: the glow arrives with the pointer instead of
@@ -554,9 +567,15 @@
 
 .sbmem-pile { width: 100%; height: auto; display: block; }
 
+/* The words beside the coins are centred in their column: the heading,
+ * the note and the packs when there are any (owner, 2026-09-19: "we need
+ * to center a lot of text like that"). */
+.sbmem-credits-say { text-align: center; }
+
 .sbmem-credits-h {
   margin: 0;
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: 11px;
   font-size: 12px;
@@ -569,7 +588,7 @@
 .sbmem-coin { width: 34px; height: 34px; }
 
 .sbmem-credits-note {
-  margin: 12px 0 0;
+  margin: 12px auto 0;
   max-width: 62em;
   font-size: 14px;
   line-height: 1.6;
@@ -582,6 +601,7 @@
   list-style: none;
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 12px;
 }
 
@@ -624,15 +644,18 @@
   border-top: 1px solid var(--sb-line);
 }
 
+/* One centred stack, the line and then the way to the store under it
+ * (owner, 2026-09-19: "you always push stuff over to the left side
+ * margin"). It used to be the line hard left and the link hard right. */
 .sbback-inner {
   max-width: 1240px;
   margin: 0 auto;
   padding: 22px 16px 32px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 24px;
-  justify-content: space-between;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
   font-size: 13px;
   color: var(--sb-ink-2);
 }

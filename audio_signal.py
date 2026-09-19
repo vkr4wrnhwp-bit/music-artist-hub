@@ -61,12 +61,16 @@ def register(bp, require, ctx, sstore):
         return
     _registered = True
 
+    # The Audio Briefs pages are retired (owner, 2026-09-19: "audio briefs
+    # and files and all that crap ... bad, bad, bad from signal and operator
+    # desk"; Signal is an A&R engine, not a recorder). They left Signal's
+    # menu and redirect to the Signal dashboard so an old bookmark lands
+    # somewhere useful. The briefs table, its scripts and any stored audio
+    # are kept; the audio route below still re-checks the seat.
     @bp.route("/briefs")
     @require("view")
     def briefs_index(org, member):
-        return render_template("signal/briefs.html", **ctx(
-            org, member, briefs=briefs.list_briefs(org["id"]),
-            audio_on=_audio_on()))
+        return redirect(url_for("signal.dashboard"))
 
     @bp.route("/briefs/new", methods=["POST"])
     @require("view")
@@ -98,11 +102,8 @@ def register(bp, require, ctx, sstore):
     @bp.route("/briefs/<brief_id>")
     @require("view")
     def brief_detail(org, member, brief_id):
-        brief = briefs.get_brief(brief_id)
-        if brief is None or brief["organization_id"] != org["id"]:
-            abort(404)
-        return render_template("signal/brief.html", **ctx(
-            org, member, brief=brief, audio_on=_audio_on()))
+        # Retired with the Audio Briefs page (2026-09-19); the row is kept.
+        return redirect(url_for("signal.dashboard"))
 
     @bp.route("/briefs/<brief_id>/speak", methods=["POST"])
     @require("view")

@@ -56,8 +56,8 @@ ROOMS = [
      # make and sell, not a way of getting heard, and it moves to Artifacts
      # when that suite lands. The page and its address are unchanged; only
      # where it is listed has.
-     ["links", "rollout", "press-desk", "press-contacts", "press-coverage", "epk", "onesheet",
-      "reach", "referrals"]),
+     ["links", "rollout", "press-desk", "press-contacts", "press-announcements",
+      "press-coverage", "epk", "onesheet", "reach", "referrals"]),
 ]
 
 # Rows above the rooms, and the group under them.
@@ -109,6 +109,10 @@ EXTRA = {
     "release-check": ("/releases/autopilot?view=ready", "M4 10l4 4 8-8", "Release check", "The store checks before a release goes out.", "autopilot"),
     "distribution": ("/distribution", "M3 10h14|M10 3v14|M5 5l10 10|M15 5L5 15", "Distribution", "How your releases reach the stores today.", None),
     "press-contacts": ("/press-desk/contacts", "M7 9a3 3 0 100-6 3 3 0 000 6z|M2 17c0-3 2.5-5 5-5s5 2 5 5|M13 5h5|M13 8h5|M13 11h3", "Media list", "The writers and outlets you pitch.", "press-desk"),
+    # The Press strip was the only door to Announcements. The strip leaves
+    # the page in this layout (2026-09-19, "remove the double tabs"), so
+    # the page is a card like its three neighbours.
+    "press-announcements": ("/press-desk/announcements", "M4 8h3l6-4v12l-6-4H4z|M7 12l1 4h2l-1-4|M15 8a3 3 0 010 4", "Announcements", "Press releases you write once and send to your media list.", "press-desk"),
     "press-coverage": ("/press-desk/coverage", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5|M6 13l2-2 3 2", "Coverage", "What has been written, kept in one place.", "press-desk"),
     "onesheet": ("/artist-profile", "M4 3h12v14H4z|M10 6a2 2 0 100 4 2 2 0 000-4z|M6 14c0-2 2-3 4-3s4 1 4 3", "One-sheet", "The one-page artist profile you send.", "epk"),
     "connections": ("/connections", "M6 10h8|M6 6l-3 4 3 4|M14 6l3 4-3 4", "Data and connections", "Which services this account is connected to.", "settings"),

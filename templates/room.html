@@ -9,21 +9,27 @@
     Center tiles. A chip says a card's state: Hidden (owner only), Sample,
     or that it opens another app. A card is never a second menu. -#}
 <div class="mx-auto max-w-[1050px] space-y-6">
-  <div>
+  {#- Centred, the header, the icons and the note under them (owner,
+      2026-09-19: "you always push stuff over to the left side margin. We
+      need to center a lot of text like that"). -#}
+  <div class="text-center">
     <div class="sb-label text-sb-gold">Street Banker · {{ room.name }}</div>
     <h1 class="sb-h1 mt-1">{{ room.name }}</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-300">{{ room.purpose }}</p>
+    <p class="mx-auto mt-1 max-w-2xl text-sm text-gray-300">{{ room.purpose }}</p>
   </div>
 
   {% if room.cards %}
   {#- Icons, not boxes (owner, 2026-09-15: "instead of square cards could
       we create icons for all the features in the room"). Each feature is
       its drawn mark on a disc with its name under it; a small word under
-      that says Hidden, Sample or Opens app when one of those is true. -#}
-  <section class="grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6" aria-label="{{ room.name }} features">
+      that says Hidden, Sample or Opens app when one of those is true.
+      A wrapping row, not a grid: every icon keeps the width a grid cell
+      had (three, four or six across, app-chrome.css .sb-room-icon), and
+      a short last row sits in the middle instead of against the left. -#}
+  <section class="flex flex-wrap justify-center gap-4" aria-label="{{ room.name }} features">
     {% for key, href, icon, label, desc, state in room.cards %}
     {%- set external = href.startswith(('http://', 'https://', '/suites/go/')) -%}
-    <a class="group flex flex-col items-center gap-2 rounded-xl px-2 py-3 text-center transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sb-gold" href="{{ href }}"{% if external %} target="_blank" rel="noopener"{% endif %} title="{{ desc }}" data-room-card="{{ key }}">
+    <a class="sb-room-icon group flex flex-col items-center gap-2 rounded-xl px-2 py-3 text-center transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sb-gold" href="{{ href }}"{% if external %} target="_blank" rel="noopener"{% endif %} title="{{ desc }}" data-room-card="{{ key }}">
       {%- set picture = room_images.get(key) if room_images is defined else none -%}
       {% if picture %}
       <img src="{{ picture }}" alt="" width="112" height="112" loading="lazy" class="h-28 w-28 rounded-2xl object-cover transition-transform group-hover:scale-105{% if state == 'sample' or state == 'hidden' %} opacity-60{% endif %}">
@@ -40,9 +46,9 @@
     {% endfor %}
   </section>
   {% else %}
-  <p class="text-sm text-gray-300">Nothing in this room is switched on for this account yet.</p>
+  <p class="text-center text-sm text-gray-300">Nothing in this room is switched on for this account yet.</p>
   {% endif %}
 
-  <p class="text-xs text-gray-300 font-medium">Every icon opens the page it always did. Hidden ones show only to owners. Sample means example data rather than yours, and the page says so.</p>
+  <p class="mx-auto max-w-2xl text-center text-xs text-gray-300 font-medium">Every icon opens the page it always did. Hidden ones show only to owners. Sample means example data rather than yours, and the page says so.</p>
 </div>
 {% endblock %}

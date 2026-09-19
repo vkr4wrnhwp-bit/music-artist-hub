@@ -3,8 +3,8 @@
   1 credit packs    "hide them until we know what the credits actually cost"
   2 Noise Lab       "soon as we need to finish it"
   4 VIP, fan clubs  "in a on off that i control (they need to email for details)"
-  6 Pro             consulting at a member rate replaces "Consulting hours (with
-                    ambassadors)"
+  6 Pro             consulting with the founder replaces "Consulting hours (with
+                    ambassadors)"; no "member rate" (2026-09-19: no discount)
   9 Ticketmaster    "off"
   Pulse             "make pulse only changable on pro accounts"
   MLC               "switch to mlc", "brainz off for customers"
@@ -140,10 +140,95 @@ def test_vip_checkout_waits_for_the_switch(monkeypatch):
 
 # --- 6 Pro plan line ---------------------------------------------------------
 
-def test_pro_lists_consulting_at_a_member_rate_not_ambassadors():
+def test_pro_lists_consulting_with_the_founder_not_ambassadors():
     pro = [p for p in plans.PLANS if p[0] == "pro"][0]
     joined = " ".join(pro[4])
-    assert "$50 for 30 minutes, $75 for an hour" in joined and "ambassador" not in joined.lower()
+    assert "Consulting with the founder: $50 for 30 minutes, $75 for an hour" in joined
+    assert "ambassador" not in joined.lower()
+    # Owner, 2026-09-19: remove any suggestion of a discount.
+    assert "member rate" not in joined.lower() and "discount" not in joined.lower()
+
+
+# --- owner notes, 2026-09-19 -------------------------------------------------
+
+def _hub_cards():
+    import hubs
+    return {key: (href, label, desc) for _k, _n, _p, cards in hubs.HUBS
+            for key, href, _i, label, desc in cards}
+
+
+def test_the_sidebar_says_profit_and_loss_at_the_same_address():
+    href, label, _desc = _hub_cards()["revenue-os"]
+    assert (href, label) == ("/revenue-os", "Profit & Loss")
+
+
+def test_reach_does_not_claim_paid_promotion():
+    """The REACH app pitches to playlists, press and radio and tracks
+    replies; nothing in it buys promotion."""
+    desc = _hub_cards()["reach"][2]
+    assert "paid" not in desc.lower() and "playlist" in desc.lower()
+
+
+def test_the_sweep_mark_only_sits_on_the_royalty_sweep_pages():
+    """Owner, 2026-09-15: the mark "only needs to be under the royalty
+    sweep page". It used to follow the whole Pro tier gate."""
+    for path in ("/royalties", "/statements", "/recovery", "/royalty-recovery/cases",
+                 "/disputes", "/money-queue", "/statements/upload"):
+        assert plans.world_for_path(path) == "sweep", path
+    for path in ("/catalog", "/valuation", "/reports", "/deal-room", "/overview",
+                 "/fingerprints", "/tax", "/revenue-os"):
+        assert plans.world_for_path(path) != "sweep", path
+
+
+def test_the_rooms_layout_drops_each_page_s_own_tab_strip(monkeypatch):
+    """Owner, 2026-09-15: "remove the double tabs". With rooms on, the
+    room's cards are the tabs, so the page's own strip stays out; with rooms
+    off it is still there. The Calendar view keeps its door as a room card."""
+    import rooms
+    c, _uid = _client("label")
+    monkeypatch.setattr(rooms, "enabled", lambda: False)
+    assert 'href="/press-desk/contacts"' in c.get("/epk").get_data(as_text=True)
+    monkeypatch.setattr(rooms, "enabled", lambda: True)
+    for path, tab in (("/epk", "/press-desk/contacts"), ("/artist-profile", "/press-desk/coverage"),
+                      ("/press-desk", "/press-desk/coverage"), ("/deal-room", "/sync/deal-simulator"),
+                      ("/sync/deal-simulator", "/sync/clearance-packs"),
+                      ("/sync/clearance-packs", "/deal-room"),
+                      ("/releases/autopilot", "/releases/autopilot?view=ready")):
+        body = c.get(path).get_data(as_text=True)
+        assert "sb-subnav-a" not in body, path
+        assert 'class="pd-btn pd-btn--ghost" href="%s"' % tab not in body, path
+    room = c.get("/room/releases").get_data(as_text=True)
+    assert 'href="/releases/autopilot?view=calendar"' in room
+    assert 'href="/press-desk/announcements"' in c.get("/room/marketing").get_data(as_text=True)
+
+
+def test_search_finds_pages_by_name():
+    """Typing "statements" in the sidebar's Search box said "No results"."""
+    from search_config import page_hits
+    c, _uid = _client("pro")
+    body = c.get("/search?q=statements").get_data(as_text=True)
+    assert 'href="/statements"' in body and ">Statements<" in body and "No results" not in body
+    body = c.get("/search?q=profit").get_data(as_text=True)
+    assert 'href="/revenue-os"' in body
+    pages = [{"key": "statements", "href": "/statements", "label": "Statements", "desc": "", "group": "Money"},
+             {"key": "royalties", "href": "/royalties", "label": "Royalties", "desc": "", "group": "Money"}]
+    assert [h["route"] for h in page_hits("state", pages)] == ["/statements"]
+    assert page_hits("", pages) == []
+
+
+def test_search_keeps_the_sidebar_s_visibility_rules():
+    """A fan has no money desk, so "statements" finds no page for a fan."""
+    c, _uid = _client("fan")
+    assert 'href="/statements"' not in c.get("/search?q=statements").get_data(as_text=True)
+
+
+def test_resellers_is_in_the_owner_s_internal_tools_only(monkeypatch):
+    owner_email = "tools-owner-%s@example.net" % uuid.uuid4().hex[:8]
+    monkeypatch.setenv("OWNER_EMAILS", owner_email)
+    c, _uid = _client("label", email=owner_email)
+    assert 'href="/resellers"' in c.get("/overview").get_data(as_text=True)
+    other, _uid = _client("label")
+    assert 'href="/resellers"' not in other.get("/overview").get_data(as_text=True)
 
 
 # --- 9 Ticketmaster ----------------------------------------------------------

@@ -15,7 +15,11 @@
       <div class="sb-label text-sb-gold">Street Banker · Qualification</div>
       <h1 class="sb-h1 mt-1">Growth Score</h1>
       {% include "partials/score_trend.html" %}
-      <p class="mt-1 max-w-2xl text-sm text-gray-300">Every point is computed from your real account — campaigns, rollouts, fans, metadata, and press kit. Raise the score, unlock more reach.</p>
+      {#- "Unlock more reach" named nothing the code does. What the score
+          really changes: the order of the Street Banker team's review
+          list, highest first (/admin/review). Nothing switches on by
+          itself (owner notes, 2026-09-19). -#}
+      <p class="mt-1 max-w-2xl text-sm text-gray-300">A 0 to 100 measure of how set up and active your account is. Every point comes from your real account: campaigns, rollouts, fans, metadata, press kit, your master and the income on record. The Street Banker team reads it to decide whose account to review first. It does not switch anything on by itself.</p>
     </div>
     <a href="/artist-profile" class="sb-btn sb-btn-secondary">Artist Profile →</a>
   </div>
@@ -99,18 +103,18 @@
 
     <!-- Unlocks -->
     <section class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">
-      <h2 class="sb-label text-sb-gold-bright">What Your Score Unlocks</h2>
+      <h2 class="sb-label text-sb-gold-bright">What the team considers at each score</h2>
       <div class="mt-3 space-y-2">
         {% for label, threshold, met in q.unlocks %}
         <div class="md-unlock flex items-center gap-3 rounded-lg border {{ 'border-green-500/20 bg-green-500/[0.04]' if met else 'border-white/5 bg-white/5' }} px-3 py-2.5">
           <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-black {{ 'bg-green-500/20 text-green-400' if met else 'bg-white/10 text-gray-300' }}">{{ '✓' if met else threshold }}</span>
           <span class="text-sm font-semibold {{ 'text-gray-100' if met else 'text-gray-300' }}">{{ label }}</span>
           {% if not met %}<span class="ml-auto text-xs font-bold uppercase text-gray-300">at {{ threshold }} · <span class="text-sb-gold-bright">{{ threshold - q.total }} pts away</span></span>
-          {% else %}<span class="ml-auto text-xs font-black uppercase tracking-wide text-green-400">♛ unlocked</span>{% endif %}
+          {% else %}<span class="ml-auto text-xs font-black uppercase tracking-wide text-green-400">reached</span>{% endif %}
         </div>
         {% endfor %}
       </div>
-      <p class="mt-3 text-xs text-gray-300 font-medium">Qualified accounts enter the Street Banker review queue for human curation — this score gets you seen, a person makes the call.</p>
+      <p class="mt-3 text-xs text-gray-300 font-medium">Nothing on this list switches on automatically. Every account is in the Street Banker team's review list, highest score first, and a person decides what to offer.</p>
     </section>
   </div>
 </div>

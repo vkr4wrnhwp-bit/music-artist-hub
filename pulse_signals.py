@@ -8,8 +8,10 @@ whether it moved - and each is honest about what it does not have:
   * a series with gaps keeps the gaps; a run of unmeasured days at the
     end is drawn dashed so a stale figure looks stale
   * YouTube has no history, so its instrument has no line and says so
-  * TikTok has no public artist-stats API; its instrument is on the
-    bridge so nobody thinks it was forgotten, and it stays dark
+  * TikTok has no public artist-stats API; its instrument is built so
+    nobody thinks it was forgotten. The page does not draw an instrument
+    with no reading at all (state "none"); it names it, with this
+    detail, under the bridge instead (owner notes, 2026-09-19)
 """
 from datetime import date, timedelta
 

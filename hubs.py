@@ -39,7 +39,9 @@ HUBS = [
         # other platforms should be visible"). It stays a tab of Press too.
         ("epk", "/epk", "M4 3h9l3 3v11H4z|M13 3v3h3|M7 9h6M7 12h6M7 15h4", "Press Kit", "Your electronic press kit on one link: bio, photos, tracks and the figures that are measured."),
         ("press-desk", "/press-desk", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5M6 13h3", "Press", "Media list, pitches and coverage — with the press kit and one-sheet they send."),
-        ("reach", "/suites/go/reach", "M3 10a7 7 0 0114 0|M6 10a4 4 0 018 0|M10 10v7|M8 17h4", "REACH", "Paid promotion and outreach, in its own room (opens the REACH app)."),
+        # REACH runs no paid promotion (2026-09-19 audit: its paid pitching
+        # platforms are adapters switched off), so the line says what it does.
+        ("reach", "/suites/go/reach", "M3 10a7 7 0 0114 0|M6 10a4 4 0 018 0|M10 10v7|M8 17h4", "REACH", "Find playlist, press and radio opportunities, pitch them once you approve, track the replies (opens the REACH app)."),
         ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Daily follower and popularity snapshots, growth over time, and your link engagement."),
     ]),
     ("stage", "Live Stage Suite", "Everything between the booking and the encore — shows, plots, lights, and the rider.", [
@@ -70,7 +72,9 @@ HUBS = [
         ("cases", "/royalty-recovery/cases", "M4 5h12v10H4z|M4 8h12M8 5V3h4v2M10 11v2", "Recovery Cases", "Tracked claims from open to paid."),
         ("disputes", "/disputes", "M10 3l7 4v5c0 3-3 5-7 5s-7-2-7-5V7z|M10 8v3M10 13v0", "Disputes", "Log and track conflicts on your catalog."),
         ("valuation", "/valuation", "M10 3l6 4v6l-6 4-6-4V7z|M10 8v4", "Valuation", "Catalog value from your real history."),
-        ("revenue-os", "/revenue-os", "M4 16V4h12v12z|M7 13V9M10 13V7M13 13v-3", "Revenue OS", "Income structure across your whole operation."),
+        # The page reads "Profit & Loss" and the owner calls it the P&L, so
+        # the entry does too; the address stays /revenue-os.
+        ("revenue-os", "/revenue-os", "M4 16V4h12v12z|M7 13V9M10 13V7M13 13v-3", "Profit & Loss", "Income structure across your whole operation."),
         ("deals", "/deal-room", "M7 9l3-3 3 3M10 6v8|M4 16h12M4 4h4M12 4h4", "Deals", "The Deal Room, the simulator and your sync packs."),
         ("reports", "/reports", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 10h5M8 13h5", "Reports", "Exports and summaries of everything above."),
         ("hours", "/hours", "M10 3a7 7 0 100 14 7 7 0 000-14z|M10 6v4l3 2|M3 3l2 2M17 3l-2 2", "Hours Desk", "Bill your time, take bookings, approve collaborators."),

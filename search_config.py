@@ -10,9 +10,50 @@ people go to confirm a thing exists.
 Now it reads statement rows and disputes for one user_id. The demo
 account keeps the seeded catalog, because the tour needs something to
 find.
+
+It also finds pages by name (audit, 2026-09-19: typing "statements" in
+the sidebar's Search box said "No results", because only statement rows
+and disputes were searched). The caller passes the pages this account's
+sidebar offers, already filtered by the sidebar's own rules, and the
+matching ones come first, as links.
 """
 
 import db as store
+
+
+def page_hits(query, pages):
+    """Pages whose name matches `query`, best first.
+
+    `pages` is [{key, href, label, desc, group}] as the caller built it for
+    this account. A name (or its key, "revenue-os" reading "revenue os")
+    that contains the query is a hit; names that start with it lead. A
+    query of four letters or more also finds a page by its one-line
+    description, after every name hit. One entry per address.
+    """
+    q = (query or "").strip().lower()
+    if not q:
+        return []
+    named, described, seen = [], [], set()
+    for page in pages or []:
+        href = page.get("href") or ""
+        label = (page.get("label") or "").lower()
+        key = (page.get("key") or "").replace("-", " ").lower()
+        if href and href not in seen and (q in label or q in key):
+            seen.add(href)
+            named.append(page)
+    if len(q) >= 4:
+        for page in pages or []:
+            href = page.get("href") or ""
+            if href and href not in seen and q in (page.get("desc") or "").lower():
+                seen.add(href)
+                described.append(page)
+    named.sort(key=lambda p: (not (p.get("label") or "").lower().startswith(q),
+                              q not in (p.get("label") or "").lower()))
+    return [{"label": p.get("label") or "",
+             "sub": ("Room · " if p.get("group") == "Rooms" else "Page · ")
+                    + (p.get("desc") or p.get("group") or ""),
+             "route": p["href"]}
+            for p in named + described]
 
 
 def _demo_search(q):
@@ -62,8 +103,9 @@ def _demo_search(q):
     return groups
 
 
-def search(query, user_id=None, demo=False):
-    """Real accounts search their own statements and disputes.
+def search(query, user_id=None, demo=False, pages=None):
+    """Real accounts search their own statements and disputes, and the
+    pages in `pages` (see page_hits) by name, pages first.
 
     `demo` defaults to False, so a caller that forgets the flag gets an
     honest empty result rather than a stranger's catalog.
@@ -72,12 +114,15 @@ def search(query, user_id=None, demo=False):
     if not q:
         return {"query": "", "groups": [], "total": 0, "is_demo": bool(demo)}
 
+    found = page_hits(q, pages)
+    lead = [{"type": "Pages", "entries": found}] if found else []
+
     if demo:
-        groups = _demo_search(q)
+        groups = lead + _demo_search(q)
         return {"query": query, "groups": groups, "is_demo": True,
                 "total": sum(len(g["entries"]) for g in groups)}
 
-    groups = []
+    groups = list(lead)
     rows = store.get_statement_rows(user_id) if user_id else []
 
     tracks, sources = {}, {}
@@ -109,7 +154,8 @@ def search(query, user_id=None, demo=False):
         except Exception:
             mine = []
         hits = [{"label": d.get("title") or "(untitled)",
-                 "sub": "Dispute · " + (d.get("counterparty") or "—"),
+                 "sub": "Dispute" + (" · " + d["counterparty"]
+                                     if d.get("counterparty") else ""),
                  "route": "/disputes"}
                 for d in mine
                 if q in (d.get("title") or "").lower()

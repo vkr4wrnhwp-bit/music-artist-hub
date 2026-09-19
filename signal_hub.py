@@ -122,7 +122,8 @@ def _ctx(org, member, **extra):
         "nav_items": [
             ("/signal", "Dashboard"),
             ("/signal/breaking", "Breaking Now"),
-            ("/signal/briefs", "Audio Briefs"),
+            # Audio Briefs came off (owner, 2026-09-19: "bad, bad, bad from
+            # signal"); /signal/briefs lands on this dashboard.
             ("/signal/early", "Early Signal"),
             ("/signal/cities", "City Ignition"),
             ("/signal/undervalued", "Undervalued Infrastructure"),

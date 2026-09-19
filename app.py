@@ -422,6 +422,9 @@ def _internal_tools():
         # email behind a tier anyone could buy.
         out.append({"href": "/admin/review", "label": "Artist accounts"})
         out.append({"href": "/admin/readiness", "label": "Readiness"})
+        # The reseller back office (/resellers) was built and linked from
+        # nowhere (audit, 2026-09-19). Owner only, like its route.
+        out.append({"href": "/resellers", "label": "Resellers"})
         # Core, the template builder new suites are made from (owner,
         # 2026-09-17: "add this into the street banker back side owner
         # account, it's a template for making new suites"). Another
@@ -10838,9 +10841,15 @@ def create_app():
                 focus = _dress(dict(mine, poster_name=user["name"])) if mine else None
             if focus is not None:
                 _with_trust(focus)
-        # The view a save or apply form returns to (the applied flag is
-        # dropped so the flash does not follow the user around).
-        kept = [(k, v) for k, v in request.args.items(multi=True) if k != "applied"]
+        # Whether this member already reported the post on screen: the
+        # button becomes the confirmation instead of asking again.
+        focus_reported = bool(focus is not None and focus["user_id"] != uid
+                              and store.get_kv(_collab_report_key(focus["id"], uid)) is not None)
+        # The view a save or apply form returns to (the applied and
+        # reported flags are dropped so the flash does not follow the
+        # user around).
+        kept = [(k, v) for k, v in request.args.items(multi=True)
+                if k not in ("applied", "reported")]
         here = request.path + ("?" + urllib.parse.urlencode(kept) if kept else "")
         trust = trust_score.calculate(uid)
         trust_rows = [
@@ -10859,7 +10868,8 @@ def create_app():
             replies_by_req=replies_by_req, sent=sent, tiles=tiles,
             applied_ids=applied_ids, here=here,
             recs=recs, rec_basis=rec_basis, projects=projects, latest=latest,
-            focus=focus, trust=trust, trust_rows=trust_rows,
+            focus=focus, focus_reported=focus_reported,
+            trust=trust, trust_rows=trust_rows,
             trust_scored=trust_scored, kind_labels=collab_market.KIND_LABELS,
             genres=sorted({r["genre"] for r in board if r["genre"]}),
             loc=loc, budget=budget,
@@ -10969,6 +10979,37 @@ def create_app():
             return login_required_redirect()
         store.delete_collab_request(user["id"], req_id)
         return redirect("/marketplace")
+
+    def _collab_report_key(req_id, user_id):
+        return "collab_report:%s:%s" % (req_id, user_id)
+
+    @app.route("/marketplace/<req_id>/report", methods=["POST"])
+    def marketplace_report(req_id):
+        """Report this post, and it reaches the owner (owner-approved,
+        2026-09-19). Signed-in members only, never on their own post, and
+        one report per member per post: a repeat press is ignored rather
+        than sending the owner the same report twice."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        back = _cm.safe_back(request.form.get("back"))
+        req = store.get_collab_request(req_id)
+        if req is None or req["user_id"] == user["id"]:
+            return redirect(back)
+        key = _collab_report_key(req_id, user["id"])
+        if store.get_kv(key) is None:
+            store.set_kv(key, json.dumps({"at": datetime.now(timezone.utc).isoformat()}))
+            body = "%s (%s) reported “%s” by %s." % (
+                user.get("name") or "A member", user.get("email") or "no email",
+                req["title"], req.get("poster_name") or "a member")
+            # Straight to the owners, under its own kind: _notify_owners files
+            # everything as "billing", and an owner who muted billing mail
+            # must still hear about a reported post.
+            for u in store.list_users():
+                if _is_owner_email(u.get("email")):
+                    store.notify(u["id"], "report", "Collab post reported", body,
+                                 "/marketplace?brief=%s#brief" % req_id)
+        return redirect(_cm.with_flag(back, "reported=1"))
 
     # --- Collaborator profiles (PROFILES-SPEC.md, owner-approved 2026-09-18) ---
 
@@ -11787,6 +11828,42 @@ def create_app():
         status live on each Track Passport."""
         return redirect("/tracks")
 
+    def _search_pages(user):
+        """Every page this account's sidebar offers, as {key, href, label,
+        desc, group}, for /search to find by name (audit, 2026-09-19: the
+        sidebar's Search box could not find the Statements page). The hub
+        pages come from the palette's list and the rooms from rooms.build,
+        under the rules inject_hub_context applies: a fan gets the fan
+        shell, a switched-off page is kept only for an owner, a locked demo
+        loses the Sample pages, a team seat sees only the rooms opened to
+        it, and the Label cards need a Label plan."""
+        if not user:
+            return []
+        plan = user.get("plan") or "artist"
+        is_owner = bool(_is_owner_email(user.get("email")))
+        demo = bool(_demo_locked_account())
+        hide = set() if is_owner else set(_page_hidden())
+        if demo:
+            hide |= hub_defs.demo_hidden_keys()
+        seat = (getattr(g, "_team_seat", None) or (None, None))[1] if session.get("team_as") else None
+        if seat:
+            hide |= team_areas.hidden_page_keys(seat["areas"])
+        if plan != "label":
+            hide |= set(rooms.LABEL_ONLY)
+        pages = [dict(e) for e in _palette_for(user) if e["key"] not in hide]
+        if plan != "fan":
+            granted = team_areas.parse(seat["areas"]) if seat else None
+            for rkey, name, purpose, _icon, cards in rooms.build(plan, is_owner, demo):
+                if granted is not None and rkey not in granted:
+                    continue
+                pages.append({"key": "room " + rkey, "href": "/room/" + rkey,
+                              "label": name, "desc": purpose, "group": "Rooms"})
+                pages.extend({"key": key, "href": href, "label": label,
+                              "desc": desc, "group": name}
+                             for key, href, _i, label, desc, _state in cards
+                             if key not in hide)
+        return pages
+
     @app.route("/search")
     def search_route():
         ctx = build_dashboard_context()
@@ -11794,7 +11871,8 @@ def create_app():
         ctx["search_results"] = global_search(
             request.args.get("q", ""),
             user_id=(user or {}).get("id"),
-            demo=_is_demo_email((user or {}).get("email") or ""))
+            demo=_is_demo_email((user or {}).get("email") or ""),
+            pages=_search_pages(user))
         return render_template("search.html", active_page="search", **ctx)
 
     @app.route("/notifications")

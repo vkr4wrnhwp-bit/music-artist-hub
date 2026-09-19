@@ -104,6 +104,42 @@ def set_layout(value):
     db.set_kv("home_layout", "split" if value == "split" else "full")
 
 
+def coming_soon(paid):
+    """The line under each pass naming what on it is not open yet.
+
+    The plates are photographs, so "Artifacts" and "Company" are cut into
+    the metal with nothing to say they are not open (owner, 2026-09-17:
+    mark them coming soon). The suites waiting are hubs.suites_pending(),
+    the same list that puts Soon on the suites strip; the pass that
+    carries each is plans.SUITE_ACCESS, where "credits" is Label, the one
+    pass with credits in it. A pass carries everything under it too, so
+    Pro names what Artist is still waiting for. An empty string means
+    everything on that pass is open, and the template draws no line.
+    """
+    import hubs
+    import plans
+    names = {row[0]: row[3] for row in hubs.tool_suites()}
+    rank = plans.TIER_RANK
+    waiting = []
+    for key in hubs.suites_pending():
+        need = plans.SUITE_ACCESS.get(key) or "artist"
+        need = "label" if need == "credits" else need
+        if key in names and need in rank:
+            waiting.append((rank[need], key))
+    order = list(hubs.SUITE_ORDER)
+    waiting.sort(key=lambda row: (row[0], order.index(row[1]) if row[1] in order else len(order)))
+    lines = {}
+    for tier in paid:
+        these = [names[key] for need, key in waiting if need <= rank[tier]]
+        if not these:
+            lines[tier] = ""
+        elif len(these) == 1:
+            lines[tier] = "%s opens soon." % these[0]
+        else:
+            lines[tier] = "%s and %s open soon." % (", ".join(these[:-1]), these[-1])
+    return lines
+
+
 def get_split_home_config(signup_open=False):
     """Everything the split page says that is not already a section's own
     config. Prices come from plans so they can never drift from Billing.
@@ -157,6 +193,7 @@ def get_split_home_config(signup_open=False):
         # sb-keep: light on the owner's gold plate
         "label": ("gold", "#FFFBE6", "#FFD45E"),
     }
+    soon = coming_soon(paid)
     tiers = []
     for key, name, price, blurb, includes in plans.PLANS:
         if key not in paid:
@@ -174,9 +211,17 @@ def get_split_home_config(signup_open=False):
             # What the engraving actually says, so a screen reader gets
             # the pass and the repo carries the copy in text.
             "reads": ENGRAVED[key],
+            # What on this plate is not open yet, or "".
+            "soon": soon.get(key, ""),
         })
-    packs = [{"credits": credits, "price": "$%d" % (cents // 100), "label": label}
-             for credits, cents, label in sorted(plans.CREDIT_PACKS.values())]
+    # No pack prices while packs are off sale (owner, 2026-09-18: "hide
+    # them until we know what the credits actually cost"). Billing already
+    # hid them on plans.CREDIT_PACKS_ON_SALE; this page kept listing three
+    # prices nobody could pay. The list comes back when the flag does.
+    packs = []
+    if plans.CREDIT_PACKS_ON_SALE:
+        packs = [{"credits": credits, "price": "$%d" % (cents // 100), "label": label}
+                 for credits, cents, label in sorted(plans.CREDIT_PACKS.values())]
     return {
         "stages": STAGES,
         "hero": HERO,

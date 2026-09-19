@@ -94,8 +94,13 @@
           <td class="py-3 pr-4 text-xs text-gray-300 font-medium">{{ campaign_titles.get(f.first_campaign_id, 'Imported or added') }}</td>
           <td class="py-3 text-xs sb-num text-gray-300 font-medium">{{ f.updated[:10] }}</td>
           <td class="py-3 pl-3 text-right">
+            {#- The confirm says exactly what the route does (owner notes,
+                2026-09-19): links_store.delete_fan deletes the fan row, their
+                consent records and their link activity. It is not a
+                suppression; the address is not blocked, and a fresh signup
+                from it starts a new record. -#}
             <form method="post" action="/links/fans/{{ f.id }}/delete"
-                  onsubmit="return confirm('Remove {{ f.email | e }} and their consent records? This cannot be undone.');">
+                  onsubmit="return confirm('Delete {{ f.email | e }} from your fan list? This deletes their record, their consent log and their link activity. It does not block the address: they can sign up again. This cannot be undone.');">
               <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm" aria-label="Remove {{ f.email }}">Remove</button>
             </form>
           </td>

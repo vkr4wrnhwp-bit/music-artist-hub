@@ -19,7 +19,10 @@
       {#- The page is the sign-in, so this marks where you are rather than
           sending you somewhere. -#}
       <a class="sbbar-here" href="#sbdoor-h" aria-current="page">Sign in</a>
-      <a href="/plan">Plans</a>
+      {#- The memberships band further down this page. /plan is the Artist
+          EQ's recommendation, not the price list, and no public page lists
+          the three memberships except the band itself. -#}
+      <a href="#memberships">Plans</a>
       {#- The story, the press and the store. public_base rather than a
           written-down host, so it follows the domain. -#}
       <a href="{{ public_base }}/" rel="noopener">{{ public_base | replace("https://", "") | replace("http://", "") }}</a>

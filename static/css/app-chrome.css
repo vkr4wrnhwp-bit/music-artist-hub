@@ -954,20 +954,29 @@ details.asx-open[open] .asx-when-closed { display: none; }
  * baseline row and the badges line up under them. The name is a bare
  * text node after the mark (tests/test_hubs_external.py reads it there),
  * which a grid wraps in its own anonymous cell; the mark spans both rows
- * and the badge is placed in row two. */
+ * and the badge is placed in row two.
+ * Centred as a group (owner, 2026-09-19: "move the suites into the center
+ * and then the line below it into the center"): the heading and the
+ * sentence are centred text, and the four columns stop at 240px and sit
+ * in the middle of the page as one block. Inside a cell the mark, name and
+ * badge keep their shared lines, so the cell itself stays left-aligned. */
 .sb-suites {
   margin-top: 48px;
   padding-top: 20px;
   border-top: 1px solid var(--sb-line);
+  text-align: center;
 }
 .sb-suites-grid {
   margin-top: 12px;
+  margin-inline: auto;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 240px));
+  justify-content: center;
   gap: 8px 16px;
   max-width: 1100px;
 }
 .sb-suite {
+  text-align: left;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
   /* Fixed rows, so a name sits on the same line whether or not a badge
@@ -1015,4 +1024,18 @@ details.asx-open[open] .asx-when-closed { display: none; }
   .sb-suites-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
   .sb-suites { margin-top: 40px; }
   .sb-suite { column-gap: 8px; padding: 6px 4px; }
+}
+
+/* --- a room's icons ---------------------------------------------------------
+ * A wrapping row centred on the page, not a grid (owner, 2026-09-19: "you
+ * always push stuff over to the left side margin"). Each icon is exactly
+ * as wide as the grid cell it replaces, three across on a phone, four from
+ * 640px and six from 1024px, so full rows look as they did and only a short
+ * last row changes: it sits in the middle. The 16px is the row's gap-4. */
+.sb-room-icon { flex: 0 0 auto; width: calc((100% - 2 * 16px) / 3); min-width: 0; }
+@media (min-width: 640px) {
+  .sb-room-icon { width: calc((100% - 3 * 16px) / 4); }
+}
+@media (min-width: 1024px) {
+  .sb-room-icon { width: calc((100% - 5 * 16px) / 6); }
 }

@@ -62,7 +62,7 @@
 }
 .sbeq-eyebrow {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.3em;
   text-transform: uppercase;
@@ -104,9 +104,9 @@
 }
 
 .sbeq-panel-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--eq-muted);
 }
@@ -135,7 +135,7 @@
 .sbeq-ch-icon { color: var(--eq-brass); }
 .sbeq-ch-icon svg { width: 18px; height: 18px; display: block; }
 .sbeq-ch-name {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.16em;
   color: #D9D3C8;
@@ -159,7 +159,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  font-size: 8.5px;
+  font-size: 12px;
   font-style: normal;
   color: rgb(242 238 230 / 0.3);
 }
@@ -232,7 +232,7 @@
    readers everywhere, never crowding the controls on a phone. */
 .sbeq-ch-desc {
   margin: 0;
-  font-size: 10.5px;
+  font-size: 12px;
   line-height: 1.4;
   text-align: center;
   color: var(--eq-muted);
@@ -266,7 +266,7 @@
   .sbeq-lamp { position: absolute; top: 16px; right: 74px; }
   .sbeq-value { grid-area: value; min-width: 56px; }
   .sbeq-fader { grid-area: fader; }
-  .sbeq-ch-desc { grid-area: desc; text-align: left; font-size: 11px; }
+  .sbeq-ch-desc { grid-area: desc; text-align: left; font-size: 12px; }
   .sbeq-scale { display: none; }
   .sbeq-range {
     width: 100%;
@@ -320,7 +320,7 @@
 .sbeq-band { margin: 6px 0 0; font-size: 13px; font-weight: 700; color: var(--eq-ivory); }
 .sbeq-dial { width: 64px; height: 64px; flex: 0 0 auto; }
 #sbeq-dial-arc { transition: stroke-dashoffset 260ms ease; }
-.sbeq-score-note { margin: 10px 0 0; font-size: 10.5px; line-height: 1.5; color: var(--eq-muted); }
+.sbeq-score-note { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--eq-muted); }
 
 .sbeq-lane {
   margin-top: 10px;
@@ -333,7 +333,7 @@
 }
 .sbeq-lane:hover { background: rgb(201 168 106 / 0.13); }
 .sbeq-lane-name { display: block; font-size: 13px; font-weight: 800; color: var(--eq-brass-lit); }
-.sbeq-lane-why { display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.5; color: #CFC8BC; }
+.sbeq-lane-why { display: block; margin-top: 4px; font-size: 12px; line-height: 1.5; color: #CFC8BC; }
 
 .sbeq-modules { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 7px; }
 /* Rows, not links: the plan CTA carries the click. */
@@ -346,7 +346,7 @@
   text-decoration: none;
 }
 .sbeq-module-name { display: block; font-size: 12.5px; font-weight: 700; color: var(--eq-ivory); }
-.sbeq-module-note { display: block; margin-top: 2px; font-size: 10.5px; line-height: 1.45; color: var(--eq-muted); }
+.sbeq-module-note { display: block; margin-top: 2px; font-size: 12px; line-height: 1.45; color: var(--eq-muted); }
 
 .sbeq-actions { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 7px; }
 .sbeq-actions li { color: var(--eq-muted); }
@@ -356,7 +356,7 @@
   color: #DED8CD;
   text-decoration: none;
 }
-.sbeq-setup { margin: 12px 0 0; font-size: 11px; color: var(--eq-muted); }
+.sbeq-setup { margin: 12px 0 0; font-size: 12px; color: var(--eq-muted); }
 .sbeq-setup strong { color: var(--eq-ivory); }
 .sbeq-setup-note { color: var(--eq-muted); }
 
@@ -386,9 +386,9 @@
   border-radius: 6px;
   background: #100F0E;
   color: #D5CEC2;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
   transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
@@ -645,20 +645,12 @@
   .sbeq-channels-wrap .sbeq-ctas { grid-column: 1 / 4; grid-row: 6; margin: 6px 0 0; }
 }
 
-/* --- phone: the 12px type floor (phone pass, 2026-09-18) -----------------
-   Below 901px the console is plain stacked controls, and its engraved
-   10-11px captions measured as the 42 pieces of tiny text on the home page
-   at 390px. The desk unit above 900px keeps its sizes exactly. */
+/* --- the 12px type floor ---------------------------------------------------
+   The phone pass (2026-09-18) lifted the engraved 10-11px captions to 12px
+   below 901px only. The floor now holds at every width (owner's 12px
+   minimum, 2026-09-19): the captions above are 12px everywhere, with the
+   preset and panel-label tracking eased so the wider type takes the same
+   room. What is left here is the phone's slightly larger lane note. */
 @media (max-width: 900px) {
-  .sbeq-eyebrow,
-  .sbeq-panel-label,
-  .sbeq-preset,
-  .sbeq-ch-name,
-  .sbeq-ch-desc,
-  .sbeq-score-note,
-  .sbeq-module-note,
-  .sbeq-setup { font-size: 12px; }
   .sbeq-lane-why { font-size: 12.5px; }
-  .sbeq-preset { letter-spacing: 0.06em; }
-  .sbeq-panel-label { letter-spacing: 0.18em; }
 }

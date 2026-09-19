@@ -98,7 +98,11 @@ def test_the_page_draws_the_bridge_and_never_prints_none(monkeypatch):
     body = client.get("/pulse").get_data(as_text=True)
     assert 'id="pulse-bridge"' in body and 'data-signal="followers"' in body
     assert '<span class="sbm-v">104,233</span>' in body
-    assert 'data-signal="tiktok"' in body and "No data available from this platform." in body
+    # TikTok has no reading, so no card (owner's rule: a card with no value
+    # does not show); it is named under the bridge with its reason instead.
+    assert 'data-signal="tiktok"' not in body
+    assert 'data-unread="tiktok"' in body and "No data available from this platform." in body
+    assert "Not measured, so not shown:" in body
     assert "None" not in body.replace("NoneType", "")
     prov = body.split('data-signal="followers"')[1][:1600]
     assert "<b>Spotify</b>" in prov and date.today().isoformat() in prov, "provenance on the instrument"

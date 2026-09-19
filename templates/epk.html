@@ -9,7 +9,8 @@
 {% block head_scripts %}<link rel="stylesheet" href="/static/css/phone-studio.css?v=1">{% endblock %}
 
 {% block content %}
-{{ sb.subnav([("/press-desk", "Desk"), ("/press-desk/contacts", "Media list"), ("/press-desk/announcements", "Announcements"), ("/press-desk/coverage", "Coverage"), ("/epk", "Press kit"), ("/artist-profile", "One-sheet")], "/epk", label="Press") }}
+{#- In the rooms layout the room's cards are the tabs (owner, 2026-09-15: "remove the double tabs"). -#}
+{% if not rooms_nav %}{{ sb.subnav([("/press-desk", "Desk"), ("/press-desk/contacts", "Media list"), ("/press-desk/announcements", "Announcements"), ("/press-desk/coverage", "Coverage"), ("/epk", "Press kit"), ("/artist-profile", "One-sheet")], "/epk", label="Press") }}{% endif %}
 <div id="press-office" class="mx-auto max-w-[1300px] overflow-hidden rounded-2xl bg-sb-ink text-sb-surface-2 shadow-[0_0_60px_rgba(201,162,74,0.1)]">
 
   <!-- ===== Press Office top bar ===== -->

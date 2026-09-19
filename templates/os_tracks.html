@@ -7,7 +7,8 @@
 {#- The Artist-plan door. Track Passports live on the Catalog page (tier C,
     2026-09-09) and Pro accounts are forwarded there; Catalog is a Pro
     page, so an Artist account gets the same section here, on its own. -#}
-{{ sb.subnav([("/catalog", "Catalog"), ("/tracks", "Track Passports")], "/tracks") }}
+{#- In the rooms layout the room's cards are the tabs (owner, 2026-09-15: "remove the double tabs"). -#}
+{% if not rooms_nav %}{{ sb.subnav([("/catalog", "Catalog"), ("/tracks", "Track Passports")], "/tracks") }}{% endif %}
 <div class="mx-auto max-w-[1000px] space-y-5">
   <div>
     <div class="sb-label text-sb-gold">Street Banker · Artist OS</div>
