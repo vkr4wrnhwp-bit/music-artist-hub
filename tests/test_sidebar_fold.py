@@ -18,7 +18,7 @@ import hubs
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 PARKED = {"/capital": "Simulated demo", "/benchmark": "illustrative",
-          "/funding": "illustrative", "/conflicts": "Disputes",
+          "/funding": "illustrative",
           "/fan-label": "placeholders", "/network": "sample profiles"}
 FOLDED = {
     # Income by type and Royalty Lanes folded into the one Royalties page
@@ -83,12 +83,13 @@ def test_nothing_parked_or_folded_is_a_sidebar_entry():
             continue          # /releases is the calendar's URL; the front is /releases/autopilot
         assert href not in hrefs, href
     keys = {it[0] for it in _entries()}
-    for key in ("capital", "benchmark", "funding", "conflicts", "profile", "mechanicals",
+    for key in ("capital", "benchmark", "funding", "profile", "mechanicals",
                 "neighboring", "territories", "money-queue", "trust-score", "insights",
                 "connections", "deal-simulator", "releases", "documents", "tracks",
                 "fan-label", "fan-club-admin", "network", "overview", "income", "royalty-lanes"):
         assert key not in keys, key
-    for key in ("royalties", "scores", "deals", "press-desk", "reports", "epk", "sync-packs"):
+    for key in ("royalties", "scores", "deals", "press-desk", "reports", "epk", "sync-packs",
+                "conflicts"):
         assert key in keys, key
     community = {it[0] for it in hubs.COMMUNITY_GROUP[1]} | {it[0] for it in hubs.ACCOUNT_GROUP[1]}
     assert "fans" in community and "fan-label" not in community and "fan-club-admin" not in community
@@ -134,7 +135,7 @@ def test_the_fronts_are_live_and_reports_is_no_longer_a_sample():
     live = set(hubs.live_keys())
     for key in ("royalties", "scores", "deals", "press-desk", "reports", "fans"):
         assert key in live, key
-    for gone in ("capital", "benchmark", "funding", "conflicts", "fan-label", "fan-club-admin"):
+    for gone in ("capital", "benchmark", "funding", "fan-label", "fan-club-admin"):
         assert gone not in live
 
 

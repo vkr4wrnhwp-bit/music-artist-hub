@@ -34,6 +34,11 @@ HUBS = [
         # command palette - so the only way in was to type the URL.
         ("fingerprints", "/fingerprints/", "M3.5 12a6.5 6.5 0 0113 0v3|M6.5 13a3.5 3.5 0 017 0v2|M9.2 14a0.8 0.8 0 011.6 0v1", "Fingerprints", "Register your masters with ACRCloud, then scan a DJ set or stream for them - a hit opens a usage case with its timestamp."),
         ("catalog", "/catalog", "M7 4v10a2 2 0 11-2-2h2M7 4l9-1v9a2 2 0 11-2-2h2", "Catalog", "Every song you own, its identifiers, and its Track Passport."),
+        # Off the sidebar while it rendered the demo songs and told every
+        # artist their data was clean. It reads the account's own passports
+        # now (owner, 2026-09-20: "I would like to get it to compute"), so
+        # it sits beside the catalogue it reads.
+        ("conflicts", "/conflicts", "M10 3l7 13H3z|M10 8v4M10 14h.01", "Rights Conflicts", "Where your own records disagree about who owns a song, and the clearances still open."),
     ]),
     ("launch", "Launch Engine", "From finished master to the world — prepare, release, promote, and measure.", [
         ("autopilot", "/releases/autopilot", "M10 3l7 7-7 7-7-7z|M10 7v6M7 10h6", "Releases", "One release at a time - readiness, the arc, the plan, the kit - and the calendar of all of them."),

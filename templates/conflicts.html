@@ -3,15 +3,13 @@
 {% block title %}Rights Conflicts - Royalty Sweep{% endblock %}
 
 {% block content %}
-{% with why="This screen is an illustration. Real conflicts are logged and tracked in Disputes." %}{% include "_parked.html" %}{% endwith %}
 <div class="mx-auto max-w-[1400px] space-y-5">
   <div>
     <h1 class="sb-h1">Rights Conflict Center</h1>
-    <p class="mt-1 text-sm text-gray-300">Ownership disputes and missing rights data that can freeze your royalties until resolved.</p>
+    <p class="mt-1 text-sm text-gray-300">Read from your own track passports: where two of your records disagree, and the clearances somebody else can claim against. Nothing here comes from outside your account.</p>
+    <p class="mt-1 text-xs text-gray-300">{% if checked %}Checked {{ checked }} track{{ "" if checked == 1 else "s" }} with a passport.{% else %}No track has a passport yet, so there is nothing to check.{% endif %}</p>
   </div>
 
-  {% set high = conflicts | selectattr('severity', 'equalto', 'High') | list | length %}
-  {% set medium = conflicts | selectattr('severity', 'equalto', 'Medium') | list | length %}
 
   <div class="grid grid-cols-3 gap-3">
     <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
@@ -48,10 +46,14 @@
           <span class="rounded-md border border-white/10 px-2 py-0.5 text-xs text-gray-200 font-medium">{{ song }}</span>
           {% endfor %}
         </div>
+        {% if c.fix %}<a href="{{ c.fix }}" class="mt-3 inline-block rounded-lg border border-sb-gold/40 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright hover:bg-white/5">Open the passport</a>{% endif %}
       </div>
       {% endfor %}
       {% if not conflicts %}
-      <div class="rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-300">No rights conflicts detected — your ownership data is clean.</div>
+      <div class="rounded-xl border border-dashed border-white/10 py-8 text-center text-xs text-gray-300">
+        {% if checked %}Nothing in your passports disagrees. This checks your own records against each other, so it cannot see a claim somebody else has filed.
+        {% else %}Open a Track Passport and this page starts checking it. <a href="/catalog" class="text-sb-gold-bright underline">Go to your catalog</a>.{% endif %}
+      </div>
       {% endif %}
     </div>
   </section>

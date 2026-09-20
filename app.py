@@ -237,7 +237,8 @@ import insights_engine
 import email_provider as emailer
 import spotify_provider as spotify
 import artist_twin as twin
-import plans
+import plans
+import rights_conflicts
 from network_config import (
     blank_state as network_blank_state,
     get_network_data,
@@ -12091,7 +12092,20 @@ def create_app():
 
     @app.route("/conflicts")
     def conflicts():
-        return render_template("conflicts.html", active_page="conflicts", **build_dashboard_context())
+        """Rights conflicts in this account's own catalogue.
+
+        It used to render royalty_data.get_rights_conflicts, which reads
+        the invented demo songs, so a real account was always told its
+        ownership data was clean (walk, 2026-09-20). The owner ruled it
+        should compute: rights_conflicts reads the artist's own track
+        passports and lockboxes and reports what disagrees.
+        """
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        found = rights_conflicts.summary(store.list_os_tracks(user["id"]))
+        return render_template("conflicts.html", active_page="conflicts",
+                               **found, **build_dashboard_context())
 
     # Milestone presets are parameterized date math over each campaign's
     # own release date — nothing is stored, nothing is predicted.
