@@ -988,6 +988,13 @@ def create_app():
         # An invitation is a link the owner made in Settings: one address,
         # one plan, one use. With the door shut it is the only way in.
         invite = store.get_signup_invite(request.values.get("invite") or "")
+        if request.method == "GET" and invite is None and current_user() is not None:
+            # Somebody already signed in has no account to make here.
+            return redirect(_signed_in_home(current_user()))
+        # Kept before the shut door below: an invitation that follows
+        # still credits the referrer (walk, 2026-09-20).
+        if request.method == "GET" and request.args.get("ref"):
+            session["ref_code"] = request.args.get("ref")[:16]
         if invite is None and not _signup_open():
             # The page stays, form and all (owner, 2026-09-17: "I don't want
             # the sign up page to go away. I just want it to not be able to
@@ -998,8 +1005,6 @@ def create_app():
                                        closed=True, invite=None), 403
             return render_template("signup.html", error=None, preselect=preselect,
                                    closed=True, invite=None)
-        if request.method == "GET" and request.args.get("ref"):
-            session["ref_code"] = request.args.get("ref")[:16]
         if request.method == "POST":
             name = (request.form.get("name") or "").strip()
             email = (request.form.get("email") or "").strip().lower()
@@ -1041,7 +1046,10 @@ def create_app():
                     # signed out by closing the window.
                     session.permanent = True
                     session["user_id"] = user_id
-                    return redirect(url_for("onboarding"))
+                    # The Command Center start-here panel reads what the
+                    # account has. /onboarding saved nothing and promised a
+                    # distributor import that does not exist (walk, 2026-09-20).
+                    return redirect("/command-center")
         # /signup?as=fan preselects the fan side. The login page offers a
         # fan account as a distinct choice, and it landed on a form with
         # Artist already ticked - a link that names a destination has to
@@ -1074,9 +1082,21 @@ def create_app():
             return redirect("/walkthrough")
         return redirect("/login?demo=wrong")
 
+    def _signed_in_home(user):
+        """Where an account that is already signed in belongs when it
+        opens a door page (/login, /signup, /forgot): the same place a
+        fresh sign-in lands (walk, 2026-09-20: it was handed the form)."""
+        if (user.get("plan") or "artist") == "fan":
+            return "/discover"
+        if _is_demo_email(user.get("email")):
+            return "/walkthrough"
+        return "/command-center"
+
     @app.route("/login", methods=["GET", "POST"])
     def login():
         error = None
+        if request.method == "GET" and current_user() is not None:
+            return redirect(_safe_next(request.args.get("next"), _signed_in_home(current_user())))
         if request.method == "POST":
             email = (request.form.get("email") or "").strip().lower()
             password = request.form.get("password") or ""
@@ -1334,9 +1354,21 @@ def create_app():
         from itsdangerous import URLSafeTimedSerializer
         return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="pw-reset")
 
+    def _reset_stamp(user):
+        """A fingerprint of the password the reset link is meant to
+        replace. Setting a new one changes it, so a link that has been
+        used, or one sent before the password was changed in Settings,
+        stops opening (walk, 2026-09-20: a used link stayed live for
+        the rest of its hour, so whoever read the mailbox next could
+        take the account again)."""
+        import hashlib
+        return hashlib.sha256((user.get("password_hash") or "").encode("utf-8")).hexdigest()[:16]
+
     @app.route("/forgot", methods=["GET", "POST"])
     def forgot_password():
         sent, error = False, None
+        if request.method == "GET" and current_user() is not None:
+            return redirect(_signed_in_home(current_user()))
         if request.method == "POST":
             if not emailer.configured():
                 error = ("Password reset email isn't enabled on this server yet. "
@@ -1345,7 +1377,7 @@ def create_app():
                 email = (request.form.get("email") or "").strip().lower()
                 user = store.get_user_by_email(email) if "@" in email else None
                 if user:
-                    token = _reset_serializer().dumps(user["id"])
+                    token = _reset_serializer().dumps([user["id"], _reset_stamp(user)])
                     # Pinned, not request-derived. This is the one link
                     # where trusting the Host header would hand a valid
                     # reset token to whoever set it.
@@ -1369,12 +1401,15 @@ def create_app():
     def reset_password(token):
         from itsdangerous import BadSignature, SignatureExpired
         try:
-            user_id = _reset_serializer().loads(token, max_age=3600)
+            payload = _reset_serializer().loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
             return render_template("reset.html", invalid=True, error=None)
-        user = store.get_user(user_id)
-        if user is None:
+        # [user id, password stamp]; a link from before the stamp existed
+        # carried the id alone and is refused with the rest.
+        user = store.get_user(payload[0]) if isinstance(payload, list) and len(payload) == 2 else None
+        if user is None or payload[1] != _reset_stamp(user):
             return render_template("reset.html", invalid=True, error=None)
+        user_id = user["id"]
         error = None
         if request.method == "POST":
             password = request.form.get("password") or ""
@@ -2355,7 +2390,18 @@ def create_app():
         except Exception:
             # A checklist is never worth breaking a page over.
             return None
-        return firstrun.build(state)
+        # Same rule as the walkthrough: never point at a locked door. The
+        # tier gate and the suite gate both have to open (walk, 2026-09-20:
+        # an Artist was told to open the Rack, which answers 402).
+        plan = user.get("plan") or "artist"
+        try:
+            credits = _wallet(user)["total"]
+        except Exception:
+            credits = 0
+        reachable = {key for key, _t, _w, href, _c in firstrun.STEPS
+                     if plans.allowed(plan, plans.required_tier(href))
+                     and plans.suite_open(plan, plans.path_suite(href), credits)}
+        return firstrun.build(state, reachable)
 
     @app.route("/overview")
     def overview():
@@ -5152,6 +5198,15 @@ def create_app():
                 # Only an owner may re-create the production Stripe webhook.
                 "viewer_is_owner": bool(user and _is_owner_email(user.get("email")))}
 
+    def _demo_switching(user):
+        """May /plan/switch hand this account a paid tier with no payment?
+        The demo logins always; anyone else only off Render with no
+        Stripe (a laptop, the test suite). Billing offers the demo switch
+        only where this holds, so a deployed service without Stripe never
+        shows a button that does nothing (walk, 2026-09-20)."""
+        return _is_demo_email(user["email"]) or not (
+            stripe_billing.configured() or os.environ.get("RENDER"))
+
     @app.route("/plan/switch", methods=["POST"])
     def plan_switch():
         user = current_user()
@@ -5184,8 +5239,7 @@ def create_app():
         # toward refusing an upgrade rather than giving one away, so a key
         # that goes missing stops sales instead of starting a giveaway.
         paid = plan in stripe_billing.PRICES
-        if paid and not _is_demo_email(user["email"]) and (
-                stripe_billing.configured() or os.environ.get("RENDER")):
+        if paid and not _demo_switching(user):
             return redirect("/billing")
         if plan in plans.TIER_RANK:
             store.set_user_plan(user["id"], plan)
@@ -12502,6 +12556,7 @@ def create_app():
         ctx["billing"] = get_billing_data(ctx["account"])
         ctx["plan_cards"] = plans.PLANS
         ctx["user"] = user
+        ctx["demo_switching"] = _demo_switching(user)
         ctx["webhook_live"] = stripe_billing.webhook_accepts()
         ctx["webhook_current"] = stripe_billing.webhook_events_current()
         sid = request.args.get("session_id") or ""

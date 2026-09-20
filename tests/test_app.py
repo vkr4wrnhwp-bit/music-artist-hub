@@ -987,9 +987,12 @@ def test_real_auth_flow():
     email = "u%s@example.com" % uuid.uuid4().hex[:8]
     assert client.get("/login").status_code == 200
     assert client.get("/signup").status_code == 200
-    # Signup -> onboarding; weak input rejected.
+    # Signup -> the Command Center; weak input rejected. It used to land on
+    # /onboarding, a wizard that saved none of its ticks and promised a
+    # distributor import that does not exist (walk, 2026-09-20). The
+    # start-here panel on the Command Center reads what the account has.
     ok = client.post("/signup", data={"name": "T", "email": email, "password": "secret1"})
-    assert ok.status_code == 302 and "/onboarding" in ok.headers["Location"]
+    assert ok.status_code == 302 and "/command-center" in ok.headers["Location"]
     dup = client.post("/signup", data={"name": "T", "email": email, "password": "secret1"})
     assert "already exists" in dup.get_data(as_text=True)
     assert client.post("/logout").status_code == 302
@@ -1356,7 +1359,10 @@ def test_discover_page_and_filters():
     client = _demo()
     assert client.get("/discover").status_code == 200
     assert 'href="/discover"' in client.get("/discover").get_data(as_text=True)  # fan-world sidebar
-    assert "Create a free fan account" in client.get("/login").get_data(as_text=True)  # fan row on Session Recall
+    # The fan row on Session Recall, read by a stranger. A signed-in person
+    # is shown the app instead of a sign-in form (walk, 2026-09-20).
+    anon = create_app().test_client()
+    assert "Create a free fan account" in anon.get("/login").get_data(as_text=True)
     # Genre filter narrows the feed.
     data = get_discover_data({"genre": "Synthwave"})
     assert data["tracks"] and all(t["genre"] == "Synthwave" for t in data["tracks"])

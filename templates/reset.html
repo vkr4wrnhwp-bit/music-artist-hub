@@ -5,7 +5,9 @@
 {% block console %}
         {% if invalid %}
         <h1 class="lsr-title">Link expired</h1>
-        <p class="lsr-support">This reset link is invalid or has expired (they last 1 hour). Request a fresh one and try again.</p>
+        {#- "already used" is one of the three reasons now: a link is spent
+            the moment it sets a password (walk, 2026-09-20). -#}
+        <p class="lsr-support">This reset link is invalid, has already been used, or has expired (they last 1 hour). Request a fresh one and try again.</p>
         <a href="/forgot" class="lsr-gold-btn">Request a new link
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
         </a>
