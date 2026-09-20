@@ -173,10 +173,23 @@
     for (var i = 0; i < MAX_BARS; i++) { env[i] = 0; caps[i] = 0; }
     var visible = true, rafId = null, lastTs = 0;
 
-    /* the console brass (artist-eq.css --eq-brass), a step up for the top
-       lamp, and two flat darks for an unlit lamp and one inside the curve */
-    var LAMP = "rgb(201,168,106)", LAMP_TOP = "rgb(230,205,150)";
+    /* Green, amber, red up the ladder, like a real meter (owner, 2026-09-20:
+       "going from green to yellow to red, like a real meter"). The bottom
+       half of a column is green, the next quarter and a bit amber, the top
+       fifth red, so a fader pushed to 10 sits in amber and peaks in red while
+       one at 5 stays green; the top lit lamp and the peak hold are a step
+       brighter in their own colour. Two flat darks for an unlit lamp and one
+       inside the curve. */
+    var LAMP_G = "rgb(56,196,96)", LAMP_G_TOP = "rgb(120,236,150)";
+    var LAMP_A = "rgb(236,178,46)", LAMP_A_TOP = "rgb(255,214,110)";
+    var LAMP_R = "rgb(224,64,52)", LAMP_R_TOP = "rgb(255,120,108)";
     var LAMP_OFF = "rgb(30,28,25)", LAMP_SET = "rgb(46,42,35)";
+    function lamp(s, nSeg, top) {
+      var f = (s + 1) / nSeg;
+      if (f <= 0.5) { return top ? LAMP_G_TOP : LAMP_G; }
+      if (f <= 0.78) { return top ? LAMP_A_TOP : LAMP_A; }
+      return top ? LAMP_R_TOP : LAMP_R;
+    }
 
     var reduced = { matches: false };
     try {
@@ -249,8 +262,8 @@
         var nCap = Math.round(caps[i] * nSeg);
         for (var s = 0; s < nSeg; s++) {
           var y = base - (s + 1) * segP + (segP - segH);
-          if (s < nLit) { ctx.fillStyle = s === nLit - 1 ? LAMP_TOP : LAMP; }
-          else if (s === nCap - 1 && nCap > nLit) { ctx.fillStyle = LAMP_TOP; }
+          if (s < nLit) { ctx.fillStyle = lamp(s, nSeg, s === nLit - 1); }
+          else if (s === nCap - 1 && nCap > nLit) { ctx.fillStyle = lamp(s, nSeg, true); }
           else if (s < nSet) { ctx.fillStyle = LAMP_SET; }   /* the region the visitor set */
           else { ctx.fillStyle = LAMP_OFF; }
           ctx.fillRect(x, y, bw, segH);
