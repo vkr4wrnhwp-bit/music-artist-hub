@@ -4995,7 +4995,8 @@ def test_clean_release_nodes_resolve_ping_and_certificate():
     assert ct["meta"]["writers"] == "A. Rivers"
     # Certificate is gated until the track really scores 100...
     assert client.get("/tracks/%s/certificate" % tid).status_code == 302
-    # ...then unlocks: full passport, lockbox n/a, live link, rollout, fan.
+    # ...then unlocks: full passport, lockbox n/a, live link, a rollout
+    # with a real asset on it, fan.
     full = {k: "registered / cleared / signed"
             for k, _l, _c, _f in ao.PASSPORT_FIELDS}
     full.update({"audio_ok": "1", "artwork_ok": "1",
@@ -5004,8 +5005,11 @@ def test_clean_release_nodes_resolve_ping_and_certificate():
     store_mod.update_os_track_lockbox(
         uid, tid, {d[0]: {"not_applicable": True} for d in ao.LOCKBOX_DOCS})
     mls_mod.update_campaign(cid, uid, {"status": "live"})
-    ros_mod.create_campaign(uid, {"title": "Neon Nights",
-                                  "release_date": soon})
+    rid = ros_mod.create_campaign(uid, {"title": "Neon Nights",
+                                        "release_date": soon})
+    # "Social assets prepared" reads the files on the rollout now, not the
+    # rollout row (walk, 2026-09-20), so an empty rollout no longer scores.
+    ros_mod.add_asset(rid, "lyrics", lyrics_text="a line the artist wrote")
     mls_mod.upsert_fan(uid, "fan-%s@example.net" % _uuid.uuid4().hex[:6], cid)
     # Typing "registered" into the MLC box is not evidence any more, so the
     # certificate stays shut until a real check comes back claimed.
