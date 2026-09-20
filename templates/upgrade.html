@@ -31,10 +31,17 @@
       </ul>
       {% if key != user_plan %}
       {% set real_checkout = stripe_live and not is_demo_account and key != 'fan' %}
+      {#- A paid account on a live service does not drop to Fan from here:
+          the subscription lives in Billing, which cancels or downgrades it
+          properly (walk, 2026-09-20). -#}
+      {% if key == 'fan' and stripe_live and not is_demo_account and user_plan != 'fan' %}
+      <a href="/billing" class="mt-4 block w-full rounded-lg border border-white/15 px-4 py-2 text-center text-xs font-bold text-gray-200 hover:bg-white/5">Manage your plan in Billing</a>
+      {% else %}
       <form method="post" action="{{ '/billing/checkout' if real_checkout else '/plan/switch' }}" class="mt-4">
         <input type="hidden" name="plan" value="{{ key }}">
         <button class="w-full rounded-lg {{ 'bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep text-sb-on-gold' if key == required else 'border border-white/15 text-gray-200 hover:bg-white/5' }} px-4 py-2 text-xs font-bold">{{ ('Subscribe — ' + price) if real_checkout else ('Switch to ' + name) }}</button>
       </form>
+      {% endif %}
       {% endif %}
     </div>
     {% endfor %}

@@ -3002,12 +3002,19 @@ def close_collab_request(user_id, req_id):
 
 
 def delete_collab_request(user_id, req_id):
+    """Delete a brief and its applications, only when the brief is this
+    account's. The applications were cascaded before the ownership check
+    was known to have matched, so any signed-in account could wipe the
+    applications on any member's brief (walk, 2026-09-20)."""
     with get_db() as db:
-        db.execute("DELETE FROM collab_requests WHERE id = ? AND user_id = ?",
-                   (req_id, user_id))
+        cur = db.execute("DELETE FROM collab_requests WHERE id = ? AND user_id = ?",
+                         (req_id, user_id))
+        if not cur.rowcount:
+            return False
         db.execute("DELETE FROM collab_replies WHERE request_id = ?", (req_id,))
         db.execute("DELETE FROM collab_ratings WHERE request_id = ? AND user_id = ?",
                    (req_id, user_id))
+    return True
 
 
 def add_collab_reply(req_id, user_id, message, contact, proposal, ref_url):
@@ -5272,6 +5279,17 @@ def add_document(user_id, filename, path, doc_type, note="", track=""):
             (doc_id, user_id, filename[:200], path, doc_type[:60], note[:300],
              (track or "")[:200], now, vid))
     return doc_id
+
+
+def document_path_owned(path, user_id):
+    """True when this account holds a document stored at this path: a
+    Vault contract, a Deal Room agreement. /uploads uses it to keep doc_*
+    files to their owner (walk, 2026-09-20: a contract PDF was served to
+    anyone with its address)."""
+    with get_db() as db:
+        row = db.execute("SELECT 1 FROM documents WHERE user_id = ? AND path = ?",
+                         (user_id, path)).fetchone()
+    return row is not None
 
 
 def list_documents(user_id):
