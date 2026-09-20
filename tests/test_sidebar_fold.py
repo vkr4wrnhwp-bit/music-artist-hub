@@ -162,7 +162,8 @@ MERGED = {"/tracks": "/catalog?view=passports",
           # Royalty Lanes and Income by type are sections of Royalties (2026-09-13).
           "/royalty-lanes": "/royalties#lanes", "/publishing": "/royalties#streams",
           "/mechanicals": "/royalties#streams", "/neighboring-rights": "/royalties#streams",
-          "/territories": "/royalties#markets"}
+          "/territories": "/royalties#markets",
+          }
 
 
 def test_every_folded_page_answers_and_carries_its_strip(demo):

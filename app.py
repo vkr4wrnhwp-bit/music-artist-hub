@@ -140,7 +140,7 @@ import artist_os
 import hubs as hub_defs
 from statements_engine import (
 period_year, period_key, analyze as analyze_statement, parse_statement,
-                               build_royalty_summary)
+                               build_royalty_summary, annualize as annualize_statement)
 
 from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
@@ -226,6 +226,7 @@ import trust_score
 import bandsintown_provider as bandsintown
 import tour_dates as tour_dates_feed
 import capital_engine
+import catalog_value
 import stripe_provider as stripe_billing
 import sales_switch
 import soundcharts_budget
@@ -1475,8 +1476,11 @@ def create_app():
         parsed = parse_statement(data, filename)
         if parsed["error"]:
             return parsed["error"]
-        store.save_statement(user_id, filename, parsed["rows"],
-                             via="email" if via == "email" else "upload")
+        try:
+            store.save_statement(user_id, filename, parsed["rows"],
+                                 via="email" if via == "email" else "upload")
+        except ValueError as exc:
+            return str(exc)      # a total that is not a number (walk, 2026-09-20)
         finding = analyze_statement(parsed["rows"])
         tag = (" (via email drop-box)" if via == "email" else "")
         if finding and (finding["unmatched_revenue"] or finding["coverage_gaps"]):
@@ -1561,7 +1565,13 @@ def create_app():
         year_list = sorted([
             {"year": k, "total": round(v["total"], 2), "rows": v["rows"],
              "sources": sorted(v["sources"].items(), key=lambda s: -s[1]),
-             "over_600": v["total"] >= 600}
+             # The 1099 threshold is per payor, and the banner names the
+             # payors that crossed it (walk, 2026-09-20: a $697 year of
+             # six payors under $600 each read "over $600 from at least
+             # one payor").
+             "over_600_from": [src for src, amt in sorted(v["sources"].items(), key=lambda s: -s[1])
+                               if amt >= 600],
+             "over_600": any(amt >= 600 for amt in v["sources"].values())}
             for k, v in years.items()], key=lambda y: y["year"], reverse=True)
         return year_list, round(sum(y["total"] for y in year_list), 2)
 
@@ -1660,7 +1670,8 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        store.delete_statement(user["id"], statement_id)
+        if not store.delete_statement(user["id"], statement_id):
+            abort(404)      # a guessed id, or another account's: nothing was removed
         return redirect("/statements?removed=1")
 
     # --- Spotify pre-save OAuth (env-gated; notify-me fallback otherwise) ------
@@ -2677,9 +2688,15 @@ def create_app():
             c["issues"] = ([{"id": "real_isrc", "title": "Missing ISRCs", "count": missing,
                              "severity": "critical", "filter_tab": "Tracks",
                              "filter_status": "Missing ISRC"}] if missing else [])
-            c["catalog_value"] = {"estimated_value": 0, "monthly_change": 0,
-                                  "trend": [{"month": m, "value": 0}
-                                            for m in ("Jan", "Feb", "Mar", "Apr", "May")]}
+            # The figure the valuation page prints, from the one run rate
+            # every money page reads (walk, 2026-09-20: this card said Not
+            # measured on an account whose /valuation showed a range). No
+            # dated statements, no value, and the card says so. The trend
+            # is not drawn: nothing here records a value month by month.
+            band = catalog_value.band(annualize_statement(
+                store.get_statement_rows(user["id"]))["annualized"])
+            c["catalog_value"] = {"estimated_value": band["mid"], "monthly_change": 0,
+                                  "trend": []}
             c["tracks"], c["releases"], c["songwriters"] = [], [], []
             c["publishers"], c["splits"] = [], []
             # The filter beside the search is built from the same sample
@@ -3188,18 +3205,43 @@ def create_app():
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename):
         from flask import send_from_directory
-        # Vault and Deal Room documents (doc_*) belong to one account:
-        # contracts, split agreements, licences. Everything else under
-        # /uploads is a public asset by design (press photos, cover art,
-        # link images, sync audio) and stays open. Walk, 2026-09-20: a
-        # contract PDF was served to anyone who had its address.
+        # Vault and Deal Room documents (doc_*), vault masters and stems
+        # (vault_*, by the row's kind) and lockbox contracts (the
+        # uploader's <uuid>-<name>) belong to one account. Everything
+        # else under /uploads is a public asset by design (press photos,
+        # cover art, link images, sync audio, and the vault kinds the
+        # pickers put on a press kit or a post) and stays open. Walk,
+        # 2026-09-20: a contract PDF, then a master and a split sheet,
+        # were served to anyone who had the address. An approver reads a
+        # lockbox contract through /sign/<token>/document.
+        owned = None
         if filename.startswith("doc_"):
+            owned = store.document_path_owned
+        elif filename.startswith("vault_") and _vault_file_private("/uploads/" + filename):
+            owned = store.vault_path_owned
+        elif _is_lockbox_upload(filename):
+            owned = store.lockbox_path_owned
+        if owned is not None:
             user = current_user()
             if user is None:
                 return login_required_redirect()
-            if not store.document_path_owned("/uploads/" + filename, user["id"]):
+            if not owned("/uploads/" + filename, user["id"]):
                 abort(404)
         return send_from_directory(UPLOADS_DIR, filename)
+
+    def _vault_file_private(path):
+        """Masters and stems are the vault's private kinds; cover art,
+        press photos, video and saved press kits are assets the pickers
+        put on public pages, and stay open. A master the owner has put on
+        a pitch share, a one-sheet or a fan-gate reward was handed out on
+        purpose and keeps answering too."""
+        row = store.vault_file_by_path(path)
+        if row is None or row["kind"] not in ("master", "stems"):
+            return False
+        if store.vault_path_shared(path):
+            return False
+        return not any((c.get("settings") or {}).get("gate_reward") == row["id"]
+                       for c in mls.list_campaigns(row["user_id"]))
 
     def _slugify(name):
         s = "".join(c if c.isalnum() else "-" for c in (name or "").lower())
@@ -7388,7 +7430,24 @@ def create_app():
         return render_template("sign.html", invalid=False, row=row,
                                doc_label=doc_label, track=track,
                                done=("signed" if row["used"] else None),
-                               file_url=entry.get("file", ""))
+                               # The file itself is the owner's now; the
+                               # approver reads it by their token.
+                               file_url=(("/sign/%s/document" % token)
+                                         if entry.get("file") else ""))
+
+    @app.route("/sign/<token>/document")
+    def sign_document_file(token):
+        """The contract an approver was asked to sign, read by their
+        token. /uploads keeps lockbox files to the account that holds
+        them (walk, 2026-09-20), and an approver is not signed in."""
+        from flask import send_from_directory
+        row = store.get_sign_token(token)
+        track = store.get_os_track(row["user_id"], row["track_id"]) if row else None
+        entry = ((track or {}).get("lockbox") or {}).get(row["doc_key"]) if row else None
+        path = (entry or {}).get("file") or ""
+        if not path.startswith("/uploads/") or not _is_lockbox_upload(path):
+            abort(404)
+        return send_from_directory(UPLOADS_DIR, path[len("/uploads/"):])
 
     @app.route("/tracks/<track_id>/delete", methods=["POST"])
     def os_track_delete(track_id):

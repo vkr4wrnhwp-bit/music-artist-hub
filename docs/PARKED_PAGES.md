@@ -15,7 +15,22 @@ correctly get APIs to utilize them."*
 | `/funding` — Funding | The eligibility range is computed from your statements (`capital_engine.advance_eligibility`); the offers, terms and providers around it are illustrative and "request" records interest only. | A lender integration whose offers are the lender's own. The eligibility figure already shows on `/valuation`. |
 | `/fan-label` — Fan Label | `community_config.py`: the fund, the backer count and the demo votes are placeholders; no money has been raised and no fan has backed anything. | A real fan-funding provider with the product's own terms. The real fan work is Fans (`/fans`), the Fan CRM and the Fan Club. |
 | `/network` — Network | `network_config.py`: the directory, playlists, shows and moments are sample profiles, not real people. The outreach tracker on it is real and moved to `/tour-board/outreach`; the old page still shows it. | A real directory source, or nothing: the Team-Up Board is where real accounts find each other. |
-| `/conflicts` — Conflicts | A static illustration of a rights-conflict centre. The real thing is **Disputes** (`/disputes`), which logs and tracks your own conflicts. | Probably never: fold anything worth keeping into Disputes instead. |
+
+`/conflicts` was parked here and is now **un-parked**. It read the demo
+account's invented songs, so it answered "No rights conflicts detected"
+on every real account whatever that account's catalogue held (walk,
+2026-09-20). The owner ruled it should compute rather than retire:
+`rights_conflicts.py` reads the account's own track passports and
+lockboxes and reports one identifier on two recordings, two passports
+naming a different owner, writer or publisher for one song, a clearance
+answered no with no document on file, and several writers with no signed
+split sheet. The page says how many passports it checked, and with none
+it says there is nothing to check yet rather than calling the account
+clean. It sits in the sidebar beside the catalogue it reads.
+
+It does not replace the Money Queue, which lists the fields a release is
+missing. This page is about records of the account's own that disagree
+with each other.
 
 ## How to un-park one
 

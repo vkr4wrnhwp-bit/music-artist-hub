@@ -6,6 +6,8 @@ it suggests. No language model, no generated fluff: if the data isn't
 there, the insight isn't either.
 """
 
+import math
+
 import db as store
 import links_store as mls
 import royalty_types
@@ -27,7 +29,7 @@ def build_insights(user_id):
         for r in rows:
             sources[r["source"]] = sources.get(r["source"], 0.0) + r["amount"]
         top_src, top_amt = max(sources.items(), key=lambda x: x[1])
-        share = round(100 * top_amt / total) if total else 0
+        share = round(100 * top_amt / total) if total and math.isfinite(total) else 0
         if share >= 60 and len(sources) > 1:
             out.append(_insight("risk", "Income concentration",
                                 "%s is %d%% of your reported income. One policy change "

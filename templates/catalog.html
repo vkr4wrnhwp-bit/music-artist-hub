@@ -507,6 +507,7 @@
           {% if cv.monthly_change %}<div class="text-xs font-semibold text-green-400">↑ {{ cv.monthly_change }}% <span class="text-gray-300">vs last month</span></div>{% endif %}
         </div>
         <div class="mt-1 text-xs text-gray-300 font-medium">Total Catalog Value</div>
+        {% if cv.trend | length > 1 %}
         <a href="/valuation?section=catalog-trend" class="mt-3 block">
           <svg viewBox="0 0 260 70" class="h-16 w-full" preserveAspectRatio="none">
             {% set vmax = cv.trend | map(attribute='value') | max %}
@@ -517,6 +518,7 @@
             {% for pt in cv.trend %}<circle cx="{{ (loop.index0 / (cv.trend|length - 1) * 258 + 1)|round(1) }}" cy="{{ (66 - ((pt.value - vmin) / (vmax - vmin) * 60 if vmax > vmin else 30))|round(1) }}" r="2.5" fill="#E8B950"/>{% endfor %}
           </svg>
         </a>
+        {% endif %}
         <a href="/valuation" class="mt-2 block rounded-md border border-white/10 py-2 text-center text-xs font-semibold text-amber-400 transition-colors hover:bg-white/5">View Full Valuation</a>
         {% else %}
         <div class="mt-3 text-2xl font-bold text-gray-300">Not measured</div>
