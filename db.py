@@ -5274,6 +5274,17 @@ def add_document(user_id, filename, path, doc_type, note="", track=""):
     return doc_id
 
 
+def document_path_owned(path, user_id):
+    """True when this account holds a document stored at this path: a
+    Vault contract, a Deal Room agreement. /uploads uses it to keep doc_*
+    files to their owner (walk, 2026-09-20: a contract PDF was served to
+    anyone with its address)."""
+    with get_db() as db:
+        row = db.execute("SELECT 1 FROM documents WHERE user_id = ? AND path = ?",
+                         (user_id, path)).fetchone()
+    return row is not None
+
+
 def list_documents(user_id):
     with get_db() as db:
         rows = db.execute(

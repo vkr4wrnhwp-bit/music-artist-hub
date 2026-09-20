@@ -3032,6 +3032,17 @@ def create_app():
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename):
         from flask import send_from_directory
+        # Vault and Deal Room documents (doc_*) belong to one account:
+        # contracts, split agreements, licences. Everything else under
+        # /uploads is a public asset by design (press photos, cover art,
+        # link images, sync audio) and stays open. Walk, 2026-09-20: a
+        # contract PDF was served to anyone who had its address.
+        if filename.startswith("doc_"):
+            user = current_user()
+            if user is None:
+                return login_required_redirect()
+            if not store.document_path_owned("/uploads/" + filename, user["id"]):
+                abort(404)
         return send_from_directory(UPLOADS_DIR, filename)
 
     def _slugify(name):
@@ -5056,6 +5067,12 @@ def create_app():
         # act-on-behalf.
         if user.get("partner_id"):
             return redirect(request.referrer or "/billing")
+        # A paying subscriber never drops their tier here: the Stripe
+        # subscription would keep billing while the account lost the plan
+        # (walk, 2026-09-20: "Switch to Fan", then a 402 on the Command
+        # Center). Billing owns cancellation and downgrades.
+        if user.get("stripe_subscription_id") and not _is_demo_email(user["email"]):
+            return redirect("/billing")
         # With Stripe live, paid tiers go through real checkout — the demo
         # accounts keep instant switching so the tier demos still work.
         #
@@ -9181,7 +9198,13 @@ def create_app():
                 if not main_url:
                     error = "Upload the main audio (MP3, WAV, M4A, AIFF, or FLAC)."
                 else:
-                    slug = _ml_slug("sync-" + title)
+                    # The slug is the pack's public address and unique across
+                    # every account; a title somebody already used gets a
+                    # short suffix instead of a 500 (walk, 2026-09-20).
+                    base = _ml_slug("sync-" + title)
+                    slug = base
+                    while store.get_sync_pack_by_slug(slug) is not None:
+                        slug = "%s-%s" % (base, uuid.uuid4().hex[:4])
                     store.create_sync_pack(user["id"], slug, {
                         "title": title,
                         "artist_name": (f.get("artist_name") or "").strip(),
