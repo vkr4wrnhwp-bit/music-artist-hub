@@ -15,10 +15,9 @@
 
 /* ---- the bar --------------------------------------------------------- */
 /* Shipped 2026-09-17 with markup and no stylesheet, so the wordmark drew at
- * its natural 920x250 and the header stood 274px tall. Then it was 30px
- * and the owner found it tiny: "The street banker logo ... needs to be much
- * bigger" (2026-09-18). 84px on a desktop, 46px on a phone, and it never
- * shrinks to make room for the links. */
+ * its natural 920x250 and the header stood 274px tall; then 84px on a
+ * desktop and 46px on a phone (2026-09-18). On 2026-09-19 the wordmark
+ * left the bar altogether: the garage door carries it. */
 
 .sbbar {
   position: relative;
@@ -26,21 +25,21 @@
   background: transparent;
 }
 
+/* Only the links remain in the bar (owner, 2026-09-19: the logo and the
+   Sign in link came off; the door carries the wordmark and the sign-in).
+   The bar keeps its height so the door still tucks under it. */
 .sbbar-inner {
   max-width: 1240px;
   margin: 0 auto;
   padding: 12px 16px;
+  min-height: 70px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
 }
 
-@media (min-width: 900px) { .sbbar-inner { padding: 16px 24px; gap: 20px; } }
-
-.sbbar-mark { display: block; flex: none; line-height: 0; }
-.sbbar-mark img { height: 46px; width: auto; display: block; }
-@media (min-width: 900px) { .sbbar-mark img { height: 84px; } }
+@media (min-width: 900px) { .sbbar-inner { padding: 16px 24px; min-height: 116px; gap: 20px; } }
 
 .sbbar-nav {
   display: flex;
