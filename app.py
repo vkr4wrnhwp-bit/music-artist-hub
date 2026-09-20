@@ -139,7 +139,7 @@ import artist_identity
 import artist_os
 import hubs as hub_defs
 from statements_engine import (
-period_year,analyze as analyze_statement, parse_statement,
+period_year, period_key, analyze as analyze_statement, parse_statement,
                                build_royalty_summary)
 
 from landing_config import get_landing_config
@@ -642,6 +642,41 @@ def create_app():
             return jsonify({"ok": False, "error": message, "max_mb": limit}), 413
         return render_template("too_large.html", message=message,
                                limit_mb=limit), 413
+
+    @app.errorhandler(404)
+    def _not_found(_error):
+        """A mistyped or stale address, answered in the app rather than by
+        Werkzeug.
+
+        The bare 207-byte "Not Found" carried no chrome and no link, so a
+        signed-in artist who landed on one had the browser's back button
+        and nothing else (walk, 2026-09-20). The crawl found no door in
+        the app that leads here, so this is for typed and bookmarked
+        addresses; it says nothing about what does or does not exist.
+
+        A caller under /api/ or asking for JSON keeps the JSON body it was
+        written against, and a missing file under /static/ keeps the plain
+        one: no browser reads a page out of a stylesheet that is not there.
+        """
+        wants_json = (request.path.startswith("/api/")
+                      or request.path.endswith(".json")
+                      or request.accept_mimetypes.best == "application/json"
+                      or request.headers.get("X-Requested-With") == "XMLHttpRequest")
+        if wants_json:
+            return jsonify({"ok": False, "error": "Not found"}), 404
+        if request.path.startswith("/static/"):
+            return "Not found", 404
+        signed_in = bool(session.get("user_id"))
+        try:
+            return render_template(
+                "not_found.html",
+                active_page="",
+                home_href="/command-center" if signed_in else "/",
+                home_label=("Back to the Command Center" if signed_in
+                            else "Back to the home page")), 404
+        except Exception:
+            # A 404 page is never worth a 500. Fall back to the plain one.
+            return "Not found", 404
     # Trig helpers for the homepage's analog VU-meter / knob SVGs.
     app.jinja_env.globals.update(cos=math.cos, sin=math.sin, pi=math.pi)
     # The public header reads its links from landing_config. A callable
@@ -2273,7 +2308,15 @@ def create_app():
         if user is None:
             return login_required_redirect()
         turning_on = request.form.get("on") == "1"
-        response = redirect(request.form.get("back") or "/command-center")
+        # The form's own back link, and nothing else. It took whatever it
+        # was handed, so a posted back of "https://example.org/x" sent the
+        # artist off the site with this app's name on the link (walk,
+        # 2026-09-20). One leading slash, no second slash and no
+        # backslash: that is a page here, and anything else is not.
+        back = (request.form.get("back") or "").strip()
+        if not back.startswith("/") or back.startswith("//") or back.startswith("/\\"):
+            back = "/command-center"
+        response = redirect(back)
         # A year: the choice should outlive the session, in this browser.
         response.set_cookie(TUTOR_COOKIE, "1" if turning_on else "0",
                             max_age=31536000, samesite="Lax",
@@ -2322,6 +2365,42 @@ def create_app():
         Command Center."""
         return command_center_page()
 
+    _MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+    def _month_tile_labels(months):
+        """What the two money tiles and the chart footer are called.
+
+        They read "This month" and "Last month" whatever the statements
+        held, so an account whose newest statement period was April was
+        told April was this month (walk, 2026-09-20). A statement period
+        is a label a distributor chose; the tile carries that period, and
+        only says "This month" when the period really is the calendar
+        month we are in.
+        """
+        plain = {"this": "This month", "last": "Last month", "vs": "vs last month"}
+        if not months:
+            return plain
+
+        def name(label):
+            year, mon = period_key(label)
+            if year < 9999 and 1 <= mon <= 12:
+                return "%s %d" % (_MONTH_NAMES[mon - 1], year)
+            return str(label)
+
+        now = datetime.now(timezone.utc)
+        this_key = period_key(months[-1][0])
+        this_label = ("This month" if this_key == (now.year, now.month)
+                      else name(months[-1][0]))
+        if len(months) < 2:
+            return {"this": this_label, "last": plain["last"], "vs": plain["vs"]}
+        prev = now.replace(day=1) - timedelta(days=1)
+        last_key = period_key(months[-2][0])
+        last_label = ("Last month" if last_key == (prev.year, prev.month)
+                      else name(months[-2][0]))
+        vs = "vs last month" if last_label == "Last month" else "vs " + last_label
+        return {"this": this_label, "last": last_label, "vs": vs}
+
     def _front_money_context():
         """What the Overview page computed, for the front door."""
         # Money Left on the Table used to read from the same hardcoded
@@ -2362,7 +2441,13 @@ def create_app():
                             else (total_royalties(balances) if showcase else 0)),
                    recovery_view=(recovery_engine.build(user["id"])
                                   if user is not None and not showcase else None))
+        ctx["month_labels"] = _month_tile_labels(ctx["months"])
         return ctx
+
+    # A billion dollars a year is past any royalty goal a person sets and
+    # short of the values that break the ring, so it is where the form
+    # stops taking the number seriously.
+    GOAL_MAX = 1_000_000_000
 
     @app.route("/overview/goal", methods=["POST"])
     def overview_goal():
@@ -2379,7 +2464,12 @@ def create_app():
             amount = float(request.form.get("amount") or "")
         except ValueError:
             amount = 0.0
-        if amount <= 0:
+        # "nan" and "1e400" both cleared the `amount <= 0` guard: NaN
+        # compares false against everything and SQLite bound it as NULL,
+        # so the save raised a 500, and infinity saved and printed the
+        # ring as "$inf". A goal is a number of dollars somebody means to
+        # collect, so it has to be finite and it has to be sane.
+        if not math.isfinite(amount) or amount <= 0 or amount > GOAL_MAX:
             return redirect("/overview?goal=invalid")
         store.set_royalty_goal(user["id"], amount, request.form.get("kind") or "yearly",
                                request.form.get("deadline") or "")
@@ -5750,6 +5840,13 @@ def create_app():
             return login_required_redirect()
         f = request.form
         title = (f.get("title") or "").strip()[:200]
+        back = request.referrer or "/command-center"
+        # A nameless action is a row nobody can read on the Actions list.
+        # The handler used to create one from an empty form, so a stray
+        # POST grew the list by a blank line (walk, 2026-09-20). /actions
+        # already refuses an empty title; this matches it.
+        if not title:
+            return redirect(back if back.startswith("/") else "/command-center")
         cc.create_action(user["id"], title,
                          category=f.get("category") or "general", priority="high",
                          description=(f.get("description") or "").strip())
@@ -5759,7 +5856,6 @@ def create_app():
         # created and invisible. Back to the same page, because an artist
         # reviewing findings usually creates several, but carrying a
         # confirmation and a way to the thing that was made.
-        back = request.referrer or "/command-center"
         mark = "&" if "?" in back.split("#")[0] else "?"
         head, _, frag = back.partition("#")
         target = "%s%saction=%s" % (head, mark, urllib.parse.quote(title[:60]))
@@ -12278,6 +12374,13 @@ def create_app():
         status live on each Track Passport."""
         return redirect("/tracks")
 
+    # A page people call by the name written on it, where that is not the
+    # name in the sidebar. Searched after the real names, and only when
+    # the real name missed, because page_hits keeps one entry per address.
+    _PAGE_ALIASES = (
+        ("/room/fans", "Fan Room"),
+    )
+
     def _search_pages(user):
         """Every page this account's sidebar offers, as {key, href, label,
         desc, group}, for /search to find by name (audit, 2026-09-19: the
@@ -12312,6 +12415,22 @@ def create_app():
                               "desc": desc, "group": name}
                              for key, href, _i, label, desc, _state in cards
                              if key not in hide)
+            # The rows above and below the rooms. Connections is defined in
+            # rooms.EXTRA but sits in no ROOMS list, so build() never
+            # yielded it and /search could not find "Connections" at all
+            # (walk, 2026-09-20).
+            for key, href, _i, label, desc, _state in (
+                    rooms.top_rows(is_owner, demo) + rooms.account_rows(is_owner, demo)):
+                if key not in hide:
+                    pages.append({"key": key, "href": href, "label": label,
+                                  "desc": desc, "group": "Account"})
+            # A room is searched for by the name on its own screen as well
+            # as the name in the sidebar: the Fans room opens on a page
+            # headed "Fan Room", and nothing indexed carried that.
+            pages.extend(dict(p, key=p["key"] + " alias", label=alias)
+                         for p in list(pages)
+                         for href, alias in _PAGE_ALIASES
+                         if p["href"] == href)
         return pages
 
     @app.route("/search")

@@ -58,8 +58,11 @@ def test_a_signed_out_visitor_cannot(application):
 
 
 def test_an_ordinary_account_cannot(stranger):
-    resp = stranger.get("/admin/audio")
-    assert resp.status_code in (301, 302)
+    """404, the same answer the two POSTs below give and the same answer
+    every other /admin page gives. It used to redirect to the login form
+    the account had already passed, which was a dead end and a hint that
+    the address was worth guessing at (walk, 2026-09-20)."""
+    assert stranger.get("/admin/audio").status_code == 404
 
 
 def test_the_destructive_endpoints_refuse_a_stranger(stranger):

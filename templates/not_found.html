@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Page not found - Street Banker{% endblock %}
+
+{% block content %}
+{#- A mistyped or stale address used to answer with Werkzeug's bare "Not
+    Found": no app chrome, no sidebar and no link back, so the only way on
+    was the browser's back button (walk, 2026-09-20). The band opens the
+    page like every other one, and the two links are the ways out. -#}
+{{ sb.plate(none, [760, 1180, 1402],
+            "Street Banker · Royalty Sweep", "Page not found",
+            "There is nothing at this address. It may have been a typo, or a link to a page that has moved.") }}
+
+<div class="mx-auto max-w-[760px] space-y-5">
+  <section class="sb-panel p-4">
+    <p class="text-sm text-gray-300">Nothing was changed and nothing was lost.</p>
+    <p class="mt-3 flex flex-wrap gap-2">
+      <a class="sb-btn sb-btn-primary" href="{{ home_href }}">{{ home_label }}</a>
+      {% if home_href != '/' %}<a class="sb-btn sb-btn-secondary" href="/search">Search for a page</a>{% endif %}
+    </p>
+  </section>
+</div>
+{% endblock %}
