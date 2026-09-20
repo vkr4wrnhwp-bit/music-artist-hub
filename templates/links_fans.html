@@ -13,20 +13,36 @@
     fans besides collab and discover can be in one screen"). Same header as
     /fans; search, remove, export and import work as they always did. -#}
 <div class="au mx-auto max-w-[1200px]" data-no-collapse>
-  {% set au_tab = "crm" %}
+  {% set au_tab = "crm" %}{% set au_no_import = au_showcase %}
   {% include "partials/fans_head.html" %}
+
+  {#- The showcase login sees the generated rows the Audience and the Fan
+      Room count, under the same label; nothing on it can be imported,
+      exported or removed (walk, 2026-09-20). -#}
+  {% if au_showcase %}
+  <p class="au-showcase" role="note"><b>Showcase.</b> Example rows, not anybody's fans{% if showcase_total > showcase_cap %}; the first {{ "{:,}".format(showcase_cap) }} of {{ "{:,}".format(showcase_total) }} are listed{% endif %}. A signed-in artist sees only their own records here.</p>
+  {% endif %}
+  {#- Remove sends the artist back here with ?removed=1 (walk, 2026-09-20:
+      it finished in silence). The sentence is what links_store.delete_fan
+      did. -#}
+  {% if removed %}
+  <p class="au-showcase" role="status"><b>Removed.</b> Their record, consent log and link activity are gone.</p>
+  {% endif %}
 
   <div class="au-crm-tools">
     <form method="get" role="search">
       <input name="q" value="{{ q }}" placeholder="Search by email or name..." aria-label="Search fans">
       <button class="au-btn ghost">Search</button>
     </form>
-    <div class="au-crm-export">
+    {% if not au_showcase %}<div class="au-crm-export">
       <a href="/links/fans/export.csv" class="au-btn ghost" title="Contactable fans only: nobody who unsubscribed, bounced or complained">Export CSV</a>
       <a href="/links/fans/export.csv?include=suppressed" class="au-link" title="Every fan on file, with a Suppressed column giving the reason">Include suppressed</a>
-    </div>
+    </div>{% endif %}
   </div>
-  <p class="au-selnote">Export CSV carries contactable fans only. Include suppressed adds everyone else, each marked with the reason, for your records rather than a mail tool.</p>
+  {% if not au_showcase %}<p class="au-selnote">Export CSV carries contactable fans only. Include suppressed adds everyone else, each marked with the reason, for your records rather than a mail tool.</p>{% endif %}
+  {#- The Fan Room's two moves land on one of these views (?missing=email,
+      ?intent=top); the line says which, and the way back to everyone. -#}
+  {% if crm_filter %}<p class="au-selnote" role="status">{{ crm_filter }} <a class="au-link" href="/links/fans">Show everyone</a></p>{% endif %}
 
   {# The connected store's customers, on request. Owner only: the
      connection is the server's, so it is the owner's store. #}
@@ -72,7 +88,7 @@
           <th class="py-2 pr-4 text-right font-medium">Captures</th>
           <th class="py-2 pr-4 font-medium">First Campaign</th>
           <th class="py-2 font-medium">Last Active</th>
-          <th class="py-2"><span class="sr-only">Remove</span></th>
+          {% if not au_showcase %}<th class="py-2"><span class="sr-only">Remove</span></th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -93,7 +109,7 @@
           <td class="py-3 pr-4 text-right sb-num text-gray-200">{{ f.total_captures }}</td>
           <td class="py-3 pr-4 text-xs text-gray-300 font-medium">{{ campaign_titles.get(f.first_campaign_id, 'Imported or added') }}</td>
           <td class="py-3 text-xs sb-num text-gray-300 font-medium">{{ f.updated[:10] }}</td>
-          <td class="py-3 pl-3 text-right">
+          {% if not au_showcase %}<td class="py-3 pl-3 text-right">
             {#- The confirm says exactly what the route does (owner notes,
                 2026-09-19): links_store.delete_fan deletes the fan row, their
                 consent records and their link activity. It is not a
@@ -103,13 +119,13 @@
                   onsubmit="return confirm('Delete {{ f.email | e }} from your fan list? This deletes their record, their consent log and their link activity. It does not block the address: they can sign up again. This cannot be undone.');">
               <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm" aria-label="Remove {{ f.email }}">Remove</button>
             </form>
-          </td>
+          </td>{% endif %}
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </section>
-  {% else %}
+  {% elif not crm_filter %}
   <div class="rounded-2xl border border-dashed border-sb-gold/30 py-10 text-center">
     <div class="text-sm font-bold text-gray-200">No fans captured yet</div>
     <p class="mx-auto mt-1 max-w-md text-xs text-gray-300">Enable email capture on a campaign and every signup lands here, with consent logged and intent scored.</p>
@@ -118,7 +134,7 @@
 
 {#- The way in, beside the way out. Export without import on an empty page
     was the asymmetry the audit caught. -#}
-{% include "partials/fan_list_import.html" %}
+{% if not au_showcase %}{% include "partials/fan_list_import.html" %}{% endif %}
 {#- The other way in: Hypeddit's gates, pre-saves and smart links posting
     each fan here as they finish. -#}
 {% include "partials/hypeddit_connect.html" %}

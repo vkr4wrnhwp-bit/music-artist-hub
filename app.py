@@ -4452,7 +4452,10 @@ def create_app():
                             club={"on": bool(club_row), "members": members},
                             open_briefs=open_briefs,
                             link_visits=0 if showcase else fan_audience._visits(user["id"]),
-                            showcase=showcase, artist_name=user.get("name") or "")
+                            showcase=showcase, artist_name=user.get("name") or "",
+                            # "or Shopify customers" only where the import
+                            # exists for this account (walk, 2026-09-20).
+                            shopify=_shopify_import_allowed(user))
         return render_template("room_fans.html", active_page="room-fans", room=room, fr=fr,
                                **build_dashboard_context())
 
@@ -10689,13 +10692,58 @@ def create_app():
         """
         return bool(user and _is_owner_email(user.get("email")))
 
+    # The demo's Fan CRM lists this many of the showcase's generated rows:
+    # enough to look like a list, not fourteen thousand table rows.
+    _SHOWCASE_CRM_ROWS = 200
+
+    def _showcase_crm_rows(q):
+        """The generated rows the Audience and the Fan Room count, shaped
+        for the Fan CRM table: best band first, no score (the showcase
+        never had one), no id (nothing on it can be removed)."""
+        import fan_audience
+        rank = {l: i for i, l in enumerate(fan_audience.INTENT_ORDER)}
+        rows = fan_audience.showcase_rows()
+        if q:
+            ql = q.lower()
+            rows = [f for f in rows if ql in (f.get("email") or "").lower()
+                    or ql in (f.get("name") or "").lower()]
+        rows.sort(key=lambda f: rank.get(f.get("intent_level"), len(rank)))
+        return len(rows), [dict(f, id="", updated=f["created"], first_campaign_id="")
+                           for f in rows[:_SHOWCASE_CRM_ROWS]]
+
+    def _fans_word(n):
+        return "%s fan%s" % ("{:,}".format(n), "" if n == 1 else "s")
+
     @app.route("/links/fans")
     def ml_fans():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        import fan_room
         q = (request.args.get("q") or "").strip()
-        fans = mls.list_fans(user["id"], q)
+        # The showcase login sees the same generated rows here as on the
+        # Audience screen and the Fan Room, under the same label (walk,
+        # 2026-09-20: those said 14,430 fans, this page said "No fans
+        # captured yet" and offered an import that bounced). Its own table
+        # holds nothing and nothing here writes to it.
+        showcase = _session_is_demo()
+        showcase_total = 0
+        if showcase:
+            showcase_total, fans = _showcase_crm_rows(q)
+        else:
+            fans = mls.list_fans(user["id"], q)
+        # The Fan Room's "Find N missing emails" and "Reward your N most
+        # engaged fans" moves land here; without these two views they landed
+        # on everyone (walk, 2026-09-20). Same counts as the moves.
+        crm_filter = ""
+        if request.args.get("missing") == "email":
+            fans = [f for f in fans if not (f.get("email") or "").strip()]
+            crm_filter = ("Showing the %s on file with no email address." % _fans_word(len(fans))
+                          if fans else "Everyone on file has an email address.")
+        elif request.args.get("intent") == "top":
+            fans = [f for f in fans if f.get("intent_level") in fan_room.TOP_BANDS]
+            crm_filter = ("Showing the %s scored Hot or Superfan." % _fans_word(len(fans))
+                          if fans else "Nobody on file has scored Hot or Superfan yet.")
         campaigns = {c["id"]: c["title"] for c in mls.list_campaigns(user["id"])}
         # Fan CRM is a Fans page (the Fans front: Dashboard, Fan CRM, Fan
         # Club); "fans" is a key in both layouts, so the Fans row lights
@@ -10710,6 +10758,12 @@ def create_app():
         return render_template("links_fans.html", active_page="fans",
                                fan_import_result=fan_import_result,
                                au_resend=emailer.configured(),
+                               au_showcase=showcase, showcase_total=showcase_total,
+                               showcase_cap=_SHOWCASE_CRM_ROWS,
+                               crm_filter=crm_filter,
+                               # Remove redirects here with ?removed=1; until
+                               # now nothing read it back (walk, 2026-09-20).
+                               removed=request.args.get("removed") == "1",
                                fans=fans, q=q, campaign_titles=campaigns,
                                intent_tones=links_engine.INTENT_TONES,
                                shopify=(shopify_customers.status()
@@ -11310,11 +11364,25 @@ def create_app():
                       else []),
             **build_dashboard_context())
 
+    def _demo_not_a_member(back):
+        """The shared demo login is not a member (marketplace_profile
+        refuses to list it), so it posts, applies, saves, reports, chooses
+        and rates nothing, whatever the owner's demo lock says. Until the
+        walk of 2026-09-20 an unlocked demo could put a brief on the live
+        board and file applications on real members' briefs. Returns the
+        redirect to answer with, or None for a member."""
+        if not _session_is_demo():
+            return None
+        return redirect(_cm.with_flag(back, "demo=member"))
+
     @app.route("/marketplace/post", methods=["POST"])
     def marketplace_post():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        bail = _demo_not_a_member("/marketplace?tab=briefs#post")
+        if bail:
+            return bail
         kind = request.form.get("kind") or ""
         role = (request.form.get("role") or "").strip()
         title = (request.form.get("title") or "").strip()
@@ -11347,6 +11415,9 @@ def create_app():
             return login_required_redirect()
         import collab_market
         back = collab_market.safe_back(request.form.get("back"))
+        bail = _demo_not_a_member(back)
+        if bail:
+            return bail
         req = store.get_collab_request(req_id)
         message = (request.form.get("message") or "").strip()
         contact = (request.form.get("contact") or "").strip()
@@ -11381,10 +11452,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        import collab_market
+        back = collab_market.safe_back(request.form.get("back"))
+        bail = _demo_not_a_member(back)
+        if bail:
+            return bail
         if store.get_collab_request(req_id):
             store.toggle_collab_save(user["id"], req_id)
-        import collab_market
-        return redirect(collab_market.safe_back(request.form.get("back")))
+        return redirect(back)
 
     @app.route("/marketplace/<req_id>/close", methods=["POST"])
     def marketplace_close(req_id):
@@ -11415,6 +11490,9 @@ def create_app():
         if user is None:
             return login_required_redirect()
         back = _cm.safe_back(request.form.get("back"))
+        bail = _demo_not_a_member(back)
+        if bail:
+            return bail
         req = store.get_collab_request(req_id)
         if req is None or req["user_id"] == user["id"]:
             return redirect(back)
@@ -11573,11 +11651,15 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        back = "/marketplace?tab=briefs#brief-%s" % req_id
+        bail = _demo_not_a_member(back)
+        if bail:
+            return bail
         req = store.get_collab_request(req_id)
         if req is not None and req["user_id"] == user["id"]:
             store.set_collab_reply_chosen(user["id"], reply_id,
                                           request.form.get("chosen") == "1")
-        return redirect("/marketplace?tab=briefs#brief-%s" % req_id)
+        return redirect(back)
 
     @app.route("/marketplace/<req_id>/rate/<ratee_id>", methods=["POST"])
     def marketplace_rate(req_id, ratee_id):
@@ -11586,11 +11668,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        back = _cm.safe_back(request.form.get("back"),
+                             "/marketplace?tab=projects")
+        bail = _demo_not_a_member(back)
+        if bail:
+            return bail
         store.add_collab_rating(user["id"], req_id, ratee_id,
                                 request.form.get("stars"),
                                 (request.form.get("note") or "").strip())
-        back = _cm.safe_back(request.form.get("back"),
-                             "/marketplace?tab=projects")
         return redirect(back)
 
     def _discover_state():

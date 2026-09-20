@@ -30,6 +30,11 @@
   {% if request.args.get('applied') %}
   <p class="cm-flash" role="status">Application sent. The poster got a notification with your contact.</p>
   {% endif %}
+  {#- The shared demo login is not a member: every write on this screen
+      bounces back here with ?demo=member (walk, 2026-09-20). -#}
+  {% if request.args.get('demo') == 'member' %}
+  <p class="cm-flash" role="status">Not saved. The demo account is not a member of the marketplace, so it cannot post, apply, save, report, choose or rate. Start your own account to take part.</p>
+  {% endif %}
 
   <nav class="cm-tabs" aria-label="Collab Marketplace">
     {% for key, label, href in tabs %}

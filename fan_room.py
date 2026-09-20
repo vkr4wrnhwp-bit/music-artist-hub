@@ -39,7 +39,10 @@ DEFAULT_RANGE = 30
 # the room adds later (a parked page, for the owner) keeps the room's copy.
 TILE_COPY = {
     "fans": ("Fans", "Audience overview"),
-    "fan-crm": ("Fan CRM", "Profiles & segments"),
+    # The mockup said "Profiles & segments"; /links/fans is the flat list
+    # with search, export and remove, and nothing on it is called either
+    # (walk, 2026-09-20). The card says what the page is.
+    "fan-crm": ("Fan CRM", "Everyone on file, searchable and exportable"),
     "fan-club": ("Fan Club", "Memberships & exclusives"),
     "discover": ("Discover", "Find listeners and scenes"),
     "marketplace": ("Collab", "Artists, creators & brands"),
@@ -99,14 +102,17 @@ def _fmt(n):
     return "{:,}".format(int(n or 0))
 
 
-def moves(rows, audience, days, today, link_visits=0):
+def moves(rows, audience, days, today, link_visits=0, shopify=False):
     """Up to three things the artist can do now, strongest first. Each is
-    one the app carries out, with the number of fans it acts on."""
+    one the app carries out, with the number of fans it acts on. `shopify`
+    is whether this account may import the connected store's customers
+    (the owner alone); the move names Shopify only then."""
     total = audience["total"]
     out = []
     if not total:
         out.append({"icon": "import", "title": "Bring in the fans you already have",
-                    "desc": "Import a list or Shopify customers. You preview it first.",
+                    "desc": ("Import a list or Shopify customers. You preview it first."
+                             if shopify else "Import a list. You preview it first."),
                     "reach_label": "On file", "reach": "0 fans",
                     "cta": "Import your list", "href": "/fans"})
     joined = new_fans(rows, days, today)
@@ -125,7 +131,7 @@ def moves(rows, audience, days, today, link_visits=0):
         out.append({"icon": "mail", "title": "Find %s missing email%s" % (_fmt(no_email), "" if no_email == 1 else "s"),
                     "desc": "On file with no email address yet.",
                     "reach_label": "Reach", "reach": "%s fan%s" % (_fmt(no_email), "" if no_email == 1 else "s"),
-                    "cta": "Open Fan CRM", "href": "/links/fans"})
+                    "cta": "Open Fan CRM", "href": "/links/fans?missing=email"})
     elif total and int(link_visits or 0) > total:
         out.append({"icon": "mail", "title": "Turn link views into known fans",
                     "desc": "Views on your links that left no email.",
@@ -136,7 +142,7 @@ def moves(rows, audience, days, today, link_visits=0):
         out.append({"icon": "diamond", "title": "Reward your %s most engaged fan%s" % (_fmt(top), "" if top == 1 else "s"),
                     "desc": "Scored Hot or Superfan on your links.",
                     "reach_label": "Reach", "reach": "%s fan%s" % (_fmt(top), "" if top == 1 else "s"),
-                    "cta": "See them", "href": "/links/fans"})
+                    "cta": "See them", "href": "/links/fans?intent=top"})
     if len(out) < 3:
         out.append({"icon": "welcome", "title": "Capture more fans" if total else "Start capturing fans",
                     "desc": "Put an email capture on a smart link.",
@@ -202,8 +208,8 @@ def tile_status(key, audience, new_count, days, club, open_briefs, state):
     if key == "fans":
         return ("good" if new_count else "off", "%s new" % _fmt(new_count))
     if key == "fan-crm":
-        n = len(audience.get("segments") or ())
-        return count(n, "segment") if n else ("off", "Nobody yet")
+        n = int(audience.get("total") or 0)
+        return count(n, "fan") if n else ("off", "Nobody yet")
     if key == "fan-club":
         if not club["on"]:
             return ("off", "Not set up")
@@ -214,7 +220,8 @@ def tile_status(key, audience, new_count, days, club, open_briefs, state):
 
 
 def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
-          open_briefs=0, link_visits=0, showcase=False, artist_name=""):
+          open_briefs=0, link_visits=0, showcase=False, artist_name="",
+          shopify=False):
     now = now or datetime.now(timezone.utc)
     today = now.date()
     days = days_from(days)
@@ -239,7 +246,7 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
         "new_label": _fmt(len(fresh)),
         "reachable_pct": audience.get("contactable_pct") if total else None,
         "lifecycle": LIFECYCLE,
-        "moves": moves(rows, audience, days, today, link_visits),
+        "moves": moves(rows, audience, days, today, link_visits, shopify=shopify),
         "pulse": pulse(audience),
         "tiles": tiles,
     }
