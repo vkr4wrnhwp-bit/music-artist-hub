@@ -117,6 +117,14 @@ def init(app):
     rel = release()
     if rel:
         kwargs["release"] = rel
-    sentry_sdk.init(**kwargs)
+    # A malformed DSN must never stop the app from booting: error
+    # reporting is a helper, not a dependency. The message names the
+    # variable, never its value.
+    try:
+        sentry_sdk.init(**kwargs)
+    except Exception as exc:  # BadDsn and anything else the SDK raises
+        app.logger.warning("Sentry not started: %s is not usable (%s)",
+                           DSN_VAR, exc.__class__.__name__)
+        return False
     app.config["SENTRY_ENABLED"] = True
     return True

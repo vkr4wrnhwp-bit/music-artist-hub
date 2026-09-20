@@ -232,9 +232,12 @@ def test_every_link_tab_and_form_on_the_screen_resolves(application):
 
 
 def test_the_crm_tab_keeps_working_under_the_same_header(application):
+    """Same header band and tabs; its own name (owner, 2026-09-19: "both
+    fan CRM and fans are still named audience")."""
     client, user, tag = _populated(application)
     html = client.get("/links/fans").get_data(as_text=True)
-    assert 'sb-plate-title" id="sb-plate-title">Audience' in html
+    assert 'sb-plate-title" id="sb-plate-title">Fan CRM' in html
+    assert 'sb-plate-title" id="sb-plate-title">Audience' in client.get("/fans").get_data(as_text=True)
     assert re.search(r'is-on" href="/links/fans"\s*aria-current="page">Fan CRM', html)
     assert "a1-%s@example.org" % tag in html
     assert "a1-%s@example.org" % tag in client.get("/links/fans?q=a1-").get_data(as_text=True)
