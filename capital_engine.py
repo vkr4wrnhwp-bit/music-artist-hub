@@ -6,14 +6,16 @@ Everything here is an informational estimate, never financial advice,
 and the pages say so.
 """
 
+import math
+
 import db as store
 import links_store as mls
 import trust_score
 
 
 def _pts(value, full, cap):
-    if full <= 0:
-        return 0
+    if full <= 0 or not math.isfinite(value):
+        return 0        # a stored inf is not a reading (walk, 2026-09-20)
     return min(round(cap * value / full), cap)
 
 
@@ -53,7 +55,7 @@ def capital_score(user_id):
     import statements_engine
     annualized = statements_engine.annualize(rows)["annualized"]
     band = ((round(annualized * 0.8), round(annualized * 1.5))
-            if annualized > 0 else None)
+            if annualized > 0 and math.isfinite(annualized) else None)
 
     # Remember today's reading. Guarded: a history write must never be
     # the reason a page fails to render.

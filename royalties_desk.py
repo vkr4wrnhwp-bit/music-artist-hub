@@ -10,6 +10,7 @@ reader chose. A stream with nothing on file is a statement nobody has
 uploaded, never money that does not exist, and the row says which. The
 lane estimates are a share of the artist's own earnings and say so.
 """
+import math
 import re
 
 import artist_os
@@ -74,8 +75,8 @@ def earnings(analysis, trend):
     return {
         "shown": money(analysis["total"]), "delta_text": delta_text, "delta_tone": tone,
         "spark": spark,
-        "spark_first": "%s $%s" % (trend[0][0], meters.short(round(trend[0][1]))) if spark else "",
-        "spark_last": "%s $%s" % (trend[-1][0], meters.short(round(trend[-1][1]))) if spark else "",
+        "spark_first": "%s $%s" % (trend[0][0], meters.short(statements_desk._whole(trend[0][1]))) if spark else "",
+        "spark_last": "%s $%s" % (trend[-1][0], meters.short(statements_desk._whole(trend[-1][1]))) if spark else "",
         "note": "" if spark else "Upload a second period and the change between them appears here.",
         "prov": ["%d period%s on file" % (len(trend), "" if len(trend) == 1 else "s"),
                  "a third makes a trend" if len(trend) == 2 else ""],
@@ -118,7 +119,8 @@ def streams(analysis, mlc=None):
                        + (" · " + e["sources"][0] if e["lines"] == 1 else "")) if on_file
                       else {"publishing": "no PRO statement", "mechanical": "no MLC statement",
                             "neighboring": "no SoundExchange line", "recording": "no distributor statement"}[key],
-               "height": max(4, round(100.0 * amount / top)) if on_file and top else 0}
+               "height": (max(4, round(100.0 * amount / top))
+                          if on_file and top and math.isfinite(amount / top) else 0)}
         cols.append(col)
         stores = sorted(set(store_identity.store_of(s) for s in e["sources"])) if e else []
         if on_file:
@@ -163,7 +165,7 @@ def streams(analysis, mlc=None):
 
 
 LANE_DOT = {
-    "claimed": ("paying", "claimed"), "connected": ("connected", "claimed"),
+    "claimed": ("paying", "claimed"), "connected": ("set up, no income yet", "claimed"),
     "needs action": ("needs action", "action"), "in review": ("in review", "review"),
     "not eligible": ("not eligible", "na"),
 }
@@ -174,14 +176,21 @@ def lanes(tracks, ctx):
     """Every track against the nine lanes, and the count of lanes paying."""
     rows = []
     paying = set()
+    # Set up but silent: a registration on the passport, a sync pack
+    # nobody has licensed, a fan club with members and no sale. Counted
+    # apart from the lanes a statement row pays (walk, 2026-09-20: an
+    # unsold sync pack read as "Sync licensing is paying").
+    connected = set()
     per_lane = {key: {"key": key, "label": label, "estimate": 0.0, "count": 0}
                 for key, label in artist_os.LANES}
     for t in tracks:
         cells = []
         for lane in artist_os.lane_grid(t, ctx):
             state = lane["state"]
-            if state in ("claimed", "connected"):
+            if state == "claimed":
                 paying.add(lane["key"])
+            elif state == "connected":
+                connected.add(lane["key"])
             if state == "missing":
                 word, dot = (("needs a registration", "action") if lane["key"] in REGISTRATION_LANES
                              else ("no evidence", "missing"))
@@ -210,10 +219,26 @@ def lanes(tracks, ctx):
         "footer": [per_lane[k] for k in lane_keys],
         "missing_est": round(sum(e["estimate"] for e in per_lane.values()), 2),
         "paying_names": [l for k, l in artist_os.LANES if k in paying],
-        "note": (("%s are paying." % _fmt_list([l.split(" /")[0] for k, l in artist_os.LANES if k in paying]))
-                 if paying else "No lane shows money yet.") if tracks
-                else "No Track Passports yet, so there is nothing to read the lanes against.",
+        "connected_names": [l for k, l in artist_os.LANES if k in connected],
+        "note": _lane_note(tracks, paying, connected),
     }
+
+
+def _lane_note(tracks, paying, connected):
+    """One sentence for the lanes a statement row pays, and one for the
+    lanes that are set up and silent."""
+    if not tracks:
+        return "No Track Passports yet, so there is nothing to read the lanes against."
+
+    def names(keys):
+        return _fmt_list([l.split(" /")[0] for k, l in artist_os.LANES if k in keys])
+
+    said = ("%s %s paying." % (names(paying), "is" if len(paying) == 1 else "are")
+            if paying else "No lane shows money yet.")
+    if connected:
+        said += " %s %s set up, no income yet." % (
+            names(connected), "is" if len(connected) == 1 else "are")
+    return said
 
 
 # --- 6 · by store, 7 · by track, period against period ------------------------

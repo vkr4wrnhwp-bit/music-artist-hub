@@ -18,7 +18,7 @@ import hubs
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 PARKED = {"/capital": "Simulated demo", "/benchmark": "illustrative",
-          "/funding": "illustrative", "/conflicts": "Disputes",
+          "/funding": "illustrative",
           "/fan-label": "placeholders", "/network": "sample profiles"}
 FOLDED = {
     # Income by type and Royalty Lanes folded into the one Royalties page
@@ -26,6 +26,9 @@ FOLDED = {
     "/publishing": "royalties", "/mechanicals": "royalties", "/neighboring-rights": "royalties",
     "/territories": "royalties", "/royalty-lanes": "royalties",
     "/money-queue": "royalties",
+    # /conflicts retired into the money queue (walk, 2026-09-20): it read
+    # the demo's songs and found nothing on every real account.
+    "/conflicts": "royalties",
     "/trust-score": "scores", "/insights": "scores", "/qualification": "scores",
     # Sync packs left Deals for the releases on 2026-09-19 (owner: "You're
     # making a product for sale"); it is an entry of its own now.
@@ -161,7 +164,8 @@ MERGED = {"/tracks": "/catalog?view=passports",
           # Royalty Lanes and Income by type are sections of Royalties (2026-09-13).
           "/royalty-lanes": "/royalties#lanes", "/publishing": "/royalties#streams",
           "/mechanicals": "/royalties#streams", "/neighboring-rights": "/royalties#streams",
-          "/territories": "/royalties#markets"}
+          "/territories": "/royalties#markets",
+          "/conflicts": "/money-queue"}
 
 
 def test_every_folded_page_answers_and_carries_its_strip(demo):

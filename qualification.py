@@ -7,6 +7,8 @@ traffic. No simulated momentum: if an artist hasn't done the work, the
 score says so, and every weak category names the fix.
 """
 
+import math
+
 import audio_readiness
 import db as store
 import links_engine
@@ -20,7 +22,7 @@ def _pts(value, full):
     A value of None means the thing was never measured, which scores
     nothing rather than raising - a missing reading must not be able to
     take down the page that carries the score."""
-    if full <= 0 or value is None:
+    if full <= 0 or value is None or not math.isfinite(value):
         return 0
     return min(round(10 * value / full), 10)
 

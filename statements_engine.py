@@ -14,6 +14,7 @@ computable findings on the artist's own numbers:
 
 import csv
 import io
+import math
 import re
 
 import catalog_value
@@ -107,9 +108,15 @@ def _to_amount(raw):
     if not s:
         return None
     try:
-        return round(float(s), 4)
+        value = float(s)
     except ValueError:
         return None
+    if not math.isfinite(value):
+        # "NaN", "nan", "inf", "1e400": what a pandas or R export writes
+        # for a blank cell. A blank cell, not a figure (walk, 2026-09-20:
+        # a NaN row was a 500 and an inf row broke every money page).
+        return None
+    return round(value, 4)
 
 
 def period_key(label):

@@ -18,6 +18,7 @@ states - carries it, not listed, could not be checked - read from the
 last store check the artist ran. A store nobody asked stays dashed and
 is never read as missing.
 """
+import math
 import re
 
 import coverage_check
@@ -43,6 +44,12 @@ def period_label(period):
     if m and 1 <= int(m.group(2)) <= 12:
         return "%s %s" % (_MONTHS[int(m.group(2)) - 1], m.group(1))
     return (period or "").strip()
+
+
+def _whole(value):
+    """round() for a sparkline end; a stored inf (an upload from before
+    the parser refused one) cannot be rounded and reads as nothing."""
+    return round(value) if math.isfinite(value) else None
 
 
 def _fmt_list(names):
@@ -86,7 +93,10 @@ def ladder(analysis, limit=11):
     shown, tail = rows[:limit], rows[limit:]
     total = sum(r["amount"] for r in rows) or 0
     top3 = rows[:3]
-    top3_share = round(100.0 * sum(r["amount"] for r in top3) / total) if total else 0
+    # A stored inf (an upload from before the parser refused one) makes
+    # inf / inf, which is nan and cannot be rounded; the share is unread.
+    top3_share = (round(100.0 * sum(r["amount"] for r in top3) / total)
+                  if total and math.isfinite(total) else 0)
     return {
         "rows": shown,
         "top": top,
@@ -123,9 +133,9 @@ def instruments(analysis, uploads, trend, unmatched_rows, ladder_view):
         "tag": "actual", "tag_text": "actual", "est": False,
         "shown": money(a["total"]), "delta_text": delta_text, "delta_tone": tone,
         "spark": spark,
-        "spark_first": ("%s $%s" % (period_label(trend[0][0]), meters.short(round(trend[0][1])))
+        "spark_first": ("%s $%s" % (period_label(trend[0][0]), meters.short(_whole(trend[0][1])))
                         if spark else ""),
-        "spark_last": ("%s $%s" % (period_label(trend[-1][0]), meters.short(round(trend[-1][1])))
+        "spark_last": ("%s $%s" % (period_label(trend[-1][0]), meters.short(_whole(trend[-1][1])))
                        if spark else ""),
         "note": "" if spark else "One statement period so far; a second one draws the line.",
         "cells": [],

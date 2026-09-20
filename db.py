@@ -11,6 +11,7 @@ disk or move to Postgres for durable production data.
 """
 
 import json
+import math
 import os
 import sqlite3
 import uuid
@@ -1614,24 +1615,31 @@ def delete_statement(user_id, statement_id):
     uploaded before the ISRC column existed carries no ISRC, and the only
     way to fix that is to upload it again - which without a delete would
     double the earnings the money pages report. Scoped to the owner, so a
-    guessed id removes nothing.
+    guessed id removes nothing. Returns how many statements went: 0 for a
+    guessed id or another account's, so the page only says "removed"
+    when something was (walk, 2026-09-20).
     """
     with get_db() as db:
         owned = db.execute(
             "SELECT id FROM statements WHERE id = ? AND user_id = ?",
             (statement_id, user_id)).fetchone()
         if not owned:
-            return False
+            return 0
         db.execute("DELETE FROM statement_rows WHERE statement_id = ?",
                    (statement_id,))
-        db.execute("DELETE FROM statements WHERE id = ? AND user_id = ?",
-                   (statement_id, user_id))
-        return True
+        cur = db.execute("DELETE FROM statements WHERE id = ? AND user_id = ?",
+                         (statement_id, user_id))
+        return cur.rowcount
 
 
 def save_statement(user_id, filename, rows, via="upload"):
     statement_id = uuid.uuid4().hex
     total = round(sum(r["amount"] for r in rows), 2)
+    if not math.isfinite(total):
+        # SQLite stores NaN as NULL and the NOT NULL column raised (walk,
+        # 2026-09-20). The parser drops non-finite cells; this is the
+        # second lock, and the page shows it as an ordinary upload error.
+        raise ValueError("An amount in this file is not a number.")
     with get_db() as db:
         db.execute(
             "INSERT INTO statements (id, user_id, filename, uploaded, row_count, total, via)"
@@ -1649,12 +1657,33 @@ def save_statement(user_id, filename, rows, via="upload"):
     return statement_id
 
 
+def _readable_amount(value):
+    """A stored amount as a figure, or 0 when it is not one.
+
+    The parser and save_statement both refuse a non-finite amount now,
+    but an upload from before they did still sits on disk, and one inf
+    row took down every money page that reads these rows (walk,
+    2026-09-20). Read as 0 the statement still lists, still shows its
+    delete button, and the rest of the account's money is right.
+    """
+    try:
+        value = float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return value if math.isfinite(value) else 0.0
+
+
 def get_statements(user_id):
     with get_db() as db:
         rows = db.execute(
             "SELECT * FROM statements WHERE user_id = ? ORDER BY uploaded DESC", (user_id,)
         ).fetchall()
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        r = dict(r)
+        r["total"] = _readable_amount(r.get("total"))
+        out.append(r)
+    return out
 
 
 def save_gap_check(user_id, track_key, isrc, result):
@@ -1708,7 +1737,12 @@ def get_statement_rows(user_id, statement_id=None):
         args.append(statement_id)
     with get_db() as db:
         rows = db.execute(q, args).fetchall()
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        r = dict(r)
+        r["amount"] = _readable_amount(r.get("amount"))
+        out.append(r)
+    return out
 
 
 # --- Smart links -------------------------------------------------------------
@@ -5292,6 +5326,51 @@ def document_path_owned(path, user_id):
     return row is not None
 
 
+def vault_file_by_path(path):
+    """The vault row stored at this path, or None. /uploads reads the
+    kind and the owner off it before serving a vault_* file (walk,
+    2026-09-20: a master was served to anyone with its address)."""
+    with get_db() as db:
+        row = db.execute("SELECT id, user_id, kind, path FROM vault_files WHERE path = ?",
+                         (path,)).fetchone()
+    return dict(row) if row else None
+
+
+def vault_path_owned(path, user_id):
+    """True when this account's vault holds a file at this path."""
+    with get_db() as db:
+        row = db.execute("SELECT 1 FROM vault_files WHERE user_id = ? AND path = ?",
+                         (user_id, path)).fetchone()
+    return row is not None
+
+
+def vault_path_shared(path):
+    """True when the owner has put this vault file on a page that is
+    public by design: a pitch share's audio, or a one-sheet's banner or
+    audio. Those addresses were sent out on purpose and keep answering.
+    The audio columns are JSON lists of {path, label}; the quoted path
+    is what they hold."""
+    needle = '"%s"' % path
+    with get_db() as db:
+        row = db.execute(
+            "SELECT 1 FROM epk_shares WHERE instr(audio, ?) > 0"
+            " UNION ALL SELECT 1 FROM onesheet_shares WHERE banner = ? OR instr(audio, ?) > 0",
+            (needle, path, needle)).fetchone()
+    return row is not None
+
+
+def lockbox_path_owned(path, user_id):
+    """True when one of this account's Track Passports holds a lockbox
+    document (split sheet, producer agreement, licence, clearance) at
+    this path. The lockbox is JSON on the track and the quoted path is
+    what the uploader wrote into it (walk, 2026-09-20: a split sheet was
+    served to anyone with its address)."""
+    with get_db() as db:
+        row = db.execute("SELECT 1 FROM os_tracks WHERE user_id = ? AND instr(lockbox, ?) > 0",
+                         (user_id, '"%s"' % path)).fetchone()
+    return row is not None
+
+
 def list_documents(user_id):
     with get_db() as db:
         rows = db.execute(
@@ -5401,6 +5480,15 @@ def delete_document(user_id, doc_id):
 
 # --- Recovery cases + deal room --------------------------------------------------
 
+def _money(raw):
+    """A typed amount as a finite float. "$10", "1,000" and "(12.50)"
+    parse the way a statement cell does; "abc", "10 USD", "nan" and
+    "inf" are 0 (walk, 2026-09-20: each of those was a 500)."""
+    from statements_engine import _to_amount
+    value = _to_amount(raw)
+    return value if value is not None else 0.0
+
+
 def create_recovery_case(user_id, fields):
     case_id = uuid.uuid4().hex
     now = _now()
@@ -5411,7 +5499,7 @@ def create_recovery_case(user_id, fields):
             " VALUES (?,?,?,?,?,?,'open',?,?,?,?,?)",
             (case_id, user_id, fields.get("title", "Untitled case")[:200],
              fields.get("category", "other")[:40],
-             float(fields.get("estimated_amount") or 0),
+             _money(fields.get("estimated_amount")),
              fields.get("confidence", "medium")[:10],
              fields.get("deadline", "")[:10], fields.get("notes", "")[:600],
              (fields.get("finding_key") or "")[:200], now, now))
@@ -5451,7 +5539,7 @@ def open_case_for_finding(user_id, key, fields):
     if not key:
         return create_recovery_case(user_id, fields), CASE_OPENED
     title = fields.get("title", "Untitled case")[:200]
-    amount = float(fields.get("estimated_amount") or 0)
+    amount = _money(fields.get("estimated_amount"))
     notes = fields.get("notes", "")[:600]
     now = _now()
     with get_db() as db:

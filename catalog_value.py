@@ -28,10 +28,16 @@ already quotes in the CSV a label receives, so the sheet and the page it
 was quoted from cannot disagree either.
 """
 
+import math
+
 MULTIPLES = {"low": 3, "mid": 4, "high": 5}
 
 
 def band(annualized, multiples=None):
     """The low/mid/high value band for an annualised run rate."""
     multiples = multiples or MULTIPLES
+    if not math.isfinite(annualized):
+        # A stored inf (an upload from before the parser refused one) is
+        # not a run rate; the band reads as unmeasured (walk, 2026-09-20).
+        return {k: 0 for k in multiples}
     return {k: round(annualized * m) for k, m in multiples.items()}
