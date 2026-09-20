@@ -11009,12 +11009,16 @@ def create_app():
         # 2026-09-20: those said 14,430 fans, this page said "No fans
         # captured yet" and offered an import that bounced). Its own table
         # holds nothing and nothing here writes to it.
-        showcase = _session_is_demo()
+        # ...but only while its own table is empty. The demo can capture a
+        # real fan through a real smart link, and a real capture must never
+        # be hidden behind generated rows.
+        own = mls.list_fans(user["id"], q)
+        showcase = _session_is_demo() and not mls.list_fans(user["id"])
         showcase_total = 0
         if showcase:
             showcase_total, fans = _showcase_crm_rows(q)
         else:
-            fans = mls.list_fans(user["id"], q)
+            fans = own
         # The Fan Room's "Find N missing emails" and "Reward your N most
         # engaged fans" moves land here; without these two views they landed
         # on everyone (walk, 2026-09-20). Same counts as the moves.

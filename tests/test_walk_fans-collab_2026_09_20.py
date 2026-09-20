@@ -133,7 +133,9 @@ def test_the_move_copy_follows_the_flag():
 
 def test_the_demo_fan_crm_shows_the_showcase_the_audience_counts():
     d, duid = _demo()
-    assert mls.list_fans(duid) == [], "the demo's own table is empty; the showcase is generated"
+    assert mls.list_fans(duid) == [], (
+        "the showcase only stands in while the demo has captured nobody; "
+        "a real capture takes the page back (see the test below)")
     body = d.get("/links/fans").get_data(as_text=True)
     assert "Showcase." in body and "au-showcase" in body
     assert "the first 200 of 14,430 are listed" in body
@@ -225,3 +227,18 @@ def test_removing_a_fan_says_so():
     after = c.get(r.headers["Location"]).get_data(as_text=True)
     assert "Removed." in after and "Their record, consent log and link activity are gone." in after
     assert "gone-%s@example.net" % uid[:6] not in after
+
+
+def test_a_real_capture_takes_the_demo_crm_back_from_the_showcase():
+    """The demo login can capture a real fan through a real smart link.
+    A real capture is never hidden behind generated rows."""
+    import links_store as mls
+    import app as appmod
+    demo = appmod.app.test_client()
+    demo.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    duid = store.get_user_by_email("demo@streetbanker.io")["id"]
+    before = mls.list_fans(duid)
+    mls.upsert_fan(duid, "realcapture@example.net", "", name="Real Capture")
+    body = demo.get("/links/fans").get_data(as_text=True)
+    assert "realcapture@example.net" in body
+    assert len(mls.list_fans(duid)) == len(before) + 1

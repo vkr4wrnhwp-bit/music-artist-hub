@@ -54,7 +54,7 @@ ROOMS = [
       "hours", "deals", "deal-simulator", "team", "portal",
       "services", "roster"]),
     ("publishing", "Publishing", "Rights, registrations and identifiers.",
-     ["catalog", "track-passports", "fingerprints", "certified"]),
+     ["catalog", "track-passports", "conflicts", "fingerprints", "certified"]),
     ("releases", "Releases", "From finished master to the stores.",
      ["autopilot", "release-calendar", "release-check", "sync-packs", "distribution", "submit"]),
     ("marketing", "Marketing", "Getting heard and getting written about.",

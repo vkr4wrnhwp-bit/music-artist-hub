@@ -1161,7 +1161,13 @@ def test_marketplace_post_flow():
     """The marketplace is a real db-backed collab board now."""
     import db as store_mod
     app_obj = create_app()
-    poster = _demo(app_obj)
+    # The shared demo login is not a member: it posts, applies and rates
+    # nothing on the live board (walk, 2026-09-20). The poster here is a
+    # real signed-up account; the demo refusal is checked at the end.
+    poster = app_obj.test_client()
+    poster.post("/signup", data={"name": "Velvet Poster",
+                                 "email": "velvetposter@example.net",
+                                 "password": "velvetposterpass"})
     page = poster.get("/marketplace").get_data(as_text=True)
     assert "Collab Marketplace" in page and "Nothing here is seeded" in page
     # The approved screen (owner mock, 2026-09-18) names the deal types
@@ -1178,11 +1184,11 @@ def test_marketplace_post_flow():
     assert "Trust" in page
     # The reference link lives on the opened brief ("View Brief") now.
     rid = store_mod.list_own_collab_requests(
-        store_mod.get_user_by_email("demo@streetbanker.io")["id"])[0]["id"]
+        store_mod.get_user_by_email("velvetposter@example.net")["id"])[0]["id"]
     assert "Hear the reference track" in poster.get(
         "/marketplace?brief=%s" % rid).get_data(as_text=True)
     # A second member applies; the poster sees the application + notification.
-    uid = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    uid = store_mod.get_user_by_email("velvetposter@example.net")["id"]
     req = store_mod.list_own_collab_requests(uid)[0]
     applicant = app_obj.test_client()
     applicant.post("/signup", data={"name": "Top Liner", "email": "topliner@example.net",
@@ -1213,6 +1219,14 @@ def test_marketplace_post_flow():
     assert "Velvet topline" not in applicant.get("/marketplace?kind=split"
                                                ).get_data(as_text=True)
 
+    # And the shared demo login cannot put a brief on this board.
+    demo = _demo(app_obj)
+    before = len(store_mod.list_collab_requests())
+    r = demo.post("/marketplace/post", data={
+        "kind": "split", "role": "Vocalist", "genre": "Synthwave",
+        "title": "Demo brief that must not land", "details": "x", "terms": "y"})
+    assert r.status_code == 302 and "demo=member" in r.headers["Location"]
+    assert len(store_mod.list_collab_requests()) == before
 
 def test_fan_label_vote_flow():
     from community_config import get_fan_label_data
