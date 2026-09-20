@@ -26,10 +26,16 @@
             onclick="navigator.clipboard.writeText(document.getElementById('hypeddit-url').textContent.trim()).then(()=>{this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
   </div>
 
-  <ol class="mt-3 space-y-1 text-sm text-gray-200">
-    <li>1. In Hypeddit open Account Settings, then Automation.</li>
-    <li>2. Paste the address into the webhook field.</li>
-    <li>3. Press Next. Hypeddit says Successfully Updated and sends a test here.</li>
+  {#- Hypeddit's Automation field only accepts a Zapier, IFTTT or Make
+      address (owner tried ours, 2026-09-19: "Please enter a valid URL for
+      Zapier, IFTTT or Make"), so a free Make scenario relays each fan
+      here untouched. -#}
+  <p class="mt-3 text-sm text-gray-200">Hypeddit only accepts a Zapier, IFTTT or Make address in its webhook field, so a free Make scenario passes each fan on to the address above.</p>
+  <ol class="mt-2 space-y-1 text-sm text-gray-200">
+    <li>1. At make.com create a scenario. First module: Webhooks, Custom webhook. Copy the address Make shows.</li>
+    <li>2. In Hypeddit open Account Settings, then Automation. Paste the Make address and press Next. Hypeddit sends a test, and Make says it has determined the data.</li>
+    <li>3. Back in Make add a second module: HTTP, Make a request. URL: the address above. Method POST. Body type Raw, content type JSON. Map the whole webhook bundle into the request content.</li>
+    <li>4. Turn scheduling on (Immediately) and save. Every fan Hypeddit sends lands here within seconds.</li>
   </ol>
 
   <p class="mt-3 text-sm text-gray-100">
