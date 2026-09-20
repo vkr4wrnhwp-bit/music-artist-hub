@@ -465,3 +465,15 @@ def test_the_door_picture_comes_in_three_widths(page):
     for name in ("door-garage-wide-800.webp", "door-garage-wide-1280.webp"):
         assert name in door
         assert os.path.exists(os.path.join(HERE, "static", "img", name))
+
+def test_the_bar_has_no_logo_and_no_sign_in_link(page):
+    """Owner, 2026-09-19: "remove the logo in the header top left and
+    remove the sign in also as there is another button for that inches
+    away". The garage door carries the wordmark and the sign-in row sits
+    on the door, so the bar keeps only Plans and the way back."""
+    bar = page.split('class="sbbar"')[1].split("</header>")[0]
+    assert "sbbar-mark" not in bar
+    assert "streetbanker-logo" not in bar
+    assert ">Sign in<" not in bar and 'aria-current="page"' not in bar
+    assert 'href="#memberships">Plans</a>' in bar
+
