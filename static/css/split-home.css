@@ -52,13 +52,17 @@
 }
 @media (min-width: 700px) { .sbbar-nav { gap: 24px; } }
 
-.sbbar-nav a { color: var(--sb-ink-2); text-decoration: none; }
+/* Owner, 2026-09-20: the Plans link was "really hard to see". The bar's
+ * links are near-white now and gold under the pointer, and the same lift
+ * applies to every secondary line on this page: nothing here is set in the
+ * dim second ink any more. */
+.sbbar-nav a { color: var(--sb-ink); text-decoration: none; }
 
 /* The links sit on the photograph, and at some widths on one of the
  * billboard's lit wall lamps. The shadow is the same one the words on the
  * door carry, so a link stays readable on a hot spot. */
 .sbbar-nav { text-shadow: 0 1px 2px rgb(0 0 0 / .9), 0 0 14px rgb(0 0 0 / .85); }
-.sbbar-nav a:hover { color: var(--sb-ink); }
+.sbbar-nav a:hover { color: var(--sb-gold-bright); }
 .sbbar-here {
   color: var(--sb-ink) !important;
   border-bottom: 2px solid var(--sb-gold);
@@ -245,7 +249,7 @@
   max-width: 34em;
   font-size: 16px;
   line-height: 1.55;
-  color: var(--sb-ink-2);
+  color: var(--sb-ink);
 }
 
 /* The sign-in: "login doesn't have to be a big box like that. It can just
@@ -294,7 +298,7 @@
   .sbdoor-form .lsr-row { grid-column: 1 / -1; grid-row: 2; }
 }
 
-.sbdoor-fine { margin: 2px 0 0; font-size: 13px; color: var(--sb-ink-2); line-height: 1.5; }
+.sbdoor-fine { margin: 2px 0 0; font-size: 13px; color: var(--sb-ink); line-height: 1.5; }
 .sbdoor-fine strong { color: var(--sb-ink); }
 .sbdoor-fine a { color: var(--sb-gold-bright); }
 
@@ -402,7 +406,7 @@
   text-transform: uppercase;
   color: var(--sb-ink);
 }
-.sbmem-sub { margin: 8px 0 0; font-size: 15px; color: var(--sb-ink-2); }
+.sbmem-sub { margin: 8px 0 0; font-size: 15px; color: var(--sb-ink); }
 
 .sbmem-trio {
   list-style: none;
@@ -481,6 +485,22 @@
   transition: background-position 0s;
 }
 
+/* --- the colour of the letters at rest ------------------------------- */
+/* The ARTIST plate was photographed with white letters. Owner, 2026-09-20:
+ * "the artist package should be the same kind of brown as pro and label
+ * is written in". The photograph stays; this layer is the word mask filled
+ * with the bronze the PRO letters are cut in and multiplied over the white
+ * letters, so the bevel and grain of the engraving show through in brown.
+ * Only a pass that sets --sbmem-ink draws it, and it sits under the light
+ * layers so the hover still lights the letters. */
+
+.sbmem-tint {
+  -webkit-mask: var(--sbmem-words) center / 100% 100% no-repeat;
+  mask: var(--sbmem-words) center / 100% 100% no-repeat;
+  background: var(--sbmem-ink);
+  mix-blend-mode: multiply;
+}
+
 /* --- what hovering does ---------------------------------------------- */
 
 .sbmem-pass:hover .sbmem-glow,
@@ -538,7 +558,7 @@
   text-align: center;
   font-size: 12px;
   line-height: 1.45;
-  color: var(--sb-ink-2);
+  color: var(--sb-ink);
 }
 
 /* --- somebody who asked for less motion ------------------------------ */
@@ -598,7 +618,7 @@
   max-width: 62em;
   font-size: 14px;
   line-height: 1.6;
-  color: var(--sb-ink-2);
+  color: var(--sb-ink);
 }
 
 .sbmem-packs {
@@ -619,7 +639,7 @@
   border: 1px solid var(--sb-line-strong);
   border-radius: var(--sb-r-pill);
   font-size: 13px;
-  color: var(--sb-ink-2);
+  color: var(--sb-ink);
 }
 
 .sbmem-packs b {
@@ -663,7 +683,7 @@
   gap: 8px;
   text-align: center;
   font-size: 13px;
-  color: var(--sb-ink-2);
+  color: var(--sb-ink);
 }
 
 .sbback-line {
