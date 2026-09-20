@@ -215,15 +215,16 @@ def test_there_is_no_stage_rail_on_the_app_home(page):
     assert ".sbrail" not in css
 
 
-def test_the_door_is_the_billboard_with_the_sign_in_over_it(page):
+def test_the_door_is_the_garage_door_with_the_sign_in_over_it(page):
     """The owner: "the hero image needs to be much bigger and overlay the
     text on it with the sign up", and the sign-in as "a few ... bars
-    across the bottom of it" rather than a big box. The wide billboard is
-    the picture; the form is still the /login form, labels and all."""
+    across the bottom of it" rather than a big box. The picture is his
+    garage door (2026-09-19: "i like the garage door the best"); the form
+    is still the /login form, labels and all."""
     door = page.split('class="sbdoor"')[1]
-    assert "door-billboard-wide.webp" in door
+    assert "door-garage-wide.webp" in door
     assert os.path.exists(os.path.join(HERE, "static", "img",
-                                       "door-billboard-wide.webp"))
+                                       "door-garage-wide.webp"))
     # Hidden from sight on this page, never from a screen reader.
     assert '<label for="lsr-email">Email</label>' in door
     assert '<label for="lsr-password">Password</label>' in door
@@ -461,6 +462,6 @@ def test_the_door_picture_comes_in_three_widths(page):
     """A phone draws the banner about 622px wide, so it is offered the
     smaller files rather than only the 1672px one."""
     door = page.split('class="sbdoor"')[1]
-    for name in ("door-billboard-wide-800.webp", "door-billboard-wide-1280.webp"):
+    for name in ("door-garage-wide-800.webp", "door-garage-wide-1280.webp"):
         assert name in door
         assert os.path.exists(os.path.join(HERE, "static", "img", name))
