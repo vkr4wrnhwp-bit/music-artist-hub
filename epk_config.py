@@ -103,7 +103,7 @@ _SOCIAL_KEYS = [("instagram", "Instagram", "other"), ("tiktok", "TikTok", "tikto
 
 def normalize_epk_overrides(payload):
     """Validate + shape a saved editor payload into profile overrides."""
-    p = payload or {}
+    p = payload if isinstance(payload, dict) else {}
     out = {}
     for key, cap in (("tagline", 120), ("bio", 1200), ("location", 80)):
         val = (p.get(key) or "").strip()

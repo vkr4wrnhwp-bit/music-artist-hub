@@ -349,7 +349,9 @@ def studio_measure(project_id):
     _live()
     user = _user()
     _project_or_404(user, project_id)
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        payload = {}      # a scalar body is valid JSON and must not reach .get
     asset_id = (payload.get("asset_id") or "").strip()
     asset = sstore.get_studio_asset(_partner(user), user["id"], asset_id)
     if asset is None:

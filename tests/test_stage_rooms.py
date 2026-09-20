@@ -63,8 +63,19 @@ def test_a_stranger_is_sent_to_the_login(application):
 
 def test_a_show_with_no_passport_says_so(show, application):
     """You cannot take requests against a show nobody advanced - there are no
-    mixes to take them against."""
-    body = show["client"].get("/stage/show-nothing-here").get_data(as_text=True)
+    mixes to take them against. The date has to be the caller's own: an id
+    no tour holds is a 404 (walk of 2026-09-20), pinned in
+    tests/test_walk_live_press_2_2026_09_20.py."""
+    c = show["client"]
+    r = c.post("/tours/new", data={
+        "name": "Rooms Run", "artist_name": "Prayers", "start_date": "2030-05-01",
+        "end_date": "2030-05-10", "home_tz": "America/New_York", "currency": "USD"})
+    tid = r.headers["Location"].rstrip("/").split("/")[-1]
+    r = c.post("/tours/%s/days/add" % tid, data={
+        "date": "2030-05-02", "kind": "show", "venue": "Room", "city": "Nashville, TN",
+        "tz": "America/Chicago"})
+    sid = r.headers["Location"].split("/shows/")[1].split("?")[0]
+    body = c.get("/stage/%s" % sid).get_data(as_text=True)
     assert "no passport attached" in body.lower()
 
 

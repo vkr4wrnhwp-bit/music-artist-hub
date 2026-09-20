@@ -1268,6 +1268,16 @@ def index():
                            **_all_tours_month(mine + shared, request.args.get("month") or ""))
 
 
+def _month_first(month, fallback):
+    """The first day of a YYYY-MM month, or of `fallback` when no such
+    month exists. The shape check upstream passes 2027-13 and 2027-00;
+    the walk of 2026-09-20 found them as a 500 on the calendar pages."""
+    try:
+        return date(int(month[:4]), int(month[5:7]), 1)
+    except ValueError:
+        return date(int(fallback[:4]), int(fallback[5:7]), 1)
+
+
 def _all_tours_month(tours, month_arg):
     """One month across every tour the person owns or is on: each day's
     items carry their own link, since a cell can hold dates from two
@@ -1286,8 +1296,8 @@ def _all_tours_month(tours, month_arg):
     if not month:
         upcoming = sorted(e["date"] for e in entries if e["date"] >= today)
         month = (upcoming[0] if upcoming else today)[:7]
-    y, m = int(month[:4]), int(month[5:7])
-    first = date(y, m, 1)
+    first = _month_first(month, today[:7])
+    month, m = "%04d-%02d" % (first.year, first.month), first.month
     start = first - timedelta(days=(first.weekday() + 1) % 7)
     by_date = {}
     for e in entries:
@@ -1463,6 +1473,11 @@ def my_day(user, tour, viewer, tour_id):
     on = request.args.get("date") or eng.today_in(tour["home_tz"])
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", on):
         on = eng.today_in(tour["home_tz"])
+    try:
+        date.fromisoformat(on)
+    except ValueError:
+        # The shape passed and the day did not exist (2027-02-30).
+        on = eng.today_in(tour["home_tz"])
     schedule = _visible(viewer, ts.list_schedule(tour_id))
     travel = _redact_travel(viewer, ts.list_travel(tour_id))
     lodging = _redact_lodging(viewer, ts.list_lodging(tour_id))
@@ -1495,8 +1510,8 @@ def _calendar_month(tour, shows, days, month_arg, cal_pct):
     month = month_arg or (tour["start_date"][:7] if tour["start_date"] and tour["start_date"] > today else today[:7])
     if not re.match(r"^\d{4}-\d{2}$", month):
         month = today[:7]
-    y, m = int(month[:4]), int(month[5:7])
-    first = date(y, m, 1)
+    first = _month_first(month, today[:7])
+    month, m = "%04d-%02d" % (first.year, first.month), first.month
     start = first - timedelta(days=(first.weekday() + 1) % 7)   # weeks start Sunday
     by_date = {}
     for d in days:
@@ -1528,6 +1543,8 @@ def calendar(user, tour, viewer, tour_id):
     month = request.args.get("month") or (tour["start_date"][:7] if tour["start_date"] and tour["start_date"] > today else today[:7])
     if not re.match(r"^\d{4}-\d{2}$", month):
         month = today[:7]
+    first = _month_first(month, today[:7])
+    month = "%04d-%02d" % (first.year, first.month)
     readiness = {}
     if request.args.get("ready") != "0":
         people = ts.list_people(tour_id)

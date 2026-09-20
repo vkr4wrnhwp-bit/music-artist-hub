@@ -82,7 +82,9 @@ def audio_webhook(provider):
                                    False, raw.decode("utf-8", "replace")[:8000])
         return jsonify({"ok": False, "error": "bad signature"}), 401
 
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        payload = {}      # a scalar body is valid JSON and must not reach .get
     event_type = str(payload.get("type") or payload.get("event") or "")[:80]
 
     event_id, duplicate = astore.store_webhook_event(
