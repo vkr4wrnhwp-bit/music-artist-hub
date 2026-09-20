@@ -25,7 +25,7 @@ HUBS = [
         # MASTERCLIP OS, the video render factory, on its own service like
         # the two above (owner, 2026-09-15: "missing the video edit tool").
         # Motion is MASTERCLIP's proper name (owner, 2026-09-15).
-        ("masterclip", "/suites/go/motion", "M3 5h14v10H3z|M3 8h14|M6 5v10M14 5v10|M9 10l3-1.5v3z", "Motion", "Cinematic video from your masters and art, in its own suite (opens Motion)."),
+        ("masterclip", "/suites/go/motion", "M3 5h14v10H3z|M3 8h14|M6 5v10M14 5v10|M9 10l3-1.5v3z", "Motion", "Video from your masters and art, in its own suite (opens Motion)."),
         ("artwork", "/artwork", "M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z", "Cover Art", "Generate and manage release artwork."),
         ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Vault", "Stems, bounces and press assets - and the contracts and licences beside them."),
         ("beats", "/beats", "M5 14a3 3 0 106 0 3 3 0 00-6 0z|M11 14V4l5 2v8|M14 12a2 2 0 104 0 2 2 0 00-4 0z", "Beats", "Beat registry, licences, cleared list, usage cases."),
@@ -320,7 +320,9 @@ TOOL_SUITES_OWN = (
     # strip with the other seven (owner, 2026-09-17: "yes put royalty sweep in
     # the footer") and opens the Royalties desk in this tab.
     ("royalty-sweep", "/royalties", "M4 6h12M4 10h12M4 14h8", "Royalty Sweep", "Rights, royalties and clarity: the money desk of this app."),
-    ("noise-lab", "/suites/go/noise-lab", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Build your own effects and pedal chains for playing live (opens the Noise Lab app)."),
+    # Says what ships (audit, 2026-09-20): a loop or WAV processor with AI-set
+    # effects, A/B and patches; no live input or pedal chains yet.
+    ("noise-lab", "/suites/go/noise-lab", "M3 10c1-3 2-3 3 0s2 3 3 0 2-3 3 0 2 3 3 0 2-3 3 0|M4 15h12", "Noise Lab", "Shape a loop or your own WAV with AI-set effects, compare A/B, save patches and export (opens the Noise Lab app)."),
     ("the-room", "/suites/go/the-room", "M3 17V8l7-5 7 5v9H3z|M8 17v-5h4v5", "The Room", "Songwriting, arrangement and production: build the record part by part, in its own app."),
     ("tour-suite", "/tours", "M3 15h14|M5 15V9l5-4 5 4v6|M8 15v-3h4v3|M15 4l2 2", "Tour", "Route it, advance it, play it, settle it: the tour desk of this app."),
 )
