@@ -20,7 +20,8 @@ OWNER ONLY
 Gated on the same predicate as the rest of the platform's internal surfaces,
 which reads hashed emails plus OWNER_EMAILS. No person's name appears here.
 """
-from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask import (Blueprint, abort, jsonify, redirect, render_template,
+                   request, url_for)
 
 import audio_jobs
 import audio_policy
@@ -127,6 +128,13 @@ def _secret_presence():
 def audio_admin():
     user = _guard()
     if user is None:
+        # A signed-in artist used to be sent to the login form they had
+        # already passed, which is both a dead end and a hint that this
+        # address is worth guessing at. Every other /admin page answers a
+        # signed-in non-owner with 404, so this one does too (walk,
+        # 2026-09-20). Only a caller with no session sees the login form.
+        if _current_user and _current_user() is not None:
+            abort(404)
         return redirect(url_for("login", next=request.path))
 
     jobs = astore.list_jobs(None, limit=40)

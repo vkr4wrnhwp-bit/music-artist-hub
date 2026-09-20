@@ -65,9 +65,9 @@
 
 <div class="rv mx-auto max-w-[1200px]">
 
-  {% if request.args.get('action') %}
-  <p class="rv-ok" role="status">&ldquo;{{ request.args.get('action') }}&rdquo; is on your <a href="/actions" class="underline">Actions</a> list.</p>
-  {% endif %}
+  {#- The "is on your Actions list" line moved to partials/action_created.html
+      on 2026-09-20, so the five other pages with a Create-action button
+      confirm it too instead of only this one. -#}
 
   {% if not rv or not rv.has_data %}
   {#- The MLC is shown whether or not statements exist: a registry gap

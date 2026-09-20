@@ -1,0 +1,12 @@
+{#- "Create action" confirmed, wherever the button was pressed.
+
+    Six pages host a Create-action form and all of them post to
+    /actions/from-alert, which sends the artist back to the page they were
+    on with ?action=<title>. Only /recovery ever read that argument, so
+    pressing the button on the Growth Score or the Trust Score put you
+    back where you started with no sign anything had happened, while the
+    row was quietly created (walk, 2026-09-20). One line, one place, every
+    page. -#}
+{% if user_plan and request.args.get('action') %}
+<p role="status" class="mb-4 rounded-xl border border-sb-good/40 bg-sb-good/10 px-4 py-2 text-sm font-medium text-sb-ink">&ldquo;{{ request.args.get('action') }}&rdquo; is on your <a href="/actions" class="underline">Actions</a> list.</p>
+{% endif %}

@@ -631,4 +631,17 @@ def init(app, is_owner_email):
 
     @app.route("/admin")
     def admin_alias():
+        """The short way in, for the people the desk is for.
+
+        It used to redirect anybody, so a signed-in artist landed on the
+        desk's refusal page and learned the desk exists. Every other
+        /admin address answers them with 404, and this one now does the
+        same (walk, 2026-09-20): a login with no seat at the desk is told
+        nothing, and one with no session is sent to sign in as before.
+        """
+        app_user, desk_user = _desk_user()
+        if app_user is None:
+            return redirect(url_for("login", next=request.path))
+        if desk_user is None:
+            abort(404)
         return redirect(url_for("desk.dashboard"))

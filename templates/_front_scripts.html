@@ -26,6 +26,9 @@
     goalModal.classList.remove("flex");
   }
   document.getElementById("edit-goal-btn").addEventListener("click", openGoalModal);
+  // A rejected goal reopens the drawer, so the correction happens where
+  // the mistake was made rather than two clicks away.
+  if (document.getElementById("goal-error")) { openGoalModal(); }
   document.getElementById("goal-cancel").addEventListener("click", closeGoalModal);
   goalModal.addEventListener("click", (e) => { if (e.target === goalModal) closeGoalModal(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeGoalModal(); });
