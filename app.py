@@ -3732,6 +3732,7 @@ def create_app():
                     blob = blob_store.fetch(a["path"])
                     if blob is not None:
                         zf.writestr(arc, blob)
+                        added += 1   # a kit held in the object store counted as empty (walk, 2026-09-20)
                     continue
                 fpath = os.path.join(UPLOADS_DIR, name)
                 if os.path.exists(fpath):

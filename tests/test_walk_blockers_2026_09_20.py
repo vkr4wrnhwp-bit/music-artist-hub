@@ -1,10 +1,12 @@
 """The blockers the 2026-09-20 page walk found, pinned.
 
 Six read-only agents walked every page as a signed-in artist and a second
-pass re-checked their findings. Three things could hurt a real account:
-a Vault contract served to anyone with its address, a 500 on a sync pack
-whose title somebody had already used, and "Switch to Fan" dropping a
-paying subscriber's tier while Stripe kept billing them.
+pass re-checked their findings. Five things could hurt a real account: a
+Vault contract served to anyone with its address, a 500 on a sync pack
+whose title somebody had already used, "Switch to Fan" dropping a paying
+subscriber's tier while Stripe kept billing them, any signed-in account
+wiping the applications on any member's collab brief, and a public press
+kit button that was a 404.
 """
 import io
 import os
@@ -46,6 +48,13 @@ def _write_upload(fname, body):
     return path
 
 
+def _remove(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass  # Windows keeps a served file open a moment; the dir is temporary
+
+
 def test_a_vault_document_is_served_only_to_its_owner():
     owner, uid, _ = _account()
     other, _uid2, _ = _account()
@@ -62,10 +71,7 @@ def test_a_vault_document_is_served_only_to_its_owner():
         # A document name nobody holds is a 404 even for a signed-in account.
         assert owner.get("/uploads/doc_%s.pdf" % uuid.uuid4().hex).status_code == 404
     finally:
-        try:
-            os.remove(path)
-        except OSError:
-            pass  # Windows keeps a served file open a moment; the dir is temporary
+        _remove(path)
 
 
 def test_public_uploads_stay_public():
@@ -74,12 +80,11 @@ def test_public_uploads_stay_public():
     fname = "epk_%s.txt" % uuid.uuid4().hex
     path = _write_upload(fname, b"press photo stand-in")
     try:
-        assert appmod.app.test_client().get("/uploads/" + fname).status_code == 200
+        r = appmod.app.test_client().get("/uploads/" + fname)
+        assert r.status_code == 200
+        r.close()
     finally:
-        try:
-            os.remove(path)
-        except OSError:
-            pass  # Windows keeps a served file open a moment; the dir is temporary
+        _remove(path)
 
 
 def _pack(client, title):
@@ -116,3 +121,46 @@ def test_an_account_without_a_subscription_can_still_step_down():
     r = c.post("/plan/switch", data={"plan": "fan"})
     assert r.status_code in (302, 303)
     assert store.get_user_by_email(email)["plan"] == "fan"
+
+
+def _brief(uid):
+    store.add_collab_request(uid, "Producer", "Rock", "feature", "Walk brief",
+                             "details", "terms", "", "", city="", country="")
+    with store.get_db() as db:
+        return db.execute("SELECT id FROM collab_requests WHERE user_id = ? ORDER BY rowid DESC",
+                          (uid,)).fetchone()[0]
+
+
+def test_only_the_owner_can_delete_a_brief_and_its_applications():
+    owner, uid, _ = _account()
+    applicant, uid2, _ = _account()
+    stranger, _uid3, _ = _account()
+    req_id = _brief(uid)
+    store.add_collab_reply(req_id, uid2, "I would like this", "", "", "")
+    assert len(store.list_collab_replies(req_id)) == 1
+    stranger.post("/marketplace/%s/delete" % req_id)
+    assert store.get_collab_request(req_id) is not None
+    assert len(store.list_collab_replies(req_id)) == 1, "a stranger wiped the applications"
+    owner.post("/marketplace/%s/delete" % req_id)
+    assert store.get_collab_request(req_id) is None
+    assert store.list_collab_replies(req_id) == []
+
+
+def test_the_press_kit_zip_is_offered_only_when_there_is_something_in_it():
+    c, uid, _ = _account()
+    slug = "walk-%s" % uuid.uuid4().hex[:6]
+    store.set_epk_slug(uid, slug)
+    anon = appmod.app.test_client()
+    page = anon.get("/epk/" + slug).get_data(as_text=True)
+    assert "kit.zip" not in page
+    assert anon.get("/epk/%s/kit.zip" % slug).status_code == 404
+    png = bytes.fromhex("89504e470d0a1a0a") + bytes(64)
+    r = c.post("/epk/asset/logo", data={"asset": (io.BytesIO(png), "logo.png")},
+               content_type="multipart/form-data")
+    assert r.status_code in (200, 302), r.status_code
+    store.set_epk_asset_public(uid, "logo", True)
+    page = anon.get("/epk/" + slug).get_data(as_text=True)
+    assert "kit.zip" in page
+    z = anon.get("/epk/%s/kit.zip" % slug)
+    assert z.status_code == 200 and z.mimetype == "application/zip"
+    z.close()

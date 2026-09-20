@@ -3002,12 +3002,19 @@ def close_collab_request(user_id, req_id):
 
 
 def delete_collab_request(user_id, req_id):
+    """Delete a brief and its applications, only when the brief is this
+    account's. The applications were cascaded before the ownership check
+    was known to have matched, so any signed-in account could wipe the
+    applications on any member's brief (walk, 2026-09-20)."""
     with get_db() as db:
-        db.execute("DELETE FROM collab_requests WHERE id = ? AND user_id = ?",
-                   (req_id, user_id))
+        cur = db.execute("DELETE FROM collab_requests WHERE id = ? AND user_id = ?",
+                         (req_id, user_id))
+        if not cur.rowcount:
+            return False
         db.execute("DELETE FROM collab_replies WHERE request_id = ?", (req_id,))
         db.execute("DELETE FROM collab_ratings WHERE request_id = ? AND user_id = ?",
                    (req_id, user_id))
+    return True
 
 
 def add_collab_reply(req_id, user_id, message, contact, proposal, ref_url):
