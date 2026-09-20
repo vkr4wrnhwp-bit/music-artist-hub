@@ -17,17 +17,23 @@ PASSPORT_FIELDS = [
     ("isrc",            "ISRC",                     False, "/catalog#identifiers"),
     ("songwriters",     "Songwriters",              True,  None),
     ("producers",       "Producers",                False, None),
-    ("publishers",      "Publishers",               False, "/publishing"),
-    ("pro",             "PRO affiliation",          False, "/publishing"),
-    ("mlc_status",      "MLC registration",         False, "/mechanicals"),
-    ("soundexchange_status", "SoundExchange",       False, "/neighboring-rights"),
+    # Publishers, PRO, MLC, SoundExchange and the administrator are typed
+    # on the passport form itself; /publishing, /mechanicals and
+    # /neighboring-rights are redirects to the Royalties streams panel
+    # now, so "Fix this" led away from the field (walk, 2026-09-20). No
+    # route means the button stays off here and the action queue falls
+    # back to the track's passport.
+    ("publishers",      "Publishers",               False, None),
+    ("pro",             "PRO affiliation",          False, None),
+    ("mlc_status",      "MLC registration",         False, None),
+    ("soundexchange_status", "SoundExchange",       False, None),
     ("content_id_status", "YouTube Content ID",     False, "/connections"),
     ("split_sheet_status", "Split sheet",           True,  None),
     ("sample_clearance", "Sample clearance",        True,  None),
     ("beat_license",    "Beat license",             True,  None),
     ("featured_approval", "Featured artist approval", True, None),
     ("master_owner",    "Master owner",             True,  None),
-    ("pub_admin",       "Publishing administrator", False, "/publishing"),
+    ("pub_admin",       "Publishing administrator", False, None),
     ("explicit",        "Explicit status",          False, None),
     ("artwork_rights",  "Artwork rights",           True,  None),
     ("ai_disclosure",   "AI disclosure",            True,  None),
@@ -221,7 +227,7 @@ def mlc_evidence(track):
 # --- Clean Release --------------------------------------------------------------
 
 def clean_release(track, ctx):
-    """17 checks -> score 0-100; red rights issues block submission.
+    """16 checks -> score 0-100; red rights issues block submission.
     ctx carries real account signals; unknown stays honest yellow."""
     rep = passport_report(track)
     p = {i["key"]: i for i in rep["items"]}
@@ -247,7 +253,9 @@ def clean_release(track, ctx):
             if d["key"] in ("beat_license", "sample_clearance")) else "red", True),
         ("Featured artist approval", "green" if box["docs"][4]["state"] in ("ready", "n/a") else "red", True),
         ("Pre-save / smart link live", "green" if ctx.get("live_links") else "yellow", False),
-        ("Spotify pitch reminder set", "green" if ctx.get("release_scheduled") else "yellow", False),
+        # "Spotify pitch reminder set" is gone: no reminder exists to set,
+        # and the row went green on any future-dated campaign (walk,
+        # 2026-09-20).
         ("Apple/YouTube profile ready", pf("dsp_routing"), False),
         ("Social assets prepared",   "green" if ctx.get("rollout_assets") else "yellow", False),
         ("Fan capture in place",     "green" if ctx.get("fans") else "yellow", False),

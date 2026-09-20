@@ -99,16 +99,16 @@
   <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
     <div class="rounded-2xl border border-amber-500/15 bg-sb-surface-1 p-5">
       <div class="sb-label text-gray-300">Active Links</div>
-      <div id="kpi-links" class="mt-2 text-2xl font-bold tabular-nums text-sb-ink">{{ ld.summary.total_links }}</div>
+      <div id="kpi-links" class="mt-2 text-2xl font-bold tabular-nums text-sb-ink">{{ link_totals.total_links }}</div>
     </div>
     <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
       <div class="sb-label text-gray-300">Total Clicks</div>
-      <div id="kpi-clicks" class="mt-2 text-2xl font-bold tabular-nums">{{ "{:,}".format(ld.summary.total_clicks) }}</div>
+      <div id="kpi-clicks" class="mt-2 text-2xl font-bold tabular-nums">{{ "{:,}".format(link_totals.total_clicks) }}</div>
     </div>
     <div class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
       <div class="sb-label text-gray-300">Top Performer</div>
-      <div class="mt-2 truncate text-lg font-bold">{{ ld.summary.top_title }}</div>
-      <div class="text-xs text-gray-300 font-medium">{{ "{:,}".format(ld.summary.top_clicks) }} clicks</div>
+      <div class="mt-2 truncate text-lg font-bold">{{ link_totals.top_title }}</div>
+      <div class="text-xs text-gray-300 font-medium">{{ "{:,}".format(link_totals.top_clicks) }} clicks</div>
     </div>
   </div>
 
@@ -141,6 +141,10 @@
   </section>
   {% endif %}
 
+  {# The demo account's example set, or the empty state on an account
+     that has nothing yet. An account with real links or campaigns read
+     "No smart links yet" under its own list (walk, 2026-09-20). #}
+  {% if ld.links or not (real_links or ml_campaigns) %}
   <section class="rounded-2xl border border-white/5 bg-sb-surface-1 p-5">
     <h2 class="sb-label text-gray-300">Your Links</h2>
     <div id="links-list" class="mt-4 space-y-3">
@@ -169,6 +173,7 @@
       No smart links yet. Create your first one.
     </div>
   </section>
+  {% endif %}
 </div>
 
 <!-- Hidden logo templates, keyed for cloning into newly created links -->
@@ -283,6 +288,9 @@
   });
 
   function prependLink(link) {
+    // No list on the page (the account already has real links): the
+    // server renders the new one under Live Links on reload.
+    if (!document.getElementById("links-list")) { window.location.reload(); return; }
     document.getElementById("links-empty").classList.add("hidden");
     const logosHtml = link.platform_logos.map((p) => logoMarkup(p.logo)).join("");
     const card = document.createElement("div");

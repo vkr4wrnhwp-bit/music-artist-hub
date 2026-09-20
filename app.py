@@ -2075,8 +2075,19 @@ def create_app():
         dest = mls.get_destination(dest_id)
         if campaign is None or dest is None or dest["campaign_id"] != campaign["id"]:
             abort(404)
-        mls.track(campaign["id"], "service_click", variant_id=_ml_variant_id(campaign["id"]),
-                  service_key=dest["service_key"], referrer=request.referrer)
+        # The same door as /l/<slug>: a shared /go/ link kept redirecting
+        # and counting clicks after the campaign was taken down or
+        # archived (walk, 2026-09-20). The owner may still follow a draft's
+        # links from the preview; that is not counted.
+        if campaign.get("archived_at"):
+            return render_template("link_campaign_unavailable.html"), 410
+        owner_preview = (campaign["status"] != "live"
+                         and session.get("user_id") == campaign["user_id"])
+        if campaign["status"] != "live" and not owner_preview:
+            abort(404)
+        if not owner_preview:
+            mls.track(campaign["id"], "service_click", variant_id=_ml_variant_id(campaign["id"]),
+                      service_key=dest["service_key"], referrer=request.referrer)
         target = dest["url"]
         if not target.startswith(("http://", "https://")):
             abort(400)
@@ -4125,7 +4136,26 @@ def create_app():
         ctx["links_user"] = user
         ctx["ml_campaigns"] = ([_ml_campaign_card(c) for c in mls.list_campaigns(user["id"])]
                                if user else [])
+        ctx["link_totals"] = _links_totals(ctx["links_data"]["links"],
+                                           ctx["real_links"], ctx["ml_campaigns"])
         return render_template("links.html", active_page="links", **ctx)
+
+    def _links_totals(demo_links, real_links, campaigns):
+        """The three tiles on /links, counted from every link the page
+        lists: the account's quick links and campaigns, plus the seeded
+        examples on the demo account. They read the demo set alone, so a
+        real account saw "Active Links 0, Total Clicks 0" directly above
+        its own campaign's clicks (walk, 2026-09-20)."""
+        live = [c for c in campaigns if not c.get("archived_at")]
+        rows = ([(l["title"], l["clicks"]) for l in demo_links]
+                + [(l["title"], l["clicks"]) for l in real_links]
+                + [(c["title"], c["clicks"]) for c in live])
+        top = max(rows, key=lambda r: r[1]) if rows else None
+        return {"total_links": (len(demo_links) + len(real_links)
+                                + len([c for c in live if c["status"] == "live"])),
+                "total_clicks": sum(n for _, n in rows),
+                "top_title": top[0] if top else "No links yet",
+                "top_clicks": top[1] if top else 0}
 
     def _ml_slug(title):
         base = _slugify(title)
@@ -4259,6 +4289,19 @@ def create_app():
         if request.method == "POST":
             was = campaign["cover_url"]
             fields = _ml_form_fields()
+            if not fields["title"]:
+                # The same refusal /links/new gives. Saving went through
+                # and left a nameless campaign on /links, on its public
+                # page and in the Autopilot picker (walk, 2026-09-20).
+                dests = mls.get_destinations(cid)
+                return render_template(
+                    "links_builder.html", active_page="links",
+                    c=campaign, destinations=dests, engine=links_engine,
+                    score=links_engine.calculate_street_banker_score(campaign, dests),
+                    error="A campaign title is required.",
+                    vault_files=store.list_vault_files(campaign["user_id"]),
+                    eff_status=links_engine.effective_status(campaign),
+                    **build_dashboard_context())
             mls.update_campaign(cid, campaign["user_id"], fields)
             # Replacing a cover is the common case and used to orphan the
             # file it replaced. The row is written first: nothing is
@@ -5921,11 +5964,36 @@ def create_app():
         keys = {d["service_key"] for d in dests}
         settings = campaign.get("settings") or {}
         rollouts = ros.list_campaigns(user["id"])
-        has_rollout = any(r.get("ml_campaign_id") == campaign["id"] for r in rollouts)
+        # A rollout row is not a schedule. The lamp lit on the row alone,
+        # with zero posts behind it (walk, 2026-09-20): it needs a dated
+        # post in a rollout linked to this campaign, and the way out is
+        # that rollout when one exists.
+        linked = next((r for r in rollouts
+                       if r.get("ml_campaign_id") == campaign["id"]), None)
+        has_rollout = bool(linked) and any(
+            p.get("scheduled_date") and p.get("status") != "rejected"
+            for p in ros.list_posts(linked["id"]))
+        rollout_hint, rollout_href = (
+            ("Generate this rollout's posts so each has a date and a tracked link.",
+             "/rollout-studio/%s" % linked["id"]) if linked and not has_rollout
+            else ("Generate the social rollout with tracked links per post.",
+                  "/rollout-studio/new"))
         variants = mls.list_variants(campaign["id"])
         tracks = store.get_catalog_tracks(user["id"])
         title_l = campaign["title"].lower()
         track = next((t for t in tracks if t["title"].lower() == title_l), None)
+        # The ISRC lives on the track's passport. When the catalog already
+        # has the track, "add it to your catalog" was the wrong door
+        # (walk, 2026-09-20): point at the passport instead.
+        if track and track.get("passport_track_id"):
+            isrc_hint, isrc_href = ("Add the ISRC on the track passport.",
+                                    "/tracks/%s#passport" % track["passport_track_id"])
+        elif track:
+            isrc_hint, isrc_href = ("Add the ISRC to this track in your catalog.",
+                                    "/catalog#identifiers")
+        else:
+            isrc_hint, isrc_href = ("Add the track to your catalog so identifiers auto-pull.",
+                                    "/catalog")
         epk = store.get_epk(user["id"])
         checks = [
             ("Cover art set", bool(campaign.get("cover_url")),
@@ -5945,9 +6013,9 @@ def create_app():
             ("Consent copy set", bool(settings.get("consent_text")),
              "Consent text is stored with every signup.", "/links/%s/edit" % campaign["id"], "rights"),
             ("ISRC on catalog track", bool(track and (track.get("meta") or {}).get("isrc")),
-             "Add the track to your catalog so identifiers auto-pull.", "/catalog", "metadata"),
+             isrc_hint, isrc_href, "metadata"),
             ("Rollout scheduled", has_rollout,
-             "Generate the social rollout with tracked links per post.", "/rollout-studio/new", "rollout"),
+             rollout_hint, rollout_href, "rollout"),
             ("Promo variants created", bool(variants),
              "Create per-channel variants so every door is measured.", "/links/%s/variants" % campaign["id"], "smart_link"),
             ("Press kit ready", bool(epk and (epk.get("data") or epk.get("photo"))),
@@ -6742,14 +6810,11 @@ def create_app():
             "club_members": len([m for m in store.list_club_members(user_id)
                                  if m["status"] == "active"]),
             "sync_active": bool(store.list_sync_packs(user_id)),
-            # A future-dated campaign is what the scheduler and pitch
-            # windows read; a rollout campaign means generated assets exist.
-            "release_scheduled": any(
-                (c.get("release_date") or "") >=
-                datetime.now(timezone.utc).date().isoformat()
-                for c in mls.list_campaigns(user_id)
-                if not c.get("archived_at")),
-            "rollout_assets": bool(ros.list_campaigns(user_id)),
+            # Social assets are the files the artist put on a rollout. A
+            # rollout row alone lit "Social assets prepared" with nothing
+            # uploaded (walk, 2026-09-20).
+            "rollout_assets": any(ros.list_assets(r["id"])
+                                  for r in ros.list_campaigns(user_id)),
         }
 
     def _os_summary(user_id, tracks, ctx):

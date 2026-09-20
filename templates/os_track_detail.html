@@ -50,7 +50,7 @@
 
   <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
     <!-- Passport editor -->
-    <section class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-ground p-5">
+    <section id="passport" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-ground p-5">
       <h2 class="sb-label text-gray-300">Metadata Passport</h2>
       <p class="mt-1 text-xs text-gray-300">Green = release-ready. Yellow = incomplete but fixable. Red = rights issue blocking release. Words like "registered", "cleared", "signed", "n/a" go green; "pending" holds yellow; "blocked" or "unresolved" goes red.</p>
       <form method="post" action="/tracks/{{ track.id }}/passport" class="mt-4 grid gap-2.5 sm:grid-cols-2">
