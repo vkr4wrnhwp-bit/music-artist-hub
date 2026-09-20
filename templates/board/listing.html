@@ -7,7 +7,7 @@
   <p class="tb-eyebrow"><a href="/tour-board" style="text-decoration:none">Team-Up Board</a> · listing</p>
   {% if coach %}<div class="tb-coach{% if coach['err'] %} tb-coach-err{% endif %}" role="status"><b>{{ coach['head'] }}</b> {{ coach['items']|join(' ') }} <a href="/tour-board/{{ l['id'] }}/edit">Edit the listing</a>.</div>{% endif %}
   {% if request.args.get('renewed') %}<div class="tb-ok">Renewed — back on the board for another 60 days.</div>{% endif %}
-  {{ m.card(l, user, {l['user_id']: chips}, {}, show_reply=False) }}
+  {{ m.card(l, user, {l['user_id']: chips}, counts, show_reply=False) }}
 
   {% if mine %}
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0">

@@ -78,7 +78,7 @@
 
   <p class="pdp-foot">
     Sent{% if outlet.outlet %} to {{ outlet.outlet }}{% endif %} through Street Banker.
-    Reply to the address above to reach the artist directly.
+    {% if release.contact_email %}Reply to the address above to reach the artist directly.{% endif %}
   </p>
 </div>
 </body>
