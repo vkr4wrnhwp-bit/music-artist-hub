@@ -1,0 +1,483 @@
+{# The announcement desk (owner's design, 2026-09-20).
+
+   One page, two jobs that used to be two pages: the announcement in the
+   main column and the pitch in the rail, with a live recap of what has
+   been written at the top of the rail so nobody chooses who it goes to
+   while looking at a blank screen.
+
+   Two forms, deliberately. The announcement posts to this route. The
+   pitch posts to /press-desk/pitch/new, which is still its own page and
+   still reachable from the desk. An artist must be able to save what
+   they wrote without sending anything to anybody.
+#}
+{% set tab = 'releases' %}
+{% extends "press/_shell.html" %}
+{% block title %}{{ 'Announcement' if release else 'New announcement' }} - Press Desk{% endblock %}
+{% block press %}
+{% macro rv(key) %}{{ (release[key] if release and release[key] else '') }}{% endmacro %}
+{% set status_labels = {'draft': 'Draft', 'ready': 'Ready', 'sent': 'Sent'} %}
+{% set status_now = release.status if release else 'draft' %}
+
+<div class="ad">
+
+  <header class="ad-head">
+    <a class="ad-back" href="/press-desk">Back to the press room</a>
+    <div class="ad-head-row">
+      <div>
+        <p class="ad-eyebrow">Press</p>
+        <h1 class="ad-h1">Announcement</h1>
+        <p class="ad-sub">Write it, then choose who it goes to. Both happen here.</p>
+      </div>
+      <div class="ad-head-controls">
+        <button class="ad-btn" type="submit" form="ad-announcement">Save</button>
+        <span class="ad-pill" data-status="{{ status_now }}">{{ status_labels.get(status_now, 'Draft') }}</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="ad-work">
+
+    {# ---------- main column: the announcement ---------- #}
+    <div class="ad-main">
+      <form id="ad-announcement" method="post"
+            action="{{ '/press-desk/announcements/' ~ release.id if release else '/press-desk/announcements/new' }}">
+
+        <section class="ad-band">
+          <div class="ad-band-head">
+            <h2>The announcement</h2>
+            <p class="ad-band-note">Journalists read the headline first, so write that for them.</p>
+          </div>
+
+          <div class="ad-field ad-gap">
+            <label for="ad-title">Internal title</label>
+            <input type="text" id="ad-title" name="title" value="{{ rv('title') }}"
+                   placeholder="What you call it in here" required>
+            <p class="ad-hint">Only you see this. It is the name this announcement carries around the desk.</p>
+          </div>
+
+          <div class="ad-grid3 ad-gap">
+            <div class="ad-field">
+              <label for="ad-kind">Kind</label>
+              <select id="ad-kind" name="kind">
+                {% for k in vocab.kinds %}
+                <option {{ 'selected' if release and release.kind == k }}>{{ k }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="ad-field">
+              <label for="ad-city">Dateline city</label>
+              <input type="text" id="ad-city" name="dateline_city" value="{{ dateline_city }}"
+                     placeholder="The city it is announced from">
+            </div>
+            <div class="ad-field">
+              <label for="ad-dateline">Dateline date</label>
+              <input type="date" id="ad-dateline" name="dateline_date" value="{{ dateline_date }}">
+            </div>
+          </div>
+
+          <div class="ad-field ad-gap">
+            <label for="ad-headline">Headline</label>
+            <input type="text" id="ad-headline" name="headline" class="ad-headline-input"
+                   value="{{ rv('headline') }}" placeholder="One line, plain, no hype">
+          </div>
+
+          <div class="ad-field">
+            <label for="ad-subhead">Subheadline</label>
+            <input type="text" id="ad-subhead" name="subhead" value="{{ rv('subhead') }}"
+                   placeholder="One sentence of detail the headline left out">
+          </div>
+        </section>
+
+        <section class="ad-band">
+          <div class="ad-band-head">
+            <h2>Body</h2>
+            <p class="ad-band-note">Three short paragraphs beat one long one.</p>
+          </div>
+          <div class="ad-field ad-gap-wide">
+            <label for="ad-body">The story</label>
+            <textarea id="ad-body" name="body" rows="9"
+                      placeholder="What is happening, when, and why it matters.">{{ rv('body') }}</textarea>
+          </div>
+
+          <div class="ad-quote">
+            <div class="ad-grid2">
+              <div class="ad-field">
+                <label for="ad-quote">Pull quote</label>
+                <textarea id="ad-quote" name="quote" rows="3"
+                          placeholder="One sentence a journalist can lift straight into a story.">{{ rv('quote') }}</textarea>
+              </div>
+              <div class="ad-field">
+                <label for="ad-quote-by">Said by</label>
+                <input type="text" id="ad-quote-by" name="quote_source" value="{{ rv('quote_source') }}"
+                       placeholder="Name and role">
+                <p class="ad-hint">Use the name as it should appear in print.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="ad-band">
+          <div class="ad-band-head">
+            <h2>Links and dates</h2>
+            <p class="ad-band-note">An embargo holds the story until the time you set.</p>
+          </div>
+          <div class="ad-grid2 ad-gap">
+            <div class="ad-field">
+              <label for="ad-listen">Listen link</label>
+              <input type="url" id="ad-listen" name="listen_url" value="{{ rv('listen_url') }}"
+                     placeholder="https://">
+            </div>
+            <div class="ad-field">
+              <label for="ad-epk">Press kit link</label>
+              <input type="url" id="ad-epk" name="epk_url" value="{{ rv('epk_url') }}"
+                     placeholder="https://">
+            </div>
+          </div>
+          <div class="ad-grid3">
+            <div class="ad-field">
+              <label for="ad-release">Release date</label>
+              <input type="date" id="ad-release" name="release_date" value="{{ rv('release_date') }}">
+            </div>
+            <div class="ad-field">
+              <label for="ad-embargo-date">Embargo date</label>
+              <input type="date" id="ad-embargo-date" name="embargo_date" value="{{ embargo_date }}">
+            </div>
+            <div class="ad-field">
+              <label for="ad-embargo-time">Embargo time</label>
+              <input type="time" id="ad-embargo-time" name="embargo_time" value="{{ embargo_time }}">
+            </div>
+          </div>
+        </section>
+
+        <section class="ad-band">
+          <div class="ad-band-head">
+            <h2>Contact and boilerplate</h2>
+            <p class="ad-band-note">This sits at the foot of every announcement you send.</p>
+          </div>
+          <div class="ad-grid2 ad-gap">
+            <div class="ad-field">
+              <label for="ad-contact-name">Contact name</label>
+              <input type="text" id="ad-contact-name" name="contact_name" value="{{ rv('contact_name') }}"
+                     placeholder="Who a journalist should reply to">
+            </div>
+            <div class="ad-field">
+              <label for="ad-contact-email">Contact email</label>
+              <input type="email" id="ad-contact-email" name="contact_email" value="{{ rv('contact_email') }}"
+                     placeholder="name@example.com">
+            </div>
+          </div>
+          <div class="ad-field">
+            <label for="ad-boiler">About the artist</label>
+            <textarea id="ad-boiler" name="boilerplate" rows="4"
+                      placeholder="Two or three sentences that stay the same on every announcement.">{{ rv('boilerplate') }}</textarea>
+          </div>
+        </section>
+
+        <section class="ad-band ad-actions">
+          <div class="ad-field ad-status-field">
+            <label for="ad-status">Status</label>
+            <select id="ad-status" name="status">
+              <option value="draft" {{ 'selected' if status_now == 'draft' }}>Draft</option>
+              <option value="ready" {{ 'selected' if status_now == 'ready' }}>Ready to pitch</option>
+              <option value="sent" {{ 'selected' if status_now == 'sent' }}>Sent</option>
+            </select>
+          </div>
+          <button class="ad-btn ad-btn--solid" type="submit">{{ 'Save announcement' if release else 'Create announcement' }}</button>
+          <a class="ad-btn" href="/press-desk/announcements">All announcements</a>
+        </section>
+      </form>
+
+      {% if release %}
+      <section class="ad-band">
+        <div class="ad-band-head">
+          <h2>What a journalist opens</h2>
+          <p class="ad-band-note">The page behind every tracked link, as it reads to them.</p>
+        </div>
+        <div class="pd-paper">
+          <span class="pd-paper-tag">{{ release.kind }}{% if embargo_date %} · Embargoed until {{ embargo_date }}{% endif %}</span>
+          <h3>{{ release.headline or release.title }}</h3>
+          {% if release.subhead %}<p class="pd-paper-sub">{{ release.subhead }}</p>{% endif %}
+          {% if release.dateline %}<p class="pd-paper-meta">{{ release.dateline }}</p>{% endif %}
+          <hr>
+          {% for para in (release.body or '').split('\n\n') %}{% if para.strip() %}<p>{{ para.strip() }}</p>{% endif %}{% endfor %}
+          {% if release.quote %}
+          <blockquote>“{{ release.quote }}”{% if release.quote_source %}<br><span class="pd-paper-meta">{{ release.quote_source }}</span>{% endif %}</blockquote>
+          {% endif %}
+          {% if release.boilerplate %}<hr><p class="pd-paper-meta">{{ release.boilerplate }}</p>{% endif %}
+          {% if release.contact_email %}
+          <p class="pd-paper-meta">Press contact: {{ release.contact_name }}, {{ release.contact_email }}</p>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="ad-band">
+        <form method="post" action="/press-desk/announcements/{{ release.id }}/delete"
+              onsubmit="return confirm('Delete this announcement and any pitches built from it?')">
+          <button class="ad-btn" type="submit">Delete announcement</button>
+        </form>
+      </section>
+      {% endif %}
+    </div>
+
+    {# ---------- rail: the pitch ---------- #}
+    <aside class="ad-rail" aria-label="Pitch this announcement">
+      <div class="ad-rail-sticky">
+
+        <div class="ad-rail-band ad-rail-head">
+          <h2>Pitch it</h2>
+          <p>Choose who gets it. Your announcement stays open beside you.</p>
+        </div>
+
+        <div class="ad-rail-band">
+          <div class="ad-recap">
+            <span class="ad-recap-kind" id="ad-recap-kind">{{ release.kind if release else vocab.kinds[0] }}</span>
+            <p class="ad-recap-headline" id="ad-recap-headline">{{ release.headline if release and release.headline else 'Your headline appears here as you write it.' }}</p>
+            <p class="ad-recap-meta" id="ad-recap-meta">{{ recap_meta }}</p>
+          </div>
+        </div>
+
+        {% if not release %}
+        <div class="ad-rail-band">
+          <p class="ad-empty">Save the announcement before you can pitch it. A pitch points at one
+            announcement, and this one does not exist yet.</p>
+        </div>
+        {% else %}
+        <form id="ad-pitch" method="post" action="/press-desk/pitch/new">
+          <input type="hidden" name="release_id" value="{{ release.id }}">
+
+          <div class="ad-rail-band">
+            {% if not contacts %}
+            <p class="ad-empty">Your media list is empty, so there is nobody to pitch.
+              <a href="/press-desk/contacts">Add a contact</a> and this fills itself in.</p>
+            {% else %}
+            <div class="ad-field ad-search">
+              <label for="ad-search">Search your media list</label>
+              <input type="text" id="ad-search" placeholder="Name or outlet">
+            </div>
+
+            <div class="ad-list" id="ad-list">
+              {% for c in contacts %}
+              {% set blocked = c.status != 'active' or not c.email %}
+              <label class="ad-contact{{ ' is-blocked' if blocked }}">
+                <input type="checkbox" name="contact_ids" value="{{ c.id }}" {{ 'disabled' if blocked }}>
+                <span>
+                  <span class="ad-contact-name">{{ c.name }}</span>
+                  <span class="ad-contact-outlet">
+                    {{ c.outlet or c.role }}{% if not c.email %} · no email on file{% endif %}{% if c.status != 'active' %} · {{ vocab.status_labels[c.status] }}{% endif %}
+                  </span>
+                </span>
+              </label>
+              {% endfor %}
+            </div>
+            <p class="ad-count" id="ad-count"
+               data-none="{{ count_none }}" data-some="{{ count_pattern }}">{{ count_none }}</p>
+            <p class="ad-cap" id="ad-cap" hidden>A pitch carries at most {{ vocab.max_recipients }} contacts.
+              Everyone past that is left out, and the pitch will name them.</p>
+            {% endif %}
+          </div>
+
+          <div class="ad-rail-band">
+            <div class="ad-field ad-gap-s">
+              <label for="ad-subject">Subject line</label>
+              <input type="text" id="ad-subject" name="subject" value="{{ default_subject }}">
+            </div>
+            <div class="ad-field ad-gap-s">
+              <label for="ad-note">Covering message</label>
+              <textarea id="ad-note" name="body" rows="5">{{ default_body }}</textarea>
+            </div>
+            <p class="ad-hint">{% for token, meaning in vocab.placeholders %}{{ token }}{{ ', ' if not loop.last }}{% endfor %}
+              fill themselves in per contact. Anything else in braces is left as you typed it.</p>
+
+            {% if kits|length == 1 %}
+            {% set only_kit = kits[0] %}
+            <label class="ad-mode ad-mode--tight">
+              <input type="checkbox" name="kit" value="{{ only_kit[0] }}">
+              <span>
+                <span class="ad-mode-name">Attach the press kit</span>
+                <span class="ad-mode-what">{{ only_kit[1] }}</span>
+              </span>
+            </label>
+            {% elif kits|length > 1 %}
+            <div class="ad-field">
+              <label for="ad-kit">Press kit</label>
+              <select id="ad-kit" name="kit">
+                <option value="">Do not attach one</option>
+                {% for value, label, link, fid in kits %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+          </div>
+
+          <div class="ad-rail-band">
+            <p class="ad-lbl">How it goes out</p>
+            <div class="ad-modes">
+              <label class="ad-mode">
+                <input type="radio" name="mode" value="{{ mode_own }}" checked>
+                <span>
+                  <span class="ad-mode-name">From my own inbox</span>
+                  <span class="ad-mode-what">We prepare each email. You press send.</span>
+                </span>
+              </label>
+              <label class="ad-mode{{ ' is-blocked' if not send_state.platform }}">
+                <input type="radio" name="mode" value="{{ mode_platform }}" {{ 'disabled' if not send_state.platform }}>
+                <span>
+                  <span class="ad-mode-name">From Street Banker</span>
+                  <span class="ad-mode-what">{% if send_state.platform %}We send them and track who opens.{% else %}{{ send_state.reason }} {{ send_state.detail }}{% endif %}</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="ad-send-band">
+            <button class="ad-btn-gold" type="submit" id="ad-send"
+                    data-own-one="{{ send_labels.own_one }}"
+                    data-own-many="{{ send_labels.own_many }}"
+                    data-platform-one="{{ send_labels.platform_one }}"
+                    data-platform-many="{{ send_labels.platform_many }}"
+                    data-needs-headline="{{ needs_headline }}"
+                    data-needs-contacts="{{ needs_contacts }}"
+                    data-needs-body="{{ needs_body }}"
+                    {{ 'disabled' if send_default.disabled }}>{{ send_default.label }}</button>
+            <p class="ad-send-note{{ ' is-embargo' if embargo_date }}" id="ad-embargo-note">{{ embargo_line }}</p>
+            <p class="ad-send-note">Nothing leaves yet. This writes the messages so you can read them first.</p>
+          </div>
+        </form>
+        {% endif %}
+
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+/* The rail, kept honest while the main column is being typed into.
+   Every sentence it writes is one the server already wrote once: the
+   phrasing arrives on data attributes rather than being restated here,
+   so the page cannot start saying something the route disagrees with. */
+(function () {
+  var form = document.getElementById('ad-announcement');
+  if (!form) { return; }
+
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                'August', 'September', 'October', 'November', 'December'];
+
+  function byId(id) { return document.getElementById(id); }
+  function val(id) { var el = byId(id); return el ? el.value.trim() : ''; }
+
+  function human(iso) {
+    if (!iso) { return ''; }
+    var parts = iso.split('-');
+    if (parts.length !== 3) { return iso; }
+    var month = Number(parts[1]);
+    if (!(month >= 1 && month <= 12)) { return iso; }
+    return Number(parts[2]) + ' ' + MONTHS[month - 1] + ' ' + parts[0];
+  }
+
+  var recapKind = byId('ad-recap-kind');
+  var recapHeadline = byId('ad-recap-headline');
+  var recapMeta = byId('ad-recap-meta');
+  var count = byId('ad-count');
+  var cap = byId('ad-cap');
+  var send = byId('ad-send');
+  var note = byId('ad-embargo-note');
+  var boxes = [].slice.call(document.querySelectorAll('#ad-list input[type=checkbox]'));
+  var maxRecipients = {{ vocab.max_recipients }};
+
+  function chosen() {
+    var n = 0;
+    for (var i = 0; i < boxes.length; i++) { if (boxes[i].checked) { n += 1; } }
+    return n;
+  }
+
+  function mode() {
+    var picked = document.querySelector('#ad-pitch input[name=mode]:checked');
+    return picked ? picked.value : 'own_inbox';
+  }
+
+  function refreshRecap() {
+    if (recapKind) { recapKind.textContent = val('ad-kind'); }
+    if (recapHeadline) {
+      recapHeadline.textContent = val('ad-headline')
+        || 'Your headline appears here as you write it.';
+    }
+    if (!recapMeta) { return; }
+    var meta = [];
+    var city = val('ad-city');
+    var dateline = human(val('ad-dateline'));
+    if (city && dateline) { meta.push(city + ', ' + dateline + '.'); }
+    else if (city) { meta.push(city + '.'); }
+    if (val('ad-release')) { meta.push('Out ' + human(val('ad-release')) + '.'); }
+    recapMeta.textContent = meta.length ? meta.join(' ')
+      : 'Add a dateline and a release date.';
+  }
+
+  function refreshEmbargo() {
+    if (!note) { return; }
+    var date = val('ad-embargo-date');
+    var time = val('ad-embargo-time');
+    if (!date) {
+      note.textContent = 'No embargo set. Journalists may publish as soon as they read it.';
+      note.classList.remove('is-embargo');
+      return;
+    }
+    note.textContent = 'Held under embargo until ' + human(date)
+      + (time ? ', ' + time : '') + '.';
+    note.classList.add('is-embargo');
+  }
+
+  function refreshSend() {
+    var n = chosen();
+    if (count) {
+      count.textContent = n === 0
+        ? count.getAttribute('data-none')
+        : count.getAttribute('data-some').replace('%d', n);
+    }
+    if (cap) { cap.hidden = n <= maxRecipients; }
+    if (!send) { return; }
+    var headline = val('ad-headline');
+    var body = val('ad-body');
+    if (!headline) {
+      send.disabled = true;
+      send.textContent = send.getAttribute('data-needs-headline');
+    } else if (n === 0) {
+      send.disabled = true;
+      send.textContent = send.getAttribute('data-needs-contacts');
+    } else if (!body) {
+      send.disabled = true;
+      send.textContent = send.getAttribute('data-needs-body');
+    } else {
+      var key = (mode() === 'platform' ? 'platform' : 'own')
+        + (n === 1 ? '-one' : '-many');
+      send.disabled = false;
+      send.textContent = send.getAttribute('data-' + key).replace('%d', n);
+    }
+  }
+
+  function refresh() { refreshRecap(); refreshEmbargo(); refreshSend(); }
+
+  ['ad-kind', 'ad-city', 'ad-dateline', 'ad-headline', 'ad-body', 'ad-release',
+   'ad-embargo-date', 'ad-embargo-time'].forEach(function (id) {
+    var el = byId(id);
+    if (el) { el.addEventListener('input', refresh); el.addEventListener('change', refresh); }
+  });
+  boxes.forEach(function (b) { b.addEventListener('change', refreshSend); });
+  [].slice.call(document.querySelectorAll('#ad-pitch input[name=mode]'))
+    .forEach(function (r) { r.addEventListener('change', refreshSend); });
+
+  var search = byId('ad-search');
+  if (search) {
+    search.addEventListener('input', function () {
+      var q = this.value.toLowerCase();
+      [].slice.call(document.querySelectorAll('#ad-list .ad-contact'))
+        .forEach(function (row) {
+          row.hidden = row.textContent.toLowerCase().indexOf(q) === -1;
+        });
+    });
+  }
+
+  refresh();
+})();
+</script>
+{% endblock %}

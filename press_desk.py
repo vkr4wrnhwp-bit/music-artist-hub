@@ -151,6 +151,136 @@ def _uploads():
     return _uploads_dir or os.path.join(os.path.dirname(store.db_path()), "uploads")
 
 
+# --- the announcement desk's own copy ---------------------------------------
+#
+# The rail's two live readouts, the chosen-contacts line and the send
+# button, are written once here and handed to the page as text. The
+# script that re-renders them while boxes are ticked is given the same
+# strings, so the sentence an artist reads before touching anything and
+# the one they read afterwards cannot say different things.
+
+SEND_LABELS = {
+    press_store.MODE_OWN_INBOX: ("Prepare %d email in my inbox",
+                                 "Prepare %d emails in my inbox"),
+    press_store.MODE_PLATFORM: ("Send %d pitch", "Send %d pitches"),
+}
+
+NEEDS_HEADLINE = "Write a headline first"
+NEEDS_CONTACTS = "Choose who it goes to"
+NEEDS_BODY = "Write the announcement first"
+NO_CONTACTS_CHOSEN = "No contacts chosen yet. Tick the people this should reach."
+
+
+def count_line(chosen, total):
+    """"3 chosen from 12 contacts on your list.", from real counts.
+
+    `chosen` may be the literal "%d", which returns the same sentence
+    with a hole in it for the script to fill as boxes are ticked. Zero
+    is never rendered as a measurement: none chosen is a different
+    sentence, not the number nought.
+    """
+    if chosen == 0:
+        return NO_CONTACTS_CHOSEN
+    return "%s chosen from %d contact%s on your list." % (
+        chosen, total, "" if total == 1 else "s")
+
+
+def send_button(mode, chosen, headline, body):
+    """What the rail's send button says, and whether it can be pressed.
+
+    Nothing here is a guess: `chosen` is how many contacts are actually
+    ticked, and the three refusals name the one thing that is missing
+    rather than greying the button out in silence.
+    """
+    if not (headline or "").strip():
+        return {"label": NEEDS_HEADLINE, "disabled": True}
+    if not chosen:
+        return {"label": NEEDS_CONTACTS, "disabled": True}
+    if not (body or "").strip():
+        return {"label": NEEDS_BODY, "disabled": True}
+    one, many = SEND_LABELS.get(mode, SEND_LABELS[press_store.MODE_OWN_INBOX])
+    return {"label": (one if chosen == 1 else many) % chosen,
+            "disabled": False}
+
+
+def _announcement_fields(form):
+    """The posted announcement, with the pairs the desk asks for folded
+    back into the single columns the store keeps.
+
+    A caller that posts `dateline` or `embargo_until` straight through
+    is left exactly as it was, so nothing that already worked has to
+    learn the new field names.
+    """
+    fields = dict(form.items())
+    if "dateline_city" in form or "dateline_date" in form:
+        fields["dateline"] = press_store.compose_dateline(
+            form.get("dateline_city"), form.get("dateline_date"))
+    if "embargo_date" in form or "embargo_time" in form:
+        fields["embargo_until"] = press_store.compose_embargo(
+            form.get("embargo_date"), form.get("embargo_time"))
+    return fields
+
+
+def _recap_meta(release, city, dateline_date):
+    """The rail's one-line recap of where and when, from the fields as
+    they stand. Nothing is filled in for an empty announcement: it says
+    what is missing instead."""
+    parts = []
+    if city and dateline_date:
+        parts.append("%s." % press_store.compose_dateline(city, dateline_date))
+    elif city:
+        parts.append("%s." % city)
+    release_date = (release or {}).get("release_date") or ""
+    if release_date:
+        parts.append("Out %s." % press_store.human_date(release_date))
+    return " ".join(parts) or "Add a dateline and a release date."
+
+
+def _desk_context(user, release):
+    """Everything the announcement desk's pitch rail shows, all of it
+    read from this artist's own rows.
+
+    On an announcement that has not been saved there is no release_id
+    to pitch, so the rail gets the contacts it would have shown and the
+    page declines to draw the controls rather than drawing dead ones.
+    """
+    contacts_all = press_store.list_contacts(user["id"])
+    total = len(contacts_all)
+    city, dateline_date = press_store.split_dateline(
+        (release or {}).get("dateline"))
+    embargo_date, embargo_time = press_store.split_embargo(
+        (release or {}).get("embargo_until"))
+    return {
+        "recap_meta": _recap_meta(release, city, dateline_date),
+        "contacts": contacts_all,
+        "contacts_total": total,
+        "kits": _kit_choices(user),
+        "default_subject": DEFAULT_SUBJECT,
+        "default_body": DEFAULT_BODY,
+        "count_none": NO_CONTACTS_CHOSEN,
+        "count_pattern": count_line("%d", total),
+        "send_labels": {
+            "own_one": SEND_LABELS[press_store.MODE_OWN_INBOX][0],
+            "own_many": SEND_LABELS[press_store.MODE_OWN_INBOX][1],
+            "platform_one": SEND_LABELS[press_store.MODE_PLATFORM][0],
+            "platform_many": SEND_LABELS[press_store.MODE_PLATFORM][1],
+        },
+        "mode_own": press_store.MODE_OWN_INBOX,
+        "mode_platform": press_store.MODE_PLATFORM,
+        "send_default": send_button(press_store.MODE_OWN_INBOX, 0,
+                                    (release or {}).get("headline") or "",
+                                    (release or {}).get("body") or ""),
+        "needs_headline": NEEDS_HEADLINE,
+        "needs_contacts": NEEDS_CONTACTS,
+        "needs_body": NEEDS_BODY,
+        "embargo_line": press_store.embargo_label(release),
+        "dateline_city": city,
+        "dateline_date": dateline_date,
+        "embargo_date": embargo_date,
+        "embargo_time": embargo_time,
+    }
+
+
 def _ctx(user, **extra):
     base = {
         "active_page": "press-desk",
@@ -275,25 +405,36 @@ def releases(user):
 @bp.route("/press-desk/announcements/new", methods=["GET", "POST"])
 @artist_required
 def release_new(user):
+    """Write one. The page is the announcement desk with an empty rail:
+    a pitch needs a release_id, and creating the announcement is what
+    makes one."""
     if request.method == "POST":
-        release_id = press_store.create_release(user["id"], request.form)
+        release_id = press_store.create_release(
+            user["id"], _announcement_fields(request.form))
         return redirect(url_for("press.release_edit", release_id=release_id))
-    return render_template("press/release_form.html", **_ctx(
-        user, release=None, artist_name=artist_identity.display_name(user)))
+    return render_template("press/announcement_desk.html", **_ctx(
+        user, release=None, artist_name=artist_identity.display_name(user),
+        embargoed=False, **_desk_context(user, None)))
 
 
 @bp.route("/press-desk/announcements/<release_id>", methods=["GET", "POST"])
 @artist_required
 def release_edit(user, release_id):
+    """The announcement and the pitch on one page (owner's design,
+    2026-09-20). The announcement is the main column and posts here;
+    the pitch is the rail and posts to /press-desk/pitch/new, which is
+    still its own page and still reachable on its own."""
     release = press_store.get_release(user["id"], release_id)
     if release is None:
         abort(404)
     if request.method == "POST":
-        press_store.update_release(user["id"], release_id, request.form)
+        press_store.update_release(user["id"], release_id,
+                                   _announcement_fields(request.form))
         release = press_store.get_release(user["id"], release_id)
-    return render_template("press/release_form.html", **_ctx(
+    return render_template("press/announcement_desk.html", **_ctx(
         user, release=release, artist_name=artist_identity.display_name(user),
-        embargoed=press_store.embargo_active(release)))
+        embargoed=press_store.embargo_active(release),
+        **_desk_context(user, release)))
 
 
 @bp.route("/press-desk/announcements/<release_id>/delete", methods=["POST"])
