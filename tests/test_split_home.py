@@ -309,15 +309,50 @@ def test_each_pass_is_a_plate_a_word_mask_and_the_light_between(page):
         assert split_home.ENGRAVED[key] in band, key
 
 
-def test_the_coins_ship_and_stay_decorative(page):
+def test_the_credits_band_is_off_the_page_for_now(page):
+    """Owner, 2026-09-20: "the coin is super tiny. It doesn't make any
+    sense. Or we just hide it for right now." The band is hidden behind
+    split_home.SHOW_CREDITS until credits are priced and the coin is shot
+    bigger; the two coin images stay on disk and the markup stays in the
+    template so the band comes back with one flag."""
+    assert split_home.SHOW_CREDITS is False
     for name in ("credit-pile", "credit-coin"):
         assert os.path.exists(
             os.path.join(HERE, "static", "img", "%s.webp" % name)), name
     band = page.split('class="sbmem"')[1].split("</section>")[0]
-    # Only the two coin images are decorative. The plates are labelled,
-    # because they carry words.
-    assert band.count('alt=""') == 2
+    assert "sbmem-credits" not in band
+    assert "credit-coin" not in band and "credit-pile" not in band
+    t = io.open(os.path.join(HERE, "templates", "partials", "memberships_band.html"),
+                encoding="utf-8").read()
+    assert "{% if sh.show_credits %}" in t and "credit-coin.webp" in t
 
+
+def test_the_home_page_has_no_dim_text_and_the_artist_letters_are_bronze(page):
+    """Owner, 2026-09-20: the Plans link "is really hard to see... any text
+    that color needs to be brighter", and "the artist package should be
+    the same kind of brown as pro and label is written in". The home
+    sheet sets nothing in the second ink; the bar's links are near-white
+    and gold under the pointer; and only the ARTIST pass carries the
+    bronze tint layer, masked by its own words, under the light layers."""
+    css = io.open(os.path.join(HERE, "static", "css", "split-home.css"),
+                  encoding="utf-8").read()
+    assert "var(--sb-ink-2)" not in css
+    assert ".sbbar-nav a { color: var(--sb-ink); text-decoration: none; }" in css
+    assert ".sbbar-nav a:hover { color: var(--sb-gold-bright); }" in css
+    tint = css.split(".sbmem-tint {")[1].split("}")[0]
+    assert "var(--sbmem-words)" in tint and "var(--sbmem-ink)" in tint
+    assert "mix-blend-mode: multiply" in tint
+    band = page.split('class="sbmem"')[1].split("</section>")[0]
+    assert band.count('class="sbmem-tint"') == 1
+    artist = band.split('aria-label="Artist pass')[0].rsplit("<a class=", 1)[1]
+    assert "--sbmem-ink: #8C6A3C;" in artist
+    for other in ("Pro pass", "Label pass"):
+        pass_markup = band.split('aria-label="%s' % other)[0].rsplit("<a class=", 1)[1]
+        assert "--sbmem-ink" not in pass_markup, other
+    # The tint sits before the light layers, so the hover still lights the letters.
+    assert band.index('class="sbmem-tint"') < band.index('class="sbmem-bloom"')
+    # A fresh sheet and script version, so no browser keeps the old look.
+    assert "split-home.css?v=13" in page and "artist-eq.js?v=15" in page
 
 def _band(body):
     return body.split('class="sbmem"')[1].split("</section>")[0]

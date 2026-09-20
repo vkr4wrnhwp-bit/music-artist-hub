@@ -76,6 +76,11 @@ ENGRAVED = {
               "monthly credits."),
 }
 
+# The credits band is off the page for now (owner, 2026-09-20: the coin
+# "is super tiny... or we just hide it for right now"). It returns, with a
+# bigger coin, once credits are priced.
+SHOW_CREDITS = False
+
 CREDIT_NOTE = (
     "The Room and Motion run on credits, because every render costs real "
     "compute. Label includes credits every month. Noise Lab is coming soon.")
@@ -193,6 +198,11 @@ def get_split_home_config(signup_open=False):
         # sb-keep: light on the owner's gold plate
         "label": ("gold", "#FFFBE6", "#FFD45E"),
     }
+    # sb-keep: the bronze the PRO plate's letters are cut in, multiplied over
+    # the ARTIST plate's white letters so the three passes read as one family
+    # (owner, 2026-09-20: "the same kind of brown as pro and label is written
+    # in"). Data about a photograph, like the six values above.
+    ink = {"artist": "#8C6A3C"}
     soon = coming_soon(paid)
     tiers = []
     for key, name, price, blurb, includes in plans.PLANS:
@@ -203,6 +213,7 @@ def get_split_home_config(signup_open=False):
             "key": key, "name": name, "price": price, "blurb": blurb,
             "includes": includes, "top": key == "label",
             "finish": finish, "lit": lit, "bloom": bloom,
+            "ink": ink.get(key, ""),
             # ?v=2: the ARTIST plate was re-shot with white letters
             # (owner, 2026-09-18) under the same file name, so browsers
             # holding the gold one must fetch it again.
@@ -230,4 +241,7 @@ def get_split_home_config(signup_open=False):
         "tiers": tiers,
         "credit_note": CREDIT_NOTE,
         "packs": packs,
+        # Hidden while SHOW_CREDITS is off, unless packs are actually on sale:
+        # a price list nobody can see is worse than a small coin.
+        "show_credits": SHOW_CREDITS or bool(packs),
     }

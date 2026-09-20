@@ -50,12 +50,15 @@
       {% for t in sh.tiers %}
       <li class="sbmem-tier">
         <a class="sbmem-pass{% if t.top %} is-top{% endif %}" href="/billing"
-           style="--sbmem-plate: url('{{ t.plate }}'); --sbmem-words: url('{{ t.words }}'); --sbmem-lit: {{ t.lit }}; --sbmem-bloom: {{ t.bloom }};">
+           style="--sbmem-plate: url('{{ t.plate }}'); --sbmem-words: url('{{ t.words }}'); --sbmem-lit: {{ t.lit }}; --sbmem-bloom: {{ t.bloom }};{% if t.ink %} --sbmem-ink: {{ t.ink }};{% endif %}">
           {#- The plate carries the words, so it is the image and it is
               labelled. The three layers over it are light and are
               hidden from the accessibility tree. -#}
           <span class="sbmem-card" role="img"
                 aria-label="{{ t.name }} pass, {{ t.finish }}: {{ t.reads }}">
+            {#- The ARTIST plate's white letters, tinted the bronze of the PRO
+                letters at rest (owner, 2026-09-20). Under the light layers. -#}
+            {% if t.ink %}<i class="sbmem-tint" aria-hidden="true"></i>{% endif %}
             <i class="sbmem-bloom" aria-hidden="true"></i>
             <i class="sbmem-glow" aria-hidden="true"></i>
             <i class="sbmem-sheen" aria-hidden="true"></i>
@@ -67,6 +70,11 @@
       {% endfor %}
     </ul>
 
+    {#- Hidden for now (owner, 2026-09-20: "the coin is super tiny. It doesn't
+        make any sense. Or we just hide it for right now"). The markup stays so
+        the band comes back, with a bigger coin, once credits are priced;
+        split_home.SHOW_CREDITS is the switch. -#}
+    {% if sh.show_credits %}
     <div class="sbmem-credits">
       <img class="sbmem-pile" src="/static/img/credit-pile.webp"
            width="760" height="449" loading="lazy" decoding="async" alt="">
@@ -88,5 +96,6 @@
         {% endif %}
       </div>
     </div>
+    {% endif %}
   </div>
 </section>
