@@ -7,8 +7,17 @@
 
     Expects: au_tab ("audience" | "crm"), au_resend (bool), au_no_import (bool). -#}
 {% import "_sb.html" as sb %}
-{% call sb.plate(none, [], "Street Banker · Fans", "Audience",
-                 "Everyone who is yours, where they are, and who you may contact.") %}
+{#- Each page names itself (owner, 2026-09-19: "both fan CRM and fans are
+    still named audience"). Audience is the understanding; Fan CRM is the
+    people on file. -#}
+{% if au_tab == "crm" %}
+  {% set au_title = "Fan CRM" %}
+  {% set au_sub = "Every fan on file: who they are, where they came from, and who you may contact." %}
+{% else %}
+  {% set au_title = "Audience" %}
+  {% set au_sub = "Everyone who is yours, where they are, and who you may contact." %}
+{% endif %}
+{% call sb.plate(none, [], "Street Banker · Fans", au_title, au_sub) %}
   {#- Only what config can truthfully say. A key being set is not a send
       having worked, so the lamp is gold, not the green of verified. -#}
   {% if au_resend %}<span class="au-pill" title="RESEND_API_KEY is set on this service. Nothing has been sent from this screen."><span class="au-pill-dot" aria-hidden="true"></span>Resend configured</span>{% endif %}
