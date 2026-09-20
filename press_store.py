@@ -424,7 +424,10 @@ def create_release(user_id, fields):
              (fields.get("boilerplate") or "").strip()[:2000],
              (fields.get("contact_name") or "").strip()[:120],
              (fields.get("contact_email") or "").strip()[:200],
-             (fields.get("embargo_until") or "").strip()[:10],
+             # 16, not 10: an embargo may carry a time of day, stored as
+             # "YYYY-MM-DDTHH:MM". A date-only value is untouched by the
+             # wider slice.
+             (fields.get("embargo_until") or "").strip()[:16],
              (fields.get("release_date") or "").strip()[:10],
              (fields.get("listen_url") or "").strip()[:400],
              (fields.get("epk_url") or "").strip()[:400],
@@ -455,7 +458,8 @@ def update_release(user_id, release_id, fields):
              (fields.get("boilerplate") or "").strip()[:2000],
              (fields.get("contact_name") or "").strip()[:120],
              (fields.get("contact_email") or "").strip()[:200],
-             (fields.get("embargo_until") or "").strip()[:10],
+             # See create_release: 16 characters carry the optional time.
+             (fields.get("embargo_until") or "").strip()[:16],
              (fields.get("release_date") or "").strip()[:10],
              (fields.get("listen_url") or "").strip()[:400],
              (fields.get("epk_url") or "").strip()[:400],
@@ -506,12 +510,131 @@ def delete_release(user_id, release_id):
 def embargo_active(release, today=None):
     """True while an embargo date is in the future. The public page shows
     the embargo rather than hiding the announcement: a journalist who
-    followed the link is supposed to read it and hold it."""
+    followed the link is supposed to read it and hold it.
+
+    Only the first ten characters are compared, so a value that carries
+    a time of day ("2026-10-17T09:00") answers exactly as the date-only
+    rows written before times existed ("2026-10-17") always did.
+    """
     until = (release or {}).get("embargo_until") or ""
     if not until:
         return False
     today = today or datetime.now(timezone.utc).date().isoformat()
-    return until > today
+    return until[:10] > today
+
+
+# --- the two boxes and the one column ---------------------------------------
+#
+# The desk asks for a dateline as a city and a date, and for an embargo
+# as a date and a time, because that is what a person knows. The store
+# keeps one column for each. Everything that takes them apart and puts
+# them back lives here, together, so the two directions cannot drift.
+
+MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+          "August", "September", "October", "November", "December"]
+
+# "Atlanta, 3 October 2026" and nothing looser. A dateline that was
+# typed by hand in some other shape is left whole rather than guessed at.
+_DATELINE_RE = re.compile(r"^(.*), (\d{1,2} \w+ \d{4})$")
+
+
+def human_date(iso_date):
+    """"2026-10-17" read out as "17 October 2026".
+
+    Anything this cannot parse comes back exactly as it arrived: a date
+    the desk does not recognise is still the artist's date.
+    """
+    iso = (iso_date or "").strip()[:10]
+    try:
+        year, month, day = int(iso[:4]), int(iso[5:7]), int(iso[8:10])
+    except (ValueError, IndexError):
+        return iso
+    if not 1 <= month <= 12:
+        return iso
+    return "%d %s %d" % (day, MONTHS[month - 1], year)
+
+
+def split_dateline(value):
+    """A stored dateline back into the (city, date) pair the page shows.
+
+    "Atlanta, 3 October 2026" becomes ("Atlanta", "2026-10-03"), which
+    is what the city box and the date input each want.
+
+    Anything that does not match that shape is not thrown away: the
+    whole stored string comes back as the city and the date box is left
+    empty, so a hand-typed dateline survives a round trip through the
+    form untouched.
+    """
+    text = (value or "").strip()
+    if not text:
+        return "", ""
+    match = _DATELINE_RE.match(text)
+    if match is None:
+        return text, ""
+    day, month, year = match.group(2).split(" ")
+    if month not in MONTHS:
+        return text, ""
+    return (match.group(1).strip(),
+            "%s-%02d-%02d" % (year, MONTHS.index(month) + 1, int(day)))
+
+
+def compose_dateline(city, iso_date):
+    """The (city, date) pair back into the single column.
+
+    ("Atlanta", "2026-10-03") becomes "Atlanta, 3 October 2026"; a city
+    with no date is the city alone. A date with no city is nothing at
+    all, because a date on its own is not a dateline.
+    """
+    city = (city or "").strip()
+    if not city:
+        return ""
+    human = human_date(iso_date)
+    return "%s, %s" % (city, human) if human else city
+
+
+def split_embargo(value):
+    """A stored embargo back into the (date, time) pair the page shows.
+
+    "2026-10-17T09:00" becomes ("2026-10-17", "09:00"); a date-only
+    value leaves the time box empty.
+    """
+    text = (value or "").strip()
+    if not text:
+        return "", ""
+    if len(text) >= 16 and text[10] in "T ":
+        return text[:10], text[11:16]
+    return text[:10], ""
+
+
+def compose_embargo(date_value, time_value):
+    """The (date, time) pair back into the single column.
+
+    The date alone when no time was given, so an artist who only knows
+    the day is not made to invent an hour.
+    """
+    date_part = (date_value or "").strip()[:10]
+    time_part = (time_value or "").strip()[:5]
+    if not date_part:
+        return ""
+    return "%sT%s" % (date_part, time_part) if time_part else date_part
+
+
+def embargo_label(release):
+    """The sentence the pitch rail shows about this announcement's
+    embargo, in words rather than a stored string.
+
+    There is no embargo on most announcements, and saying so plainly is
+    the point: an artist who sees nothing about an embargo cannot tell
+    whether the field is empty or the page forgot to look.
+    """
+    date_part, time_part = split_embargo((release or {}).get("embargo_until"))
+    if not date_part:
+        return ("No embargo set. Journalists may publish as soon as they "
+                "read it.")
+    human = human_date(date_part) or date_part
+    if time_part:
+        return "Held under embargo until %s, %s." % (human, time_part)
+    return "Held under embargo until %s." % human
 
 
 # --- personalisation --------------------------------------------------------
