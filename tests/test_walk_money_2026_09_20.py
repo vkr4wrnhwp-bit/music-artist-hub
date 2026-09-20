@@ -448,9 +448,11 @@ def test_the_catalog_card_shows_the_valuation_estimate():
 
 # --- DEFECT: the Rights Conflict Center is retired into the money queue -------
 
-def test_conflicts_redirects_to_the_money_queue():
-    c, _uid = _account()
-    r = c.get("/conflicts")
-    assert r.status_code in (301, 302, 303)
-    assert r.headers["Location"].endswith("/money-queue")
-    assert c.get("/money-queue").status_code == 200
+def test_conflicts_computes_from_the_accounts_own_passports(client_factory=None):
+    """Owner, 2026-09-20: "I would like to get it to compute." The page
+    was going to be retired into the money queue; the owner ruled instead
+    that it should read the account's own passports. Pinned properly in
+    tests/test_rights_conflicts.py; this only holds the address open."""
+    import app as _app
+    rules = {r.rule for r in _app.app.url_map.iter_rules()}
+    assert "/conflicts" in rules

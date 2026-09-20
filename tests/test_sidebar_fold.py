@@ -73,7 +73,10 @@ def test_the_sidebar_is_thirty_seven_entries():
     # as a link to a separate service that had fallen twenty routes behind.
     # 37 with Release-Ready in Studio (owner's brief, 2026-09-19): RoEx's mix
     # report, free previews and the paid master, a page of this app's own.
-    assert len(_entries()) == 37
+    # 38 with Rights Conflicts, which came off the parked list on 2026-09-20
+    # when it stopped rendering the demo's songs and started reading the
+    # account's own passports (owner: "I would like to get it to compute").
+    assert len(_entries()) == 38
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():

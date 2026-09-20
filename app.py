@@ -12471,8 +12471,11 @@ def create_app():
         if user is None:
             return login_required_redirect()
         found = rights_conflicts.summary(store.list_os_tracks(user["id"]))
-        return render_template("conflicts.html", active_page="conflicts",
-                               **found, **build_dashboard_context())
+        # The dashboard context carries its own demo-only "conflicts" key,
+        # so this page's real figures are laid over it, not beside it.
+        context = build_dashboard_context()
+        context.update(found)
+        return render_template("conflicts.html", active_page="conflicts", **context)
 
     # Milestone presets are parameterized date math over each campaign's
     # own release date — nothing is stored, nothing is predicted.
