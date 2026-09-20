@@ -215,6 +215,7 @@ def listing(listing_id):
     coach = session.pop("board_coach", None)
     return render_template("board/listing.html", **_ctx(
         user, l=l, mine=mine, threads=threads, my_thread=my_thread, chips=bs.verified_chips(l["user_id"]),
+        counts=bs.reply_counts([listing_id]) if mine else {},
         coach=coach, posted=request.args.get("posted")))
 
 

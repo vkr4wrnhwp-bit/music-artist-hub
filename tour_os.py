@@ -1846,6 +1846,12 @@ def _date_page(user, tour, viewer, show, tab, **extra):
     the same place. `tab` is the old deep link: it names the element the
     page opens and scrolls to, and its feature is treated as on."""
     tid, sid = tour["id"], show["id"]
+    # The content plan is seeded when the feature goes on the date (the
+    # sections POST). An old deep link turns it on for this request only,
+    # so it is seeded here, before the rows are read, and the meter and
+    # the row below it count the same items on the first view.
+    if tab == "content" or "content" in _opted_sections(show):
+        ts.ensure_content_plan(tid, tour["user_id"], sid)
     shows = ts.list_shows(tid)
     people = ts.list_people(tid)
     rows = _date_rows(tour, show, full=True, people=people)
@@ -1970,7 +1976,6 @@ def _date_page(user, tour, viewer, show, tab, **extra):
             d["ticket_progress"] = _ticket_progress(show)
             d["ticket_note"] = _ticket_note(show)
         elif key == "content":
-            ts.ensure_content_plan(tid, tour["user_id"], sid)
             d["content"] = ts.list_content(tid, show_id=sid)
         elif key == "setlist":
             d["setlists"] = [ts.get_setlist(tid, x["id"]) for x in rows["setlists"]]
@@ -2012,6 +2017,10 @@ def show_sections(user, tour, viewer, tour_id, show_id):
     if action == "add":
         if key not in after:
             after.append(key)
+        if key == "content":
+            # The plan's rows exist from the moment the feature is on, so
+            # the first view scores them rather than an empty list.
+            ts.ensure_content_plan(tour_id, tour["user_id"], show_id)
     else:
         has = _has_data(show, _date_rows(tour, show, full=True), viewer,
                         _tour_tasks(tour, ts.list_shows(tour_id), show_id=show_id))
@@ -4772,9 +4781,13 @@ def shared(token):
                 "travel": [t for t in travel if t["show_id"] == s["id"] or t["day_date"] == s["date"]],
                 "hotel": next((l for l in lodging if l["show_id"] == s["id"]
                                or l["checkin"] == s["date"]), None)})
+        # A show's own day row is the show above, already listed once.
+        show_ids = {s["id"] for s in shows}
         for d in days:
+            if d.get("show_id") in show_ids:
+                continue
             rows.append({"kind": d["kind"], "date": d["date"], "city": d.get("city") or "",
-                         "venue": "", "support": "", "address": "", "label": d.get("label") or "",
+                         "venue": "", "support": "", "address": "", "label": d.get("title") or "",
                          "schedule": [], "travel": [t for t in travel if t["day_date"] == d["date"]],
                          "hotel": next((l for l in lodging if l["checkin"] == d["date"]), None)})
         rows.sort(key=lambda r: r["date"])

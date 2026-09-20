@@ -380,8 +380,10 @@ def get_epk_data(account, catalog_value, overrides=None, photo=None, assets=None
     deal_terms = (o.get("deal_terms") or "").strip()
     complete = {
         "bio": bool(profile["bio"]),
-        "stats": True,
-        "tracks": True,
+        # A strip of "Not measured" and an empty track list are not
+        # complete; the rail says Needs Info, like every other section.
+        "stats": any(s.get("measured", True) for s in stats),
+        "tracks": bool(top_tracks),
         "press": bool(profile["press"]),
         "tour": bool(tour_dates),
         "contact": any(profile["contact"].values()),

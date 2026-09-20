@@ -68,11 +68,13 @@
     {% for d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}<div class="to-cal-dow">{{ d }}</div>{% endfor %}
     {% for c in all_cells %}
       {% set first = c['items'][0] if c['items'] else None %}
-      <a class="to-cal-day {{ 'is-out' if not c['in_month'] }} {{ 'is-today' if c['today'] }}" href="{{ first['href'] if first else '#' }}" aria-label="{{ c['date'] }}">
+      {#- A day with nothing on it is a plain cell, never a link to nowhere. -#}
+      {% set tag = 'a' if first else 'span' %}
+      <{{ tag }} class="to-cal-day {{ 'is-out' if not c['in_month'] }} {{ 'is-today' if c['today'] }}"{% if first %} href="{{ first['href'] }}"{% endif %} aria-label="{{ c['date'] }}">
         <span class="d">{{ c['day'] }}</span>
         {% for it in c['items'][:2] %}<div class="ev {{ 'show' if it['show'] }}">{{ it['label'] }}</div>{% if it['tours_n'] > 1 %}<div class="pct">{{ it['tour'] }}</div>{% endif %}{% endfor %}
         {% if c['items'] %}<span class="dot"></span>{% endif %}
-      </a>
+      </{{ tag }}>
     {% endfor %}
   </div>
   {% endif %}
