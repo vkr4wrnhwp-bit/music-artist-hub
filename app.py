@@ -584,6 +584,14 @@ class StaticCacheHeaders:
         return self.app(environ, _start)
 
 
+def _json_body():
+    """The request's JSON body when it is an object, else {}. A scalar or a
+    list is a valid JSON document and used to reach `.get` as `42` (walk of
+    2026-09-20); the page scripts always send an object."""
+    body = request.get_json(silent=True)
+    return body if isinstance(body, dict) else {}
+
+
 def create_app():
     app = Flask(__name__)
     # Error reporting. Owner 2026-09-19: the SENTRY_DSN he set in Render
@@ -889,7 +897,7 @@ def create_app():
         """A suite asks what an artist holds, or spends some of it. Server to
         server: the body is a token signed with the suites' shared secret.
         {"op": "balance"|"spend", "email", "suite", "amount", "ref"}."""
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         call = suite_sso.verify_credit_call(body.get("token") or request.form.get("token"))
         if call is None:
             return jsonify({"ok": False, "error": "unsigned"}), 401
@@ -1216,7 +1224,7 @@ def create_app():
         body = request.get_data()
         if not emailer.verify_webhook(request.headers, body):
             return jsonify({"ok": False, "error": "bad signature"}), 401
-        event = request.get_json(silent=True) or {}
+        event = _json_body()
         if event.get("type") != "email.received":
             return jsonify({"ok": True, "ignored": True})
         data = event.get("data") or {}
@@ -2088,7 +2096,7 @@ def create_app():
         """
         import support_kb
 
-        body = request.get_json(silent=True) or request.form or {}
+        body = _json_body() or request.form or {}
         question = (body.get("q") or "").strip()[:2000]
         page = (body.get("page") or "")[:200]
         if not question:
@@ -2756,7 +2764,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "sign_in"}), 401
-        track = request.get_json(silent=True) or {}
+        track = _json_body()
         if not (track.get("title") or "").strip():
             return jsonify({"ok": False, "error": "A track title is required."}), 400
         track_id = store.add_catalog_track(user["id"], track)
@@ -3253,7 +3261,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in first."}), 401
-        public = bool((request.get_json(silent=True) or {}).get("public"))
+        public = bool(_json_body().get("public"))
         return jsonify({"ok": store.set_epk_asset_public(user["id"], kind, public)})
 
     @app.route("/epk/asset/<kind>/delete", methods=["POST"])
@@ -3690,7 +3698,7 @@ def create_app():
         share = store.get_epk_share_by_token(token)
         if share is None:
             abort(404)
-        label = ((request.get_json(silent=True) or {}).get("label") or "")[:120]
+        label = (_json_body().get("label") or "")[:120]
         if label in [a["label"] for a in share["audio"]]:
             store.log_epk_event(token, "play", label)
             return jsonify({"ok": True})
@@ -3703,7 +3711,7 @@ def create_app():
             return jsonify({"ok": False, "error": "Sign in first."}), 401
         if kind not in _EPK_KIND_LABELS:
             return jsonify({"ok": False, "error": "Unknown asset type."}), 400
-        vid = (request.get_json(silent=True) or {}).get("vault_id") or ""
+        vid = _json_body().get("vault_id") or ""
         v = next((v for v in store.list_vault_files(user["id"])
                   if v["id"] == vid), None)
         if v is None or v["path"].rsplit(".", 1)[-1].lower() not in (
@@ -3749,7 +3757,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in to save your EPK."}), 401
-        overrides = normalize_epk_overrides(request.get_json(silent=True) or {})
+        overrides = normalize_epk_overrides(_json_body())
         store.save_epk(user["id"], overrides)
         return jsonify({"ok": True})
 
@@ -3851,7 +3859,7 @@ def create_app():
 
     @app.route("/artwork/generate", methods=["POST"])
     def artwork_generate():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_body()
         prompt = (payload.get("prompt") or "").strip()[:300]
         suggestion = suggest_from_prompt(prompt)
         image_url, seed = None, None
@@ -3896,7 +3904,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in to save artwork."}), 401
-        payload = request.get_json(silent=True) or {}
+        payload = _json_body()
         url = (payload.get("url") or "").strip()
         if not url.startswith("https://image.pollinations.ai/"):
             return jsonify({"ok": False, "error": "Only generated images can be saved."}), 400
@@ -3934,7 +3942,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in first."}), 401
-        name = (request.get_json(silent=True) or {}).get("name") or ""
+        name = _json_body().get("name") or ""
         if not os.path.basename(name.split("?")[0]).startswith(
                 artwork_upload_prefixes(user["id"])):
             abort(404)
@@ -5519,7 +5527,7 @@ def create_app():
         if not stripe_billing.verify_webhook(
                 request.headers.get("Stripe-Signature", ""), body):
             return jsonify({"ok": False, "error": "bad signature"}), 401
-        event = request.get_json(silent=True) or {}
+        event = _json_body()
         etype = event.get("type") or ""
         obj = (event.get("data") or {}).get("object") or {}
         if etype == "checkout.session.completed" and \
@@ -7380,7 +7388,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        store.save_light_show(user["id"], request.get_json(silent=True) or {})
+        store.save_light_show(user["id"], _json_body())
         return jsonify({"ok": True})
 
     def _lights_shows(user_id):
@@ -7403,7 +7411,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         data = body.get("data") if isinstance(body.get("data"), dict) else {}
         track_id = (body.get("track_id") or "") or None
         if track_id and store.get_os_track(user["id"], track_id) is None:
@@ -7442,7 +7450,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         v = lights_store.get_version(user["id"], body.get("version_id") or "")
         if v is None or v["show_id"] != show_id:
             return jsonify({"ok": False}), 404
@@ -7489,7 +7497,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         token = lights_store.create_share(user["id"], show_id,
                                           permission=body.get("permission") or "read",
                                           label=body.get("label") or "")
@@ -7546,7 +7554,7 @@ def create_app():
             return jsonify({"ok": False}), 404
         if share["permission"] != "comment":
             return jsonify({"ok": False, "error": "read-only"}), 403
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         cid = lights_store.add_comment(share["show_id"], share["user_id"],
                                        body.get("author") or "", body.get("body") or "",
                                        t=body.get("t"), parent_id=body.get("parent_id") or "")
@@ -7571,7 +7579,7 @@ def create_app():
             return jsonify({"ok": False}), 401
         if lights_store.get_show(user["id"], show_id) is None:
             return jsonify({"ok": False}), 404
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         cid = lights_store.add_comment(show_id, user["id"], user.get("name") or "You",
                                        body.get("body") or "", t=body.get("t"),
                                        parent_id=body.get("parent_id") or "")
@@ -7584,7 +7592,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         if not lights_store.resolve_comment(user["id"], comment_id, bool(body.get("resolved", True))):
             return jsonify({"ok": False}), 404
         return jsonify({"ok": True})
@@ -7668,7 +7676,7 @@ def create_app():
 
     @app.route("/lights/remote/<code>/cmd", methods=["POST"])
     def lights_remote_cmd(code):
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         ok = lights_store.push_remote_command(code, body.get("kind") or "", body.get("value") or "")
         if not ok:
             return jsonify({"ok": False}), 404
@@ -7698,7 +7706,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         data = body.get("data") if isinstance(body.get("data"), dict) else {}
         entry = lights_store.attach_to_track(user["id"], track_id,
                                              body.get("name") or data.get("name") or "Untitled show",
@@ -7744,7 +7752,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         items = body.get("items") if isinstance(body.get("items"), list) else []
         sid = lights_store.save_setlist(
             user["id"], body.get("id") or None, body.get("name") or "Setlist", items,
@@ -7779,7 +7787,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         raw = body.get("data") if isinstance(body.get("data"), dict) else {}
 
         def _fracmap(m):
@@ -8074,7 +8082,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"error": "auth required"}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
 
         def num(key):
             v = body.get(key)
@@ -8125,7 +8133,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         name = (body.get("name") or "").strip()
         if not name:
             return jsonify({"ok": False, "error": "a preset needs a name"}), 400
@@ -8164,7 +8172,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        store.save_rack_preset(user["id"], request.get_json(silent=True) or {})
+        store.save_rack_preset(user["id"], _json_body())
         return jsonify({"ok": True})
 
     @app.route("/sw.js")
@@ -8217,7 +8225,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        data = request.get_json(silent=True) or {}
+        data = _json_body()
         store.save_stage_plot(user["id"], data)
         return jsonify({"ok": True})
 
@@ -8401,7 +8409,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         title = (body.get("title") or "").strip()[:200]
         if not title:
             return jsonify({"ok": False, "error": "a beat needs a title"}), 400
@@ -8713,7 +8721,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        body = request.get_json(silent=True) or {}
+        body = _json_body()
         token = store.create_beat_share(user["id"], beat_id,
                                         label=body.get("label") or "",
                                         days=body.get("days") or 0)
@@ -9543,7 +9551,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in first."}), 401
-        p = request.get_json(silent=True) or {}
+        p = _json_body()
         artist_id = (p.get("id") or "").strip()[:64]
         name = (p.get("name") or "").strip()[:120]
         if not artist_id or not name:
@@ -9596,7 +9604,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False, "error": "Sign in first."}), 401
-        p = request.get_json(silent=True) or {}
+        p = _json_body()
         artist_id = (p.get("id") or "").strip()[:64]
         name = (p.get("name") or "").strip()[:120]
         if not artist_id or not name:
@@ -10983,7 +10991,7 @@ def create_app():
 
     @app.route("/links/create", methods=["POST"])
     def links_create():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_body()
         link = create_smart_link(payload.get("title", ""), payload.get("platforms", []))
         if link is None:
             return jsonify({"ok": False, "error": "A title and at least one platform are required."}), 400
@@ -11735,7 +11743,7 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        data = request.get_json(silent=True) or {}
+        data = _json_body()
         st = _network_state()
         entry = submit_to_playlist(playlist_id, data.get("song"),
                                    data.get("message"), st)
@@ -11766,7 +11774,7 @@ def create_app():
 
     @app.route("/network/<profile_id>/pitch", methods=["POST"])
     def network_pitch_route(profile_id):
-        data = request.get_json(silent=True) or {}
+        data = _json_body()
         st = _network_state()
         entry = network_pitch_action(profile_id, data.get("message"),
                                      data.get("song"), st)
@@ -11780,7 +11788,7 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        data = request.get_json(silent=True) or {}
+        data = _json_body()
         st = _network_state()
         entry = enquire_show(profile_id, data.get("city"), data.get("date"),
                              data.get("message"), st)
@@ -11996,7 +12004,7 @@ def create_app():
 
     @app.route("/funding/request", methods=["POST"])
     def funding_request():
-        payload = request.get_json(silent=True) or {}
+        payload = _json_body()
         offer_id = (payload.get("offer_id") or "").strip()
         user = current_user()
         if user is None:
@@ -12836,7 +12844,7 @@ def create_app():
         user = current_user()
         if user is None:
             return jsonify({"ok": False}), 401
-        status = (request.get_json(silent=True) or {}).get("status") or ""
+        status = _json_body().get("status") or ""
         if status not in _DISPUTE_STATUSES:
             return jsonify({"ok": False, "error": "Unknown status."}), 400
         ok = store.set_dispute_status(user["id"], dispute_id, status)

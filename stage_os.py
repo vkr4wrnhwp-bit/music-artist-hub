@@ -68,7 +68,13 @@ def _resolve(show_id, me, permission):
     import db as store
     import partner_store as pstore
     link = adv.get_attachment(show_id)
-    owner_id = link["user_id"] if link else me["id"]
+    owner_id = link["user_id"] if link else _date_owner(show_id, me)
+    if owner_id is None:
+        # No passport and no tour date holds this id: there is no stage
+        # here, for anyone. The walk of 2026-09-20 found every signed-in
+        # account opening an empty desk on any id, other accounts' dates
+        # included.
+        abort(404)
     if owner_id == me["id"]:
         return dict(me, stage_perms=None), None
     member = pstore.member_for_user(me["id"])
@@ -90,6 +96,19 @@ def _resolve(show_id, me, permission):
     return acting, member
 
 
+def _date_owner(show_id, me):
+    """Whose stage an un-advanced date would be: the account that owns the
+    tour the date is on, or the caller for a show of theirs that is on no
+    tour. None when no tour date holds the id."""
+    import db as store
+    import tour_store as ts
+    tour_id = ts.tour_id_for_show(show_id)
+    if tour_id:
+        tour = ts.get_tour(tour_id)
+        return tour["user_id"] if tour else None
+    return me["id"] if store.get_tour_show(me["id"], show_id) else None
+
+
 def allowed(user, permission):
     """True for the owner; for a partner seat, only if its role carries it."""
     perms = user.get("stage_perms")
@@ -99,9 +118,9 @@ def allowed(user, permission):
 def require_show(permission="stage_review"):
     """Resolve the actor for this show's stage, with a permission.
 
-    A show nobody has advanced has no stage; the signed-in account is then
-    treated as its owner, which is what the desk needs to say "attach a
-    passport first".
+    A show nobody has advanced has no stage yet; the tour date's owner
+    still opens the desk, which is what it needs to say "attach a passport
+    first". An id that no passport and no tour date holds is a 404.
     """
     def wrap(fn):
         @wraps(fn)
@@ -410,6 +429,13 @@ def bridge_act(show_id, user, action):
 
 # --- the device's door ---------------------------------------------------------
 
+def _json_body():
+    """The request's JSON body when it is an object, else {}: a scalar
+    body is a valid JSON document and must not reach `.get`."""
+    body = request.get_json(silent=True)
+    return body if isinstance(body, dict) else {}
+
+
 def _device_from_request():
     auth = request.headers.get("Authorization") or ""
     token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
@@ -421,7 +447,7 @@ def device_heartbeat():
     dev = _device_from_request()
     if dev is None:
         return jsonify({"ok": False, "error": "unauthorised"}), 401
-    body = request.get_json(silent=True) or {}
+    body = _json_body()
     # The rack fields are optional and backward compatible: a phase-5 daemon
     # sends health and software_version only, and the rack reads "Not reported".
     extra = {k: body[k] for k in sb.REPORT_FIELDS if k in body}
@@ -447,7 +473,7 @@ def device_ack():
     dev = _device_from_request()
     if dev is None:
         return jsonify({"ok": False, "error": "unauthorised"}), 401
-    body = request.get_json(silent=True) or {}
+    body = _json_body()
     _cmd, decision = sb.acknowledge(dev, body.get("command_id") or "", body.get("nonce") or "",
                                     body.get("result") or {})
     return jsonify({"ok": decision.allowed, "code": decision.code, "reason": decision.reason})
@@ -458,7 +484,7 @@ def device_reconcile():
     dev = _device_from_request()
     if dev is None:
         return jsonify({"ok": False, "error": "unauthorised"}), 401
-    body = request.get_json(silent=True) or {}
+    body = _json_body()
     return jsonify({"ok": True, "outcomes": sb.reconcile(dev, body.get("entries") or [])})
 
 
