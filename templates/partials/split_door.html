@@ -34,10 +34,13 @@
       {#- One photograph at three widths. A phone's banner is 350px tall and
           cover-cropped, so it draws the picture about 622px wide; a desktop
           draws it at the door's full width or wider. -#}
-      <img src="/static/img/door-billboard-wide.webp"
-           srcset="/static/img/door-billboard-wide-800.webp 800w, /static/img/door-billboard-wide-1280.webp 1280w, /static/img/door-billboard-wide.webp 1672w"
+      {#- The garage door (owner, 2026-09-19: "here are a few images for the
+          hero banner that may work better ... i like the garage door the
+          best"). Same 1672x941 frame as the billboard it replaces. -#}
+      <img src="/static/img/door-garage-wide.webp"
+           srcset="/static/img/door-garage-wide-800.webp 800w, /static/img/door-garage-wide-1280.webp 1280w, /static/img/door-garage-wide.webp 1672w"
            sizes="(max-width: 899px) 622px, max(100vw, 178vh)"
-           alt="A wide Street Banker Suite billboard on a brick wall beside a wet New York street at night, the Empire State Building lit down the avenue to the left. The billboard carries the wordmark, the eight suite marks and the line More artists. A brighter tomorrow, with a lone figure carrying a guitar case walking into a lit doorway. People with umbrellas pass in the rain."
+           alt="A black roller door on a wet studio loading bay at night, the Street Banker wordmark and the eight suite marks painted across it. To the right a lit doorway where someone wheels a flight case inside; a van with the wordmark waits at the kerb."
            width="1672" height="941" fetchpriority="high" decoding="async">
     </figure>
 

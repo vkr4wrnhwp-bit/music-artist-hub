@@ -136,12 +136,19 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 64% 40%;
+  /* The garage door (2026-09-19): the painted wordmark runs from about
+     16% to 57% of the frame and the lit doorway from 63% to 80%. On a
+     phone the banner shows roughly the middle 63% of the width, so an
+     anchor at 40% keeps the whole wordmark and the edge of the doorway. */
+  object-position: 40% 45%;
 }
 
 /* On a desktop the photograph is cover-cropped to the door, so where the
- * billboard lands depends on the window's shape. Two things keep the words
- * off the billboard's own lettering at every size:
+ * painted lettering lands depends on the window's shape. The rules below
+ * were worked out for the billboard and hold for the garage door too: its
+ * wordmark and marks sit in the upper half (rows 26% to 52%) and the words
+ * column and sign-in sit bottom left over blank shutter and wet ground.
+ * Two things keep the words off the picture's own lettering at every size:
  *
  * The anchor. With x at 35% (anything at or under 37.7%, the billboard's
  * left edge as a share of the photograph) a crop never slides the billboard
