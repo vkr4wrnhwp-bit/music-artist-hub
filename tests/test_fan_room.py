@@ -133,3 +133,21 @@ def test_the_map_keeps_cities_inside_the_frame():
     for d in p["dots"]:
         assert 0 <= d["x"] <= p["w"] and 0 <= d["y"] <= p["h"]
     assert [d["city"] for d in p["dots"] if d["label"]] == ["New York", "Los Angeles", "Atlanta"]
+
+
+def test_the_fan_room_has_no_banner_photograph():
+    """Owner, 2026-09-20: "most other pages don't have a banner image, let's
+    remove this for now." The head keeps its title, line and controls; the
+    stand-in crowd photograph, its mask and its files are gone."""
+    import io as _io
+    import os as _os
+    here = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    c, _uid = _account()
+    body = c.get("/room/fans").get_data(as_text=True)
+    assert 'class="fr-hero"' in body and 'id="fr-title"' in body
+    assert "fr-hero-photo" not in body and "door-crowd" not in body
+    for name in ("door-crowd-900.webp", "door-crowd-1600.webp"):
+        assert not _os.path.exists(_os.path.join(here, "static", "img", name)), name
+    css = _io.open(_os.path.join(here, "static", "css", "fan-room.css"), encoding="utf-8").read()
+    assert "fr-hero-photo" not in css and "min-height: 318px" not in css
+    assert "fan-room.css?v=5" in body

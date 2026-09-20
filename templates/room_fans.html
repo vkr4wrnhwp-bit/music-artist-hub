@@ -2,7 +2,7 @@
 
 {% block title %}Fan Room - Street Banker{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/fan-room.css?v=4">
+  <link rel="stylesheet" href="/static/css/fan-room.css?v=5">
 {% endblock %}
 
 {#- THE FAN ROOM - the Fans room's opening screen, built from the owner's
@@ -40,11 +40,10 @@
 {% block content %}
 <div class="fr" data-no-collapse>
 
+  {#- No banner photograph (owner, 2026-09-20: "most other pages don't have a
+      banner image, let's remove this for now"). The stand-in crowd photo and
+      its mask are gone; the head is the title, the line and the controls. -#}
   <section class="fr-hero" aria-labelledby="fr-title">
-    <picture class="fr-hero-photo">
-      <img src="/static/img/door-crowd-1600.webp" srcset="/static/img/door-crowd-900.webp 900w, /static/img/door-crowd-1600.webp 1600w"
-           sizes="(max-width: 860px) 100vw, 80vw" alt="" width="1600" height="700" fetchpriority="high" decoding="async">
-    </picture>
 
     <div class="fr-hero-top">
       <div>
