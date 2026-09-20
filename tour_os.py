@@ -1322,7 +1322,10 @@ def create():
     if not _seat_may_write(seat):
         abort(403)                          # a read-only seat makes nothing (app.py refuses it first)
     if not _artist_tier(user):
-        return render_template("upgrade.html", required="artist", plans_list=plans.PLANS,
+        # The plan _artist_tier asked for, named as the suite (walk,
+        # 2026-09-20: an Artist read "This is a Artist feature").
+        return render_template("upgrade.html", required="pro" if plans.gates_on() else "artist",
+                               suite_name="Tour", plans_list=plans.PLANS,
                                active_page="tours"), 402
     tz = request.form.get("home_tz") or "UTC"
     if not eng.valid_tz(tz):

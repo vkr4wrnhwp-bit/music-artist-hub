@@ -145,8 +145,8 @@ def get_landing_config():
                     {"label": "Terms", "href": "/terms"},
                 ]},
                 {"title": "Company", "links": [
-                    {"label": "About", "href": "/services"},
-                    {"label": "Contact", "href": "/submit"},
+                    {"label": "About", "href": "/about"},
+                    {"label": "Contact", "href": "/contact"},
                     # The company's own door. A stranger clicking it meets
                     # the login wall, and that is the point — it exists for
                     # the team, not the visitor.

@@ -10,8 +10,14 @@ The lower one is a live Stripe Checkout.
 With STRIPE_SECRET_KEY set, both rendered. An artist paying every month was
 shown somebody else's invoices and told they were not being charged, thirty
 lines above the button that charges them. That is not a disclaimer that needed
-rewording - the whole upper block belongs to a deployment with no payment
-provider.
+rewording.
+
+The first fix hid the upper block wherever Stripe was live, which left it
+rendering on every deployment without a key. The 2026-09-20 walk read it
+there, on a fresh Artist: a plan it had not bought, a renewal date and
+three invoices marked Paid. A missing payment provider is not a licence to
+invent a billing history, so the block is a sample and it belongs to the
+demo logins alone.
 """
 import re
 import uuid
@@ -94,21 +100,40 @@ def test_the_live_page_states_it_holds_no_card(payer, stripe_live):
     assert "never stores a card number" in _text(payer)
 
 
-# --- the deployment the showcase was written for ---------------------------
+# --- who the showcase was written for --------------------------------------
 
-def test_without_a_provider_the_showcase_still_renders_and_says_so(payer):
-    """On a deployment with no Stripe there is nothing to contradict, and the
-    block is a legitimate preview of what billing looks like - as long as it
-    keeps saying so."""
+def test_without_a_provider_a_real_account_still_sees_no_sample(payer):
+    """This file used to allow the showcase wherever Stripe was missing. The
+    2026-09-20 walk read it on a fresh Artist on a deployed service with no
+    Stripe key: a plan it had not bought, a renewal date and three invoices
+    marked Paid, none of them its own. A missing payment provider is not a
+    licence to invent an account's billing history, so the block belongs to
+    the demo logins and to nobody else."""
     body = _text(payer)
+    assert "Demo only" not in body
+    assert "INV-2026-06" not in body
+
+
+def test_the_demo_login_is_the_one_that_sees_it(application):
+    """The sample is not deleted. It is the demo tour's billing page."""
+    demo = application.test_client()
+    demo.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    body = _text(demo)
     assert "Demo only" in body
     assert "INV-2026-06" in body
 
 
+def test_the_page_always_has_a_heading(payer):
+    """The sample carried the only h1, so narrowing it to the demo left a
+    real account on a service with no payments reading an untitled page."""
+    assert '<h1 class="sb-h1">Billing</h1>' in payer.get("/billing").get_data(as_text=True)
+
+
 def test_the_guard_is_the_same_one_the_checkout_uses(application):
-    """real_checkout drives BOTH the showcase and the Subscribe button. Two
-    separate conditions would eventually disagree, and the disagreement would
-    look exactly like the bug this file is about."""
+    """real_checkout drives the Subscribe button and is_demo_account drives
+    the sample, both settled once at the top. Two separate conditions would
+    eventually disagree, and the disagreement would look exactly like the
+    bug this file is about."""
     import io
 
     template = io.open("templates/billing.html", encoding="utf-8").read()
@@ -116,5 +141,5 @@ def test_the_guard_is_the_same_one_the_checkout_uses(application):
         "real_checkout must be computed once, at the top"
 
     guard = template.index("{% set real_checkout")
-    showcase = template.index("{% if not real_checkout %}")
-    assert guard < showcase, "the showcase must be gated by the same flag"
+    showcase = template.index("{% if is_demo_account %}")
+    assert guard < showcase, "the sample must be settled above everything it feeds"

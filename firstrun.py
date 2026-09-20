@@ -59,20 +59,31 @@ STEPS = [
 RETIRE_AT = 4
 
 
-def build(state):
+def build(state, reachable=None):
     """The checklist for one account.
 
     `state` is a plain dict of booleans keyed like STEPS. Returns None when
     there is nothing worth showing, so the caller can simply skip it.
+
+    `reachable` is the set of step keys this account can actually open;
+    None means all of them. The suite gates put the Rack behind credits
+    on a deployed service, so the rule in the comment above STEPS stopped
+    holding on its own: an Artist was told to open the Rack and met an
+    upgrade page (walk, 2026-09-20). A step nobody can reach is dropped
+    rather than counted, so the tally matches the doors on offer.
     """
     steps = []
     for key, title, why, href, cta in STEPS:
+        if reachable is not None and key not in reachable:
+            continue
         steps.append({
             "key": key, "title": title, "why": why, "href": href, "cta": cta,
             "done": bool(state.get(key)),
         })
+    if not steps:
+        return None
     done = sum(1 for s in steps if s["done"])
-    if done >= RETIRE_AT:
+    if done >= min(RETIRE_AT, len(steps)):
         return None                      # earned its way off the screen
     nxt = next((s for s in steps if not s["done"]), None)
     return {

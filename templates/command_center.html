@@ -110,7 +110,9 @@
       <p class="sb-label text-sb-gold-bright">Start here</p>
       <p class="mt-1 max-w-xl text-sm text-gray-300">
         {% if firstrun.fresh %}
-          This is a big app and it is completely empty, which makes it hard to know where to start. Five things, in the order that makes each one useful.
+          {#- The count, not the word "Five": a step whose door this plan
+              cannot open is dropped from the list (walk, 2026-09-20). -#}
+          This is a big app and it is completely empty, which makes it hard to know where to start. {{ firstrun.total }} things, in the order that makes each one useful.
         {% else %}
           {{ firstrun.remaining }} to go. This panel disappears on its own once the essentials are in — it is not something you have to dismiss.
         {% endif %}
