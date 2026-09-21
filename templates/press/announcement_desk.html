@@ -78,7 +78,8 @@
           <div class="ad-field ad-gap">
             <label for="ad-headline">Headline</label>
             <input type="text" id="ad-headline" name="headline" class="ad-headline-input"
-                   value="{{ rv('headline') }}" placeholder="One line, plain, no hype">
+                   value="{{ rv('headline') }}"
+                   placeholder="{{ artist_name or 'Artist' }} announces ...">
           </div>
 
           <div class="ad-field">
@@ -109,7 +110,7 @@
               <div class="ad-field">
                 <label for="ad-quote-by">Said by</label>
                 <input type="text" id="ad-quote-by" name="quote_source" value="{{ rv('quote_source') }}"
-                       placeholder="Name and role">
+                       placeholder="{{ artist_name or 'Artist name' }}">
                 <p class="ad-hint">Use the name as it should appear in print.</p>
               </div>
             </div>
