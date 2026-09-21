@@ -95,7 +95,12 @@ def stake(rv, registry, gap_count):
         else:
             c["state"] = "value"
             c["height"] = max(4, round(100.0 * c["amount"] / top)) if top else 0
-        c["shown"] = statements_desk.money(c["amount"]) if c["amount"] is not None else "—"
+        # A real zero prints $0.00. A column nobody has checked used to print
+        # a dash, while the legend below it said a dashed column WAS a real
+        # zero, so one glyph carried two opposite meanings. Nothing checked
+        # says so in words.
+        c["shown"] = (statements_desk.money(c["amount"])
+                      if c["amount"] is not None else "Not checked")
     return cols
 
 

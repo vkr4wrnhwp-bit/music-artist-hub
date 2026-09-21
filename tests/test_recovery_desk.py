@@ -35,7 +35,12 @@ def test_the_three_bases_stand_side_by_side_and_a_zero_is_dashed_not_hidden():
 def test_no_sweep_is_not_checked_not_zero():
     rv = {"actual_unattributed": 5.0, "estimated_gaps": 0.0, "_unattributed_rows": 1}
     by = {c["key"]: c for c in desk.stake(rv, None, 0)}
-    assert by["registry"]["state"] == "unchecked" and by["registry"]["shown"] == "—"
+    # The glyph used to be a dash, which the page's own legend said meant a
+    # real zero. Nothing checked now says so in words, so the two states
+    # cannot be read as each other.
+    assert by["registry"]["state"] == "unchecked"
+    assert by["registry"]["shown"] == "Not checked"
+    assert by["registry"]["shown"] != "$0.00"
     assert by["registry"]["sub"] == "no check run yet"
     assert by["actual"]["state"] == "value" and by["actual"]["height"] == 100
 
