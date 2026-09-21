@@ -12,12 +12,15 @@ computable findings on the artist's own numbers:
   per-source earnings (estimate, labeled as such)
 """
 
+import calendar
 import csv
+import datetime
 import io
 import math
 import re
 
 import catalog_value
+import royalty_lag
 import store_identity
 
 # Header aliases -> canonical fields. Compared lowercased/stripped.
@@ -366,3 +369,236 @@ def build_royalty_summary(rows):
     result["undated_revenue"] = run["undated_total"]
     result["valuation"] = catalog_value.band(run["annualized"])
     return result
+
+
+# --- REPORTING LAG --------------------------------------------------------
+#
+# royalty_lag.py answers "is this platform late, or is this just how long
+# it takes?" for one source and one period. It has been tested since it
+# was written and imported by nothing, so no artist had ever seen it.
+# This turns the rows an account has uploaded into the inputs it needs.
+#
+# WHAT THIS ACCOUNT CANNOT KNOW, AND THEREFORE NEVER SAYS
+#
+# Nothing in this app records the day a distributor actually reported a
+# period. A statement row carries the PERIOD it covers; the statements
+# table carries the day the ARTIST uploaded the CSV. Those are different
+# facts. An artist who exports quarterly and uploads when they remember
+# would have their own habits measured, averaged and printed under the
+# platform's name, and it would carry the authority of "measured from
+# your own statements" while being a fact about the artist.
+#
+# So royalty_lag.observed_days is deliberately not called from here, and
+# `observed` is never passed to judge(). Every verdict rests on the
+# published order-of-magnitude figure for the platform, which the page
+# says in the reader's words and never as this account's own. A store
+# with no published figure gets no verdict at all.
+#
+# What IS computable, and is all that is shown: a period ended on a known
+# date, today is a known date, and no statement on file covers that
+# period. The wait so far is the difference. How long a period that HAS
+# arrived took is not computable here, and the page says so rather than
+# offering the upload day in its place.
+#
+# This is NOT the coverage gap above. A coverage gap asks whether a TRACK
+# is missing from a store its siblings reported to, and the remedy is a
+# delivery or an accounting request. This asks whether a SOURCE has
+# reported for a PERIOD yet, and the remedy is to wait or to chase.
+
+# Reader-facing words for each state royalty_lag can return. A state is
+# never carried by colour alone, so every row prints one of these.
+LAG_WORDS = {
+    "reported": "Reported",
+    "normal": "Normal",
+    "slow": "Slow",
+    "overdue": "Overdue",
+    "unknown": "No reading",
+}
+
+# What the verdict rests on, in the reader's words rather than the code's.
+# "typical" must never read as this account's own figure. "measured" is
+# unreachable today and is kept only so a future caller that has a real
+# distributor reporting date cannot hand this a basis it cannot name.
+LAG_BASIS_WORDS = {
+    "measured": "measured from your own statements",
+    "typical": "a general figure for this platform, not yours",
+    "unknown": "no figure for this platform, and none assumed",
+}
+
+# Worth chasing first, then worth knowing, then the ones behaving. A
+# store with no reading sits ABOVE the ones that are fine: it is not a
+# pass and must not be tidied away below them.
+_LAG_ORDER = {"overdue": 0, "slow": 1, "unknown": 2, "normal": 3, "reported": 4}
+
+
+def _period_end(label):
+    """The last day of the month a statement period covers, or None.
+
+    Reads the same shapes period_key does ("2026-05", "MAY-26",
+    "May 2026", "2026/05"). A period nobody can date returns None and
+    gets no verdict at all rather than a guessed one.
+    """
+    year, month = period_key(label)
+    if year == 9999 or not 1 <= month <= 12:
+        return None
+    return datetime.date(year, month, calendar.monthrange(year, month)[1])
+
+
+def _end_of_next_month(day):
+    """The last day of the month after this one."""
+    year, month = (day.year + 1, 1) if day.month == 12 else (day.year, day.month + 1)
+    return datetime.date(year, month, calendar.monthrange(year, month)[1])
+
+
+def _month_name(day):
+    return "%s %d" % (_MONTHS[day.month - 1].title(), day.year)
+
+
+def _names(items):
+    items = list(items)
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def reporting_lag(rows, today=None):
+    """Per store: has it reported for the period it owes, and is that
+    normal for it?
+
+    `rows` are statement rows as db.get_statement_rows returns them. No
+    upload date is read: see the note above. Returns {"rows", "flagged",
+    "settled", "summary"} always, with an empty row list when an account
+    has nothing on file, so a new artist is shown that there is no
+    reading yet rather than a quiet pass.
+    """
+    today = today or datetime.date.today()
+
+    money, lines, ends = {}, {}, {}
+    for r in rows or ():
+        store = store_identity.store_of(r.get("source"))
+        try:
+            amount = float(r.get("amount") or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
+        if not math.isfinite(amount):
+            amount = 0.0
+        money[store] = money.get(store, 0.0) + amount
+        name = (r.get("source") or "").strip()
+        if name:
+            lines.setdefault(store, set()).add(name)
+        end = _period_end(r.get("period"))
+        if end is None:
+            continue          # a period nobody can date gets no verdict
+        ends.setdefault(store, set()).add(end)
+
+    out = []
+    for store in sorted(money):
+        seen_ends = sorted(ends.get(store, ()))
+        latest = seen_ends[-1] if seen_ends else None
+        waiting_for = ""
+        if latest is None:
+            judgement = royalty_lag.judge(store, None, today)
+            arrived_note = ("Nothing on this store's rows says which period they "
+                            "cover, so there is no reading for it.")
+        else:
+            latest_label = _month_name(latest)
+            due = _end_of_next_month(latest)
+            if due > today:
+                # The next period has not ended, so nothing is outstanding.
+                # How long this one took is not on file, so no figure is
+                # offered in place of it.
+                expected = royalty_lag.expectation(store)
+                judgement = {"state": "reported", "waited": None,
+                             "expected": expected["days"], "basis": expected["basis"],
+                             "detail": expected["detail"],
+                             "headline": "%s has arrived" % latest_label}
+            else:
+                judgement = royalty_lag.judge(store, due, today)
+                waiting_for = _month_name(due)
+            arrived_note = ("%s is the latest period on file for this store. How long "
+                            "it took to arrive is not recorded anywhere, so no figure "
+                            "is given for it." % latest_label)
+
+        state = judgement["state"]
+        out.append({
+            "store": store,
+            "amount": round(money[store], 2),
+            "lines": len(lines.get(store, ())) or 1,
+            "state": state,
+            "word": LAG_WORDS[state],
+            "headline": judgement["headline"],
+            "detail": judgement["detail"],
+            "basis": judgement["basis"],
+            "basis_word": LAG_BASIS_WORDS[judgement["basis"]],
+            "waited": judgement["waited"],
+            "expected": judgement["expected"],
+            "waiting_for": waiting_for,
+            "arrived_note": arrived_note,
+        })
+    out.sort(key=lambda r: (_LAG_ORDER[r["state"]], -r["amount"], r["store"]))
+    settled = ("normal", "reported")
+    return {
+        "rows": out,
+        # Split for the page: what is worth a look, and what is only a
+        # platform being a platform. Both are shown - the reassurance is
+        # half the point - but the second half folds.
+        "flagged": [r for r in out if r["state"] not in settled],
+        "settled": [r for r in out if r["state"] in settled],
+        "summary": _lag_summary(out),
+    }
+
+
+def _lag_summary(out):
+    """The one sentence above the list, and what it rests on."""
+    overdue = [r["store"] for r in out if r["state"] == "overdue"]
+    slow = [r["store"] for r in out if r["state"] == "slow"]
+    blind = [r["store"] for r in out if r["state"] == "unknown"]
+    settled = [r for r in out if r["state"] in ("normal", "reported")]
+
+    if not out:
+        headline = "No statements on file yet, so there is no reading for any store."
+    elif overdue:
+        headline = ("%s %s far enough past the usual wait to be worth asking about."
+                    % (_names(overdue), "is" if len(overdue) == 1 else "are"))
+    elif slow:
+        headline = ("Nothing is overdue. %s %s a little past the usual wait, which is "
+                    "common and is not on its own a sign of a problem."
+                    % (_names(slow), "is" if len(slow) == 1 else "are"))
+    elif settled:
+        headline = ("Every store that has reported here is inside the wait it normally "
+                    "takes. There is nothing to chase.")
+    else:
+        headline = "Nothing here can be judged either way yet."
+
+    if blind:
+        blind_note = ("%s %s no reading at all. Nothing is known about how long %s take%s "
+                      "to report and nothing has been assumed, so silence from %s means "
+                      "neither good news nor bad."
+                      % (_names(blind), "has" if len(blind) == 1 else "have",
+                         "it" if len(blind) == 1 else "they",
+                         "s" if len(blind) == 1 else "",
+                         "it" if len(blind) == 1 else "them"))
+    else:
+        blind_note = ""
+
+    if out:
+        # "None of these numbers" would be the literal word None in the
+        # page source, and two money-desk tests lock that word out: it is
+        # how a Python None leaking into a template is caught.
+        basis_note = ("Every verdict here rests on a published figure for the platform, "
+                      "because this app has no record of the day a distributor reported. "
+                      "Not one of these figures is measured from your account.")
+    else:
+        basis_note = ""
+
+    return {
+        "headline": headline,
+        "blind_note": blind_note,
+        "basis_note": basis_note,
+        "overdue": overdue,
+        "slow": slow,
+        "blind": blind,
+        "settled_count": len(settled),
+    }

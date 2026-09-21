@@ -142,7 +142,8 @@ import artist_os
 import hubs as hub_defs
 from statements_engine import (
 period_year, period_key, analyze as analyze_statement, parse_statement,
-                               build_royalty_summary, annualize as annualize_statement)
+                               build_royalty_summary, annualize as annualize_statement,
+                               reporting_lag)
 
 from landing_config import get_landing_config
 from artist_eq_config import get_artist_eq_config
@@ -1640,6 +1641,15 @@ def create_app():
             if emailer.inbound_configured() and not _working_as_someone() else None)
         ctx["uploads"] = store.get_statements(user["id"])
         ctx["roster"], ctx["act"], rows = _act_scope(store.get_statement_rows(user["id"]))
+        # HAS EACH STORE REPORTED? royalty_lag has been tested since it
+        # was written and read by nobody. It reads the same rows as the
+        # rest of the desk and nothing else: the upload date is the day
+        # the ARTIST uploaded, not the day the distributor reported, so
+        # it is never read as a platform's pace. Computed whether or not
+        # there are rows: an account with no history is shown that it
+        # has no reading, which is not the same as being told it is
+        # fine.
+        ctx["lag"] = reporting_lag(rows)
         ctx["analysis"] = analyze_statement(
             [{"title": r["title"], "source": r["source"], "amount": r["amount"], "period": r["period"]}
              for r in rows]
@@ -2610,8 +2620,12 @@ def create_app():
                 rows_all, rows, store.get_statements(user["id"]), chosen,
                 store.list_os_tracks(user["id"]), _os_ctx(user["id"]),
                 mlc=recovery_mlc.state(user["id"]), artist=act, roster_rows=roster)
+        # Whether each store is late reads the WHOLE history, not the
+        # period in the control: a store owes a period whatever period
+        # the artist is looking at.
         return render_template("royalties.html", active_page="royalties",
                                desk=desk, roy_periods=periods, roy_period=chosen,
+                               lag=reporting_lag(rows_all),
                                **build_dashboard_context())
 
     @app.route("/catalog")

@@ -132,10 +132,13 @@ def expectation(source, observed=None):
     published = typical_days(source)
     if published is not None:
         return {"days": published, "basis": "typical",
+                # No promise that this account's own figure will replace it.
+                # That needs the day a distributor reported, which the app it
+                # is wired into does not record, so saying "once you have a few
+                # periods of your own" put a promise on a money page that
+                # nothing was going to keep.
                 "detail": ("A general figure for %s, about %d days. Not measured "
-                           "from your account; once you have a few periods of "
-                           "your own this uses those instead."
-                           % (source, published))}
+                           "from your account." % (source, published))}
     return {"days": None, "basis": "unknown",
             "detail": ("Nothing is known about how long %s takes to report, and "
                        "nothing has been assumed." % source)}

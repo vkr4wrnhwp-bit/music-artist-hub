@@ -1,0 +1,107 @@
+{#- HAS EACH STORE REPORTED? royalty_lag.py, in front of an artist at last.
+
+    One row per store this account's statements have ever named: whether
+    the period it owes has arrived, and whether the wait so far is normal
+    FOR THAT STORE. Every verdict says what it rests on in the reader's
+    words, never in the module's own code word, and a store with no basis
+    at all keeps its row saying so. Nothing records the day a distributor
+    reported, so no verdict here is measured from this account.
+
+    Not the coverage gap further down. A coverage gap asks whether a
+    TRACK is missing from a store its siblings reported to; this asks
+    whether a STORE has reported for a PERIOD. Different question,
+    different remedy, so the key below says so out loud.
+
+    Rendered on Statements in full and on Royalties compact, from the
+    same reading: statements_engine.reporting_lag(). -#}
+{% set s = lag.summary %}
+
+{%- macro lag_row(r) -%}
+      <li class="rl-row" data-store="{{ r.store }}" data-lag-state="{{ r.state }}">
+        <span class="rl-state {{ r.state }}"><i aria-hidden="true"></i>{{ r.word }}</span>
+        <span class="rl-who">
+          <b>{{ r.store }}</b>
+          {%- if r.lines > 1 %}<small>{{ r.lines }} payee lines</small>{% endif %}
+          <span class="rl-basis {{ r.basis }}">{{ r.basis_word }}</span>
+        </span>
+        <span class="rl-say">
+          <b>{{ r.headline }}</b>
+          <small>{% if r.waiting_for %}Still waiting on {{ r.waiting_for }}. {% endif %}{{ r.arrived_note }}</small>
+          <small class="why">{{ r.detail }}</small>
+        </span>
+      </li>
+{%- endmacro -%}
+
+{% if lag_compact %}
+<section id="reporting" class="rl rl-tight" aria-labelledby="rl-compact-h">
+  <h2 id="rl-compact-h" class="rl-h">Has each store reported?
+    <span class="sub">late, or just how long this one takes</span></h2>
+  <div class="rl-panel">
+    <p class="rl-lede">{{ s.headline }}</p>
+    {% if lag.rows %}
+    <div class="rl-tally">
+      {% if s.overdue %}<span class="rl-state overdue"><i aria-hidden="true"></i>Overdue: {{ s.overdue | join(", ") }}</span>{% endif %}
+      {% if s.slow %}<span class="rl-state slow"><i aria-hidden="true"></i>Slow: {{ s.slow | join(", ") }}</span>{% endif %}
+      {% if s.blind %}<span class="rl-state unknown"><i aria-hidden="true"></i>No reading: {{ s.blind | join(", ") }}</span>{% endif %}
+      {% if s.settled_count and not s.overdue and not s.slow %}<span class="rl-state normal"><i aria-hidden="true"></i>Every store with a reading is inside its usual wait</span>{% endif %}
+    </div>
+    {% if s.blind_note %}<p class="rl-note">{{ s.blind_note }}</p>{% endif %}
+    {% if s.basis_note %}<p class="rl-note">{{ s.basis_note }}</p>{% endif %}
+    <p class="rl-note"><a class="rl-go" href="/statements#reporting">The full reading, store by store, is on Statements</a></p>
+    {% else %}
+    <p class="rl-note">Upload a statement and every store it names gets a reading here: whether the period it owes has arrived, and whether the wait so far is normal for that store. Until then nothing is claimed either way.</p>
+    {% endif %}
+  </div>
+</section>
+
+{% else %}
+<section id="reporting" class="rl" aria-labelledby="rl-h">
+  <h2 id="rl-h" class="rl-h">Has each store reported?
+    <span class="sub">late, or just how long this one takes</span></h2>
+  <div class="rl-panel">
+    <p class="rl-lede">{{ s.headline }}</p>
+    {% if s.blind_note %}<p class="rl-note">{{ s.blind_note }}</p>{% endif %}
+
+    {% if lag.rows %}
+    {% if lag.flagged %}
+    <ul class="rl-list">
+      {% for r in lag.flagged %}{{ lag_row(r) }}{% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if lag.settled %}
+    {% if lag.settled | length > 5 %}
+    <details class="rl-more">
+      <summary>{{ lag.settled | length }} stores are inside the wait they normally take, with nothing to chase</summary>
+      <ul class="rl-list">
+        {% for r in lag.settled %}{{ lag_row(r) }}{% endfor %}
+      </ul>
+    </details>
+    {% else %}
+    <ul class="rl-list">
+      {% for r in lag.settled %}{{ lag_row(r) }}{% endfor %}
+    </ul>
+    {% endif %}
+    {% endif %}
+
+    {% if s.basis_note %}<p class="rl-note">{{ s.basis_note }}</p>{% endif %}
+    <p class="rl-note">A wait is counted from the day a period ended to today, against a published figure for how long that platform usually takes. Nothing here records the day a distributor actually reported, and the day you uploaded a file is a fact about you rather than about the store, so it is never used as one. That is why no verdict on this page is measured from your own account.</p>
+
+    <div class="rl-key">
+      <span><b>Overdue</b>: far enough past the wait this store usually needs that it is worth asking about.</span>
+      <span><b>Slow</b>: past the usual wait, but not by enough to mean anything on its own.</span>
+      <span><b>Normal</b>: still inside the wait this store usually needs. Nothing is wrong.</span>
+      <span><b>Reported</b>: the latest period has arrived and the next one has not ended yet.</span>
+      <span><b>No reading</b>: nothing is known about how long this one takes, and nothing has been assumed.</span>
+      <span><b>Not a coverage gap.</b> A coverage gap is one track missing from a store the rest of your catalogue earns on, and the fix is a delivery or an accounting request. This is a store that has not reported for a period at all, and the fix is to wait or to chase. <a class="rl-go" href="#gaps">The coverage gaps are further down</a>.</span>
+    </div>
+    {% else %}
+    <div class="rl-empty">
+      <b>No reading yet</b>
+      <p>No statement has been uploaded, so no store has any reporting history in this account and there is nothing to judge. This is not a pass: it means the question has not been asked yet, not that every store is on time.</p>
+      <p>Upload one above and each store it names gets a row here, saying whether the period it owes has arrived and whether the wait so far is normal for that store. The answer rests on a published figure for the platform, which is never presented as your account's own, because nothing in this app records the day a distributor reported.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}

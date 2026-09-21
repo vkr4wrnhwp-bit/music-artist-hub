@@ -1,0 +1,98 @@
+/* HAS EACH STORE REPORTED? The reporting-lag reading, on Statements in
+ * full and on Royalties compact. Its own stylesheet because it is its
+ * own question: nothing here reaches the desks around it.
+ *
+ * Tokens only - the design-system lock reads this file. Type sits on the
+ * 12px floor; radii are the system's three. A state is never carried by
+ * colour alone: every lamp sits beside its own word, so the row reads
+ * the same in greyscale, in high contrast and out loud. */
+
+.rl { display: block; }
+.rl-h { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 10px;
+        font-family: var(--sb-text); font-size: 12px; font-weight: 700; letter-spacing: .12em;
+        text-transform: uppercase; color: var(--sb-gold); }
+.rl-h .sub { color: var(--sb-ink-3); text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 13px; }
+.rl-panel { position: relative; padding: 16px; border-radius: var(--sb-r-panel);
+            background: var(--sb-surface-1); border: 1px solid var(--sb-line-strong); }
+.rl-lede { margin: 0; font-size: 15px; line-height: 1.5; font-weight: 700; color: var(--sb-ink); max-width: 70ch; }
+.rl-note { margin: 10px 0 0; font-size: 13px; line-height: 1.55; color: var(--sb-ink-2); max-width: 80ch; }
+.rl-go { color: var(--sb-gold-bright); text-decoration: underline; }
+.rl-go:hover { color: var(--sb-gold); }
+.rl-go:focus-visible { outline: none; box-shadow: var(--sb-focus); border-radius: var(--sb-r-control); }
+
+/* --- the list: one store, one verdict, one basis ---------------------- */
+.rl-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.rl-row { display: grid; grid-template-columns: 116px minmax(0, 15em) minmax(0, 1fr); gap: 12px;
+          align-items: start; padding: 12px 14px; border-radius: var(--sb-r-control);
+          background: var(--sb-ground); border: 1px solid var(--sb-line); }
+.rl-row[data-lag-state="overdue"] { border-color: var(--sb-crit-line); background: var(--sb-crit-wash); }
+.rl-row[data-lag-state="slow"] { border-color: var(--sb-warn-line); }
+.rl-row[data-lag-state="unknown"] { border-style: dashed; }
+
+/* The lamp and its word are one chip, so the word cannot be lost. */
+.rl-state { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700;
+            letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+            padding: 4px 9px; border-radius: var(--sb-r-pill);
+            border: 1px solid var(--sb-line-strong); color: var(--sb-ink-2); }
+.rl-state > i { width: 8px; height: 8px; flex: none; border-radius: var(--sb-r-pill); background: var(--sb-ink-3); }
+.rl-state.overdue { color: var(--sb-crit); border-color: var(--sb-crit-line); background: var(--sb-crit-wash); }
+.rl-state.overdue > i { background: var(--sb-crit); }
+.rl-state.slow { color: var(--sb-warn); border-color: var(--sb-warn-line); background: var(--sb-warn-wash); }
+.rl-state.slow > i { background: var(--sb-warn); }
+.rl-state.normal, .rl-state.reported { color: var(--sb-good); border-color: var(--sb-good-line); background: var(--sb-good-wash); }
+.rl-state.normal > i, .rl-state.reported > i { background: var(--sb-good); }
+/* No reading is not a pass and is not a fault: it is the absence of one.
+   Hollow, dashed, and it says so in the word beside it. */
+.rl-state.unknown { color: var(--sb-ink-2); border-style: dashed; border-color: var(--sb-line-strong); }
+.rl-state.unknown > i { background: transparent; border: 1px dashed var(--sb-ink-3); }
+
+.rl-who { display: grid; gap: 4px; min-width: 0; }
+.rl-who > b { font-size: 14px; font-weight: 700; color: var(--sb-ink); overflow-wrap: anywhere; }
+.rl-who > small { font-size: 12px; color: var(--sb-ink-3); }
+.rl-say { display: grid; gap: 3px; min-width: 0; }
+.rl-say > b { font-size: 14px; font-weight: 700; color: var(--sb-ink); overflow-wrap: anywhere; }
+.rl-say > small { font-size: 12.5px; line-height: 1.5; color: var(--sb-ink-2); }
+.rl-say > small.why { color: var(--sb-ink-3); }
+
+/* What the verdict rests on, in words. "measured" is evidence from this
+   account; "typical" is a table and must never read as the artist's own. */
+.rl-basis { justify-self: start; font-size: 12px; font-weight: 600; line-height: 1.4;
+            padding: 2px 8px; border-radius: var(--sb-r-pill);
+            border: 1px solid var(--sb-line-strong); color: var(--sb-ink-3); }
+.rl-basis.measured { color: var(--sb-good); border-color: var(--sb-good-line); background: var(--sb-good-wash); }
+.rl-basis.typical { color: var(--sb-info); border-color: var(--sb-info-line); background: var(--sb-info-wash); }
+.rl-basis.unknown { border-style: dashed; }
+
+.rl-more { margin-top: 12px; }
+.rl-more > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--sb-gold-bright); }
+.rl-more > summary:focus-visible { outline: none; box-shadow: var(--sb-focus); border-radius: var(--sb-r-control); }
+.rl-more[open] > summary { margin-bottom: 4px; }
+
+.rl-key { display: grid; gap: 6px; margin-top: 14px; font-size: 12px; line-height: 1.55; color: var(--sb-ink-3); }
+.rl-key b { color: var(--sb-ink-2); font-weight: 700; }
+
+.rl-empty { margin-top: 12px; padding: 16px; border-radius: var(--sb-r-control);
+            border: 1px dashed var(--sb-line-strong); background: var(--sb-ground); }
+.rl-empty > b { display: block; font-size: 14px; font-weight: 700; color: var(--sb-ink); }
+.rl-empty > p { margin: 8px 0 0; font-size: 13px; line-height: 1.55; color: var(--sb-ink-2); max-width: 80ch; }
+
+/* --- the compact reading on Royalties --------------------------------- */
+.rl-tally { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.rl-tight .rl-state { white-space: normal; text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+
+/* --- narrow screens: 320px up ----------------------------------------- */
+@media (max-width: 860px) {
+  .rl-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .rl-state { justify-self: start; }
+}
+@media (max-width: 420px) {
+  .rl-panel { padding: 12px; }
+  .rl-lede { font-size: 14px; }
+  .rl-state { white-space: normal; }
+}
+
+/* Nothing here animates except the fold, and that only for a reader who
+   has not asked for stillness. */
+@media (prefers-reduced-motion: no-preference) {
+  .rl-row { transition: border-color var(--sb-fast) var(--sb-ease); }
+}

@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/css/meters.css?v=2">
   <link rel="stylesheet" href="/static/css/royalties.css?v=3">
   <link rel="stylesheet" href="/static/css/money-desks.css?v=5">
+  <link rel="stylesheet" href="/static/css/reporting-lag.css?v=1">
 {% endblock %}
 
 {#- THE ROYALTIES DESK - approved from the numbered mockup of 2026-09-13.
@@ -52,6 +53,11 @@
     <p>Upload a statement and this page reads it: what each stream paid, which lanes are collecting, how every store and track moved between periods, and where the money came from. Nothing here is sampled or estimated from anybody else's catalogue.</p>
     <a href="/statements#intake" class="sb-btn sb-btn-primary" style="margin-top:12px">Upload a statement</a>
   </section>
+
+  {#- Nothing on file is not the same as nothing wrong, so the reporting
+      reading is shown here too, saying it has no reading yet. -#}
+  {% set lag_compact = true %}
+  {% include "_reporting_lag.html" %}
 
   {% else %}
 
@@ -146,6 +152,12 @@
       </div>
     </div>
   </section>
+
+  {#- 3 · HAS EACH STORE REPORTED? The short reading; the row-by-row one
+      lives on Statements, where the uploads are. It reads every period
+      on file, not the one in the control above. -#}
+  {% set lag_compact = true %}
+  {% include "_reporting_lag.html" %}
 
   {#- 4 · BY STREAM: the ledger that replaces the four Income-by-type tabs. -#}
   <section aria-labelledby="ry-streams-h" id="streams">

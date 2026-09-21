@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/css/meters.css?v=2">
   <link rel="stylesheet" href="/static/css/statements.css?v=4">
   <link rel="stylesheet" href="/static/css/money-desks.css?v=5">
+  <link rel="stylesheet" href="/static/css/reporting-lag.css?v=1">
 {% endblock %}
 
 {#- THE STATEMENTS DESK - approved from the numbered mockup of 2026-09-13.
@@ -242,6 +243,12 @@
     </div>
   </section>
 
+  {#- 5b · HAS EACH STORE REPORTED? The reporting-lag reading, beside
+      the ladder because it asks about the same stores. A different
+      question from the coverage gaps below: a gap is a track missing
+      from a store, this is a store that has not reported at all. -#}
+  {% include "_reporting_lag.html" %}
+
   {#- 6 · TRACKS: what each earned, and on how many of the stores. -#}
   <section aria-labelledby="sd-tracks-h">
     <h2 id="sd-tracks-h" class="sd-h">Tracks <span class="sub">— what each earned, and on how many of your stores</span></h2>
@@ -375,6 +382,10 @@
     <b>No statements yet</b>
     <p>Upload your first CSV above. Export one from your distributor or PRO dashboard: Symphonic, ASCAP, BMI and The MLC all offer CSV statements.</p>
   </section>
+
+  {#- An account with no history still gets the reporting reading, and it
+      says it has none. Hiding it here would read as a pass. -#}
+  {% include "_reporting_lag.html" %}
   {% endif %}
 </div>
 {% endif %}
