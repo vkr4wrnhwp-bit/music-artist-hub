@@ -115,12 +115,35 @@ def test_a_form_filled_faster_than_reading_creates_nothing(client):
 
 
 def test_the_refusal_does_not_say_which_check_caught_it(client):
+    """Naming the check tells a script how to pass it next time. The
+    reasons the guard returns are for the log only, so none of its
+    wording may reach the page."""
+    app_obj, c = client
+    body = c.post("/signup", data=_fields(
+        app_obj, **{signup_guard.HONEYPOT: "x"})).get_data(as_text=True).lower()
+    assert signup_guard.REFUSAL.lower() in body
+    # The exact phrasings signup_guard.judge returns, not loose words: the
+    # page legitimately contains "generated", which a search for "rate"
+    # matched when this test was first written.
+    #
+    # The honeypot's field name is deliberately NOT on this list. It is in
+    # the form on every render, including this one, because the person has
+    # to be able to try again. Hiding the name was never the defence: a
+    # browser does not draw the field, so a person does not fill it.
+    for reason in ("filled the hidden field", "signed form stamp",
+                   "submitted in", "throwaway domain", "second account from"):
+        assert reason.lower() not in body, reason
+
+
+def test_the_refused_person_can_try_again(client):
+    """A real artist will occasionally trip a check and must not be
+    stranded: the refusal re-serves the whole form, with a fresh stamp."""
     app_obj, c = client
     body = c.post("/signup", data=_fields(
         app_obj, **{signup_guard.HONEYPOT: "x"})).get_data(as_text=True)
-    assert signup_guard.REFUSAL in body
-    for tell in ("hidden field", "honeypot", "stamp", "throwaway", "rate"):
-        assert tell not in body.lower(), tell
+    assert 'name="password"' in body
+    assert 'name="%s"' % signup_guard.STAMP_FIELD in body
+    assert 'name="%s" value=""' % signup_guard.STAMP_FIELD not in body
 
 
 def test_an_invitation_is_not_judged(client):

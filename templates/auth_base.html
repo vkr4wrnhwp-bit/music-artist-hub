@@ -103,6 +103,15 @@
     {% block live %}{% endblock %}
   </main>
 
+  {#- Ask, on the door pages too. Every answer in it was written by a
+      person in support_kb.py and no model is behind it, so it cannot
+      invent an answer for a stranger. It matters most here: the sign-up
+      guard refuses a submission it believes came from a script and tells
+      the person to write to us, and until now this page offered nowhere
+      to write. The partial carries its own styles and script, so it needs
+      nothing else from this frame. -#}
+  {% include "partials/support_ask.html" %}
+
   {% block scripts %}{% endblock %}
 </body>
 </html>
