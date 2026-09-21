@@ -1,16 +1,42 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
-  <link rel="manifest" href="/static/manifest.json">
+  {#- A reseller's artist who installs this to a home screen was getting
+      "Street Banker" under the icon, from a fixed file that could not say
+      anything else. A tenant gets a rendered one. Street Banker's own stays
+      the static file: it is the name static/js/sw.js precaches, and it is
+      cacheable at the edge in a way a per-tenant document is not. -#}
+  <link rel="manifest" href="{% if brand %}/manifest.webmanifest{% else %}/static/manifest.json{% endif %}">
   <meta name="theme-color" content="#0B0A08">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Royalty Sweep by Street Banker{% endblock %}</title>
+  {#- The tab. A reseller's artist read "Street Banker" here on a hundred
+      and fifty-one pages of a product somebody else sold them, because the
+      frame substituted nothing and every leaf baked the name in. Leaves name
+      the PAGE now; this line names whose product it is. product_name is the
+      tenant, else Royalty Sweep on its own pages and Street Banker
+      everywhere else - the rule the wordmark below has followed since
+      2026-09-14, so the tab and the sidebar finally agree.
+      tests/test_white_label_titles.py fails if a new page bakes it back in. -#}
+  {%- set sb_page %}{% block title %}{% endblock %}{% endset -%}
+  {#- title_product lets a page name somebody other than the tenant.
+      Its only use is the owner's two exceptions, /terms and /privacy:
+      those documents say who holds the data and who the artist is
+      contracting with, and a reseller's logo above them does not
+      change either. Every other page leaves it unset. -#}
+  <title>{% if sb_page | trim %}{{ sb_page | trim }} - {% endif %}{{ title_product or product_name }}</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230a0a0a' stroke='white' stroke-width='2'/%3E%3Cpath d='M13 10.5L21 16L13 21.5V10.5Z' fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/css/tailwind.css?v=28">
   <link rel="stylesheet" href="/static/css/app-chrome.css?v=11">
+  {#- The tenant's accent used to reach the wordmark and stop. These two
+      custom properties are the whole of what a tenant can set, and
+      white-label.css decides how far each one travels. brand_style is ""
+      for Street Banker's own pages, so nothing below is even declared
+      there and the sheet falls through to the platform tokens. -#}
+  <link rel="stylesheet" href="/static/css/white-label.css?v=1">
+  {% if brand_style %}<style>:root { {{ brand_style }} }</style>{% endif %}
   {% include "_fonts.html" %}
   {# Chart.js is 69 kB and six pages draw a chart. The rest opt out
      by simply not overriding this block. #}

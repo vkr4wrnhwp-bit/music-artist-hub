@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ 'Edit Campaign' if c else 'New Campaign' }} - Street Banker Links{% endblock %}
+{% block title %}{{ 'Edit Campaign' if c else 'New Campaign' }} - Links{% endblock %}
 
 {% set s = (c.settings if c else {}) or {} %}
 {% set dest_map = {} %}

@@ -314,7 +314,13 @@
          style="object-position: {{ position }};">{% endif %}
     <span class="sb-plate-veil" aria-hidden="true"></span>
     <div class="sb-plate-inner">
-      <p class="sb-plate-eyebrow">{{ eyebrow }}</p>
+      {#- A reseller's artist read "STREET BANKER" in the eyebrow of the
+          band that opens every internal page, directly above their own
+          label's name in the sidebar. Swapped here rather than in the
+          seven callers, two of which this branch may not touch, and so
+          that an eighth cannot get it wrong. With no tenant `brand` is
+          None and the eyebrow passes through untouched. -#}
+      <p class="sb-plate-eyebrow">{{ brand_text(eyebrow) }}</p>
       <h1 class="sb-plate-title" id="sb-plate-title">{{ title }}</h1>
       {% if support %}<p class="sb-plate-support">{{ support }}</p>{% endif %}
     </div>

@@ -37,6 +37,7 @@ import partner_os
 import passport_os
 import stage_os
 import partner_store
+import white_label          # whose product is this? one answer, for the tab, the manifest and the mail
 # NB: signal_hub, not signal - a module named `signal` in the repo root would
 # shadow the standard library module that gunicorn and Werkzeug import.
 import signal_hub
@@ -1417,17 +1418,25 @@ def create_app():
                     # where trusting the Host header would hand a valid
                     # reset token to whoever set it.
                     link = public_url("/reset/" + token)
+                    # A reseller's artist asked their own label for a way
+                    # back in and got mail headed "Reset your Street Banker
+                    # password", about a "Street Banker account" - a product
+                    # they have never heard of. The sender's display name
+                    # already swapped; the words in the message did not.
+                    import html as _html
+                    product = white_label.product_name()
                     emailer.send(
-                        email, "Reset your Street Banker password",
+                        email, "Reset your %s password" % product,
                         '<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">'
                         "<h2>Reset your password</h2>"
                         "<p>Someone (hopefully you) asked to reset the password for this "
-                        "Street Banker account. The link works for 1 hour.</p>"
+                        "%s account. The link works for 1 hour.</p>"
                         '<p><a href="%s" style="display:inline-block;background:#E8B950;'
                         'color:#14100A;font-weight:bold;padding:12px 24px;border-radius:10px;'
                         'text-decoration:none;">Choose a new password</a></p>'
                         "<p style=\"color:#91836A;font-size:12px;\">If you didn't ask for this, "
-                        "ignore this email — your password is unchanged.</p></div>" % link)
+                        "ignore this email. Your password is unchanged.</p></div>"
+                        % (_html.escape(product), link))
                 # Same response either way: never confirm whether an email exists.
                 sent = True
         return render_template("forgot.html", sent=sent, error=error)
@@ -3248,6 +3257,9 @@ def create_app():
                                    "instance", "uploads")
         os.makedirs(UPLOADS_DIR, exist_ok=True)
         print("WARNING: uploads dir unusable; falling back to", UPLOADS_DIR)
+    # Published so a blueprint does not have to re-derive it and get the
+    # fallback wrong. partner_os writes a tenant's logo here.
+    app.config["UPLOADS_DIR"] = UPLOADS_DIR
 
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename):
@@ -4581,23 +4593,47 @@ def create_app():
         allowed |= set(hub_defs.FAN_ACCOUNT_KEYS)
         return [e for e in idx if e["key"] in allowed]
 
+    # A Jinja global rather than a context variable: sb.plate and the
+    # other macros in templates/_sb.html are imported without context,
+    # so nothing the context processor hands over is visible inside
+    # them. This is.
+    app.jinja_env.globals["brand_text"] = white_label.brand_text
+
     @app.context_processor
     def inject_brand():
         """The tenant's brand, for every template, or None for our own.
 
         A context processor rather than a per-route argument: the wordmark
-        renders in the shell, on the login page and in the manifest, and a
-        route that forgot to pass it would quietly show the platform's name
-        to a reseller's artist. There is no route to forget here.
+        renders in the shell, on the login page, in the browser tab and in
+        the manifest, and a route that forgot to pass it would quietly show
+        the platform's name to a reseller's artist. There is no route to
+        forget here.
 
         None means Street Banker's own, and the templates read it as that
         rather than as a missing value to paper over.
+
+        Two more travel with it, because both are needed on every page and
+        both used to be missing:
+
+          product_name  what the frames print in the browser tab. Until
+                        2026-09-21 base.html printed "Royalty Sweep by
+                        Street Banker" with no substitution at all, and 151
+                        leaves baked the name in themselves.
+          brand_style   the tenant's accent as CSS custom properties, and
+                        "" for the platform - so Street Banker's own pages
+                        carry no inline style and static/css/white-label.css
+                        falls through to the tokens it already had.
         """
         try:
-            return {"brand": partner_store.branding(getattr(g, "partner", None))}
+            brand = partner_store.branding(getattr(g, "partner", None))
         except Exception:
             # A partner table mid-migration must not take every page down.
-            return {"brand": None}
+            brand = None
+        # Neither of these can raise: white_label reads the already-resolved
+        # g.partner behind its own guard and never touches the database.
+        return {"brand": brand,
+                "product_name": white_label.product_name(),
+                "brand_style": white_label.accent_vars(brand)}
 
     # _signal_seat lived here until 2026-09-17. It decided whether the
     # Analytics room drew the Signal card; the card left the room, so the
@@ -4931,6 +4967,11 @@ def create_app():
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/catalog-sweep", "/demo-open", "/plan",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
+                     # The install card. A browser fetches it with no
+                     # cookie at all, so behind the login wall every
+                     # tenant would have been handed a redirect
+                     # instead of their own name.
+                     "/manifest.webmanifest",
                      # A crawler bounced to /login never reads the rules.
                      "/robots.txt",
                      "/api/artist-signal-profile",
@@ -6813,12 +6854,17 @@ def create_app():
                 # either way, so a sandbox-blocked send loses nothing.
                 link = (request.url_root.rstrip("/") + "/roster/join/"
                         + invite["invite_token"])
+                # "runs their label on Street Banker" told a reseller's
+                # invitee whose software it really was.
+                import html as _html
                 emailer.send(email, "%s wants you on their roster" % user["name"],
-                             '<p><b>%s</b> runs their label on Street Banker and '
+                             '<p><b>%s</b> runs their label on %s and '
                              'wants to add you to the roster (they see read-only '
                              'stats, never your login).</p>'
                              '<p><a href="%s">Accept the invite</a></p>'
-                             % (user["name"], link), reply_to=user["email"])
+                             % (_html.escape(user["name"]),
+                                _html.escape(white_label.product_name()), link),
+                             reply_to=user["email"])
         return redirect("/roster")
 
     @app.route("/roster/join/<token>", methods=["GET", "POST"])
@@ -8531,6 +8577,42 @@ def create_app():
             return jsonify({"ok": False}), 401
         store.save_rack_preset(user["id"], _json_body())
         return jsonify({"ok": True})
+
+    @app.route("/manifest.webmanifest")
+    def tenant_manifest():
+        """The install card, for a reseller's artist.
+
+        static/manifest.json is a fixed file that says Street Banker, so an
+        artist who added a tenant's app to their home screen got the
+        platform's name under the icon on their own phone. base.html points
+        a tenant here instead; Street Banker's own pages keep the static
+        file, because that is the name static/js/sw.js precaches and a
+        static file is cacheable at the edge in a way this is not.
+
+        The icons do NOT swap. A tenant's logo is whatever they uploaded -
+        any aspect ratio, and possibly SVG - while a maskable 192 and 512
+        PNG is a different artefact that would have to be generated from
+        it. Naming the limit beats shipping a stretched icon.
+        """
+        with open(os.path.join(app.static_folder, "manifest.json"),
+                  encoding="utf-8") as fh:
+            card = json.load(fh)
+        name = white_label.tenant_name()
+        if name:
+            partner = getattr(g, "partner", None) or {}
+            card["name"] = name
+            card["short_name"] = name[:12]
+            tagline = (partner.get("tagline") or "").strip()
+            card["description"] = tagline or (
+                "%s - releases, royalties, rights and the studio." % name)
+        resp = Response(json.dumps(card, indent=2),
+                        mimetype="application/manifest+json")
+        # Host-derived, never cookie-derived: two tenants must not share a
+        # cached copy, and one reseller's name must not be handed to
+        # another's artist by an edge that could not tell them apart.
+        resp.headers["Vary"] = "Host"
+        resp.headers["Cache-Control"] = "public, max-age=300"
+        return resp
 
     @app.route("/sw.js")
     def service_worker():
@@ -13010,15 +13092,22 @@ def create_app():
         link = request.url_root.rstrip("/") + "/team/join/" + invite["invite_token"]
         emailed = False
         if emailer.configured():
+            # Named the platform twice at somebody who was being invited
+            # into a reseller's workspace and had no reason to have heard
+            # of it.
+            import html as _html
+            product = white_label.product_name()
             emailed = emailer.send(
-                email, "%s invited you to their Street Banker team" % user["name"],
+                email, "%s invited you to their %s team" % (user["name"], product),
                 '<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">'
                 "<h2>You're invited</h2>"
-                "<p><strong>%s</strong> added you to their Street Banker team as their "
+                "<p><strong>%s</strong> added you to their %s team as their "
                 "<strong>%s</strong>.</p>"
                 '<p><a href="%s" style="display:inline-block;background:#E8B950;color:#14100A;'
                 'font-weight:bold;padding:12px 24px;border-radius:10px;text-decoration:none;">'
-                "Accept the invite</a></p></div>" % (user["name"], role, link), reply_to=user["email"])
+                "Accept the invite</a></p></div>"
+                % (_html.escape(user["name"]), _html.escape(product), role, link),
+                reply_to=user["email"])
         return jsonify({"ok": True, "link": link, "emailed": emailed})
 
     @app.route("/team/join/<token>", methods=["GET", "POST"])
@@ -13696,7 +13785,7 @@ def create_app():
         return (
             '<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">'
             "<h2>You have %s access</h2>"
-            "<p><strong>%s</strong> has put your Street Banker account (%s) on the "
+            "<p><strong>%s</strong> has put your %s account (%s) on the "
             "<strong>%s</strong> plan. %s</p>"
             "%s"
             '<p><a href="%s" style="display:inline-block;background:#E8B950;color:#14100A;'
@@ -13705,6 +13794,7 @@ def create_app():
             '<p style="color:#91836A;font-size:12px;">No card was charged and nothing renews. '
             "If you were not expecting this, reply to this email.</p></div>"
             % (_html.escape(name), _html.escape(owner_name or "The owner"),
+               _html.escape(white_label.product_name()),
                _html.escape(target_email), _html.escape(name), _html.escape(blurb),
                ("<p>What is open now:</p><ul>%s</ul>" % items) if items else "",
                public_url("/login")))
@@ -13725,7 +13815,7 @@ def create_app():
         if emailer.using_shared_test_sender():
             return "off", "The email sender is still the shared test address, which only delivers to the operator."
         ok = emailer.send(target["email"],
-                          "You have Street Banker %s access" % name,
+                          "You have %s %s access" % (white_label.product_name(), name),
                           _grant_plan_email_html(owner.get("name"), target["email"], plan),
                           reply_to=owner.get("email") or None)
         if ok:

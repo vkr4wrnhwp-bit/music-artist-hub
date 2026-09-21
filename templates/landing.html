@@ -3,7 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ config.nav.logo.primary | title }} · {{ config.brand }} — The Artist Back Office</title>
+  {#- A reseller's front door read "Street Banker · Royalty Sweep" here.
+      The title is built from config values rather than literals, so the
+      template lock had nothing to match and only rendering the tenant's
+      own "/" showed it. The platform branch is unchanged. -#}
+  <title>{% if brand %}{{ brand.name }}{% if brand.tagline %} · {{ brand.tagline }}{% endif %}{% else %}{{ config.nav.logo.primary | title }} · {{ config.brand }} — The Artist Back Office{% endif %}</title>
   <meta name="description" content="Distribution, royalty recovery, campaign tools, and catalog intelligence built around artist ownership.">
   {#- Derived, never written down. This markup used to name the hosting
       address as the site's own, so search engines were told to index the
@@ -12,14 +16,16 @@
       when it moves, and it moved. -#}
   <link rel="canonical" href="{{ public_base }}/">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Street Banker">
-  <meta property="og:title" content="Street Banker — The Artist Operating System">
+  {#- The share card. A link to a reseller's homepage previewed as the
+      platform's, name and all, wherever their artists posted it. -#}
+  <meta property="og:site_name" content="{{ product_name }}">
+  <meta property="og:title" content="{% if brand %}{{ brand.name }}{% if brand.tagline %} · {{ brand.tagline }}{% endif %}{% else %}Street Banker — The Artist Operating System{% endif %}">
   <meta property="og:description" content="Distribution, royalty recovery, campaign tools, and catalog intelligence built around artist ownership.">
   <meta property="og:url" content="{{ public_base }}/">
   <meta property="og:image" content="{{ public_base }}/static/img/hero-band-wide-1100.jpg">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23141210'/%3E%3Cpath d='M6 12l5 4 5-7 5 7 5-4v10a1 1 0 01-1 1H7a1 1 0 01-1-1z' fill='none' stroke='%23d8b25a' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="manifest" href="/static/manifest.json">
+  <link rel="manifest" href="{% if brand %}/manifest.webmanifest{% else %}/static/manifest.json{% endif %}">
   <meta name="theme-color" content="#0B0A08">
   <link rel="apple-touch-icon" href="/static/img/icon-192.png">
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>

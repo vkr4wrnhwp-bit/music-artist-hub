@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "_sb.html" as sb %}
 
-{% block title %}Hours Desk - Street Banker{% endblock %}
+{% block title %}Hours Desk{% endblock %}
 {% block head_scripts %}<link rel="stylesheet" href="/static/css/money-desks.css?v=5">{% endblock %}
 
 {% macro money(v) %}${{ "{:,.2f}".format(v or 0) }}{% endmacro %}

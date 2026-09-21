@@ -1,0 +1,81 @@
+/* How far a reseller's accent reaches.
+ *
+ * Until now it reached the wordmark and stopped. A tenant could pick a
+ * colour, watch it pass a contrast check, and then find one small logo
+ * wearing it on a product that was otherwise somebody else's gold.
+ *
+ * Two variables arrive from the tenant, set on :root by base.html and
+ * by nothing else:
+ *
+ *   --sb-brand-accent   the colour, proven readable AS INK on this
+ *                       product's dark surfaces by the save-time gate
+ *                       in partner_os.branding (AA large, 3:1).
+ *   --sb-brand-fill     the same colour, present ONLY when the better
+ *                       ink on top of it clears AA for body text
+ *                       (white_label.accent_fill_ok). Its presence is
+ *                       the permission to use the accent as a surface
+ *                       behind words.
+ *   --sb-brand-on-fill  that ink.
+ *
+ * Every rule below falls back to the platform token, so on Street
+ * Banker's own pages - where neither variable is ever defined - this
+ * sheet changes nothing at all.
+ *
+ * What deliberately does NOT move: Tailwind's amber/gold utilities,
+ * which the build compiles to literal colours and which carry meaning
+ * the token sheet assigns (a gold pill is Save, never a warning);
+ * status colours, because status is never carried by colour alone and
+ * a tenant recolouring "good" would break the pairing with its word;
+ * and any fill when --sb-brand-fill is absent, because an accent that
+ * leaves nothing readable on top of it is worse as a button than the
+ * platform's gold is.
+ */
+
+/* --- focus: the ring follows the tenant --------------------------------
+   The shape and the offset are the platform's; only the colour moves.
+   Focus stays visible either way - this cannot turn the ring off. */
+:root {
+  --sb-focus: 0 0 0 2px var(--sb-ground), 0 0 0 4px var(--sb-brand-accent, var(--sb-gold));
+}
+
+/* --- ink: eyebrows, labels and the page plate ---------------------------
+   The roles the gate actually proves. Every internal page opens with the
+   shared plate band, so this is the accent a tenant's artist meets first
+   on every screen. */
+.sb-label-gold,
+.sb-eyebrow,
+.sb-plate-eyebrow {
+  color: var(--sb-brand-accent, var(--sb-gold));
+}
+
+/* --- edges ------------------------------------------------------------- */
+.sb-btn-secondary:hover,
+.sb-btn-ghost:hover {
+  border-color: var(--sb-brand-accent, var(--sb-gold-line));
+  color: var(--sb-brand-accent, var(--sb-gold-bright));
+}
+
+.sb-subnav-a.is-active {
+  color: var(--sb-brand-accent, var(--sb-gold));
+  box-shadow: inset 2px 0 0 var(--sb-brand-accent, var(--sb-gold));
+}
+
+/* --- fills: only with the permission -----------------------------------
+   --sb-brand-fill is defined only when the ink on it clears AA body
+   text. Absent, both lines below resolve to the platform gold and the
+   button is exactly what it was. */
+.sb-btn-primary {
+  background: var(--sb-brand-fill, var(--sb-gold));
+  border-color: var(--sb-brand-fill, var(--sb-gold));
+  color: var(--sb-brand-on-fill, var(--sb-on-gold));
+}
+
+.sb-btn-primary:hover {
+  background: var(--sb-brand-fill, var(--sb-gold-bright));
+  border-color: var(--sb-brand-fill, var(--sb-gold-bright));
+}
+
+/* A colour change is not an animation, and nothing here moves, so there
+   is nothing for prefers-reduced-motion to switch off. The transition
+   the shared button already declares is the platform's and is already
+   covered by the global reduced-motion rule in the token sheet. */

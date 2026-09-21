@@ -18,9 +18,18 @@
 
   {% if problems %}
     <div class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3">
-      <p class="text-sm font-bold text-gray-100">Not saved — nothing changed.</p>
+      <p class="text-sm font-bold text-gray-100">Not saved. Nothing changed.</p>
       <ul class="mt-2 space-y-1 text-sm text-gray-200">
         {% for p in problems %}<li>· {{ p }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if notes %}
+    <div class="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+      <p class="text-sm font-bold text-gray-100">Saved, with a limit worth knowing.</p>
+      <ul class="mt-2 space-y-1 text-sm text-gray-200">
+        {% for n in notes %}<li>{{ n }}</li>{% endfor %}
       </ul>
     </div>
   {% endif %}
@@ -32,7 +41,7 @@
       in. On your own domain they see it before they have an account at all.
     </p>
 
-    <form method="post" class="mt-4 space-y-3">
+    <form method="post" enctype="multipart/form-data" class="mt-4 space-y-3">
       <label class="block">
         <span class="sb-label text-gray-300">Name</span>
         <input name="display_name" required maxlength="120"
@@ -57,8 +66,40 @@
       <p class="text-sm text-gray-300">
         The colour is checked against the surfaces it sits on before it is
         saved. One that cannot be read on a dark sidebar is refused, with the
-        contrast it managed — a brand nobody can read is not a brand.
+        contrast it managed. A brand nobody can read is not a brand.
       </p>
+      <p class="text-sm text-gray-300">
+        It reaches your wordmark, section headings and labels, the eyebrow on
+        every page band, button edges and the ring that shows a keyboard
+        where it is. Filled buttons take it too, but only when the text on
+        top of it can still be read.
+      </p>
+
+      <label class="block">
+        <span class="sb-label text-gray-300">Logo
+          <span class="text-gray-300">· optional, {{ logo_kinds }}, up to {{ logo_max_mb }} MB</span></span>
+        {% if brand and brand.logo %}
+          <span class="mt-2 flex items-center gap-3 rounded-xl bg-sb-ground p-3">
+            <img src="{{ brand.logo }}" alt="Your current logo"
+                 class="max-h-16 w-auto">
+            <span class="text-sm text-gray-300">This is on your sidebar and your sign-in page now.</span>
+          </span>
+        {% endif %}
+        <input type="file" name="logo" accept="image/png,image/jpeg,image/webp"
+               class="mt-2 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 focus:border-amber-500/50 focus:outline-none">
+      </label>
+      <p class="text-sm text-gray-300">
+        Where you set a logo, your artists see it instead of your name in the
+        sidebar and above the sign-in form. Wide and flat reads best at the
+        size it is drawn.
+      </p>
+      {% if brand and brand.logo %}
+        <label class="flex items-center gap-2 text-sm text-gray-200">
+          <input type="checkbox" name="remove_logo" value="1"
+                 class="h-4 w-4 rounded border-white/20 bg-white/5">
+          <span>Remove the logo and go back to the name</span>
+        </label>
+      {% endif %}
 
       <button type="submit" class="sb-btn sb-btn-primary">Save branding</button>
     </form>
@@ -68,16 +109,25 @@
     <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
       <h2 class="sb-label sb-label-gold">How it reads</h2>
       <div class="mt-3 flex items-center gap-3 rounded-xl bg-sb-ground p-4">
-        <svg width="34" height="20" viewBox="0 0 40 24" fill="none" stroke="currentColor"
-             stroke-width="1.6" stroke-linejoin="round" class="shrink-0 text-sb-gold-bright"
-             {% if brand.accent %}style="color: {{ brand.accent }}"{% endif %}>
-          <path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/>
-        </svg>
+        {% if brand.logo %}
+          <img src="{{ brand.logo }}" alt="{{ brand.name }}" class="max-h-16 w-auto shrink-0">
+        {% else %}
+          <svg width="34" height="20" viewBox="0 0 40 24" fill="none" stroke="currentColor"
+               stroke-width="1.6" stroke-linejoin="round" class="shrink-0 text-sb-gold-bright"
+               {% if brand.accent %}style="color: {{ brand.accent }}"{% endif %}>
+            <path d="M4 20l3-11 6 7 7-11 7 11 6-7 3 11z"/>
+          </svg>
+        {% endif %}
         <div class="leading-none">
           <div class="text-lg font-bold tracking-[0.3em] text-gray-100">{{ brand.name | upper }}</div>
           {% if brand.tagline %}<div class="sb-label mt-2 text-amber-500/70">{{ brand.tagline }}</div>{% endif %}
         </div>
       </div>
+      <p class="mt-3 text-sm text-gray-300">
+        Your artists also read your name in the browser tab on every page, in
+        the mail this product sends them, and under the icon when they add it
+        to a home screen.
+      </p>
     </section>
   {% endif %}
 

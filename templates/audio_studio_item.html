@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "_sb.html" as sb %}
 
-{% block title %}{{ item.title or "Audio Studio" }} - Street Banker{% endblock %}
+{% block title %}{{ item.title or "Audio Studio" }}{% endblock %}
 
 {% block content %}
 {%- set status_tone = {"ready": "good", "queued": "info", "running": "info",
