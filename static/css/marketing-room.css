@@ -1,0 +1,288 @@
+/* THE MARKETING ROOM (/room/marketing) - the owner's design, 2026-09-21,
+   and fan-room.css's sibling.
+
+   Every colour is a design token: ground and surfaces for the black,
+   --sb-gold / --sb-gold-bright for the gold, --sb-good for a state the
+   record confirms, --sb-info for the demo's Sample marks. Radii are the
+   three the system allows. Nothing below 12px, no monospace. A state
+   always carries a word, never only a colour. */
+
+.mk { display: flex; flex-direction: column; gap: 16px; max-width: 1320px; margin: 0 auto; min-width: 0; }
+.mk * { box-sizing: border-box; }
+.mk svg { flex: none; }
+.mk-ico { width: 18px; height: 18px; }
+.mk-ico--sm { width: 15px; height: 15px; }
+
+.mk-kicker {
+  margin: 0; font-family: var(--sb-text); font-size: 12.5px; font-weight: 600;
+  letter-spacing: .24em; text-transform: uppercase; color: var(--sb-ink);
+}
+.mk-kicker--dim { color: var(--sb-ink-2); letter-spacing: .2em; }
+.mk-kicker--sm { font-size: 12px; letter-spacing: .18em; }
+
+/* ---- the head band -------------------------------------------------- */
+.mk-hero { position: relative; padding: 0 0 20px; border-bottom: 1px solid var(--sb-line-strong); }
+.mk-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.mk-hero-said { min-width: 0; }
+.mk-eyebrow { margin: 0; font-size: 12.5px; font-weight: 600; letter-spacing: .24em; text-transform: uppercase; color: var(--sb-gold); }
+.mk-title {
+  margin: 6px 0 0; font-family: var(--sb-display); font-size: 46px; line-height: 1;
+  font-weight: 800; font-variation-settings: "wdth" 112; letter-spacing: -.01em; color: var(--sb-ink);
+}
+.mk-sub { margin: 6px 0 0; font-size: 19px; color: var(--sb-ink); }
+
+.mk-hero-aside { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; min-width: 0; }
+.mk-controls { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+.mk-chip {
+  display: inline-flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px;
+  border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: color-mix(in srgb, var(--sb-ground) 72%, transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  color: var(--sb-ink); font-size: 14px; font-weight: 500; white-space: nowrap;
+  /* The account chip holds the artist's own name, so it is capped at the
+     space it has and a long one ends in an ellipsis. Without this, "The
+     Midnight Telegraph Orchestra and Chorus" made the document 372px wide
+     inside a 320px viewport and the whole page scrolled sideways (honesty
+     review, 2026-09-21). Motion's account line is the same shape: the
+     ellipsis is visual only, so the full name is still read out, and it is
+     on the title for a pointer. */
+  max-width: 100%; min-width: 0;
+}
+.mk-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mk-avatar {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--sb-gold-wash); border: 1px solid var(--sb-gold-line);
+  color: var(--sb-gold-bright); font-size: 12px; font-weight: 800;
+}
+.mk-range { position: relative; }
+.mk-range summary { list-style: none; cursor: pointer; }
+.mk-range summary::-webkit-details-marker { display: none; }
+.mk-range summary .mk-ico--sm { margin-left: 4px; color: var(--sb-ink-2); }
+.mk-range summary:focus-visible, .mk-cta:focus-visible, .mk-act-cta:focus-visible,
+.mk-more:focus-visible, .mk-tile:focus-visible, .mk-range-menu a:focus-visible,
+.mk-city-list a:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: 2px; }
+.mk-range-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 5; min-width: 100%;
+  display: grid; padding: 6px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-2); box-shadow: var(--sb-e3);
+}
+.mk-range-menu a { padding: 8px 10px; border-radius: var(--sb-r-control); color: var(--sb-ink); font-size: 13.5px; text-decoration: none; white-space: nowrap; }
+.mk-range-menu a:hover { background: var(--sb-surface-3); }
+.mk-range-menu a[aria-current] { color: var(--sb-gold-bright); font-weight: 700; }
+
+.mk-cta {
+  display: inline-flex; align-items: center; gap: 10px; height: 42px; padding: 0 22px;
+  border-radius: var(--sb-r-panel); text-decoration: none; white-space: nowrap;
+  background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold));
+  color: var(--sb-on-gold); font-size: 15px; font-weight: 800;
+  box-shadow: 0 1px 0 rgb(255 255 255 / .25) inset, 0 8px 22px color-mix(in srgb, var(--sb-gold) 22%, transparent);
+}
+.mk-cta:hover { filter: brightness(1.05); }
+
+.mk-note { margin: 0; max-width: 46ch; text-align: right; font-size: 13px; line-height: 1.45; color: var(--sb-ink-2); }
+.mk-note.is-sample {
+  padding: 10px 14px; border: 1px solid var(--sb-gold-line); border-radius: var(--sb-r-panel);
+  background: var(--sb-gold-wash); color: var(--sb-ink);
+}
+.mk-note b { color: var(--sb-gold-bright); }
+
+.mk-band { margin-top: 22px; display: flex; align-items: flex-end; gap: 40px; flex-wrap: wrap; }
+/* The large figure is the door to Smart Links, the page it counts. */
+.mk-big { margin: 0; display: flex; flex-direction: column; line-height: .88; text-decoration: none; color: inherit; }
+.mk-big:hover .mk-big-u { text-decoration: underline; }
+.mk-big:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: 4px; }
+.mk-big-n {
+  font-family: var(--sb-display); font-size: 66px; font-weight: 800; font-variation-settings: "wdth" 112;
+  letter-spacing: -.02em; color: var(--sb-ink); font-variant-numeric: tabular-nums;
+}
+.mk-big-u { font-family: var(--sb-display); font-size: 36px; font-weight: 800; color: var(--sb-gold); margin-top: 2px; }
+.mk-big-none { font-family: var(--sb-display); font-size: 34px; font-weight: 800; color: var(--sb-ink); line-height: 1.1; }
+.mk-stats { display: flex; align-items: stretch; gap: 30px; }
+.mk-stat { display: flex; flex-direction: column; gap: 4px; }
+.mk-stat + .mk-stat { padding-left: 30px; border-left: 1px solid var(--sb-line-strong); }
+.mk-stat-n { font-size: 26px; font-weight: 800; color: var(--sb-ink); font-variant-numeric: tabular-nums; }
+.mk-stat-l { font-size: 14px; color: var(--sb-ink); }
+
+/* ---- the stage rail ------------------------------------------------- */
+.mk-rail { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); }
+.mk-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 0 8px; }
+.mk-step + .mk-step::before {
+  /* the chevron from the previous ring to this one, at the rings' middle */
+  content: ""; position: absolute; top: 38px; right: calc(50% + 58px); width: calc(100% - 116px); height: 1px;
+  background: var(--sb-gold);
+}
+.mk-step + .mk-step::after {
+  content: ""; position: absolute; top: 34px; right: calc(50% + 58px); width: 8px; height: 8px;
+  border-top: 1px solid var(--sb-gold); border-right: 1px solid var(--sb-gold); transform: rotate(45deg);
+}
+.mk-ring {
+  display: grid; place-items: center; width: 78px; height: 78px; border-radius: 50%; margin-bottom: 6px;
+  border: 1.5px solid var(--sb-gold); color: var(--sb-gold-bright);
+  background: radial-gradient(circle at 50% 40%, var(--sb-surface-2), var(--sb-ground) 72%);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--sb-gold) 22%, transparent), 0 0 0 4px color-mix(in srgb, var(--sb-gold) 7%, transparent);
+}
+.mk-ring-ico { width: 34px; height: 34px; stroke-width: 1.3; }
+.mk-step b { font-size: 17px; font-weight: 700; color: var(--sb-ink); }
+.mk-step span { font-size: 14px; color: var(--sb-ink-2); max-width: 20ch; line-height: 1.3; font-variant-numeric: tabular-nums; }
+
+/* ---- the two panels ------------------------------------------------- */
+.mk-mid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
+.mk-panel {
+  min-width: 0; padding: 18px 16px 16px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: linear-gradient(180deg, var(--sb-surface-1), var(--sb-ground));
+  box-shadow: var(--sb-e2);
+}
+.mk-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.mk-panel-head .mk-kicker { color: var(--sb-gold); letter-spacing: .26em; }
+.mk-panel-head .mk-kicker--dim { color: var(--sb-ink-2); margin-top: 6px; }
+.mk-more { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; color: var(--sb-gold-bright); text-decoration: none; }
+.mk-more:hover { text-decoration: underline; }
+
+.mk-act-list { display: grid; gap: 10px; }
+.mk-act {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr) auto auto; align-items: center; gap: 14px;
+  padding: 12px 16px 12px 12px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: color-mix(in srgb, var(--sb-surface-2) 70%, transparent);
+}
+.mk-act-ico {
+  display: grid; place-items: center; width: 46px; height: 46px; border-radius: var(--sb-r-panel);
+  border: 1px solid var(--sb-line-strong); background: var(--sb-ground); color: var(--sb-ink);
+}
+.mk-act-ico .mk-ico { width: 24px; height: 24px; stroke-width: 1.5; }
+.mk-act-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mk-act-text b { font-size: 16px; font-weight: 700; color: var(--sb-ink); }
+.mk-act-text span { font-size: 13px; color: var(--sb-ink-2); line-height: 1.4; }
+.mk-act-figure b { font-size: 15px; font-weight: 800; color: var(--sb-gold-bright); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mk-act-cta {
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 148px;
+  height: 36px; padding: 0 14px; border-radius: var(--sb-r-control); text-decoration: none; white-space: nowrap;
+  background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold)); color: var(--sb-on-gold);
+  font-size: 13px; font-weight: 800;
+}
+.mk-act-cta:hover { filter: brightness(1.06); }
+
+.mk-empty { display: grid; gap: 8px; align-content: center; min-height: 200px; padding: 12px 4px; }
+.mk-empty p { margin: 0; font-size: 14px; color: var(--sb-ink-2); line-height: 1.45; }
+.mk-empty p:first-child { font-size: 16px; font-weight: 700; color: var(--sb-ink); }
+
+/* ---- media list by city -------------------------------------------- */
+.mk-mark { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--sb-good); white-space: nowrap; }
+.mk-mark i { width: 8px; height: 8px; border-radius: 50%; background: var(--sb-good); box-shadow: 0 0 8px var(--sb-good-line); }
+.mk-mark--sample { color: var(--sb-info); }
+.mk-mark--sample i { background: var(--sb-info); box-shadow: none; }
+.mk-geo-body { display: grid; gap: 12px; }
+.mk-map { position: relative; width: 100%; aspect-ratio: var(--map-w) / var(--map-h);
+  container: mkmap / inline-size; }
+.mk-map svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.mk-map-line { stroke: var(--sb-gold); stroke-opacity: .3; stroke-width: 1; }
+.mk-map-dot { fill: var(--sb-gold); }
+.mk-map-dot.is-big { fill: var(--sb-gold-bright); }
+.mk-map-label {
+  position: absolute; transform: translate(14px, -50%); display: flex; flex-direction: column;
+  font-size: 13px; font-weight: 600; line-height: 1.25; color: var(--sb-ink); white-space: nowrap;
+  text-shadow: 0 1px 6px rgb(0 0 0 / .9); pointer-events: none; font-variant-numeric: tabular-nums;
+  /* marketing_room.LABEL_MAX_PX is this number: a long metro name is
+     capped so the name it reserves is the name it draws, and the ranked
+     list beside the map carries it in full. */
+  max-width: 120px;
+}
+.mk-map-label b { font-size: 13.5px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.mk-map-label.is-left { transform: translate(calc(-100% - 14px), -50%); text-align: right; }
+/* marketing_room.constellation() keeps two names apart at a panel of
+   MIN_LABEL_PANEL pixels. Narrower than that the guarantee stops holding,
+   so only the first name, the largest city, is drawn. This asks the panel
+   and not the viewport because the panel is 254px wide at a 320px viewport
+   and 319px wide at 1181px, where the room turns two-column. */
+@container mkmap (max-width: 419px) {
+  .mk-map-label ~ .mk-map-label { display: none; }
+}
+
+.mk-city-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 330px; overflow-y: auto; }
+.mk-city-list a {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 7px 10px; border-radius: var(--sb-r-control); text-decoration: none; color: var(--sb-ink);
+}
+.mk-city-list a:hover { background: var(--sb-surface-3); }
+.mk-city-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.mk-city-name b { font-size: 14px; font-weight: 700; }
+.mk-city-name span { font-size: 12px; color: var(--sb-ink-3); text-transform: uppercase; letter-spacing: .1em; }
+.mk-city-n { font-size: 14px; font-weight: 800; color: var(--sb-gold-bright); font-variant-numeric: tabular-nums; }
+.mk-map-foot { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--sb-ink-3); }
+
+/* ---- the closing tiles --------------------------------------------- */
+.mk-tools-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.mk-tools-head .mk-kicker { color: var(--sb-ink); }
+.mk-tiles { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.mk-tile {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 18px; min-height: 132px;
+  padding: 16px 16px 14px 18px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: linear-gradient(180deg, var(--sb-surface-1), var(--sb-ground)); text-decoration: none; color: var(--sb-ink);
+  transition: border-color var(--sb-fast), transform var(--sb-fast);
+}
+.mk-tile:hover { border-color: var(--sb-gold-line); transform: translateY(-1px); }
+.mk-tile.is-lead {
+  border-color: var(--sb-gold);
+  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--sb-gold) 16%, transparent), transparent 60%),
+              linear-gradient(180deg, var(--sb-surface-2), var(--sb-ground));
+}
+.mk-tile-top { display: flex; align-items: flex-start; gap: 12px; }
+.mk-tile-ico { width: 40px; height: 40px; color: var(--sb-gold-bright); stroke-width: 1.3; }
+.mk-tile.is-lead .mk-tile-ico { width: 46px; height: 46px; }
+.mk-tile-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mk-tile-text b { font-size: 15px; font-weight: 700; }
+.mk-tile.is-lead .mk-tile-text b { font-size: 19px; }
+.mk-tile-text span { font-size: 12.5px; color: var(--sb-ink-2); line-height: 1.45; }
+.mk-tile.is-lead .mk-tile-text span { font-size: 13.5px; }
+.mk-tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mk-tile-status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+.mk-tile-status i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.mk-tone-good { color: var(--sb-good); }
+.mk-tone-info { color: var(--sb-info); }
+.mk-tone-gold { color: var(--sb-gold-bright); }
+.mk-tone-off { color: var(--sb-ink-2); }
+.mk-tile-go {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--sb-line-strong); color: var(--sb-ink);
+}
+.mk-tile:hover .mk-tile-go { border-color: var(--sb-gold); color: var(--sb-gold-bright); }
+
+/* ---- narrower ------------------------------------------------------- */
+@media (max-width: 1180px) {
+  .mk-mid { grid-template-columns: 1fr; }
+  .mk-tiles { grid-template-columns: 1fr 1fr; }
+  .mk-tile.is-lead { grid-column: 1 / -1; }
+}
+@media (max-width: 860px) {
+  .mk { gap: 18px; }
+  .mk-title { font-size: 38px; }
+  .mk-sub { font-size: 16px; }
+  .mk-hero-aside { width: 100%; align-items: stretch; }
+  .mk-controls { justify-content: flex-start; }
+  .mk-cta { flex: 1 1 100%; justify-content: center; }
+  .mk-note { max-width: none; text-align: left; }
+  .mk-band { margin-top: 24px; gap: 20px; }
+  .mk-big-n { font-size: 56px; }
+  .mk-big-u { font-size: 30px; }
+  .mk-big-none { font-size: 28px; }
+  .mk-rail { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }
+  .mk-step { flex: 0 0 126px; scroll-snap-align: start; }
+  .mk-step + .mk-step::before, .mk-step + .mk-step::after { display: none; }
+  .mk-ring { width: 64px; height: 64px; }
+  .mk-ring-ico { width: 30px; height: 30px; }
+  .mk-act { grid-template-columns: 40px minmax(0, 1fr); gap: 10px 12px; padding: 12px; }
+  .mk-act-ico { width: 40px; height: 40px; }
+  .mk-act-figure { grid-column: 2; }
+  .mk-act-cta { grid-column: 1 / -1; justify-content: center; width: auto; height: 44px; }
+  .mk-tiles { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .mk-stats { gap: 18px; }
+  .mk-stat + .mk-stat { padding-left: 18px; }
+  .mk-big-n { font-size: 46px; }
+  .mk-city-list { max-height: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mk-tile { transition: none; }
+  .mk-tile:hover { transform: none; }
+  .mk-city-list { scroll-behavior: auto; }
+}

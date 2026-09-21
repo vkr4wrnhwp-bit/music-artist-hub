@@ -55,10 +55,18 @@ EXTRA = {
                  "/capital-score", "/documents", "/deal-room", "/sync"),
     "publishing": ("/tracks", "/isrc", "/identifiers", "/metadata", "/metadata-passport",
                    "/registration", "/publishing", "/cleared", "/ai-rights"),
-    "releases": ("/releases", "/release-check", "/clean-release", "/pitch"),
+    # /rollout, the Rollout Engine's public explainer, followed the Rollout
+    # Studio card into this room on 2026-09-21. /rollout-studio is the card's
+    # own address and comes from rooms.ROOMS, so it is deliberately NOT
+    # listed here: while it was also listed under marketing, two rooms
+    # claimed the same prefix and room_for_path() answered "releases" only
+    # because rooms.ROOMS happens to name Releases first (honesty review,
+    # 2026-09-21).
+    "releases": ("/releases", "/release-check", "/clean-release", "/pitch",
+                 "/rollout"),
     # /onesheet left on 2026-09-19 (owner: "It just needs to be an EPK");
     # /sheet stays because links already sent keep answering.
-    "marketing": ("/press", "/sheet", "/rollout", "/rollout-studio"),
+    "marketing": ("/press", "/sheet"),
 }
 
 # Pages that gather every room: only for a seat that has every room.
@@ -128,7 +136,14 @@ def _under(path, prefix):
 
 
 def room_for_path(path):
-    """The room a page belongs to, by the longest matching prefix, or None."""
+    """The room a page belongs to, by the longest matching prefix, or None.
+
+    Two rooms claiming the same prefix would be settled by the order of
+    rooms.ROOMS, which is not a decision anybody made, so a page's address
+    belongs to one room: either its card's room, or the room whose EXTRA
+    names it. tests/test_team_rooms.py locks the rollout pages, the pair
+    this went wrong for.
+    """
     best, best_len = None, -1
     for rkey, prefixes in room_paths().items():
         for p in prefixes:

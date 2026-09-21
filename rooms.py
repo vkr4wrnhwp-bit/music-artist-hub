@@ -56,7 +56,12 @@ ROOMS = [
     ("publishing", "Publishing", "Rights, registrations and identifiers.",
      ["catalog", "track-passports", "conflicts", "fingerprints", "certified"]),
     ("releases", "Releases", "From finished master to the stores.",
-     ["autopilot", "release-calendar", "release-check", "sync-packs", "distribution", "submit"]),
+     # Rollout Studio left Marketing for this room (owner, 2026-09-21): a
+     # rollout is the plan for one release, and the Marketing room's own
+     # screen already reaches it by the action that names the rollouts with
+     # no smart link connected. The page and its address are unchanged.
+     ["autopilot", "release-calendar", "release-check", "rollout",
+      "sync-packs", "distribution", "submit"]),
     ("marketing", "Marketing", "Getting heard and getting written about.",
      # Apparel & Merch left this room on 2026-09-17: merch is something you
      # make and sell, not a way of getting heard, and it moves to Artifacts
@@ -64,8 +69,22 @@ ROOMS = [
      # where it is listed has.
      # The one-sheet card left on 2026-09-19 (owner: "It just needs to be
      # an EPK"). /artist-profile redirects to the press kit.
-     ["links", "rollout", "press-desk", "press-contacts", "press-announcements",
-      "press-coverage", "epk", "reach", "referrals"]),
+     #
+     # The room's own screen (room_marketing.html, owner's design,
+     # 2026-09-21) closes with three tiles, so the card list is those three
+     # plus links. Four moves got it there:
+     #   - the four press cards collapsed into Press Desk, the one door to
+     #     the media list, announcements, pitches and coverage. The three
+     #     folded pages keep their addresses; their own tab strip comes
+     #     back in this layout (templates/press/_shell.html), because the
+     #     room no longer shows those destinations.
+     #   - REACH left: hubs.tool_suites() already carries it in the suites
+     #     strip at the foot of every page, at the same address.
+     #   - Rollout Studio left for the Releases room.
+     #   - links stays a card of this room, so /links keeps its way back
+     #     here, but it is not a tile: the screen shows it as the hero's
+     #     visits, clicks and pre-saves and as the rollout action.
+     ["links", "press-desk", "epk", "referrals"]),
 ]
 
 # Rows above the rooms, and the group under them.
@@ -118,10 +137,13 @@ EXTRA = {
     "release-calendar": ("/releases/autopilot?view=calendar", "M3 5h14v12H3z|M3 9h14|M7 3v4M13 3v4|M7 12h2M11 12h2", "Release Calendar", "Every scheduled drop on one calendar.", "autopilot"),
     "release-check": ("/releases/autopilot?view=ready", "M4 10l4 4 8-8", "Release check", "The store checks before a release goes out.", "autopilot"),
     "distribution": ("/distribution", "M3 10h14|M10 3v14|M5 5l10 10|M15 5L5 15", "Distribution", "How your releases reach the stores today.", None),
+    # The three folded press pages. They are in NO room from 2026-09-21:
+    # the Marketing room's screen closes with one Press Desk tile, and the
+    # desk's own tab strip is the door to these three again. The entries
+    # stay because the live flag and the page switch of each still come
+    # from press-desk through parent_of(), and because a card has one
+    # definition if one is ever placed again.
     "press-contacts": ("/press-desk/contacts", "M7 9a3 3 0 100-6 3 3 0 000 6z|M2 17c0-3 2.5-5 5-5s5 2 5 5|M13 5h5|M13 8h5|M13 11h3", "Media list", "The writers and outlets you pitch.", "press-desk"),
-    # The Press strip was the only door to Announcements. The strip leaves
-    # the page in this layout (2026-09-19, "remove the double tabs"), so
-    # the page is a card like its three neighbours.
     "press-announcements": ("/press-desk/announcements", "M4 8h3l6-4v12l-6-4H4z|M7 12l1 4h2l-1-4|M15 8a3 3 0 010 4", "Announcements", "Press releases you write once and send to your media list.", "press-desk"),
     "press-coverage": ("/press-desk/coverage", "M4 4h9v12H4z|M13 7h3v7a2 2 0 11-2-2h2|M6 7h5M6 10h5|M6 13l2-2 3 2", "Coverage", "What has been written, kept in one place.", "press-desk"),
     "connections": ("/connections", "M6 10h8|M6 6l-3 4 3 4|M14 6l3 4-3 4", "Data and connections", "Which services this account is connected to.", "settings"),

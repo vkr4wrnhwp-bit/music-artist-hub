@@ -4762,6 +4762,8 @@ def create_app():
             abort(404)
         if room_key == "fans":
             return _fan_room(user, room)
+        if room_key == "marketing":
+            return _marketing_room(user, room)
         return render_template("room.html", active_page="room-" + room_key,
                                room=room, room_images=rooms.images(),
                                **build_dashboard_context())
@@ -4803,6 +4805,44 @@ def create_app():
                             shopify=_shopify_import_allowed(user))
         return render_template("room_fans.html", active_page="room-fans", room=room, fr=fr,
                                **build_dashboard_context())
+
+    def _marketing_room(user, room):
+        """The Marketing room's opening screen, the owner's design
+        (2026-09-21). marketing_room.py says where each figure comes from.
+
+        The route is the only thing that decides who is shown the example:
+        the demo account gets marketing_room.showcase(), and a real
+        account's figures are read from its own rows, never generated.
+        """
+        import marketing_room
+        days = marketing_room.days_from(request.args.get("days"))
+        showcase = _session_is_demo()
+        if showcase:
+            figures = marketing_room.showcase(days)
+            kit_live = True
+        else:
+            figures = marketing_room.for_account(user["id"], days)
+            # His "Live" pill on the press kit tile, answered by the record.
+            # The public address is not the answer: _ensure_epk_slug mints
+            # one on a plain view of /epk, and on /fan-club without /epk
+            # being opened at all, so a slug said Live about a kit nobody
+            # had written (honesty review, 2026-09-21). A saved kit is what
+            # POST /epk/save writes, the data column, so that is what it
+            # asks for; a row holding only a minted slug is not one.
+            saved = store.get_epk(user["id"]) or {}
+            kit_live = bool(saved.get("slug")) and bool(saved.get("data"))
+        # A team seat is shown no action it would be bounced at: the rollout
+        # row leads to the Releases room, which a Marketing-only seat is
+        # refused at (honesty review, 2026-09-21).
+        seat = current_team_seat()
+        can_open = None if seat is None else (
+            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        mk = marketing_room.build(figures, room["cards"], days=days,
+                                  showcase=showcase, kit_live=kit_live,
+                                  artist_name=user.get("name") or "",
+                                  can_open=can_open)
+        return render_template("room_marketing.html", active_page="room-marketing",
+                               room=room, mk=mk, **build_dashboard_context())
 
     @app.route("/room/fans/new.csv")
     def fan_room_new_csv():
