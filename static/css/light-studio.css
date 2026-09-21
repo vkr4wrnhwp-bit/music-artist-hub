@@ -313,7 +313,10 @@ body.lx-panic .lx-stage { outline: 2px solid rgb(239 68 68 / 0.7); outline-offse
 .lx-note { border: 1px solid var(--lx-line); border-left-width: 3px; border-radius: var(--sb-r-panel); background: rgb(201 162 74 / 0.07); padding: 8px 12px; font-size: 12.5px; line-height: 1.5; margin-top: 8px; }
 
 details.lx-more summary { cursor: pointer; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lx-soft); font-weight: 700; padding: 6px 0; }
-@media (pointer: coarse) { .lx-btn, .lx-seg button, .lx-look, .lx-group { min-height: 44px; } .lx-cue-x { width: 40px; height: 40px; } }
+/* 44px is the finger floor. The vertical brightness fader is drawn 22px
+   wide, which is a ribbon to aim at, so on touch the input box widens to
+   44px while the native track it paints stays where it was. */
+@media (pointer: coarse) { .lx-btn, .lx-seg button, .lx-look, .lx-group { min-height: 44px; } .lx-cue-x { width: 44px; height: 44px; } .lx-look-x { width: 44px; height: 44px; } .lx-wheel-v input[type="range"] { width: 44px; } }
 @media (prefers-reduced-motion: reduce) { .lx * { transition: none !important; } }
 
 /* A look held from the phone remote. Loud on purpose: while this is lit the

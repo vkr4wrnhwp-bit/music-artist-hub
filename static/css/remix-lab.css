@@ -841,6 +841,9 @@
   align-items: center;
   gap: 6px;
   margin-top: 12px;
+  /* A text button is still a finger target: the padding carries it to the
+     44px floor without drawing a box around it. */
+  min-height: 44px;
   padding: 8px 0;
   border: 0;
   border-radius: var(--sb-r-control);
@@ -1013,7 +1016,7 @@
 .sbrl-seg-btn {
   flex: 1 1 0;
   min-width: 0;
-  min-height: 42px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1736,7 +1739,9 @@
   z-index: 0;
   pointer-events: none;
 }
-.sbrl-btn--sm { min-height: 40px; padding: 0 16px; font-size: 12px; }
+/* The small button is still a finger target: 44px is the floor, and the
+   two header buttons on a phone were the ones under it at 40px. */
+.sbrl-btn--sm { min-height: 44px; padding: 0 16px; font-size: 12px; }
 .sbrl-head .sbrl-wave-note { margin-top: 8px; }
 /* the steps run full width; the reads card is a slim band beneath them */
 .sbrl-under { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
