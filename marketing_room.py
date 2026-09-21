@@ -17,12 +17,16 @@ the records cannot support is said in words rather than drawn:
   the actions       one row per thing the artist can do now, each with the
                     number of records it acts on. A row whose count is
                     zero is not an action, so it is left out rather than
-                    drawn as a zero
-  the map           media contacts by city, a constellation of the cities
-                    the contact records name. There is no basemap in this
-                    repository, so the panel draws dots and lines on the
-                    bare panel exactly as the Fan Room does, and the
-                    lines are drawing, not distance
+                    drawn as a zero, and so is a row whose destination
+                    this reader would be turned away from
+  the map           media contacts by city and country, a constellation of
+                    the cities the contact records name. There is no
+                    basemap in this repository, so the panel draws dots
+                    and lines on the bare panel exactly as the Fan Room
+                    does, and the lines are drawing, not distance. A city
+                    is placed only where the metro table's own country
+                    agrees with the record's; anything else is left off
+                    and counted in the footnote
   the tiles         Press Desk, Press kit and Referrals, the three his
                     design closes with, each with its own true state
 
@@ -122,56 +126,177 @@ def _count(n, singular, plural):
 # board_taxonomy.METROS is sixty metros with a real latitude and longitude,
 # and it places every city his design names. The Fan Room's own lookup is
 # the lower 48 only and cannot place four of them.
+#
+# A metro carries no country column, so its country is read off its own row:
+# every us- region is the United States and the ca region is Canada, and
+# everywhere else the label's own suffix says it ("London, UK", "Dublin, IE",
+# "Sydney, AU"). Both halves of the comparison are folded to a two-letter
+# code first, so a record that says "United Kingdom" and a metro that says
+# UK are the same country (honesty review, 2026-09-21).
+COUNTRY_CODES = {
+    "us": "US", "usa": "US", "u.s.": "US", "u.s.a.": "US", "america": "US",
+    "united states": "US", "united states of america": "US",
+    "ca": "CA", "can": "CA", "canada": "CA",
+    "gb": "GB", "uk": "GB", "u.k.": "GB", "great britain": "GB",
+    "united kingdom": "GB", "england": "GB", "scotland": "GB", "wales": "GB",
+    "ie": "IE", "irl": "IE", "ireland": "IE",
+    "de": "DE", "deu": "DE", "germany": "DE", "deutschland": "DE",
+    "fr": "FR", "fra": "FR", "france": "FR",
+    "nl": "NL", "nld": "NL", "netherlands": "NL", "holland": "NL",
+    "au": "AU", "aus": "AU", "australia": "AU",
+    "mx": "MX", "mex": "MX", "mexico": "MX", "méxico": "MX",
+}
 
-def _metro_coords():
+
+def country_code(value):
+    """A contact's or a metro's country as one code, or "" when the record
+    names none. An unknown spelling is left as it is, upper-cased, so it can
+    still disagree with a metro rather than quietly matching one."""
+    key = (value or "").strip().lower().rstrip(".")
+    if not key:
+        return ""
+    return COUNTRY_CODES.get(key) or COUNTRY_CODES.get(key + ".") or key.upper()
+
+
+def _metros():
+    """{alias: metro} for every spelling board_taxonomy knows, so the six
+    spellings of one place (new york, nyc, brooklyn, manhattan, queens, ny)
+    resolve to one metro with one name, one country and one pair of
+    coordinates."""
     out = {}
-    for _code, label, _region, aliases, lat, lon in board_taxonomy.METROS:
-        for word in list(aliases) + [label.split(",")[0]]:
-            out.setdefault(str(word).strip().lower(), (lat, lon))
+    for code, label, region, aliases, lat, lon in board_taxonomy.METROS:
+        if region.startswith("us-"):
+            country = "US"
+        elif region == "ca":
+            country = "CA"
+        else:
+            country = country_code(label.rsplit(",", 1)[-1])
+        metro = {"code": code, "city": label.split(",")[0].strip(),
+                 "country": country, "lat": lat, "lon": lon}
+        for word in list(aliases) + [metro["city"]]:
+            out.setdefault(str(word).strip().lower(), metro)
     return out
 
 
-_COORDS = _metro_coords()
+_METROS = _metros()
 
 
-def coords_for(city):
+def metro_for(city, country=""):
+    """The metro a contact's city names, or None.
+
+    None when the table has no such place, and None when it has one whose
+    own country is not the country on the record: London, Ontario is not
+    London, England, and a Birmingham contact in the UK is not the one in
+    Alabama. A record that names no country contradicts nothing, so it is
+    placed. Anything that does not agree is left off the map and counted in
+    the footnote, because a dot in the wrong hemisphere is worse than an
+    honest omission (honesty review, 2026-09-21).
+    """
+    metro = _METROS.get((city or "").strip().lower())
+    if metro is None:
+        return None
+    want = country_code(country)
+    if want and want != metro["country"]:
+        return None
+    return metro
+
+
+def coords_for(city, country=""):
     """(lat, lon) for a contact's city, or None when the table has no such
-    place. A city the table cannot place is never plotted, and the panel
-    says how many were left off."""
-    key = (city or "").strip().lower()
-    return _COORDS.get(key)
+    place or its place is in another country. A city the table cannot place
+    is never plotted, and the panel says how many were left off."""
+    metro = metro_for(city, country)
+    return (metro["lat"], metro["lon"]) if metro else None
 
 
 def group_cities(rows):
-    """[{city, country, count}] from contact records, largest first, plus
-    how many records named no city at all. One group per city spelling,
-    keeping the spelling the records use, because the map's links search
-    the media list for exactly that word."""
+    """[{city, country, count, q}] from contact records, largest first, plus
+    how many records named no city at all.
+
+    One group per city AND country, which is what the panel's footnote says
+    it does. A city the metro table knows is grouped by that metro, so
+    "New York", "NYC" and "Brooklyn" are one row under the metro's own name
+    instead of three rows and three dots on one spot; a city it does not
+    know keeps the spelling the records use. q is what the row's link
+    searches the media list for: the one spelling the records hold, and
+    nothing when the group gathered several or when another group holds the
+    same spelling (London, Ontario beside London, England), so the link
+    never opens a list that disagrees with the number beside it.
+    """
     groups, order, blank = {}, [], 0
     for r in rows or ():
         city = (r.get("city") or "").strip()
+        country = (r.get("country") or "").strip()
         if not city:
             blank += 1
             continue
-        key = city.lower()
+        metro = metro_for(city, country)
+        if metro is not None:
+            key = ("metro", metro["code"])
+            name, code = metro["city"], metro["country"]
+        else:
+            key = ("as-written", city.lower(), country_code(country))
+            name, code = city, country_code(country)
         if key not in groups:
-            groups[key] = {"city": city, "country": (r.get("country") or "").strip(),
-                           "count": 0}
+            groups[key] = {"city": name, "country": code, "count": 0,
+                           "metro": metro is not None, "spellings": {}}
             order.append(key)
-        groups[key]["count"] += 1
-        if not groups[key]["country"]:
-            groups[key]["country"] = (r.get("country") or "").strip()
-    cities = [groups[k] for k in order]
+        g = groups[key]
+        g["count"] += 1
+        g["spellings"][city] = g["spellings"].get(city, 0) + 1
+    shared = {}
+    for key in order:
+        for word in groups[key]["spellings"]:
+            shared[word.lower()] = shared.get(word.lower(), 0) + 1
+    cities = []
+    for key in order:
+        g = groups.pop(key)
+        spellings = list(g.pop("spellings"))
+        one = spellings[0] if len(spellings) == 1 else ""
+        g["q"] = one if one and shared.get(one.lower(), 0) == 1 else ""
+        cities.append(g)
     cities.sort(key=lambda c: (-c["count"], c["city"]))
     return cities, blank
 
 
-# How far apart two dots must be before both may carry a name. Two of the
-# largest cities are often neighbours (New York and Toronto, London and
-# Berlin) and two names on one spot is mush. The unnamed one keeps its dot
-# and its row in the ranked list beside the map; a dot is never moved off
-# its coordinate to make room for a word.
-LABEL_GAP = 78
+# When two dots may both carry a name. Two of the largest cities are often
+# neighbours (New York and Toronto, London and Berlin) and two names on one
+# spot is mush. The unnamed one keeps its dot and its row in the ranked list
+# beside the map; a dot is never moved off its coordinate to make room for a
+# word.
+#
+# The rule is compared as rendered boxes, not as a distance in viewBox units
+# (honesty review, 2026-09-21). A label is a fixed block of 13px type
+# whatever the panel does, so a gap of 78 viewBox units is 78 screen pixels
+# on a 604px panel and 33 on a 254px one, and at 320px New York and London
+# were measured overlapping on both axes. So each name is given the box it
+# will really occupy at MIN_LABEL_PANEL, the narrowest panel allowed to
+# carry more than one name, and a name whose box meets a box already drawn
+# is not drawn. Below that width the stylesheet draws the first name only,
+# and it asks the panel rather than the viewport because the panel is 254px
+# wide at a 320px viewport and 319px wide at 1181px, where the room turns
+# two-column: viewport width cannot answer this question.
+MIN_LABEL_PANEL = 420      # CSS px, the panel; marketing-room.css's @container
+LABEL_CHAR_PX = 8.4        # one character of the 13.5px name line, measured
+LABEL_MAX_PX = 120         # .mk-map-label's own cap
+LABEL_H_PX = 34            # the two lines at 13.5px and 13px, measured 33
+LABEL_OFFSET_PX = 14       # .mk-map-label's translate away from the dot
+
+
+def _label_box(x, y, chars, right):
+    """The box a name will occupy, in viewBox units, at the narrowest panel
+    that draws more than one. Wider than the text really is, never
+    narrower, so the guarantee holds for every name."""
+    per = MAP_W / float(MIN_LABEL_PANEL)          # viewBox units per CSS px
+    w = min(LABEL_MAX_PX, 2.0 + LABEL_CHAR_PX * chars) * per
+    h = LABEL_H_PX * per
+    off = LABEL_OFFSET_PX * per
+    x0 = x - off - w if right else x + off
+    return (x0, y - h / 2.0, x0 + w, y + h / 2.0)
+
+
+def _boxes_meet(a, b):
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
 def constellation(cities, labels=3):
@@ -183,7 +308,7 @@ def constellation(cities, labels=3):
     placed = []
     off_cities = off_contacts = 0
     for c in cities or ():
-        ll = coords_for(c["city"])
+        ll = coords_for(c["city"], c.get("country") or "")
         if ll is None:
             off_cities += 1
             off_contacts += int(c["count"] or 0)
@@ -214,15 +339,18 @@ def constellation(cities, labels=3):
     for (c, _ll), (px, py) in zip(placed, raw):
         x, y = (px - x0) * k, (py - y0) * k
         share = float(c["count"] or 0) / top
+        count = int(c["count"] or 0)
+        right = x > MAP_W * .68
+        box = _label_box(x, y, max(len(c["city"]), len(_fmt(count))), right)
         name = (len(named) < labels
-                and all(math.hypot(x - nx, y - ny) >= LABEL_GAP for nx, ny in named))
+                and not any(_boxes_meet(box, drawn) for drawn in named))
         if name:
-            named.append((x, y))
+            named.append(box)
         dots.append({"x": round(x, 1), "y": round(y, 1),
                      "r": round(3.0 + 5.0 * math.sqrt(share), 1),
                      "city": c["city"], "country": c["country"],
-                     "count": int(c["count"] or 0), "label": name,
-                     "right": x > MAP_W * .68})
+                     "q": c.get("q") or "", "count": count, "label": name,
+                     "right": right})
     lines = set()
     for i, p in enumerate(dots):
         near = sorted((math.hypot(p["x"] - q["x"], p["y"] - q["y"]), j)
@@ -247,16 +375,22 @@ def stages(figures):
     return out
 
 
-def actions(figures):
+def actions(figures, can_open=None):
     """His five rows, in his order, dropping the ones with nothing to act
-    on. A zero is not an action (owner's zero rule)."""
+    on. A zero is not an action (owner's zero rule).
+
+    can_open(href) drops a row this reader would be turned away from. A
+    team seat given Marketing and not Releases is refused at the rollout
+    page, and a button that bounces the person who presses it is worse
+    than no button (honesty review, 2026-09-21).
+    """
     out = []
     for fkey, icon, title, desc, singular, plural, cta, href in ACTIONS:
         n = int(figures.get(fkey) or 0)
         if not n:
             continue
-        if fkey == "no_link":
-            href = figures.get("no_link_href") or href
+        if can_open is not None and not can_open(href):
+            continue
         out.append({"icon": icon, "title": title, "desc": desc,
                     "figure": _count(n, singular, plural), "cta": cta,
                     "href": href})
@@ -273,14 +407,17 @@ def tile_status(key, state, kit_live=False):
     if key == "press-desk":
         return ("gold", "All in one")
     if key == "epk":
-        # His pill says Live. It says Live when the public kit link exists,
-        # and says what is true when it does not.
+        # His pill says Live. Against "Not shared yet", Live means shared,
+        # so it waits for a kit the artist has actually saved: the public
+        # address alone is minted by a plain page view (app.py
+        # _ensure_epk_slug), and on some accounts without one being opened
+        # at all (honesty review, 2026-09-21).
         return ("good", "Live") if kit_live else ("off", "Not shared yet")
     return ("", "")
 
 
 def build(figures, cards, days=DEFAULT_RANGE, showcase=False, artist_name="",
-          kit_live=False):
+          kit_live=False, can_open=None):
     days = days_from(days)
     by_key = {c[0]: c for c in cards or ()}
     tiles = []
@@ -306,7 +443,7 @@ def build(figures, cards, days=DEFAULT_RANGE, showcase=False, artist_name="",
         "presaves": int(figures.get("presaves") or 0),
         "presaves_label": _fmt(figures.get("presaves")),
         "stages": stages(figures),
-        "actions": actions(figures),
+        "actions": actions(figures, can_open),
         "cities": cities,
         "contacts": int(figures.get("contacts") or 0),
         "no_city": int(figures.get("no_city") or 0),
@@ -380,11 +517,6 @@ def for_account(user_id, days=DEFAULT_RANGE, now=None):
             "no_quote": one("SELECT COUNT(*) FROM press_coverage"
                             " WHERE user_id = ? AND TRIM(quote) = ''"),
         }
-        row = db.execute(
-            "SELECT id FROM ro_campaigns WHERE user_id = ?"
-            " AND (ml_campaign_id IS NULL OR ml_campaign_id = '')"
-            " ORDER BY created DESC LIMIT 1", (user_id,)).fetchone()
-        figures["no_link_href"] = "/rollout-studio/%s" % row[0] if row else ""
         contacts = [dict(r) for r in db.execute(
             "SELECT city, country FROM press_contacts WHERE user_id = ?",
             (user_id,)).fetchall()]
@@ -415,13 +547,13 @@ SHOWCASE_ACTIONS = {"never-pitched": 18, "unsent": 3, "silent": 5,
 def showcase(days=DEFAULT_RANGE):
     days = days_from(days)
     visits, clicks, presaves = SHOWCASE_WINDOWS[days]
-    cities = [{"city": c, "country": k, "count": n} for c, k, n in SHOWCASE_CITIES]
+    cities = [{"city": c, "country": k, "count": n, "q": c}
+              for c, k, n in SHOWCASE_CITIES]
     cities.sort(key=lambda c: (-c["count"], c["city"]))
     figures = {"visits": visits, "clicks": clicks, "presaves": presaves,
                "visits_all": SHOWCASE_WINDOWS[30][0],
                "cities": cities, "no_city": 0,
-               "contacts": sum(c["count"] for c in cities),
-               "no_link_href": "/rollout-studio"}
+               "contacts": sum(c["count"] for c in cities)}
     figures.update(SHOWCASE_RAIL)
     figures.update(SHOWCASE_ACTIONS)
     return figures

@@ -104,6 +104,54 @@ def test_the_rules_hold_for_pages_outside_the_room_cards():
     assert team_areas.parse("") == set() and not team_areas.is_all("")
 
 
+def test_the_rollout_pages_belong_to_the_releases_room_deliberately():
+    """The Rollout Studio card moved to Releases on 2026-09-21, but
+    team_areas still listed /rollout-studio under marketing as well. Two
+    rooms claimed one prefix and room_for_path() answered "releases" only
+    because rooms.ROOMS happens to name Releases first: change that order
+    and a Marketing seat would silently gain the page (honesty review,
+    2026-09-21). Marketing does not claim it at all now."""
+    paths = team_areas.room_paths()
+    assert "/rollout-studio" in paths["releases"]
+    assert "/rollout-studio" not in paths["marketing"]
+    assert "/rollout" in paths["releases"] and "/rollout" not in paths["marketing"]
+    assert team_areas.room_for_path("/rollout-studio") == "releases"
+    assert team_areas.room_for_path("/rollout-studio/abc/plan") == "releases"
+    assert team_areas.room_for_path("/rollout") == "releases"
+    assert not team_areas.allows("marketing", "/rollout-studio")
+    assert team_areas.allows("releases", "/rollout-studio/abc")
+
+
+def test_a_marketing_seat_is_offered_no_action_it_would_be_bounced_at():
+    """The Marketing room drew a rollout row with a button, and the seat
+    that pressed it was sent back with ?team=room."""
+    import rollout_store as ros
+    owner, member = _account("pro"), _account("artist", "Publicist")
+    for i in range(2):
+        ros.create_campaign(owner._id, {"title": "Rollout %d" % i})
+    _seat(owner, member, areas=["marketing"])
+    _open_account(member, owner)
+    body = member.get("/room/marketing").get_data(as_text=True)
+    assert "Rollout with no smart link connected" not in body
+    assert 'href="/rollout-studio"' not in body
+    r = member.get("/rollout-studio")
+    assert r.status_code == 302 and "team=room" in r.headers["Location"]
+    # the artist, on the same page, still has the row
+    owner_body = owner.get("/room/marketing").get_data(as_text=True)
+    assert "Rollout with no smart link connected" in owner_body
+
+
+def test_a_seat_with_both_rooms_keeps_the_rollout_row():
+    import rollout_store as ros
+    owner, member = _account("pro"), _account("artist", "Bothrooms")
+    ros.create_campaign(owner._id, {"title": "Rollout"})
+    _seat(owner, member, areas=["marketing", "releases"])
+    _open_account(member, owner)
+    body = member.get("/room/marketing").get_data(as_text=True)
+    assert "Rollout with no smart link connected" in body
+    assert member.get("/rollout-studio").status_code == 200
+
+
 # --- the review --------------------------------------------------------------------
 
 def test_head_is_not_a_way_to_write():

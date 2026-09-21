@@ -4822,12 +4822,25 @@ def create_app():
             kit_live = True
         else:
             figures = marketing_room.for_account(user["id"], days)
-            # His "Live" pill on the press kit tile, answered by the record:
-            # the public kit address exists once the kit has been saved.
-            kit_live = bool((store.get_epk(user["id"]) or {}).get("slug"))
+            # His "Live" pill on the press kit tile, answered by the record.
+            # The public address is not the answer: _ensure_epk_slug mints
+            # one on a plain view of /epk, and on /fan-club without /epk
+            # being opened at all, so a slug said Live about a kit nobody
+            # had written (honesty review, 2026-09-21). A saved kit is what
+            # POST /epk/save writes, the data column, so that is what it
+            # asks for; a row holding only a minted slug is not one.
+            saved = store.get_epk(user["id"]) or {}
+            kit_live = bool(saved.get("slug")) and bool(saved.get("data"))
+        # A team seat is shown no action it would be bounced at: the rollout
+        # row leads to the Releases room, which a Marketing-only seat is
+        # refused at (honesty review, 2026-09-21).
+        seat = current_team_seat()
+        can_open = None if seat is None else (
+            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         mk = marketing_room.build(figures, room["cards"], days=days,
                                   showcase=showcase, kit_live=kit_live,
-                                  artist_name=user.get("name") or "")
+                                  artist_name=user.get("name") or "",
+                                  can_open=can_open)
         return render_template("room_marketing.html", active_page="room-marketing",
                                room=room, mk=mk, **build_dashboard_context())
 

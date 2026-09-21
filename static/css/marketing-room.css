@@ -39,7 +39,16 @@
   background: color-mix(in srgb, var(--sb-ground) 72%, transparent);
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   color: var(--sb-ink); font-size: 14px; font-weight: 500; white-space: nowrap;
+  /* The account chip holds the artist's own name, so it is capped at the
+     space it has and a long one ends in an ellipsis. Without this, "The
+     Midnight Telegraph Orchestra and Chorus" made the document 372px wide
+     inside a 320px viewport and the whole page scrolled sideways (honesty
+     review, 2026-09-21). Motion's account line is the same shape: the
+     ellipsis is visual only, so the full name is still read out, and it is
+     on the title for a pointer. */
+  max-width: 100%; min-width: 0;
 }
+.mk-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mk-avatar {
   display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
   background: var(--sb-gold-wash); border: 1px solid var(--sb-gold-line);
@@ -78,7 +87,10 @@
 .mk-note b { color: var(--sb-gold-bright); }
 
 .mk-band { margin-top: 22px; display: flex; align-items: flex-end; gap: 40px; flex-wrap: wrap; }
-.mk-big { margin: 0; display: flex; flex-direction: column; line-height: .88; }
+/* The large figure is the door to Smart Links, the page it counts. */
+.mk-big { margin: 0; display: flex; flex-direction: column; line-height: .88; text-decoration: none; color: inherit; }
+.mk-big:hover .mk-big-u { text-decoration: underline; }
+.mk-big:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: 4px; }
 .mk-big-n {
   font-family: var(--sb-display); font-size: 66px; font-weight: 800; font-variation-settings: "wdth" 112;
   letter-spacing: -.02em; color: var(--sb-ink); font-variant-numeric: tabular-nums;
@@ -159,7 +171,8 @@
 .mk-mark--sample { color: var(--sb-info); }
 .mk-mark--sample i { background: var(--sb-info); box-shadow: none; }
 .mk-geo-body { display: grid; gap: 12px; }
-.mk-map { position: relative; width: 100%; aspect-ratio: var(--map-w) / var(--map-h); }
+.mk-map { position: relative; width: 100%; aspect-ratio: var(--map-w) / var(--map-h);
+  container: mkmap / inline-size; }
 .mk-map svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .mk-map-line { stroke: var(--sb-gold); stroke-opacity: .3; stroke-width: 1; }
 .mk-map-dot { fill: var(--sb-gold); }
@@ -168,9 +181,21 @@
   position: absolute; transform: translate(14px, -50%); display: flex; flex-direction: column;
   font-size: 13px; font-weight: 600; line-height: 1.25; color: var(--sb-ink); white-space: nowrap;
   text-shadow: 0 1px 6px rgb(0 0 0 / .9); pointer-events: none; font-variant-numeric: tabular-nums;
+  /* marketing_room.LABEL_MAX_PX is this number: a long metro name is
+     capped so the name it reserves is the name it draws, and the ranked
+     list beside the map carries it in full. */
+  max-width: 120px;
 }
-.mk-map-label b { font-size: 13.5px; font-weight: 700; }
+.mk-map-label b { font-size: 13.5px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .mk-map-label.is-left { transform: translate(calc(-100% - 14px), -50%); text-align: right; }
+/* marketing_room.constellation() keeps two names apart at a panel of
+   MIN_LABEL_PANEL pixels. Narrower than that the guarantee stops holding,
+   so only the first name, the largest city, is drawn. This asks the panel
+   and not the viewport because the panel is 254px wide at a 320px viewport
+   and 319px wide at 1181px, where the room turns two-column. */
+@container mkmap (max-width: 419px) {
+  .mk-map-label ~ .mk-map-label { display: none; }
+}
 
 .mk-city-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 330px; overflow-y: auto; }
 .mk-city-list a {

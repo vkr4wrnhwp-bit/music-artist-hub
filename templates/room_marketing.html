@@ -2,7 +2,7 @@
 
 {% block title %}Marketing Room{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/marketing-room.css?v=1">
+  <link rel="stylesheet" href="/static/css/marketing-room.css?v=2">
 {% endblock %}
 
 {#- THE MARKETING ROOM - the Marketing room's opening screen, built from the
@@ -55,9 +55,13 @@
       </div>
       <div class="mk-hero-aside">
         <div class="mk-controls">
+          {#- The name is the account's own, so it can be any length. It is
+              capped and ends in an ellipsis rather than widening the page,
+              with the whole name on hover and read out in full by a screen
+              reader, the shape Motion's account line uses. -#}
           {% if mk.artist_name %}
           <span class="mk-chip" title="The account these figures are for">
-            <span class="mk-avatar" aria-hidden="true">{{ (mk.artist_name[:1] or "?")|upper }}</span>{{ mk.artist_name }}
+            <span class="mk-avatar" aria-hidden="true">{{ (mk.artist_name[:1] or "?")|upper }}</span><span class="mk-chip-name" title="{{ mk.artist_name }}">{{ mk.artist_name }}</span>
           </span>
           {% endif %}
           <details class="mk-range">
@@ -80,13 +84,18 @@
     </div>
 
     <div class="mk-band">
-      <p class="mk-big">
+      {#- The large figure is smart link data, so it is the door to Smart
+          Links: the number leads to the thing it counts, and it is the
+          room's only way there now that the cards collapsed into three
+          tiles (honesty review, 2026-09-21). The empty state carries the
+          same door, so a new account can still reach the page. -#}
+      <a class="mk-big" href="/links" aria-label="{% if mk.visits %}{{ mk.visits_label }} visit{{ "" if mk.visits == 1 else "s" }}{% else %}No visits in this window{% endif %}. Open Smart Links." title="Open Smart Links">
         {% if mk.visits %}
         <span class="mk-big-n">{{ mk.visits_label }}</span><span class="mk-big-u">visit{{ "" if mk.visits == 1 else "s" }}</span>
         {% else %}
         <span class="mk-big-none">No visits in this window</span>
         {% endif %}
-      </p>
+      </a>
       <div class="mk-stats">
         <div class="mk-stat">
           <span class="mk-stat-n">{% if mk.clicks %}{{ mk.clicks_label }}{% else %}None yet{% endif %}</span>
@@ -179,9 +188,13 @@
           {% endfor %}
         </div>
         <ol class="mk-city-list">
+          {#- The link searches the media list for the spelling the records
+              hold. A row that gathered several spellings of one metro has
+              no single word to search for, so it opens the whole list
+              rather than a shorter one than the number beside it. -#}
           {% for d in mk.map.dots %}
           <li>
-            <a href="/press-desk/contacts?q={{ d.city|urlencode }}">
+            <a href="/press-desk/contacts{% if d.q %}?q={{ d.q|urlencode }}{% endif %}">
               <span class="mk-city-name"><b>{{ d.city }}</b>{% if d.country %}<span>{{ d.country }}</span>{% endif %}</span>
               <span class="mk-city-n">{{ "{:,}".format(d.count) }}</span>
             </a>

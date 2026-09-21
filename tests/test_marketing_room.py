@@ -107,7 +107,7 @@ def test_every_figure_traces_to_a_record_this_account_holds():
     assert "2 contacts" in body and "Contacts never pitched" in body
     assert "1 announcement" in body and "Send now" in body
     assert "1 item" in body and "Add quote" in body
-    assert "1 rollout" in body and "/rollout-studio/" in body
+    assert "1 rollout" in body and 'href="/rollout-studio"' in body
     assert "Nashville" in body and "Berlin" in body     # its own contact cities
     for gone in HIS_FIGURES:
         assert gone not in body, gone
@@ -174,14 +174,14 @@ def test_the_rollout_row_pushes_our_link_and_requires_nothing():
     service they can. But we should push them for ours." So the row states
     the consequence, offers ours, and never says another service is out."""
     c, uid = _account()
-    cid = ros.create_campaign(uid, {"title": "No link yet"})
+    ros.create_campaign(uid, {"title": "No link yet"})
     body = c.get("/room/marketing").get_data(as_text=True)
     row = body.split("Rollout with no smart link connected", 1)[1][:700]
     assert "Post attribution needs a Street Banker link" in row
     assert "keep the service you already use" in row
     for banned in ("required", "Required", "must ", "not allowed", "only way"):
         assert banned not in row, banned
-    assert "/rollout-studio/%s" % cid in body
+    assert 'href="/rollout-studio"' in row
 
 
 def test_a_rollout_with_our_link_connected_is_not_on_the_list():
@@ -298,18 +298,18 @@ def test_the_map_plots_only_a_city_the_table_can_place():
 def test_the_map_names_a_few_dots_and_never_two_on_one_spot():
     """The Fan Room names four and his seven cities would overlap into mush.
     This names at most three, always starting with the largest, and skips a
-    city that would land on top of a name already drawn. The skipped one
+    city whose name would land on a name already drawn. The skipped one
     keeps its dot and its row in the ranked list beside the map."""
-    import math
     cities = [{"city": c, "country": "US", "count": n} for c, n in
               [("New York", 9), ("Nashville", 7), ("Atlanta", 5),
                ("Austin", 3), ("Denver", 2)]]
     m = mr.constellation(cities)
     named = [d for d in m["dots"] if d["label"]]
-    assert len(named) == 3 and named[0]["city"] == "New York"
+    assert named and named[0]["city"] == "New York"
     for i, a in enumerate(named):
         for b in named[i + 1:]:
-            assert math.hypot(a["x"] - b["x"], a["y"] - b["y"]) >= mr.LABEL_GAP,                 "%s and %s would overlap" % (a["city"], b["city"])
+            assert not mr._boxes_meet(_box(a), _box(b)), (
+                "%s and %s would overlap" % (a["city"], b["city"]))
     assert len(m["dots"]) == 5, "every city keeps its dot and its list row"
 
 
@@ -337,3 +337,191 @@ def test_the_other_rooms_keep_their_card_grid():
     c, _uid = _account()
     body = c.get("/room/publishing").get_data(as_text=True)
     assert "data-room-card" in body and "mk-hero" not in body
+# --- the honesty review of 2026-09-21 --------------------------------------
+# Nine findings, each reproduced on 7778083c before the fix under it, so one
+# test per finding and none of them can come back.
+
+def _box(dot):
+    """The box a drawn name occupies, as constellation() reserved it."""
+    return mr._label_box(dot["x"], dot["y"],
+                         max(len(dot["city"]), len("{:,}".format(dot["count"]))),
+                         dot["right"])
+
+
+def _css():
+    import io
+    import os
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "static", "css", "marketing-room.css")
+    return io.open(path, encoding="utf-8").read()
+
+
+def _epk_pill(c):
+    body = c.get("/room/marketing").get_data(as_text=True)
+    return body.split('data-room-card="epk"', 1)[1][:900]
+
+
+def test_1_the_press_kit_pill_waits_for_a_kit_that_was_saved():
+    """Live was read off the public address, and _ensure_epk_slug mints one
+    on a plain view of /epk, and from /fan-club without /epk being opened at
+    all. So an artist who had written nothing was told the kit was Live.
+    Against "Not shared yet", Live means shared, so it waits for what a real
+    save writes: the data column of epk_profiles."""
+    c, uid = _account()
+    assert "Not shared yet" in _epk_pill(c)
+    c.get("/epk")                                   # a plain page view
+    assert (store.get_epk(uid) or {}).get("slug"), "the view minted the address"
+    assert not (store.get_epk(uid) or {}).get("data"), "and saved nothing"
+    assert "Not shared yet" in _epk_pill(c), "an address alone is not a saved kit"
+    c.post("/epk/save", json={"bio": "We are a band from Leeds."})
+    pill = _epk_pill(c)
+    assert ">Live<" in pill and "Not shared yet" not in pill
+
+
+def test_2_the_cities_are_grouped_by_city_and_country_as_the_footnote_says():
+    """The footnote says "by city and country"; the code keyed on the city
+    alone and kept whichever country the first row carried, so London CA and
+    London GB were one row under one flag."""
+    rows = [{"city": "London", "country": "GB"},
+            {"city": "London", "country": "CA"}, {"city": "London", "country": "CA"}]
+    cities, _blank = mr.group_cities(rows)
+    assert [(c["city"], c["country"], c["count"]) for c in cities] == [
+        ("London", "CA", 2), ("London", "GB", 1)]
+
+
+def test_3_a_city_is_placed_only_where_the_two_countries_agree():
+    """coords_for() never looked at the record's country, so London, Ontario
+    plotted in England and a Birmingham contact in the UK landed in Alabama,
+    contradicting the country code printed in the row beside the dot."""
+    assert mr.coords_for("London", "GB") == (51.51, -0.13)
+    assert mr.coords_for("London", "CA") is None
+    assert mr.coords_for("London", "United Kingdom") == (51.51, -0.13)
+    assert mr.coords_for("Birmingham", "US") == (33.52, -86.81)
+    assert mr.coords_for("Birmingham", "GB") is None
+    assert mr.coords_for("London") == (51.51, -0.13), "no country contradicts nothing"
+    cities, _b = mr.group_cities(
+        [{"city": "London", "country": "GB"}, {"city": "London", "country": "CA"},
+         {"city": "London", "country": "CA"}])
+    m = mr.constellation(cities)
+    assert [(d["city"], d["country"]) for d in m["dots"]] == [("London", "GB")]
+    assert m["off_cities"] == 1 and m["off_contacts"] == 2, "counted in the footnote"
+
+
+def test_4_one_metro_is_one_row_and_one_dot():
+    """"New York" and "NYC" were two dots on the identical coordinate with a
+    zero-length line between them, two ranked rows and the smaller one
+    unnamed. board_taxonomy knows 148 alias spellings, so an imported media
+    list could split one city six ways. They resolve through the alias map
+    now, and the row carries the metro's own name."""
+    rows = [{"city": "New York", "country": "US"}, {"city": "NYC", "country": "US"},
+            {"city": "Brooklyn", "country": "US"}, {"city": "ny", "country": ""},
+            {"city": "Nowhereville", "country": "US"}]
+    cities, _blank = mr.group_cities(rows)
+    assert [(c["city"], c["count"]) for c in cities] == [
+        ("New York", 4), ("Nowhereville", 1)]
+    m = mr.constellation(cities)
+    assert [d["city"] for d in m["dots"]] == ["New York"]
+    assert m["lines"] == [], "no line from a city to itself"
+    assert m["off_cities"] == 1, "a city with no metro keeps its spelling, unplaced"
+    assert cities[0]["q"] == "", "no one word finds all four, so the link opens the list"
+    assert cities[1]["q"] == "Nowhereville"
+
+
+def test_5_two_names_hold_their_distance_in_rendered_pixels():
+    """LABEL_GAP was 78 viewBox units compared against a label drawn at a
+    fixed 13px, so the guarantee was 78 screen pixels on a 604px panel and 33
+    on the 254px panel of a 320px phone, where New York and London were
+    measured overlapping by 10px across and 26px down. The rule is now the
+    boxes the names will really occupy at MIN_LABEL_PANEL, and below that
+    width the stylesheet draws the first name only."""
+    m = mr.constellation(mr.showcase(30)["cities"])
+    named = [d for d in m["dots"] if d["label"]]
+    assert len(named) == 3, "his design still names three on a full-width panel"
+    for i, a in enumerate(named):
+        for b in named[i + 1:]:
+            assert not mr._boxes_meet(_box(a), _box(b)), (
+                "%s and %s meet at a %dpx panel" % (a["city"], b["city"],
+                                                    mr.MIN_LABEL_PANEL))
+    css = _css()
+    assert "container: mkmap / inline-size" in css
+    assert "@container mkmap (max-width: %dpx)" % (mr.MIN_LABEL_PANEL - 1) in css
+    assert ".mk-map-label ~ .mk-map-label { display: none; }" in css
+    assert "max-width: %dpx" % mr.LABEL_MAX_PX in css, "the cap the rule assumes"
+
+
+def test_6_a_long_account_name_never_widens_the_page():
+    """.mk-chip was nowrap with no cap and it holds the account's own name,
+    so "The Midnight Telegraph Orchestra and Chorus" made the document 372px
+    wide inside a 320px viewport and the whole page scrolled sideways. It is
+    capped and ellipsised now, the shape of Motion's account line, with the
+    name whole on hover and read out in full."""
+    long_name = "The Midnight Telegraph Orchestra and Chorus"
+    c, _uid = _account(long_name)
+    body = c.get("/room/marketing").get_data(as_text=True)
+    chip = body.split('class="mk-chip"', 1)[1][:400]
+    assert 'class="mk-chip-name" title="%s"' % long_name in chip
+    assert long_name in chip, "the whole name is still the text, so it is read out"
+    css = _css()
+    rule = css.split(".mk-chip {", 1)[1].split("}", 1)[0]
+    assert "max-width: 100%" in rule and "min-width: 0" in rule
+    name = css.split(".mk-chip-name {", 1)[1].split("}", 1)[0]
+    assert "text-overflow: ellipsis" in name and "overflow: hidden" in name
+
+
+def test_7_the_rollout_row_opens_the_list_of_all_of_them():
+    """The row counted every rollout with no link and opened the newest one,
+    so it read "3 rollouts" beside a button that showed one, leaving the
+    other two unreachable from here."""
+    c, uid = _account()
+    for i in range(3):
+        ros.create_campaign(uid, {"title": "Rollout %d" % i})
+    body = c.get("/room/marketing").get_data(as_text=True)
+    row = body.split("Rollout with no smart link connected", 1)[1][:800]
+    assert "3 rollouts" in row
+    assert 'class="mk-act-cta" href="/rollout-studio"' in row
+    assert "no_link_href" not in body
+
+
+def test_8_no_action_is_offered_to_a_seat_that_would_be_bounced():
+    """The rollout card moved to the Releases room, so a seat given Marketing
+    and not Releases saw the row and was turned away at the page it opens."""
+    import team_areas
+
+    def seat(href):
+        return team_areas.allows("marketing", href.split("?")[0])
+
+    every = {"never-pitched": 1, "unsent": 1, "silent": 1, "no_link": 1, "no_quote": 1}
+    assert len(mr.actions(every)) == 5, "the artist is shown all five"
+    shown = [a["title"] for a in mr.actions(every, seat)]
+    assert "Rollout with no smart link connected" not in shown
+    assert len(shown) == 4
+    # the other four rows, and the room's other destinations, are this room's
+    for _f, _i, _t, _d, _s, _p, _c, href in mr.ACTIONS:
+        if href != "/rollout-studio":
+            assert seat(href), href
+    for href in ("/links", "/press-desk", "/epk", "/referrals",
+                 "/press-desk/announcements/new", "/press-desk/contacts"):
+        assert seat(href), href
+
+
+def test_9_the_room_reaches_smart_links_in_both_layouts():
+    """With the rooms layout on, the whole page carried 55 links and not one
+    went to /links: collapsing the cards took its tile away and the design
+    has none. The hero's large figure is smart link data, so the figure is
+    the door, in the empty state as well."""
+    import re
+    for rooms_on in ("1", "0"):
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setenv("NAV_ROOMS", rooms_on)
+            app_obj = appmod.create_app()
+            c = app_obj.test_client()
+            email = "mktlinks-%s@example.net" % uuid.uuid4().hex[:8]
+            c.post("/signup", data={"name": "Door", "email": email, "password": PW})
+            c.post("/plan/switch", data={"plan": "pro"})
+            body = c.get("/room/marketing").get_data(as_text=True)
+            assert "No visits in this window" in body, "the empty state"
+            assert '<a class="mk-big" href="/links"' in body, rooms_on
+            assert "Open Smart Links" in body
+            assert [h for h in re.findall(r'href="([^"]*)"', body)
+                    if h.startswith("/links")], "NAV_ROOMS=%s" % rooms_on
+            assert c.get("/links").status_code == 200
