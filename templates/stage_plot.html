@@ -6,12 +6,12 @@
 {% block head_scripts %}<link rel="stylesheet" href="/static/css/phone-studio.css?v=1">{% endblock %}
 
 {% block content %}
+{#- Every internal page opens with the shared plate band, never a
+    hand-written heading (owner, 2026-09-02). The band sits in the same
+    column as the body under it. -#}
 <div class="mx-auto max-w-[1200px] space-y-5">
-  <div>
-    <p class="sb-label sb-label-gold">Street Banker · Touring</p>
-    <h1 class="sb-h1 mt-1">Stage Plot Designer</h1>
-    <p class="mt-2 max-w-2xl text-sm text-gray-300">Check what you bring, drag it where it sits on stage, and the input list builds itself. Export one PNG — plot on top, channel list underneath — exactly what the sound engineer asks for.</p>
-  </div>
+  {{ sb.plate(none, [], "Street Banker · Touring", "Stage Plot Designer",
+              "Check what you bring, drag it where it sits on stage, and the input list builds itself. Export one PNG, plot on top and channel list underneath, exactly what the sound engineer asks for.") }}
 
   {% set editable = true %}
   {% include "_stage_plot_designer.html" %}

@@ -1,16 +1,21 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Team - Street Banker{% endblock %}
 {% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% block content %}
 <div class="acph">
+{#- Every internal page opens with the shared plate band, never a
+    hand-written heading (owner, 2026-09-02). The support line is captured
+    first because it reads differently by plan; the seat count and the
+    "tick a room" error sit under the band, where a reading, not a
+    description of the page, belongs. -#}
+{% set team_support %}Invite the people who run your business with you: manager, accountant, publicist. They sign in with their own login{% if team_opens %} and open your account from their Portal. You choose which rooms each person can open, and {% if can_grant_edit %}whether they can only look or can also make changes{% else %}on your plan they can look and change nothing; Pro lets you give someone edit access{% endif %}{% else %}. Your account is the platform's and is never opened from a member's Portal; they see the Portal summary only{% endif %}. Billing, settings and your team always stay with you.{% endset %}
 <div class="mx-auto max-w-[900px] space-y-5">
+  {{ sb.plate(none, [], "Street Banker · Team", "Team", team_support) }}
   <div>
-    <div class="sb-label text-sb-gold">Street Banker · Team</div>
-    <h1 class="sb-h1 mt-1">Team</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-300">Invite the people who run your business with you: manager, accountant, publicist. They sign in with their own login{% if team_opens %} and open your account from their Portal. You choose which rooms each person can open, and {% if can_grant_edit %}whether they can only look or can also make changes{% else %}on your plan they can look and change nothing; Pro lets you give someone edit access{% endif %}{% else %}. Your account is the platform's and is never opened from a member's Portal; they see the Portal summary only{% endif %}. Billing, settings and your team always stay with you.</p>
-    <p class="mt-2 text-xs font-bold text-gray-300">{% if seats_total is none %}{{ seats_used }} seat{{ '' if seats_used == 1 else 's' }} used, no limit on your plan.{% else %}{{ seats_used }} of {{ seats_total }} team seats used.{% endif %}</p>
+    <p class="text-xs font-bold text-gray-300">{% if seats_total is none %}{{ seats_used }} seat{{ '' if seats_used == 1 else 's' }} used, no limit on your plan.{% else %}{{ seats_used }} of {{ seats_total }} team seats used.{% endif %}</p>
     {% if request.args.get('rooms') == 'none' %}<p class="mt-2 text-xs font-bold text-red-400">Tick at least one room. To take someone off your team, use Remove.</p>{% endif %}
   </div>
 
