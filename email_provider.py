@@ -57,20 +57,16 @@ def sender(display_name=None):
 def _tenant_display_name():
     """The reseller this request belongs to, or "" for Street Banker's own.
 
-    Reads the request context and never raises: mail sent from a
-    background path has no request, and that is not an error - it is the
-    platform's own mail.
+    Never raises: mail sent from a background path has no request, and
+    that is not an error - it is the platform's own mail.
+
+    The resolution itself moved to white_label so the sender's name and
+    the words inside the message cannot disagree about whose product an
+    artist is looking at. They did, until 2026-09-21: the display name
+    swapped and the subject line still said Street Banker.
     """
-    try:
-        from flask import g, has_request_context
-        if not has_request_context():
-            return ""
-        partner = getattr(g, "partner", None)
-        if not partner:
-            return ""
-        return (partner.get("display_name") or partner.get("name") or "").strip()
-    except Exception:
-        return ""
+    import white_label
+    return white_label.tenant_name()
 
 
 def _http(url, payload, headers):

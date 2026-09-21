@@ -8,7 +8,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>{% block title %}Street Banker{% endblock %}</title>
+  {#- A public tour page carries the tenant's name, not ours. -#}
+  {%- set sb_page %}{% block title %}{% endblock %}{% endset -%}
+  <title>{% if sb_page | trim %}{{ sb_page | trim }} - {% endif %}{{ product_name }}</title>
   <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
   <link rel="stylesheet" href="/static/css/tour-os.css?v=27">
 </head>

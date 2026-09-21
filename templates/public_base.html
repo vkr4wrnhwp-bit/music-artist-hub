@@ -16,8 +16,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Street Banker{% endblock %}</title>
-  <meta name="description" content="{% block description %}Street Banker - the artist operating system.{% endblock %}">
+  {#- Whose product this is, composed once. A public page on a
+      reseller's domain is the first thing a stranger reads, and it
+      said Street Banker. -#}
+  {%- set sb_page %}{% block title %}{% endblock %}{% endset -%}
+  {#- title_product lets a page name somebody other than the tenant.
+      Its only use is the owner's two exceptions, /terms and /privacy:
+      those documents say who holds the data and who the artist is
+      contracting with, and a reseller's logo above them does not
+      change either. Every other page leaves it unset. -#}
+  <title>{% if sb_page | trim %}{{ sb_page | trim }} - {% endif %}{{ title_product or product_name }}</title>
+  <meta name="description" content="{% block description %}{{ product_name }}{% if brand and brand.tagline %} - {{ brand.tagline }}{% elif not brand %} - the artist operating system.{% endif %}{% endblock %}">
   {% block head_extra %}{% endblock %}
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23141210'/%3E%3Cpath d='M6 12l5 4 5-7 5 7 5-4v10a1 1 0 01-1 1H7a1 1 0 01-1-1z' fill='none' stroke='%23d8b25a' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/css/page-guard.css?v=1">

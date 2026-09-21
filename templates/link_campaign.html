@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ c.title }} — {{ c.artist_name or 'Street Banker' }}</title>
+  <title>{{ c.title }} · {{ c.artist_name or product_name }}</title>
   <meta name="description" content="{{ c.description or (c.title + ' by ' + c.artist_name + ' — listen everywhere.') }}">
   <meta property="og:title" content="{{ c.title }} — {{ c.artist_name }}">
   <meta property="og:description" content="{{ c.description or 'Listen on every platform.' }}">

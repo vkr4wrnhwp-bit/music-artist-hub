@@ -15,9 +15,12 @@ forgot to scope itself.
 A template hiding a button is cosmetic. This is the check.
 """
 import io
+import os
+import time
 from functools import wraps
 
-from flask import Blueprint, abort, g, redirect, render_template, request, session, url_for
+from flask import (Blueprint, abort, current_app, g, redirect, render_template,
+                   request, session, url_for)
 
 import db as store
 import partner_store as pstore
@@ -127,6 +130,91 @@ def _brand_surfaces():
     return out or {"sidebar": "#0B0A08"}
 
 
+def _uploads_dir():
+    """Where this deployment keeps uploaded files.
+
+    app.py derives it once - from the database's directory, with a
+    fallback when DATABASE_PATH points at an unmounted disk - and
+    publishes it. Re-deriving it here would get the fallback wrong on
+    exactly the deployment where it matters.
+    """
+    path = current_app.config.get("UPLOADS_DIR")
+    if not path:
+        import db as _store
+        path = os.path.join(os.path.dirname(_store.db_path()), "uploads")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _save_logo(partner_id, file_storage):
+    """Write a tenant's logo and return (path, problems).
+
+    Held like every other upload this app takes: an extension whitelist,
+    a byte cap, a name the uploader does not choose, and the public
+    /uploads directory - a brand mark is public by definition, since it
+    renders on the sign-in page before anybody has an account.
+
+    SVG is refused even though a wordmark would rather be vector. An SVG
+    is a document: served from /uploads it is same-origin with every
+    artist's session, and opened directly its script runs. Rasterising or
+    sanitising one is a real feature and a separate one.
+    """
+    import white_label
+
+    name = (getattr(file_storage, "filename", "") or "")
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if ext == "jpeg":
+        ext = "jpg"
+    if ext not in white_label.LOGO_EXTENSIONS:
+        return None, ["Use a %s image. An SVG is a document, not a picture: "
+                      "served from your artists' own address its script would "
+                      "run there, so this only takes raster files."
+                      % ", ".join(e.upper() for e in white_label.LOGO_EXTENSIONS)]
+
+    raw = file_storage.read()
+    if not raw:
+        return None, ["That file was empty."]
+    if len(raw) > white_label.LOGO_MAX_BYTES:
+        return None, ["That logo is %.1f MB. The limit is %d MB - it is a "
+                      "wordmark in a sidebar, not artwork."
+                      % (len(raw) / 1048576.0,
+                         white_label.LOGO_MAX_BYTES // 1048576)]
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+        Image.open(BytesIO(raw)).verify()
+    except ImportError:
+        # Pillow is optional at runtime everywhere else in this app, and
+        # it is optional here: the extension and the cap still hold.
+        pass
+    except Exception:
+        return None, ["That file is not an image the browser could draw, "
+                      "whatever it is named."]
+
+    folder = _uploads_dir()
+    fname = "partnerlogo_%s_%d.%s" % (partner_id, int(time.time()), ext)
+    with io.open(os.path.join(folder, fname), "wb") as fh:
+        fh.write(raw)
+    return "/uploads/" + fname, []
+
+
+def _forget_logo(path):
+    """Take a replaced or removed logo off the disk.
+
+    Best effort. A file that will not delete must not fail the save -
+    the row is what the product reads, and an orphan is a tidiness
+    problem, not a correctness one.
+    """
+    path = (path or "").strip()
+    if not path.startswith("/uploads/partnerlogo_"):
+        return
+    try:
+        os.remove(os.path.join(_uploads_dir(), path[len("/uploads/"):]))
+    except OSError:
+        pass
+
+
 @bp.route("/branding", methods=["GET", "POST"])
 @require("branding_edit")
 def branding(partner, member):
@@ -140,10 +228,16 @@ def branding(partner, member):
     source files for colour literals and cannot see a colour that arrives
     from the database, so the only place this can be caught is here - the
     same answer the homepage editor reached for links.
+
+    The logo arrived 2026-09-21. partners.logo_path had existed since
+    Partner OS shipped and base.html and auth_base.html had always
+    rendered brand.logo when it was set; nothing had ever written it, so
+    every tenant showed a name where their mark should have been.
     """
     import brand_contrast
+    import white_label
 
-    problems, saved = [], False
+    problems, saved, notes = [], False, []
     if request.method == "POST":
         display_name = (request.form.get("display_name") or "").strip()[:120]
         tagline = (request.form.get("tagline") or "").strip()[:120]
@@ -158,18 +252,56 @@ def branding(partner, member):
             problems.append(
                 "A name is needed - it is what your artists see where "
                 "Street Banker's own would be.")
-        if not problems:
+
+        # None means "leave whatever is stored alone"; "" means remove.
+        logo_path, drop_old = None, ""
+        upload = request.files.get("logo")
+        if upload is not None and getattr(upload, "filename", ""):
+            logo_path, logo_problems = _save_logo(partner["id"], upload)
+            problems += logo_problems
+            if logo_path:
+                drop_old = partner.get("logo_path") or ""
+        elif request.form.get("remove_logo"):
+            logo_path = ""
+            drop_old = partner.get("logo_path") or ""
+
+        if problems:
+            # Nothing is written, so a logo saved a moment ago must not be
+            # left on disk pointing at nothing.
+            if logo_path:
+                _forget_logo(logo_path)
+        else:
             pstore.set_branding(partner["id"], display_name=display_name,
-                                accent=accent, tagline=tagline)
+                                accent=accent, tagline=tagline,
+                                logo_path=logo_path)
+            _forget_logo(drop_old)
+            detail = "Brand set to %s" % display_name
+            if logo_path:
+                detail += "; logo uploaded"
+            elif logo_path == "":
+                detail += "; logo removed"
             pstore.audit(partner["id"], "branding.save", actor=member,
-                         detail="Brand set to %s" % display_name)
+                         detail=detail)
             saved = True
 
     fresh = pstore.get_partner(partner["id"])
+    brand = pstore.branding(fresh)
+    # An accent can pass the save-time gate - readable AS INK on a dark
+    # sidebar - and still leave nothing readable sitting ON it. Say so
+    # rather than quietly painting buttons in the platform's gold and
+    # letting the tenant wonder why.
+    if brand and brand.get("accent") and not white_label.accent_fill_ok(brand["accent"]):
+        notes.append(
+            "Your colour is used for headings, labels, edges and the focus "
+            "ring. Filled buttons keep the platform's gold: neither black nor "
+            "white text is readable on this colour at body size.")
     return render_template("partner/branding.html",
                            partner=fresh, member=member,
-                           brand=pstore.branding(fresh),
-                           problems=problems, saved=saved,
+                           brand=brand,
+                           problems=problems, saved=saved, notes=notes,
+                           logo_max_mb=white_label.LOGO_MAX_BYTES // 1048576,
+                           logo_kinds=", ".join(
+                               e.upper() for e in white_label.LOGO_EXTENSIONS),
                            can=lambda p: pstore.can(member, p),
                            role_label=pstore.ROLE_LABELS.get(member["role"],
                                                              member["role"]))

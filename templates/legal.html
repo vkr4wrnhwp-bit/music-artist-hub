@@ -7,7 +7,14 @@
 {% set plate_title = title %}
 {% set plate_support = "Last updated: " ~ updated %}
 
-{% block title %}{{ title }} - Street Banker{% endblock %}
+{#- One of the owner's two exceptions to the brand swap (2026-09-10).
+    On a reseller's domain every other tab reads the reseller; these two
+    keep naming the operating entity, because that is who holds the data
+    and who the artist is contracting with. The plate eyebrow and the
+    body have always said so; the tab did not until 2026-09-21. -#}
+{% set title_product = "Street Banker" %}
+
+{% block title %}{{ title }}{% endblock %}
 {% block description %}{{ title }} for Street Banker.{% endblock %}
 
 {% block content %}
