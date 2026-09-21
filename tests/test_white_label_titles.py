@@ -49,6 +49,13 @@ TITLE_EXEMPT = {
 }
 
 PRODUCT = re.compile(r"Street Banker|Royalty Sweep", re.I)
+# A title may name the platform, as long as it asked whose product this
+# is first. landing.html's share card is the case that matters:
+# {% if brand %}<the tenant>{% else %}Street Banker ...{% endif %} is
+# correct, and the name in it is the fallback, not a leak. What is
+# forbidden is naming the product with no question asked at all, which
+# is what all 151 pages did.
+ASKS_WHOSE = re.compile(r"\bbrand\b|product_name|title_product")
 # The tab, and the card that shows when somebody shares the link. A
 # reseller's homepage previewed as the platform's, name and all,
 # because og:site_name and og:title were literals nothing read.
@@ -82,12 +89,13 @@ def test_no_page_bakes_the_product_name_into_its_own_title():
         with io.open(path, encoding="utf-8") as fh:
             body = fh.read()
         for title in TITLE_LINE.findall(body):
-            if PRODUCT.search(title):
+            if PRODUCT.search(title) and not ASKS_WHOSE.search(title):
                 offenders.append("%s: %s" % (rel, title.strip()))
     assert not offenders, (
-        "These titles name the product instead of the page, so a reseller's "
-        "artist reads it in their browser tab. Name the page and let the "
-        "frame add the brand:\n  " + "\n  ".join(offenders))
+        "These name the product without asking whose product it is, so a "
+        "reseller's artist reads it in their browser tab or their share "
+        "preview. Name the page and let the frame add the brand, or ask "
+        "for `brand` and fall back:\n  " + "\n  ".join(offenders))
 
 
 def test_the_frame_is_where_the_brand_goes_in():
