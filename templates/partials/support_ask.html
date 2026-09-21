@@ -36,6 +36,9 @@
   .sbq { position: fixed; right: 16px; bottom: 16px; z-index: 60; }
   .sbq-open {
     display: inline-flex; align-items: center; gap: 8px;
+    /* The phone rule below already makes this a 44px circle; the pill it
+       starts as was 41px tall, so it takes the same floor at every width. */
+    min-height: 44px;
     padding: 10px 14px; border-radius: var(--sb-r-pill); cursor: pointer;
     border: 1px solid var(--sb-gold);
     background: var(--sb-surface-2); color: var(--sb-gold-bright);

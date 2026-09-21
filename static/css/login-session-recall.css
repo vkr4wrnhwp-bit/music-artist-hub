@@ -50,8 +50,16 @@ body.lsr {
   background: var(--lsr-ground);
   min-height: 100vh;
 }
+/* The band is the brand, not the page. At 46vh the photograph took 261px
+   of a 320x568 phone and pushed the Sign in button 150px under the fold,
+   so the front door asked to be scrolled before it could be opened. A
+   third of the screen still carries the flight case and its suite rack,
+   and the form now starts well above the fold. `dvh` follows the browser
+   chrome as it hides and shows, so the band does not grow when the URL
+   bar collapses; the `vh` line above it is the fallback. */
 @media (max-width: 860px) {
-  .lsr-photo { min-height: min(46vh, 420px); }
+  .lsr-photo { min-height: min(32vh, 240px); }
+  .lsr-photo { min-height: min(32dvh, 240px); }
 }
 .lsr-photo picture, .lsr-photo-img {
   position: absolute;
@@ -225,8 +233,10 @@ body.lsr {
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  /* The eye is a 44px target like everything else on the door; the icon
+     inside it stays 18px, so only the part you can hit grew. */
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: var(--sb-r-control);
   background: transparent;
@@ -250,10 +260,13 @@ body.lsr {
 .lsr-remember input { accent-color: var(--lsr-gold); width: 15px; height: 15px; margin: 0; }
 .lsr-remember input:focus-visible { outline: 2px solid var(--lsr-gold); }
 
+/* The padding carries the link to the 44px finger floor and the matching
+   negative margin gives the space back, so the target grows without the
+   text moving. */
 .lsr-link {
   display: inline-block;
-  padding: 8px 2px;
-  margin: -8px -2px;
+  padding: 14px 2px;
+  margin: -14px -2px;
   font-size: 13px;
   font-weight: 600;
   color: var(--lsr-gold-lit);

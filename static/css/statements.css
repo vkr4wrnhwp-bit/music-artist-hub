@@ -123,7 +123,9 @@ a.sd-st.carried:hover { text-decoration: underline; }
  * gap tag drops under the track title instead of wrapping beside it. */
 @media (max-width: 560px) {
   .sd-link { display: inline-flex; align-items: center; min-height: 44px; }
-  .sd-table .gap-tag { display: flex; align-items: center; min-height: 32px; margin-left: 0; }
+  /* On a phone the gap tag is its own row and its own tap, so it takes
+     the 44px finger floor rather than the 32px it had. */
+  .sd-table .gap-tag { display: flex; align-items: center; min-height: 44px; margin-left: 0; }
   .sd-more summary { display: flex; align-items: center; min-height: 44px; }
   /* The file field takes the whole row so "No file chosen" reads in full;
      "Upload & analyse" goes on its own full-width row under it. */
