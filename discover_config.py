@@ -1,12 +1,26 @@
 """
-Config-driven data for the fan-facing Discover section.
+The sample browse feed behind the fan-facing Discover section.
 
-A music-fan experience (the "Continue as a Fan" side): browse new music by
-genre and mood, see trending tracks, new releases, artist spotlights, and
-featured playlists. Likes and follows belong to the caller's session and
-are passed in; this module keeps no state of its own. Tracks reference
-real network artists and catalog titles; play counts and cover gradients
-are illustrative.
+Every name, title and play count in _TRACKS below is invented. Nobody
+called Nova Reign recorded Midnight Drive and nobody played it 5,200,000
+times. The list is showcase content and nothing else: it exists so the
+seeded demo logins have a feed to walk a partner through, and the owner
+keeps it for that.
+
+So it is handed out only when the caller says the session is a showcase
+one. get_discover_data(showcase=False) is the default, because the
+fail-safe answer to "may this account be shown invented data" is no; it
+returns the same shape with every list empty, and templates/discover.html
+draws the real iTunes search and an honest empty state instead. A real
+fan account is never served a name, a cover or a figure from this file.
+
+The old docstring here said the tracks "reference real network artists
+and catalog titles". They do not. They reference network_config, which
+is itself a parked directory of invented people (docs/PARKED_PAGES.md),
+and a fan signing up read the whole page as a music service.
+
+Likes and follows belong to the caller's session and are passed in; this
+module keeps no state of its own.
 """
 
 import os
@@ -26,7 +40,11 @@ MOODS = [
     {"id": "heartbreak", "name": "Heartbreak", "from": "#831843", "to": "#1e3a8a"},
 ]
 
-# Curated track feed. artist_id links to a /network profile where one exists.
+# The sample feed. INVENTED, every row: artist, title and play count.
+# Shown only to a showcase session (see the module docstring). artist_id
+# names a /network profile, which is a parked directory of invented
+# people - all nine ids below were checked against network_config._PROFILES
+# on 2026-09-21 and all nine exist, so the links resolve rather than 404.
 _TRACKS = [
     {"id": "tr-1", "art": "/static/img/discover/tr-1.jpg", "title": "Midnight Drive", "artist": "Nova Reign", "artist_id": "nova-reign", "genre": "Synthwave", "mood": "late-night", "plays": 5200000, "from": "#1e1b4b", "to": "#0f172a", "new": False},
     {"id": "tr-2", "art": "/static/img/discover/tr-2.jpg", "title": "Neon Dreams", "artist": "Nova Reign", "artist_id": "nova-reign", "genre": "Synthwave", "mood": "late-night", "plays": 3100000, "from": "#312e81", "to": "#0f172a", "new": True},
@@ -66,7 +84,19 @@ def like_track(track_id, likes):
     return {"liked": True, "count": len(likes)}
 
 
+def sample_artist_ids():
+    """The artist ids the sample feed can offer a follow button for."""
+    return {t["artist_id"] for t in _TRACKS}
+
+
 def follow_artist(artist_id, follows):
+    # like_track has always refused an id it does not know; this one took
+    # any string at all, so POST /discover/follow/beyonce answered
+    # {"following": true} and the caller had been told a relationship
+    # existed. It refuses the same way now, and the route above it
+    # refuses every account that is not a showcase session.
+    if artist_id not in sample_artist_ids():
+        return None
     if artist_id in follows:
         follows.discard(artist_id)
         return {"following": False, "count": len(follows)}
@@ -86,7 +116,61 @@ def _decorate_track(t, likes):
     return {**t, "liked": t["id"] in likes, "plays_fmt": _fmt_plays(t["plays"])}
 
 
-def get_discover_data(args=None, likes=None, follows=None):
+def _nothing_to_show():
+    """The same shape, carrying nothing.
+
+    The caller keys off `showcase`; every list is empty so a template
+    that forgets the flag still cannot print an invented name. Returned
+    by default, which is the point: a new caller that says nothing about
+    the session gets the honest answer, not the showcase one.
+    """
+    return {
+        "showcase": False,
+        "genres": [],
+        "moods": [],
+        "tracks": [],
+        "new_releases": [],
+        "spotlights": [],
+        "filters": {"genre": "All", "mood": "All"},
+        "summary": {"tracks": 0, "genres": 0, "new": 0, "likes": 0, "follows": 0},
+        "result_count": 0,
+    }
+
+
+def get_discover_data(args=None, likes=None, follows=None, showcase=False):
+    """The browse feed. Invented, so showcase sessions only.
+
+    THE SEAM FOR A REAL FEED, since this is where it lands.
+
+    Nothing here is started and nothing here is half-built; the owner has
+    not made the calls it needs. When he does, the shape is already cut:
+
+      * A real source fills `tracks`, `new_releases` and `spotlights`
+        with the same keys these rows use (id, title, artist, artist_id,
+        genre, mood, plays, art). Soundcharts is the named candidate;
+        signal_providers.py already holds the client and
+        soundcharts_budget.py the call cap, and data-source policy lives
+        in docs/DATA_SOURCES.md. Whatever it returns must carry its own
+        provenance, because `plays` is printed as a headline figure and
+        the product does not print a figure it cannot source.
+      * Street Banker's own artists appear only behind an opt-in. There
+        is no such toggle today; it is a per-account setting plus a
+        listing read, the same consent shape collab_profiles uses for
+        "members who chose to be found".
+      * `showcase` then stops meaning "may see invented rows" and starts
+        meaning "has no real rows yet", and the guard in app.py
+        discover() becomes the /links/fans two-clause form: demo AND
+        nothing real to show.
+      * Likes and follows move out of the session to a table keyed by
+        user_id (app.py _discover_state says the same). Persisting a
+        follow against an invented id is what this guard exists to
+        prevent, so that move and the real feed are one change, not two.
+
+    Until all of that, showcase=False is the honest answer and the
+    default.
+    """
+    if not showcase:
+        return _nothing_to_show()
     args = args or {}
     likes = likes if likes is not None else set()
     follows = follows if follows is not None else set()
@@ -121,6 +205,7 @@ def get_discover_data(args=None, likes=None, follows=None):
     spotlights = spotlights[:6]
 
     return {
+        "showcase": True,
         "genres": genre_counts,
         "moods": MOODS,
         "tracks": filtered,

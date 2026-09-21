@@ -12057,17 +12057,61 @@ def create_app():
 
     @app.route("/discover")
     def discover():
+        """The fan page: real search for everybody, the sample feed for
+        the showcase logins only.
+
+        It used to serve discover_config's twelve invented tracks to
+        every visitor as a music feed - Nova Reign with 5.2M plays,
+        follow buttons beside each one. A fan who signed up to find
+        music could not tell those acts from real ones, which is the
+        worst version of showing a number the product does not have.
+
+        Same rule as the Audience screen (_session_is_demo there too):
+        showcase rows go to a showcase session and nobody else. There is
+        no second "and the account has nothing of its own" clause the way
+        /links/fans has one, because no part of this feed is stored per
+        account - the likes and follows are in the session and the real
+        results come from the search box - so there is no real row a
+        sample could hide.
+        """
         likes, follows = _discover_state()
+        showcase = _session_is_demo()
         ctx = build_dashboard_context()
-        ctx["discover"] = get_discover_data(request.args, likes, follows)
+        ctx["discover"] = get_discover_data(request.args, likes, follows,
+                                            showcase=showcase)
         # Real music search: iTunes catalog with artwork + 30s previews.
+        # This is the whole page for a real account, and the only part of
+        # it that was ever real.
         q = (request.args.get("q") or "").strip()
         ctx["real_query"] = q
         ctx["real_results"] = itunes_search(q) if q else []
+        # "+ Catalog" posts /catalog/add, and /catalog is a Pro path, so
+        # plan_gate answers a Fan account 402 and the button reported
+        # "Try again" for ever. Offer it only where it works.
+        user = current_user()
+        ctx["can_save_to_catalog"] = bool(user) and plans.allowed(
+            user.get("plan") or "artist", plans.required_tier("/catalog/add"))
         return render_template("discover.html", active_page="discover", **ctx)
+
+    def _discover_sample_only():
+        """Refuse a sample-feed action from an account that cannot see the
+        sample feed.
+
+        A like or a follow against an invented id is a relationship that
+        does not exist; handing one back to a real account is the same
+        lie as printing the feed. The buttons are not rendered for them,
+        so the only way here is a stale tab or a crafted POST, and 404 is
+        the true answer: for this session there is no such track.
+        """
+        if _session_is_demo():
+            return None
+        return jsonify({"ok": False, "reason": "no-sample-feed"}), 404
 
     @app.route("/discover/like/<track_id>", methods=["POST"])
     def discover_like_route(track_id):
+        bail = _discover_sample_only()
+        if bail:
+            return bail
         likes, follows = _discover_state()
         res = like_track(track_id, likes)
         if res is None:
@@ -12077,8 +12121,15 @@ def create_app():
 
     @app.route("/discover/follow/<artist_id>", methods=["POST"])
     def discover_follow_route(artist_id):
+        bail = _discover_sample_only()
+        if bail:
+            return bail
         likes, follows = _discover_state()
         res = follow_artist(artist_id, follows)
+        # follow_artist now refuses an id the sample feed does not carry;
+        # it used to accept any string and answer "following": true.
+        if res is None:
+            return jsonify({"ok": False}), 404
         _keep_discover_state(likes, follows)
         return jsonify({"ok": True, **res})
 

@@ -1,0 +1,169 @@
+/* Discover: the honest empty state and the sample-feed banner.
+ *
+ * A new file rather than rules bolted onto an existing sheet: everything
+ * here belongs to templates/discover.html and to the change of
+ * 2026-09-21 that stopped serving the invented feed to real accounts.
+ *
+ * House rules held here. Every colour is a design token, so the
+ * tests/test_design_system.py lock passes without an exemption. Nothing
+ * is under 12px. Radii are the three the system has. Copy is near-white
+ * on a gold-edged band rather than dim grey in a black box (the design
+ * separation rule). Status is never colour on its own: the banner says
+ * the word "Sample", the empty state is plain sentences. Fluid from
+ * 320px up with no horizontal scroll.
+ */
+
+/* --- the empty state: an invitation, not an apology ---------------- */
+
+.dc-empty {
+  border: 1px solid color-mix(in srgb, var(--sb-gold) 38%, transparent);
+  border-radius: var(--sb-r-panel);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--sb-gold) 9%, transparent),
+      color-mix(in srgb, var(--sb-surface-2) 80%, transparent));
+  padding: 26px 20px;
+  max-width: 62ch;
+}
+
+.dc-empty-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: var(--sb-gold-bright);
+}
+
+.dc-empty-lead {
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--sb-ink);
+}
+
+.dc-empty-body {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--sb-ink);
+}
+
+.dc-empty-kick {
+  margin: 20px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--sb-gold);
+}
+
+.dc-empty-tries {
+  margin: 10px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dc-empty-next {
+  margin: 20px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--sb-ink);
+}
+
+/* The starter searches are real queries, not claims about who is on the
+   platform, so they read as buttons and nothing more. */
+.dc-try {
+  font-size: 13px;
+}
+
+/* --- the sample-feed banner --------------------------------------- */
+
+/* Loud on purpose. This sits above a grid of invented acts and is the
+   only thing between a reader and believing them, so it is not a
+   footnote and it is not grey on black. */
+.dc-sample {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 13px 15px;
+  border: 1px solid color-mix(in srgb, var(--sb-gold) 58%, transparent);
+  border-left-width: 4px;
+  border-radius: var(--sb-r-panel);
+  background: color-mix(in srgb, var(--sb-gold) 11%, transparent);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--sb-ink);
+}
+
+.dc-sample-mark {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: var(--sb-r-pill);
+  background: var(--sb-gold-bright);
+  color: var(--sb-on-gold);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.dc-foot {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--sb-ink-2);
+}
+
+/* --- focus ---------------------------------------------------------- */
+
+/* Tailwind's focus:outline-none sits on the search input, which left a
+   keyboard user with no sign of where they were. Put a ring back on
+   every control this page owns. */
+.dc-search:focus-within {
+  outline: 2px solid var(--sb-gold-bright);
+  outline-offset: 3px;
+  border-radius: var(--sb-r-panel);
+}
+
+.dc-empty a:focus-visible,
+.dc-link:focus-visible,
+.dc-chip:focus-visible,
+.dc-artist:focus-visible,
+.dc-avatar:focus-visible,
+.like-btn:focus-visible,
+.follow-btn:focus-visible,
+.preview-play:focus-visible,
+.add-to-catalog:focus-visible {
+  outline: 2px solid var(--sb-gold-bright);
+  outline-offset: 2px;
+  border-radius: var(--sb-r-control);
+}
+
+.dc-link {
+  color: var(--sb-gold-bright);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* --- narrow screens -------------------------------------------------- */
+
+@media (max-width: 480px) {
+  .dc-empty { padding: 20px 15px; }
+  .dc-empty-title { font-size: 19px; }
+  .dc-empty-lead { font-size: 14px; }
+  /* The starter buttons stack in pairs rather than overflow a 320px
+     viewport. */
+  .dc-empty-tries .dc-try { flex: 1 1 calc(50% - 8px); text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-empty,
+  .dc-sample,
+  .dc-try { transition: none; animation: none; }
+}
