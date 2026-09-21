@@ -361,8 +361,14 @@
   </div>
 {%- endmacro %}
 
-{# One number that matters, in a recessed window. #}
-{% macro lcd(value, caption, absent="—") -%}
+{# One number that matters, in a recessed window.
+
+   No reading prints the words, never a dash and never a 0. An em dash
+   is not an answer: the reader cannot tell "nobody measured this" from
+   "the layout broke". "Not measured" is the honest default; a caller
+   whose blank means something more exact - no date set, nothing
+   entered, nothing scored - passes its own `absent`. #}
+{% macro lcd(value, caption, absent="Not measured") -%}
   <span class="sb-lcd {{ 'sb-lcd--none' if value is none }}">
     <span class="sb-lcd-v">{{ absent if value is none else value }}</span>
     <span class="sb-lcd-cap">{{ caption }}</span>

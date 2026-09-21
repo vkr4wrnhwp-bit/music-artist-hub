@@ -65,8 +65,19 @@ def test_the_absent_wording_can_say_why(sb):
 
 
 def test_an_lcd_with_no_value_does_not_invent_one(sb):
+    """And says so in words. An em dash is not an answer: the reader
+    cannot tell "nobody measured this" from "the layout broke"."""
     out = _flat(sb.lcd(None, "BPM"))
-    assert "sb-lcd--none" in out and "—" in out
+    assert "sb-lcd--none" in out
+    assert "Not measured" in out
+    assert "—" not in out and ">0<" not in out
+
+
+def test_an_lcd_whose_blank_means_something_else_can_say_that_instead(sb):
+    """"Not measured" is the honest default, not the only word. A tour
+    total nobody has typed was not measured badly, it was not entered."""
+    out = _flat(sb.lcd(None, "projected net", absent="Not entered"))
+    assert "Not entered" in out and "Not measured" not in out
 
 
 # --- accessibility of the set ------------------------------------------------

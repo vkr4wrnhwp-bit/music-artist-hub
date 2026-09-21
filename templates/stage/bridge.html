@@ -136,14 +136,14 @@
       </div>
     {% endif %}
     <div class="sc-rack-grid">
-      {{ sb.lcd(rack.device.fingerprint, "Device · " ~ rack.device.name) }}
+      {{ sb.lcd(rack.device.fingerprint, "Device · " ~ rack.device.name, absent="Not reported") }}
       {{ sb.lcd(rack.ownership.tour_id[:8] if rack.ownership.tour_id else none, "Tour", absent="No TOUR date") }}
-      {{ sb.lcd(rack.network.label, "Network") }}
+      {{ sb.lcd(rack.network.label, "Network", absent="Not reported") }}
       {{ sb.lcd((rack.network.heartbeat_age_s ~ " s") if rack.network.heartbeat_age_s is not none else none, "Last heartbeat", absent="Not measured") }}
-      {{ sb.lcd(rack.console.label, "Console") }}
-      {{ sb.lcd(rack.adapter.key ~ (" · verified" if rack.adapter.verified else " · UNTESTED"), "Adapter") }}
-      {{ sb.lcd(rack.software_version, "Software") }}
-      {{ sb.lcd(rack.last_update[11:19] if rack.last_update and rack.last_update[:2] == "20" else rack.last_update, "Last update") }}
+      {{ sb.lcd(rack.console.label, "Console", absent="Not reported") }}
+      {{ sb.lcd(rack.adapter.key ~ (" · verified" if rack.adapter.verified else " · UNTESTED"), "Adapter", absent="Not reported") }}
+      {{ sb.lcd(rack.software_version, "Software", absent="Not reported") }}
+      {{ sb.lcd(rack.last_update[11:19] if rack.last_update and rack.last_update[:2] == "20" else rack.last_update, "Last update", absent="Not reported") }}
       {{ sb.lcd("Armed" if rack.armed else "Disarmed", "Arming") }}
       {{ sb.lcd("On" if rack.lockout.on else "Off", "Emergency lockout") }}
       {{ sb.lcd("Revoked" if rack.revoked.on else "Active", "Remote revocation") }}
