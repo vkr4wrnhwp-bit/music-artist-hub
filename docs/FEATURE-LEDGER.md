@@ -920,14 +920,16 @@ Shows which social platforms a post could actually be published to.
 
 ### Dead code
 
-**Cover store-spec check (artwork_check.py)**
+**Cover store-spec check (artwork_check.py)** - Live
 
 Measures a cover file against distributor requirements - square, 3000px, RGB, no alpha, size, sharpness, not blank - and lists the rules it cannot settle.
 
-- Because: Nothing imports it but its own test. Grepping artwork_check, artwork-check, cover.check and /artwork/check across every .py, .html and .js in the repo returns only tests/test_artwork_check.py:17; there is no route, no nav entry and no template reference, and templates/artwork.html mentions no spec, check or rejection anywhere.
-- Routes: none
-- Files: artwork_check.py (whole module, 280 lines); exercised only by tests/test_artwork_check.py
-- Access: Unreachable by any account, any plan, any seat.
+- Because: Wired 2026-09-21. POST /artwork/check (app.py:4106 artwork_cover_check) reads one uploaded file, measures it and returns the verdict as JSON; nothing is written to disk. The Cover Studio panel that calls it is templates/artwork.html:299-317 with its behaviour at :882. Verified in a browser against a real 3000px cover (clean) and a 1200px one (size named as the one thing a store would refuse).
+- Verdicts: pass / review / fix, plus not-checked when the image library is missing. not-checked is its own state and is never reported as a pass, so a deployment without Pillow says the check did not run.
+- Honesty: the rules no file inspection can settle always come back with the result, so a pass is never mistaken for a guarantee. SPEC figures are the ones distributors publish and move; DSP_NOTE says so on every result.
+- Routes: POST /artwork/check (signed in; refuses a file over 24 MB)
+- Files: artwork_check.py (check(), unavailable(), SPEC, UNCHECKED); app.py:4106; templates/artwork.html:299-317 and :882; requirements.txt (Pillow, added for this); tests/test_artwork_check.py (measurements) and tests/test_artwork_check_wired.py (the route)
+- Access: any signed-in account. No plan gate.
 
 **Show Passport documents**
 
@@ -4280,14 +4282,18 @@ A button that finds an active subscription by the account's email and puts the p
 
 ### Dead code
 
-**Sign-up bot guard**
+**Sign-up bot guard** - Live
 
 A honeypot field, a signed form clock, a per-IP rate limit and a throwaway-domain list for the sign-up form.
 
-- Because: nothing calls it. Grepping 'signup_guard' across every .py and .html returns only tests/test_signup_guard.py:15; grepping its field names 'company_website' and 'form_opened' returns only signup_guard.py itself and that test. The /signup handler (app.py:986) never references it and templates/signup.html carries neither hidden field.
-- Routes: none
-- Files: signup_guard.py (whole module); tests/test_signup_guard.py is its only importer
-- Access: n/a
+- Because: Wired 2026-09-21. templates/signup.html:16-20 carries the signed stamp and the hidden field; POST /signup calls signup_guard.judge before it creates anything (app.py, inside signup()), and a caught submission returns 429 having created no account. The helper that mints the stamp is _signup_stamp beside the route.
+- Honesty and safety: the reason a submission was caught goes to app.logger and is never rendered, because naming the check tells a script how to pass it. The person sees one sentence (signup_guard.REFUSAL) and a way to reach a human.
+- Not judged: an invitation. The owner made that link for one address, so an invited guest on a shared connection is never rate-limited out. The shut door still renders the stamp, so reopening sign-up needs no second change.
+- On or off: signup_guard.enabled() is on wherever RENDER is set, off on a laptop and in the tests unless SIGNUP_GUARD=on.
+- Caveat, unchanged: _seen is a per-process table and the Procfile runs gunicorn with 2 workers, so the per-IP window is per worker.
+- Routes: POST /signup
+- Files: signup_guard.py (whole module); app.py (import, _signup_stamp, the judge call in signup(), and the three signup.html renders that pass guard_stamp); templates/signup.html:16-20; tests/test_signup_guard.py (the judgement) and tests/test_signup_guard_wired.py (the door)
+- Access: the public sign-up form.
 
 > Noted by the reviewer as not yet written up in this area: Label roster desk — GET /roster (app.py:6607 roster(); templates/roster.html). Per-artist statement revenue, fans, live links, upcoming shows, OS summary and certification for every active roster member, plus a 10-item upcoming-release calendar, all summed from real rows via store.list_roster + _artist_snapshot + mls.list_campaigns. Live; Label tier (plans.required_tier). Probe: label GET /roster -> 200, artist/pro -> 402.; Roster CSV export — GET /roster/export.csv (app.py:6639 roster_export()). An 11-column report row per active roster artist (revenue, fans, links, shows, tracks, passport avg, clean-release avg, red rights issues, certification) streamed as text/csv. Live; Label. Probe -> 200.; Roster artist view — GET /roster/artist/<artist_id> (app.py:6795 roster_artist(); templates/roster_artist.html). One roster member's detail page. Live; Label. Probe -> 200.; Remove an artist from the roster — POST /roster/<member_id>/remove (app.py:6812 roster_remove()). Live; Label, and blocked for a team seat without can_roster by team_seat_gate's '/roster' rule (app.py:5144).; Settings > Soundcharts monthly budget — POST /admin/soundcharts-budget (app.py:13389 admin_soundcharts_budget(); form at templates/settings.html:298; read back into the page as soundcharts_budget.summary() at app.py:13332). Owner-only via _owner_or_404. Live. Probe as owner -> 302 /settings?soundcharts=saved.; Settings > Release-Ready owner card — POST /admin/release-ready/settings (release_ready blueprint; form at templates/settings.html:331; state at app.py:13335 as rr_month = release_ready_settings.summary() plus roex.configured() and storage_ready()). An owner-only Settings panel that sets the per-master price and the monthly credit budget. No entry at all.; Owner auto-plan grant — _grant_owner_plan (app.py:126). Any address in OWNER_EMAILS or the built-in _OWNER_EMAIL_HASHES is moved to OWNER_PLAN with no card and no Settings action: at boot for every existing row (create_app walks store.list_users(), app.py:757), on every /login (app.py:1127), and right after /signup (app.py:1041). Probe: a fresh signup on an OWNER_EMAILS address came out plan 'label'. Live. It is also what makes the owner bypass plan_gate, the suite gates, suite_go, the demo lock as a target, and _plan_held against Stripe.; Standing demo credit grant — app.py:1131-1136 inside login(). A sign-in adds 100,000 'bought' credits once per account (ref demo-standing:<id>) and lands on /walkthrough. Two things the Credit wallet entry states are not what the code does: (1) it fires only on POST /login, NOT on POST /demo-open, which is the door the login page's demo form actually posts to — probe: after /demo-open the demo-artist wallet was {total: 0}; after /login it was {bought: 100000}; so on a service with SUITE_GATES on, a demo opened by the tour form is refused /rack; (2) the test is the wildcard `email == "demo@streetbanker.io" or email.startswith("demo-") and email.endswith("@streetbanker.io")`, not demo_accounts.is_demo_email — probe: demo-evil@streetbanker.io (is_demo_email False) signed in, got the 100,000 credits and the /walkthrough landing, which is exactly the wildcard demo_accounts.py's docstring says was closed as an open door.; Public memberships band — templates/partials/memberships_band.html, included by templates/landing_split.html:96. The three engraved membership plates and the credit wallet shown on the split home door to anonymous visitors; tests/test_split_home.py asserts every engraved price still matches plans.PLANS. The ledger has the in-app plan cards (Billing / upgrade wall) but nothing for the public pricing surface.; Sandbox mode — sandbox.py (env SANDBOX, SANDBOX_NAME). active() makes stripe_provider.configured() (stripe_provider.py:31) and email_provider.configured() (email_provider.py:24) return False whatever key is set, and adds a fixed banner. It is the switch that decides whether any billing or transactional email in this area does anything, and it is upstream of the 'Stubbed' verdict on every Stripe entry, but it has no entry.
 
@@ -4945,7 +4951,8 @@ Four cheap checks — hidden field, signed clock, one-per-address, throwaway dom
 
 - Because: signup_guard.py:124 judge() runs all four and returns a reason string that is logged and never shown; the person sees one sentence (signup_guard.py:160 REFUSAL). The clock is an itsdangerous-signed stamp so it cannot be back-dated. 14 tests in tests/test_signup_guard.py. Caveat above about the per-process rate table.
 - Routes: POST /signup
-- Files: signup_guard.py (6.9 KB, whole file); app.py:969-975 (_signup_open / SIGNUP_MODE)
+- Files: signup_guard.py (6.9 KB, whole file); app.py:969-975 (_signup_open / SIGNUP_MODE); the wiring itself is in signup(), templates/signup.html:16-20 and tests/test_signup_guard_wired.py
+- Note: this route was listed here before anything called the module. It became true on 2026-09-21. The fuller entry for this feature is "Sign-up bot guard" in the accounts area.
 - Access: Anonymous — and the door itself is shut on a deployed service unless SIGNUP_MODE=open (app.py:969-971)
 
 **SQLite persistence layer**
@@ -5420,7 +5427,7 @@ in its own way, listed in its feature entry above.
 - db.roll_seen(user_id) — fired once per session on the first Command Center/Overview render to stamp the visit for since_engine; skipped for a team seat.
 - Device API polled from outside the app — POST /bridge/heartbeat, /bridge/pull, /bridge/ack, /bridge/reconcile (stage_os.py:420-457), driven by tools/stage_bridge_daemon.py on the venue network with a device token.
 - In-process simulator drive — stage_os._drive_if_simulated (stage_os.py:261) calls stage_bridge.run_local for one cycle after a send; stage_bridge.run_local refuses any adapter whose spec is not simulated.
-- In-process state, not shared across gunicorn workers: app.py:1154 _demo_access_seen (30s per-IP throttle on the demo lead form) and signup_guard._seen (never reached, the module is uncalled). No threads, schedulers or timers are started anywhere in this area.
+- In-process state, not shared across gunicorn workers: app.py:1154 _demo_access_seen (30s per-IP throttle on the demo lead form) and signup_guard._seen (reached on every public sign-up since 2026-09-21). No threads, schedulers or timers are started anywhere in this area.
 - In-request opportunistic work rather than a job: app.py:1707 completes a small batch of pending Spotify pre-saves on a page hit, with the comment 'No cron needed'.
 - Lazy expiry, not a scheduler: fan_import_drafts older than 24h are deleted by whichever draft read or write comes next (db.py:4316 put_fan_import_draft, :4335 get_fan_import_draft, :4367 drop_fan_import_draft, and links_store.py:252 confirm_list_import).
 - Lazy on-request work, not a scheduler: app.py:1705 _process_due_presaves() runs on every public view of a released smart link and (a) sends the one-time release email via app.py:1679 _send_release_emails() and (b) completes pending Spotify pre-saves in a batch. Its own docstring says 'No cron needed'.
@@ -5585,7 +5592,7 @@ can close, and nothing here was guessed to fill it.
 
 - app.py was being edited by another session throughout this pass (mtime moved 16:14 -> 17:03 while I read it, and line numbers shifted by ~370). All app.py line numbers above are from a final sweep at 17:03 against a 14,527-line file and WILL drift. Two behaviours I observed changed mid-pass: _release_checks gained the dated-post rollout rule and the passport-aware ISRC hint, and /conflicts went from HTTP 500 to 200. Re-verify every app.py file:line before relying on it.
 - /rollout-studio/<cid> NameError (app.py:10777): I reproduced the 500 on a throwaway DB by approving every generated post. I did NOT verify whether a fix is already in flight from the concurrent edit, nor whether any existing test covers it.
-- artwork_check.py: I proved it has no caller other than its own test by grepping .py/.html/.js for artwork_check, artwork-check, cover.check and /artwork/check. I did not search non-code surfaces (docs/, backups/) and cannot rule out a planned wiring.
+- artwork_check.py: was uncalled when this ledger was written. Wired 2026-09-21 to POST /artwork/check and the Cover Studio panel; see its entry above.
 - templates/os_tracks.html dead branch: proved unreachable by the plan matrix (artist/pro/label redirect, fan blocked 402) and by a live probe of both cases. Not verified for a hypothetical account whose plan string is absent or unknown - plans.allowed defaults such a plan to artist rank 1, which also redirects, but I did not construct that account.
 - Demo-account catalog: app.py:2584 exempts email demo@streetbanker.io from the zeroing block, so that one account still renders the invented 1,248-track showcase. I did not sign in as it to confirm what the page looks like.
 - Lockbox signature email: emailer.configured() is false on this checkout (no RESEND_API_KEY), so I confirmed the no-send path by reading the code, not by observing a delivery.
