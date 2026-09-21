@@ -34,6 +34,12 @@
   {% include "_fonts.html" %}
   <link rel="stylesheet" href="/static/css/public-header.css?v=5">
   <link rel="stylesheet" href="/static/css/public-page.css?v=2">
+  {#- The same two custom properties the signed-in shell declares, so a
+      reseller's colour does not stop at their front door. Empty for
+      Street Banker's own pages, which then carry no inline style and
+      fall through to the platform tokens exactly as before. -#}
+  <link rel="stylesheet" href="/static/css/white-label.css?v=1">
+  {% if brand_style %}<style>:root { {{ brand_style }} }</style>{% endif %}
 </head>
 <body class="min-h-screen bg-sb-ground text-sb-ink antialiased pp">
 
