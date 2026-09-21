@@ -1999,6 +1999,25 @@ The Fans room's opening screen: owned audience, new-in-window, reachable share, 
 - Files: app.py:4636 def room_screen() → app.py:4664 def _fan_room(); fan_room.py:222 def build(), :105 moves(), :155 pulse(), :199 tile_status(); templates/room_fans.html; rooms.py:23 ROOMS["fans"]; stores links_store.py, fan_audience.py, db.py (get_fan_club, list_club_members, collab_requests query at app.py:4676)
 - Access: Any signed-in account — plans.required_tier("/room/fans") is None (verified); probe confirmed a fan-plan account got 200. rooms.get_room() takes the plan, so Label-only cards are filtered out. Team seats: app.py team_seat_gate → team_areas.allows() permits /room/<key> only when that room key is ticked. Anonymous redirected to /login.
 
+**Marketing Room (/room/marketing)**
+
+The Marketing room's opening screen: a windowed hero of link traffic, a five-stage rail from Written to Heard, recommended actions, media contacts by city and three closing tiles.
+
+- Because: every figure is a COUNT over this account's own rows. The hero's visits, clicks and pre-saves are ml_events page_view / service_click / presave_notify joined to ml_campaigns on user_id and filtered on e.created, so the range chooser governs all three and the line under the controls says so; the ml_fans counter columns total_visits and total_clicks are never read (nothing in the app increments them). The rail counts the whole record: press_releases status='ready', press_pitches with sent_at, SUM(press_recipients.open_count), press_coverage, and all-time page_view. Each action row is its own EXISTS query and a row whose count is zero is dropped rather than drawn. The map is a constellation, not a basemap: cities are grouped from press_contacts.city/country and placed from board_taxonomy.METROS, a city the table cannot place is not plotted and the footnote says how many were left off. The demo account alone is handed marketing_room.showcase(), an in-memory literal that is never written to the database.
+- Substitutes (owner's design could not be built as drawn): his fifth action row "Release with no smart link" is a rollout with no link connected (ro_campaigns.ml_campaign_id is the only stored join to a smart link), worded to his ruling of 2026-09-21. It states the consequence, offers ours and never says another service is disallowed. His map sub-heading "Media contacts around the world" is "The cities your media contacts work in", because there is no world basemap in the repository. His "Sample" pill shows only on the demo; a real account's panel carries the Live mark instead.
+- Routes: GET /room/marketing?days=7|30|90 (dispatched from /room/<room_key>)
+- Files: app.py room_screen() → app.py _marketing_room(); marketing_room.py build(), for_account(), stages(), actions(), constellation(), group_cities(), tile_status(), showcase(); templates/room_marketing.html; static/css/marketing-room.css; rooms.py ROOMS["marketing"]; stores db.py (ml_events, ml_campaigns, ro_campaigns), press_store.py (press_contacts, press_releases, press_pitches, press_recipients, press_coverage), board_taxonomy.METROS
+- Access: Any signed-in account, as /room/<key>: no tier gate. rooms.get_room() takes the plan and the page switches, so a hidden card leaves the tile grid for everybody but an owner. Team seats need the "marketing" room ticked. Anonymous redirected to /login.
+
+**Marketing room card list and the press tab strip**
+
+The Marketing room holds four cards (links, press-desk, epk, referrals); the press pages draw their own tab strip in both layouts again.
+
+- Because: the room's screen closes with the three tiles the owner drew, so rooms.py collapsed the four press cards into press-desk, moved rollout to the Releases room and dropped reach (hubs.tool_suites() already carries REACH on the suites strip at the same address). links stays a card so /links keeps its way back to the room, but the screen shows it as the hero figures and the rollout action rather than as a tile. press-contacts, press-announcements and press-coverage are now in no room, so the `{% if not rooms_nav %}` guard came off templates/press/_shell.html and templates/epk.html: without it those three pages would have no door in the rooms layout. They keep their live flag and their page switch through rooms.parent_of() == "press-desk".
+- Routes: unchanged (GET /press-desk, /press-desk/contacts, /press-desk/announcements, /press-desk/coverage, /epk, /rollout-studio)
+- Files: rooms.py ROOMS["marketing"], ROOMS["releases"], EXTRA; templates/press/_shell.html; templates/epk.html; tests/test_rooms.py
+- Access: unchanged.
+
 **Release-day email to captured fans**
 
 The first page view after release day emails every consented fan of that campaign the listen link.

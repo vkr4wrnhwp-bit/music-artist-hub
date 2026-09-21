@@ -44,17 +44,29 @@ def _hubs(body):
 # is no card to gate. tests/test_signal_is_internal.py holds the new rule.
 def test_every_sidebar_entry_and_every_folded_page_has_a_room():
     keys = {k for _r, _n, _p, ks in rooms.ROOMS for k in ks} | set(rooms.TOP_KEYS) | set(rooms.ACCOUNT_KEYS)
+    # A tool suite is a door on the strip at the foot of every page, in
+    # either layout, so it does not need a card as well. REACH left the
+    # Marketing room on 2026-09-21 for exactly that reason, at the same
+    # address. Everything else has to be in a room.
+    suites = {row[0] for row in hubs.tool_suites()}
     for _hk, _name, _tag, items in hubs.HUBS:
         for it in items:
-            assert it[0] in keys, it[0]
+            assert it[0] in keys or it[0] in suites, it[0]
     for _g, items in (hubs.LABEL_GROUP, hubs.COMMUNITY_GROUP, hubs.ACCOUNT_GROUP):
         for it in items:
             if it[0] in ("inbox", "notifications"):
                 continue                           # the corner marks
             assert it[0] in keys, it[0]
     # the unfolded pages are cards, each in exactly one room
-    for key in ("contracts", "track-passports", "tax", "press-contacts", "fan-club", "deal-simulator"):
+    for key in ("contracts", "track-passports", "tax", "fan-club", "deal-simulator"):
         assert rooms.room_for_key(key), key
+    # The three folded press pages are deliberately in no room from
+    # 2026-09-21: the Marketing room's screen closes with one Press Desk
+    # tile, and the desk's own tab strip is their door again. They keep
+    # their live flag and their page switch through press-desk.
+    for key in ("press-contacts", "press-announcements", "press-coverage"):
+        assert rooms.room_for_key(key) is None, key
+        assert rooms.parent_of(key) == "press-desk", key
     seen = [k for _r, _n, _p, ks in rooms.ROOMS for k in ks]
     assert len(seen) == len(set(seen)), "a card sits in one room only"
     assert [r[0] for r in rooms.ROOMS] == ["fans", "studio", "stage", "analytics", "business", "publishing", "releases", "marketing"]
@@ -133,11 +145,12 @@ def test_hidden_pages_leave_the_room_for_everybody_but_an_owner(monkeypatch):
     try:
         page = owner.get("/room/marketing").get_data(as_text=True)
         assert 'data-room-card="press-desk"' in page and ">Hidden<" in page
-        assert 'data-room-card="press-contacts"' in page, "a page under a hidden one is hidden too, and an owner still sees it"
+        assert "press-contacts" in rooms.hidden_keys(), \
+            "a page under a hidden one is hidden too, wherever it is shown"
         other = _client(app_obj, "pro")
         page = other.get("/room/marketing").get_data(as_text=True)
-        assert 'data-room-card="press-desk"' not in page and 'data-room-card="press-contacts"' not in page
-        assert 'data-room-card="links"' in page
+        assert 'data-room-card="press-desk"' not in page
+        assert 'data-room-card="epk"' in page and 'data-room-card="referrals"' in page
     finally:
         with app_obj.app_context():
             page_switches.set_hidden(set())
@@ -245,14 +258,20 @@ def test_no_page_draws_a_tab_strip_the_room_already_covers():
     In the rooms layout a room's cards ARE the tabs, so a page that also
     draws the shared strip shows the same destinations twice. Every
     sb.subnav() call is guarded by `{% if not rooms_nav %}` except the
-    Royalties/Money queue pair: the Money queue is in no room's card
-    list, so guarding its strip would leave the page with no door in and
-    no way back. Guard it on the day it becomes a card, not before.
+    pages whose destinations no room shows: guarding those would leave the
+    page with no door in and no way back. Guard one on the day it becomes
+    a card, not before.
     """
     root = os.path.join(HERE, "templates")
     allowed = {
+        # The Money queue is in no room's card list.
         ("royalties.html", "/money-queue"),
         ("money_queue.html", "/money-queue"),
+        # The press strip, unguarded again on 2026-09-21: the Marketing
+        # room collapsed its four press cards into one Press Desk tile, so
+        # the strip is the only door to the media list, announcements and
+        # coverage rather than a double of the room's.
+        ("epk.html", "/press-desk/contacts"),
     }
     unguarded = []
     for folder, _dirs, files in os.walk(root):

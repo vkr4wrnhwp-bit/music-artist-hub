@@ -4762,6 +4762,8 @@ def create_app():
             abort(404)
         if room_key == "fans":
             return _fan_room(user, room)
+        if room_key == "marketing":
+            return _marketing_room(user, room)
         return render_template("room.html", active_page="room-" + room_key,
                                room=room, room_images=rooms.images(),
                                **build_dashboard_context())
@@ -4803,6 +4805,31 @@ def create_app():
                             shopify=_shopify_import_allowed(user))
         return render_template("room_fans.html", active_page="room-fans", room=room, fr=fr,
                                **build_dashboard_context())
+
+    def _marketing_room(user, room):
+        """The Marketing room's opening screen, the owner's design
+        (2026-09-21). marketing_room.py says where each figure comes from.
+
+        The route is the only thing that decides who is shown the example:
+        the demo account gets marketing_room.showcase(), and a real
+        account's figures are read from its own rows, never generated.
+        """
+        import marketing_room
+        days = marketing_room.days_from(request.args.get("days"))
+        showcase = _session_is_demo()
+        if showcase:
+            figures = marketing_room.showcase(days)
+            kit_live = True
+        else:
+            figures = marketing_room.for_account(user["id"], days)
+            # His "Live" pill on the press kit tile, answered by the record:
+            # the public kit address exists once the kit has been saved.
+            kit_live = bool((store.get_epk(user["id"]) or {}).get("slug"))
+        mk = marketing_room.build(figures, room["cards"], days=days,
+                                  showcase=showcase, kit_live=kit_live,
+                                  artist_name=user.get("name") or "")
+        return render_template("room_marketing.html", active_page="room-marketing",
+                               room=room, mk=mk, **build_dashboard_context())
 
     @app.route("/room/fans/new.csv")
     def fan_room_new_csv():

@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Marketing Room{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/marketing-room.css?v=1">
+{% endblock %}
+
+{#- THE MARKETING ROOM - the Marketing room's opening screen, built from the
+    owner's design (2026-09-21). Every section, heading and line of copy is
+    his, in his order. Every figure is marketing_room.build() over this
+    account's own records, and the demo account gets the labelled example.
+
+    Two things his design drew could not be built as drawn, and the slot
+    holds the substitute rather than nothing:
+      - "Release with no smart link" is a rollout with no Street Banker link
+        connected, the one stored join there is (ro_campaigns.ml_campaign_id).
+        Its words are the owner's ruling: state the consequence, offer ours,
+        never imply another service is disallowed.
+      - "Media contacts around the world" would promise a world map. There is
+        no basemap in this repository, so the panel is a constellation of
+        cities and the sub-heading says that instead. -#}
+
+{% macro icon(name, cls="") -%}
+<svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == "written" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
+{%- elif name == "pitched" -%}<path d="M3 12l18-8-7 18-3.5-7.5z"/><path d="M10.5 14.5L21 4"/>
+{%- elif name == "opened" -%}<path d="M3.5 10.5L12 4l8.5 6.5V20H3.5z"/><path d="M3.5 10.5L12 16l8.5-5.5"/>
+{%- elif name == "covered" -%}<rect x="3" y="5" width="13" height="14" rx="1.5"/><path d="M16 8h3.5a1.5 1.5 0 011.5 1.5v8a1.5 1.5 0 01-3 0V8"/><path d="M6 8.5h7M6 11.5h7M6 14.5h4.5"/>
+{%- elif name == "heard" -%}<path d="M3 10v4h3l6 4.5v-13L6 10H3z"/><path d="M15.5 9a4.5 4.5 0 010 6"/><path d="M18.5 6.5a8 8 0 010 11"/>
+{%- elif name == "never-pitched" -%}<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5"/><path d="M17 8.5h4M19 6.5v4"/>
+{%- elif name == "announcement" -%}<path d="M4 9h3l6-4v14l-6-4H4z"/><path d="M16.5 9a4 4 0 010 6"/><path d="M8 14l1 5h2.5l-1-5"/>
+{%- elif name == "link" -%}<path d="M9.5 14.5l5-5"/><path d="M11 7.5l1.5-1.5a3.9 3.9 0 015.5 5.5L16.5 13"/><path d="M13 16.5L11.5 18A3.9 3.9 0 016 12.5L7.5 11"/>
+{%- elif name == "quote" -%}<path d="M9 6.5C6 7.5 4.5 10 4.5 13v4.5H10V12H7.5c0-2 .6-3.3 2.3-4z"/><path d="M18 6.5c-3 1-4.5 3.5-4.5 6.5v4.5H19V12h-2.5c0-2 .6-3.3 2.3-4z"/>
+{%- elif name == "press-desk" -%}<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M3 9h18"/><path d="M6.5 12.5h5M6.5 15.5h5M14.5 12.5h3M14.5 15.5h3"/>
+{%- elif name == "epk" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><circle cx="10" cy="12.5" r="2"/><path d="M7 17.5c.6-1.7 1.7-2.6 3-2.6s2.4.9 3 2.6"/>
+{%- elif name == "referrals" -%}<circle cx="7.5" cy="8" r="3"/><path d="M2.5 19c0-2.8 2.2-5 5-5s5 2.2 5 5"/><path d="M15.5 6.5l3 3-3 3"/><path d="M18.5 9.5h-4"/><path d="M15.5 17.5h6"/><path d="M18.5 14.5v6"/>
+{%- elif name == "calendar" -%}<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>
+{%- elif name == "chevron" -%}<path d="M6 9.5l6 6 6-6"/>
+{%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
+{%- elif name == "pen" -%}<path d="M4 20h4l11-11-4-4L4 16z"/><path d="M14.5 5.5l4 4"/>
+{%- else -%}<circle cx="12" cy="12" r="8"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% block content %}
+<div class="mk" data-no-collapse>
+
+  <section class="mk-hero" aria-labelledby="mk-title">
+    <div class="mk-hero-top">
+      <div class="mk-hero-said">
+        <p class="mk-eyebrow">Street Banker &middot; Marketing</p>
+        <h1 class="mk-title" id="mk-title">Marketing Room</h1>
+        <p class="mk-sub">Help independent musicians get heard and get written about.</p>
+      </div>
+      <div class="mk-hero-aside">
+        <div class="mk-controls">
+          {% if mk.artist_name %}
+          <span class="mk-chip" title="The account these figures are for">
+            <span class="mk-avatar" aria-hidden="true">{{ (mk.artist_name[:1] or "?")|upper }}</span>{{ mk.artist_name }}
+          </span>
+          {% endif %}
+          <details class="mk-range">
+            <summary class="mk-chip">
+              {{ icon("calendar", "mk-ico") }}<span>Last {{ mk.days }} days</span>{{ icon("chevron", "mk-ico mk-ico--sm") }}
+            </summary>
+            <div class="mk-range-menu" role="list">
+              {% for n in mk.ranges %}
+              <a role="listitem" href="/room/marketing?days={{ n }}"{% if n == mk.days %} aria-current="true"{% endif %}>Last {{ n }} days</a>
+              {% endfor %}
+            </div>
+          </details>
+          <a class="mk-cta" href="/press-desk/announcements/new">{{ icon("pen", "mk-ico") }}Create announcement</a>
+        </div>
+        {#- One line under the controls: on the demo it says the figures are
+            the example, and on every account it says which figures the
+            chooser governs. The band is the window; the rail is the record. -#}
+        <p class="mk-note{% if mk.showcase %} is-sample{% endif %}">{% if mk.showcase %}<b>Sample data.</b> Every figure here is generated for the example. {% endif %}Visits, clicks and pre-saves are counted over the last {{ mk.days }} days. The stages below count everything on record.</p>
+      </div>
+    </div>
+
+    <div class="mk-band">
+      <p class="mk-big">
+        {% if mk.visits %}
+        <span class="mk-big-n">{{ mk.visits_label }}</span><span class="mk-big-u">visit{{ "" if mk.visits == 1 else "s" }}</span>
+        {% else %}
+        <span class="mk-big-none">No visits in this window</span>
+        {% endif %}
+      </p>
+      <div class="mk-stats">
+        <div class="mk-stat">
+          <span class="mk-stat-n">{% if mk.clicks %}{{ mk.clicks_label }}{% else %}None yet{% endif %}</span>
+          <span class="mk-stat-l">Clicks</span>
+        </div>
+        <div class="mk-stat">
+          <span class="mk-stat-n">{% if mk.presaves %}{{ mk.presaves_label }}{% else %}None yet{% endif %}</span>
+          <span class="mk-stat-l">Pre-saves</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {#- The stage rail. His design gives it no heading: the five stages name
+      themselves, and a heading here would be a sentence he did not draw. -#}
+  <section class="mk-rail-wrap">
+    <ol class="mk-rail">
+      {% for s in mk.stages %}
+      <li class="mk-step">
+        <span class="mk-ring">{{ icon(s.key, "mk-ring-ico") }}</span>
+        <b>{{ s.name }}</b>
+        <span>{{ s.line }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <div class="mk-mid">
+    <section class="mk-panel mk-acts" aria-labelledby="mk-acts-h">
+      <div class="mk-panel-head">
+        <div>
+          <h2 class="mk-kicker" id="mk-acts-h">Recommended actions</h2>
+          <p class="mk-kicker mk-kicker--dim mk-kicker--sm">Based on your marketing data</p>
+        </div>
+      </div>
+      {% if mk.actions %}
+      <div class="mk-act-list">
+        {% for a in mk.actions %}
+        <div class="mk-act">
+          <span class="mk-act-ico">{{ icon(a.icon, "mk-ico") }}</span>
+          <div class="mk-act-text">
+            <b>{{ a.title }}</b>
+            <span>{{ a.desc }}</span>
+          </div>
+          <div class="mk-act-figure"><b>{{ a.figure }}</b></div>
+          <a class="mk-act-cta" href="{{ a.href }}">{{ a.cta }}{{ icon("arrow", "mk-ico mk-ico--sm") }}</a>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="mk-empty">
+        <p>Nothing is waiting on you here.</p>
+        <p>A row appears when your own records give you something to do: a contact never pitched, an announcement ready to send, coverage with no quote.</p>
+        <a class="mk-more" href="/press-desk">Open Press Desk{{ icon("arrow", "mk-ico mk-ico--sm") }}</a>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="mk-panel mk-geo" aria-labelledby="mk-geo-h">
+      <div class="mk-panel-head">
+        <div>
+          <h2 class="mk-kicker" id="mk-geo-h">Media list by city</h2>
+          <p class="mk-kicker mk-kicker--dim mk-kicker--sm">The cities your media contacts work in</p>
+        </div>
+        {% if mk.showcase %}<span class="mk-mark mk-mark--sample"><i></i>Sample</span>
+        {% else %}<span class="mk-mark" title="Read from your own records when this page opened"><i></i>Live</span>{% endif %}
+      </div>
+      {% if mk.map %}
+      <div class="mk-geo-body">
+        <div class="mk-map" style="--map-w: {{ mk.map.w }}; --map-h: {{ mk.map.h }};">
+          <svg viewBox="0 0 {{ mk.map.w }} {{ mk.map.h }}" aria-hidden="true" focusable="false">
+            <defs>
+              <radialGradient id="mk-glow">
+                <stop offset="0" style="stop-color: var(--sb-gold-bright); stop-opacity: .55"/>
+                <stop offset="1" style="stop-color: var(--sb-gold); stop-opacity: 0"/>
+              </radialGradient>
+            </defs>
+            {% for x1, y1, x2, y2 in mk.map.lines %}
+            <line class="mk-map-line" x1="{{ x1 }}" y1="{{ y1 }}" x2="{{ x2 }}" y2="{{ y2 }}"/>
+            {% endfor %}
+            {% for d in mk.map.dots %}
+            <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r * 3.2 }}" fill="url(#mk-glow)"/>
+            <circle class="mk-map-dot{% if d.label %} is-big{% endif %}" cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r }}"/>
+            {% endfor %}
+          </svg>
+          {% for d in mk.map.dots if d.label %}
+          <span class="mk-map-label{% if d.right %} is-left{% endif %}" style="left: {{ (100 * d.x / mk.map.w)|round(2) }}%; top: {{ (100 * d.y / mk.map.h)|round(2) }}%;">
+            <b>{{ d.city }}</b>{{ "{:,}".format(d.count) }}
+          </span>
+          {% endfor %}
+        </div>
+        <ol class="mk-city-list">
+          {% for d in mk.map.dots %}
+          <li>
+            <a href="/press-desk/contacts?q={{ d.city|urlencode }}">
+              <span class="mk-city-name"><b>{{ d.city }}</b>{% if d.country %}<span>{{ d.country }}</span>{% endif %}</span>
+              <span class="mk-city-n">{{ "{:,}".format(d.count) }}</span>
+            </a>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+      <p class="mk-map-foot">Grouped from contact records by city and country. Cities with no contact data are not shown.{% if mk.map.off_cities %} Left off it: {{ "{:,}".format(mk.map.off_contacts) }} contact{{ "" if mk.map.off_contacts == 1 else "s" }} in {{ mk.map.off_cities }} cit{{ "y" if mk.map.off_cities == 1 else "ies" }} this constellation cannot place.{% endif %}{% if mk.no_city %} {{ "{:,}".format(mk.no_city) }} contact{{ " names" if mk.no_city == 1 else "s name" }} no city on record.{% endif %} The lines are drawing, not distance.</p>
+      {% else %}
+      <div class="mk-empty">
+        <p>No contact cities on file yet.</p>
+        <p>Cities come from the city field of the writers and outlets on your media list.{% if mk.no_city %} {{ "{:,}".format(mk.no_city) }} contact{{ " names" if mk.no_city == 1 else "s name" }} no city on record.{% endif %}</p>
+        <a class="mk-more" href="/press-desk/contacts">Open the media list{{ icon("arrow", "mk-ico mk-ico--sm") }}</a>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="mk-tools" aria-labelledby="mk-tools-h">
+    <div class="mk-tools-head">
+      <h2 class="mk-kicker" id="mk-tools-h">Explore more tools</h2>
+      <p class="mk-kicker mk-kicker--dim mk-kicker--sm">Everything you need to tell your story and reach more listeners.</p>
+    </div>
+    <div class="mk-tiles">
+      {% for t in mk.tiles %}
+      <a class="mk-tile{% if loop.first %} is-lead{% endif %}" href="{{ t.href }}" data-room-card="{{ t.key }}">
+        <span class="mk-tile-top">
+          {{ icon(t.key, "mk-tile-ico") }}
+          <span class="mk-tile-text"><b>{{ t.label }}</b><span>{{ t.desc }}</span></span>
+        </span>
+        <span class="mk-tile-foot">
+          {% if t.status %}<span class="mk-tile-status mk-tone-{{ t.tone }}"><i></i>{{ t.status }}</span>{% else %}<span></span>{% endif %}
+          <span class="mk-tile-go">{{ icon("arrow", "mk-ico mk-ico--sm") }}</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+</div>
+{% endblock %}
