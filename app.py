@@ -51,6 +51,7 @@ import recovery_engine
 import recovery_mlc
 import report_builder
 import sandbox
+import signup_guard
 import shopify_buy
 import shopify_customers
 import since_engine
@@ -983,6 +984,11 @@ def create_app():
                          "someone who already has an account. Ask Street Banker for an "
                          "invitation, then open this link again to join.")
 
+    def _signup_stamp():
+        """The moment this form was handed out, signed so it cannot be
+        forged. A form filled in under three seconds was not read."""
+        return signup_guard.stamp(app.config["SECRET_KEY"])
+
     @app.route("/signup", methods=["GET", "POST"])
     def signup():
         error = None
@@ -1003,12 +1009,33 @@ def create_app():
             preselect = "fan" if request.args.get("as") == "fan" else "artist"
             if request.method == "POST":
                 return render_template("signup.html", error=_INVITE_ONLY, preselect=preselect,
-                                       closed=True, invite=None), 403
+                                       closed=True, invite=None,
+                                       guard_stamp=_signup_stamp()), 403
             return render_template("signup.html", error=None, preselect=preselect,
-                                   closed=True, invite=None)
+                                   closed=True, invite=None,
+                                   guard_stamp=_signup_stamp())
         if request.method == "POST":
             name = (request.form.get("name") or "").strip()
             email = (request.form.get("email") or "").strip().lower()
+            # An invitation is already proof of a person: the owner made
+            # that link for one address. The guard is for the public form,
+            # which is the one a script can find (owner, 2026-09-17: bot
+            # protection is a gate before sign-up reopens).
+            if invite is None:
+                caught = signup_guard.judge(request.form,
+                                            signup_guard.client_ip(request.headers,
+                                                                   request.remote_addr),
+                                            app.config["SECRET_KEY"], email=email)
+                if caught:
+                    # The reason goes to the log and never to the screen:
+                    # telling a script which check caught it tells it how
+                    # to pass next time.
+                    app.logger.info("sign-up refused by the guard: %s", caught)
+                    return render_template("signup.html", error=signup_guard.REFUSAL,
+                                           preselect=("fan" if request.form.get("account_type")
+                                                      == "fan" else "artist"),
+                                           closed=False, invite=None,
+                                           guard_stamp=_signup_stamp()), 429
             if invite is not None:
                 email = invite["email"]        # the invitation names the address; the form cannot change it
             password = request.form.get("password") or ""
@@ -1057,7 +1084,8 @@ def create_app():
         # arrive there.
         preselect = "fan" if request.args.get("as") == "fan" else "artist"
         return render_template("signup.html", error=error, preselect=preselect,
-                               closed=False, invite=invite)
+                               closed=False, invite=invite,
+                               guard_stamp=_signup_stamp())
 
     @app.route("/demo-open", methods=["POST"])
     def demo_open():

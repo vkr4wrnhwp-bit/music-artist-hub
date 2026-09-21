@@ -12,7 +12,12 @@
         <p class="lsr-error" role="alert"><span class="lsr-led lsr-led--on" aria-hidden="true"></span>{{ error }}</p>
         {% endif %}
 
-        <form method="post" class="lsr-form">
+        <form method="post" class="lsr-form" autocomplete="on">
+          <input type="hidden" name="form_opened" value="{{ guard_stamp or '' }}">
+          <div style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden" aria-hidden="true">
+            <label for="company_website">Company website</label>
+            <input type="text" id="company_website" name="company_website" tabindex="-1" autocomplete="off">
+          </div>
           {% if invite %}<input type="hidden" name="invite" value="{{ invite['token'] }}">{% endif %}
           <div class="lsr-field">
             <label for="name">Artist / display name</label>
