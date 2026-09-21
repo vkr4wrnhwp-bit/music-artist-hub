@@ -36,6 +36,12 @@ def test_the_gates_are_off_on_a_laptop_and_on_when_deployed(monkeypatch):
     monkeypatch.delenv("RENDER", raising=False)
     assert not plans.gates_on() and plans.path_suite("/rack") is None
     monkeypatch.setenv("RENDER", "true")
+    # RENDER is set here to reach the deployed-service behaviour,
+    # not to exercise the sign-up guard. This file posts straight
+    # to /signup with no rendered form, so it carries no signed
+    # stamp and the guard would refuse it. The guard is tested on
+    # purpose in tests/test_signup_guard_wired.py.
+    monkeypatch.setenv("SIGNUP_GUARD", "off")
     assert plans.gates_on() and plans.path_suite("/rack") == "the-room"
     monkeypatch.setenv("SUITE_GATES", "off")
     assert not plans.gates_on()

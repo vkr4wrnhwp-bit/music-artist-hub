@@ -90,6 +90,12 @@ def test_a_deployed_service_offers_no_switch_it_cannot_honour(monkeypatch):
     nothing, so the account was left guessing."""
     c, uid, _e = _account()
     monkeypatch.setenv("RENDER", "true")
+    # RENDER is set here to reach the deployed-service behaviour,
+    # not to exercise the sign-up guard. This file posts straight
+    # to /signup with no rendered form, so it carries no signed
+    # stamp and the guard would refuse it. The guard is tested on
+    # purpose in tests/test_signup_guard_wired.py.
+    monkeypatch.setenv("SIGNUP_GUARD", "off")
     body = c.get("/billing").get_data(as_text=True)
     assert "Switch (demo)" not in body
     assert "Payments are not switched on here yet" in _words(body)

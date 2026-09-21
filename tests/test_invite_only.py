@@ -25,6 +25,12 @@ def _addr(tag):
 @pytest.fixture
 def shut(monkeypatch):
     monkeypatch.setenv("RENDER", "true")
+    # RENDER is set here to reach the deployed-service behaviour,
+    # not to exercise the sign-up guard. This file posts straight
+    # to /signup with no rendered form, so it carries no signed
+    # stamp and the guard would refuse it. The guard is tested on
+    # purpose in tests/test_signup_guard_wired.py.
+    monkeypatch.setenv("SIGNUP_GUARD", "off")
     monkeypatch.delenv("SIGNUP_MODE", raising=False)
 
 
@@ -68,6 +74,7 @@ def test_signup_mode_open_is_the_only_way_to_reopen_it(shut, monkeypatch):
 def test_the_owners_invitation_is_the_way_in_once_for_that_address_on_that_plan(shut, monkeypatch):
     owner = _owner_client(monkeypatch)
     monkeypatch.setenv("RENDER", "true")
+    monkeypatch.setenv("SIGNUP_GUARD", "off")
     email = _addr("partner")
     assert owner.post("/admin/invite", data={"email": email, "plan": "pro"}).status_code == 302
     settings = owner.get("/settings").get_data(as_text=True)
@@ -173,6 +180,7 @@ def test_with_the_door_open_each_page_keeps_its_own_wording(monkeypatch, path, o
     than the disease, so each page keeps the sentence it was written with
     and only swaps it while the door is shut."""
     monkeypatch.setenv("RENDER", "true")
+    monkeypatch.setenv("SIGNUP_GUARD", "off")
     monkeypatch.setenv("SIGNUP_MODE", "open")
     body = appmod.app.test_client().get(path).get_data(as_text=True)
     assert open_label in body, path

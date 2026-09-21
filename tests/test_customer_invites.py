@@ -37,6 +37,12 @@ def _addr(tag):
 def app_obj(monkeypatch):
     """A deployed service with the public door shut, which is live."""
     monkeypatch.setenv("RENDER", "true")
+    # RENDER is set here to reach the deployed-service behaviour,
+    # not to exercise the sign-up guard. This file posts straight
+    # to /signup with no rendered form, so it carries no signed
+    # stamp and the guard would refuse it. The guard is tested on
+    # purpose in tests/test_signup_guard_wired.py.
+    monkeypatch.setenv("SIGNUP_GUARD", "off")
     monkeypatch.delenv("SIGNUP_MODE", raising=False)
     monkeypatch.setenv("OWNER_EMAILS", "nobody-here@example.invalid")
     return create_app()

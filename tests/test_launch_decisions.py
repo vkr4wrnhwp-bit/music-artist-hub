@@ -238,6 +238,12 @@ def test_ticketmaster_is_off_on_a_deployed_service_until_switched_on(monkeypatch
     monkeypatch.setenv("TICKETMASTER_API_KEY", "tm-key")
     monkeypatch.delenv("TICKETMASTER_ENABLED", raising=False)
     monkeypatch.setenv("RENDER", "true")
+    # RENDER is set here to reach the deployed-service behaviour,
+    # not to exercise the sign-up guard. This file posts straight
+    # to /signup with no rendered form, so it carries no signed
+    # stamp and the guard would refuse it. The guard is tested on
+    # purpose in tests/test_signup_guard_wired.py.
+    monkeypatch.setenv("SIGNUP_GUARD", "off")
     assert not tm.configured() and tm.switched_off()
     monkeypatch.setenv("TICKETMASTER_ENABLED", "on")
     assert tm.configured() and not tm.switched_off()

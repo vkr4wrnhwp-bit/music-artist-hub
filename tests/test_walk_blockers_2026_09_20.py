@@ -108,6 +108,12 @@ def test_two_sync_packs_with_the_same_title_both_exist():
 
 def test_a_paying_subscriber_cannot_drop_to_fan_from_the_upgrade_page(monkeypatch):
     monkeypatch.setenv("RENDER", "1")
+    # RENDER is set here to reach the deployed-service behaviour,
+    # not to exercise the sign-up guard. This file posts straight
+    # to /signup with no rendered form, so it carries no signed
+    # stamp and the guard would refuse it. The guard is tested on
+    # purpose in tests/test_signup_guard_wired.py.
+    monkeypatch.setenv("SIGNUP_GUARD", "off")
     c, uid, email = _account(plan="pro")
     store.set_stripe_ids(uid, "cus_walk", "sub_walk")
     r = c.post("/plan/switch", data={"plan": "fan"})
