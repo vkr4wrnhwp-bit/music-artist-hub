@@ -193,7 +193,11 @@ def _save_logo(partner_id, file_storage):
                       "whatever it is named."]
 
     folder = _uploads_dir()
-    fname = "partnerlogo_%s_%d.%s" % (partner_id, int(time.time()), ext)
+    # The id is a uuid4 hex today, but it is being pasted into a path,
+    # and "today" is not a guarantee. Anything that is not a letter or
+    # a digit cannot survive into the filename.
+    safe = "".join(c for c in str(partner_id) if c.isalnum())[:40]
+    fname = "partnerlogo_%s_%d.%s" % (safe, int(time.time()), ext)
     with io.open(os.path.join(folder, fname), "wb") as fh:
         fh.write(raw)
     return "/uploads/" + fname, []
@@ -209,8 +213,13 @@ def _forget_logo(path):
     path = (path or "").strip()
     if not path.startswith("/uploads/partnerlogo_"):
         return
+    name = path[len("/uploads/"):]
+    # Deleting by a stored string: take the basename, so a row that
+    # somehow holds a traversal deletes nothing outside the folder.
+    if name != os.path.basename(name):
+        return
     try:
-        os.remove(os.path.join(_uploads_dir(), path[len("/uploads/"):]))
+        os.remove(os.path.join(_uploads_dir(), name))
     except OSError:
         pass
 
