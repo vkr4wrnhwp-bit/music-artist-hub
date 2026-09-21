@@ -5,12 +5,13 @@
 {% import "tour/_macros.html" as m %}
 <div class="to-head"><div><p class="to-eyebrow">Merch</p><h1 class="to-h1" style="font-size:20px">Products, counts, what's left</h1><p class="to-sub">Counts are entered per show on the show's Merch tab. Inventory left = tour inventory − sold across shows. Your store runs on Shopify; this is the road count.</p></div></div>
 
-{#- The run in windows: nothing counted reads as a dash, not a zero. -#}
+{#- The run in windows: nothing counted says so in words, not a zero and
+    not a dash. Nobody has counted is not the same as sold none. -#}
 <div class="to-lcds" id="merch-run" aria-label="Merch across the run">
-  {{ sb.lcd(products|length if products else none, "product" if products|length == 1 else "products") }}
-  {{ sb.lcd(run['sold'] if run['counted_shows'] else none, "sold on the road") }}
-  {{ sb.lcd(('%.0f'|format(run['gross'])) if run['counted_shows'] else none, "gross, entered counts") }}
-  {{ sb.lcd(run['counted_shows'] if run['counted_shows'] else none, "show counted" if run['counted_shows'] == 1 else "shows counted") }}
+  {{ sb.lcd(products|length if products else none, "product" if products|length == 1 else "products", absent="None added") }}
+  {{ sb.lcd(run['sold'] if run['counted_shows'] else none, "sold on the road", absent="Not counted") }}
+  {{ sb.lcd(('%.0f'|format(run['gross'])) if run['counted_shows'] else none, "gross, entered counts", absent="Not counted") }}
+  {{ sb.lcd(run['counted_shows'] if run['counted_shows'] else none, "show counted" if run['counted_shows'] == 1 else "shows counted", absent="Not counted") }}
 </div>
 {% if products %}
 {#- One row per product: the counts as instruments, low stock as a lamp. -#}

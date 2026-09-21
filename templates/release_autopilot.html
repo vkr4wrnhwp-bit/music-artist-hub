@@ -56,7 +56,7 @@
     {% if c %}
       <div class="rd-readouts">
         {% if days_left is none %}
-          {{ sb.lcd(none, "days to release") }}
+          {{ sb.lcd(none, "days to release", absent="No date set") }}
         {% elif days_left > 0 %}
           {{ sb.lcd(days_left, "day to release" if days_left == 1 else "days to release") }}
         {% elif days_left == 0 %}

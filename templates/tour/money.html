@@ -6,19 +6,20 @@
 <div class="to-head"><div><p class="to-eyebrow">Tour financials · {{ finance['currency'] }}</p><h1 class="to-h1" style="font-size:20px">{{ finance['shows_with_numbers'] }} of {{ shows|length }} shows have numbers</h1><p class="to-sub">Every figure below is arithmetic on what was entered per show. Shows with nothing entered are excluded — they are not counted as zero.</p></div>
   <div class="to-inline"><a class="to-btn to-btn--ghost to-btn--small" href="/tours/{{ tour['id'] }}/money.csv">CSV</a> <a class="to-btn to-btn--ghost to-btn--small" href="/money-queue">Money Queue</a></div></div>
 
-{#- Windows. Until a show has numbers they read '—': a zero here would be
-    a claim about money nobody has measured. -#}
+{#- Windows. Until a show has numbers they say so in words: a zero here
+    would be a claim about money nobody has entered, and a dash would
+    leave the reader guessing which of the two it meant. -#}
 {% set known = finance['shows_with_numbers'] > 0 %}
 <div class="to-lcds" id="totals" aria-label="Tour totals">
-  {{ sb.lcd(('%.0f'|format(finance['projected_net'])) if known else none, "projected net") }}
-  {{ sb.lcd(('%.0f'|format(finance['projected_gross'])) if known else none, "projected gross") }}
-  {{ sb.lcd(('%.0f'|format(finance['guarantees'])) if known else none, "guarantees") }}
-  {{ sb.lcd(('%.0f'|format(finance['expenses'])) if known else none, "expenses") }}
-  {{ sb.lcd(('%.0f'|format(finance['collected'])) if known else none, "collected") }}
-  {{ sb.lcd(('%.0f'|format(finance['outstanding'])) if known else none, "outstanding") }}
-  {{ sb.lcd(finance['deposits_outstanding'] if known else none, "deposits due") }}
+  {{ sb.lcd(('%.0f'|format(finance['projected_net'])) if known else none, "projected net", absent="Not entered") }}
+  {{ sb.lcd(('%.0f'|format(finance['projected_gross'])) if known else none, "projected gross", absent="Not entered") }}
+  {{ sb.lcd(('%.0f'|format(finance['guarantees'])) if known else none, "guarantees", absent="Not entered") }}
+  {{ sb.lcd(('%.0f'|format(finance['expenses'])) if known else none, "expenses", absent="Not entered") }}
+  {{ sb.lcd(('%.0f'|format(finance['collected'])) if known else none, "collected", absent="Not entered") }}
+  {{ sb.lcd(('%.0f'|format(finance['outstanding'])) if known else none, "outstanding", absent="Not entered") }}
+  {{ sb.lcd(finance['deposits_outstanding'] if known else none, "deposits due", absent="Not entered") }}
   {{ sb.lcd(finance['unsettled']|length, "unsettled") }}
-  {{ sb.lcd(('%.0f'|format(finance['avg_net'])) if known else none, "avg net / show") }}
+  {{ sb.lcd(('%.0f'|format(finance['avg_net'])) if known else none, "avg net / show", absent="Not entered") }}
 </div>
 {#- Settled: what the settlements marked settled add up to. Only shows with an
     amount count; a settled show with nothing typed is not summed as zero. -#}
