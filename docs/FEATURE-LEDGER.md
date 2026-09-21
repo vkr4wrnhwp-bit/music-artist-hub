@@ -30,11 +30,11 @@ changed or removed. A status change counts.
 
 | | Count |
 | --- | ---: |
-| Live | 389 |
+| Live | 390 |
 | Partial | 85 |
 | Stubbed | 63 |
 | Dead code | 22 |
-| **Features in total** | **559** |
+| **Features in total** | **560** |
 | Routes | 747 across 19 files |
 | Database tables | 230 |
 | Environment variables | 95 |
@@ -314,6 +314,15 @@ Upload distributor/PRO/MLC royalty CSVs and read the parsed rows back as a desk 
 - Routes: GET/POST /statements
 - Files: app.py:1578 (handler), app.py:1474 (_ingest_statement), app.py:1534 (_act_scope); templates/statements.html; statements_engine.py:180 parse_statement / :233 analyze; statements_desk.py:297 build; db.py save_statement/get_statement_rows/get_statements
 - Access: Artist tier and above — plans.required_tier("/statements") returns "artist" via _PRO_PATHS; a fan plan gets upgrade.html 402 from plan_gate (app.py:4956). Anonymous is redirected to /login. Team seats reach it through the Business room (rooms.ROOMS "business" holds the "statements" card); not in _TEAM_BLOCKED. Not owner-only.
+
+**Reporting lag: has each store reported?**
+
+Per store on the uploaded statements, whether the period it owes has arrived and whether the wait so far is normal for THAT store. Overdue is called out; a store that is simply slow by nature is reassured about. Every verdict rests on a published industry figure and says so, because nothing here records when a distributor actually reported.
+
+- Because: GET /statements and GET /royalties both render the section from statements_engine.reporting_lag over store.get_statement_rows; every verdict comes from royalty_lag.judge/expectation, which until this commit was imported by nothing. The wait is the only number and it is pure calendar: a period ended on a known day, today is a known day, and no row on file covers the period after it. Basis is named on the page in words, and is always either "a general figure for this platform, not yours" from royalty_lag.TYPICAL or "no figure for this platform, and none assumed", which keeps its row rather than reading as a pass. Never measured: nothing in this app records the day a distributor reported a period, and the only date on file is the day the ARTIST uploaded the CSV, so royalty_lag.observed_days is deliberately not called and tests/test_reporting_lag_wired.py fails if anything reaches it. An account with no statements renders the section saying it has no reading. Known limit: a period missing BETWEEN two reported ones is not flagged, because a quarterly payor would false-alarm.
+- Routes: GET /statements (full, row per store); GET /royalties (compact, links to /statements#reporting)
+- Files: royalty_lag.py judge/expectation/TYPICAL; statements_engine.py reporting_lag / _lag_summary / _period_end; app.py (statements handler), app.py (royalties handler); templates/_reporting_lag.html; static/css/reporting-lag.css; tests/test_reporting_lag_wired.py
+- Access: Follows the two pages it sits on. Artist tier and above; team seats through the Business room.
 
 **Store check on a coverage gap**
 
