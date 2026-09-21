@@ -212,6 +212,20 @@ def _announcement_fields(form):
     learn the new field names.
     """
     fields = dict(form.items())
+    # The desk has no internal-title field: the owner's design does not
+    # carry one, and everything that needs a name already reads
+    # `headline or title`. The column is NOT NULL, so the headline fills
+    # it, and an announcement with no headline yet keeps the name it had.
+    if "title" not in form:
+        headline = (form.get("headline") or "").strip()
+        if headline:
+            fields["title"] = headline[:200]
+    # "Save draft" and "Ready" are the two buttons his design has, in place
+    # of a status list. Pressing one IS the state change. Anything else
+    # posting a status straight through is left alone.
+    intent = (form.get("intent") or "").strip()
+    if intent in ("draft", "ready"):
+        fields["status"] = intent
     if "dateline_city" in form or "dateline_date" in form:
         fields["dateline"] = press_store.compose_dateline(
             form.get("dateline_city"), form.get("dateline_date"))

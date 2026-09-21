@@ -12,7 +12,7 @@
 #}
 {% set tab = 'releases' %}
 {% extends "press/_shell.html" %}
-{% block title %}{{ 'Announcement' if release else 'New announcement' }} - Press Desk{% endblock %}
+{% block title %}{{ 'Announcement' if release else 'New announcement' }} - Press{% endblock %}
 {% block press %}
 {% macro rv(key) %}{{ (release[key] if release and release[key] else '') }}{% endmacro %}
 {% set status_labels = {'draft': 'Draft', 'ready': 'Ready', 'sent': 'Sent'} %}
@@ -28,9 +28,14 @@
         <h1 class="ad-h1">Announcement</h1>
         <p class="ad-sub">Write it, then choose who it goes to. Both happen here.</p>
       </div>
+      {#- The owner's design carries two buttons here and no status control.
+          "Ready" is the act of marking it ready to pitch, so the state is
+          set by pressing it rather than chosen from a list. -#}
       <div class="ad-head-controls">
-        <button class="ad-btn" type="submit" form="ad-announcement">Save</button>
-        <span class="ad-pill" data-status="{{ status_now }}">{{ status_labels.get(status_now, 'Draft') }}</span>
+        <button class="ad-btn" type="submit" form="ad-announcement"
+                name="intent" value="draft">Save draft</button>
+        <button class="ad-btn ad-btn--solid" type="submit" form="ad-announcement"
+                name="intent" value="ready">Ready</button>
       </div>
     </div>
   </header>
@@ -48,12 +53,6 @@
             <p class="ad-band-note">Journalists read the headline first, so write that for them.</p>
           </div>
 
-          <div class="ad-field ad-gap">
-            <label for="ad-title">Internal title</label>
-            <input type="text" id="ad-title" name="title" value="{{ rv('title') }}"
-                   placeholder="What you call it in here" required>
-            <p class="ad-hint">Only you see this. It is the name this announcement carries around the desk.</p>
-          </div>
 
           <div class="ad-grid3 ad-gap">
             <div class="ad-field">
@@ -174,50 +173,14 @@
           </div>
         </section>
 
+        {#- A second pair at the foot, because this form is long and his
+            header sits at the top of it. Same two intents, no third state. -#}
         <section class="ad-band ad-actions">
-          <div class="ad-field ad-status-field">
-            <label for="ad-status">Status</label>
-            <select id="ad-status" name="status">
-              <option value="draft" {{ 'selected' if status_now == 'draft' }}>Draft</option>
-              <option value="ready" {{ 'selected' if status_now == 'ready' }}>Ready to pitch</option>
-              <option value="sent" {{ 'selected' if status_now == 'sent' }}>Sent</option>
-            </select>
-          </div>
-          <button class="ad-btn ad-btn--solid" type="submit">{{ 'Save announcement' if release else 'Create announcement' }}</button>
-          <a class="ad-btn" href="/press-desk/announcements">All announcements</a>
+          <button class="ad-btn" type="submit" name="intent" value="draft">Save draft</button>
+          <button class="ad-btn ad-btn--solid" type="submit" name="intent" value="ready">Ready</button>
         </section>
       </form>
 
-      {% if release %}
-      <section class="ad-band">
-        <div class="ad-band-head">
-          <h2>What a journalist opens</h2>
-          <p class="ad-band-note">The page behind every tracked link, as it reads to them.</p>
-        </div>
-        <div class="pd-paper">
-          <span class="pd-paper-tag">{{ release.kind }}{% if embargo_date %} · Embargoed until {{ embargo_date }}{% endif %}</span>
-          <h3>{{ release.headline or release.title }}</h3>
-          {% if release.subhead %}<p class="pd-paper-sub">{{ release.subhead }}</p>{% endif %}
-          {% if release.dateline %}<p class="pd-paper-meta">{{ release.dateline }}</p>{% endif %}
-          <hr>
-          {% for para in (release.body or '').split('\n\n') %}{% if para.strip() %}<p>{{ para.strip() }}</p>{% endif %}{% endfor %}
-          {% if release.quote %}
-          <blockquote>“{{ release.quote }}”{% if release.quote_source %}<br><span class="pd-paper-meta">{{ release.quote_source }}</span>{% endif %}</blockquote>
-          {% endif %}
-          {% if release.boilerplate %}<hr><p class="pd-paper-meta">{{ release.boilerplate }}</p>{% endif %}
-          {% if release.contact_email %}
-          <p class="pd-paper-meta">Press contact: {{ release.contact_name }}, {{ release.contact_email }}</p>
-          {% endif %}
-        </div>
-      </section>
-
-      <section class="ad-band">
-        <form method="post" action="/press-desk/announcements/{{ release.id }}/delete"
-              onsubmit="return confirm('Delete this announcement and any pitches built from it?')">
-          <button class="ad-btn" type="submit">Delete announcement</button>
-        </form>
-      </section>
-      {% endif %}
     </div>
 
     {# ---------- rail: the pitch ---------- #}
@@ -299,15 +262,30 @@
               </span>
             </label>
             {% elif kits|length > 1 %}
+            {#- His design attaches the kit by name rather than offering a
+                list with a "do not attach" entry. With one kit that is a
+                checkbox naming it. With several there is a real choice to
+                make, so the list stays and says so. -#}
+            {% if kits|length == 1 %}
             <div class="ad-field">
-              <label for="ad-kit">Press kit</label>
+              <label class="ad-check" for="ad-kit">
+                <input type="checkbox" id="ad-kit" name="kit"
+                       value="{{ kits[0][0] }}" checked>
+                Attach the press kit
+              </label>
+              <p class="ad-hint">{{ kits[0][1] }}</p>
+            </div>
+            {% else %}
+            <div class="ad-field">
+              <label for="ad-kit">Attach the press kit</label>
               <select id="ad-kit" name="kit">
-                <option value="">Do not attach one</option>
+                <option value="">Send it without one</option>
                 {% for value, label, link, fid in kits %}
                 <option value="{{ value }}">{{ label }}</option>
                 {% endfor %}
               </select>
             </div>
+            {% endif %}
             {% endif %}
           </div>
 

@@ -127,8 +127,8 @@ def test_every_announcement_field_round_trips(flask_app):
     client, user = _artist(flask_app)
     release = _announcement(client, user)
 
+    # No "title": the desk has no such field. The headline names it.
     posted = {
-        "title": "Internal name for it",
         "kind": "Music video",
         "headline": "The video for Nightdrive is out",
         "subhead": "Shot in one take on the last night of the tour",
@@ -145,7 +145,7 @@ def test_every_announcement_field_round_trips(flask_app):
         "contact_name": "Ray Mensah",
         "contact_email": "press@example.com",
         "boilerplate": "Two sentences that never change.",
-        "status": "ready",
+        "intent": "ready",
     }
     response = client.post("/press-desk/announcements/%s" % release["id"],
                            data=posted)
@@ -153,7 +153,8 @@ def test_every_announcement_field_round_trips(flask_app):
     body = response.get_data(as_text=True)
 
     saved = press_store.get_release(user["id"], release["id"])
-    assert saved["title"] == "Internal name for it"
+    # With no title posted, the headline is the name it is stored under.
+    assert saved["title"] == "The video for Nightdrive is out"
     assert saved["kind"] == "Music video"
     assert saved["dateline"] == "Bristol, 3 October 2026"
     assert saved["embargo_until"] == "2026-10-17T09:00"
@@ -161,7 +162,6 @@ def test_every_announcement_field_round_trips(flask_app):
 
     # And every one of them comes back into the boxes it came from.
     for name, value in (
-            ("title", "Internal name for it"),
             ("headline", "The video for Nightdrive is out"),
             ("subhead", "Shot in one take on the last night of the tour"),
             ("dateline_city", "Bristol"),
@@ -178,18 +178,35 @@ def test_every_announcement_field_round_trips(flask_app):
     assert "We only had the room for an hour." in body
     assert "Two sentences that never change." in body
     assert 'name="quote_source" value="Dee Okafor, director"' in body
-    assert '<option value="ready" selected>' in body
+    # His design has no status list. "Ready" is a button, and pressing it
+    # is the state change, so that is what the page must offer.
+    assert '<option value="ready" selected>' not in body
+    assert 'name="intent" value="ready"' in body
+    assert 'name="intent" value="draft"' in body
 
 
-def test_the_internal_title_is_kept_and_labelled(flask_app):
-    """The design omits it; the column is still there and still the name
-    the announcement carries around the desk."""
+def test_there_is_no_internal_title_field(flask_app):
+    """The owner's design has no such field, and an earlier version of
+    this test locked one in while its own docstring admitted the design
+    omitted it. The column is still there; the headline fills it, which
+    is what every reader of it already fell back to."""
     client, user = _artist(flask_app)
     release = _announcement(client, user)
     body = _page(client, release)
-    assert "Internal title" in body
-    assert "Only you see this" in body
+    assert "Internal title" not in body
+    assert "Only you see this" not in body
+    assert 'name="title"' not in body
 
+
+def test_the_headline_becomes_the_name_it_is_stored_under(flask_app):
+    """With no title field on the page, an announcement posted without
+    one is still stored under a name, and that name is the headline."""
+    client, user = _artist(flask_app)
+    client.post("/press-desk/announcements/new",
+                data={"kind": "Single", "body": "A paragraph.",
+                      "headline": "The band announces Nightdrive"})
+    release = press_store.list_releases(user["id"])[0]
+    assert release["title"] == "The band announces Nightdrive"
 
 def test_the_kind_list_is_the_stores_own(flask_app):
     """Not the mockup's invented list: Album / EP is a kind, Album is
@@ -502,7 +519,10 @@ def test_two_press_kits_are_a_select_that_can_say_no(flask_app, monkeypatch):
         ("vault:1", "Kit saved 14 August", "https://e/y", "1")])
     body = _page(client, release)
     assert '<select id="ad-kit" name="kit">' in body
-    assert '<option value="">Do not attach one</option>' in body
+    # His design attaches the kit by name. With more than one there is a
+    # real choice, so the list stays, but it is not phrased as a refusal.
+    assert '<option value="">Send it without one</option>' in body
+    assert "Do not attach one" not in body
     assert "Public press kit (live page)" in body
     assert "Kit saved 14 August" in body
     assert 'type="checkbox" name="kit"' not in body
