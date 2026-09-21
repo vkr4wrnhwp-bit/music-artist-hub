@@ -209,6 +209,118 @@ def _today():
     return date.today()
 
 
+def _latest_period_end(rows):
+    """The last day of the newest period the statements cover.
+
+    royalty_lag asks how long it has been since a period ENDED, so a
+    period label has to become a date. A row whose period nobody can
+    parse is skipped rather than guessed at, and no dated period at all
+    returns None: "there is no way to tell" is an answer, and it is not
+    the same answer as "everything is fine".
+    """
+    import calendar
+    from statements_engine import period_key
+    best = None
+    for row in rows or ():
+        year, month = period_key(row.get("period") or "")
+        if year == 9999 or not 1 <= month <= 12:
+            continue
+        if best is None or (year, month) > best:
+            best = (year, month)
+    if best is None:
+        return None
+    year, month = best
+    return date(year, month, calendar.monthrange(year, month)[1])
+
+
+def _overdue_gaps(summary, rows, today):
+    """The coverage gaps worth chasing, biggest first, or none of them.
+
+    A coverage gap on its own says almost nothing. Stores report months
+    apart and each runs behind by a different amount, so "missing from
+    Deezer" is only news when Deezer is late for Deezer. royalty_lag
+    makes that call and royalty_lag.rank does the ordering, by money
+    times how far the verdict is trusted. Neither is re-implemented
+    here, and rank drops every store that is only being itself.
+
+    One finding per (track, store), because the verdict is per store: a
+    track missing from four stores can be three platforms running late
+    and one real delivery failure, and collapsing them hides which.
+
+    The money on a finding is the track's estimate split across the
+    stores it is missing from, in proportion to what each store paid
+    the catalogue. That is the weighting statements_engine already used
+    to build the estimate, not a second one invented here.
+
+    `observed` is deliberately not passed, so every verdict comes back
+    on the published table and says so in its own detail line. Nothing
+    in this app records when a distributor reported a period. The only
+    date on file is when the ARTIST uploaded the CSV, and measuring
+    "Spotify takes 60 days" from that would be measuring the artist's
+    upload habits and printing the result under Spotify's name.
+    """
+    import royalty_lag
+    import store_identity
+    period_end = _latest_period_end(rows)
+    if period_end is None:
+        return None, []
+    store_totals = {}
+    for row in rows or ():
+        store = store_identity.store_of(row.get("source"))
+        store_totals[store] = store_totals.get(store, 0.0) + (row.get("amount") or 0.0)
+    findings = []
+    for gap in summary.get("coverage_gaps") or ():
+        missing = gap.get("missing_sources") or []
+        paid = {store: store_totals.get(store, 0.0) for store in missing}
+        total = sum(paid.values())
+        for store in missing:
+            # No money known for this store is left as None. royalty_lag
+            # treats an unknown amount as unknown rather than as nothing.
+            estimate = None
+            if total > 0:
+                estimate = round((gap.get("estimated_value") or 0.0) * paid[store] / total, 2)
+            findings.append({
+                "title": gap.get("title"), "source": store, "estimate": estimate,
+                "judgement": royalty_lag.judge(store, period_end, today),
+            })
+    return period_end, royalty_lag.rank(findings)
+
+
+_SEVERITY_ORDER = ("high", "medium", "low")
+
+
+def rank_alerts(alerts):
+    """Biggest real problem first, without letting money reorder the
+    things that are not money.
+
+    Severity still decides the bands. A live link sending fans to a dead
+    page is not a smaller problem than an estimate that happens to carry
+    a bigger number, and it has no dollar figure to be compared with.
+
+    Inside a band the alerts that DO carry money are ordered among
+    themselves by value times confidence, and they are slotted back into
+    the positions money alerts already held. So an alert with no money
+    figure never moves: an amount nobody has is not a zero, and ranking
+    by it would quietly put a dead page below a twelve dollar estimate.
+
+    An alert may be a 5-tuple or a 6-tuple whose last item is that
+    weight; callers always get the 5-tuple the template unpacks.
+    """
+    rows = [tuple(a) if len(a) > 5 else tuple(a) + (None,) for a in alerts]
+    out = []
+    for band in _SEVERITY_ORDER:
+        in_band = [a for a in rows if a[0] == band]
+        spots = [i for i, a in enumerate(in_band) if a[5] is not None]
+        ranked = sorted((in_band[i] for i in spots), key=lambda a: -a[5])
+        for spot, alert in zip(spots, ranked):
+            in_band[spot] = alert
+        out.extend(in_band)
+    # A severity nobody listed keeps its place at the end rather than
+    # being dropped off the page by a sort it was never given a band in.
+    out.extend(a for a in rows if a[0] not in _SEVERITY_ORDER)
+    return [a[:5] for a in out]
+
+
 def build_alerts(user_id):
     """Live-derived alerts from real module state. Every alert carries a
     destination link and enough context to become an action."""
@@ -262,30 +374,76 @@ def build_alerts(user_id):
         except Exception:
             pass
     if summary and summary["unmatched_revenue"]:
+        # Weighted at full confidence: this is not an estimate, it is a
+        # figure added up off the artist's own statement rows.
         alerts.insert(0, ("high", "$%.2f unmatched revenue in your statements" % summary["unmatched_revenue"],
-                          "Rows with no track title — money paid but not attributed. Review and claim it.",
-                          "/recovery", "royalty_recovery"))
+                          "Rows with no track title, so money paid but not attributed. Review and claim it.",
+                          "/recovery", "royalty_recovery", summary["unmatched_revenue"]))
     if summary and summary["coverage_gaps"]:
         # Money first, then the count: "3 coverage gaps" alone told nobody
-        # whether to care (owner notes, 2026-09-19). The engine hands the
-        # findings over already sorted by value, so the first is the
-        # biggest; the figure is its estimate and is labelled as one.
+        # whether to care (owner notes, 2026-09-19). And a gap is only a
+        # problem when the store is late FOR ITSELF, which royalty_lag
+        # decides: a store still inside its usual reporting wait is a
+        # store being a store, and calling that a finding sends artists
+        # to their distributor over nothing.
         gaps = summary["coverage_gaps"]
         n = len(gaps)
         est = summary.get("gap_estimate_total") or 0
         plural = "s" if n != 1 else ""
-        if est > 0:
-            title = ("Est. $%s at stake in %d coverage gap%s across your royalty sources"
-                     % ("{:,.2f}".format(est), n, plural))
-            top = gaps[0]
-            rec = ("Tracks earning on some sources but missing from others. Biggest: "
-                   "“%s”, est. $%s. Estimates come from each track's share of what "
-                   "those stores paid, not a guarantee."
-                   % (top["title"], "{:,.2f}".format(top["estimated_value"])))
+        money = "{:,.2f}".format(est)
+        period_end, late = _overdue_gaps(summary, rows, _today())
+        if late:
+            # At stake is the plain money; the weight that orders this
+            # against the other alerts is that money times how far the
+            # verdict behind it is trusted, which royalty_lag.rank set.
+            stake = round(sum(f["estimate"] or 0 for f in late), 2)
+            weight = round(sum(f["priority"]["weight"] for f in late), 2) or None
+            top = late[0]
+            verdict = top["judgement"]
+            # The usual figure in the headline is the published one unless
+            # this account's own history produced it, and the reader is
+            # told which, because a table is not evidence about them.
+            basis = ("That usual figure is measured from your own statement history."
+                     if verdict.get("basis") == "measured" else
+                     "That usual figure is the published one for that store, not your own.")
+            if stake <= 0:
+                title = ("A store is overdue on %d coverage gap%s, with no estimate of "
+                         "what is at stake" % (n, plural))
+            elif round(stake, 2) == round(est, 2):
+                # One figure, not the same figure twice.
+                title = ("Est. $%s at stake, and a store is overdue on %d coverage gap%s"
+                         % ("{:,.2f}".format(stake), n, plural))
+            else:
+                title = ("Est. $%s at stake where a store is overdue, of $%s across %d "
+                         "coverage gap%s" % ("{:,.2f}".format(stake), money, n, plural))
+            rec = ("%s has reported nothing for the period ending %s: %s. %s Biggest: "
+                   "“%s”. Estimates come from each track's share of what those stores "
+                   "paid, not a guarantee."
+                   % (top["source"], period_end.isoformat(), verdict.get("headline"),
+                      basis, top["title"]))
+            alerts.append(("high", title, rec, "/recovery", "royalty_recovery", weight))
+        elif period_end is None:
+            title = ("%d coverage gap%s across your royalty sources, and no dated period "
+                     "to judge them by" % (n, plural))
+            rec = ("Tracks earning on some sources but missing from others. Your "
+                   "statements carry no period anyone can read, so there is no way to "
+                   "say whether a store is late or simply has not reported yet.")
+            alerts.append(("medium", title, rec, "/recovery", "royalty_recovery", None))
         else:
-            title = "%d coverage gap%s across your royalty sources" % (n, plural)
-            rec = "Tracks earning on some sources but missing from others."
-        alerts.append(("medium", title, rec, "/recovery", "royalty_recovery"))
+            # Gaps, but every store is still inside its own usual wait.
+            # Worth knowing, not worth chasing, and the difference is the
+            # whole point of saying it this way round.
+            if est > 0:
+                title = ("Est. $%s in %d coverage gap%s, none of the stores overdue yet"
+                         % (money, n, plural))
+            else:
+                title = ("%d coverage gap%s, none of the stores overdue yet, and no "
+                         "estimate of what is at stake" % (n, plural))
+            rec = ("Tracks earning on some sources but missing from others. Every store "
+                   "they are missing from is still inside the wait it usually takes to "
+                   "report, so this is waiting rather than a problem. Estimates come "
+                   "from each track's share of what those stores paid, not a guarantee.")
+            alerts.append(("medium", title, rec, "/recovery", "royalty_recovery", None))
     # Catalog metadata gaps
     tracks = mls_catalog_tracks(user_id)
     missing_isrc = [t for t in tracks if not (t.get("meta") or {}).get("isrc")]
@@ -294,7 +452,7 @@ def build_alerts(user_id):
                            len(missing_isrc), "s" if len(missing_isrc) != 1 else ""),
                        "Missing identifiers leak royalties. Re-check metadata.",
                        "/catalog", "metadata"))
-    return alerts
+    return rank_alerts(alerts)
 
 
 def mls_catalog_tracks(user_id):

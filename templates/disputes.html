@@ -1,15 +1,16 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Disputes{% endblock %}
 {% block head_scripts %}<link rel="stylesheet" href="/static/css/money-desks.css?v=5">{% endblock %}
 
 {% block content %}
+{#- Every internal page opens with the shared plate band, never a
+    hand-written heading (owner, 2026-09-02). The band sits in the same
+    column as the body under it. -#}
 <div class="mx-auto max-w-[1000px] space-y-5">
-  <div>
-    <div class="sb-label text-sb-gold">Street Banker · Disputes</div>
-    <h1 class="sb-h1 mt-1">Dispute Tracker</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-300">Every fight over your money in one place — missing payments, wrong splits, content claims. Log it, work it, close it.</p>
-  </div>
+  {{ sb.plate(none, [], "Street Banker · Disputes", "Dispute Tracker",
+              "Every fight over your money in one place: missing payments, wrong splits, content claims. Log it, work it, close it.") }}
 
   {#- Each tile draws on its own figure (the zero rule). -#}
   {% if open_count or disputed_total or recovered_total %}

@@ -30,11 +30,11 @@ changed or removed. A status change counts.
 
 | | Count |
 | --- | ---: |
-| Live | 388 |
+| Live | 389 |
 | Partial | 85 |
-| Stubbed | 60 |
+| Stubbed | 63 |
 | Dead code | 22 |
-| **Features in total** | **555** |
+| **Features in total** | **559** |
 | Routes | 747 across 19 files |
 | Database tables | 230 |
 | Environment variables | 95 |
@@ -1642,9 +1642,18 @@ Redirects to /artwork.
 
 ## Fans and audience
 
-50 features: 30 Live, 12 Partial, 6 Stubbed, 2 Dead code.
+54 features: 31 Live, 12 Partial, 9 Stubbed, 2 Dead code.
 
 ### Live
+
+**Real music search on Discover**
+
+Search the Apple/iTunes catalogue from the fan page, play a 30 second preview, open the full track. This is the whole of Discover for a real account.
+
+- Because: app.py discover() calls music_apis.itunes_search(q) with the typed term and renders whatever comes back; music_apis.py:41 itunes_search hits https://itunes.apple.com/search live, caches by term in store.cache_get/cache_set, drops any result with no title or artwork and upscales artworkUrl100 to 300x300. Probed with a fresh fan account and a stubbed transport: the titles, artists, artwork and the preview button all came from the response, and nothing on the page came from discover_config. A network failure returns [] and the page says no tracks came back rather than inventing any.
+- Routes: GET /discover?q=<term>
+- Files: app.py discover(); music_apis.py:41 itunes_search(); templates/discover.html (the results grid and the shared preview player)
+- Access: Any signed-in account, including the free Fan plan. Anonymous is bounced to /login by plan_gate. The "+ Catalog" button on each result is rendered only when the account's plan can reach /catalog/add (plans._PRO_PATHS contains "/catalog"), because a Fan plan was being offered a button that answered 402.
 
 **/audience (retired)**
 
@@ -2027,6 +2036,33 @@ A fan authorises Spotify on a pre-release link and the track is saved to their l
 - Access: /presave/ is in _PUBLIC_PREFIXES, so start and callback are anonymous (the state nonce is the guard). /presave/retry-reset needs any signed-in account and only touches its own campaigns. /presave/diag is plan=="label" only, otherwise 404.
 
 ### Stubbed
+
+**Discover sample feed**
+
+Twelve invented tracks with invented artists and invented play counts, browsable by genre and mood, shown to the showcase logins only and labelled on the page as made up.
+
+- Because: discover_config._TRACKS is a hand-written list ("Nova Reign", "Midnight Drive", plays 5200000); get_discover_data() returns it only when called with showcase=True and otherwise returns _nothing_to_show(), every list empty. app.py discover() passes showcase=_session_is_demo(), the same gate the Audience showcase uses. Probed both ways on 2026-09-21: demo-fan@streetbanker.io got the twelve tracks under a "Sample feed" banner reading "Every artist, title, cover and play count below is made up"; a freshly signed-up fan account got none of the twelve names, titles or figures on the unfiltered page, on any of the nine genre filters, on any of the six mood filters, or with a search running. The nine artist_ids link to /network/<id> profiles and all nine were checked against network_config._PROFILES and exist (this closes the open question logged under Unverified).
+- Routes: GET /discover (the browse sections), GET /discover?genre=&mood= (showcase session only)
+- Files: discover_config.py (_TRACKS, GENRES, MOODS, get_discover_data, _nothing_to_show); app.py discover(); templates/discover.html (everything inside `{% if d.showcase %}`); static/css/discover-feed.css (.dc-sample banner)
+- Access: Showcase session only (_session_is_demo, i.e. the four seeded addresses in demo_accounts.ACCOUNTS). Until 2026-09-21 it was served unlabelled to every visitor including real fan accounts, which is the honesty defect this entry records as fixed. Note the sidebar still stamps Discover with the "Sample" badge from hubs.py for every account; that now understates a real account's page, which shows real search results and an honest empty state.
+
+**Discover likes and follows**
+
+A heart on a sample track and a Follow button on a sample artist, saved in the browser session and attached to nothing.
+
+- Because: like_track/follow_artist mutate the set the caller hands them and discover_config keeps no module state (locked by tests/test_shared_state.py); app.py _discover_state()/_keep_discover_state() read and write session["discover_likes"]/["discover_follows"], so they last as long as the cookie and reach no table. Both routes run _discover_sample_only() first, which answers 404 for any session that is not a showcase one, because a follow handed to a real account is a relationship that does not exist. follow_artist now also refuses an id the feed does not carry: it previously accepted any string, so POST /discover/follow/beyonce answered {"following": true}. Probed: a real fan got 404 with nothing written to the session; the demo fan toggled tr-1 and nova-reign and got 404 on beyonce.
+- Routes: POST /discover/like/<track_id>, POST /discover/follow/<artist_id>
+- Files: app.py _discover_state(), _keep_discover_state(), _discover_sample_only(), discover_like_route(), discover_follow_route(); discover_config.py like_track(), follow_artist(), sample_artist_ids(); the inline script in templates/discover.html
+- Access: Showcase session only. Anonymous is bounced to /login by plan_gate.
+
+**Discover empty state**
+
+What a real account sees on the fan page: what the feed will be, where it will come from, and four real searches to start with.
+
+- Because: templates/discover.html renders it when `not d.showcase and not real_query`, and the copy states plainly that the feed "is not built yet", that it "fills from a music data source once one is connected, and from Street Banker artists who choose to be listed", and that the alternative was "a wall of acts that do not exist". It writes nothing and reads nothing; it is Stubbed because the feature it stands in for does not exist yet. Probed with a fresh fan account.
+- Routes: GET /discover (branch)
+- Files: templates/discover.html; static/css/discover-feed.css (.dc-empty)
+- Access: Any signed-in non-showcase account, artist or fan.
 
 **Audience showcase**
 
@@ -2481,7 +2517,7 @@ A sample contact's page with connect, pitch and booking-enquiry buttons, plus pl
 - Because: every target is an entry in network_config's hard-coded lists and every action writes to the Flask session, not a table - app.py's own comment calls the people 'invented' and says the state is the session 'because the people being connected to are invented'
 - Routes: GET /network/<profile_id>, POST /network/<profile_id>/connect, /pitch, /enquire; GET /network/playlist/<id>, POST /network/playlist/<id>/submit; GET /network/moment/<id>, POST /network/moment/<id>/claim
 - Files: app.py:12091-12179; network_config.py (_PROFILES, _PLAYLISTS, _SHOWS, _MOMENTS); templates/network_profile.html, network_playlist.html, network_moment.html
-- Access: Any signed-in account. Reachable in-app only from templates/discover.html (which links /network/<artist_id>) and from inside the network family itself; no nav entry.
+- Access: Any signed-in account. Reachable in-app only from templates/discover.html (which links /network/<artist_id>) and from inside the network family itself; no nav entry. As of 2026-09-21 those Discover links are drawn only for a showcase session, so a real account now has no in-app route to these pages at all; the addresses still answer if typed.
 
 ### Dead code
 
@@ -5547,7 +5583,7 @@ can close, and nothing here was guessed to fill it.
 - Email delivery end to end. emailer.configured() is False without RESEND_API_KEY, so none of the four send sites in this area was exercised against Resend. What the code proves is that the in-app notification always fires and the email is attempted only when a key is present, each inside try/except.
 - Whether the demo showcase (collab_market.SHOWCASE) renders in production. It needs a session signed in as one of the four seeded addresses in demo_accounts.ACCOUNTS, which I could not do without their passwords. The gating expression and the 'Showcase ... not members' label were read in code and tests/test_collab_marketplace.py:155 locks that a real account never sees it.
 - Whether PUBLIC_BASE_URL is set on the deployed services. It is what board.py:72 and board.py:155 put into the renewal and watch-alert links, so an unset value would ship relative-looking links in email; the default at app.py:77 was not traced.
-- Whether the artist ids that templates/discover.html links as /network/<artist_id> actually exist in network_config._PROFILES. If they do not, those links 404 or redirect. Not checked - /discover belongs to another area.
+- ~~Whether the artist ids that templates/discover.html links as /network/<artist_id> actually exist in network_config._PROFILES.~~ CHECKED 2026-09-21: all nine (cass-oram, dj-codec, grid-runner, kilo-byte, lila-rose, marco-velocity, milo-tran, nova-reign, sable-wynn) are ids in network_config._PROFILES, so none of those links 404. They are now drawn for a showcase session only; see "Discover sample feed" under Fans and audience.
 - Whether any deployed service currently has SUITE_GATES or RENDER set, which is what decides whether the /tour-board Pro gate is on at all. plans.gates_on() reads the environment; I probed both states locally but cannot see the deployment's variables.
 - board_store.stats()['matched'] counts rows still at status='filled'. A listing marked filled and then reopened keeps its filled_via but leaves that count - observed in my probe (matched went to 0 after reopen), not asserted by any test I found, so whether that is intended is unverified.
 - Whether the marketplace 'Network' tab pointing at the Pro-gated /tour-board/outreach from the fan-open /marketplace is known. The gate mismatch is confirmed in code and by probe (fan and artist get 402); the intent behind it is not stated anywhere I read.

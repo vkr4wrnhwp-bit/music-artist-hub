@@ -54,10 +54,15 @@
     <p class="mt-3 text-xs text-gray-300 font-medium">{{ metrics.note }} Monthly listeners are a 28-day rolling figure, so the line moves slowly by design.</p>
   </section>
   {% endif %}
+  {#- Nothing drawn and nothing named means no section. A heading and a
+      sub-line over an empty box is the same defect as an empty card: it
+      tells the reader something is here and then shows them nothing. The
+      sub-line only promises the named list when there is one. -#}
+  {% if platform or unread %}
   <section id="pulse-bridge" class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
       <h3 class="sb-label text-sb-gold">Platform readings</h3>
-      <span class="text-xs text-gray-300 font-medium">Read from each platform's own public numbers. A platform that offers none is named below instead of drawn.</span>
+      <span class="text-xs text-gray-300 font-medium">Read from each platform's own public numbers.{% if unread %} A platform that offers none is named below instead of drawn.{% endif %}</span>
     </div>
     {% if platform %}
     <div class="sbm-bridge mt-4">
@@ -74,6 +79,7 @@
     </details>
     {% endif %}
   </section>
+  {% endif %}
   {% endif %}
 
   {% include "_pulse_everything.html" %}

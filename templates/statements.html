@@ -23,17 +23,24 @@
 {% if not rooms_nav %}{{ sb.subnav([("/statements", "Statements"), ("/statements?view=tax", "Tax")],
              "/statements?view=tax" if view == "tax" else "/statements") }}{% endif %}
 {% if view == "tax" %}
+{#- The band shares the view's column. On a wide screen it ran the full
+    width of the shell while the desk under it stopped at its own column
+    (audit, 2026-09-19). The Tax view is a narrower page, so its band is
+    narrower too. -#}
+<div class="mx-auto max-w-[1000px]">
 {% call sb.plate(none, [900, 1400, 1672],
                  "Street Banker · Royalty Sweep", "Tax",
                  "Your royalty income organized by tax year, straight from the statements you uploaded: the numbers your accountant asks for in April.") %}
   <a href="/statements" class="sb-btn sb-btn-secondary">Statements</a>
   {% if tax_years %}<a href="/reports/royalty-report/download.csv" class="sb-btn sb-btn-secondary">Download CSV</a>{% endif %}
 {% endcall %}
+</div>
 
 <div class="mx-auto max-w-[1000px] space-y-5">
   {% include "statements_tax.html" %}
 </div>
 {% else %}
+<div class="mx-auto max-w-[1200px]">
 {% call sb.plate(none, [900, 1400, 1672],
                  "Street Banker · Royalty Sweep", "Statements",
                  "Your distributor, PRO and MLC statements, read line by line. Every figure on this page is computed from the files you uploaded; an estimate is marked as one.") %}
@@ -44,6 +51,7 @@
   <a href="/statements?view=tax" class="sb-btn sb-btn-secondary">Tax</a>
   <a href="/royalties" class="sb-btn sb-btn-secondary">Royalties</a>
 {% endcall %}
+</div>
 
 <div class="sd mx-auto max-w-[1200px]">
 

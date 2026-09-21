@@ -8,23 +8,21 @@
 
 {% block head_scripts %}<link rel="stylesheet" href="/static/css/phone-studio.css?v=1">{% endblock %}
 {% block content %}
+{#- Every internal page opens with the shared plate band, never a landing
+    hero (owner, 2026-09-02). The band sits in the same column as the body
+    below it, so the header does not run wider than the page it heads. -#}
 <div class="mx-auto max-w-[1400px] space-y-5">
 
-  <!-- ===== Street Banker Links: campaign engine ===== -->
-  <div class="flex flex-wrap items-end justify-between gap-4">
-    <div>
-      <div class="sb-label text-sb-gold">Street Banker Links</div>
-      <h1 class="sb-h1 mt-1">Music Link Campaigns</h1>
-      <p class="mt-1 max-w-2xl text-sm text-gray-300">One link that turns attention into pre-saves, streams, and fan data you own — not just a redirect.</p>
-    </div>
-    <div class="flex items-center gap-2">
-      <a href="/links/fans" class="sb-btn sb-btn-secondary">Fan CRM</a>
-      <a href="/links/new" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep px-4 py-2 text-sm font-bold text-sb-on-gold shadow-[0_4px_18px_rgba(216,178,90,0.3)] hover:scale-[1.02]">
-        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>
-        Create Music Link
-      </a>
-    </div>
-  </div>
+  {% call sb.plate(none, [], "Street Banker · Links", "Music Link Campaigns",
+                   "One link that turns attention into pre-saves, streams, and fan data you own, not just a redirect.") %}
+    <a href="/links/fans" class="sb-btn sb-btn-secondary">Fan CRM</a>
+    {#- The system's own primary button. The gold gradient here was drawn by
+        hand and belonged to no token (audit, 2026-09-19). -#}
+    <a href="/links/new" class="sb-btn sb-btn-primary">
+      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+      Create Music Link
+    </a>
+  {% endcall %}
 
   {% if not links_user %}
   <div class="rounded-2xl border border-sb-gold/30 bg-sb-gold/[0.05] p-5 text-sm text-gray-200">

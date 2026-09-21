@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Settings{% endblock %}
 {% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
@@ -17,12 +18,12 @@
   .nswitch.on::after { transform: translateX(19px); background: var(--sb-on-gold); }
 </style>
 
+{#- Every internal page opens with the shared plate band, never a
+    hand-written heading (owner, 2026-09-02). The band sits in the same
+    column as the body under it. -#}
 <div class="mx-auto max-w-[1200px] space-y-5">
-  <div>
-    <div class="sb-label text-sb-gold">Street Banker · Account</div>
-    <h1 class="sb-h1 mt-1">Settings</h1>
-    <p class="mt-1 text-sm text-sb-ink-2">Manage your profile, notifications, and account.</p>
-  </div>
+  {{ sb.plate(none, [], "Street Banker · Account", "Settings",
+              "Manage your profile, notifications, and account.") }}
 
   <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
     <div class="space-y-5">

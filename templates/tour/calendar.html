@@ -19,11 +19,12 @@
 </div>
 
 {#- The month in windows: show days, other days, and how many shows are
-    fully ready. The ready window says '—' when readiness was not scored. -#}
+    fully ready. The ready window says so in words when readiness was
+    not scored, because a 0 there would read as nothing being ready. -#}
 <div class="to-lcds" id="month-stats" aria-label="This month">
   {{ sb.lcd(month_stats['shows'], "show day" if month_stats['shows'] == 1 else "show days") }}
   {{ sb.lcd(month_stats['other'], "other day" if month_stats['other'] == 1 else "other days") }}
-  {{ sb.lcd(month_stats['ready'] if month_stats['scored'] and month_stats['shows'] else none, "fully ready") }}
+  {{ sb.lcd(month_stats['ready'] if month_stats['scored'] and month_stats['shows'] else none, "fully ready", absent="Not scored") }}
 </div>
 
 {% if view == 'month' %}

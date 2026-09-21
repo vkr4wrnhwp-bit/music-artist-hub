@@ -55,7 +55,8 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-height: 38px;
+  /* 44px is the finger floor; the desk's bar buttons sat at 38px. */
+  min-height: 44px;
   padding: 0 16px;
   border-radius: var(--sb-r-control);
   border: 1px solid var(--pd-gold);

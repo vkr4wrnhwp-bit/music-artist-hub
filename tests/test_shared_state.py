@@ -77,8 +77,26 @@ def test_the_deleted_shared_state_endpoints_stay_deleted(app_obj, method, path):
         "%s is registered again: %s" % (path, sorted(live)))
 
 
+def _sample_feed_browser(app_obj):
+    """A browser that can reach the Discover sample feed at all.
+
+    Two clients on the showcase login rather than two fresh accounts, and
+    on purpose. Since 2026-09-21 the invented feed is served only to a
+    showcase session, so a real account's like answers 404 and there is
+    nothing left to share - the honesty fix closed this hole from the
+    other side. What these tests still have to prove is the claim the
+    page makes in words, that likes and follows save for THIS BROWSER:
+    two clients signed into the same account are two browsers with two
+    session cookies, and a module-level set would still merge them.
+    """
+    client = app_obj.test_client()
+    client.post("/login", data={"email": "demo-fan@streetbanker.io",
+                                "password": "sweep"})
+    return client
+
+
 def test_discover_likes_belong_to_one_browser(app_obj):
-    mine, theirs = _account(app_obj), _account(app_obj)
+    mine, theirs = _sample_feed_browser(app_obj), _sample_feed_browser(app_obj)
     assert mine.post("/discover/like/tr-1").get_json()["count"] == 1
     assert theirs.post("/discover/like/tr-1").get_json()["count"] == 1, (
         "their first like is their first, not their second")
@@ -93,10 +111,10 @@ def test_discover_follows_belong_to_one_browser(app_obj):
 
     The rendered page carries the string "Following" either way - it is
     in the inline script that swaps the button label - so counting it
-    proves nothing. The toggle does: if the two accounts shared a set,
+    proves nothing. The toggle does: if the two browsers shared a set,
     the second follow would turn the first one OFF and come back False.
     """
-    mine, theirs = _account(app_obj), _account(app_obj)
+    mine, theirs = _sample_feed_browser(app_obj), _sample_feed_browser(app_obj)
     assert mine.post("/discover/follow/nova-reign").get_json() == {
         "ok": True, "following": True, "count": 1}
     assert theirs.post("/discover/follow/nova-reign").get_json() == {

@@ -1,18 +1,18 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Actions{% endblock %}
 {% block head_scripts %}<link rel="stylesheet" href="/static/css/money-desks.css?v=5">{% endblock %}
 
 {% block content %}
+{#- Every internal page opens with the shared plate band, never a
+    hand-written heading (owner, 2026-09-02). The band sits in the same
+    column as the body under it. -#}
 <div class="mx-auto max-w-[1000px] space-y-5">
-  <div class="flex flex-wrap items-end justify-between gap-4">
-    <div>
-      <div class="sb-label text-sb-gold">Street Banker · Action Center</div>
-      <h1 class="sb-h1 mt-1">Actions</h1>
-      <p class="mt-1 max-w-xl text-sm text-gray-300">Every insight becomes work you can assign, track, and finish. Alerts and release checklists feed this board.</p>
-    </div>
+  {% call sb.plate(none, [], "Street Banker · Action Center", "Actions",
+                   "Every insight becomes work you can assign, track, and finish. Alerts and release checklists feed this board.") %}
     <a href="/command-center" class="sb-btn sb-btn-secondary">← Command Center</a>
-  </div>
+  {% endcall %}
 
   <!-- New action -->
   <section class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">

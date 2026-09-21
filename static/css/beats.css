@@ -54,7 +54,8 @@
 .bt-h2 { font-family: var(--sb-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.13em; text-transform: uppercase; color: var(--bt-gold); margin: 0 0 10px; }
 
 /* --- buttons ---------------------------------------------------------- */
-.bt-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 14px;
+/* 44px is the finger floor, so the buttons and the tab strip clear it. */
+.bt-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 0 14px;
   border-radius: var(--sb-r-panel); border: 1px solid var(--bt-line); background: transparent; color: var(--bt-amber);
   font: inherit; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; text-decoration: none; }
 .bt-btn:hover { background: rgb(201 162 74 / 0.10); }
@@ -62,7 +63,7 @@
 .bt-btn--fill:hover { background: var(--sb-gold-bright); }
 .bt-btn--ghost { border-color: var(--bt-rule); color: var(--bt-copy); }
 .bt-btn--ghost:hover { border-color: var(--bt-line); }
-.bt-btn--small { min-height: 30px; padding: 0 10px; font-size: 12px; }
+.bt-btn--small { min-height: 44px; padding: 0 10px; font-size: 12px; }
 .bt-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
 
 .bt-input, .bt-select, .bt-area {
@@ -173,7 +174,7 @@
 
 /* --- tabs ---------------------------------------------------------------- */
 .bt-tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--bt-rule); margin-bottom: 16px; }
-.bt-tab { appearance: none; border: 0; background: none; padding: 9px 13px; cursor: pointer; color: var(--bt-soft);
+.bt-tab { appearance: none; border: 0; background: none; min-height: 44px; padding: 9px 13px; cursor: pointer; color: var(--bt-soft);
   font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
   border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: 7px; }
 .bt-tab:hover { color: var(--bt-copy); }

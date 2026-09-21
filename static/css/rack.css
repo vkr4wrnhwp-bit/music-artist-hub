@@ -630,7 +630,7 @@
   .rk-bnc-plan { margin: 0 0 12px; font-family: var(--sb-mono); font-size: 11.5px; color: var(--sb-ink-2); }
   .rk-bnc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
   .rk-bnc-done { font-family: var(--sb-mono); font-size: 11.5px; color: var(--sb-good); }
-  @media (pointer: coarse) { .eq-band-sw::before { content: ""; position: absolute; inset: -16px -9px; } }  /* 44px hit area on touch */
+  @media (pointer: coarse) { .eq-band-sw::before { content: ""; position: absolute; inset: -16px -11px; } }  /* 44x44 hit area on touch: the switch is drawn 22x12, so it needs 11px each side, not 9px */
   .k-label {
     font-family: var(--sb-mono); font-size: 11px; font-weight: 500; line-height: 1.2; letter-spacing: .14em;
     text-transform: uppercase; color: var(--sb-ink-2); white-space: nowrap;
@@ -1149,15 +1149,18 @@
   /* Touch, rather than narrow. A touch laptop at 1400px needs the same
      targets a phone does, and a narrow desktop window does not. */
   @media (pointer: coarse) {
-    .sw, .pick label, .flow-node { min-height: 44px; }
+    .sw, .pick label, .flow-node { min-width: 44px; min-height: 44px; }
     .ru-ctl .sw, .lane .sw, .rk-segsw > .sw, #rk-zone .sw { min-width: 44px; min-height: 44px; }
     #rk-dock .sw { min-height: 44px; }   /* the dock's own 30px rule is an id selector and would win */
     .rk-knob { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
-    /* 20px tall with a 10px thumb: a fader you cannot get hold of. */
-    .fader { height: 34px; }
+    /* 20px tall with a 10px thumb: a fader you cannot get hold of. The
+       box grows to the 44px floor; the track is still 5px and the thumb
+       still 28px, so the unit is drawn exactly as before and only the
+       part your finger can land on gets bigger. */
+    .fader { height: 44px; }
     .fader::-webkit-slider-thumb { width: 16px; height: 28px; margin-top: -11.5px; }
     .fader::-moz-range-thumb { width: 16px; height: 28px; }
-    .vlv-amt .fader { height: 34px; }
+    .vlv-amt .fader { height: 44px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .glass { animation: none; }

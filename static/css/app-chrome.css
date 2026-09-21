@@ -493,9 +493,12 @@ details.asx-open[open] .asx-when-closed { display: none; }
 
 /* --- skip link -------------------------------------------------------------
  * The first focusable thing on every signed-in page. Off-screen until it
- * has focus, then a gold tab at the top left that jumps past the sidebar. */
+ * has focus, then a gold tab at the top left that jumps past the sidebar.
+ * It is a 44px target once it is showing, so somebody tabbing in on a
+ * touch screen gets the same finger floor as every other control. */
 .sb-skip {
   position: absolute; left: -999px; top: 8px; z-index: 100;
+  display: inline-flex; align-items: center; min-height: 44px;
   padding: 8px 12px; border-radius: var(--sb-r-control);
   background: var(--sb-gold); color: var(--sb-on-gold); font-weight: 700; text-decoration: none;
 }
