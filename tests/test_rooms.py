@@ -9,6 +9,8 @@ addresses, live flags and page switches. They are on when NAV_ROOMS=1 or
 the owner switches them on in Settings; the hub sidebar is the default,
 so every lock on it still holds.
 """
+import io
+import os
 import re
 import uuid
 
@@ -21,6 +23,7 @@ import rooms
 from app import create_app
 
 PW = "rooms-12345"
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _client(app_obj, plan="pro"):
@@ -234,3 +237,40 @@ def test_billing_is_live_and_wears_no_sample_badge(monkeypatch):
     aside = c.get("/command-center").get_data(as_text=True).split("</aside>")[0]
     row = aside.split('href="/billing"')[1].split("</a>")[0]
     assert "Sample" not in row
+
+
+def test_no_page_draws_a_tab_strip_the_room_already_covers():
+    """The sweep behind "remove the double tabs" (owner, 2026-09-15).
+
+    In the rooms layout a room's cards ARE the tabs, so a page that also
+    draws the shared strip shows the same destinations twice. Every
+    sb.subnav() call is guarded by `{% if not rooms_nav %}` except the
+    Royalties/Money queue pair: the Money queue is in no room's card
+    list, so guarding its strip would leave the page with no door in and
+    no way back. Guard it on the day it becomes a card, not before.
+    """
+    root = os.path.join(HERE, "templates")
+    allowed = {
+        ("royalties.html", "/money-queue"),
+        ("money_queue.html", "/money-queue"),
+    }
+    unguarded = []
+    for folder, _dirs, files in os.walk(root):
+        for name in files:
+            if not name.endswith(".html"):
+                continue
+            path = os.path.join(folder, name)
+            if os.path.relpath(path, root).replace("\\", "/") == "_sb.html":
+                continue            # the macro's own definition
+            lines = io.open(path, encoding="utf-8").read().split("\n")
+            for i, line in enumerate(lines):
+                if "sb.subnav(" not in line:
+                    continue
+                window = "\n".join(lines[max(0, i - 3):i + 1])
+                if "not rooms_nav" in window:
+                    continue
+                if any(name == n and mark in line for n, mark in allowed):
+                    continue
+                unguarded.append("%s:%d" % (name, i + 1))
+    assert unguarded == [], (
+        "a tab strip with no `{%% if not rooms_nav %%}` guard: %s" % unguarded)

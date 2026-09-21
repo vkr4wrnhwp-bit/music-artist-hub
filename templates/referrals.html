@@ -1,16 +1,17 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Referrals - Street Banker{% endblock %}
 {% block head_scripts %}<link rel="stylesheet" href="/static/css/account-phone.css?v=3">{% endblock %}
 
 {% block content %}
 <div class="acph">
+{#- Every internal page opens with the shared plate band, never a
+    hand-written heading (owner, 2026-09-02). The band sits in the same
+    column as the body under it. -#}
 <div class="mx-auto max-w-[800px] space-y-5">
-  <div>
-    <div class="sb-label text-sb-gold">Street Banker · Growth</div>
-    <h1 class="sb-h1 mt-1">Referrals</h1>
-    <p class="mt-1 max-w-2xl text-sm text-gray-300">Share your link with another artist. They get <span class="text-gray-200">50% off their first month</span> on any paid plan. Once they have paid for it, you get <span class="text-gray-200">50% off your next month</span>.</p>
-  </div>
+  {{ sb.plate(none, [], "Street Banker · Growth", "Referrals",
+              "Share your link with another artist. They get 50% off their first month on any paid plan. Once they have paid for it, you get 50% off your next month.") }}
 
   <div class="grid grid-cols-2 gap-3">
     <div class="rounded-2xl border border-white/10 bg-sb-surface-1 p-4">
