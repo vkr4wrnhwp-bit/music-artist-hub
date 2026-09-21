@@ -136,7 +136,13 @@ def check(source, filename=""):
     everything measured is clean. A pass is never a guarantee, and the
     unchecked list is what says so.
     """
-    from PIL import Image
+    # Guarded on purpose. If the image library is not installed on this
+    # deployment, an upload must still succeed and the person must be told
+    # the check did not run, rather than shown a pass it never measured.
+    try:
+        from PIL import Image
+    except ImportError:
+        return unavailable(filename)
 
     measured = []
     raw, filename = _read(source, filename)
@@ -253,6 +259,27 @@ def check(source, filename=""):
              "There is a picture here.", round(flat, 2))
 
     return _result(measured, filename)
+
+
+def unavailable(filename=""):
+    """The check could not run here. Says so, and claims nothing.
+
+    Every rule moves to the unchecked list, because a rule nobody looked
+    at has not passed. The verdict is its own state, so no caller can
+    mistake it for a clean cover."""
+    return {
+        "filename": filename,
+        "verdict": "not-checked",
+        "summary": ("This cover was not checked. The image library this "
+                    "check needs is not installed here."),
+        "measured": [],
+        "fixes": [],
+        "reviews": [],
+        "unchecked": ([{"label": "Everything measurable",
+                        "rule": "Nothing about this file was inspected."}]
+                      + [{"label": a, "rule": b} for a, b in UNCHECKED]),
+        "note": DSP_NOTE,
+    }
 
 
 def _result(measured, filename):

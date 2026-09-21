@@ -30,6 +30,7 @@ import live
 import live_store
 import studio
 import studio_store
+import artwork_check
 import audio_webhooks
 import homepage_edit
 import partner_os
@@ -973,6 +974,10 @@ def create_app():
         if mode in ("open", "invite"):
             return mode == "open"
         return not os.environ.get("RENDER")
+
+    # A cover larger than this is not a cover. Read with one extra byte so
+    # an oversized file is refused without being held in memory whole.
+    ARTWORK_CHECK_MAX_BYTES = 24 * 1024 * 1024
 
     _INVITE_ONLY = ("Street Banker is invitation only right now. "
                     "Ask Street Banker for an invitation, then open the link it sends you.")
@@ -4097,6 +4102,38 @@ def create_app():
                          + "?width=1024&height=1024&nologo=true&seed=%d" % seed)
         return jsonify({"ok": True, "suggestion": suggestion,
                         "image_url": image_url, "seed": seed})
+
+    @app.route("/artwork/check", methods=["POST"])
+    def artwork_cover_check():
+        """Will the stores refuse this cover? Answered before it is sent.
+
+        A rejected cover costs a release date, and the reason is almost
+        always something measurable that nobody measured. Nothing is
+        saved here: the file is read, measured and dropped.
+        """
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False,
+                            "error": "Sign in to check a cover."}), 401
+        f = request.files.get("art")
+        if f is None or not f.filename:
+            return jsonify({"ok": False,
+                            "error": "Choose an image to check."}), 400
+        raw = f.read(ARTWORK_CHECK_MAX_BYTES + 1)
+        if len(raw) > ARTWORK_CHECK_MAX_BYTES:
+            return jsonify({"ok": False,
+                            "error": "That file is larger than %d MB. A cover "
+                                     "this big is not what the stores want "
+                                     "either." % (ARTWORK_CHECK_MAX_BYTES
+                                                  // (1024 * 1024))}), 400
+        try:
+            found = artwork_check.check(raw, f.filename)
+        except Exception:
+            # A cover that cannot be measured is reported as unmeasured,
+            # never as clean, and never as a crash on the artwork page.
+            app.logger.exception("artwork check")
+            found = artwork_check.unavailable(f.filename)
+        return jsonify({"ok": True, "check": found})
 
     @app.route("/artwork/upload", methods=["POST"])
     def artwork_upload():

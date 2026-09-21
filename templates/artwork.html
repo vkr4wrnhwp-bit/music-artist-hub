@@ -296,6 +296,28 @@
 
       </section>
 
+      {#- Will the stores take it? artwork_check.py measured all of this and
+          was reachable from nowhere, so no artist ever saw it. A rejected
+          cover costs a release date, and the reason is almost always
+          something measurable that nobody measured. Nothing is saved here:
+          the file is read, measured and dropped. -#}
+      <section class="rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5">
+        <div class="plate"><span class="nm">Will the stores take it?</span><span class="rule"></span></div>
+        <p class="mt-3 text-sm font-medium text-gray-300">Check a cover before you send it to your distributor. Nothing is uploaded or kept: the file is measured here and dropped.</p>
+        <label for="cover-check-file" class="sb-btn sb-btn-secondary mt-3 inline-flex cursor-pointer">Check a cover</label>
+        <input type="file" id="cover-check-file" accept="image/png,image/jpeg,image/webp,image/tiff" class="sr-only">
+        <p id="cover-check-msg" class="mt-2 hidden text-sm font-medium text-gray-300" role="status" aria-live="polite"></p>
+        <div id="cover-check-result" class="mt-4 hidden">
+          <p id="cover-check-verdict" class="text-sm font-bold"></p>
+          <ul id="cover-check-measured" class="mt-3 space-y-2"></ul>
+          <details class="mt-4 rounded-lg border border-white/10 bg-black/30 p-3">
+            <summary class="cursor-pointer text-sm font-bold text-gray-200">What this check could not settle</summary>
+            <ul id="cover-check-unchecked" class="mt-2 space-y-2"></ul>
+            <p id="cover-check-note" class="mt-3 text-xs font-medium text-gray-300"></p>
+          </details>
+        </div>
+      </section>
+
       {#- Studio files: every upload and every saved generate wrote a file
           and listed it nowhere, so a second idea orphaned the first one
           for good. This is the listing, and the way back off the disk.
@@ -856,5 +878,83 @@
   });
 
   render();
+
+  // Will the stores take it. The states are carried by a word, never by a
+  // colour alone, and "not checked" is its own answer rather than a pass.
+  (function () {
+    const input = document.getElementById("cover-check-file");
+    if (!input) return;
+    const msg = document.getElementById("cover-check-msg");
+    const box = document.getElementById("cover-check-result");
+    const verdictEl = document.getElementById("cover-check-verdict");
+    const measuredEl = document.getElementById("cover-check-measured");
+    const uncheckedEl = document.getElementById("cover-check-unchecked");
+    const noteEl = document.getElementById("cover-check-note");
+    const WORD = {
+      pass: ["Good", "text-green-400"],
+      review: ["Worth a look", "text-sb-gold-bright"],
+      fix: ["Would be refused", "text-red-400"],
+      "not-checked": ["Not checked", "text-gray-200"]
+    };
+    function row(label, detail, state) {
+      const li = document.createElement("li");
+      li.className = "rounded-lg border border-white/10 bg-black/30 p-2.5";
+      const head = document.createElement("div");
+      head.className = "flex items-baseline gap-2";
+      const name = document.createElement("span");
+      name.className = "text-sm font-bold text-gray-200";
+      name.textContent = label;
+      head.appendChild(name);
+      if (state) {
+        const tag = document.createElement("span");
+        const w = WORD[state] || [state, "text-gray-200"];
+        tag.className = "text-xs font-bold uppercase tracking-wide " + w[1];
+        tag.textContent = w[0];
+        head.appendChild(tag);
+      }
+      li.appendChild(head);
+      const p = document.createElement("p");
+      p.className = "mt-1 text-sm font-medium text-gray-300";
+      p.textContent = detail;
+      li.appendChild(p);
+      return li;
+    }
+    input.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      msg.classList.remove("hidden");
+      msg.textContent = "Measuring " + file.name + "\u2026";
+      box.classList.add("hidden");
+      const fd = new FormData();
+      fd.append("art", file);
+      let data;
+      try {
+        const res = await fetch("/artwork/check", { method: "POST", body: fd });
+        data = await res.json();
+      } catch (err) {
+        data = null;
+      }
+      e.target.value = "";
+      if (!data || !data.ok) {
+        msg.textContent = (data && data.error) || "The check did not run. Try again.";
+        return;
+      }
+      const found = data.check;
+      msg.textContent = found.filename;
+      const w = WORD[found.verdict] || [found.verdict, "text-gray-200"];
+      verdictEl.className = "text-sm font-bold " + w[1];
+      verdictEl.textContent = found.summary;
+      measuredEl.replaceChildren();
+      (found.measured || []).forEach((m) => {
+        measuredEl.appendChild(row(m.label, m.detail, m.state));
+      });
+      uncheckedEl.replaceChildren();
+      (found.unchecked || []).forEach((u) => {
+        uncheckedEl.appendChild(row(u.label, u.rule, null));
+      });
+      noteEl.textContent = found.note || "";
+      box.classList.remove("hidden");
+    });
+  })();
 </script>
 {% endblock %}

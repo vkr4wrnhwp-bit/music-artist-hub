@@ -34,3 +34,10 @@ pypdf==6.18.1
 # (checked with `pip index versions sentry-sdk`). The [flask] extra pulls
 # blinker and the Flask integration, nothing with a C toolchain.
 sentry-sdk[flask]==2.69.2
+
+# artwork_check.py reads a cover's real dimensions, colour mode, alpha and
+# sharpness so an artist learns a store would refuse it before the store
+# does. Without this the check cannot run: it then says so and claims
+# nothing, and uploads still work, so a failed install degrades honestly
+# rather than breaking the artwork page.
+Pillow
