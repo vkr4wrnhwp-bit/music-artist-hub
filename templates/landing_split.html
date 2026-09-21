@@ -40,8 +40,8 @@
   <meta name="description" content="One sign-in opens Street Banker and all eight suites: the studio, live effects, audience, royalties, touring, company, collectibles and video.">
   <link rel="canonical" href="{{ public_base }}/">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Street Banker">
-  <meta property="og:title" content="Street Banker — One platform. Every stage.">
+  <meta property="og:site_name" content="{{ product_name }}">
+  <meta property="og:title" content="{% if brand %}{{ brand.name }}{% if brand.tagline %} · {{ brand.tagline }}{% endif %}{% else %}Street Banker — One platform. Every stage.{% endif %}">
   <meta property="og:description" content="One sign-in opens Street Banker and all eight suites.">
   <meta property="og:url" content="{{ public_base }}/">
   <meta property="og:image" content="{{ public_base }}/static/img/eight-tools-1553.jpg">

@@ -49,7 +49,13 @@ TITLE_EXEMPT = {
 }
 
 PRODUCT = re.compile(r"Street Banker|Royalty Sweep", re.I)
-TITLE_LINE = re.compile(r"\{% block title %\}.*?\{% endblock %\}|<title>.*?</title>")
+# The tab, and the card that shows when somebody shares the link. A
+# reseller's homepage previewed as the platform's, name and all,
+# because og:site_name and og:title were literals nothing read.
+TITLE_LINE = re.compile(
+    r"\{% block title %\}.*?\{% endblock %\}"
+    r"|<title>.*?</title>"
+    r"|<meta property=\"og:(?:site_name|title)\"[^>]*>")
 
 
 def _templates():
@@ -88,7 +94,9 @@ def test_the_frame_is_where_the_brand_goes_in():
     """A lock on the leaves is worth nothing if the frame stops substituting."""
     with io.open(os.path.join(TEMPLATES, "base.html"), encoding="utf-8") as fh:
         head = fh.read()
-    assert "{{ product_name }}" in head, "base.html must compose the title"
+    assert "product_name }}" in head, "base.html must compose the title"
+    assert "title_product or product_name" in head, (
+        "the two legal pages need their way out of the swap")
     assert "block title" in head
 
 
@@ -295,10 +303,16 @@ def test_an_accent_nothing_can_be_read_on_never_becomes_a_fill():
     """The save-time gate proves the accent is legible AS INK on a dark
     sidebar. It proves nothing about text sitting ON it, which is a
     different pair of colours."""
-    # Passes the 3:1 ink gate against the sidebar, but neither black nor
-    # white clears AA body text on top of it.
-    dim = "#6a6a6a"
-    assert brand_contrast.check_accent(dim, {"sidebar": "#0B0A08"})[1] == []
+    # 4.00 against the sidebar, which the save-time gate passes at AA
+    # large; 4.21 for the better of the two inks ON it, which AA body
+    # text does not. The colour first picked here was #6a6a6a, which
+    # reaches 4.60 with the light ink and is therefore perfectly safe as
+    # a fill: the test was asserting something untrue and the run caught
+    # it before the commit did.
+    dim = "#707070"
+    assert brand_contrast.check_accent(
+        dim, {"sidebar": "#0B0A08", "panel": "#131110"})[1] == []
+    assert white_label.accent_ink(dim)[1] < brand_contrast.AA_NORMAL
     assert not white_label.accent_fill_ok(dim)
     css = white_label.accent_vars({"accent": dim})
     assert "--sb-brand-accent" in css
@@ -315,8 +329,9 @@ def test_a_workable_accent_does_become_a_fill_with_ink_chosen_for_it():
 
 def test_the_screen_says_so_rather_than_silently_using_gold(tenant):
     r = tenant["admin"].post("/partner/branding",
-                             data={"display_name": "FOXGLOVE", "accent": "6a6a6a"})
-    assert "Filled buttons keep the platform's gold" in r.get_data(as_text=True)
+                             data={"display_name": "FOXGLOVE", "accent": "707070"})
+    # Jinja escapes the apostrophe on the way out, so match around it.
+    assert "Filled buttons keep the platform" in r.get_data(as_text=True)
 
 
 def test_an_unreadable_accent_is_still_refused_outright(tenant):
@@ -327,9 +342,30 @@ def test_an_unreadable_accent_is_still_refused_outright(tenant):
 
 # --- leak 5: the logo --------------------------------------------------------
 
-PNG = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
-       b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00"
-       b"\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82")
+def _png(width=8, height=8):
+    """A real PNG, built rather than pasted.
+
+    The first version of this was a byte string that looked like a PNG
+    and was not one. Pillow refused it, the upload tests took the
+    refusal path while asserting the success path, and three of them
+    failed - which is the gate working. Built here, so the test cannot
+    be wrong about it and needs no Pillow of its own.
+    """
+    import struct
+    import zlib
+
+    def chunk(tag, payload):
+        body = tag + payload
+        return (struct.pack(">I", len(payload)) + body
+                + struct.pack(">I", zlib.crc32(body) & 0xffffffff))
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    rows = b"".join(b"\x00" + b"\x4f\xa3\xd1" * width for _ in range(height))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
+            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
+PNG = _png()
 
 
 def _upload(client, data, name="mark.png"):
@@ -480,3 +516,46 @@ def test_brand_text_leaves_the_platform_alone():
     assert white_label.brand_text("Street Banker - Beats") == "Street Banker - Beats"
     assert white_label.brand_text("") == ""
     assert white_label.brand_text(None) is None
+
+
+# --- the lock the static one cannot be ---------------------------------------
+
+def test_no_rendered_tab_names_the_platform_to_a_tenants_artist(tenant):
+    """A title built from config values carries no literal for a template
+    scan to find. The homepage was exactly that: `{{ config.brand }}` put
+    "Royalty Sweep" in a reseller's front-door tab and the file-reading
+    lock above saw nothing wrong. This one renders and looks."""
+    anon = tenant["app"].test_client()
+    public = ["/", "/product-tour", "/catalog-sweep", "/lanes"]
+    signed_in = ["/overview", "/settings", "/royalties", "/releases", "/vault"]
+    bad = []
+    for path in public:
+        page = anon.get(path, headers={"Host": tenant["domain"]},
+                        follow_redirects=True).get_data(as_text=True)
+        title = _title(page)
+        if PRODUCT.search(title):
+            bad.append("%s -> %s" % (path, title))
+    for path in signed_in:
+        page = tenant["artist"].get(path, headers={"Host": tenant["domain"]},
+                                    follow_redirects=True).get_data(as_text=True)
+        title = _title(page)
+        if PRODUCT.search(title):
+            bad.append("%s -> %s" % (path, title))
+    assert not bad, "the platform's name reached a tenant's tab:\n  " + "\n  ".join(bad)
+
+
+def test_the_share_card_is_the_tenants_too(tenant):
+    """Wherever a reseller's artists post their homepage link."""
+    page = tenant["app"].test_client().get(
+        "/", headers={"Host": tenant["domain"]},
+        follow_redirects=True).get_data(as_text=True)
+    card = re.findall(r'<meta property="og:(?:site_name|title)"[^>]*>', page)
+    assert card, "no share card at all"
+    for tag in card:
+        assert "Street Banker" not in tag, tag
+        assert "FOXGLOVE" in tag, tag
+
+
+def test_street_bankers_own_share_card_is_unchanged(application):
+    page = application.test_client().get("/", follow_redirects=True).get_data(as_text=True)
+    assert '<meta property="og:site_name" content="Street Banker">' in page

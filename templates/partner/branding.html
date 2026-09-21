@@ -81,7 +81,7 @@
         {% if brand and brand.logo %}
           <span class="mt-2 flex items-center gap-3 rounded-xl bg-sb-ground p-3">
             <img src="{{ brand.logo }}" alt="Your current logo"
-                 class="max-h-12 w-auto">
+                 class="max-h-16 w-auto">
             <span class="text-sm text-gray-300">This is on your sidebar and your sign-in page now.</span>
           </span>
         {% endif %}
@@ -110,7 +110,7 @@
       <h2 class="sb-label sb-label-gold">How it reads</h2>
       <div class="mt-3 flex items-center gap-3 rounded-xl bg-sb-ground p-4">
         {% if brand.logo %}
-          <img src="{{ brand.logo }}" alt="{{ brand.name }}" class="max-h-12 w-auto shrink-0">
+          <img src="{{ brand.logo }}" alt="{{ brand.name }}" class="max-h-16 w-auto shrink-0">
         {% else %}
           <svg width="34" height="20" viewBox="0 0 40 24" fill="none" stroke="currentColor"
                stroke-width="1.6" stroke-linejoin="round" class="shrink-0 text-sb-gold-bright"
