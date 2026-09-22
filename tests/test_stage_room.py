@@ -186,7 +186,14 @@ def test_an_empty_account_is_told_in_words():
     page = c.get("/room/stage").get_data(as_text=True)
     assert ">Stage</h1>" in page
     assert "What the stage needs to know before you get there." in page
-    assert "No show saved yet" in page
+    # Owner, 2026-09-22: a plate whose every window reads "Not measured"
+    # is worse than no plate, so an account that has measured nothing
+    # now meets the STANDBY - words about what will fill each window.
+    # The zero rule is unchanged and still checked below.
+    assert "Programme the show before you get there" in page
+    assert "Open the Light Designer" in page
+    assert "Looks you programme against the song." in page
+    assert "No show saved yet" not in page, "standby replaces the absences"
     # The plot no longer has a "nothing saved" sentence of its own: the real
     # designer is on the screen, and its empty state is an empty stage with
     # the controls to fill it, which is better than a sentence.
@@ -220,8 +227,15 @@ def test_the_plot_on_this_screen_is_the_real_editor():
     assert "sp-items" in body, "and its controls"
     assert "sp-inputs" in body, "and its input list"
     assert "stageplot.js" in body, "driven by the editor's own script"
-    # and not a second input list beside the designer's
-    assert "sg-in" not in body, "one instrument, one input list"
+    # and not a second input list beside the designer's. Matched on what
+    # the rule MEANS rather than on the prefix "sg-in", which also caught
+    # sg-invite - the blueprint that fills THE STAGE window when nothing
+    # is programmed, and not an input list at all.
+    import re as _re
+    mine = {c for group in _re.findall(r'class="([^"]*)"', body)
+            for c in group.split() if c.startswith("sg-")}
+    assert not [c for c in mine if "input" in c], (
+        "one instrument, one input list: %s" % sorted(mine))
 
 
 def test_a_seat_without_the_plot_area_sees_it_but_cannot_change_it():

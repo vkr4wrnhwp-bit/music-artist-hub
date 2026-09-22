@@ -81,3 +81,25 @@
   .an-read-v { grid-column: 1 / -1; }
   .an-read-w { grid-column: 1; }
 }
+
+/* ---- the plate -------------------------------------------------------
+   Position and type come from room-kit.css (.rk-pl*). Only the trend line
+   inside the long upper screen is particular to this analyser. */
+
+.an-pl { margin-top: 18px; }
+.an-pl-trend .rk-pl-art { width: 100%; height: 100%; }
+.an-pl-trend .an-plot { width: 100%; height: 100%; }
+.an-pl-none {
+  margin: 0; font-family: var(--sb-display); font-weight: 800;
+  color: var(--sb-ink); font-size: clamp(11px, 1.4cqw, 24px);
+}
+.an-pl-none-s {
+  margin: 0; max-width: 58%; line-height: 1.45; color: var(--sb-ink-2);
+  font-size: clamp(8px, .9cqw, 13px);
+}
+.an-pl-foot { margin-top: 10px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+
+@media (max-width: 560px) {
+  .an-pl-none { font-size: 17px; }
+  .an-pl-none-s { font-size: 13px; max-width: none; }
+}

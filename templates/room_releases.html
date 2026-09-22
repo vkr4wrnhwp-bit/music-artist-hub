@@ -2,7 +2,7 @@
 
 {% block title %}Releases{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=3">
   <link rel="stylesheet" href="/static/css/releases-room.css?v=3">
 {% endblock %}
 
@@ -80,7 +80,11 @@
           {% if rr.campaign %}
           <a class="rk-cta" href="/links/{{ rr.campaign.id }}/edit">{{ icon("pen", "rk-ico") }}Edit Release Plan</a>
           {% else %}
+          {#- Hidden while the plate is in standby: its gold door carries
+              the same words and the same address. -#}
+          {% if not rr.idle %}
           <a class="rk-cta" href="/links/new">{{ icon("pen", "rk-ico") }}Create a release</a>
+          {% endif %}
           {% endif %}
         </div>
       </div>
@@ -88,30 +92,75 @@
   </section>
 
   {# ---- the three figures ---------------------------------------------- #}
-  <section class="rk-figures" aria-label="Where this release stands">
-    {% for f in rr.headline %}
-    <div class="rk-fig">
-      <p class="rk-fig-n{% if f.value == "Not measured" %} rk-fig-n--none{% endif %}">{{ f.value }}</p>
-      <p class="rk-fig-l">{{ f.label }}</p>
-      {% if f.sub %}<p class="rk-fig-s">{{ f.sub }}</p>{% endif %}
+  {# ---- the plate: one photograph, four windows ------------------------
+       The hardware is a photograph (static/img/releases-plate.webp) and
+       only the readings are drawn on it, positioned as fractions held in
+       releases_room.PLATE. The plate silkscreens CHECKS, DAYS OUT, TASKS
+       and THE PLAN, so the markup carries those names for a screen reader
+       alone. #}
+  <section class="rk-pl rl-pl" aria-label="Where this release stands">
+    <img class="rk-pl-img" src="/static/img/releases-plate.webp?v=1" alt=""
+         width="1859" height="846" decoding="async">
+
+    {% if rr.idle %}
+    {#- Nothing measured here yet, so the instrument explains itself
+        rather than printing blanks (owner, 2026-09-22). Words only: no
+        example figure ever sits where this artist's own will appear. -#}
+    <a class="rk-pl-win is-standby" style="{{ rr.standby.lead.box }}; --n: 0"
+       href="{{ rr.standby.lead.href }}">
+      {#- The name the plate prints in metal: for a screen reader, and for
+          the phone, where the photograph steps aside. -#}
+      <p class="rk-pl-sr">Days out</p>
+      <span class="rk-pl-standby rk-pl-standby--lead">
+        <b>{{ rr.standby.lead.title }}</b>
+        <span>{{ rr.standby.lead.line }}</span>
+        <span class="rk-pl-door">{{ rr.standby.lead.cta }}</span>
+      </span>
+    </a>
+    {% for w in rr.standby.windows %}
+    <div class="rk-pl-win is-standby" style="{{ w.box }}; --n: {{ w.n }}">
+      {#- The name is here for a screen reader, and because under 560px the
+          photograph goes and this is the ONLY thing naming the card. No
+          visible title: the plate prints that in metal. -#}
+      <p class="rk-pl-sr">{{ w.name }}</p>
+      <span class="rk-pl-standby"><span>{{ w.line }}</span></span>
     </div>
     {% endfor %}
-    <div class="rk-fig-note">
-      {{ icon("note", "rk-ico") }}
-      <div>
-        {% if rr.sample %}
-        <b>Sample data</b>
-        <p>The campaign details, dates and figures shown here are the example,
-           for demonstration only. They are not this account's records.</p>
-        {% else %}
-        <b>A blank is not a zero</b>
-        <p>A figure nothing has measured yet says so in words. Nothing here says
-           a release was delivered &mdash; that is the distributor's to confirm,
-           and we cannot see it.</p>
-        {% endif %}
-      </div>
+    {% else %}
+    {% for w in rr.windows %}
+    <div class="rk-pl-win{% if w.key == "days" %} rl-pl-days{% endif %}" style="{{ w.box }}">
+      <p class="rk-pl-sr">{{ w.label }}</p>
+      <p class="rk-pl-n{% if w.value == "Not measured" %} is-none{% endif %}">{{ w.value }}</p>
+      {% if w.sub %}<p class="rk-pl-s">{{ w.sub }}</p>{% endif %}
+    </div>
+    {% endfor %}
+
+    {# the ribbon: the next dated posts, soonest first #}
+    <div class="rk-pl-win rl-pl-plan" style="{{ rr.plan_box }}">
+      <p class="rk-pl-sr">The plan</p>
+      {% if rr.ribbon %}
+      <ol class="rl-ribbon">
+        {% for r in rr.ribbon %}
+        <li><b>{{ r.when }}</b><span>{{ r.what }}</span></li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <p class="rl-ribbon-none">Nothing scheduled yet &mdash; a rollout puts its dated posts here.</p>
+      {% endif %}
+    {% endif %}
     </div>
   </section>
+  <p class="rk-foot rl-pl-foot">
+    {#- Written as label-then-figure, so it does not have to agree with a
+        number it cannot see: "1 scheduled drops" was the first cut. -#}
+    {%- if not rr.idle %}{{ rr.drops.label }}: <b>{{ rr.drops.value }}</b>{% if rr.drops.sub %} ({{ rr.drops.sub|lower }}){% endif %}. {% endif -%}
+    {% if rr.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>
+    The campaign details, dates and figures here are the example, not this
+    account's records.
+    {% else %}A figure nothing has measured yet says so in words. Nothing here
+    says a release was delivered &mdash; that is the distributor's to confirm,
+    and we cannot see it.{% endif %}
+  </p>
 
   {# ---- the arc ---------------------------------------------------------
        The same circle every room uses (owner, 2026-09-22: "those round

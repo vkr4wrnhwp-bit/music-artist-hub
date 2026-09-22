@@ -2,7 +2,7 @@
 
 {% block title %}Analytics{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=3">
   <link rel="stylesheet" href="/static/css/analytics-room.css?v=1">
 {% endblock %}
 
@@ -74,30 +74,83 @@
   </section>
 
   {# ---- the three figures ---------------------------------------------- #}
-  <section class="rk-figures" aria-label="What this account measures">
-    {% for f in an.figures %}
-    <div class="rk-fig">
-      <p class="rk-fig-l an-fig-l">{{ f.label }}</p>
-      <p class="rk-fig-s">{{ f.source }}</p>
-      <p class="rk-fig-n{% if not f.measured %} rk-fig-n--none{% endif %} an-fig-n">{{ f.value }}</p>
-      {% if f.why %}<p class="rk-fig-s">{{ f.why }}</p>{% endif %}
+  {# ---- the plate: one photograph, four windows ------------------------
+       The hardware is a photograph (static/img/analytics-plate.webp) and
+       only the readings are drawn on it, positioned as fractions held in
+       analytics_room.PLATE. The long upper screen is the trend line; the
+       three below are the readings. The plate silkscreens every name, so
+       the markup carries them for a screen reader alone. #}
+  <section class="rk-pl an-pl"
+           aria-label="What this account measures, and how it moved">
+    <img class="rk-pl-img" src="/static/img/analytics-plate.webp?v=1" alt=""
+         width="1859" height="846" decoding="async">
+
+    {% if an.idle %}
+    {#- Nothing measured here yet, so the instrument explains itself
+        rather than printing blanks (owner, 2026-09-22). Words only: no
+        example figure ever sits where this artist's own will appear. -#}
+    <a class="rk-pl-win is-standby" style="{{ an.standby.lead.box }}; --n: 0"
+       href="{{ an.standby.lead.href }}">
+      {#- The name the plate prints in metal: for a screen reader, and for
+          the phone, where the photograph steps aside. -#}
+      <p class="rk-pl-sr">The trend</p>
+      <span class="rk-pl-standby rk-pl-standby--lead">
+        <b>{{ an.standby.lead.title }}</b>
+        <span>{{ an.standby.lead.line }}</span>
+        <span class="rk-pl-door">{{ an.standby.lead.cta }}</span>
+      </span>
+    </a>
+    {% for w in an.standby.windows %}
+    <div class="rk-pl-win is-standby" style="{{ w.box }}; --n: {{ w.n }}">
+      {#- The name is here for a screen reader, and because under 560px the
+          photograph goes and this is the ONLY thing naming the card. No
+          visible title: the plate prints that in metal. -#}
+      <p class="rk-pl-sr">{{ w.name }}</p>
+      <span class="rk-pl-standby"><span>{{ w.line }}</span></span>
     </div>
     {% endfor %}
-    <div class="rk-fig-note">
-      {{ icon("note", "rk-ico") }}
-      <div>
-        {% if an.sample %}
-        <b>Sample data</b>
-        <p>Every figure here is generated for the example, not read from this
-           account's own records.</p>
-        {% else %}
-        <b>Every figure names who measured it and when</b>
-        <p>A figure nobody measured says so &mdash; never 0. A zero would be a
-           measurement somebody took.</p>
-        {% endif %}
+    {% else %}
+    {# the oscilloscope: the line over time, or the reason there is none #}
+    <div class="rk-pl-win an-pl-trend" style="{{ an.trend_box }}">
+      <p class="rk-pl-sr">The trend</p>
+      {% if an.chart.can_draw %}
+      {#- A plain polyline over the readings on file. The axis is the
+          measured range, so the line is never flattered by a zero
+          baseline nobody measured. -#}
+      <div class="rk-pl-art">
+        <svg class="an-plot" viewBox="0 0 600 180" preserveAspectRatio="none" role="img"
+             aria-label="{{ an.chart.label }}, from {{ an.chart.provider }}">
+          <polyline class="an-plot-line" fill="none" points="
+            {%- for p in an.chart.points -%}
+              {{ (600 * loop.index0 / ((an.chart.points|length - 1) or 1))|round(1) }},{{ (170 - 160 * ((p.value - an.chart.low) / ((an.chart.high - an.chart.low) or 1)))|round(1) }}
+            {% endfor -%}"/>
+        </svg>
       </div>
+      {% else %}
+      <p class="an-pl-none">{{ an.chart.label }}</p>
+      <p class="an-pl-none-s">{{ an.chart.why }}</p>
+      {% endif %}
     </div>
+
+    {# the three readings #}
+    {% for w in an.windows %}
+    <div class="rk-pl-win" style="{{ w.box }}">
+      <p class="rk-pl-sr">{{ w.label }}</p>
+      <p class="rk-pl-n{% if not w.measured %} is-none{% endif %}">{{ w.value }}</p>
+      <p class="rk-pl-s">{{ w.why or w.source }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
   </section>
+  <p class="rk-foot an-pl-foot">
+    {% if an.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>
+    Every figure here is generated for the example, not read from this account's own records.
+    {% else %}
+    {%- if an.chart.can_draw %}{{ an.chart.points|length }} reading{{ "" if an.chart.points|length == 1 else "s" }} on file, from {{ an.chart.points[0].day }} to {{ an.chart.points[-1].day }}, from {{ an.chart.provider }}. {% endif -%}
+    Every figure names who measured it and when. A figure nobody measured says
+    so &mdash; never 0, because a zero would be a measurement somebody took.
+    {% endif %}
+  </p>
 
   {# ---- the measurement path ------------------------------------------- #}
   <section class="rk-panel" aria-labelledby="an-path-h">
@@ -142,34 +195,6 @@
         {% endfor %}
       </div>
 
-      {# ---- the line over time ----------------------------------------- #}
-      <div class="an-chart">
-        <div class="rk-panel-head an-chart-head">
-          <div>
-            <h3 class="rk-h an-h3" id="an-chart-h">{{ an.chart.label }}</h3>
-            <p class="rk-said">From {{ an.chart.provider }}</p>
-          </div>
-        </div>
-        {% if an.chart.can_draw %}
-        {#- A plain polyline over the readings on file. The axis is the
-            measured range, so the line is never flattered by a zero
-            baseline nobody measured. -#}
-        <svg class="an-plot" viewBox="0 0 600 180" preserveAspectRatio="none" role="img"
-             aria-labelledby="an-chart-h">
-          <polyline class="an-plot-line" fill="none" points="
-            {%- for p in an.chart.points -%}
-              {{ (600 * loop.index0 / ((an.chart.points|length - 1) or 1))|round(1) }},{{ (170 - 160 * ((p.value - an.chart.low) / ((an.chart.high - an.chart.low) or 1)))|round(1) }}
-            {% endfor -%}"/>
-        </svg>
-        <p class="rk-foot">{{ an.chart.points|length }} reading{{ "" if an.chart.points|length == 1 else "s" }} on file,
-          from {{ an.chart.points[0].day }} to {{ an.chart.points[-1].day }}.</p>
-        {% else %}
-        <div class="an-plot-none">
-          {{ icon("note", "rk-ico") }}
-          <p>{{ an.chart.why }}</p>
-        </div>
-        {% endif %}
-      </div>
     </section>
 
     {# ---- what your numbers say ---------------------------------------- #}

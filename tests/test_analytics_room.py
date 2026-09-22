@@ -10,6 +10,7 @@ it will NOT say:
   nothing on the screen is read live from a provider
   income is not here at all (owner: "let analytics stay about measurements")
 """
+import re
 import uuid
 from datetime import date, timedelta
 
@@ -184,10 +185,35 @@ def test_an_empty_account_is_told_in_words_and_shown_no_zero_figures():
     page = c.get("/room/analytics").get_data(as_text=True)
     assert ">Analytics</h1>" in page, "the title is the room's name; owner 2026-09-22: no 'Room' behind it"
     assert "What is measured, by whom, and how it moved." in page
-    assert page.count("rk-fig-n--none") == 3, (
-        "three figures, none of them measurable on an account with nothing")
+    # The strip became a plate on 2026-09-22, so an unmeasured reading
+    # wears the kit's .rk-pl-n.is-none rather than the old strip class.
+    # The rule is unchanged: nothing here reads 0, because a zero would be
+    # a measurement somebody took.
+    # Owner, 2026-09-22: a plate whose every window reads "Not measured"
+    # is worse than no plate, so an account that has measured nothing
+    # now meets the STANDBY - words about what will fill each window.
+    # The zero rule is unchanged and still checked below.
+    assert "Watch one number move" in page
+    assert "Pin your artist" in page
+    assert "Every open of your smart links." in page
+    assert page.count("is-standby") == 4, "the trend screen and three readings"
+    assert "rk-pl-n" not in page, "no reading is drawn while nothing is measured"
+    assert not re.search(r">\s*0\s*<", page.split("rk-pl")[1][:2000]), "and no zero"
     assert "Not pinned yet" in page
-    assert "Needs two readings on different days" in page
+    # "Needs two readings on different days" belongs to the PARTLY filled
+    # case - readings stored, but not yet on two days. On an account with
+    # nothing at all the standby says something more useful than a reason
+    # the artist cannot act on, so it is asserted where it happens.
+    assert "Needs two readings on different days" not in page
+
+
+def test_the_reason_a_line_cannot_be_drawn_is_shown_once_there_are_readings():
+    """The chart's own explanation, in the state it belongs to: something
+    measured, but not yet on two different days."""
+    got = ar.chart(
+        [{"day": "2026-03-01", "followers": 1200}], "followers", "Followers", "Spotify")
+    assert got["can_draw"] is False
+    assert "two readings on different days" in got["why"].lower()
 
 
 def test_the_room_never_shows_income(monkeypatch):

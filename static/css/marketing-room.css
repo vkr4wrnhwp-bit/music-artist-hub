@@ -170,3 +170,31 @@
 @media (prefers-reduced-motion: reduce) {
   .mk-city-list { scroll-behavior: auto; }
 }
+/* ---- the plate -------------------------------------------------------
+   Position and type come from room-kit.css (.rk-pl*). Only the tall
+   story window is particular to this unit. */
+
+.mk-pl { margin-top: 18px; }
+.mk-pl-story { gap: 5%; }
+.mk-pl-head {
+  margin: 0; font-family: var(--sb-display); font-weight: 800;
+  color: var(--sb-ink); line-height: 1.15;
+  font-size: clamp(11px, 1.35cqw, 23px);
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mk-pl-none {
+  margin: 0; font-family: var(--sb-display); font-weight: 800;
+  color: var(--sb-ink); font-size: clamp(11px, 1.3cqw, 22px);
+}
+.mk-pl-none-s {
+  margin: 0; line-height: 1.45; color: var(--sb-ink-2);
+  font-size: clamp(8px, .88cqw, 13px);
+}
+.mk-pl-foot { margin-top: 10px; }
+
+@media (max-width: 560px) {
+  .mk-pl-head { font-size: 19px; -webkit-line-clamp: 3; }
+  .mk-pl-none { font-size: 18px; }
+  .mk-pl-none-s { font-size: 13px; }
+}

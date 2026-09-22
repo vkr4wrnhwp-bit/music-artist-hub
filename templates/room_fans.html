@@ -2,7 +2,7 @@
 
 {% block title %}Fans{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=3">
   <link rel="stylesheet" href="/static/css/fan-room.css?v=7">
 {% endblock %}
 
@@ -68,7 +68,14 @@
             {% endfor %}
           </div>
         </details>
+        {#- Hidden while the plate is in standby: its gold door goes to the
+            same /links/new, and two identical calls to action one band
+            apart is the duplicate the owner asked to watch for. The plate
+            carries the invitation; this is the standing action once there
+            is something to act on. -#}
+        {% if not fr.idle %}
         <a class="fr-cta" href="/links/new">{{ icon("rocket", "fr-ico") }}Launch fan campaign</a>
+        {% endif %}
       </div>
     </div>
 
@@ -90,7 +97,32 @@
     <img class="rk-pl-img" src="/static/img/fans-plate.webp?v=1" alt=""
          width="1860" height="846" decoding="async">
 
-    {# the big window: the constellation, or the invitation that fills it #}
+    {% if fr.idle %}
+    {#- Nothing captured at all, so the instrument explains itself rather
+        than printing four blanks (owner, 2026-09-22). Words only: no
+        example figure ever sits where this artist's own will appear. The
+        bar warms through in sequence - see .rk-pl-win.is-standby. -#}
+    <a class="rk-pl-win is-standby" style="{{ fr.standby.lead.box }}; --n: 0"
+       href="{{ fr.standby.lead.href }}">
+      <p class="rk-pl-sr">{{ fr.standby.lead.name }}</p>
+      <span class="rk-pl-standby rk-pl-standby--lead">
+        <b>{{ fr.standby.lead.title }}</b>
+        <span>{{ fr.standby.lead.line }}</span>
+        <span class="rk-pl-door">{{ fr.standby.lead.cta }}{{ icon("arrow", "fr-ico fr-ico--sm") }}</span>
+      </span>
+    </a>
+    {% for w in fr.standby.windows %}
+    <div class="rk-pl-win is-standby" style="{{ w.box }}; --n: {{ w.n }}">
+      <p class="rk-pl-sr">{{ w.name }}</p>
+      {#- No title: the plate prints this window's name in metal. -#}
+      <span class="rk-pl-standby">
+        <span>{{ w.line }}</span>
+      </span>
+    </div>
+    {% endfor %}
+
+    {% else %}
+    {# the big window: the constellation this account's own fans make #}
     <div class="rk-pl-win fr-pl-room" style="{{ fr.room_box }}">
       <p class="rk-pl-sr">The room</p>
       {% if fr.pulse %}
@@ -109,12 +141,10 @@
           <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r * 3.2 }}" fill="url(#fr-glow)"/>
           <circle class="fr-map-dot{% if d.label %} is-big{% endif %}" cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r }}"/>
           {% endfor %}
-          {#- The names, IN the viewBox rather than positioned over it. The
-              window is not the map's own aspect, so the drawing letterboxes
-              inside its glass; a label placed as a percentage of the window
-              would sit a few pixels off its dot, and the whole point of a
-              named dot is that it points at something. In viewBox units it
-              cannot drift. -#}
+          {#- The names, IN the viewBox rather than positioned over it: the
+              window is not the map's aspect, so the drawing letterboxes
+              inside its glass and a label placed as a percentage of the
+              window would sit a few pixels off its dot. -#}
           {% for d in fr.pulse.dots if d.label %}
           <text class="fr-map-name" x="{{ (d.x - 9) if d.right else (d.x + 9) }}" y="{{ d.y - 1 }}"
                 text-anchor="{{ "end" if d.right else "start" }}">{{ d.city }}</text>
@@ -124,7 +154,6 @@
         </svg>
       </div>
       {% else %}
-      {#- Not an empty box: the window says what will fill it and how. -#}
       <p class="fr-pl-none">No fan cities yet</p>
       <p class="fr-pl-none-s">Cities arrive with your smart links, and from the
         city column of a list you import.</p>
@@ -139,7 +168,12 @@
       <p class="rk-pl-s{% if w.tone %} {{ w.tone }}{% endif %}">{{ w.sub }}</p>
     </div>
     {% endfor %}
+    {% endif %}
   </section>
+  {#- The glossary belongs to the readings. In standby the windows are
+      already saying what each one means, so printing it again underneath
+      says everything twice. -#}
+  {% if not fr.idle %}
   <p class="rk-foot fr-pl-foot">
     {#- The Live / Sample mark. It used to sit in the head of the map panel;
         that panel folded into the plate on 2026-09-22 and the mark has to
@@ -152,6 +186,7 @@
     Reachable counts fans with an address we have not seen bounce or unsubscribe.
     New counts arrivals that did not come from an import.
   </p>
+  {% endif %}
 
   {% if fr.showcase %}
   <p class="fr-showcase"><b>Sample data.</b> This is the demo account: every figure here is generated for the example.</p>

@@ -41,7 +41,11 @@ def test_an_empty_account_is_told_how_to_start_not_shown_a_crowd():
     body = c.get("/room/fans").get_data(as_text=True)
     assert ">Fans</h1>" in body
     assert "Bring in the fans you already have" in body
-    assert "No fan cities yet" in body
+    # The plate explains itself on an empty account now (owner,
+    # 2026-09-22), so the map's own empty sentence is not reached: the
+    # constellation branch only runs once there is something to draw.
+    assert "Turn listeners into a list you own" in body
+    assert "Launch a smart link" in body
     for gone in MOCKUP_ONLY:
         assert gone not in body, gone
 
@@ -232,10 +236,16 @@ def test_the_readings_survive_a_phone_losing_the_photograph():
     import re
     css = io.open("static/css/room-kit.css", encoding="utf-8").read()
     code = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
-    narrow = code.split("@media (max-width: 560px)")[-1]
-    assert ".rk-pl-img { display: none; }" in narrow
-    assert not re.search(r"\.rk-pl-win[^{]*\{[^}]*display:\s*none", narrow), (
-        "the readings must survive the plate")
+    # The sheet carries more than one 560px block now (the plate's, and
+    # the standby's), so this reads every one of them rather than
+    # whichever happens to be last.
+    blocks = code.split("@media (max-width: 560px)")[1:]
+    assert blocks, "no narrow block at all"
+    assert any(".rk-pl-img { display: none; }" in b for b in blocks), (
+        "the photograph steps aside on a phone")
+    for b in blocks:
+        assert not re.search(r"\.rk-pl-win[^{:]*\{[^}]*display:\s*none", b), (
+            "the readings must survive the plate")
 
 
 def test_the_plate_has_a_container_context_and_is_never_sized_off_its_height():
@@ -266,7 +276,26 @@ def test_the_plate_keeps_the_live_or_sample_mark():
     into the plate. The mark is what stops a demo account's generated
     audience being read as a real one, so it moved with the map rather
     than going out with it."""
-    c, _uid = _account()
+    c, uid = _account()
+    # It belongs to the READINGS, so it appears once there are some. In
+    # standby there is no figure on the plate to mark as live or as an
+    # example, and the foot that carries it is not drawn at all.
+    empty = c.get("/room/fans").get_data(as_text=True)
+    assert "fr-pl-foot" not in empty, "nothing to mark while the plate is in standby"
+    mls.upsert_fan(uid, "one@example.net", "", name="One")
     body = c.get("/room/fans").get_data(as_text=True)
     foot = body.split('class="rk-foot fr-pl-foot"', 1)[1].split("</p>", 1)[0]
     assert "fr-mark" in foot and "Live" in foot
+
+
+def test_the_map_says_so_when_fans_exist_but_none_could_be_placed():
+    """The state between the two the plate shows: fans on file, so the room
+    is NOT in standby, but no city the map can plot. It had no cover left
+    after the standby took over the empty case, and it is the state a real
+    account reaches first - a list import with no city column."""
+    c, uid = _account()
+    mls.upsert_fan(uid, "nowhere@example.net", "", name="No City")
+    body = c.get("/room/fans").get_data(as_text=True)
+    assert "is-standby" not in body, "a fan on file is not an empty room"
+    assert "No fan cities yet" in body
+    assert "Cities arrive with your smart links" in body

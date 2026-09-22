@@ -324,6 +324,36 @@ def box(key):
     return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
 
 
+# STANDBY: what each window will hold, for an account that has measured
+# nothing here yet (owner, 2026-09-22: "animating these things and making
+# them explain about what the room is doing is a better move than filling
+# it in with data that, if someone hasn't uploaded anything yet, is
+# blank").
+#
+# WORDS ONLY - never an example figure. A demonstration number sitting
+# where the artist's own will appear is the defect this product refuses.
+# And nothing here repeats what the plate silkscreens: the photograph
+# already prints each window's name in metal.
+STANDBY_LINES = [('cues', 'Looks you programme against the song.'), ('channels', 'What your rig is patched to.'), ('passport', 'The record the venue reads before you arrive.')]
+STANDBY_LEAD = ('stage', 'Programme the show before you get there', 'The Light Designer writes looks against the song, the Stage Plot draws the backline and the input list, and the Passport is the technical record you send the venue ahead of the day.', 'Open the Light Designer', '/lights')
+
+
+def standby():
+    """The windows as an introduction rather than a row of blanks."""
+    # The name the PLATE prints in metal. Carried for a screen reader,
+    # and because under 560px the photograph goes and this becomes the
+    # only thing naming each card.
+    names = {'cues': 'Cues', 'channels': 'Channels', 'passport': 'Passport version'}
+    out = {"windows": [{"key": k, "box": box(k), "line": line, "n": i,
+                        "name": names.get(k, "")}
+                       for i, (k, line) in enumerate(STANDBY_LINES, start=1)]}
+    title, line, cta, href = STANDBY_LEAD[1:]
+    out["lead"] = {"box": box(STANDBY_LEAD[0]), "n": 0, "title": title,
+                   "line": line, "cta": cta, "href": href}
+
+    return out
+
+
 def plate_windows(rows):
     """figures() again, each one carrying the window it is printed in.
 
@@ -378,6 +408,10 @@ def build(show, plot_state, plot_image, version, cards,
         # The plate: the same readings, each on its own glass.
         "windows": plate_windows(figures(show, the_rig, version)),
         "stage_box": box("stage"),
+        # No show and nothing patched: the desk explains what it programmes
+        # rather than printing three absences.
+        "idle": not show and not the_rig["fixtures"],
+        "standby": standby(),
         "path": path(show, the_rig, the_plot, version),
         "tiles": tiles,
         # The mark is literal: it appears when this account is looking at

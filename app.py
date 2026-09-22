@@ -5080,7 +5080,15 @@ def create_app():
         # one figure on this screen that is always available.
         try:
             counts = mls.account_event_counts(user["id"])
+            # BOTH spellings. Events are written as "page_view" now, but
+            # older rows carry "pageview" and two other places in this file
+            # already sum the pair. Counting one of them here made Analytics
+            # disagree with Artist Pulse - the page its own head band sends
+            # you to - about the same number. Found by the room audit,
+            # 2026-09-22.
             visits = counts.get("page_view")
+            if visits is not None or counts.get("pageview") is not None:
+                visits = (counts.get("page_view") or 0) + (counts.get("pageview") or 0)
         except Exception:
             visits = None
 

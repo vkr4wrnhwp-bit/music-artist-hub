@@ -157,8 +157,14 @@ def test_an_empty_account_is_told_in_words_and_shown_no_zero_figures():
     c, _uid = _account()
     page = c.get("/room/releases").get_data(as_text=True)
     assert ">Releases</h1>" in page
-    assert page.count("Not measured") == 3, (
-        "three figures, none of them measurable on an account with nothing")
+    # Owner, 2026-09-22: a plate whose every window reads "Not measured"
+    # is worse than no plate, so an account that has measured nothing
+    # now meets the STANDBY - words about what will fill each window.
+    # The zero rule is unchanged and still checked below.
+    assert page.count("is-standby") == 4
+    assert "Count down to the drop" in page
+    assert "Create a release" in page
+    assert "rk-pl-n" not in page, "no reading is drawn while nothing is measured"
     assert "Nothing is being checked yet." in page
     assert "No release chosen." in page
     assert "Nothing is scheduled." in page

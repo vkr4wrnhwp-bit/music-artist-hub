@@ -345,8 +345,14 @@ def test_an_empty_account_opens_on_the_unit_and_prints_no_nought():
     c, _uid = _account()
     body = _room(c.get("/room/business").get_data(as_text=True))
     assert "business-plate.webp" in body, "the photographed unit is always there"
-    figures = re.findall(r'class="bz-fig[^"]*">([^<]*)', body)
-    assert figures == ["Not measured"] * 4, "all four readings, in words"
+    # Owner, 2026-09-22: a plate whose every window reads "Not measured"
+    # is worse than no plate, so an account that has measured nothing
+    # now meets the STANDBY - words about what will fill each window.
+    # The zero rule is unchanged and still checked below.
+    assert body.count("is-standby") == 3, "three windows, all explaining"
+    assert "What your statements actually said." in body
+    assert "Upload a statement" in body
+    assert "bz-fig" not in body, "no reading is drawn while nothing is measured"
     assert not re.search(r"\$\s?0\b", body), "a nought would be a claim"
     assert "rk-calm" not in body or "Nothing open." in body
 
@@ -385,7 +391,10 @@ def test_the_markup_never_prints_the_plate_s_own_silkscreen():
                  "Actual unattributed", "Estimated missing"):
         for hit in re.finditer(re.escape(">" + word), unit):
             before = unit[:hit.start()].rsplit("<", 1)[-1]
-            assert 'class="bz-sr"' in before, (
+            # Either screen-reader class: this room's own bz-sr on the
+            # readings, and the kit's rk-pl-sr on the standby windows.
+            # They are the same device under two prefixes.
+            assert ('class="bz-sr"' in before or 'class="rk-pl-sr"' in before), (
                 '"%s" is printed on the plate; the markup prints it again' % word)
 
 
@@ -432,3 +441,27 @@ def test_the_room_never_claims_money_will_be_recovered():
     for claim in ("you will recover", "guaranteed", "owed to you",
                   "On The Table", "at stake"):
         assert claim.lower() not in body.lower(), claim
+
+
+def test_the_plate_fractions_agree_between_the_module_and_the_sheet():
+    """This room measured its windows in CSS before the shared kit existed,
+    and the standby needs the same numbers in Python to position itself.
+    Two copies with nothing between them drift the first time the plate is
+    re-cropped, and the failure is silent: the readings stay on their glass
+    and the standby lands beside it.
+    """
+    css = io.open(os.path.join(HERE, "static", "css", "business-room.css"),
+                  encoding="utf-8").read()
+    unit = css.split(".bz-unit {", 1)[1].split("}", 1)[0]
+
+    def var(name):
+        return float(re.search(r"--%s:\s*([\d.]+)%%" % name, unit).group(1))
+
+    top, height = var("win-y"), var("win-h")
+    for key, x_var, w_var in (("reported", "rep-x", "rep-w"),
+                              ("not-collected", "mid-x", "mid-w"),
+                              ("kept", "kept-x", "kept-w")):
+        x, y, w, h = bz.PLATE[key]
+        assert (x, y, w, h) == (var(x_var), top, var(w_var), height), (
+            "%s: module says %s, the sheet says %s"
+            % (key, (x, y, w, h), (var(x_var), top, var(w_var), height)))

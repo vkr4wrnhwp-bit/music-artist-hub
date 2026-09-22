@@ -87,6 +87,47 @@ def box(key):
     return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
 
 
+# STANDBY: what each window will hold, for an account that has nothing
+# yet (owner, 2026-09-22). Words only - never an example figure, because
+# a demonstration number sitting where the artist's own will appear is
+# the defect this room exists to refuse.
+# NOTHING HERE REPEATS THE SILKSCREEN. The plate already prints ON FILE,
+# REACHABLE, NEW and THE ROOM, and the first cut of this had each window
+# say its own name back - the duplicate text the owner asked to watch for.
+# So a small window carries one line about what fills it, and the lead
+# carries the room's job and NAMES ITS FEATURES, which is what he asked
+# the plate to do.
+STANDBY = {
+    "room": ("Turn listeners into a list you own",
+             "Smart links capture the fan, this map shows the cities they "
+             "came from, the CRM holds everyone on file, and the Fan Club "
+             "turns the closest of them into paying members.",
+             "Launch a smart link", "/links/new"),
+    "on-file": "Everyone who leaves a name or an address.",
+    "reachable": "The share you can actually email.",
+    # NOT "last month": the range control on this screen offers 7, 30 and
+    # 90 days, and the standby said the same thing at all three.
+    "new": "Who arrived inside the window you pick.",
+}
+
+
+def standby():
+    """The windows as an invitation rather than four empty panes."""
+    lead = STANDBY["room"]
+    names = {"on-file": "On file", "reachable": "Reachable", "new": "New"}
+    return {
+        "lead": {"box": box("room"), "name": "The room", "n": 0,
+                 "title": lead[0], "line": lead[1],
+                 "cta": lead[2], "href": lead[3]},
+        # `name` is the screen-reader label only - the plate prints it.
+        "windows": [
+            {"key": k, "box": box(k), "name": names[k], "n": i,
+             "line": STANDBY[k]}
+            for i, k in enumerate(("on-file", "reachable", "new"), start=1)
+        ],
+    }
+
+
 def windows(total_label, total, new_label, new, reachable_pct, days):
     """The three small readings, in the order the plate prints them.
 
@@ -305,6 +346,10 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
         "pulse": pulse(audience),
         # The plate: the big window's own box, and the three readings.
         "room_box": box("room"),
+        # Nothing captured at all: the plate explains itself instead of
+        # printing four blanks. One real fan and this is gone for good.
+        "idle": not total,
+        "standby": standby(),
         "windows": windows(_fmt(total), total, _fmt(len(fresh)), len(fresh),
                            audience.get("contactable_pct") if total else None,
                            days),

@@ -138,6 +138,91 @@ def uncollected(tracks):
     return rows
 
 
+# --- THE PLATE --------------------------------------------------------
+# static/img/publishing-plate.webp, 1859x846: a RIGHTS REGISTRY unit, two
+# equal halves over a narrow ledger strip. Each window is (x, y, w, h) as
+# a PERCENTAGE of the plate, MEASURED off the file with PIL. RE-MEASURE
+# ALL OF THEM if the plate is regenerated or re-cropped.
+#
+# The plate silkscreens WORKS ON FILE, UNCOLLECTED and THE SPLIT, so the
+# markup never prints those words.
+#
+# The strip carries SHARE CLAIMED as a bar - the third headline figure,
+# which has no window of its own and is literally what a split is. It is
+# not the "Who owns it" table: that has its own panel with its own song
+# picker further down, and drawing it twice would be the screen folding
+# onto itself.
+PLATE = {
+    "works":       (5.11, 18.56, 43.30, 37.47),
+    "uncollected": (51.37, 18.91, 43.46, 37.12),
+    "split":       (5.11, 73.88, 90.05, 9.93),
+}
+
+
+def box(key):
+    """The inline custom properties that put a window on its glass."""
+    x, y, w, h = PLATE[key]
+    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+
+
+# STANDBY: what each window will hold, for an account that has measured
+# nothing here yet (owner, 2026-09-22: "animating these things and making
+# them explain about what the room is doing is a better move than filling
+# it in with data that, if someone hasn't uploaded anything yet, is
+# blank").
+#
+# WORDS ONLY - never an example figure. A demonstration number sitting
+# where the artist's own will appear is the defect this product refuses.
+# And nothing here repeats what the plate silkscreens: the photograph
+# already prints each window's name in metal.
+STANDBY_LINES = [('works', 'Every song you have on file.'), ('uncollected', 'Songs no registry holds a work for.'), ('split', 'How much of the collection share is claimed.')]
+
+
+# Every other room's standby offers one way in; this one had none, so an
+# artist reading it was told what the room does and given nowhere to do it.
+STANDBY_DOOR = ("Add a song", "/catalog")
+
+
+def standby():
+    """The windows as an introduction rather than a row of blanks."""
+    # The name the PLATE prints in metal. Carried for a screen reader,
+    # and because under 560px the photograph goes and this becomes the
+    # only thing naming each card.
+    names = {'works': 'Works on file', 'uncollected': 'Uncollected', 'split': 'The split'}
+    out = {"windows": [{"key": k, "box": box(k), "line": line, "n": i,
+                        "name": names.get(k, "")}
+                       for i, (k, line) in enumerate(STANDBY_LINES, start=0)]}
+    out["cta"], out["href"] = STANDBY_DOOR
+
+    return out
+
+
+def plate_windows(rows):
+    """The two big windows, in the order the silkscreen prints them."""
+    by = {r["key"]: r for r in rows or ()}
+    return [dict(by[k], box=box(k)) for k in ("works", "uncollected") if k in by]
+
+
+def claimed_bar(rows):
+    """The share-claimed strip: the figure, and how full the bar is.
+
+    `fill` is None when no registry has answered - the bar is then not
+    drawn at all rather than drawn empty, because an empty bar reads as
+    "you have claimed nothing" when the truth is "nobody has asked".
+    """
+    row = {r["key"]: r for r in rows or ()}.get("share") or {}
+    value = row.get("value") or "Not measured"
+    fill = None
+    if value.endswith("%"):
+        try:
+            fill = max(0.0, min(100.0, float(value[:-1])))
+        except ValueError:
+            fill = None
+    return {"value": value, "sub": row.get("sub") or "",
+            "measured": fill is not None, "fill": fill,
+            "box": box("split")}
+
+
 def headline(tracks, rows):
     """The three figures, and what each one is of."""
     answered = [r for r in rows if r["source"] == "check"]
@@ -238,6 +323,12 @@ def build(tracks, statement_rows, conflicts, selected, cards,
     return {
         "artist_name": artist_name or "",
         "headline": headline(tracks, rows),
+        # The plate: the two big readings, and the claimed-share strip.
+        "windows": plate_windows(headline(tracks, rows)),
+        "claimed": claimed_bar(headline(tracks, rows)),
+        # No catalogue and no registry answer: the plate introduces itself.
+        "idle": not tracks and not rows,
+        "standby": standby(),
         "states": states(tracks, collecting),
         "rows": rows,
         "conflicts": list(conflicts or ()),

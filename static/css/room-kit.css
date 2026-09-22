@@ -442,3 +442,80 @@
   .rk-pl-n.is-none { font-size: 15px; }
   .rk-pl-s { font-size: 12px; }
 }
+
+/* ---- STANDBY: the instrument explaining itself ------------------------
+   Owner, 2026-09-22: "animating these things and making them explain
+   about what the room is doing is a better move than filling it in with
+   data that, if someone hasn't uploaded anything yet, is blank."
+
+   He is right, and Releases and Publishing made the case: a photographed
+   instrument whose every window reads "Not measured" is worse than no
+   instrument. So when an account has measured NOTHING in this room, the
+   windows carry what will fill them instead, and the bar warms through
+   in sequence so the unit reads as alive rather than dead.
+
+   THE ONE RULE: standby is never a reading. It is words, set in the page
+   face rather than the display face, dimmer than a figure, and it never
+   shows a number - not even an example one. The moment a real figure
+   exists this whole state is gone. A demonstration figure sitting where
+   the artist's own will appear is the defect this product refuses. */
+
+.rk-pl-standby {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: .35em; height: 100%; width: 100%;
+  text-align: center; text-decoration: none; color: inherit;
+}
+.rk-pl-standby b {
+  font-family: var(--sb-display); font-weight: 800; letter-spacing: -.01em;
+  color: var(--sb-ink); font-size: clamp(10px, 1.15cqw, 19px); line-height: 1.15;
+}
+.rk-pl-standby span {
+  color: var(--sb-ink-2); line-height: 1.4;
+  font-size: clamp(8px, .84cqw, 12.5px);
+}
+/* The big window's standby carries the room's own job and its one door. */
+.rk-pl-standby--lead b { font-size: clamp(13px, 1.75cqw, 30px); }
+.rk-pl-standby--lead span { font-size: clamp(9px, .95cqw, 14px); max-width: 70%; }
+/* The selector is .rk-pl-standby .rk-pl-door, not .rk-pl-door: the door is
+   a <span> INSIDE .rk-pl-standby, and `.rk-pl-standby span` (0,1,1) beats a
+   bare class (0,1,0). The first cut lost both the colour and the size, so
+   the label rendered dim grey on a gold pill - about 1.1:1, invisible. */
+.rk-pl-standby .rk-pl-door {
+  margin-top: .5em; display: inline-flex; align-items: center; gap: .5em;
+  padding: .45em 1em; border-radius: 99px;
+  background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold));
+  color: var(--sb-on-gold); font-weight: 800; letter-spacing: .01em;
+  font-size: clamp(9px, .95cqw, 14px);
+}
+.rk-pl-standby:hover .rk-pl-door { filter: brightness(1.08); }
+
+/* The bar warming through: each window glows in turn, then the set rests.
+   A glow rather than a colour change, so the glass still reads as glass. */
+.rk-pl-win.is-standby::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 45%,
+              color-mix(in srgb, var(--sb-gold) 26%, transparent), transparent 70%);
+  opacity: 0;
+  animation: rk-warm 6.4s ease-in-out infinite;
+  animation-delay: calc(var(--n, 0) * .42s);
+}
+@keyframes rk-warm {
+  0%        { opacity: .05; }
+  9%        { opacity: .60; }
+  26%       { opacity: .22; }
+  44%, 100% { opacity: .05; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Lit, and staying lit. */
+  .rk-pl-win.is-standby::before { animation: none; opacity: .18; }
+}
+
+@media (max-width: 560px) {
+  .rk-pl-win.is-standby::before { display: none; }
+  .rk-pl-standby { align-items: flex-start; text-align: left; }
+  .rk-pl-standby b { font-size: 17px; }
+  .rk-pl-standby--lead b { font-size: 21px; }
+  .rk-pl-standby span, .rk-pl-standby--lead span { font-size: 13px; max-width: none; }
+  .rk-pl-standby .rk-pl-door { font-size: 13px; padding: .5em 1.1em; }
+}

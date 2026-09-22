@@ -10,6 +10,7 @@ The honesty rules these lock:
   nothing claims a registration was accepted or a society paid
 """
 import json
+import re
 import uuid
 
 import pytest
@@ -222,7 +223,17 @@ def test_an_empty_account_is_told_in_words_and_shown_no_zero_figures():
     # Counted on the figure's own class, not on the words: the note panel
     # explains the rule and says "Not measured" in passing, which is prose
     # rather than a fourth unmeasured figure.
-    assert page.count("rk-fig-n--none") == 3
+    # The strip became a plate on 2026-09-22. Two of the three unmeasured
+    # readings are windows; the third is the claimed-share strip, whose
+    # figure sits in the bar line. The zero rule is unchanged.
+    # Owner, 2026-09-22: a plate whose every window reads "Not measured"
+    # is worse than no plate, so an account that has measured nothing
+    # now meets the STANDBY - words about what will fill each window.
+    # The zero rule is unchanged and still checked below.
+    assert page.count("is-standby") == 3, "two windows and the split strip"
+    assert "Every song you have on file." in page
+    assert "How much of the collection share is claimed." in page
+    assert "rk-pl-n" not in page, "no reading is drawn while nothing is measured"
     assert "No recordings on file yet." in page
     assert "Nothing on file disagrees with itself." in page
 

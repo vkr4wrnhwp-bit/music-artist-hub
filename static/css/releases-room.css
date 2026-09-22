@@ -90,3 +90,43 @@
 @media (max-width: 860px) {
   .rl-about { flex-direction: column; }
 }
+/* ---- the plate -------------------------------------------------------
+   Position and type come from room-kit.css (.rk-pl*). The clock's centre
+   window is the dominant one, and the ribbon runs along the foot. */
+
+.rl-pl { margin-top: 18px; }
+.rl-pl-days .rk-pl-n { font-size: clamp(26px, 5cqw, 92px); }
+/* WORDS ARE NOT SET AT THE FIGURE'S SIZE. The rule above out-specifies
+   .rk-pl-n.is-none in the kit, so "Not measured" arrived at 92px and
+   filled the clock. An absence is quiet. */
+.rl-pl-days .rk-pl-n.is-none { font-size: clamp(11px, 1.45cqw, 24px); }
+.rl-pl-plan { flex-direction: row; align-items: center; padding: 0 2%; }
+.rl-ribbon {
+  list-style: none; margin: 0; padding: 0; width: 100%;
+  display: flex; align-items: center; justify-content: space-between; gap: 2%;
+}
+.rl-ribbon li {
+  display: flex; align-items: baseline; gap: .5em; min-width: 0;
+  /* The floor was 7px, which is what a 1024px viewport actually got -
+     unreadable. Below the width where five entries fit at a readable
+     size the ribbon shows fewer of them rather than shrinking further. */
+  font-size: clamp(10px, .8cqw, 12px);
+}
+@media (max-width: 1180px) {
+  .rl-ribbon li:nth-child(n+4) { display: none; }
+}
+@media (max-width: 860px) {
+  .rl-ribbon li:nth-child(n+3) { display: none; }
+}
+.rl-ribbon b { color: var(--sb-gold-bright); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rl-ribbon span { color: var(--sb-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-ribbon-none { margin: 0; color: var(--sb-ink-2); font-size: clamp(10px, .8cqw, 12px); }
+.rl-pl-foot { margin-top: 10px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+
+@media (max-width: 560px) {
+  .rl-pl-days .rk-pl-n { font-size: 44px; }
+  .rl-pl-days .rk-pl-n.is-none { font-size: 15px; }
+  .rl-pl-plan { flex-direction: column; align-items: flex-start; padding: 14px 16px; }
+  .rl-ribbon { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .rl-ribbon li, .rl-ribbon-none { font-size: 13px; }
+}

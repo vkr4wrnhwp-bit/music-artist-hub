@@ -108,6 +108,69 @@ def reading(label, value, provider, as_of, today, why=""):
     }
 
 
+# --- THE PLATE --------------------------------------------------------
+# static/img/analytics-plate.webp, 1859x846: a TREND ANALYSER, its long
+# oscilloscope screen across the top and the three readings beneath it.
+# Each window is (x, y, w, h) as a PERCENTAGE of the plate, MEASURED off
+# the file with PIL. RE-MEASURE ALL OF THEM if the plate is regenerated or
+# re-cropped: the overlays would land beside their glass and nothing in
+# code would say so.
+#
+# The plate silkscreens THE TREND, LINK VISITS, FOLLOWERS and LISTENERS,
+# so the markup never prints those words - they ride along as
+# screen-reader text and appear only under 560px.
+PLATE = {
+    "trend":     (5.65, 18.09, 88.60, 28.72),
+    "visits":    (5.65, 64.54, 27.17, 17.49),
+    "followers": (35.77, 65.37, 28.19, 16.55),
+    "listeners": (67.35, 65.48, 26.90, 16.55),
+}
+# The order the silkscreen prints them in. Metal cannot be reordered.
+PLATE_ORDER = ("visits", "followers", "listeners")
+
+
+def box(key):
+    """The inline custom properties that put a window on its glass."""
+    x, y, w, h = PLATE[key]
+    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+
+
+# STANDBY: what each window will hold, for an account that has measured
+# nothing here yet (owner, 2026-09-22: "animating these things and making
+# them explain about what the room is doing is a better move than filling
+# it in with data that, if someone hasn't uploaded anything yet, is
+# blank").
+#
+# WORDS ONLY - never an example figure. A demonstration number sitting
+# where the artist's own will appear is the defect this product refuses.
+# And nothing here repeats what the plate silkscreens: the photograph
+# already prints each window's name in metal.
+STANDBY_LINES = [('visits', 'Every open of your smart links.'), ('followers', 'From the provider you connect.'), ('listeners', 'From the provider you connect.')]
+STANDBY_LEAD = ('trend', 'Watch one number move', 'Pin your artist and each reading a provider returns is stored and dated here; your smart links are counted whether you pin anybody or not, and the Artist Twin answers from what is stored.', 'Pin your artist', '/pulse')
+
+
+def standby():
+    """The windows as an introduction rather than a row of blanks."""
+    # The name the PLATE prints in metal. Carried for a screen reader,
+    # and because under 560px the photograph goes and this becomes the
+    # only thing naming each card.
+    names = {'visits': 'Link visits', 'followers': 'Followers', 'listeners': 'Monthly listeners'}
+    out = {"windows": [{"key": k, "box": box(k), "line": line, "n": i,
+                        "name": names.get(k, "")}
+                       for i, (k, line) in enumerate(STANDBY_LINES, start=1)]}
+    title, line, cta, href = STANDBY_LEAD[1:]
+    out["lead"] = {"box": box(STANDBY_LEAD[0]), "n": 0, "title": title,
+                   "line": line, "cta": cta, "href": href}
+
+    return out
+
+
+def plate_windows(rows):
+    """figures() again, each carrying the window it is printed in."""
+    by = {r["key"]: r for r in rows or ()}
+    return [dict(by[k], box=box(k)) for k in PLATE_ORDER if k in by]
+
+
 def figures(visits, followers, listeners):
     """The three across the top. Each may be unmeasured, and says why."""
     out = []
@@ -213,6 +276,13 @@ def build(profile, snaps, peers, visits, listeners, observations, cards,
         "artist": (profile or {}).get("name") or "",
         "pinned": bool(profile),
         "figures": figures(visits, followers, listeners),
+        # The plate: the same readings, each on its own glass.
+        "windows": plate_windows(figures(visits, followers, listeners)),
+        "trend_box": box("trend"),
+        # Nothing measured at all: the plate explains itself instead of
+        # printing three "Not measured"s under an empty trend screen.
+        "idle": not any(f["measured"] for f in figures(visits, followers, listeners)),
+        "standby": standby(),
         "path": path(bool(profile), snaps, len(peers or ()), len(observations or ())),
         "readings": rows,
         "chart": chart(snaps, "followers", "Followers over time", "Spotify"),

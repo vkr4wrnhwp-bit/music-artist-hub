@@ -89,6 +89,48 @@ RENAMED = {
 }
 
 
+# --- THE PLATE --------------------------------------------------------
+# This room's fractions have always lived in static/css/business-room.css,
+# which predates the shared kit. They are repeated here ONLY so the
+# standby state can position itself the way every other room's does, and
+# they must stay in step with that sheet: same file, same measurements.
+PLATE = {
+    "reported":      (6.70, 19.95, 26.61, 56.94),
+    "not-collected": (35.94, 19.95, 28.05, 56.94),
+    "kept":          (66.75, 19.95, 26.61, 56.94),
+}
+
+
+def box(key):
+    """The inline custom properties that put a window on its glass."""
+    x, y, w, h = PLATE[key]
+    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+
+
+# STANDBY: what each window will hold, for an account with no statements
+# (owner, 2026-09-22). WORDS ONLY - never an example figure, which on a
+# money plate would be the worst version of that mistake.
+STANDBY_LINES = [
+    ("reported", "What your statements actually said."),
+    ("not-collected", "What is unattributed, beside what looks missing."),
+    ("kept", "What is left after the costs you log."),
+]
+STANDBY_DOOR = ("Upload a statement", "/statements")
+
+
+def standby():
+    """The three windows as an introduction rather than three blanks."""
+    # The name the PLATE prints in metal - for a screen reader, and for
+    # the phone layout where the photograph steps aside.
+    names = {'reported': 'Reported', 'not-collected': 'Not collected', 'kept': 'Kept'}
+    return {
+        "windows": [{"key": k, "box": box(k), "line": line, "n": i,
+                     "name": names.get(k, "")}
+                    for i, (k, line) in enumerate(STANDBY_LINES)],
+        "cta": STANDBY_DOOR[0], "href": STANDBY_DOOR[1],
+    }
+
+
 def money(value):
     """A figure, or the words that say nobody measured one.
 
@@ -363,6 +405,10 @@ def build(reported, prior, actual, estimated, kept, kept_prior,
         "windows": windows(reported, prior, actual, estimated, kept,
                            kept_prior, note, kept_note),
         "measured": reported is not None,
+        # No statements at all: the plate explains itself rather than
+        # printing three "Not measured"s. One upload and this is gone.
+        "idle": reported is None,
+        "standby": standby(),
         "scan": scan or "",
         "path": steps,
         # The RAW statement rows: streams() folds them itself.

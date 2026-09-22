@@ -365,6 +365,99 @@ def constellation(cities, labels=3):
 
 # --- the page --------------------------------------------------------------
 
+# --- THE PLATE --------------------------------------------------------
+# static/img/marketing-plate.webp, 1859x846: a BROADCAST unit, one tall
+# window beside a 2x2 grid. Each window is (x, y, w, h) as a PERCENTAGE
+# of the plate, MEASURED off the file with PIL. RE-MEASURE ALL OF THEM if
+# the plate is ever regenerated or re-cropped.
+#
+# The plate silkscreens THE STORY, READY, SENT HERE, VIEWS and COVERAGE,
+# so the markup never prints those words.
+#
+# TWO LABELS THE AUDIT CHANGED BEFORE THE PLATE WAS EVER RENDERED:
+#   SENT HERE, not "pitched". press_pitches.sent_at is written in exactly
+#   one place - the platform's own send loop - so a pitch posted from the
+#   artist's own inbox never lands here. The window is scoped to what
+#   Street Banker sent, and says so.
+#   VIEWS, not "opens". press_store.mark_opened fires when a journalist
+#   LOADS the announcement page; it is not an email open, and a window
+#   marked OPENS would be read as one every time.
+PLATE = {
+    "story":    (5.11, 19.03, 25.34, 63.24),
+    "ready":    (33.35, 19.03, 29.69, 22.46),
+    "sent":     (65.90, 19.03, 28.94, 22.46),
+    "opens":    (33.35, 58.98, 29.69, 23.29),
+    "coverage": (65.90, 59.10, 28.94, 23.17),
+}
+# The order the silkscreen prints them: left to right, top row first.
+PLATE_ORDER = (
+    ("ready", "Ready", "announcements ready to send"),
+    ("sent", "Sent here", "pitches Street Banker sent"),
+    ("opens", "Views", "reads of your announcement page"),
+    ("coverage", "Coverage", "pieces you have logged"),
+)
+
+
+def box(key):
+    """The inline custom properties that put a window on its glass."""
+    x, y, w, h = PLATE[key]
+    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+
+
+# STANDBY: what each window will hold, for an account that has measured
+# nothing here yet (owner, 2026-09-22: "animating these things and making
+# them explain about what the room is doing is a better move than filling
+# it in with data that, if someone hasn't uploaded anything yet, is
+# blank").
+#
+# WORDS ONLY - never an example figure. A demonstration number sitting
+# where the artist's own will appear is the defect this product refuses.
+# And nothing here repeats what the plate silkscreens: the photograph
+# already prints each window's name in metal.
+STANDBY_LINES = [('ready', 'Announcements waiting to go out.'), ('sent', 'Pitches Street Banker sent for you.'), ('opens', 'Journalists opening your announcement.'), ('coverage', 'Pieces you have logged.')]
+STANDBY_LEAD = ('story', 'Get written about', 'Write an announcement in the Press Desk, pitch it to your media list, and everything it does is counted here.', 'Write an announcement', '/press-desk')
+
+
+def standby():
+    """The windows as an introduction rather than a row of blanks."""
+    # The name the PLATE prints in metal. Carried for a screen reader,
+    # and because under 560px the photograph goes and this becomes the
+    # only thing naming each card.
+    names = {'ready': 'Ready', 'sent': 'Sent here', 'opens': 'Views', 'coverage': 'Coverage'}
+    out = {"windows": [{"key": k, "box": box(k), "line": line, "n": i,
+                        "name": names.get(k, "")}
+                       for i, (k, line) in enumerate(STANDBY_LINES, start=1)]}
+    title, line, cta, href = STANDBY_LEAD[1:]
+    out["lead"] = {"box": box(STANDBY_LEAD[0]), "n": 0, "title": title,
+                   "line": line, "cta": cta, "href": href}
+
+    return out
+
+
+def plate_windows(figures):
+    """The four small readings. A count is a count: 0 here is measured -
+    we looked at the table and found nothing - so it prints as a figure."""
+    out = []
+    for key, name, sub in PLATE_ORDER:
+        out.append({"key": key, "name": name, "sub": sub, "box": box(key),
+                    "value": _fmt(int((figures or {}).get(key) or 0))})
+    return out
+
+
+def story(figures):
+    """THE STORY: the newest announcement on file, or the words that say
+    there is none. Never an invented headline."""
+    row = (figures or {}).get("story")
+    if not row:
+        return None
+    # headline is optional on the table and title is the required one,
+    # so the window falls back rather than printing an empty pane.
+    said = (row.get("headline") or "").strip() or (row.get("title") or "").strip()
+    return {"headline": said or "Untitled announcement",
+            "status": (row.get("status") or "draft").strip(),
+            "box": box("story")}
+
+
 def stages(figures):
     out = []
     for key, name, fkey, singular, plural, empty in STAGES:
@@ -443,6 +536,16 @@ def build(figures, cards, days=DEFAULT_RANGE, showcase=False, artist_name="",
         "presaves": int(figures.get("presaves") or 0),
         "presaves_label": _fmt(figures.get("presaves")),
         "stages": stages(figures),
+        # The plate: the four funnel readings, and the newest announcement.
+        "windows": plate_windows(figures),
+        "story": story(figures),
+        "story_box": box("story"),
+        # Nothing written, sent, opened or logged: the unit introduces
+        # the Press Desk rather than printing four zeroes.
+        "idle": not any(int((figures or {}).get(k) or 0)
+                        for k in ("ready", "sent", "opens", "coverage"))
+                and not (figures or {}).get("story"),
+        "standby": standby(),
         "actions": actions(figures, can_open),
         "cities": cities,
         "contacts": int(figures.get("contacts") or 0),
@@ -494,6 +597,13 @@ def for_account(user_id, days=DEFAULT_RANGE, now=None):
             "opens": one("SELECT COALESCE(SUM(open_count), 0)"
                          " FROM press_recipients WHERE user_id = ?"),
             "coverage": one("SELECT COUNT(*) FROM press_coverage WHERE user_id = ?"),
+            # THE STORY: the newest announcement on file, whatever its
+            # state. One row, so the plate's tall window has something
+            # true in it rather than a decorative pane.
+            "story": (lambda r: dict(r) if r else None)(
+                db.execute("SELECT title, headline, status FROM press_releases"
+                           " WHERE user_id = ? ORDER BY updated DESC LIMIT 1",
+                           (user_id,)).fetchone()),
             # the actions
             "never-pitched": one(
                 "SELECT COUNT(*) FROM press_contacts c WHERE c.user_id = ?"

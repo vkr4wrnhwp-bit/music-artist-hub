@@ -80,3 +80,40 @@
   .pb-fields td { display: block; padding-top: 2px; }
   .pb-pick select { min-width: 0; width: 100%; max-width: none; }
 }
+/* ---- the plate -------------------------------------------------------
+   Position and type come from room-kit.css (.rk-pl*). Only the claimed-
+   share strip is particular to this unit. */
+
+.pb-pl { margin-top: 18px; }
+.pb-pl-warn { color: var(--sb-warn); }
+.pb-pl-split { flex-direction: row; align-items: center; gap: 2.5%; padding: 0 2.5%; }
+.pb-bar {
+  flex: 1 1 auto; height: 26%; min-height: 4px; border-radius: 99px; overflow: hidden;
+  background: color-mix(in srgb, var(--sb-ink) 12%, transparent);
+}
+.pb-bar span {
+  display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, var(--sb-gold), var(--sb-gold-bright));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--sb-gold) 55%, transparent);
+}
+.pb-bar-line {
+  margin: 0; display: flex; align-items: baseline; gap: .6em;
+  white-space: nowrap; font-size: clamp(8px, .9cqw, 13px);
+}
+.pb-bar-line b {
+  font-family: var(--sb-display); font-weight: 800; color: var(--sb-ink);
+  font-variant-numeric: tabular-nums; font-size: clamp(11px, 1.25cqw, 20px);
+}
+.pb-bar-line b.is-none {
+  font-family: inherit; font-weight: 600; color: var(--sb-ink-2);
+  font-size: clamp(8px, .9cqw, 13px);
+}
+.pb-bar-line span { color: var(--sb-ink-2); overflow: hidden; text-overflow: ellipsis; }
+.pb-pl-foot { margin-top: 10px; }
+
+@media (max-width: 560px) {
+  .pb-pl-split { flex-direction: column; align-items: flex-start; padding: 14px 16px; gap: 8px; }
+  .pb-bar { width: 100%; flex: 0 0 auto; height: 8px; }
+  .pb-bar-line { white-space: normal; font-size: 13px; }
+  .pb-bar-line b { font-size: 22px; }
+}

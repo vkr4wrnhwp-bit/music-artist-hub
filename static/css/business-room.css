@@ -115,9 +115,10 @@
 /* The period the move is against - never louder than the move itself. */
 .bz-move-n { font-weight: 500; letter-spacing: .02em; color: var(--sb-ink-2); }
 
-/* With nothing measured the instrument reads as an instrument at rest
-   rather than one showing noughts. */
-.bz-unit.is-idle .bz-fig { text-shadow: none; }
+/* The rule that used to sit here - .bz-unit.is-idle .bz-fig - could not
+   match once the standby landed: `idle` and `measured` are exact
+   complements, so in the idle state there is no .bz-fig on the page to
+   dim. The standby says what the windows are for instead. */
 
 .bz-scan { margin-top: 10px; }
 
@@ -180,4 +181,24 @@
   .bz-part .bz-fig { font-size: 24px; }
   .bz-fig.is-none, .bz-part .bz-fig.is-none { font-size: 15px; }
   .bz-move { font-size: 12px; }
+}
+
+/* ---- standby ----------------------------------------------------------
+   The kit draws the standby; only one thing is particular to THIS plate.
+   The middle window spans two panes and the photograph paints a gold rule
+   down the gap between them, so a sentence centred in that window crosses
+   the rule and reads as struck through. A soft ground behind the words
+   lifts them off it, the way a label plate sits on a real unit. */
+
+.bz .rk-pl-win.is-standby .rk-pl-standby > span {
+  padding: .35em .7em; border-radius: 8px;
+  background: color-mix(in srgb, var(--sb-ground) 82%, transparent);
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+}
+@media (max-width: 560px) {
+  /* No photograph, so no rule to clear. */
+  .bz .rk-pl-win.is-standby .rk-pl-standby > span {
+    padding: 0; background: none; backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }

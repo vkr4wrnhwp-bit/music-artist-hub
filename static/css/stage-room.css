@@ -205,3 +205,74 @@
   .sg-pl-none { font-size: 18px; }
   .sg-pl-none-s { font-size: 13px; max-width: none; }
 }
+
+/* ---- the blueprint invitation ----------------------------------------
+   Drawn in THE STAGE window only while nothing is programmed. It is an
+   ILLUSTRATION - a generic rig, no numbers, nothing this account owns -
+   and it is replaced by the real cue list the moment one cue exists. */
+
+.sg-invite {
+  /* Fills the glass on its own terms: the cue-list padding and top
+     alignment are for a list, and left the rig floating small. */
+  position: absolute; inset: 0; padding: 2% 2.5%;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 1%;
+  text-decoration: none; color: inherit;
+}
+.sg-blueprint { width: 100%; height: 60%; }
+.sg-bp-grid line { stroke: var(--sb-gold); stroke-opacity: .17; stroke-width: 1; }
+.sg-bp-truss { stroke: var(--sb-ink-2); stroke-width: 3; stroke-linecap: round; }
+.sg-bp-deck { fill: none; stroke: var(--sb-ink); stroke-width: 2.5; stroke-opacity: .55; }
+.sg-bp-can { fill: var(--sb-ink-2); }
+
+/* The rig coming alive: each lantern strikes in turn, then the whole bar
+   rests before it runs again. */
+.sg-bp-beam {
+  fill: var(--sb-gold-bright); opacity: 0;
+  animation: sg-strike 3.6s ease-in-out infinite;
+  animation-delay: calc(var(--n) * .18s);
+}
+.sg-bp-unit .sg-bp-can {
+  animation: sg-can 3.6s ease-in-out infinite;
+  animation-delay: calc(var(--n) * .18s);
+}
+/* Half the bar is up at any moment, so the rig reads as alive rather
+   than as one lantern blinking down an empty truss. */
+@keyframes sg-strike {
+  0%       { opacity: .06; }
+  12%      { opacity: .50; }
+  48%      { opacity: .26; }
+  72%      { opacity: .10; }
+  100%     { opacity: .06; }
+}
+@keyframes sg-can {
+  0%       { fill: var(--sb-ink-2); }
+  12%, 48% { fill: var(--sb-gold-bright); }
+  80%, 100%{ fill: var(--sb-ink-2); }
+}
+
+.sg-invite-said { display: flex; flex-direction: column; gap: .2em; text-align: center; margin-top: 1.5%; }
+.sg-invite-said b {
+  font-family: var(--sb-display); font-weight: 800; color: var(--sb-ink);
+  font-size: clamp(11px, 1.3cqw, 22px); letter-spacing: -.01em;
+}
+.sg-invite-said span {
+  color: var(--sb-ink-2); font-size: clamp(8px, .88cqw, 13px);
+}
+.sg-invite:hover .sg-invite-said b { color: var(--sb-gold-bright); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* The rig is lit, and stays lit. */
+  .sg-bp-beam { animation: none; opacity: .3; }
+  .sg-bp-unit .sg-bp-can { animation: none; fill: var(--sb-gold-bright); }
+}
+
+@media (max-width: 560px) {
+  /* The window stops being positioned down here, so the invitation must
+     stop being absolute with it - left as it was it collapsed onto
+     whatever followed. */
+  .sg-invite { position: static; inset: auto; padding: 14px 16px; gap: 12px; }
+  .sg-blueprint { width: 100%; height: auto; }
+  .sg-invite-said b { font-size: 18px; }
+  .sg-invite-said span { font-size: 13px; }
+}

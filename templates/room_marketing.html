@@ -2,7 +2,7 @@
 
 {% block title %}Marketing{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=3">
   <link rel="stylesheet" href="/static/css/marketing-room.css?v=3">
 {% endblock %}
 
@@ -109,6 +109,71 @@
       </div>
     </div>
   </section>
+
+  {# ---- the plate: one photograph, five windows ------------------------
+       The hardware is a photograph (static/img/marketing-plate.webp) and
+       only the readings are drawn on it, positioned as fractions held in
+       marketing_room.PLATE. The plate silkscreens THE STORY, READY, SENT
+       HERE, VIEWS and COVERAGE, so the markup carries those names for a
+       screen reader alone.
+
+       This is the PRESS funnel. The band above it is smart-link data and
+       the two do not overlap: different tables, different questions. #}
+  <section class="rk-pl mk-pl" aria-label="Your press funnel">
+    <img class="rk-pl-img" src="/static/img/marketing-plate.webp?v=1" alt=""
+         width="1859" height="846" decoding="async">
+
+    {% if mk.idle %}
+    {#- Nothing measured here yet, so the instrument explains itself
+        rather than printing blanks (owner, 2026-09-22). Words only: no
+        example figure ever sits where this artist's own will appear. -#}
+    <a class="rk-pl-win is-standby" style="{{ mk.standby.lead.box }}; --n: 0"
+       href="{{ mk.standby.lead.href }}">
+      {#- The name the plate prints in metal: for a screen reader, and for
+          the phone, where the photograph steps aside. -#}
+      <p class="rk-pl-sr">The story</p>
+      <span class="rk-pl-standby rk-pl-standby--lead">
+        <b>{{ mk.standby.lead.title }}</b>
+        <span>{{ mk.standby.lead.line }}</span>
+        <span class="rk-pl-door">{{ mk.standby.lead.cta }}</span>
+      </span>
+    </a>
+    {% for w in mk.standby.windows %}
+    <div class="rk-pl-win is-standby" style="{{ w.box }}; --n: {{ w.n }}">
+      {#- The name is here for a screen reader, and because under 560px the
+          photograph goes and this is the ONLY thing naming the card. No
+          visible title: the plate prints that in metal. -#}
+      <p class="rk-pl-sr">{{ w.name }}</p>
+      <span class="rk-pl-standby"><span>{{ w.line }}</span></span>
+    </div>
+    {% endfor %}
+    {% else %}
+    {# the tall window: the newest announcement on file #}
+    <div class="rk-pl-win mk-pl-story" style="{{ mk.story_box }}">
+      <p class="rk-pl-sr">The story</p>
+      {% if mk.story %}
+      <p class="mk-pl-head">{{ mk.story.headline }}</p>
+      <span class="rk-lamp rk-lamp--{{ "good" if mk.story.status == "ready" else "off" }}">{{ mk.story.status }}</span>
+      {% else %}
+      <p class="mk-pl-none">No announcement yet</p>
+      <p class="mk-pl-none-s">Write one in the Press Desk and it appears here,
+        with everything below counted against it.</p>
+      {% endif %}
+    </div>
+
+    {# the 2x2 funnel #}
+    {% for w in mk.windows %}
+    <div class="rk-pl-win" style="{{ w.box }}">
+      <p class="rk-pl-sr">{{ w.name }}</p>
+      <p class="rk-pl-n">{{ w.value }}</p>
+      <p class="rk-pl-s">{{ w.sub }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </section>
+  <p class="rk-foot mk-pl-foot">Sent here counts pitches Street Banker sent; one
+    you posted from your own inbox is not in it. A view is a journalist opening
+    your announcement page &mdash; not an email open, which we do not track.</p>
 
   {#- The stage rail. His design gives it no heading: the five stages name
       themselves, and a heading here would be a sentence he did not draw. -#}

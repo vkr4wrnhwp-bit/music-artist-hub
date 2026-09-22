@@ -2,7 +2,7 @@
 
 {% block title %}Business{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=3">
   <link rel="stylesheet" href="/static/css/business-room.css?v=1">
 {% endblock %}
 
@@ -61,7 +61,11 @@
             <span class="rk-avatar" aria-hidden="true">{{ (bz.artist_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ bz.artist_name }}">{{ bz.artist_name }}</span>
           </span>
           {% endif %}
+          {#- Hidden while the plate is in standby: its door says the same
+              words and goes to the same page, one band apart. -#}
+          {% if not bz.idle %}
           <a class="rk-cta" href="/statements">{{ icon("upload", "rk-ico") }}Upload a statement</a>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -76,6 +80,20 @@
     <img class="bz-plate" src="/static/img/business-plate.webp?v=1" alt=""
          width="1672" height="757" decoding="async">
 
+    {% if bz.idle %}
+    {#- Nothing measured here yet, so the instrument explains itself
+        rather than printing blanks (owner, 2026-09-22). Words only. -#}
+    {% for w in bz.standby.windows %}
+    <a class="rk-pl-win is-standby" style="{{ w.box }}; --n: {{ w.n }}"
+       href="{{ bz.standby.href }}">
+      <p class="rk-pl-sr">{{ w.name }}</p>
+      <span class="rk-pl-standby">
+        <span>{{ w.line }}</span>
+        {% if loop.first %}<span class="rk-pl-door">{{ bz.standby.cta }}</span>{% endif %}
+      </span>
+    </a>
+    {% endfor %}
+    {% else %}
     {% for w in bz.windows %}
     <div class="bz-win bz-win--{{ w.key }}">
       {#- The plate prints this name under the window. It is here for a
@@ -113,15 +131,20 @@
       {% endif %}
     </div>
     {% endfor %}
+    {% endif %}
   </section>
 
+  {#- The rule under the plate explains the readings. In standby the
+      middle window is already saying it, so this would be the same
+      sentence twice. -#}
+  {% if not bz.idle %}
   <p class="rk-foot bz-scan">
     Not collected is two readings and never one: what is <b>actually</b> unattributed
     on your statements, beside what is <b>estimated</b> to be missing. Nothing here
     adds an estimate to a measurement, so there is no total.
-    {%- if bz.scan %} Read from {{ bz.scan }}.
-    {%- else %} No statements yet - upload one and every figure above is read from it.{% endif %}
+    {%- if bz.scan %} Read from {{ bz.scan }}.{% endif %}
   </p>
+  {% endif %}
 
   {# ---- the five gold circles ------------------------------------------- #}
   <section class="rk-panel" aria-label="Where the money is">

@@ -2,7 +2,7 @@
 
 {% block title %}Publishing{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=3">
   <link rel="stylesheet" href="/static/css/publishing-room.css?v=3">
 {% endblock %}
 
@@ -62,21 +62,62 @@
     </div>
   </section>
 
-  <section class="rk-figures" aria-label="Where your publishing stands">
-    {% for f in pb.headline %}
-    <div class="rk-fig">
-      <p class="rk-fig-n{% if f.value == "Not measured" %} rk-fig-n--none{% elif f.key == "uncollected" and f.value != "0" %} rk-fig-n--warn{% endif %}">{{ f.value }}</p>
-      <p class="rk-fig-l">{{ f.label }}</p>
-      {% if f.sub %}<p class="rk-fig-s">{{ f.sub }}</p>{% endif %}
+  {# ---- the plate: one photograph, three windows -----------------------
+       The hardware is a photograph (static/img/publishing-plate.webp) and
+       only the readings are drawn on it, positioned as fractions held in
+       publishing_room.PLATE. The plate silkscreens WORKS ON FILE,
+       UNCOLLECTED and THE SPLIT, so the markup carries those names for a
+       screen reader alone. #}
+  <section class="rk-pl pb-pl" aria-label="Where your publishing stands">
+    <img class="rk-pl-img" src="/static/img/publishing-plate.webp?v=1" alt=""
+         width="1859" height="846" decoding="async">
+
+    {% if pb.idle %}
+    {#- Nothing measured here yet, so the instrument explains itself
+        rather than printing blanks (owner, 2026-09-22). Words only. -#}
+    {% for w in pb.standby.windows %}
+    <a class="rk-pl-win is-standby" style="{{ w.box }}; --n: {{ w.n }}"
+       href="{{ pb.standby.href }}">
+      {#- The name is here for a screen reader, and because under 560px the
+          photograph goes and this is the ONLY thing naming the card. -#}
+      <p class="rk-pl-sr">{{ w.name }}</p>
+      <span class="rk-pl-standby">
+        <span>{{ w.line }}</span>
+        {% if loop.first %}<span class="rk-pl-door">{{ pb.standby.cta }}</span>{% endif %}
+      </span>
+    </a>
+    {% endfor %}
+    {% else %}
+    {% for w in pb.windows %}
+    <div class="rk-pl-win" style="{{ w.box }}">
+      <p class="rk-pl-sr">{{ w.label }}</p>
+      <p class="rk-pl-n{% if w.value == "Not measured" %} is-none{% elif w.key == "uncollected" and w.value != "0" %} pb-pl-warn{% endif %}">{{ w.value }}</p>
+      {% if w.sub %}<p class="rk-pl-s">{{ w.sub }}</p>{% endif %}
     </div>
     {% endfor %}
-    <div class="rk-fig-note">
-      {{ icon("note", "rk-ico") }}
-      <p><b>A figure a registry has not answered about reads Not measured, never 0.</b>
-         Nothing here says a registration was accepted or a society paid &mdash; only
-         what a registry answered, and when.</p>
+
+    {# the ledger strip: how much of the collection share is claimed #}
+    <div class="rk-pl-win pb-pl-split" style="{{ pb.claimed.box }}">
+      <p class="rk-pl-sr">The split</p>
+      {% if pb.claimed.measured %}
+      {#- The bar is drawn ONLY when a registry has answered. An empty bar
+          would read as "you have claimed nothing" when the truth is that
+          nobody has asked one yet. -#}
+      <div class="pb-bar" role="img"
+           aria-label="{{ pb.claimed.value }} of the collection share claimed">
+        <span style="width: {{ pb.claimed.fill }}%"></span>
+      </div>
+      {% endif %}
+      <p class="pb-bar-line">
+        <b class="{% if not pb.claimed.measured %}is-none{% endif %}">{{ pb.claimed.value }}</b>
+        <span>{{ pb.claimed.sub }}</span>
+      </p>
+    {% endif %}
     </div>
   </section>
+  <p class="rk-foot pb-pl-foot">A figure a registry has not answered about reads
+    Not measured, never 0. Nothing here says a registration was accepted or a
+    society paid &mdash; only what a registry answered, and when.</p>
 
   <section class="pb-panel" aria-labelledby="pb-states-h">
     <div class="rk-panel-head">

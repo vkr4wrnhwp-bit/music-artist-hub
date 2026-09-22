@@ -129,6 +129,100 @@ def tasks(checks, release_date, limit=None):
     return out[:limit] if limit else out
 
 
+# --- THE PLATE --------------------------------------------------------
+# static/img/releases-plate.webp, 1859x846: a RELEASE CLOCK, a dominant
+# centre window flanked by two narrow ones, over a thin ribbon. Each
+# window is (x, y, w, h) as a PERCENTAGE of the plate, MEASURED off the
+# file with PIL. RE-MEASURE ALL OF THEM if the plate is regenerated.
+#
+# The plate silkscreens CHECKS, DAYS OUT, TASKS and THE PLAN, so the
+# markup never prints those words.
+#
+# TASKS is the OPEN count, not the total - open_count was computed and
+# rendered nowhere before this. THE PLAN is the dated calendar, which was
+# also computed and rendered nowhere. Neither is the five-stage rail: the
+# rail is under the plate and drawing the arc twice would be the screen
+# folding onto itself.
+PLATE = {
+    "checks": (5.11, 18.56, 13.13, 42.67),
+    "days":   (21.25, 19.03, 57.50, 42.67),
+    "tasks":  (81.82, 18.79, 13.02, 42.91),
+    "plan":   (5.11, 77.07, 89.78, 6.97),
+}
+
+
+def box(key):
+    """The inline custom properties that put a window on its glass."""
+    x, y, w, h = PLATE[key]
+    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+
+
+# STANDBY: what each window will hold, for an account that has measured
+# nothing here yet (owner, 2026-09-22: "animating these things and making
+# them explain about what the room is doing is a better move than filling
+# it in with data that, if someone hasn't uploaded anything yet, is
+# blank").
+#
+# WORDS ONLY - never an example figure. A demonstration number sitting
+# where the artist's own will appear is the defect this product refuses.
+# And nothing here repeats what the plate silkscreens: the photograph
+# already prints each window's name in metal.
+STANDBY_LINES = [('checks', 'Twelve checks against your release.'), ('tasks', 'What is still open.'), ('plan', 'Your dated posts, soonest first.')]
+STANDBY_LEAD = ('days', 'Count down to the drop', 'Pick a release and this counts the days, runs twelve checks against it, and lists what is still open. The Rollout Engine fills the ribbon below with dated posts.', 'Create a release', '/links/new')  # the SAME door the hero uses:
+# two controls with one name going to two different pages is worse
+# than a duplicate, and the hero's /links/new is the create action.
+
+
+def standby():
+    """The windows as an introduction rather than a row of blanks."""
+    # The name the PLATE prints in metal. Carried for a screen reader,
+    # and because under 560px the photograph goes and this becomes the
+    # only thing naming each card.
+    names = {'checks': 'Release checks passed', 'tasks': 'Open tasks', 'plan': 'The plan'}
+    out = {"windows": [{"key": k, "box": box(k), "line": line, "n": i,
+                        "name": names.get(k, "")}
+                       for i, (k, line) in enumerate(STANDBY_LINES, start=1)]}
+    title, line, cta, href = STANDBY_LEAD[1:]
+    out["lead"] = {"box": box(STANDBY_LEAD[0]), "n": 0, "title": title,
+                   "line": line, "cta": cta, "href": href}
+
+    return out
+
+
+def plate_windows(rows, open_count, has_checks):
+    """The three upper windows, in the order the silkscreen prints them.
+
+    TASKS reads Not measured rather than 0 when no release is chosen: with
+    nothing to check there are no open items, and "0 open" would be a
+    claim that everything is done.
+    """
+    by = {r["key"]: r for r in rows or ()}
+    out = []
+    for key in ("checks", "days"):
+        row = by.get(key)
+        if row:
+            out.append(dict(row, box=box(key)))
+    out.append({
+        "key": "tasks", "label": "Open tasks", "box": box("tasks"),
+        "value": str(open_count) if has_checks else "Not measured",
+        "sub": "" if has_checks else "No release chosen",
+    })
+    return out
+
+
+def ribbon(calendar, limit=5):
+    """THE PLAN: the next dated posts, soonest first.
+
+    Every row is a post somebody actually scheduled. Nothing here is
+    predicted, and an account with no rollout at all gets the words that
+    say so rather than an empty ribbon.
+    """
+    return [{"when": r.get("when_label") or r.get("date") or "",
+             "what": r.get("title") or "",
+             "where": r.get("where") or ""}
+            for r in (calendar or ())[:limit]]
+
+
 def headline(checks, days_left, drops):
     """The three numbers across the top, and what each is of.
 
@@ -174,6 +268,25 @@ def build(campaign, checks, groups, days_left, release_date, drops, calendar,
         "campaigns": campaigns or [],
         "artist_name": artist_name or "",
         "headline": headline(checks, days_left, drops),
+        # The plate: three readings and the dated ribbon.
+        "windows": plate_windows(headline(checks, days_left, drops),
+                                 sum(1 for t in all_tasks if not t["ok"]),
+                                 bool(checks)),
+        "ribbon": ribbon(calendar),
+        # The third headline figure. The plate has no window for it - its
+        # three are checks, days and open tasks - so it rides under the
+        # ribbon, which is the thing it counts. Without this it was
+        # computed by _release_drops and rendered nowhere.
+        "drops": headline(checks, days_left, drops)[2],
+        "plan_box": box("plan"),
+        # Nothing AT ALL: no release chosen and no dated post anywhere.
+        # The calendar has to be in this test - an account can have a
+        # rollout with dated posts and no chosen release, and the first
+        # cut of this hid that ribbon behind the standby, so a post the
+        # artist had scheduled simply vanished (caught by
+        # test_a_dated_rollout_post_appears_on_the_page...).
+        "idle": not checks and days_left is None and not calendar,
+        "standby": standby(),
         "arc": arc(days_left),
         "tasks": filtered(all_tasks, show),
         "task_total": len(all_tasks),
