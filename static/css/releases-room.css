@@ -12,18 +12,6 @@
 
 .rl-field-v { font-size: 14.5px; font-weight: 700; color: var(--sb-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ---- the arc --------------------------------------------------------- */
-/* His mockup numbers the stages and ticks the ones already passed, with the
-   connecting line gold behind the release and grey ahead of it. */
-
-.rl-step--done::after, .rl-step--now::after { background: var(--sb-gold); }
-.rl-step--done .rl-dot { border-color: var(--sb-gold); background: var(--sb-gold); color: var(--sb-on-gold); }
-.rl-step--now .rl-dot {
-  border-color: var(--sb-gold-bright); background: var(--sb-ground); color: var(--sb-gold-bright);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sb-gold) 12%, transparent);
-}
-.rl-step--now .rl-step-n { color: var(--sb-gold-bright); }
-
 /* ---- the two columns -------------------------------------------------- */
 
 .rl-row { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }

@@ -3,7 +3,7 @@
 {% block title %}Fan Room{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
-  <link rel="stylesheet" href="/static/css/fan-room.css?v=6">
+  <link rel="stylesheet" href="/static/css/fan-room.css?v=7">
 {% endblock %}
 
 {#- THE FAN ROOM - the Fans room's opening screen, built from the owner's
@@ -167,8 +167,8 @@
       {% else %}
       <div class="fr-map-empty">
         <p>No fan cities on file yet.</p>
-        <p>Cities come from your smart links and from the city column of a list you import.</p>
-        <a class="fr-more" href="/fans">Open Audience{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
+        <p>Cities come from your smart links and from the city column of a list you
+           import &mdash; start from the Fans card below.</p>
       </div>
       {% endif %}
     </section>

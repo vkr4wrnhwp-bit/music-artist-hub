@@ -1,0 +1,635 @@
+ data-no-collapse>
+
+  
+  <section class="rk-hero" aria-labelledby="rl-title">
+    <div class="rk-hero-top">
+      <div class="rk-hero-said">
+        <p class="rk-eyebrow">Street Banker &middot; Releases</p>
+        <h1 class="rk-title" id="rl-title">Releases Room</h1>
+        <p class="rk-sub">Plan the release, check readiness, and see what is due next from one place.</p>
+      </div>
+      <div class="rk-aside">
+        <div class="rk-controls">
+          <span class="rk-field" title="The account these figures are for">
+            <span>Account</span>
+            <b class="rl-field-v">Release Artist</b>
+          </span>
+          
+          
+          <form class="rk-field" method="get" action="/room/releases" id="rl-pick">
+            <span id="rl-pick-l">Release / Campaign</span>
+            <select name="campaign" aria-labelledby="rl-pick-l" onchange="this.form.submit()">
+              
+              <option value="bad8c772fe1c4edaacc98f0ba11e24aa" selected>Night Drive (Single)</option>
+              
+              <option value="c7f67bb3469340d28ce5d6609f425fa5">Second Thing (Single)</option>
+              
+            </select>
+            <noscript><button type="submit">Show</button></noscript>
+          </form>
+          
+          
+          <a class="rk-cta" href="/releases/autopilot?campaign=bad8c772fe1c4edaacc98f0ba11e24aa"><svg class="rk-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 20h4l11-11-4-4L4 16z"/><path d="M14.5 5.5l4 4"/></svg>Edit Release Plan</a>
+          
+        </div>
+      </div>
+    </div>
+  </section>
+
+  
+  <section class="rk-figures" aria-label="Where this release stands">
+    
+    <div class="rk-fig">
+      <p class="rk-fig-n">1 / 12</p>
+      <p class="rk-fig-l">Release checks passed</p>
+      
+    </div>
+    
+    <div class="rk-fig">
+      <p class="rk-fig-n">21</p>
+      <p class="rk-fig-l">Days left</p>
+      
+    </div>
+    
+    <div class="rk-fig">
+      <p class="rk-fig-n">1</p>
+      <p class="rk-fig-l">Scheduled drops</p>
+      <p class="rk-fig-s">Across all campaigns</p>
+    </div>
+    
+    <div class="rk-fig-note">
+      <svg class="rk-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 8h.01"/></svg>
+      <div>
+        
+        <b>A blank is not a zero</b>
+        <p>A figure nothing has measured yet says so in words. Nothing here says
+           a release was delivered &mdash; that is the distributor's to confirm,
+           and we cannot see it.</p>
+        
+      </div>
+    </div>
+  </section>
+
+  
+  <section class="rk-panel" aria-label="The release arc">
+    <ol class="rk-rail rl-arc">
+      
+      <li class="rk-step rk-step--done">
+        <span class="rk-ring"><svg class="rk-ring-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        <b>60-day plan</b>
+        <span>Set the foundation</span>
+      </li>
+      
+      <li class="rk-step rk-step--now">
+        <span class="rk-ring"><span class="rk-ring-n">2</span></span>
+        <b>30-day plan</b>
+        <span>Build and prepare</span>
+      </li>
+      
+      <li class="rk-step rk-step--ahead">
+        <span class="rk-ring"><span class="rk-ring-n">3</span></span>
+        <b>14-day plan</b>
+        <span>Finalise and confirm</span>
+      </li>
+      
+      <li class="rk-step rk-step--ahead">
+        <span class="rk-ring"><span class="rk-ring-n">4</span></span>
+        <b>Release week</b>
+        <span>Launch and activate</span>
+      </li>
+      
+      <li class="rk-step rk-step--ahead">
+        <span class="rk-ring"><span class="rk-ring-n">5</span></span>
+        <b>Post-release</b>
+        <span>Measure and grow</span>
+      </li>
+      
+    </ol>
+  </section>
+
+  <div class="rl-row">
+    
+    <section class="rk-panel" aria-labelledby="rl-tasks-h">
+      <div class="rk-panel-head">
+        <div>
+          <h2 class="rk-h" id="rl-tasks-h">What needs attention now</h2>
+          <p class="rk-said">Prioritised from your release plan and checks.</p>
+        </div>
+        
+        <form class="rk-field rl-filter" method="get" action="/room/releases">
+          <input type="hidden" name="campaign" value="bad8c772fe1c4edaacc98f0ba11e24aa">
+          <span id="rl-show-l">Show</span>
+          <select name="show" aria-labelledby="rl-show-l" onchange="this.form.submit()">
+            
+            <option value="all" selected>All items</option>
+            
+            <option value="open">Open only</option>
+            
+            <option value="passed">Passed only</option>
+            
+          </select>
+          <noscript><button type="submit">Show</button></noscript>
+        </form>
+        
+      </div>
+
+      
+      <table class="rk-table rl-tasks">
+        <thead>
+          <tr><th scope="col">Task</th><th scope="col">Details</th><th scope="col">Due date</th><th scope="col">Status</th></tr>
+        </thead>
+        <tbody>
+          
+          <tr>
+            <td><a href="/links/bad8c772fe1c4edaacc98f0ba11e24aa/edit">Apple Music destination</a></td>
+            <td class="rk-dim">Add the Apple Music link.</td>
+            <td class="rk-num">September 29, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/links/bad8c772fe1c4edaacc98f0ba11e24aa/edit">Campaign published</a></td>
+            <td class="rk-dim">Publish the campaign so the public page is live.</td>
+            <td class="rk-num">September 29, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/links/bad8c772fe1c4edaacc98f0ba11e24aa/edit">Consent copy set</a></td>
+            <td class="rk-dim">Consent text is stored with every signup.</td>
+            <td class="rk-num">September 13, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/links/bad8c772fe1c4edaacc98f0ba11e24aa/edit">Cover art set</a></td>
+            <td class="rk-dim">Upload or auto-scan cover art in the campaign builder.</td>
+            <td class="rk-num">September 13, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/links/bad8c772fe1c4edaacc98f0ba11e24aa/edit">Fan capture enabled</a></td>
+            <td class="rk-dim">Own the fan — enable email capture.</td>
+            <td class="rk-num">September 29, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/catalog">ISRC on catalog track</a></td>
+            <td class="rk-dim">Add the track to your catalog so identifiers auto-pull.</td>
+            <td class="rk-num">September 13, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/epk">Press kit ready</a></td>
+            <td class="rk-dim">Update your EPK — press and promoters will ask for it.</td>
+            <td class="rk-num">September 13, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/links/bad8c772fe1c4edaacc98f0ba11e24aa/variants">Promo variants created</a></td>
+            <td class="rk-dim">Create per-channel variants so every door is measured.</td>
+            <td class="rk-num">September 29, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/rollout-studio/new">Rollout scheduled</a></td>
+            <td class="rk-dim">Generate the social rollout with tracked links per post.</td>
+            <td class="rk-num">September 29, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/links/bad8c772fe1c4edaacc98f0ba11e24aa/edit">Spotify destination</a></td>
+            <td class="rk-dim">Add the Spotify link (auto-scan can find it).</td>
+            <td class="rk-num">September 29, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/links/bad8c772fe1c4edaacc98f0ba11e24aa/edit">YouTube destination</a></td>
+            <td class="rk-dim">Add the YouTube link.</td>
+            <td class="rk-num">September 29, 2026</td>
+            <td><span class="rk-lamp rk-lamp--crit">Open</span></td>
+          </tr>
+          
+          <tr>
+            <td><a href="/links/bad8c772fe1c4edaacc98f0ba11e24aa/edit">Release date set</a></td>
+            <td class="rk-dim">A date drives the pre-save countdown and auto-conversion.</td>
+            <td class="rk-num">September 13, 2026</td>
+            <td><span class="rk-lamp rk-lamp--good">Passed</span></td>
+          </tr>
+          
+        </tbody>
+      </table>
+      <p class="rk-foot">11 of 12 still open. A due day is
+        its own window counted back from release day, so it needs a release date; the rest
+        are blank on purpose.</p>
+      
+
+      
+      <h3 class="rk-h rl-sub-h" id="rl-meters-h">Release check breakdown</h3>
+      <div class="rl-meters" role="list" aria-labelledby="rl-meters-h">
+        
+        <div class="rl-meter" role="listitem"><span class="rl-donut"
+                style="--pct: 33" aria-hidden="true"></span>
+          <span class="rl-meter-t">
+            <b>1 / 3</b>
+            <span>Release assets</span>
+          </span>
+        </div>
+        
+        <div class="rl-meter" role="listitem"><span class="rl-donut"
+                style="--pct: 0" aria-hidden="true"></span>
+          <span class="rl-meter-t">
+            <b>0 / 1</b>
+            <span>Metadata</span>
+          </span>
+        </div>
+        
+        <div class="rl-meter" role="listitem"><span class="rl-donut"
+                style="--pct: 0" aria-hidden="true"></span>
+          <span class="rl-meter-t">
+            <b>0 / 5</b>
+            <span>Distribution</span>
+          </span>
+        </div>
+        
+        <div class="rl-meter" role="listitem"><span class="rl-donut"
+                style="--pct: 0" aria-hidden="true"></span>
+          <span class="rl-meter-t">
+            <b>0 / 2</b>
+            <span>Fans &amp; rights</span>
+          </span>
+        </div>
+        
+        <div class="rl-meter" role="listitem"><span class="rl-donut"
+                style="--pct: 0" aria-hidden="true"></span>
+          <span class="rl-meter-t">
+            <b>0 / 1</b>
+            <span>Rollout</span>
+          </span>
+        </div>
+        
+      </div>
+      
+    </section>
+
+    
+    <div class="rl-side">
+      <section class="rk-panel" aria-labelledby="rl-about-h">
+        <div class="rk-panel-head">
+          <h2 class="rk-h" id="rl-about-h">Release overview</h2>
+          
+        </div>
+        
+        <div class="rl-about">
+          
+          <span class="rl-cover rl-cover--none">No cover on file</span>
+          
+          <div class="rl-about-t">
+            <p class="rl-about-a">Release Artist</p>
+            <p class="rl-about-n">Night Drive</p>
+            <p class="rl-about-d">October 13, 2026 (21 days left)</p>
+            <p class="rl-about-m">Single</p>
+            <div class="rl-marks">
+              
+              <span class="rk-lamp rk-lamp--off" title="Clean">Not measured</span>
+              
+              <span class="rk-lamp rk-lamp--off" title="ISRC assigned">Not measured</span>
+              
+              <span class="rk-lamp rk-lamp--warn">Cover art added</span>
+              
+              <span class="rk-lamp rk-lamp--off" title="Audio checked">Not measured</span>
+              
+            </div>
+          </div>
+        </div>
+        
+
+        <div class="rk-panel-head rl-sub-head">
+          <h3 class="rk-h" id="rl-cal-h">Release calendar</h3>
+          <p class="rk-cap">All scheduled drops across campaigns (merged view).</p>
+        </div>
+        
+        <div class="rl-cal" role="list" aria-labelledby="rl-cal-h">
+          
+          <div class="rl-cal-i rl-cal-i--last" role="listitem">
+            <span class="rl-cal-d"></span>
+            <p class="rl-cal-w">Sep 26</p>
+            <p class="rl-cal-t">Teaser clip</p>
+            <p class="rl-cal-s">TikTok &middot; Rollout one</p>
+          </div>
+          
+        </div>
+        <p class="rk-foot">The soonest twelve. A post with no date is not shown, because
+          there is no day to show it on.</p>
+        
+
+        <div class="rk-panel-head rl-sub-head">
+          <h3 class="rk-h" id="rl-pp-h">Track passport</h3>
+          <p class="rk-cap">Per-track details, separate from campaign readiness.</p>
+        </div>
+        
+        <p class="rk-empty">No recordings on file for this account yet.</p>
+        
+      </section>
+    </div>
+  </div>
+
+  
+  
+  <section aria-labelledby="rl-tiles-h">
+    <div class="rk-panel-head">
+      <h2 class="rk-h" id="rl-tiles-h">Explore more in the Releases Room</h2>
+      <p class="rk-cap">3 more tools to plan, promote and distribute your music.</p>
+    </div>
+    <div class="rk-tiles">
+      
+      <a class="rk-tile" href="/rollout-studio" data-room-card="rollout">
+        <span class="rk-tile-top">
+          <span class="rk-tile-disc"><svg class="rk-tile-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9h3l6-4v14l-6-4H4z"/><path d="M16.5 9a4 4 0 010 6"/></svg></span>
+          <span class="rk-tile-text">
+            <b>Rollout Engine</b>
+            
+            <span>Generated captions, briefs, and rollout plans.</span>
+          </span>
+        </span>
+        <span class="rk-tile-foot">
+          <span></span>
+          <span class="rk-tile-go"><svg class="rk-ico rk-ico--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </span>
+      </a>
+      
+      <a class="rk-tile" href="/sync/clearance-packs" data-room-card="sync-packs">
+        <span class="rk-tile-top">
+          <span class="rk-tile-disc"><svg class="rk-tile-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></span>
+          <span class="rk-tile-text">
+            <b>Sync Packs</b>
+            
+            <span>Cleared, ready-to-send packs: the product you sell to a sync request.</span>
+          </span>
+        </span>
+        <span class="rk-tile-foot">
+          <span></span>
+          <span class="rk-tile-go"><svg class="rk-ico rk-ico--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </span>
+      </a>
+      
+      <a class="rk-tile" href="/distribution" data-room-card="distribution">
+        <span class="rk-tile-top">
+          <span class="rk-tile-disc"><svg class="rk-tile-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.5 2.6 2.5 14.4 0 17c-2.5-2.6-2.5-14.4 0-17z"/></svg></span>
+          <span class="rk-tile-text">
+            <b>Distribution</b>
+            <span class="rk-tile-sub">Powered by Symphonic</span>
+            <span>How your releases reach the stores today.</span>
+          </span>
+        </span>
+        <span class="rk-tile-foot">
+          <span></span>
+          <span class="rk-tile-go"><svg class="rk-ico rk-ico--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </span>
+      </a>
+      
+    </div>
+  </section>
+  
+
+</div>
+<div class="sbq" id="sbq">
+  <button type="button" class="sbq-open" id="sbq-open" aria-expanded="false" aria-controls="sbq-panel" aria-label="Ask Street Banker">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false">
+      <path d="M3 5h14v9H8l-4 3v-3H3z"/><path d="M8 8h4M8 11h2"/>
+    </svg>
+    <span>Ask</span>
+  </button>
+
+  <div class="sbq-panel" id="sbq-panel" hidden>
+    <div class="sbq-head">
+      <h2 class="sbq-title">Ask Street Banker</h2>
+      <button type="button" class="sbq-x" id="sbq-x" aria-label="Close">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M5 5l10 10M15 5L5 15"/></svg>
+      </button>
+    </div>
+    <p class="sbq-note">Answers here are written by us, not generated. If nobody has written one, it says so and sends your question on.</p>
+    <form class="sbq-form" id="sbq-form">
+      <label class="sbq-label" for="sbq-q">Your question</label>
+      <textarea id="sbq-q" name="q" rows="2" required
+                placeholder="Where is my money? Why was my cover art rejected?"></textarea>
+      <button type="submit" class="sbq-go">Ask</button>
+    </form>
+    <div class="sbq-out" id="sbq-out" aria-live="polite"></div>
+  </div>
+</div>
+
+<style>
+  .sbq { position: fixed; right: 16px; bottom: 16px; z-index: 60; }
+  .sbq-open {
+    display: inline-flex; align-items: center; gap: 8px;
+    /* The phone rule below already makes this a 44px circle; the pill it
+       starts as was 41px tall, so it takes the same floor at every width. */
+    min-height: 44px;
+    padding: 10px 14px; border-radius: var(--sb-r-pill); cursor: pointer;
+    border: 1px solid var(--sb-gold);
+    background: var(--sb-surface-2); color: var(--sb-gold-bright);
+    font: inherit; font-size: 13px; font-weight: 700;
+    box-shadow: 0 10px 28px rgba(0,0,0,.5);
+  }
+  .sbq-open svg { width: 18px; height: 18px; }
+  .sbq-open:hover { border-color: var(--sb-gold-bright); }
+  .sbq-panel {
+    width: min(360px, calc(100vw - 32px));
+    max-height: min(70vh, 560px); overflow: auto;
+    padding: 16px; border-radius: var(--sb-r-panel);
+    border: 1px solid rgba(242,239,233,.14);
+    background: var(--sb-surface-1);
+    box-shadow: 0 24px 60px rgba(0,0,0,.6);
+  }
+  .sbq-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .sbq-title { margin: 0; font-size: 15px; font-weight: 800; color: var(--sb-ink); }
+  .sbq-x { background: none; border: 0; cursor: pointer; color: var(--sb-ink-2); padding: 4px; }
+  .sbq-x svg { width: 16px; height: 16px; }
+  .sbq-note { margin: 8px 0 12px; font-size: 12px; line-height: 1.5; color: var(--sb-ink-2); }
+  .sbq-form { display: grid; gap: 8px; }
+  .sbq-label { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--sb-ink-2); }
+  .sbq-form textarea {
+    width: 100%; padding: 10px 12px; border-radius: var(--sb-r-panel); resize: vertical;
+    border: 1px solid rgba(242,239,233,.14); background: rgba(0,0,0,.3);
+    color: var(--sb-ink); font: inherit; font-size: 14px;
+  }
+  .sbq-go {
+    justify-self: start; padding: 9px 16px; border: 0; border-radius: var(--sb-r-panel); cursor: pointer;
+    background: var(--sb-gold); color: var(--sb-on-gold);
+    font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  }
+  .sbq-out:not(:empty) { margin-top: 14px; border-top: 1px solid rgba(242,239,233,.12); padding-top: 12px; }
+  .sbq-q { margin: 0 0 6px; font-size: 13px; font-weight: 800; color: var(--sb-gold-bright); }
+  .sbq-a { margin: 0; font-size: 14px; line-height: 1.55; color: var(--sb-ink); }
+  .sbq-where { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .sbq-where a {
+    padding: 6px 10px; border-radius: var(--sb-r-panel); text-decoration: none;
+    border: 1px solid rgba(212,169,60,.45); color: var(--sb-gold-bright);
+    font-size: 12px; font-weight: 700;
+  }
+  .sbq :focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; }
+  /* On a phone the pill sat on top of whatever was at the foot of the
+     screen: a card's button, a line of the Tool suites (phone pass,
+     2026-09-18). There it is a 44px round button tucked into the corner,
+     clear of the home indicator, and every page keeps room at its foot
+     so the last thing on it can scroll out from under the button. The
+     open panel becomes a sheet the width of the screen. */
+  @media (max-width: 767px) {
+    /* --sbq-lift is the height of a fixed bar pinned to the foot of the
+       screen (the Light Studio dock, the Rack's power strip, the tour
+       bar), measured by the script below, so the button sits above the
+       bar instead of on its right-hand control. The bar's own height
+       already includes the home-indicator inset. */
+    .sbq {
+      right: 12px;
+      bottom: calc(12px + max(var(--sbq-lift, 0px), env(safe-area-inset-bottom, 0px)));
+      transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 0s;
+    }
+    /* Scrolling down to read, the button steps out of the way, so it is
+       never parked on the edge of a card; any scroll back up, the top of
+       the page or the foot of it (which keeps room for it) brings it
+       back. An open panel never hides. */
+    .sbq.is-tucked {
+      transform: translateY(calc(100% + 24px)); opacity: 0; visibility: hidden; pointer-events: none;
+      transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 180ms;
+    }
+    .sbq-open {
+      width: 44px; height: 44px; padding: 0; gap: 0; justify-content: center;
+      background: var(--sb-surface-2);
+      box-shadow: 0 6px 18px rgba(0,0,0,.55);
+    }
+    .sbq-open span {
+      position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip-path: inset(50%); white-space: nowrap;
+    }
+    .sbq-open svg { width: 20px; height: 20px; }
+    .sbq-panel { width: calc(100vw - 24px); max-height: min(75vh, 560px); }
+    #sb-main { padding-bottom: 72px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .sbq, .sbq.is-tucked { transition: none; } }
+  @media print { .sbq { display: none; } }
+</style>
+
+<script>
+(function () {
+  var root = document.getElementById("sbq");
+  if (!root) { return; }
+  var open = document.getElementById("sbq-open");
+  var panel = document.getElementById("sbq-panel");
+  var form = document.getElementById("sbq-form");
+  var box = document.getElementById("sbq-q");
+  var out = document.getElementById("sbq-out");
+
+  function show(on) {
+    panel.hidden = !on;
+    open.hidden = on;
+    open.setAttribute("aria-expanded", on ? "true" : "false");
+    if (on) { box.focus(); } else { open.focus(); }
+  }
+  open.addEventListener("click", function () { show(true); });
+  document.getElementById("sbq-x").addEventListener("click", function () { show(false); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !panel.hidden) { show(false); }
+  });
+
+  // Phones: keep clear of fixed bottom bars, and step aside while the
+  // reader scrolls down (see the CSS above for why).
+  var phone = window.matchMedia ? window.matchMedia("(max-width: 767px)") : null;
+  var docks = [];
+  function lift() {
+    var h = 0, vh = window.innerHeight;
+    docks.forEach(function (el) {
+      var cs = window.getComputedStyle(el);
+      if (cs.position !== "fixed" || cs.display === "none" || cs.visibility === "hidden") { return; }
+      var r = el.getBoundingClientRect();
+      if (r.height > 0 && r.bottom >= vh - 2) { h = Math.max(h, Math.ceil(vh - r.top)); }
+    });
+    root.style.setProperty("--sbq-lift", h + "px");
+  }
+  function watchDocks() {
+    // The tour bar is written after this partial, so look once the page is parsed.
+    docks = ["lx-dock", "rk-dock", "tour-bar"].map(function (id) {
+      return document.getElementById(id);
+    }).filter(Boolean);
+    if (!docks.length) { return; }
+    lift();
+    window.addEventListener("resize", lift);
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(lift);
+      docks.forEach(function (el) { ro.observe(el); });
+    }
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(lift);
+      docks.forEach(function (el) { mo.observe(el, { attributes: true, attributeFilter: ["class", "style", "hidden"] }); });
+    }
+  }
+  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", watchDocks); }
+  else { watchDocks(); }
+  var lastY = window.scrollY || 0;
+  function tuck(on) { root.classList.toggle("is-tucked", on); }
+  window.addEventListener("scroll", function () {
+    var y = window.scrollY || 0;
+    if (!phone || !phone.matches || !panel.hidden) { tuck(false); lastY = y; return; }
+    var dy = y - lastY;
+    if (Math.abs(dy) < 6) { return; }
+    var foot = window.innerHeight + y >= document.documentElement.scrollHeight - 96;
+    tuck(dy > 0 && y > 80 && !foot);
+    lastY = y;
+  }, { passive: true });
+  root.addEventListener("focusin", function () { tuck(false); });
+
+  function text(tag, cls, value) {
+    var el = document.createElement(tag);
+    if (cls) { el.className = cls; }
+    el.textContent = value;
+    return el;
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var q = (box.value || "").trim();
+    if (!q) { return; }
+    out.textContent = "";
+    out.appendChild(text("p", "sbq-a", "Looking..."));
+    fetch("/support/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: q, page: location.pathname })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      out.textContent = "";
+      if (d.kind === "answer") {
+        out.appendChild(text("p", "sbq-q", d.question));
+        out.appendChild(text("p", "sbq-a", d.answer));
+        if (d.where && d.where.length) {
+          var row = document.createElement("div");
+          row.className = "sbq-where";
+          d.where.forEach(function (pair) {
+            var a = document.createElement("a");
+            a.href = pair[1];
+            a.textContent = pair[0];
+            row.appendChild(a);
+          });
+          out.appendChild(row);
+        }
+      } else {
+        out.appendChild(text("p", "sbq-a", d.reply ||
+          "Something went wrong asking. Try again in a moment."));
+      }
+    }).catch(function () {
+      out.textContent = "";
+      out.appendChild(text("p", "sbq-a",
+        "That could not be sent. Check your connection and try again."));
+    });
+  });
+})();
+</script>
+      
+      

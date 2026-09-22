@@ -3,7 +3,7 @@
 {% block title %}Publishing Room{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
-  <link rel="stylesheet" href="/static/css/publishing-room.css?v=2">
+  <link rel="stylesheet" href="/static/css/publishing-room.css?v=3">
 {% endblock %}
 
 {#- THE PUBLISHING ROOM - the room's opening screen, built from the owner's
@@ -57,7 +57,7 @@
           <span class="rk-avatar" aria-hidden="true">{{ (pb.artist_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ pb.artist_name }}">{{ pb.artist_name }}</span>
         </span>
         {% endif %}
-        <a class="rk-chip" href="/catalog#add">{{ icon("plus", "rk-ico") }}Add a song</a>
+        <a class="rk-chip" href="/catalog?view=passports">{{ icon("plus", "rk-ico") }}Add a song</a>
       </div>
     </div>
   </section>
@@ -125,7 +125,7 @@
           <tr>
             <td class="pb-song"><a href="/tracks/{{ r.id }}#passport">{{ r.title }}</a>{% if r.release %}<span>{{ r.release }}</span>{% endif %}</td>
             <td class="pb-wrong">{{ r.wrong }}</td>
-            <td><span class="rk-lamp rk-lamp--{{ r.state }}">{{ r.label }}</span></td>
+            <td><span class="rk-lamp rk-lamp--{{ r.tone }}">{{ r.label }}</span></td>
           </tr>
           {% endfor %}
         </tbody>
@@ -180,7 +180,7 @@
       {% if pb.songs|length > 1 %}
       <form class="pb-pick" method="get" action="/room/publishing">
         <label class="rk-said" for="pb-song">Song</label>
-        <select id="pb-song" name="song">
+        <select id="pb-song" name="song" onchange="this.form.submit()">
           {% for s in pb.songs %}
           <option value="{{ s.id }}"{% if pb.splits and s.id == pb.splits.id %} selected{% endif %}>{{ s.title }}</option>
           {% endfor %}

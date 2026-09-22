@@ -144,10 +144,13 @@ def moves(rows, audience, days, today, link_visits=0, shopify=False):
                     "reach_label": "Reach", "reach": "%s fan%s" % (_fmt(top), "" if top == 1 else "s"),
                     "cta": "See them", "href": "/links/fans?intent=top"})
     if len(out) < 3:
+        # The hero's gold button already goes to /links/new, so a filler
+        # row pointing there put one destination on the screen twice under
+        # two names. This row sends them to the links they have instead.
         out.append({"icon": "welcome", "title": "Capture more fans" if total else "Start capturing fans",
                     "desc": "Put an email capture on a smart link.",
                     "reach_label": "", "reach": "",
-                    "cta": "Make a link", "href": "/links/new"})
+                    "cta": "See your links", "href": "/links"})
     return out[:3]
 
 
@@ -206,7 +209,10 @@ def tile_status(key, audience, new_count, days, club, open_briefs, state):
         # Green is a real, non-zero figure; a zero is stated, not lit.
         return ("good" if n else "off", "%s %s%s" % (_fmt(n), word, "" if n == 1 else "s"))
     if key == "fans":
-        return ("good" if new_count else "off", "%s new" % _fmt(new_count))
+        # The hero prints the new-fan count as its 66px headline
+        # figure. A tile is a door, not a second readout of the same
+        # number, so this one carries no figure at all.
+        return ("off", "")
     if key == "fan-crm":
         n = int(audience.get("total") or 0)
         return count(n, "fan") if n else ("off", "Nobody yet")

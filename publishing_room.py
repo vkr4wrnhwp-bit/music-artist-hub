@@ -116,6 +116,11 @@ def uncollected(tracks):
     problems cannot be checked against the catalogue.
     """
     rank = {"red": 0, "yellow": 1, "green": 2}
+    # artist_os speaks in colours; the room kit's lamps are named for what
+    # they MEAN. Emitting the colour word straight into the class left every
+    # pill in this table with no rule at all and therefore no colour, which
+    # is how the room shipped.
+    tone = {"red": "crit", "yellow": "warn", "green": "good"}
     rows = []
     for t in tracks or ():
         mlc = artist_os.mlc_evidence(t)
@@ -126,6 +131,7 @@ def uncollected(tracks):
             "wrong": mlc["detail"],
             "label": mlc["label"],
             "state": mlc["state"],
+            "tone": tone.get(mlc["state"], "off"),
             "source": mlc["source"],
         })
     rows.sort(key=lambda r: (rank.get(r["state"], 3), r["title"].lower()))

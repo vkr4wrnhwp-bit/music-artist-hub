@@ -3,7 +3,7 @@
 {% block title %}Releases Room{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
-  <link rel="stylesheet" href="/static/css/releases-room.css?v=2">
+  <link rel="stylesheet" href="/static/css/releases-room.css?v=3">
 {% endblock %}
 
 {#- THE RELEASES ROOM - built from the owner's mockup image (2026-09-22),
@@ -65,17 +65,20 @@
           {% endif %}
           {% if rr.campaigns %}
           <form class="rk-field" method="get" action="/room/releases" id="rl-pick">
+            {#- Carry the task filter across a release change, or choosing a
+                different release silently resets the view to All items. -#}
+            <input type="hidden" name="show" value="{{ rr.show }}">
             <span id="rl-pick-l">Release / Campaign</span>
             <select name="campaign" aria-labelledby="rl-pick-l" onchange="this.form.submit()">
               {% for c in rr.campaigns %}
               <option value="{{ c.id }}"{% if rr.campaign and c.id == rr.campaign.id %} selected{% endif %}>{{ c.title }}{% if c.release_type %} ({{ c.release_type }}){% endif %}</option>
               {% endfor %}
             </select>
-            <noscript><button type="submit">Show</button></noscript>
+            <noscript><button type="submit">Show release</button></noscript>
           </form>
           {% endif %}
           {% if rr.campaign %}
-          <a class="rk-cta" href="/releases/autopilot?campaign={{ rr.campaign.id }}">{{ icon("pen", "rk-ico") }}Edit Release Plan</a>
+          <a class="rk-cta" href="/links/{{ rr.campaign.id }}/edit">{{ icon("pen", "rk-ico") }}Edit Release Plan</a>
           {% else %}
           <a class="rk-cta" href="/links/new">{{ icon("pen", "rk-ico") }}Create a release</a>
           {% endif %}
@@ -212,7 +215,7 @@
           <div class="rl-about-t">
             {% if rr.overview.artist %}<p class="rl-about-a">{{ rr.overview.artist }}</p>{% endif %}
             <p class="rl-about-n">{{ rr.overview.title }}</p>
-            <p class="rl-about-d">{% if rr.overview.when %}{{ rr.overview.when }}{% if rr.overview.left is not none %} ({{ rr.overview.left }} days left){% endif %}{% else %}No release date set{% endif %}</p>
+            <p class="rl-about-d">{% if rr.overview.when %}{{ rr.overview.when }}{% else %}<a href="/links/{{ rr.campaign.id }}/edit">Add a release date</a>{% endif %}</p>
             <p class="rl-about-m">{{ rr.overview.meta }}</p>
             <div class="rl-marks">
               {% for m in rr.overview.marks %}
