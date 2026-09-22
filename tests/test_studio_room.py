@@ -209,3 +209,22 @@ def test_the_display_does_not_draw_a_waveform_nobody_measured():
                    encoding="utf-8").read()
     wave = css.split(".sd-wave {", 1)[1].split("}", 1)[0]
     assert "repeating-linear-gradient" not in wave
+
+
+def test_the_plate_image_carries_a_cache_version():
+    """The owner's "it's the same as it was" after the fix shipped.
+
+    The server was right - staging served the cropped, transparent plate -
+    but the <img> had no ?v on it and the file was REPLACED in place. So a
+    browser took the new stylesheet, whose fractions are measured against
+    the cropped plate, and kept the old uncropped one it already had. New
+    positions, old picture, white ground still there.
+
+    Every other asset on this page is versioned. This one has to be too,
+    and the version has to move whenever the plate does.
+    """
+    c, _uid = _account()
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    assert "studio-bus-plate.webp?v=" in body, (
+        "an image replaced in place needs a cache version or browsers keep "
+        "the old one")

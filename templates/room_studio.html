@@ -76,7 +76,12 @@
   {% set a = sd.analyser %}
   <section class="sd-unit{% if not a.measured %} is-idle{% endif %}"
            aria-label="{% if a.measured %}Your last measured master, {{ a.title }}{% else %}The master bus analyser, with nothing measured yet{% endif %}">
-    <img class="sd-plate" src="/static/img/studio-bus-plate.webp" alt=""
+    {#- The ?v is not decoration. This file was REPLACED in place - cropped
+    and its white ground cleared to alpha - and without a version a
+    browser keeps the old one forever while happily taking the new
+    stylesheet, so the overlays land on the wrong picture. Bump it
+    whenever the plate changes. -#}
+    <img class="sd-plate" src="/static/img/studio-bus-plate.webp?v=2" alt=""
          width="1993" height="640" decoding="async">
 
     {# the bay: the artist's own cover, or an empty sleeve #}
