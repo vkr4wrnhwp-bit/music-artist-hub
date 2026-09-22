@@ -182,6 +182,7 @@ def test_the_tiles_carry_only_counts_that_were_counted():
     cards = {"catalog": ("/catalog", "M1", "Catalog", "every song"),
              "track-passports": ("/catalog?view=passports", "M1", "Track Passports", "one page"),
              "conflicts": ("/conflicts", "M1", "Rights Conflicts", "disagree"),
+             "beats": ("/beats", "M1", "Beats", "registry and licences"),
              "fingerprints": ("/fingerprints/", "M1", "Fingerprints", "register"),
              "certified": ("/certified", "M1", "Certified", "six rungs")}
     out = pb.build([_track("One")], [], [{"title": "x", "description": "y"}],
