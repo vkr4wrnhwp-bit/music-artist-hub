@@ -150,4 +150,8 @@ def test_the_fan_room_has_no_banner_photograph():
         assert not _os.path.exists(_os.path.join(here, "static", "img", name)), name
     css = _io.open(_os.path.join(here, "static", "css", "fan-room.css"), encoding="utf-8").read()
     assert "fr-hero-photo" not in css and "min-height: 318px" not in css
-    assert "fan-room.css?v=5" in body
+    # The sheet is versioned so a returning browser refetches it; pinning
+    # the exact number only made this test fail every time it was bumped,
+    # so it asserts the floor it was raised past instead.
+    got = int(__import__("re").search(r"fan-room\.css\?v=(\d+)", body).group(1))
+    assert got >= 6, got

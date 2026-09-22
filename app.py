@@ -4874,7 +4874,9 @@ def create_app():
         rr = releases_room.build(
             campaign, checks, groups, days_left, release_date, drops, calendar,
             passport, campaigns, cards, sample=_session_is_demo(),
-            can_open=can_open)
+            can_open=can_open,
+            artist_name=artist_identity.display_name(user),
+            show=request.args.get("show") or "all")
         return render_template("room_releases.html", active_page="room-releases",
                                room=room, rr=rr, **build_dashboard_context())
 
@@ -4884,6 +4886,7 @@ def create_app():
         None rather than 0 when the account has no rollout at all: nothing
         scheduled anywhere is a different statement from nothing due.
         """
+        import releases_room
         try:
             rollouts = ros.list_campaigns(user["id"])
         except Exception:
@@ -4901,6 +4904,7 @@ def create_app():
                 # every entry on this calendar read "Post".
                 said = (post.get("caption") or "").strip().splitlines()
                 rows.append({"date": when,
+                             "when_label": releases_room.short_day(when),
                              "title": (said[0][:56] if said else "")
                                       or post.get("platform") or "Post",
                              "where": post.get("platform") or "",

@@ -217,7 +217,7 @@ def test_the_rooms_layout_drops_each_page_s_own_tab_strip(monkeypatch):
     assert "sb-subnav-a" in c.get("/epk").get_data(as_text=True)
 
     room = c.get("/room/releases").get_data(as_text=True)
-    assert "What is scheduled" in room, (
+    assert "Release calendar" in room, (
         "the calendar is this screen now, not a card pointing back at a "
         "query string on the desk")
     assert 'href="/releases/autopilot?view=calendar"' not in room

@@ -213,7 +213,7 @@ def test_an_empty_account_is_told_in_words_and_shown_no_zero_figures():
     # Counted on the figure's own class, not on the words: the note panel
     # explains the rule and says "Not measured" in passing, which is prose
     # rather than a fourth unmeasured figure.
-    assert page.count("pb-fig-n--none") == 3
+    assert page.count("rk-fig-n--none") == 3
     assert "No recordings on file yet." in page
     assert "Nothing on file disagrees with itself." in page
 

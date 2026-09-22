@@ -1,0 +1,266 @@
+/* THE ROOM KIT - the parts every room screen shares, defined once.
+
+   Why this exists (owner, 2026-09-22): "we need to make sure that fans and
+   marketing, that these three pages are coherent and cohesive with each
+   other. Everything looks the same. It's not starting to drift."
+
+   It had already drifted. The Fans and Marketing sheets set the title at
+   46px with the width axis at 112 and eyebrows at .24em; the Releases and
+   Publishing sheets I wrote afterwards set 44px, no width axis, and .2em.
+   Nobody would name the difference and everybody would feel it. So the
+   shared parts live here, in ONE declaration, and a room's own sheet holds
+   only what is genuinely its own - Marketing's constellation, the Releases
+   arc, the Publishing ladder.
+
+   The canonical values are the owner's: they are what fan-room.css and
+   marketing-room.css already used, because those two are his designs and
+   they shipped first.
+
+   tests/test_room_kit.py fails if a room's own sheet re-declares anything
+   defined here, which is how the drift stays fixed rather than fixed once.
+
+   Every colour is a design token. Radii are the three the system allows.
+   Nothing below 12px, no monospace, and a state always carries a word and
+   never only a colour. */
+
+/* ---- the page ------------------------------------------------------- */
+
+.rk, .fr, .mk, .rl, .pb  { display: flex; flex-direction: column; gap: 16px; max-width: 1320px; margin: 0 auto; min-width: 0; }
+.rk * { box-sizing: border-box; }
+.rk svg { flex: none; }
+.rk-ico, .fr-ico, .mk-ico, .rl-ico, .pb-ico { width: 18px; height: 18px; }
+.rk-ico--sm, .fr-ico--sm, .mk-ico--sm, .rl-ico--sm, .pb-ico--sm { width: 15px; height: 15px; }
+
+.rk a:focus-visible, .rk button:focus-visible, .rk select:focus-visible,
+.rk summary:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: 2px; }
+
+/* ---- the head band --------------------------------------------------- */
+
+.rk-hero, .fr-hero, .mk-hero, .rl-hero, .pb-hero { position: relative; padding: 0 0 20px; border-bottom: 1px solid var(--sb-line-strong); }
+.rk-hero-top, .fr-hero-top, .mk-hero-top, .rl-hero-top, .pb-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.rk-hero-said, .mk-hero-said { min-width: 0; }
+.rk-eyebrow, .fr-eyebrow, .mk-eyebrow, .rl-eyebrow, .pb-eyebrow { margin: 0; font-size: 12.5px; font-weight: 600; letter-spacing: .24em; text-transform: uppercase; color: var(--sb-gold); }
+.rk-title, .fr-title, .mk-title, .rl-title, .pb-title {
+  margin: 6px 0 0; font-family: var(--sb-display); font-size: 46px; line-height: 1;
+  font-weight: 800; font-variation-settings: "wdth" 112; letter-spacing: -.01em; color: var(--sb-ink);
+}
+.rk-sub, .fr-sub, .mk-sub { margin: 6px 0 0; font-size: 19px; color: var(--sb-ink); }
+
+.rk-aside, .mk-hero-aside { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; min-width: 0; }
+.rk-controls, .fr-controls, .mk-controls, .rl-pickers, .pb-actions { display: flex; align-items: flex-end; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+
+/* A labelled control, the shape the owner's Releases mockup draws for the
+   Account and Release pickers: the label sits inside the box above the
+   value, so the control says what it is without a floating caption. */
+.rk-field {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 260px;
+  height: 56px; padding: 7px 12px 6px;
+  border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: color-mix(in srgb, var(--sb-ground) 72%, transparent);
+}
+.rk-field > span { font-size: 11.5px; color: var(--sb-ink-2); white-space: nowrap; }
+.rk-field select {
+  width: 100%; min-width: 0; border: 0; padding: 0; background: none; cursor: pointer;
+  color: var(--sb-ink); font-family: inherit; font-size: 14.5px; font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.rk-chip, .fr-chip, .mk-chip, .pb-chip {
+  display: inline-flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px;
+  border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: color-mix(in srgb, var(--sb-ground) 72%, transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  color: var(--sb-ink); font-size: 14px; font-weight: 500; white-space: nowrap;
+  /* The account chip holds the artist's own name, so it is capped at the
+     space it has and a long one ends in an ellipsis. Without this, a long
+     name made the document wider than the viewport and the whole page
+     scrolled sideways (honesty review, 2026-09-21). The ellipsis is visual
+     only, so the full name is still read out, and it is on the title
+     attribute for a pointer. */
+  max-width: 100%; min-width: 0; text-decoration: none;
+}
+.rk-chip-name, .fr-chip-name, .mk-chip-name, .pb-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rk-avatar, .fr-avatar, .mk-avatar, .pb-avatar {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--sb-gold-wash); border: 1px solid var(--sb-gold-line);
+  color: var(--sb-gold-bright); font-size: 12px; font-weight: 800;
+}
+
+.rk-cta, .fr-cta, .mk-cta {
+  display: inline-flex; align-items: center; gap: 10px; height: 42px; padding: 0 22px;
+  border: 0; border-radius: var(--sb-r-panel); text-decoration: none; white-space: nowrap; cursor: pointer;
+  background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold));
+  color: var(--sb-on-gold); font-family: inherit; font-size: 15px; font-weight: 800;
+  box-shadow: 0 1px 0 rgb(255 255 255 / .25) inset, 0 8px 22px color-mix(in srgb, var(--sb-gold) 22%, transparent);
+}
+.rk-cta:hover, .fr-cta:hover, .mk-cta:hover { filter: brightness(1.05); }
+
+/* ---- headings and panels --------------------------------------------- */
+
+.rk-kicker, .fr-kicker, .mk-kicker, .rl-kicker, .pb-kicker {
+  margin: 0; font-family: var(--sb-text); font-size: 12.5px; font-weight: 600;
+  letter-spacing: .24em; text-transform: uppercase; color: var(--sb-ink);
+}
+.rk-kicker--dim, .fr-kicker--dim, .mk-kicker--dim { color: var(--sb-ink-2); letter-spacing: .2em; }
+.rk-kicker--sm, .fr-kicker--sm, .mk-kicker--sm { font-size: 12px; letter-spacing: .18em; }
+
+.rk-panel, .fr-panel, .mk-panel, .rl-panel, .pb-panel {
+  min-width: 0; padding: 18px 16px 16px;
+  border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: linear-gradient(180deg, var(--sb-surface-1), var(--sb-ground));
+  box-shadow: var(--sb-e2);
+}
+.rk-panel-head, .fr-panel-head, .mk-panel-head, .rl-panel-h, .pb-panel-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.rk-panel-head .rk-kicker, .fr-panel-head .fr-kicker, .mk-panel-head .mk-kicker { color: var(--sb-gold); letter-spacing: .26em; }
+.rk-panel-head .rk-kicker--dim, .fr-panel-head .fr-kicker--dim, .mk-panel-head .mk-kicker--dim { color: var(--sb-ink-2); margin-top: 6px; }
+.rk-h { margin: 0; font-size: 19px; font-weight: 800; color: var(--sb-ink); }
+.rk-h small { margin-left: 8px; font-size: 13px; font-weight: 500; color: var(--sb-ink-2); }
+.rk-said { margin: 4px 0 0; font-size: 13px; color: var(--sb-ink-2); }
+/* A panel's right-hand caption: what the owner's mockup puts opposite a
+   section heading to say what the section is of. */
+.rk-cap { margin: 0; max-width: 40ch; text-align: right; font-size: 12.5px; color: var(--sb-ink-2); }
+
+.rk-more, .fr-more, .mk-more { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; color: var(--sb-gold-bright); text-decoration: none; }
+.rk-more:hover { text-decoration: underline; }
+
+/* ---- the figure strip ------------------------------------------------ */
+
+.rk-figures {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.15fr);
+  border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: linear-gradient(180deg, var(--sb-surface-1), var(--sb-ground));
+  box-shadow: var(--sb-e2); overflow: hidden;
+}
+.rk-fig { padding: 20px 22px; border-right: 1px solid var(--sb-line); min-width: 0; }
+.rk-fig-n {
+  margin: 0; font-family: var(--sb-display); font-size: 44px; line-height: 1;
+  font-weight: 800; font-variation-settings: "wdth" 112; letter-spacing: -.02em;
+  color: var(--sb-gold-bright); font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+}
+/* A figure nothing measured is words, not a number, so it is set as words. */
+.rk-fig-n--none { font-family: var(--sb-text); font-size: 21px; font-weight: 700; color: var(--sb-ink-2); letter-spacing: 0; }
+.rk-fig-n--warn { color: var(--sb-warn); }
+.rk-fig-l { margin: 10px 0 0; font-size: 14px; font-weight: 700; color: var(--sb-ink); }
+.rk-fig-s { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--sb-ink-2); }
+
+/* The last cell of the strip: what this room refuses to claim, or the
+   Sample mark on the demo. Never decoration. */
+.rk-fig-note { display: flex; gap: 10px; padding: 20px 22px; background: var(--sb-info-wash); border-left: 1px solid var(--sb-info-line); }
+.rk-fig-note svg { color: var(--sb-info); }
+.rk-fig-note b { display: block; font-size: 13px; color: var(--sb-ink); }
+.rk-fig-note p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--sb-ink-2); }
+
+/* ---- states ---------------------------------------------------------- */
+
+.rk-lamp {
+  display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px;
+  border-radius: var(--sb-r-pill); font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.rk-lamp::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.rk-lamp--good { background: var(--sb-good-wash); color: var(--sb-good); }
+.rk-lamp--warn { background: var(--sb-warn-wash); color: var(--sb-warn); }
+.rk-lamp--crit { background: var(--sb-crit-wash); color: var(--sb-crit); }
+.rk-lamp--off { background: var(--sb-surface-3); color: var(--sb-ink-2); }
+.rk-lamp--info { background: var(--sb-info-wash); color: var(--sb-info); }
+
+/* ---- tables ---------------------------------------------------------- */
+
+.rk-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.rk-table th {
+  text-align: left; padding: 0 12px 9px 0; font-size: 11.5px; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--sb-ink-2);
+  border-bottom: 1px solid var(--sb-line);
+}
+.rk-table td { padding: 12px 12px 12px 0; border-bottom: 1px solid var(--sb-line); vertical-align: middle; color: var(--sb-ink); }
+.rk-table tr:last-child td { border-bottom: 0; }
+.rk-table th:last-child, .rk-table td:last-child { padding-right: 0; }
+.rk-table a { color: inherit; text-decoration: none; font-weight: 700; }
+.rk-table a:hover { text-decoration: underline; }
+.rk-dim { color: var(--sb-ink-2); font-size: 12.5px; line-height: 1.45; }
+.rk-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; color: var(--sb-ink-2); white-space: nowrap; }
+
+/* ---- the closing tiles ----------------------------------------------- */
+
+/* Owner, 2026-09-22: "the tiles are the same size, you know, everything,
+   font, etc." So the grid is equal columns, the card has one min-height,
+   one icon size and one type scale, in every room. Marketing's 1.6fr lead
+   tile is gone for the same reason - it was the one tile that was not like
+   the others. */
+.rk-tiles, .fr-tiles, .mk-tiles, .pb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.rk-tile, .fr-tile, .mk-tile, .pb-tile {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 18px; min-height: 148px;
+  padding: 16px 16px 14px 18px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: linear-gradient(180deg, var(--sb-surface-1), var(--sb-ground));
+  text-decoration: none; color: var(--sb-ink);
+  transition: border-color var(--sb-fast), transform var(--sb-fast);
+}
+.rk-tile:hover, .fr-tile:hover, .mk-tile:hover, .pb-tile:hover { border-color: var(--sb-gold-line); transform: translateY(-1px); }
+.rk-tile-top, .fr-tile-top, .mk-tile-top { display: flex; align-items: flex-start; gap: 14px; }
+.rk-tile-ico, .fr-tile-ico, .mk-tile-ico, .pb-tile-ico { width: 40px; height: 40px; color: var(--sb-gold-bright); stroke-width: 1.3; }
+/* The owner's mockup sets the tile icon in a dark disc. */
+.rk-tile-disc {
+  display: grid; place-items: center; width: 52px; height: 52px; flex: none; border-radius: 50%;
+  background: var(--sb-surface-2); border: 1px solid var(--sb-line-strong);
+}
+.rk-tile-disc .rk-tile-ico { width: 26px; height: 26px; }
+.rk-tile-text, .fr-tile-text, .mk-tile-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rk-tile-text b, .fr-tile-text b, .mk-tile-text b { font-size: 15px; font-weight: 700; }
+.rk-tile-sub { font-size: 12px; font-weight: 700; color: var(--sb-gold); }
+.rk-tile-text span, .fr-tile-text span, .mk-tile-text span { font-size: 12.5px; color: var(--sb-ink-2); line-height: 1.45; }
+.rk-tile-foot, .fr-tile-foot, .mk-tile-foot, .pb-tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rk-tile-status, .fr-tile-status, .mk-tile-status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+.rk-tile-status i, .fr-tile-status i, .mk-tile-status i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.rk-tone-good, .fr-tone-good, .mk-tone-good { color: var(--sb-good); }
+.rk-tone-info, .fr-tone-info, .mk-tone-info { color: var(--sb-info); }
+.rk-tone-gold, .mk-tone-gold { color: var(--sb-gold-bright); }
+.rk-tone-off, .fr-tone-off, .mk-tone-off { color: var(--sb-ink-2); }
+.rk-tile-go, .fr-tile-go, .mk-tile-go {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--sb-line-strong); color: var(--sb-ink);
+}
+.rk-tile:hover .rk-tile-go, .fr-tile:hover .fr-tile-go, .mk-tile:hover .mk-tile-go { border-color: var(--sb-gold); color: var(--sb-gold-bright); }
+
+/* ---- empty states ---------------------------------------------------- */
+
+.rk-empty, .fr-empty, .mk-empty, .rl-empty, .pb-empty { margin: 14px 0 0; font-size: 14px; line-height: 1.6; color: var(--sb-ink-2); }
+.rk-calm {
+  margin: 16px 0 0; padding: 22px 16px; text-align: center;
+  border: 1px dashed var(--sb-line-strong); border-radius: var(--sb-r-control);
+}
+.rk-calm p { margin: 0; font-size: 13px; color: var(--sb-ink-2); }
+.rk-calm p + p { margin-top: 4px; font-size: 12.5px; }
+.rk-foot { margin: 12px 0 0; font-size: 12px; line-height: 1.5; color: var(--sb-ink-2); }
+
+/* ---- narrower --------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .rk-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rk-fig:nth-child(2) { border-right: 0; }
+  .rk-fig-note { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--sb-info-line); }
+}
+
+@media (max-width: 860px) {
+.rk-title, .fr-title, .mk-title, .rl-title, .pb-title { font-size: 36px; }
+.rk-sub, .fr-sub, .mk-sub { font-size: 16px; }
+.rk-aside, .mk-hero-aside { align-items: stretch; width: 100%; }
+.rk-controls, .fr-controls, .mk-controls, .rl-pickers, .pb-actions { justify-content: flex-start; }
+  .rk-cap { text-align: left; }
+}
+
+@media (max-width: 860px) {
+  .rk-cta, .fr-cta, .mk-cta { flex: 1 1 100%; justify-content: center; }
+  .rk-tile-top, .fr-tile-top, .mk-tile-top { flex-direction: column; gap: 10px; }
+  .rk-tile-ico, .fr-tile-ico, .mk-tile-ico, .pb-tile-ico { width: 36px; height: 36px; }
+}
+
+@media (max-width: 620px) {
+  .rk-figures { grid-template-columns: minmax(0, 1fr); }
+  .rk-fig { border-right: 0; border-bottom: 1px solid var(--sb-line); }
+  .rk-field { max-width: none; width: 100%; }
+.rk-tiles, .fr-tiles, .mk-tiles, .pb-tiles { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+.rk-tile, .fr-tile, .mk-tile, .pb-tile { transition: none; }
+  .rk-tile:hover { transform: none; }
+}

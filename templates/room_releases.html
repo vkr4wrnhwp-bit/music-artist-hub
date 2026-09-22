@@ -2,248 +2,300 @@
 
 {% block title %}Releases Room{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/releases-room.css?v=1">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=1">
+  <link rel="stylesheet" href="/static/css/releases-room.css?v=2">
 {% endblock %}
 
-{#- THE RELEASES ROOM - the room's opening screen, from the owner's mockup
-    (2026-09-22), in the framework the Fans and Marketing rooms set: you open
-    the room and the work is there, not a grid of icons.
+{#- THE RELEASES ROOM - built from the owner's mockup image (2026-09-22),
+    section by section, in his order and his words.
+
+    Everything shared with the other rooms - head band, figure strip,
+    panels, lamps, tables, closing tiles - comes from room-kit.css, which
+    exists because these four screens had already started to drift apart.
+    This sheet holds only what is this room's own: the numbered arc, the
+    donut meters, the release overview, the calendar rail and the passport
+    table.
 
     Three of this room's cards were one page with a different query string
     (the desk, its calendar view, its ready view), so they are this screen.
     Rollout Studio, Sync Packs and Distribution are separate pages and stay
     as tiles at the foot.
 
-    Every figure is releases_room.build() over this account's own rows, and
-    that module's docstring names the source of each. Two honesty devices run
-    all the way through:
-      - a figure nothing measured reads "Not measured", never 0
-      - a task's due day is shown only where the plan window it belongs to
-        carries a date, because a date nobody can trace is one somebody
-        will work to. -#}
+    Two honesty devices run all the way through, and the tests lock both:
+      - a figure nothing measured reads "Not measured", never 0, and is set
+        as words rather than as a number
+      - nothing on the page says a release was delivered. That is the
+        distributor's to confirm and this application cannot see it. -#}
 
 {% macro icon(name, cls="") -%}
 <svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-{%- if name == "60" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.5 2"/>
-{%- elif name == "30" -%}<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>
-{%- elif name == "14" -%}<path d="M4 12.5l5 5L20 6.5"/>
-{%- elif name == "week" -%}<circle cx="12" cy="12" r="3"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>
-{%- elif name == "after" -%}<path d="M3 17l5-6 4 3 4-6 5 4"/><path d="M3 20.5h18"/>
-{%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
+{%- if name == "tick" -%}<path d="M5 12.5l4.5 4.5L19 7.5"/>
+{%- elif name == "pen" -%}<path d="M4 20h4l11-11-4-4L4 16z"/><path d="M14.5 5.5l4 4"/>
 {%- elif name == "note" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 8h.01"/>
+{%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
+{%- elif name == "rollout" -%}<path d="M4 9h3l6-4v14l-6-4H4z"/><path d="M16.5 9a4 4 0 010 6"/>
+{%- elif name == "sync-packs" -%}<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>
+{%- elif name == "distribution" -%}<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.5 2.6 2.5 14.4 0 17c-2.5-2.6-2.5-14.4 0-17z"/>
 {%- else -%}<circle cx="12" cy="12" r="8"/>
 {%- endif -%}
 </svg>
 {%- endmacro %}
 
 {% block content %}
-<div class="rl" data-no-collapse>
+<div class="rk rl" data-no-collapse>
 
-  <section class="rl-hero" aria-labelledby="rl-title">
-    <div class="rl-hero-top">
-      <div>
-        <p class="rl-eyebrow">Street Banker &middot; Releases</p>
-        <h1 class="rl-title" id="rl-title">Releases Room</h1>
-        <p class="rl-lead">Everything between a finished master and the day it is out:
-          what is ready, what is not, and when each piece is due.</p>
+  {# ---- head band ------------------------------------------------------ #}
+  <section class="rk-hero" aria-labelledby="rl-title">
+    <div class="rk-hero-top">
+      <div class="rk-hero-said">
+        <p class="rk-eyebrow">Street Banker &middot; Releases</p>
+        <h1 class="rk-title" id="rl-title">Releases Room</h1>
+        <p class="rk-sub">Plan the release, check readiness, and see what is due next from one place.</p>
       </div>
-      <div class="rl-pickers">
-        {#- The chooser is a real form so it works with scripting off, and it
-            keeps its own submit rather than relying on a change handler. -#}
-        {% if rr.campaigns %}
-        <form class="rl-picker" method="get" action="/room/releases">
-          <span id="rl-pick-l">Release</span>
-          <select name="campaign" aria-labelledby="rl-pick-l">
-            {% for c in rr.campaigns %}
-            <option value="{{ c.id }}"{% if rr.campaign and c.id == rr.campaign.id %} selected{% endif %}>{{ c.title }}</option>
-            {% endfor %}
-          </select>
-          <noscript><button type="submit">Show</button></noscript>
-        </form>
-        {% endif %}
-        {% if rr.sample %}<span class="rl-chip rl-lamp--sample">Sample data</span>{% endif %}
+      <div class="rk-aside">
+        <div class="rk-controls">
+          {#- The account this reads. It is one account per sign-in, so this
+              is a label and not a chooser: a select with one option would
+              promise a switch that does not exist. -#}
+          {% if rr.artist_name %}
+          <span class="rk-field" title="The account these figures are for">
+            <span>Account</span>
+            <b class="rl-field-v">{{ rr.artist_name }}</b>
+          </span>
+          {% endif %}
+          {% if rr.campaigns %}
+          <form class="rk-field" method="get" action="/room/releases" id="rl-pick">
+            <span id="rl-pick-l">Release / Campaign</span>
+            <select name="campaign" aria-labelledby="rl-pick-l" onchange="this.form.submit()">
+              {% for c in rr.campaigns %}
+              <option value="{{ c.id }}"{% if rr.campaign and c.id == rr.campaign.id %} selected{% endif %}>{{ c.title }}{% if c.release_type %} ({{ c.release_type }}){% endif %}</option>
+              {% endfor %}
+            </select>
+            <noscript><button type="submit">Show</button></noscript>
+          </form>
+          {% endif %}
+          {% if rr.campaign %}
+          <a class="rk-cta" href="/releases/autopilot?campaign={{ rr.campaign.id }}">{{ icon("pen", "rk-ico") }}Edit Release Plan</a>
+          {% else %}
+          <a class="rk-cta" href="/links/new">{{ icon("pen", "rk-ico") }}Create a release</a>
+          {% endif %}
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="rl-figures" aria-label="Where this release stands">
+  {# ---- the three figures ---------------------------------------------- #}
+  <section class="rk-figures" aria-label="Where this release stands">
     {% for f in rr.headline %}
-    <div class="rl-fig">
-      <p class="rl-fig-n{% if f.value == "Not measured" %} rl-fig-n--none{% endif %}">{{ f.value }}</p>
-      <p class="rl-fig-l">{{ f.label }}</p>
-      {% if f.sub %}<p class="rl-fig-s">{{ f.sub }}</p>{% endif %}
+    <div class="rk-fig">
+      <p class="rk-fig-n{% if f.value == "Not measured" %} rk-fig-n--none{% endif %}">{{ f.value }}</p>
+      <p class="rk-fig-l">{{ f.label }}</p>
+      {% if f.sub %}<p class="rk-fig-s">{{ f.sub }}</p>{% endif %}
     </div>
     {% endfor %}
-    <div class="rl-note">
-      {{ icon("note", "rl-ico") }}
+    <div class="rk-fig-note">
+      {{ icon("note", "rk-ico") }}
       <div>
-        <b>A blank is not a zero.</b>
-        <p>A figure nothing has measured yet says so in words. Nothing on this
-           page claims a release was delivered &mdash; that is the distributor's
-           to confirm, and we cannot see it.</p>
+        {% if rr.sample %}
+        <b>Sample data</b>
+        <p>The campaign details, dates and figures shown here are the example,
+           for demonstration only. They are not this account's records.</p>
+        {% else %}
+        <b>A blank is not a zero</b>
+        <p>A figure nothing has measured yet says so in words. Nothing here says
+           a release was delivered &mdash; that is the distributor's to confirm,
+           and we cannot see it.</p>
+        {% endif %}
       </div>
     </div>
   </section>
 
-  {#- The arc. Its five stages name themselves, so it carries no heading. -#}
-  <section class="rl-arc" aria-label="The release arc">
+  {# ---- the arc: numbered, ticked once passed --------------------------- #}
+  <section class="rk-panel rl-arc" aria-label="The release arc">
     {% for s in rr.arc %}
     <div class="rl-step rl-step--{{ s.state }}">
-      <span class="rl-dot">{{ icon(s.key, "rl-ico") }}</span>
-      <p class="rl-step-n">{{ s.name }}{% if s.state == "now" %} <span class="rl-lamp rl-lamp--open">now</span>{% endif %}</p>
+      <span class="rl-dot">{% if s.state == "done" %}{{ icon("tick", "rl-tick") }}{% else %}{{ s.n }}{% endif %}</span>
+      <p class="rl-step-n">{{ s.name }}</p>
       <p class="rl-step-s">{{ s.sub }}</p>
     </div>
     {% endfor %}
   </section>
 
   <div class="rl-row">
-    <section class="rl-panel" aria-labelledby="rl-tasks-h">
-      <div class="rl-panel-h">
+    {# ---- what needs attention now ------------------------------------- #}
+    <section class="rk-panel" aria-labelledby="rl-tasks-h">
+      <div class="rk-panel-head">
         <div>
-          <h2 class="rl-h" id="rl-tasks-h">What needs attention</h2>
-          <p class="rl-sub">{% if rr.tasks %}{{ rr.open_count }} of {{ rr.tasks|length }} still open. Each row opens the page that settles it.{% else %}Checks appear once a release is chosen.{% endif %}</p>
+          <h2 class="rk-h" id="rl-tasks-h">What needs attention now</h2>
+          <p class="rk-said">Prioritised from your release plan and checks.</p>
         </div>
+        {% if rr.task_total %}
+        <form class="rk-field rl-filter" method="get" action="/room/releases">
+          {% if rr.campaign %}<input type="hidden" name="campaign" value="{{ rr.campaign.id }}">{% endif %}
+          <span id="rl-show-l">Show</span>
+          <select name="show" aria-labelledby="rl-show-l" onchange="this.form.submit()">
+            {% for key, label in rr.shows %}
+            <option value="{{ key }}"{% if key == rr.show %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <noscript><button type="submit">Show</button></noscript>
+        </form>
+        {% endif %}
       </div>
 
       {% if rr.tasks %}
-      <table class="rl-tasks">
+      <table class="rk-table rl-tasks">
         <thead>
-          <tr><th scope="col">Check</th><th scope="col">Due</th><th scope="col">State</th></tr>
+          <tr><th scope="col">Task</th><th scope="col">Details</th><th scope="col">Due date</th><th scope="col">Status</th></tr>
         </thead>
         <tbody>
           {% for t in rr.tasks %}
           <tr>
-            <td><a href="{{ t.href }}">{{ t.label }}</a>{% if t.hint %}<span class="rl-why">{{ t.hint }}</span>{% endif %}</td>
-            <td class="rl-when">{% if t.due %}{{ t.due }}{% else %}&mdash;{% endif %}</td>
-            <td>{% if t.ok %}<span class="rl-lamp rl-lamp--ok">done</span>{% else %}<span class="rl-lamp rl-lamp--open">open</span>{% endif %}</td>
+            <td><a href="{{ t.href }}">{{ t.label }}</a></td>
+            <td class="rk-dim">{{ t.hint }}</td>
+            <td class="rk-num">{% if t.due %}{{ t.due_label }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if t.ok %}<span class="rk-lamp rk-lamp--good">Passed</span>{% else %}<span class="rk-lamp rk-lamp--crit">Open</span>{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
-      <p class="rl-fig-s">A due day is shown only where the plan window it belongs
-        to has one, which needs a release date. The rest are blank on purpose.</p>
+      <p class="rk-foot">{{ rr.open_count }} of {{ rr.task_total }} still open. A due day is
+        its own window counted back from release day, so it needs a release date; the rest
+        are blank on purpose.</p>
+      {% elif rr.task_total %}
+      <p class="rk-empty">Nothing matches that filter.</p>
       {% else %}
-      <p class="rl-empty">Nothing is being checked yet.
+      <p class="rk-empty">Nothing is being checked yet.
         {% if rr.campaigns %}Choose a release above.{% else %}Create a release and its
         twelve checks appear here, each one reading your own records.{% endif %}</p>
       {% endif %}
 
-      {% if rr.groups %}
-      <div class="rl-groups">
-        {% for g in rr.groups %}
-        <div class="rl-group">
-          <span class="rl-group-n">{{ g.done }}/{{ g.total }}</span>
-          <p class="rl-group-l">{{ g.label }}</p>
+      {% if rr.meters %}
+      <h3 class="rk-h rl-sub-h" id="rl-meters-h">Release check breakdown</h3>
+      <div class="rl-meters" role="list" aria-labelledby="rl-meters-h">
+        {% for m in rr.meters %}
+        <div class="rl-meter" role="listitem">
+          {#- The ring is a picture of the fraction beside it, never instead
+              of it: the figure is always written out. A group with nothing
+              in it has no fraction at all, so the ring stays empty. -#}
+          <span class="rl-donut{% if m.pct is none %} is-none{% elif m.pct == 100 %} is-full{% endif %}"
+                style="--pct: {{ m.pct if m.pct is not none else 0 }}" aria-hidden="true"></span>
+          <span class="rl-meter-t">
+            <b>{% if m.total %}{{ m.done }} / {{ m.total }}{% else %}Not measured{% endif %}</b>
+            <span>{{ m.label }}</span>
+          </span>
         </div>
         {% endfor %}
       </div>
       {% endif %}
     </section>
 
+    {# ---- release overview -------------------------------------------- #}
     <div class="rl-side">
-      <section class="rl-panel" aria-labelledby="rl-about-h">
-        <div class="rl-panel-h">
-          <div>
-            <h2 class="rl-h" id="rl-about-h">The release</h2>
-            <p class="rl-sub">As it is on file here.</p>
-          </div>
+      <section class="rk-panel" aria-labelledby="rl-about-h">
+        <div class="rk-panel-head">
+          <h2 class="rk-h" id="rl-about-h">Release overview</h2>
+          {% if rr.sample %}<span class="rk-lamp rk-lamp--info">Sample</span>{% endif %}
         </div>
-        {% if rr.campaign %}
+        {% if rr.overview %}
         <div class="rl-about">
-          {% if rr.campaign.cover_url %}
-          <img class="rl-cover" src="{{ rr.campaign.cover_url }}" alt="Cover art for {{ rr.campaign.title }}">
+          {% if rr.overview.cover %}
+          <img class="rl-cover" src="{{ rr.overview.cover }}" alt="Cover art for {{ rr.overview.title }}">
           {% else %}
           <span class="rl-cover rl-cover--none">No cover on file</span>
           {% endif %}
-          <div>
-            <p class="rl-about-t">{{ rr.campaign.title }}</p>
-            <p class="rl-about-m">{{ rr.campaign.artist_name or "No artist name on file" }}</p>
-            <div class="rl-chips">
-              <span class="rl-lamp rl-lamp--none">{{ rr.campaign.release_type or "Release" }}</span>
-              {% if rr.campaign.release_date %}
-              <span class="rl-lamp rl-lamp--none">Out {{ rr.campaign.release_date[:10] }}</span>
-              {% else %}
-              <span class="rl-lamp rl-lamp--open">No release date</span>
-              {% endif %}
-              {% if rr.campaign.published_at %}
-              <span class="rl-lamp rl-lamp--ok">Link live</span>
-              {% else %}
-              <span class="rl-lamp rl-lamp--open">Link not published</span>
-              {% endif %}
+          <div class="rl-about-t">
+            {% if rr.overview.artist %}<p class="rl-about-a">{{ rr.overview.artist }}</p>{% endif %}
+            <p class="rl-about-n">{{ rr.overview.title }}</p>
+            <p class="rl-about-d">{% if rr.overview.when %}{{ rr.overview.when }}{% if rr.overview.left is not none %} ({{ rr.overview.left }} days left){% endif %}{% else %}No release date set{% endif %}</p>
+            <p class="rl-about-m">{{ rr.overview.meta }}</p>
+            <div class="rl-marks">
+              {% for m in rr.overview.marks %}
+              <span class="rk-lamp rk-lamp--{{ m.tone }}"{% if m.tone == "off" %} title="{{ m.of }}"{% endif %}>{{ m.name }}</span>
+              {% endfor %}
             </div>
           </div>
         </div>
         {% else %}
-        <p class="rl-empty">No release chosen. Nothing below is about one.</p>
+        <p class="rk-empty">No release chosen. Nothing below is about one.</p>
         {% endif %}
-      </section>
 
-      <section class="rl-panel" aria-labelledby="rl-cal-h">
-        <div class="rl-panel-h">
-          <div>
-            <h2 class="rl-h" id="rl-cal-h">What is scheduled</h2>
-            <p class="rl-sub">Dated posts across every rollout on this account.</p>
-          </div>
+        <div class="rk-panel-head rl-sub-head">
+          <h3 class="rk-h" id="rl-cal-h">Release calendar</h3>
+          <p class="rk-cap">All scheduled drops across campaigns (merged view).</p>
         </div>
         {% if rr.calendar %}
-        <div class="rl-cal">
+        <div class="rl-cal" role="list" aria-labelledby="rl-cal-h">
           {% for d in rr.calendar %}
-          <div class="rl-cal-i{% if loop.first %} rl-cal-i--soon{% endif %}">
+          <div class="rl-cal-i{% if loop.last %} rl-cal-i--last{% endif %}" role="listitem">
             <span class="rl-cal-d"></span>
-            <p class="rl-cal-w">{{ d.date }}</p>
+            <p class="rl-cal-w">{{ d.when_label or d.date }}</p>
             <p class="rl-cal-t">{{ d.title }}</p>
-            <p class="rl-cal-w">{{ d.where }}{% if d.where and d.campaign %} &middot; {% endif %}{{ d.campaign }}</p>
+            <p class="rl-cal-s">{{ d.where }}{% if d.where and d.campaign %} &middot; {% endif %}{{ d.campaign }}</p>
           </div>
           {% endfor %}
         </div>
-        <p class="rl-fig-s">The soonest twelve. A post with no date is not shown,
-          because there is no day to show it on.</p>
+        <p class="rk-foot">The soonest twelve. A post with no date is not shown, because
+          there is no day to show it on.</p>
         {% else %}
-        <p class="rl-empty">Nothing is scheduled. A dated post in a rollout appears
-          here the moment it has a day.</p>
+        <p class="rk-empty">Nothing is scheduled. A dated post in a rollout appears here
+          the moment it has a day.</p>
+        {% endif %}
+
+        <div class="rk-panel-head rl-sub-head">
+          <h3 class="rk-h" id="rl-pp-h">Track passport</h3>
+          <p class="rk-cap">Per-track details, separate from campaign readiness.</p>
+        </div>
+        {% if rr.passport %}
+        <div class="rl-scroll">
+          <table class="rk-table rl-pp" aria-labelledby="rl-pp-h">
+            <thead>
+              <tr><th scope="col">Title</th><th scope="col">ISRC</th><th scope="col">Explicit</th><th scope="col">Metadata</th><th scope="col">Audio</th><th scope="col">Status</th></tr>
+            </thead>
+            <tbody>
+              {% for r in rr.passport %}
+              <tr>
+                <td><a href="/tracks/{{ r.id }}#passport">{{ r.title }}</a></td>
+                <td class="rk-num">{{ r.isrc or "Not on file" }}</td>
+                <td class="rk-dim">{{ r.explicit or "Not on file" }}</td>
+                <td class="rk-dim">{{ r.metadata or "Not on file" }}</td>
+                <td class="rk-dim">{{ r.audio or "Not on file" }}</td>
+                <td>{% if r.blocked %}<span class="rk-lamp rk-lamp--crit">Rights blocked</span>{% else %}<span class="rk-lamp rk-lamp--good">Clear to submit</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="rk-foot">Blocked means a critical rights check is red on that passport.
+          It is our reading of your own records, not a distributor's decision.</p>
+        {% else %}
+        <p class="rk-empty">No recordings on file for this account yet.</p>
         {% endif %}
       </section>
     </div>
   </div>
 
-  {% if rr.passport %}
-  <section class="rl-panel" aria-labelledby="rl-pp-h">
-    <div class="rl-panel-h">
-      <div>
-        <h2 class="rl-h" id="rl-pp-h">Per recording</h2>
-        <p class="rl-sub">Clean Release reads each Track Passport. This is a different
-          measurement from the checks above, and a low score here is paperwork, not a mix.</p>
-      </div>
-    </div>
-    <table class="rl-tasks">
-      <thead>
-        <tr><th scope="col">Recording</th><th scope="col">Score</th><th scope="col">State</th></tr>
-      </thead>
-      <tbody>
-        {% for row in rr.passport %}
-        <tr>
-          <td><a href="/catalog?view=passports">{{ row.t.title }}</a>{% if row.t.release_title %}<span class="rl-why">{{ row.t.release_title }}</span>{% endif %}</td>
-          <td class="rl-when">{{ row.clean.score }}</td>
-          <td>{% if row.clean.blocked %}<span class="rl-lamp rl-lamp--open">rights blocked</span>{% else %}<span class="rl-lamp rl-lamp--ok">clear to submit</span>{% endif %}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <p class="rl-fig-s">Blocked means one of the critical rights checks is red on its
-      passport. It is our reading of your own records, not a distributor's decision.</p>
-  </section>
-  {% endif %}
-
+  {# ---- closing tiles -------------------------------------------------- #}
   {% if rr.tiles %}
   <section aria-labelledby="rl-tiles-h">
-    <h2 class="rl-kicker" id="rl-tiles-h">The rest of this room</h2>
-    <div class="rl-tiles">
+    <div class="rk-panel-head">
+      <h2 class="rk-h" id="rl-tiles-h">Explore more in the Releases Room</h2>
+      <p class="rk-cap">{{ rr.tiles|length }} more tool{{ "" if rr.tiles|length == 1 else "s" }} to plan, promote and distribute your music.</p>
+    </div>
+    <div class="rk-tiles">
       {% for t in rr.tiles %}
-      <a class="rl-tile" href="{{ t.href }}" data-room-card="{{ t.key }}">
-        <svg class="rl-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{% for d in t.icon.split("|") if d %}<path d="{{ d }}"/>{% endfor %}</svg>
-        <span>
-          <p class="rl-tile-n">{{ t.name }}</p>
-          <p class="rl-tile-s">{{ t.line }}</p>
+      <a class="rk-tile" href="{{ t.href }}" data-room-card="{{ t.key }}">
+        <span class="rk-tile-top">
+          <span class="rk-tile-disc">{{ icon(t.key, "rk-tile-ico") }}</span>
+          <span class="rk-tile-text">
+            <b>{{ t.name }}</b>
+            {% if t.key == "distribution" %}<span class="rk-tile-sub">Powered by Symphonic</span>{% endif %}
+            <span>{{ t.line }}</span>
+          </span>
+        </span>
+        <span class="rk-tile-foot">
+          <span></span>
+          <span class="rk-tile-go">{{ icon("arrow", "rk-ico rk-ico--sm") }}</span>
         </span>
       </a>
       {% endfor %}

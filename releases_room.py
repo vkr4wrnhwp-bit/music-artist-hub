@@ -121,8 +121,10 @@ def tasks(checks, release_date, limit=None):
     """What needs attention, open first, each with where it came from."""
     out = []
     for label, ok, hint, href, key in checks or ():
+        due = due_on(key, release_date)
         out.append({"label": label, "ok": bool(ok), "hint": hint,
-                    "href": href, "key": key, "due": due_on(key, release_date)})
+                    "href": href, "key": key, "due": due,
+                    "due_label": day_label(due)})
     out.sort(key=lambda t: (t["ok"], t["label"].lower()))
     return out[:limit] if limit else out
 
@@ -153,7 +155,8 @@ def headline(checks, days_left, drops):
 
 
 def build(campaign, checks, groups, days_left, release_date, drops, calendar,
-          passport, campaigns, cards, sample=False, can_open=None):
+          passport, campaigns, cards, sample=False, can_open=None,
+          artist_name="", show="all"):
     """Everything the screen renders. No page logic beyond this."""
     tiles = []
     for key in ("rollout", "sync-packs", "distribution"):
@@ -165,19 +168,153 @@ def build(campaign, checks, groups, days_left, release_date, drops, calendar,
             continue
         tiles.append({"key": key, "href": href, "icon": card[1],
                       "name": card[2], "line": card[3]})
+    all_tasks = tasks(checks, release_date)
     return {
         "campaign": campaign,
         "campaigns": campaigns or [],
+        "artist_name": artist_name or "",
         "headline": headline(checks, days_left, drops),
         "arc": arc(days_left),
-        "tasks": tasks(checks, release_date),
-        "open_count": sum(1 for t in tasks(checks, release_date)
-                          if not t["ok"]),
-        "groups": groups or [],
+        "tasks": filtered(all_tasks, show),
+        "task_total": len(all_tasks),
+        "show": show if show in dict(SHOWS) else "all",
+        "shows": list(SHOWS),
+        "open_count": sum(1 for t in all_tasks if not t["ok"]),
+        "meters": meters(groups),
+        "overview": overview(campaign, days_left, passport),
         "calendar": calendar or [],
-        "passport": passport or [],
+        "passport": passport_rows(passport),
         "tiles": tiles,
         # The mark is literal: it appears when this account is looking at
         # the showcase, and never as decoration.
         "sample": bool(sample),
     }
+
+
+# --- the owner's mockup, 2026-09-22 ---------------------------------------
+#
+# Everything below is drawn on his image and nothing else. Where a field he
+# drew has no data behind it the slot says so in words; where it does, this
+# is the one place that reads it.
+
+MONTHS = ("January", "February", "March", "April", "May", "June", "July",
+          "August", "September", "October", "November", "December")
+
+# The task filter his mockup puts opposite "What needs attention now".
+SHOWS = (("all", "All items"), ("open", "Open only"), ("passed", "Passed only"))
+
+
+def day_label(iso):
+    """2026-05-16 -> "May 16, 2026". Blank stays blank."""
+    try:
+        y, m, d = (iso or "")[:10].split("-")
+        return "%s %d, %s" % (MONTHS[int(m) - 1], int(d), y)
+    except (ValueError, IndexError):
+        return ""
+
+
+def filtered(rows, show):
+    """His filter. "all" is the default and the only one that hides nothing."""
+    if show == "open":
+        return [t for t in rows if not t["ok"]]
+    if show == "passed":
+        return [t for t in rows if t["ok"]]
+    return rows
+
+
+def meters(groups):
+    """His four donuts: the same counts, with the fraction they draw.
+
+    A group with nothing in it has no fraction - 0/0 is not 0%, it is a
+    question nobody asked - so `pct` is None and the ring stays empty.
+    """
+    out = []
+    for g in groups or ():
+        total = g.get("total") or 0
+        done = g.get("done") or 0
+        out.append({"label": g.get("label") or "",
+                    "done": done, "total": total,
+                    "pct": round(100 * done / total) if total else None})
+    return out
+
+
+def overview(campaign, days_left, passport):
+    """The release, as his panel draws it.
+
+    The four marks under the title are derived, never typed, and each one
+    can be pointed at. A mark nothing measured reads "Not measured" and is
+    grey - it is not a failure, it is an absence, and the two must not look
+    alike.
+    """
+    if not campaign:
+        return None
+    tracks = [row["t"] for row in passport or ()]
+    date = campaign.get("release_date") or ""
+
+    def mark(name, ok, measured=True):
+        if not measured:
+            return {"name": "Not measured", "tone": "off", "of": name}
+        return {"name": name, "tone": "good" if ok else "warn", "of": name}
+
+    marks = []
+    if tracks:
+        blocked = any(row["clean"].get("blocked") for row in passport)
+        marks.append(mark("Clean", not blocked))
+        isrcs = [(t.get("passport") or {}).get("isrc") or "" for t in tracks]
+        marks.append(mark("ISRC assigned", all(isrcs)))
+    else:
+        marks.append({"name": "Not measured", "tone": "off", "of": "Clean"})
+        marks.append({"name": "Not measured", "tone": "off", "of": "ISRC assigned"})
+    marks.append(mark("Cover art added", bool(campaign.get("cover_url"))))
+    if tracks:
+        marks.append(mark("Audio checked",
+                          all((t.get("passport") or {}).get("audio_ok") for t in tracks)))
+    else:
+        marks.append({"name": "Not measured", "tone": "off", "of": "Audio checked"})
+
+    bits = [campaign.get("release_type") or "Release"]
+    if tracks:
+        bits.insert(0, "%d track%s" % (len(tracks), "" if len(tracks) == 1 else "s"))
+    return {
+        "cover": campaign.get("cover_url") or "",
+        "artist": campaign.get("artist_name") or "",
+        "title": campaign.get("title") or "Untitled",
+        "when": day_label(date),
+        "left": days_left,
+        "meta": " · ".join(bits),
+        "marks": marks,
+    }
+
+
+def passport_rows(passport):
+    """His Track passport table: one row per recording, his columns.
+
+    Every column is a stored passport field. A field nobody filled in is
+    "Not on file" rather than blank, so a gap cannot be mistaken for a
+    column that does not apply.
+    """
+    out = []
+    for row in passport or ():
+        t = row["t"]
+        p = t.get("passport") or {}
+        rep = row["clean"]
+        out.append({
+            "id": t.get("id") or "",
+            "title": t.get("title") or "Untitled",
+            "isrc": p.get("isrc") or "",
+            "explicit": p.get("explicit") or "",
+            "metadata": "Complete" if p.get("upc") and p.get("isrc") else "",
+            "audio": "Complete" if p.get("audio_ok") else "",
+            "blocked": bool(rep.get("blocked")),
+            "score": rep.get("score"),
+        })
+    return out
+
+
+def short_day(iso):
+    """2026-04-25 -> "Apr 25", the calendar rail's own label."""
+    try:
+        y, m, d = (iso or "")[:10].split("-")
+        return "%s %d" % (MONTHS[int(m) - 1][:3], int(d))
+    except (ValueError, IndexError):
+        return ""

@@ -208,7 +208,8 @@ def test_a_dated_rollout_post_appears_on_the_page_and_an_undated_one_does_not():
     ros.add_post(cid, {"platform": "Instagram", "phase": "pre",
                        "caption": "No day on this one", "scheduled_date": ""})
     page = c.get("/room/releases").get_data(as_text=True)
-    assert "Teaser clip" in page and when in page
+    # The rail carries his short label ("Sep 26"), not the stored ISO day.
+    assert "Teaser clip" in page and rl.short_day(when) in page
     assert "No day on this one" not in page, (
         "there is no day to show it on, so the calendar does not show it")
     assert "Not measured" in page  # the other two figures, still unmeasured

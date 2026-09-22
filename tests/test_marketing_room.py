@@ -349,11 +349,20 @@ def _box(dot):
 
 
 def _css():
+    """This room's styling: the shared kit plus its own sheet.
+
+    The shared parts moved into static/css/room-kit.css on 2026-09-22, so a
+    rule this page relies on may be declared under .mk-chip there rather
+    than here. Reading both is reading what the page actually gets.
+    """
     import io
     import os
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "static", "css", "marketing-room.css")
-    return io.open(path, encoding="utf-8").read()
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    out = []
+    for name in ("room-kit.css", "marketing-room.css"):
+        out.append(io.open(os.path.join(base, "static", "css", name),
+                           encoding="utf-8").read())
+    return chr(10).join(out)
 
 
 def _epk_pill(c):
@@ -462,9 +471,10 @@ def test_6_a_long_account_name_never_widens_the_page():
     assert 'class="mk-chip-name" title="%s"' % long_name in chip
     assert long_name in chip, "the whole name is still the text, so it is read out"
     css = _css()
-    rule = css.split(".mk-chip {", 1)[1].split("}", 1)[0]
+    import re as _re
+    rule = _re.search(r"\.mk-chip[^-{][^{]*\{([^}]*)\}", css).group(1)
     assert "max-width: 100%" in rule and "min-width: 0" in rule
-    name = css.split(".mk-chip-name {", 1)[1].split("}", 1)[0]
+    name = _re.search(r"\.mk-chip-name[^{]*\{([^}]*)\}", css).group(1)
     assert "text-overflow: ellipsis" in name and "overflow: hidden" in name
 
 
