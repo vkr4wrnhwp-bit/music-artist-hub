@@ -198,3 +198,15 @@
   .mk-pl-none { font-size: 18px; }
   .mk-pl-none-s { font-size: 13px; }
 }
+
+/* The story window's sequence sits LEFT, not centred (owner, 2026-09-22:
+   "shifted over to the left to fit inside the window"). The window is
+   narrow and tall, so a centred headline that is one long word overflows
+   both edges; set left with a break allowed, it stays on the glass. */
+/* 4% a side, not 6/7: at a desktop plate this glass is ~334px wide and
+   "Announcements" at the -15% size needs the extra ~20px, or it breaks
+   mid-word. overflow-wrap stays as the last resort for a longer word. */
+.mk-pl .rk-cine .rk-cine-reel { padding: 5% 3% 14% 3%; place-items: start; }
+.mk-pl .rk-cine-frame { align-items: flex-start; text-align: left; width: 100%; }
+.mk-pl .rk-cine-frame b { overflow-wrap: anywhere; }
+.mk-pl .rk-cine-frame i { max-width: none; }
