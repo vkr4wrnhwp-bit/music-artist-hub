@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Publishing Room{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/publishing-room.css?v=1">
+{% endblock %}
+
+{#- THE PUBLISHING ROOM - the room's opening screen, built from the owner's
+    mockup (2026-09-22), in the framework the Fans, Marketing and Releases
+    rooms set.
+
+    Publishing is a song's OWNERSHIP: who wrote it, who gets paid, which
+    registries know about it, and where the record contradicts itself.
+    publishing_room.build() is every figure on it and its docstring names
+    the source of each.
+
+    One thing his mockup drew could not be built as drawn, and the slot
+    holds the substitute rather than a table nothing could fill:
+      - "Splits, one song at a time" drew writer, role, society and
+        percentage, totalling 95%. There are no writer shares stored
+        anywhere in this application - the passport holds songwriters as
+        one line of free text - so the panel shows what IS on file and says
+        plainly that percentages are not recorded. His ruling, asked and
+        answered on the day: show what is already there. -#}
+
+{% macro icon(name, cls="") -%}
+<svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == "note" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 8h.01"/>
+{%- elif name == "doc" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
+{%- elif name == "plus" -%}<path d="M12 5v14M5 12h14"/>
+{%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
+{%- else -%}<circle cx="12" cy="12" r="8"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% block content %}
+<div class="pb" data-no-collapse>
+
+  <section class="pb-hero" aria-labelledby="pb-title">
+    <div class="pb-hero-top">
+      <div>
+        <p class="pb-eyebrow">Street Banker &middot; Publishing</p>
+        <h1 class="pb-title" id="pb-title">Publishing Room</h1>
+        <p class="pb-lead">Your songs, who owns them, and who is collecting.</p>
+      </div>
+      <div class="pb-actions">
+        {% if pb.sample %}<span class="pb-lamp pb-lamp--sample">Sample data</span>{% endif %}
+        {% if pb.artist_name %}
+        <span class="pb-chip" title="The account these figures are for">
+          <span class="pb-avatar" aria-hidden="true">{{ (pb.artist_name[:1] or "?")|upper }}</span><span class="pb-chip-name" title="{{ pb.artist_name }}">{{ pb.artist_name }}</span>
+        </span>
+        {% endif %}
+        <a class="pb-chip" href="/catalog#add">{{ icon("plus", "pb-ico") }}Add a song</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="pb-figures" aria-label="Where your publishing stands">
+    {% for f in pb.headline %}
+    <div class="pb-fig">
+      <p class="pb-fig-n{% if f.value == "Not measured" %} pb-fig-n--none{% elif f.key == "uncollected" and f.value != "0" %} pb-fig-n--warn{% endif %}">{{ f.value }}</p>
+      <p class="pb-fig-l">{{ f.label }}</p>
+      {% if f.sub %}<p class="pb-fig-s">{{ f.sub }}</p>{% endif %}
+    </div>
+    {% endfor %}
+    <div class="pb-note">
+      {{ icon("note", "pb-ico") }}
+      <p><b>A figure a registry has not answered about reads Not measured, never 0.</b>
+         Nothing here says a registration was accepted or a society paid &mdash; only
+         what a registry answered, and when.</p>
+    </div>
+  </section>
+
+  <section class="pb-panel" aria-labelledby="pb-states-h">
+    <div class="pb-panel-h">
+      <div>
+        <h2 class="pb-h" id="pb-states-h">Song states <small>each song lives in exactly one state</small></h2>
+        <p class="pb-sub">The furthest rung a song has reached, so the counts add up to
+          your works on file.</p>
+      </div>
+    </div>
+    <div class="pb-rail">
+      {% for s in pb.states %}
+      {#- Collecting is the goal, so it carries the gold. It is a destination,
+          not a score: a rung with nothing in it is still drawn. -#}
+      <div class="pb-rung{% if loop.last %} pb-rung--goal{% endif %}">
+        <span class="pb-ring"></span>
+        <p class="pb-rung-n">{{ s.name }}</p>
+        <p class="pb-rung-c">{{ s.count }} song{{ "" if s.count == 1 else "s" }}</p>
+        <p class="pb-rung-s">{{ s.sub }}</p>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="pb-foot">A song is counted at the furthest rung it has reached, not at
+      every rung it satisfies &mdash; one that is collecting with no split sheet on file
+      is counted as collecting, and its missing sheet is a conflict, below. Collecting
+      is matched on the song title as your statements spell it, so a society that spells
+      a title differently is read as not collecting; this figure undercounts rather than
+      over-claims.</p>
+  </section>
+
+  <div class="pb-row">
+    <section class="pb-panel" aria-labelledby="pb-money-h">
+      <div class="pb-panel-h">
+        <div>
+          <h2 class="pb-h" id="pb-money-h">Money going uncollected</h2>
+          <p class="pb-sub">What each registry has said about each recording.</p>
+        </div>
+      </div>
+      {% if pb.rows %}
+      <table class="pb-table">
+        <thead>
+          <tr><th scope="col">Song</th><th scope="col">What is wrong</th><th scope="col">State</th></tr>
+        </thead>
+        <tbody>
+          {% for r in pb.rows %}
+          <tr>
+            <td class="pb-song"><a href="/tracks/{{ r.id }}#passport">{{ r.title }}</a>{% if r.release %}<span>{{ r.release }}</span>{% endif %}</td>
+            <td class="pb-wrong">{{ r.wrong }}</td>
+            <td><span class="pb-lamp pb-lamp--{{ r.state }}">{{ r.label }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="pb-foot">Read from the registry's own answers, stored with the date they
+        were given. A row that says <b>typed, unverified</b> is what somebody wrote on the
+        passport, which is a claim and not evidence.</p>
+      {% else %}
+      <p class="pb-empty">No recordings on file yet. Add a song and this table shows what
+        each registry says about it.</p>
+      {% endif %}
+    </section>
+
+    <section class="pb-panel" aria-labelledby="pb-conf-h">
+      <div class="pb-panel-h">
+        <div>
+          <h2 class="pb-h" id="pb-conf-h">Where your records disagree</h2>
+          <p class="pb-sub">Computed from your own passports and lockboxes.</p>
+        </div>
+      </div>
+      {% if pb.conflicts %}
+      <div class="pb-conflicts">
+        {% for c in pb.conflicts %}
+        <div class="pb-conflict">
+          {{ icon("doc", "pb-ico") }}
+          <div>
+            <p class="pb-conflict-t">{{ c.title }}</p>
+            <p class="pb-conflict-d">{{ c.description }}</p>
+          </div>
+          {% if c.fix %}<a class="pb-conflict-go" href="{{ c.fix }}">Open {{ icon("arrow", "pb-ico") }}</a>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <p class="pb-foot"><a href="/conflicts">See all rights conflicts</a></p>
+      {% else %}
+      <div class="pb-calm">
+        <p>Nothing on file disagrees with itself.</p>
+        <p>Identifiers, ownership, clearances and splits were all checked against each
+          other. This says your records agree &mdash; not that a registry has confirmed them.</p>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="pb-panel" aria-labelledby="pb-splits-h">
+    <div class="pb-panel-h">
+      <div>
+        <h2 class="pb-h" id="pb-splits-h">Who owns it</h2>
+        <p class="pb-sub">Writer percentages are not recorded anywhere yet. What is on
+          file is below.</p>
+      </div>
+      {% if pb.songs|length > 1 %}
+      <form class="pb-pick" method="get" action="/room/publishing">
+        <label class="pb-sub" for="pb-song">Song</label>
+        <select id="pb-song" name="song">
+          {% for s in pb.songs %}
+          <option value="{{ s.id }}"{% if pb.splits and s.id == pb.splits.id %} selected{% endif %}>{{ s.title }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit">Show</button></noscript>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if pb.splits %}
+    <table class="pb-fields">
+      <tbody>
+        {% for f in pb.splits.fields %}
+        <tr>
+          <th scope="row">{{ f.label }}</th>
+          <td>{% if f.on_file %}{{ f.value }}{% else %}<span class="pb-none">Not on file</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <th scope="row">Split sheet</th>
+          <td><span class="pb-lamp pb-lamp--{{ "green" if pb.splits.sheet in ("ready", "n/a") else ("red" if pb.splits.sheet == "declined" else "yellow") }}">{{ pb.splits.sheet }}</span></td>
+        </tr>
+        <tr>
+          <th scope="row">Producer agreement</th>
+          <td><span class="pb-lamp pb-lamp--{{ "green" if pb.splits.producer in ("ready", "n/a") else ("red" if pb.splits.producer == "declined" else "yellow") }}">{{ pb.splits.producer }}</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="pb-foot">These are the passport's own words and the Rights Lockbox's own
+      states for <b>{{ pb.splits.title }}</b>. A signed split sheet is the agreement;
+      the shares written on it are not read into this application.</p>
+    {% else %}
+    <p class="pb-empty">No song chosen, because there are none on file yet.</p>
+    {% endif %}
+  </section>
+
+  {% if pb.tiles %}
+  <section aria-labelledby="pb-tiles-h">
+    <h2 class="pb-kicker" id="pb-tiles-h">The rest of this room</h2>
+    <div class="pb-tiles">
+      {% for t in pb.tiles %}
+      <a class="pb-tile" href="{{ t.href }}" data-room-card="{{ t.key }}">
+        <svg class="pb-tile-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{% for d in t.icon.split("|") if d %}<path d="{{ d }}"/>{% endfor %}</svg>
+        <p class="pb-tile-n">{{ t.name }}</p>
+        <p class="pb-tile-s">{{ t.line }}</p>
+        <span class="pb-tile-foot">
+          {% if t.status %}<span class="pb-lamp pb-lamp--none">{{ t.status }}</span>{% else %}<span></span>{% endif %}
+          {{ icon("arrow", "pb-ico") }}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -4783,9 +4783,48 @@ def create_app():
             return _marketing_room(user, room)
         if room_key == "releases":
             return _releases_room(user, room)
+        if room_key == "publishing":
+            return _publishing_room(user, room)
         return render_template("room.html", active_page="room-" + room_key,
                                room=room, room_images=rooms.images(),
                                **build_dashboard_context())
+
+    def _publishing_room(user, room):
+        """The Publishing room as one screen (owner's mockup, 2026-09-22).
+
+        publishing_room.py says where every figure comes from. The song
+        chosen for the splits panel is ?song=<id>, defaulting to the first
+        recording on file, so the page opens showing something rather than
+        an empty frame asking to be filled in.
+        """
+        import publishing_room
+        import rights_conflicts
+
+        tracks = store.list_os_tracks(user["id"])
+        wanted = request.args.get("song") or ""
+        selected = next((t for t in tracks if t.get("id") == wanted), None)
+        if selected is None and tracks:
+            selected = tracks[0]
+
+        try:
+            rows = store.get_statement_rows(user["id"])
+        except Exception:
+            # A statement store that cannot be read is not a catalogue with
+            # nothing collecting, so nothing is counted as collecting and
+            # the rail says what it counted.
+            rows = []
+        found = rights_conflicts.for_account(tracks)
+
+        seat = current_team_seat()
+        can_open = None if seat is None else (
+            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        pb = publishing_room.build(tracks, rows, found, selected, cards,
+                                   artist_name=artist_identity.display_name(user),
+                                   sample=_session_is_demo(), can_open=can_open)
+        return render_template("room_publishing.html",
+                               active_page="room-publishing",
+                               room=room, pb=pb, **build_dashboard_context())
 
     def _releases_room(user, room):
         """The Releases room as one screen (owner's mockup, 2026-09-22).

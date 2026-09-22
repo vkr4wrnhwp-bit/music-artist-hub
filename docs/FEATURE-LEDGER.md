@@ -59,7 +59,7 @@ changed or removed. A status change counts.
 
 ## Money and rights
 
-49 features: 35 Live, 8 Partial, 5 Stubbed, 1 Dead code.
+50 features: 36 Live, 8 Partial, 5 Stubbed, 1 Dead code.
 
 ### Live
 
@@ -198,6 +198,16 @@ A 0-100 score over twelve categories of real account data, including income on r
 - Files: app.py:9991; qualification.py:46 calculate; audio_readiness.readiness_points; db.record_score/score_trend; score_history.summarise; templates/qualification.html
 - Access: Artist tier and above ("/qualification" in _ARTIST_PATHS). It is the Analytics room's "scores" card (rooms.py:48), so a team seat needs Analytics, not Business.
 
+**Publishing Room (/room/publishing)**
+
+The Publishing room's opening screen: three figures, the five-state song ladder, what each registry said per recording, where the records disagree, who owns the selected song, and five closing tiles.
+
+- Because: every figure is a count over this account's own rows. Works on file is store.list_os_tracks. Share claimed and the uncollected count are artist_os.mlc_evidence, which reads the STORED registry answer (track_mlc_checks) and carries share_total and song_code - so the share is of the recordings a registry has answered about, not of the catalogue, and the sub-line says which. A recording nobody has asked about is "Not measured", never 0 and never green, and a value typed into a passport keeps its own "typed, unverified" state distinct from a registry's confirmation. The five-state rail is publishing_room.state_of: a song is counted at the FURTHEST rung it reached, not at every rung it satisfies, so the counts sum to the works on file and read as a funnel; a song collecting with no split sheet is counted as collecting and its missing sheet appears as a conflict instead. Collecting is a statement row whose source royalty_types.classify()es to publishing or mechanical (a Spotify line is the master's money, not the work's, and is excluded) matched on the normalised title, which UNDERCOUNTS when a society spells a title differently - the footnote says so rather than rounding up. The conflicts panel is rights_conflicts.for_account over the same tracks: identifier clashes, ownership disagreements, unresolved clearances and split gaps, each with its own fix link. The tiles carry only counts that were counted; Catalog has no figure and shows none.
+- Substitute (owner's mockup could not be built as drawn): his "Splits, one song at a time" drew writer, role, society and percentage totalling 95%. There are no writer shares stored anywhere in this application - os_tracks.passport holds songwriters as one line of free text - so the panel is "Who owns it": the passport's own words for songwriters, producers, publishers, PRO and publishing administrator, plus the Rights Lockbox's split sheet and producer agreement states, under a line reading "Writer percentages are not recorded anywhere yet." His ruling, asked and answered 2026-09-22: show what is already there, and no "coming soon" badge, because nothing else in the app makes a promise.
+- Routes: GET /room/publishing?song=<id> (dispatched from /room/<room_key>)
+- Files: app.py room_screen() -> app.py _publishing_room(); publishing_room.py STATES, PUBLISHING_BUCKETS, collecting_titles(), state_of(), states(), uncollected(), headline(), splits(), build(); templates/room_publishing.html; static/css/publishing-room.css; rooms.py ROOMS["publishing"]; engines artist_os.py (mlc_evidence, lockbox_report), rights_conflicts.py, royalty_types.py; stores db.py (os_tracks, track_mlc_checks, statement_rows)
+- Access: Any signed-in account, as /room/<key>: no tier gate. Team seats need the "publishing" room ticked; a tile whose page the seat cannot open is dropped. Anonymous redirected to /login.
+
 **Recovery**
 
 Findings computed from the account's own statement rows — unattributed revenue (actual) and cross-store coverage gaps (estimate) — with the case desk and the MLC panel alongside.
