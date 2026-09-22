@@ -230,9 +230,14 @@ def test_an_empty_account_is_told_in_words_and_shown_no_zero_figures():
     # is worse than no plate, so an account that has measured nothing
     # now meets the STANDBY - words about what will fill each window.
     # The zero rule is unchanged and still checked below.
-    assert page.count("is-standby") == 3, "two windows and the split strip"
-    assert "Every song you have on file." in page
-    assert "How much of the collection share is claimed." in page
+    # The caption standby became the DISPLAY the same afternoon (owner:
+    # "slot machine-y" - the big window sequences the room's features,
+    # the small ones are a reel, a hint and a ticker, never a caption).
+    # The zero rule is unchanged and still checked.
+    import re as _re
+    _f = _re.findall(r"rk-cine-frame[^>]*>\s*(?:<img[^>]*>\s*)?<b[^>]*>([^<]*)", page)
+    assert _f == ['Catalog', 'Track Passports', 'Rights Conflicts', 'Fingerprints'], _f
+    assert page.count("rk-reel-win") == 1 and page.count("rk-tick-win") == 1
     assert "rk-pl-n" not in page, "no reading is drawn while nothing is measured"
     assert "No recordings on file yet." in page
     assert "Nothing on file disagrees with itself." in page

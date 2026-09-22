@@ -44,8 +44,22 @@ def test_an_empty_account_is_told_how_to_start_not_shown_a_crowd():
     # The plate explains itself on an empty account now (owner,
     # 2026-09-22), so the map's own empty sentence is not reached: the
     # constellation branch only runs once there is something to draw.
-    assert "Turn listeners into a list you own" in body
-    assert "Launch a smart link" in body
+    # Third cut of the day, his way: the big window sequences the room's
+    # FEATURES with a glitch hand-over, and the three small windows are a
+    # reel, a hint and a ticker - never a caption. "Your text is so small
+    # ... it's really cheap looking."
+    import re as _re
+    frames = _re.findall(r'rk-cine-frame[^>]*>\s*<b[^>]*>([^<]*)', body)
+    assert frames == ["Smart Links", "Fan CRM", "Fan Club", "Collab"], frames
+    # Fourth cut: the window is a DISPLAY. No door on it and no drawing
+    # behind the words (owner, 2026-09-22) - the way in is the hero's own
+    # pill, which is back on the empty account now nothing duplicates it.
+    assert "rk-cine-door" not in body and "rk-cine-art" not in body
+    assert 'class="fr-cta" href="/links/new"' in body
+    assert body.count("rk-reel-ico") >= 5, "the reel rolls through icons"
+    assert body.count('class="rk-tip"') >= 3, "the hint changes"
+    assert body.count("rk-tick-i") >= 5, "the ticker names the features"
+    assert "rk-pl-standby" not in body, "no caption-size text on this plate"
     for gone in MOCKUP_ONLY:
         assert gone not in body, gone
 

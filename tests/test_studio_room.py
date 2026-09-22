@@ -149,9 +149,12 @@ def test_an_empty_account_opens_on_the_unit_not_on_an_empty_state():
     c, _uid = _account()
     body = _room(c.get("/room/studio").get_data(as_text=True))
     assert "studio-bus-plate" in body, "the photographed unit is always there"
-    assert "No master measured yet" in body
-    assert "No artwork yet" in body
-    assert body.count("Not measured yet") == 2, "both readouts, in words"
+    # The unit's own empty words ("No master measured yet", both readouts
+    # as "Not measured yet") belong to the state with SOMETHING on file
+    # and nothing measured. An account with nothing at all meets the
+    # display instead (owner, 2026-09-22) - asserted in its own test below.
+    assert "rk-cine" in body, "the display, on the same photographed unit"
+    assert "Not measured yet" not in body, "no absence is printed while the display runs"
     assert "rk-calm" not in body, "no collapsed empty state stood in for it"
 
 
@@ -228,3 +231,42 @@ def test_the_plate_image_carries_a_cache_version():
     assert "studio-bus-plate.webp?v=" in body, (
         "an image replaced in place needs a cache version or browsers keep "
         "the old one")
+
+
+def test_an_empty_account_meets_the_display_not_the_empty_unit():
+    """Owner, 2026-09-22: the plate explains itself when nothing is
+    measured - the display sequences the room's features, the bay is a
+    reel, the LCDs a ticker and a hint. The needles stay drawn, at rest.
+    One track, one cover or one reading and the unit's own windows return."""
+    import re as _re
+    c, _uid = _account()
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    got = _re.findall(r"rk-cine-frame[^>]*>\s*(?:<img[^>]*>\s*)?<b[^>]*>([^<]*)", body)
+    assert got == ["The Rack", "Release-Ready", "Remix Lab", "Cover Art"], got
+    assert body.count("rk-reel-win") == 1 and body.count("rk-tip-win") == 1 and body.count("rk-tick-win") == 1
+    # Counted on the element, not the substring: each needle carries
+    # "sd-needle sd-needle--left", which is two hits for one needle.
+    assert body.count('<span class="sd-needle ') == 2, "the needles are hardware and stay"
+    assert "No master measured yet" not in body, "the display replaces the absences"
+
+
+def test_the_plate_fractions_agree_between_the_module_and_the_sheet():
+    """The standby positions itself from studio_room.PLATE; the readings
+    position themselves from the --bay/--disp/--lcd variables in
+    studio-room.css. Two copies with nothing between them drift the first
+    time the plate is re-cropped, silently."""
+    import io as _io
+    import os as _os
+    import re as _re
+    here = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    css = _io.open(_os.path.join(here, "static", "css", "studio-room.css"),
+                   encoding="utf-8").read()
+    unit = css.split(".sd-unit {", 1)[1].split("}", 1)[0]
+
+    def var(name):
+        return float(_re.search(r"--%s:\s*([\d.]+)%%" % name, unit).group(1))
+
+    assert sd.PLATE["bay"] == (var("bay-x"), var("bay-y"), var("bay-w"), var("bay-h"))
+    assert sd.PLATE["display"] == (var("disp-x"), var("disp-y"), var("disp-w"), var("disp-h"))
+    assert sd.PLATE["lcd-top"] == (var("lcd-x"), var("lcd-top-y"), var("lcd-w"), var("lcd-top-h"))
+    assert sd.PLATE["lcd-bot"] == (var("lcd-x"), var("lcd-bot-y"), var("lcd-w"), var("lcd-bot-h"))

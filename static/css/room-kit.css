@@ -443,79 +443,230 @@
   .rk-pl-s { font-size: 12px; }
 }
 
-/* ---- STANDBY: the instrument explaining itself ------------------------
-   Owner, 2026-09-22: "animating these things and making them explain
-   about what the room is doing is a better move than filling it in with
-   data that, if someone hasn't uploaded anything yet, is blank."
+/* ---- THE STANDBY DISPLAY, the owner's way (2026-09-22) ------------------------
+   "Rendering just some video on them and letting them explain things
+   inside the room is better than what you've done here because your text
+   is so small and it's really cheap looking."
 
-   He is right, and Releases and Publishing made the case: a photographed
-   instrument whose every window reads "Not measured" is worse than no
-   instrument. So when an account has measured NOTHING in this room, the
-   windows carry what will fill them instead, and the bar warms through
-   in sequence so the unit reads as alive rather than dead.
+   He is right about the type. The previous cut put a caption in every
+   window at clamp(8px, .84cqw, 12.5px) - about eleven pixels on a desktop,
+   small print on a unit photographed at 1860px. So: no caption anywhere.
+   The big window plays a sequence, one large headline at a time, over a
+   rig of dots that draws itself. The three small windows carry no text.
 
-   THE ONE RULE: standby is never a reading. It is words, set in the page
-   face rather than the display face, dimmer than a figure, and it never
-   shows a number - not even an example one. The moment a real figure
-   exists this whole state is gone. A demonstration figure sitting where
-   the artist's own will appear is the defect this product refuses. */
+   Everything here is CSS - no video file, nothing to download, and it
+   scales with the plate because the type is sized in cqw like every other
+   reading on it. */
 
-.rk-pl-standby {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: .35em; height: 100%; width: 100%;
-  text-align: center; text-decoration: none; color: inherit;
+/* THE SCREEN (owner, 2026-09-22): "make the text computer green ... an
+   actual interface-looking computerized thing." Phosphor green, a glow,
+   and scanlines over the glass. The face stays Archivo - he ruled out
+   monospace anywhere in the UI on the 13th - so the computer is in the
+   colour and the light, not the letterforms. The green is this plate's
+   own splash on the suite's gold/black/white, and lives only on the
+   standby display: the moment a reading exists, the readings' own ink
+   comes back. */
+.rk-cine {
+  --screen: #5dff8f;
+  --screen-dim: #34c96a;
+  overflow: hidden; display: block; padding: 0;
+  background: radial-gradient(90% 70% at 50% 50%,
+              rgb(24 60 34 / .55), transparent 75%);
 }
-.rk-pl-standby b {
-  font-family: var(--sb-display); font-weight: 800; letter-spacing: -.01em;
-  color: var(--sb-ink); font-size: clamp(10px, 1.15cqw, 19px); line-height: 1.15;
-}
-.rk-pl-standby span {
-  color: var(--sb-ink-2); line-height: 1.4;
-  font-size: clamp(8px, .84cqw, 12.5px);
-}
-/* The big window's standby carries the room's own job and its one door. */
-.rk-pl-standby--lead b { font-size: clamp(13px, 1.75cqw, 30px); }
-.rk-pl-standby--lead span { font-size: clamp(9px, .95cqw, 14px); max-width: 70%; }
-/* The selector is .rk-pl-standby .rk-pl-door, not .rk-pl-door: the door is
-   a <span> INSIDE .rk-pl-standby, and `.rk-pl-standby span` (0,1,1) beats a
-   bare class (0,1,0). The first cut lost both the colour and the size, so
-   the label rendered dim grey on a gold pill - about 1.1:1, invisible. */
-.rk-pl-standby .rk-pl-door {
-  margin-top: .5em; display: inline-flex; align-items: center; gap: .5em;
-  padding: .45em 1em; border-radius: 99px;
-  background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold));
-  color: var(--sb-on-gold); font-weight: 800; letter-spacing: .01em;
-  font-size: clamp(9px, .95cqw, 14px);
-}
-.rk-pl-standby:hover .rk-pl-door { filter: brightness(1.08); }
-
-/* The bar warming through: each window glows in turn, then the set rests.
-   A glow rather than a colour change, so the glass still reads as glass. */
-.rk-pl-win.is-standby::before {
+.rk-cine::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(120% 90% at 50% 45%,
-              color-mix(in srgb, var(--sb-gold) 26%, transparent), transparent 70%);
-  opacity: 0;
-  animation: rk-warm 6.4s ease-in-out infinite;
-  animation-delay: calc(var(--n, 0) * .42s);
+  background: repeating-linear-gradient(180deg,
+              rgb(0 0 0 / 0) 0 2px, rgb(0 0 0 / .22) 2px 3px);
+  mix-blend-mode: multiply;
 }
-@keyframes rk-warm {
-  0%        { opacity: .05; }
-  9%        { opacity: .60; }
-  26%       { opacity: .22; }
-  44%, 100% { opacity: .05; }
+
+/* the reel: one frame on screen at a time, sized like a headline */
+.rk-cine-reel {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  padding: 3% 6% 14%;
+}
+.rk-cine-frame {
+  grid-area: 1 / 1; display: flex; flex-direction: column;
+  align-items: center; text-align: center; gap: .35em;
+  opacity: 0;
+  animation: rk-frame calc(var(--count) * 4.5s) steps(1, end) infinite;
+  animation-delay: calc(var(--n) * 4.5s);
+}
+/* The glitch: two colour-split copies of the frame that only exist for
+   the hand-over, sliced by clip-path and thrown a few pixels sideways.
+   Gold and ivory, not cyan and magenta - this is the suite's palette
+   breaking up, not a cyberpunk poster. */
+.rk-cine-frame b, .rk-cine-frame i { position: relative; }
+.rk-cine-frame b::before, .rk-cine-frame b::after {
+  content: attr(data-t); position: absolute; inset: 0; opacity: 0;
+  pointer-events: none;
+}
+.rk-cine-frame b::before {
+  color: #b8ffd0;
+  animation: rk-split-a calc(var(--count) * 4.5s) steps(1, end) infinite;
+  animation-delay: calc(var(--n) * 4.5s);
+}
+.rk-cine-frame b::after {
+  color: var(--screen-dim);
+  animation: rk-split-b calc(var(--count) * 4.5s) steps(1, end) infinite;
+  animation-delay: calc(var(--n) * 4.5s);
+}
+.rk-cine-frame b {
+  font-family: var(--sb-display); font-weight: 800; line-height: 1.08;
+  letter-spacing: -.01em; color: var(--screen);
+  /* A HEADLINE, not a caption. Owner, 2026-09-22, twice: "your text in
+     the left image can be much bigger" and then "the text can still be
+     bigger" - so ~87px on a desktop plate. "Smart Links" is the widest
+     frame at about 610px of the window's 735, clear of the bezel. */
+  /* Per window: a wide-short screen (Stage, Analytics) or a narrow-tall
+     one (Marketing's story) sets --cine-size inline; this is the Fans
+     window's own size and the default. */
+  font-size: var(--cine-size, clamp(28px, 7cqw, 104px));
+  text-shadow: 0 0 10px rgb(93 255 143 / .7), 0 0 28px rgb(93 255 143 / .35);
+}
+.rk-cine-frame i {
+  font-style: normal; color: var(--screen-dim); line-height: 1.35;
+  max-width: 34ch; font-size: var(--cine-line, clamp(13px, 1.7cqw, 25px));
+  text-shadow: 0 0 8px rgb(52 201 106 / .6);
+}
+/* The picture behind a frame's words. It fills the glass, is pulled down
+   so the green reads over it, and the frame's own words drop to the lower
+   third where the image was asked to stay quiet. */
+.rk-cine-img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; z-index: -1;
+  filter: brightness(.62) saturate(.85);
+}
+.rk-cine-frame.has-image {
+  justify-content: flex-end; padding-bottom: 8%;
+  isolation: isolate;
+}
+.rk-cine-frame.has-image b, .rk-cine-frame.has-image i {
+  text-shadow: 0 0 10px rgb(93 255 143 / .7), 0 0 28px rgb(93 255 143 / .35),
+               0 2px 18px rgb(0 0 0 / .9);
+}
+
+/* Each frame: a hard cut in, a hold, then 0.7s of breaking up - the
+   frame jitters and slices in eight steps - and a hard cut out. The cycle
+   is count * 4.5s, so one frame owns 100/count of it; these stops are for
+   four frames (25% each) and the hand-over lives in 20-25%. */
+@keyframes rk-frame {
+  0%          { opacity: 1; clip-path: inset(0); transform: none; }
+  20.0%       { opacity: 1; clip-path: inset(12% 0 0 0);  transform: translateX(-.35em); }
+  20.6%       { opacity: 1; clip-path: inset(0 0 55% 0);  transform: translateX(.5em); }
+  21.2%       { opacity: 1; clip-path: inset(40% 0 8% 0); transform: translateX(-.6em); }
+  21.8%       { opacity: .85; clip-path: inset(0);       transform: translateX(.25em); }
+  22.4%       { opacity: 1; clip-path: inset(62% 0 0 0);  transform: translateX(-.8em); }
+  23.0%       { opacity: .6; clip-path: inset(0 0 30% 0); transform: translateX(.4em); }
+  23.6%       { opacity: 1; clip-path: inset(20% 0 45% 0); transform: translateX(-.2em); }
+  24.2%       { opacity: .3; clip-path: inset(0);         transform: none; }
+  25%, 100%   { opacity: 0; clip-path: inset(0); transform: none; }
+}
+/* The colour-split copies flash only inside the hand-over. */
+@keyframes rk-split-a {
+  0%, 19.9%   { opacity: 0; transform: none; }
+  20%         { opacity: .9; transform: translate(-.18em, -.04em); clip-path: inset(0 0 50% 0); }
+  21.2%       { opacity: .9; transform: translate(.22em, .02em);   clip-path: inset(30% 0 20% 0); }
+  22.4%       { opacity: .7; transform: translate(-.12em, 0);      clip-path: inset(55% 0 0 0); }
+  23.6%       { opacity: .9; transform: translate(.3em, -.02em);   clip-path: inset(0 0 65% 0); }
+  24.5%, 100% { opacity: 0; transform: none; }
+}
+@keyframes rk-split-b {
+  0%, 19.9%   { opacity: 0; transform: none; }
+  20.3%       { opacity: .8; transform: translate(.2em, .03em);    clip-path: inset(45% 0 0 0); }
+  21.5%       { opacity: .8; transform: translate(-.25em, -.02em); clip-path: inset(0 0 40% 0); }
+  22.7%       { opacity: .6; transform: translate(.14em, 0);       clip-path: inset(15% 0 55% 0); }
+  23.9%       { opacity: .8; transform: translate(-.3em, .02em);   clip-path: inset(60% 0 0 0); }
+  24.5%, 100% { opacity: 0; transform: none; }
+}
+
+
+/* ---- the three small windows ------------------------------------------
+   Each does a different thing (owner, 2026-09-22): icons rolling, a hint
+   that changes, and the room's feature names ticking through. All three
+   are set at a size somebody can read - there is no caption type left on
+   this plate. */
+
+.rk-reel-win, .rk-tip-win, .rk-tick-win { overflow: hidden; padding: 0; }
+
+/* ONE VOICE across the three windows: the display face, one weight, one
+   colour, one glow. It is the same amber the readings' shadows are drawn
+   in, so it reads as the unit's own lettering. */
+.rk-tip, .rk-tick-i {
+  font-family: var(--sb-display); font-weight: 700; letter-spacing: .01em;
+  color: #5dff8f;
+  text-shadow: 0 0 8px rgb(93 255 143 / .7), 0 0 20px rgb(93 255 143 / .3);
+}
+
+/* ON FILE - the reel */
+.rk-reel { display: flex; flex-direction: column; width: 100%; height: 100%;
+  animation: rk-roll 14s cubic-bezier(.22, .9, .2, 1) infinite; }
+.rk-reel-i { flex: 0 0 100%; height: 100%; display: grid; place-items: center; padding-bottom: 7%; }
+.rk-reel-ico {
+  width: 32%; height: auto; max-height: 50%;
+  color: #5dff8f; stroke-width: 1.3;
+  filter: drop-shadow(0 0 10px rgb(93 255 143 / .55));
+}
+@keyframes rk-roll {
+  0%,  12% { transform: translateY(0); }
+  16%, 28% { transform: translateY(-100%); }
+  32%, 44% { transform: translateY(-200%); }
+  48%, 60% { transform: translateY(-300%); }
+  64%, 76% { transform: translateY(-400%); }
+  80%, 92% { transform: translateY(-500%); }
+  96%, 100%{ transform: translateY(-600%); }
+}
+
+/* REACHABLE - the hint */
+.rk-tips { position: absolute; inset: 0; display: grid; place-items: center; padding: 5% 9% 12%; }
+.rk-tip {
+  grid-area: 1 / 1; text-align: center; line-height: 1.3;
+  font-size: clamp(11px, 1.25cqw, 18px);
+  opacity: 0; transform: translateY(.4em);
+  animation: rk-tip calc(var(--count) * 3.5s) ease-in-out infinite;
+  animation-delay: calc(var(--n) * 3.5s);
+}
+@keyframes rk-tip {
+  0%        { opacity: 0; transform: translateY(.4em); }
+  5%, 22%   { opacity: 1; transform: translateY(0); }
+  27%, 100% { opacity: 0; transform: translateY(-.4em); }
+}
+
+/* NEW - the ticker */
+.rk-tick { display: flex; flex-direction: column; width: 100%; height: 100%;
+  animation: rk-tick 15s cubic-bezier(.3, .8, .25, 1) infinite; }
+.rk-tick-i {
+  flex: 0 0 100%; height: 100%; display: grid; place-items: center;
+  text-align: center; padding: 0 6% 7%;
+}
+@keyframes rk-tick {
+  0%,  13% { transform: translateY(0); }
+  17%, 30% { transform: translateY(-100%); }
+  34%, 47% { transform: translateY(-200%); }
+  51%, 64% { transform: translateY(-300%); }
+  68%, 81% { transform: translateY(-400%); }
+  85%, 100%{ transform: translateY(-500%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Lit, and staying lit. */
-  .rk-pl-win.is-standby::before { animation: none; opacity: .18; }
+  .rk-reel, .rk-tick { animation: none; }
+  .rk-tip { animation: none; opacity: 0; }
+  .rk-tip[style*="--n: 0"] { opacity: 1; transform: none; }
 }
 
 @media (max-width: 560px) {
-  .rk-pl-win.is-standby::before { display: none; }
-  .rk-pl-standby { align-items: flex-start; text-align: left; }
-  .rk-pl-standby b { font-size: 17px; }
-  .rk-pl-standby--lead b { font-size: 21px; }
-  .rk-pl-standby span, .rk-pl-standby--lead span { font-size: 13px; max-width: none; }
-  .rk-pl-standby .rk-pl-door { font-size: 13px; padding: .5em 1.1em; }
+  /* No photograph down here, so the sequence becomes an ordinary card. */
+  .rk-cine {
+    position: static; min-height: 240px; padding: 22px 18px 76px;
+    border: 1px solid var(--sb-line); border-radius: var(--sb-r-panel);
+    background: var(--sb-surface-1); overflow: hidden;
+  }
+  .rk-cine-reel { padding: 22px 18px 76px; }
+  .rk-cine-frame b { font-size: 36px; }
+  .rk-cine-frame i { font-size: 15px; }
+}
+@media (max-width: 560px) {
+  /* No photograph down here; three tiny windows with no readings in them
+     are not worth a phone's height. The sequence says it all. */
+  .rk-reel-win, .rk-tip-win, .rk-tick-win { display: none; }
 }

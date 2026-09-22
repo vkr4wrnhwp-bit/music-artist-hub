@@ -80,11 +80,7 @@
           {% if rr.campaign %}
           <a class="rk-cta" href="/links/{{ rr.campaign.id }}/edit">{{ icon("pen", "rk-ico") }}Edit Release Plan</a>
           {% else %}
-          {#- Hidden while the plate is in standby: its gold door carries
-              the same words and the same address. -#}
-          {% if not rr.idle %}
           <a class="rk-cta" href="/links/new">{{ icon("pen", "rk-ico") }}Create a release</a>
-          {% endif %}
           {% endif %}
         </div>
       </div>
@@ -103,29 +99,51 @@
          width="1859" height="846" decoding="async">
 
     {% if rr.idle %}
-    {#- Nothing measured here yet, so the instrument explains itself
-        rather than printing blanks (owner, 2026-09-22). Words only: no
-        example figure ever sits where this artist's own will appear. -#}
-    <a class="rk-pl-win is-standby" style="{{ rr.standby.lead.box }}; --n: 0"
-       href="{{ rr.standby.lead.href }}">
-      {#- The name the plate prints in metal: for a screen reader, and for
-          the phone, where the photograph steps aside. -#}
-      <p class="rk-pl-sr">Days out</p>
-      <span class="rk-pl-standby rk-pl-standby--lead">
-        <b>{{ rr.standby.lead.title }}</b>
-        <span>{{ rr.standby.lead.line }}</span>
-        <span class="rk-pl-door">{{ rr.standby.lead.cta }}</span>
+    {#- THE STANDBY DISPLAY (owner, 2026-09-22): the big window sequences
+        the room's features and glitches between them; the small windows
+        are a reel, a hint and a ticker, never a caption. Words only - no
+        figure appears here, not even an example one. The plate prints
+        every window's name in metal; the names here are for a screen
+        reader and for the phone. -#}
+    <div class="rk-pl-win rk-cine" style="{{ rr.standby.cine.box }}; --cine-size: {{ rr.standby.cine.size }}; --cine-line: {{ rr.standby.cine.line }}"
+         aria-label="What this room does: {% for f in rr.standby.frames %}{{ f.title }}{{ ", " if not loop.last }}{% endfor %}.">
+      <p class="rk-pl-sr">{{ rr.standby.cine.name }}</p>
+      <span class="rk-cine-reel" style="--count: {{ rr.standby.count }}">
+        {% for f in rr.standby.frames %}
+        <span class="rk-cine-frame{% if f.image %} has-image{% endif %}" style="--n: {{ f.n }}">
+          {% if f.image %}<img class="rk-cine-img" src="{{ f.image }}" alt="" decoding="async" loading="lazy">{% endif %}
+          <b data-t="{{ f.title }}">{{ f.title }}</b>
+          <i>{{ f.line }}</i>
+        </span>
+        {% endfor %}
       </span>
-    </a>
-    {% for w in rr.standby.windows %}
-    <div class="rk-pl-win is-standby" style="{{ w.box }}; --n: {{ w.n }}">
-      {#- The name is here for a screen reader, and because under 560px the
-          photograph goes and this is the ONLY thing naming the card. No
-          visible title: the plate prints that in metal. -#}
-      <p class="rk-pl-sr">{{ w.name }}</p>
-      <span class="rk-pl-standby"><span>{{ w.line }}</span></span>
+    </div>
+    {% for q in rr.standby.reels %}
+    <div class="rk-pl-win rk-reel-win" style="{{ q.box }}; --n: {{ q.n }}">
+      <p class="rk-pl-sr">{{ q.name }}</p>
+      <span class="rk-reel" aria-hidden="true">
+        {% for name in q.icons %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}
+        <span class="rk-reel-i">{{ icon(q.icons[0], "rk-reel-ico") }}</span>
+      </span>
     </div>
     {% endfor %}
+    {% if rr.standby.tips %}
+    <div class="rk-pl-win rk-tip-win" style="{{ rr.standby.tips.box }}">
+      <p class="rk-pl-sr">{{ rr.standby.tips.name }}</p>
+      <span class="rk-tips" style="--count: {{ rr.standby.tips.count }}">
+        {% for t in rr.standby.tips.lines %}<span class="rk-tip" style="--n: {{ loop.index0 }}">{{ t }}</span>{% endfor %}
+      </span>
+    </div>
+    {% endif %}
+    {% if rr.standby.ticker %}
+    <div class="rk-pl-win rk-tick-win" style="{{ rr.standby.ticker.box }}">
+      <p class="rk-pl-sr">{{ rr.standby.ticker.name }}</p>
+      <span class="rk-tick" aria-hidden="true">
+        {% for t in rr.standby.ticker.lines %}<span class="rk-tick-i">{{ t }}</span>{% endfor %}
+        <span class="rk-tick-i">{{ rr.standby.ticker.lines[0] }}</span>
+      </span>
+    </div>
+    {% endif %}
     {% else %}
     {% for w in rr.windows %}
     <div class="rk-pl-win{% if w.key == "days" %} rl-pl-days{% endif %}" style="{{ w.box }}">

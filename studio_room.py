@@ -195,6 +195,73 @@ def path(tracks, measured, masters, covers_n, ready):
     return out
 
 
+# --- THE PLATE, as data ------------------------------------------------
+# These fractions have always lived in static/css/studio-room.css (.sd-unit),
+# which predates the shared kit. They are repeated here ONLY so the standby
+# display can position itself the way every other room's does, and must
+# stay in step with that sheet - tests/test_studio_room.py holds them
+# together.
+PLATE = {
+    "bay":     (8.08, 12.34, 17.51, 70.47),
+    "display": (29.00, 12.66, 47.22, 38.75),
+    "lcd-top": (84.6, 12.50, 12.0, 17.19),
+    "lcd-bot": (84.6, 36.88, 12.0, 16.41),
+}
+
+
+def box(key):
+    """The inline custom properties that put a window on its glass."""
+    x, y, w, h = PLATE[key]
+    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+
+
+# --- THE STANDBY DISPLAY, the owner's way (2026-09-22) -------------------
+# The display sequences the room's features and glitches between them;
+# the bay is a reel of icons, the top LCD ticks the feature names, the
+# bottom LCD carries a hint of three words - that window is about 150px
+# square at a desktop plate. Words only, never a figure. The owner
+# supplies the final text per room at the audit.
+STANDBY_FRAMES = (
+    ("The Rack", "Measure a master to the broadcast standard, in your browser"),
+    ("Release-Ready", "One master, checked and mastered, per track"),
+    ("Remix Lab", "Stems in, a remix out, and a record of what was done"),
+    ("Cover Art", "Artwork at release size, yours to keep"),
+)
+STANDBY_REELS = [("bay", "The bay", ("rack", "mastered", "measured", "tracked", "art", "ready"))]
+STANDBY_TIPS = ("lcd-bot", "Headroom", ["Measure your master", "Make a cover", "Remix a stem", "Check before release"])
+STANDBY_TICKER = ("lcd-top", "Loudness", ["The Rack", "Release-Ready", "Mix Check", "Remix Lab", "Cover Art"])
+STANDBY_CINE = ("display", "The display")
+STANDBY_SIZE = ("clamp(22px, 4cqw, 64px)", "clamp(11px, 1.3cqw, 19px)")
+STANDBY_IMAGES = tuple("static/img/standby/studio-%d.webp" % n for n in (1, 2, 3, 4))
+STANDBY_IMAGE_V = 1
+
+
+def _standby_image(n):
+    import os
+    path = STANDBY_IMAGES[n] if n < len(STANDBY_IMAGES) else ""
+    return "/%s?v=%d" % (path, STANDBY_IMAGE_V) if path and os.path.exists(path) else ""
+
+
+def standby():
+    """The unit with nothing measured: a sequence, a reel, a hint, a ticker."""
+    key, name = STANDBY_CINE
+    size, line = STANDBY_SIZE
+    out = {
+        "cine": {"box": box(key), "name": name, "size": size, "line": line},
+        "frames": [{"n": i, "title": t, "line": l, "image": _standby_image(i)}
+                   for i, (t, l) in enumerate(STANDBY_FRAMES)],
+        "count": len(STANDBY_FRAMES),
+        "reels": [{"box": box(k), "name": n, "icons": icons, "n": i}
+                  for i, (k, n, icons) in enumerate(STANDBY_REELS, start=1)],
+        "tips": None, "ticker": None,
+    }
+    k, n, lines = STANDBY_TIPS
+    out["tips"] = {"box": box(k), "name": n, "lines": lines, "count": len(lines)}
+    k, n, lines = STANDBY_TICKER
+    out["ticker"] = {"box": box(k), "name": n, "lines": lines}
+    return out
+
+
 def build(analysis, cover, art_files, tracks, masters, ready, cards,
           artist_name="", measured_label=None, sample=False, can_open=None):
     """Everything the screen renders. No page logic beyond this."""
@@ -218,6 +285,10 @@ def build(analysis, cover, art_files, tracks, masters, ready, cards,
     return {
         "artist_name": artist_name or "",
         "analyser": analyser(analysis, cover),
+        # Nothing measured, nothing tracked, no art: the unit explains
+        # itself. One track, one cover or one reading and this is gone.
+        "idle": not analysis and not tracks and not art["total"],
+        "standby": standby(),
         "covers": art,
         "path": path(tracks, measured_label, masters, art["total"], ready),
         "tiles": tiles,

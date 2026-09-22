@@ -145,3 +145,8 @@
   fill: var(--sb-ink-2); font-size: 7.5px; font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* The standby display - the sequence, the reel, the hint and the ticker -
+   is room-kit.css (.rk-cine*, .rk-reel*, .rk-tip*, .rk-tick*). It is one
+   object across all eight rooms, so it lives once. This sheet keeps only
+   what is particular to the Fans plate. */

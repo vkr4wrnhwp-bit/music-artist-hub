@@ -193,12 +193,16 @@ def test_an_empty_account_is_told_in_words_and_shown_no_zero_figures():
     # is worse than no plate, so an account that has measured nothing
     # now meets the STANDBY - words about what will fill each window.
     # The zero rule is unchanged and still checked below.
-    assert "Watch one number move" in page
-    assert "Pin your artist" in page
-    assert "Every open of your smart links." in page
-    assert page.count("is-standby") == 4, "the trend screen and three readings"
+    # The caption standby became the DISPLAY the same afternoon (owner:
+    # "slot machine-y" - the big window sequences the room's features,
+    # the small ones are a reel, a hint and a ticker, never a caption).
+    # The zero rule is unchanged and still checked.
+    import re as _re
+    _f = _re.findall(r"rk-cine-frame[^>]*>\s*(?:<img[^>]*>\s*)?<b[^>]*>([^<]*)", page)
+    assert _f == ['Artist Pulse', 'Growth Score', 'Artist Twin', 'Reports'], _f
+    assert page.count("rk-reel-win") == 1 and page.count("rk-tip-win") == 1 and page.count("rk-tick-win") == 1
     assert "rk-pl-n" not in page, "no reading is drawn while nothing is measured"
-    assert not re.search(r">\s*0\s*<", page.split("rk-pl")[1][:2000]), "and no zero"
+    assert not re.search(r">\s*0\s*<", page.split("rk-cine")[1][:3000]), "and no zero"
     assert "Not pinned yet" in page
     # "Needs two readings on different days" belongs to the PARTLY filled
     # case - readings stored, but not yet on two days. On an account with

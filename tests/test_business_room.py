@@ -349,9 +349,15 @@ def test_an_empty_account_opens_on_the_unit_and_prints_no_nought():
     # is worse than no plate, so an account that has measured nothing
     # now meets the STANDBY - words about what will fill each window.
     # The zero rule is unchanged and still checked below.
-    assert body.count("is-standby") == 3, "three windows, all explaining"
-    assert "What your statements actually said." in body
-    assert "Upload a statement" in body
+    # The caption standby became the DISPLAY the same afternoon (owner:
+    # "slot machine-y" - the big window sequences the room's features,
+    # the small ones are a reel, a hint and a ticker, never a caption).
+    # The zero rule is unchanged and still checked.
+    import re as _re
+    _f = _re.findall(r"rk-cine-frame[^>]*>\s*(?:<img[^>]*>\s*)?<b[^>]*>([^<]*)", body)
+    assert _f == ['Statements', 'Royalties', 'Recovery', 'Profit &amp; Loss'], _f
+    assert body.count("rk-tip-win") == 1 and body.count("rk-tick-win") == 1, "the hint and the ticker"
+    assert "Upload a statement" in body, "the hero pill is the way in"
     assert "bz-fig" not in body, "no reading is drawn while nothing is measured"
     assert not re.search(r"\$\s?0\b", body), "a nought would be a claim"
     assert "rk-calm" not in body or "Nothing open." in body

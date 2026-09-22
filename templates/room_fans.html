@@ -68,14 +68,7 @@
             {% endfor %}
           </div>
         </details>
-        {#- Hidden while the plate is in standby: its gold door goes to the
-            same /links/new, and two identical calls to action one band
-            apart is the duplicate the owner asked to watch for. The plate
-            carries the invitation; this is the standing action once there
-            is something to act on. -#}
-        {% if not fr.idle %}
         <a class="fr-cta" href="/links/new">{{ icon("rocket", "fr-ico") }}Launch fan campaign</a>
-        {% endif %}
       </div>
     </div>
 
@@ -98,28 +91,76 @@
          width="1860" height="846" decoding="async">
 
     {% if fr.idle %}
-    {#- Nothing captured at all, so the instrument explains itself rather
-        than printing four blanks (owner, 2026-09-22). Words only: no
-        example figure ever sits where this artist's own will appear. The
-        bar warms through in sequence - see .rk-pl-win.is-standby. -#}
-    <a class="rk-pl-win is-standby" style="{{ fr.standby.lead.box }}; --n: 0"
-       href="{{ fr.standby.lead.href }}">
-      <p class="rk-pl-sr">{{ fr.standby.lead.name }}</p>
-      <span class="rk-pl-standby rk-pl-standby--lead">
-        <b>{{ fr.standby.lead.title }}</b>
-        <span>{{ fr.standby.lead.line }}</span>
-        <span class="rk-pl-door">{{ fr.standby.lead.cta }}{{ icon("arrow", "fr-ico fr-ico--sm") }}</span>
+    {#- THE STANDBY, the owner's way (2026-09-22). The big window plays a
+        sequence - one large headline at a time, with the rig of dots
+        drawing itself behind it - and the three small windows carry no
+        text at all. The previous cut put a caption in every window at
+        about eleven pixels, which on a unit photographed at 1860px read
+        as small print on expensive hardware.
+
+        Still words only: no figure appears here, not even an example. -#}
+    {#- A DISPLAY, not a button (owner, 2026-09-22: "remove the link to
+        create a smart link in the plate image"). The way in is the hero's
+        own gold pill, which comes back now that nothing duplicates it. -#}
+    <div class="rk-pl-win rk-cine" style="{{ fr.standby.lead_box }}"
+         aria-label="What this room does: {% for f in fr.standby.frames %}{{ f.title }}{{ ", " if not loop.last }}{% endfor %}.">
+      <p class="rk-pl-sr">The room</p>
+
+
+      {#- The frames. Each holds the window for its slot of the cycle;
+          the stylesheet does the timing from --n and --count. -#}
+      <span class="rk-cine-reel" style="--count: {{ fr.standby.count }}">
+        {% for f in fr.standby.frames %}
+        <span class="rk-cine-frame{% if f.image %} has-image{% endif %}" style="--n: {{ f.n }}">
+          {#- The owner's picture for this feature, full-bleed under the
+              words. Only emitted when the file is on disk, so a frame is
+              never a broken image. -#}
+          {% if f.image %}<img class="rk-cine-img" src="{{ f.image }}" alt="" decoding="async" loading="lazy">{% endif %}
+          {#- data-t feeds the two colour-split copies drawn during the
+              hand-over; they read the headline back through attr(). -#}
+          <b data-t="{{ f.title }}">{{ f.title }}</b>
+          <i>{{ f.line }}</i>
+        </span>
+        {% endfor %}
       </span>
-    </a>
-    {% for w in fr.standby.windows %}
-    <div class="rk-pl-win is-standby" style="{{ w.box }}; --n: {{ w.n }}">
-      <p class="rk-pl-sr">{{ w.name }}</p>
-      {#- No title: the plate prints this window's name in metal. -#}
-      <span class="rk-pl-standby">
-        <span>{{ w.line }}</span>
+
+    </div>
+
+    {#- The three small windows each do a DIFFERENT thing (owner,
+        2026-09-22). No small print in any of them: the last cut set a
+        caption at about eleven pixels on a unit photographed at 1860px.
+        The plate silkscreens each window's name in metal; the name here
+        is for a screen reader and for the phone. -#}
+
+    {# ON FILE: icons rolling past #}
+    <div class="rk-pl-win rk-reel-win" style="{{ fr.standby.reel.box }}">
+      <p class="rk-pl-sr">{{ fr.standby.reel.name }}</p>
+      <span class="rk-reel" aria-hidden="true">
+        {% for name in fr.standby.reel.icons %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}
+        {#- the first again at the foot, so the roll lands back on it
+            without a jump -#}
+        <span class="rk-reel-i">{{ icon(fr.standby.reel.icons[0], "rk-reel-ico") }}</span>
       </span>
     </div>
-    {% endfor %}
+
+    {# REACHABLE: a hint, changed every few seconds #}
+    <div class="rk-pl-win rk-tip-win" style="{{ fr.standby.tips.box }}">
+      <p class="rk-pl-sr">{{ fr.standby.tips.name }}</p>
+      <span class="rk-tips" style="--count: {{ fr.standby.tips.count }}">
+        {% for t in fr.standby.tips.lines %}
+        <span class="rk-tip" style="--n: {{ loop.index0 }}">{{ t }}</span>
+        {% endfor %}
+      </span>
+    </div>
+
+    {# NEW: the room's feature names, ticking through #}
+    <div class="rk-pl-win rk-tick-win" style="{{ fr.standby.ticker.box }}">
+      <p class="rk-pl-sr">{{ fr.standby.ticker.name }}</p>
+      <span class="rk-tick" aria-hidden="true">
+        {% for t in fr.standby.ticker.lines %}<span class="rk-tick-i">{{ t }}</span>{% endfor %}
+        <span class="rk-tick-i">{{ fr.standby.ticker.lines[0] }}</span>
+      </span>
+    </div>
 
     {% else %}
     {# the big window: the constellation this account's own fans make #}
