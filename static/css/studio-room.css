@@ -94,7 +94,12 @@
 .sd-lcd--top { top: var(--lcd-top-y); height: var(--lcd-top-h); }
 .sd-lcd--bottom { top: var(--lcd-bot-y); height: var(--lcd-bot-h); }
 .sd-lcd-l {
-  font-size: clamp(7px, 0.55cqw, 9px); letter-spacing: .1em; text-transform: uppercase;
+  /* One line, always. The window is ~12% of the unit and the full terms -
+     "Integrated loudness", "True-peak headroom" - do not fit in it at any
+     readable size; they wrapped and crowded the reading. They are on the
+     line under the unit instead, where there is room for them. */
+  font-size: clamp(6px, 0.5cqw, 9px); letter-spacing: .08em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: color-mix(in srgb, var(--sb-gold) 70%, transparent);
 }
 .sd-lcd-v {
@@ -104,7 +109,7 @@
 .sd-lcd-v i { font-style: normal; margin-left: .35em; font-size: .5em; font-weight: 700; }
 /* Nothing measured is WORDS, small and quiet - never a zero sitting where a
    reading goes. -0.0 dBTP would read as a master clipping the ceiling. */
-.sd-lcd-v.is-none { font-size: clamp(9px, 0.8cqw, 13px); font-weight: 700; color: var(--sb-ink-2); }
+.sd-lcd-v.is-none { font-size: clamp(8px, 0.72cqw, 12px); white-space: nowrap; font-weight: 700; color: var(--sb-ink-2); }
 
 /* ---- the needles ------------------------------------------------------- */
 /* A picture of the figure printed above, never instead of it. --turn is 0

@@ -3,7 +3,7 @@
 {% block title %}Studio Room{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
-  <link rel="stylesheet" href="/static/css/studio-room.css?v=2">
+  <link rel="stylesheet" href="/static/css/studio-room.css?v=3">
 {% endblock %}
 
 {#- THE STUDIO ROOM - the owner's mockup, 2026-09-22, and his brief for every
@@ -109,11 +109,11 @@
 
     {# the two readouts #}
     <div class="sd-lcd sd-lcd--top">
-      <span class="sd-lcd-l">Integrated loudness</span>
+      <span class="sd-lcd-l">Loudness</span>
       <span class="sd-lcd-v{% if not a.loudness.measured %} is-none{% endif %}">{{ a.loudness.value }}{% if a.loudness.unit %}<i>{{ a.loudness.unit }}</i>{% endif %}</span>
     </div>
     <div class="sd-lcd sd-lcd--bottom">
-      <span class="sd-lcd-l">True-peak headroom</span>
+      <span class="sd-lcd-l">Headroom</span>
       <span class="sd-lcd-v{% if not a.headroom.measured %} is-none{% endif %}">{{ a.headroom.value }}{% if a.headroom.unit %}<i>{{ a.headroom.unit }}</i>{% endif %}</span>
     </div>
 
@@ -121,8 +121,9 @@
     <span class="sd-needle sd-needle--left" style="--turn: {{ a.left }}" aria-hidden="true"></span>
     <span class="sd-needle sd-needle--right" style="--turn: {{ a.right }}" aria-hidden="true"></span>
   </section>
-  <p class="rk-foot sd-standard">Measured in your browser to {{ a.standard }}.
-    A platform's own encoder has the last word on what it finally sounds like.</p>
+  <p class="rk-foot sd-standard">Integrated loudness and true-peak headroom, measured
+    in your browser to {{ a.standard }}. A platform's own encoder has the last word on
+    what it finally sounds like.</p>
 
   {# ---- the five gold circles ------------------------------------------- #}
   <section class="rk-panel" aria-label="From the take to the master">
