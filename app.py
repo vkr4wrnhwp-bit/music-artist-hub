@@ -4785,9 +4785,59 @@ def create_app():
             return _releases_room(user, room)
         if room_key == "publishing":
             return _publishing_room(user, room)
+        if room_key == "analytics":
+            return _analytics_room(user, room)
         return render_template("room.html", active_page="room-" + room_key,
                                room=room, room_images=rooms.images(),
                                **build_dashboard_context())
+
+    def _analytics_room(user, room):
+        """The Analytics room as one screen (owner's mockup, 2026-09-22).
+
+        Nothing here is read live from a provider. A room door is opened
+        constantly and the Pulse page already spends the provider calls and
+        caches them; this screen shows what is ON FILE and says how old it
+        is. That is also the honest thing to draw: the room's own line is
+        "what is measured, by whom, and how it moved".
+        """
+        import analytics_room
+        import insights_engine
+
+        profile = store.get_pulse_profile(user["id"])
+        snaps = store.list_pulse_snapshots(user["id"], limit=30)
+        try:
+            peers = store.list_pulse_peers(user["id"])
+        except Exception:
+            peers = []
+
+        # The account's own smart-link traffic: no provider, no key, and the
+        # one figure on this screen that is always available.
+        try:
+            counts = mls.account_event_counts(user["id"])
+            visits = counts.get("page_view")
+        except Exception:
+            visits = None
+
+        # Monthly listeners come from a metrics provider. Unconfigured is
+        # the normal case, and it is reported as an absence with a reason
+        # rather than as a zero.
+        listeners = None
+
+        try:
+            observations = insights_engine.build_insights(user["id"])
+        except Exception:
+            observations = []
+
+        seat = current_team_seat()
+        can_open = None if seat is None else (
+            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        an = analytics_room.build(profile, snaps, peers, visits, listeners,
+                                  observations, cards,
+                                  sample=_session_is_demo(), can_open=can_open)
+        return render_template("room_analytics.html",
+                               active_page="room-analytics",
+                               room=room, an=an, **build_dashboard_context())
 
     def _publishing_room(user, room):
         """The Publishing room as one screen (owner's mockup, 2026-09-22).

@@ -3611,6 +3611,16 @@ Counts only the rows created since the previous visit stamp, and says so when th
 
 ### Partial
 
+**Analytics Room (/room/analytics)**
+
+The Analytics room's opening screen: three figures, the five-step measurement path, the instrument readings with their providers and dates, the line over time, the observations, and three closing tiles.
+
+- Because: nothing on this screen is read live from a provider - it shows what is ON FILE and says how old it is, because a room door is opened constantly and /pulse already spends and caches the provider calls (tests/test_analytics_room.py asserts spotify_provider.artist_pulse is never called). Every figure is a local read: link visits are links_store.account_event_counts (ml_events page_view joined to this account's ml_campaigns), followers are the newest NON-NULL reading in pulse_snapshots, the path counts pulse_snapshots, pulse_peers and insights_engine observations, and the observations are insights_engine.build_insights, the one feature in this room with no demo branch and no hardcoded figure. A null reading is skipped rather than read as 0 throughout - analytics_room.latest(), chart() - because the snapshot columns were made nullable precisely to stop a provider's "0 for a field it stopped counting" standing in as a following of nobody. A figure nobody measured reads "Not measured" in words AND names the provider that would supply it; a 0 is printed as a measurement, because somebody counted. A reading older than a day says how old instead of passing as current. The line refuses to draw until two readings exist on DIFFERENT days, so one afternoon's two snapshots are one day of history.
+- Room shape: six cards became three tiles. Pulse opens the room and Insights is the right-hand panel, so neither is a card any more; trust-score folded into the scores tile because rooms.py already gives both the same parent and they are two tabs of one page. All four keep their own addresses. Income is deliberately absent (owner, 2026-09-22: "let analytics stay about measurements") - royalties live in the Business room and a panel here would put the same figures in a second room.
+- Routes: GET /room/analytics (dispatched from /room/<room_key>)
+- Files: app.py room_screen() -> app.py _analytics_room(); analytics_room.py STEPS, days_measured(), latest(), reading(), figures(), path(), chart(), build(); templates/room_analytics.html; static/css/analytics-room.css; rooms.py ROOMS["analytics"]; engines insights_engine.py; stores db.py (pulse_snapshots, pulse_profiles, pulse_peers), links_store.py (ml_events, ml_campaigns)
+- Access: Any signed-in account, as /room/<key>: no tier gate. Team seats need the "analytics" room ticked; a tile whose page the seat cannot open is dropped. Anonymous redirected to /login.
+
 **Artist Pulse**
 
 Live Spotify followers and popularity, Deezer fans, monthly listeners, a YouTube panel, peers and the account's own link engagement.

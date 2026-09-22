@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Room{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
+  <link rel="stylesheet" href="/static/css/analytics-room.css?v=1">
+{% endblock %}
+
+{#- THE ANALYTICS ROOM - built from the owner's mockup image (2026-09-22),
+    section by section.
+
+    The room's own line is "What is measured, by whom, and how it moved",
+    and that is the whole brief: this is the room that refuses to guess.
+    Every reading names the provider that took it and the day it was read,
+    and anything nobody measured says so in words and names the provider
+    that would supply it.
+
+    Shared parts - head band, figure strip, the gold circles, panels,
+    lamps, tiles - come from room-kit.css, the same objects the other four
+    rooms use. This sheet holds only the instrument rows and the chart.
+
+    Six cards went in; three tiles came out. analytics_room.py's docstring
+    says why for each one. Two that are NOT here on purpose:
+      - Insights is the right-hand panel rather than a tile: it is the only
+        feature in this room with no demo branch and no hardcoded figure.
+      - Trust score folded into the Scores tile. rooms.py already gives
+        both the same parent and they are two tabs of one page, so three
+        tiles would have been three doors to one thing.
+
+    And income is deliberately absent (owner, 2026-09-22: "let analytics
+    stay about measurements"). Royalties live in the Business room; a panel
+    here would put the same figures in a second room. -#}
+
+{% macro icon(name, cls="") -%}
+<svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == "pinned" -%}<path d="M9 3.5h6l-1 6 3 3.5H7l3-3.5z"/><path d="M12 13v7.5"/>
+{%- elif name == "measuring" -%}<path d="M4 20V10M10 20V4M16 20v-8M22 20h-20"/>
+{%- elif name == "trending" -%}<path d="M3 16.5l5.5-6 4 3.5 8.5-9"/><path d="M15 5h6v6"/>
+{%- elif name == "compared" -%}<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3 2.7-5.4 6-5.4s6 2.4 6 5.4"/><path d="M16.5 6.5a3 3 0 010 5.5"/><path d="M18 19c0-2-.8-3.7-2-4.8"/>
+{%- elif name == "read" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
+{%- elif name == "person" -%}<circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c0-3.6 3.4-6.5 7.5-6.5s7.5 2.9 7.5 6.5"/>
+{%- elif name == "note" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 8h.01"/>
+{%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
+{%- elif name == "scores" -%}<path d="M4 20V11M10 20V6M16 20v-6M21.5 20h-19"/>
+{%- elif name == "artist-twin" -%}<path d="M4 20h4l11-11-4-4L4 16z"/><path d="M14.5 5.5l4 4"/>
+{%- elif name == "reports" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
+{%- else -%}<circle cx="12" cy="12" r="8"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% block content %}
+<div class="rk an" data-no-collapse>
+
+  {# ---- head band ------------------------------------------------------ #}
+  <section class="rk-hero" aria-labelledby="an-title">
+    <div class="rk-hero-top">
+      <div class="rk-hero-said">
+        <p class="rk-eyebrow">Street Banker &middot; Analytics</p>
+        <h1 class="rk-title" id="an-title">Analytics Room</h1>
+        <p class="rk-sub">What is measured, by whom, and how it moved.</p>
+      </div>
+      <div class="rk-aside">
+        <div class="rk-controls">
+          {% if an.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
+          <span class="rk-field" title="The artist these readings are for">
+            <span>Tracking</span>
+            <b class="an-field-v">{{ an.artist or "Nobody pinned" }}</b>
+          </span>
+          <a class="rk-cta" href="/pulse">{{ icon("person", "rk-ico") }}{% if an.pinned %}Change artist{% else %}Pin your artist{% endif %}</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ---- the three figures ---------------------------------------------- #}
+  <section class="rk-figures" aria-label="What this account measures">
+    {% for f in an.figures %}
+    <div class="rk-fig">
+      <p class="rk-fig-l an-fig-l">{{ f.label }}</p>
+      <p class="rk-fig-s">{{ f.source }}</p>
+      <p class="rk-fig-n{% if not f.measured %} rk-fig-n--none{% endif %} an-fig-n">{{ f.value }}</p>
+      {% if f.why %}<p class="rk-fig-s">{{ f.why }}</p>{% endif %}
+    </div>
+    {% endfor %}
+    <div class="rk-fig-note">
+      {{ icon("note", "rk-ico") }}
+      <div>
+        {% if an.sample %}
+        <b>Sample data</b>
+        <p>Every figure here is generated for the example, not read from this
+           account's own records.</p>
+        {% else %}
+        <b>Every figure names who measured it and when</b>
+        <p>A figure nobody measured says so &mdash; never 0. A zero would be a
+           measurement somebody took.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {# ---- the measurement path ------------------------------------------- #}
+  <section class="rk-panel" aria-labelledby="an-path-h">
+    <div class="rk-panel-head">
+      <div>
+        <h2 class="rk-h" id="an-path-h">Measurement path</h2>
+        <p class="rk-said">From setup to insight &mdash; where you are, and what is next.</p>
+      </div>
+    </div>
+    <ol class="rk-rail">
+      {% for s in an.path %}
+      <li class="rk-step{% if not s.reached %} rk-step--ahead{% endif %}" title="{{ s.sub }}">
+        <span class="rk-ring">{{ icon(s.key, "rk-ring-ico") }}</span>
+        <b>{{ s.name }}</b>
+        <span>{{ s.line }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <div class="an-row">
+    {# ---- what is measured --------------------------------------------- #}
+    <section class="rk-panel" aria-labelledby="an-meas-h">
+      <div class="rk-panel-head">
+        <div>
+          <h2 class="rk-h" id="an-meas-h">What is measured</h2>
+          <p class="rk-said">Each reading shows the figure, the provider, and the day it was read.</p>
+        </div>
+      </div>
+
+      <div class="an-readings" role="list">
+        {% for r in an.readings %}
+        <div class="an-reading" role="listitem">
+          <span class="an-read-v{% if r.state == "none" %} is-none{% endif %}">{{ r.shown or "Not measured" }}</span>
+          <span class="an-read-t">
+            <b>{{ r.label }}</b>
+            <span>{{ r.provider }}</span>
+          </span>
+          <span class="an-read-w">Read: {{ r.read }}</span>
+          <span class="rk-lamp rk-lamp--{{ "good" if r.state == "fresh" else ("warn" if r.state == "stale" else "off") }}">{{ r.lamp }}</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      {# ---- the line over time ----------------------------------------- #}
+      <div class="an-chart">
+        <div class="rk-panel-head an-chart-head">
+          <div>
+            <h3 class="rk-h an-h3" id="an-chart-h">{{ an.chart.label }}</h3>
+            <p class="rk-said">From {{ an.chart.provider }}</p>
+          </div>
+        </div>
+        {% if an.chart.can_draw %}
+        {#- A plain polyline over the readings on file. The axis is the
+            measured range, so the line is never flattered by a zero
+            baseline nobody measured. -#}
+        <svg class="an-plot" viewBox="0 0 600 180" preserveAspectRatio="none" role="img"
+             aria-labelledby="an-chart-h">
+          <polyline class="an-plot-line" fill="none" points="
+            {%- for p in an.chart.points -%}
+              {{ (600 * loop.index0 / ((an.chart.points|length - 1) or 1))|round(1) }},{{ (170 - 160 * ((p.value - an.chart.low) / ((an.chart.high - an.chart.low) or 1)))|round(1) }}
+            {% endfor -%}"/>
+        </svg>
+        <p class="rk-foot">{{ an.chart.points|length }} reading{{ "" if an.chart.points|length == 1 else "s" }} on file,
+          from {{ an.chart.points[0].day }} to {{ an.chart.points[-1].day }}.</p>
+        {% else %}
+        <div class="an-plot-none">
+          {{ icon("note", "rk-ico") }}
+          <p>{{ an.chart.why }}</p>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    {# ---- what your numbers say ---------------------------------------- #}
+    <section class="rk-panel" aria-labelledby="an-say-h">
+      <div class="rk-panel-head">
+        <div>
+          <h2 class="rk-h" id="an-say-h">What your numbers say</h2>
+          <p class="rk-said">Straight answers, each citing the figure it came from.</p>
+        </div>
+      </div>
+      {% if an.observations %}
+      <div class="an-says">
+        {% for o in an.observations %}
+        <div class="an-say">
+          <span class="an-say-ico">{{ icon("measuring", "rk-ico") }}</span>
+          <div>
+            <p class="an-say-t">{{ o.title }}</p>
+            <p class="an-say-d">{{ o.body }}</p>
+            {% if o.href %}<a class="rk-more" href="{{ o.href }}">{{ o.label or "Open" }}{{ icon("arrow", "rk-ico rk-ico--sm") }}</a>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="rk-foot">Read from your own rows when this page opened. Nothing here is
+        predicted, and nothing claims a cause.</p>
+      {% else %}
+      <div class="rk-calm">
+        <p>Nothing to read yet.</p>
+        <p>An observation appears when your own records give one something to stand on
+          &mdash; a statement, a smart link with traffic, or a second day of readings.</p>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+  {# ---- closing tiles -------------------------------------------------- #}
+  {% if an.tiles %}
+  <section aria-labelledby="an-tiles-h">
+    <div class="rk-panel-head">
+      <h2 class="rk-h" id="an-tiles-h">Explore more in the Analytics Room</h2>
+      <p class="rk-cap">{{ an.tiles|length }} more tool{{ "" if an.tiles|length == 1 else "s" }} that read the same records.</p>
+    </div>
+    <div class="rk-tiles">
+      {% for t in an.tiles %}
+      <a class="rk-tile" href="{{ t.href }}" data-room-card="{{ t.key }}">
+        <span class="rk-tile-top">
+          <span class="rk-tile-disc">{{ icon(t.key, "rk-tile-ico") }}</span>
+          <span class="rk-tile-text"><b>{{ t.name }}</b><span>{{ t.line }}</span></span>
+        </span>
+        <span class="rk-tile-foot">
+          <span></span>
+          <span class="rk-tile-go">{{ icon("arrow", "rk-ico rk-ico--sm") }}</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

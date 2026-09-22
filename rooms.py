@@ -52,6 +52,15 @@ ROOMS = [
      # operates, and Analytics is a customer room. It is reached from the
      # desk, which links it. Access did not change: signal_hub.require()
      # guards every handler, and that was always the boundary.
+     # The room's own screen (room_analytics.html, owner's mockup,
+     # 2026-09-22) closes with three tiles - Scores, Artist Twin, Reports -
+     # because Pulse's readings and Insights' observations ARE the screen,
+     # and trust-score is a tab of the scores page rather than a third door
+     # to it. They all stay CARDS of this room, the way links stays a card
+     # of Marketing: a card is what gives a page its room, and with it a
+     # team seat's access (team_areas.room_for_path) and a way back. Which
+     # of them is drawn as a tile is analytics_room.build()'s decision, not
+     # this list's.
      ["pulse", "scores", "trust-score", "insights", "artist-twin", "reports"]),
     ("business", "Business", "The money, the paperwork and the people.",
      # Tax is a view of Statements now, so its card sits beside that one

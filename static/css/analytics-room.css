@@ -1,0 +1,83 @@
+/* THE ANALYTICS ROOM (/room/analytics) - the owner's mockup, 2026-09-22.
+
+   Only what is this room's own. The head band, the figure strip, the gold
+   circles, the panels, the lamps and the closing tiles are room-kit.css,
+   shared with Fans, Marketing, Releases and Publishing, and
+   tests/test_room_kit.py fails if anything there is re-declared here.
+
+   What is this room's: the instrument rows and the chart. Both exist to
+   put a figure next to WHO measured it and WHEN, which is the whole point
+   of the room. */
+
+.an-field-v { font-size: 14.5px; font-weight: 700; color: var(--sb-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The figure strip reads label-first here, unlike the other rooms: the
+   value is usually the words "Not measured", and a sentence sitting where
+   a number belongs needs its heading above it to make sense. */
+.an-fig-l { margin: 0; }
+.an-fig-n { margin: 14px 0 0; font-size: 34px; }
+
+.an-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+
+/* ---- the instrument rows ---------------------------------------------- */
+
+.an-readings { display: flex; flex-direction: column; }
+.an-reading {
+  display: grid; grid-template-columns: minmax(96px, 0.8fr) minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  align-items: center; gap: 14px; padding: 14px 0;
+  border-bottom: 1px solid var(--sb-line); min-width: 0;
+}
+.an-reading:last-child { border-bottom: 0; }
+.an-read-v {
+  font-size: 22px; font-weight: 800; color: var(--sb-ink);
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+}
+/* An unmeasured figure is a sentence, so it is set as one - not as a
+   number in a number's clothes. */
+.an-read-v.is-none { font-size: 14px; font-weight: 700; color: var(--sb-ink-2); }
+.an-read-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.an-read-t b { font-size: 14px; font-weight: 700; color: var(--sb-ink); }
+.an-read-t > span { font-size: 12.5px; color: var(--sb-ink-2); }
+.an-read-w { font-size: 12.5px; color: var(--sb-ink-2); font-variant-numeric: tabular-nums; }
+
+/* ---- the chart --------------------------------------------------------- */
+
+.an-chart { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--sb-line); }
+.an-chart-head { margin-bottom: 8px; }
+.an-h3 { font-size: 15px; }
+.an-plot { width: 100%; height: 180px; display: block; }
+.an-plot-line { stroke: var(--sb-gold-bright); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.an-plot-none {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 132px; padding: 16px; text-align: center;
+  border: 1px dashed var(--sb-line-strong); border-radius: var(--sb-r-control);
+}
+.an-plot-none p { margin: 0; font-size: 13px; color: var(--sb-ink-2); max-width: 34ch; }
+.an-plot-none svg { color: var(--sb-ink-2); }
+
+/* ---- the observations --------------------------------------------------- */
+
+.an-says { display: flex; flex-direction: column; gap: 10px; }
+.an-say {
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px;
+  border: 1px solid var(--sb-line); border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2); min-width: 0;
+}
+.an-say-ico {
+  display: grid; place-items: center; width: 34px; height: 34px; flex: none;
+  border-radius: 50%; background: var(--sb-gold-wash); color: var(--sb-gold-bright);
+}
+.an-say-t { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--sb-ink); }
+.an-say-d { margin: 4px 0 8px; font-size: 12.5px; line-height: 1.5; color: var(--sb-ink-2); }
+
+/* ---- narrower ------------------------------------------------------------ */
+
+@media (max-width: 1180px) {
+  .an-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 720px) {
+  .an-reading { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .an-read-v { grid-column: 1 / -1; }
+  .an-read-w { grid-column: 1; }
+}
