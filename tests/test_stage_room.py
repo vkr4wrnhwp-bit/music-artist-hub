@@ -187,7 +187,10 @@ def test_an_empty_account_is_told_in_words():
     assert "Stage Room" in page
     assert "What the stage needs to know before you get there." in page
     assert "No show saved yet" in page
-    assert "No plot saved yet" in page
+    # The plot no longer has a "nothing saved" sentence of its own: the real
+    # designer is on the screen, and its empty state is an empty stage with
+    # the controls to fill it, which is better than a sentence.
+    assert "sp-canvas" in page
 
 
 def test_both_instruments_are_drawn_even_with_nothing_saved():
@@ -210,9 +213,10 @@ def test_both_instruments_are_drawn_even_with_nothing_saved():
     assert "sg-cues" in body, "the cue table keeps its headers"
     assert "No cues yet" in body
 
-    # the plot, unprogrammed but present
-    assert "Input list" in body, "the input table is drawn"
-    assert "sg-plot-empty" in body, "an empty stage, not a sentence"
+    # the plot, unprogrammed but present - and it is the real editor, so
+    # its empty state is an empty stage you can immediately drag onto
+    assert "Input list" in body, "the input list is drawn"
+    assert "sp-canvas" in body, "the designer's own stage, not a placeholder"
 
     # and nothing collapsed either of them away
     assert "rk-calm" not in body, (
@@ -229,19 +233,36 @@ def test_tour_appears_nowhere_on_the_stage_screen():
         assert claim not in body, claim
 
 
-def test_the_room_edits_nothing():
-    """Every control the mockup drew that would change something - Add
-    fixture, Update cue, the transport - is a link into the editor. A
-    button that looks like it programmes a cue and does not is the dead
-    control the audit caught in Publishing."""
-    c, uid = _account()
-    store.save_light_show(uid, _show(bars=4, cues=[{"t": 0, "note": "Wash",
-                                                    "intensity": 80, "fade": 2}]))
-    page = c.get("/room/stage").get_data(as_text=True)
-    body = _room(page)
-    assert "<form" not in body, "the room screen posts nothing"
-    assert "Update cue" not in body
-    assert "/lights" in body, "but it does open the studio"
+def test_the_plot_on_this_screen_is_the_real_editor():
+    """Owner, 2026-09-22: "they're just blank boxes with text around them and
+    they don't do anything."
+
+    This test used to be test_the_room_edits_nothing, and its claim is no
+    longer true: the plot panel includes templates/_stage_plot_designer.html,
+    the SAME partial /stage-plot and the tour page use, so ticking an item
+    here puts it on the stage and rewrites the input list. One editor, one
+    catalogue, nothing mirrored.
+    """
+    c, _uid = _account()
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert "sp-canvas" in body, "the designer's own canvas"
+    assert "sp-items" in body, "and its controls"
+    assert "sp-inputs" in body, "and its input list"
+    assert "stageplot.js" in body, "driven by the editor's own script"
+    # and not a second input list beside the designer's
+    assert "sg-in" not in body, "one instrument, one input list"
+
+
+def test_a_seat_without_the_plot_area_sees_it_but_cannot_change_it():
+    """The room writes now, so the seat gate matters. Read-only keeps the
+    drawing and the input list - the partial's own behaviour - and drops the
+    controls, so a seat is never shown a control it may not use."""
+    import team_areas
+    assert team_areas.allows("stage", "/stage-plot") in (True, False)
+    c, _uid = _account()
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    # the artist's own account edits
+    assert "sp-items" in body
 
 
 def test_a_saved_show_puts_its_rig_on_the_screen():

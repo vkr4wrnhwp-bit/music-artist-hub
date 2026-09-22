@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% import "_sb.html" as sb %}
 
 {% block title %}Stage Room{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
-  <link rel="stylesheet" href="/static/css/stage-room.css?v=2">
+  <link rel="stylesheet" href="/static/css/stage-room.css?v=3">
 {% endblock %}
 
 {#- THE STAGE ROOM - built from the owner's mockup image (2026-09-22).
@@ -244,40 +245,25 @@
       {% if sg.plot.saved %}<span class="rk-lamp rk-lamp--good">Saved</span>{% endif %}
     </div>
 
-    {% if sg.plot.state == "drawn" %}
-    <div class="sg-plot">
-      <figure class="sg-plot-fig">
-        <img src="/stage-plot/image.png" alt="Your saved stage plot">
-        <figcaption>Audience (front of house)</figcaption>
-      </figure>
-      {% include "_sg_inputs.html" %}
-    </div>
-    {% elif sg.plot.state == "list_only" %}
-    <div class="sg-plot">
-      <div class="sg-plot-fig sg-plot-none">
-        {{ icon("plotted", "rk-ico") }}
-        <p>The drawing is made in the editor. Open it once and save to keep a
-           picture here.</p>
-      </div>
-      {% include "_sg_inputs.html" %}
-    </div>
-    {% else %}
-    {#- Same rule as the studio above: the plot is drawn as an empty stage,
-        not replaced by a sentence. An artist should see what the thing IS
-        before they have used it. -#}
-    <div class="sg-plot">
-      <div class="sg-plot-fig sg-plot-empty">
-        <svg viewBox="0 0 520 250" role="img" aria-label="An empty stage">
-          <rect class="sg-plot-edge" x="14" y="14" width="492" height="200" rx="4"/>
-          <line class="sg-plot-edge" x1="14" y1="214" x2="506" y2="214"/>
-          <text class="sg-plot-hint" x="260" y="120" text-anchor="middle">No plot saved yet</text>
-        </svg>
-        <figcaption>Audience (front of house)</figcaption>
-      </div>
-      {% include "_sg_inputs.html" %}
-    </div>
-    <p class="rk-foot">Drag your backline onto a stage in the editor and the input
-      list writes itself &mdash; every venue asks for both.</p>
+    {#- THE REAL DESIGNER, not a rendering of it (owner, 2026-09-22: "they
+        don't do anything"). templates/_stage_plot_designer.html is the same
+        partial /stage-plot and the tour page use, so ticking an item here
+        puts it on the stage and rewrites the input list exactly as it does
+        there - one editor, one catalogue, nothing mirrored.
+
+        Two contracts it carries, both honoured rather than changed:
+          - it expects `saved_plot` and `editable`, and read-only keeps the
+            drawing and the input list while dropping the controls, so a
+            seat without /stage-plot still SEES the plot;
+          - it closes one more <div> than it opens, and both existing pages
+            are built around that. The wrapper below is that div. Fixing the
+            partial would mean fixing three pages in one commit, which is a
+            tidy-up of its own and not this change. -#}
+    <div class="sg-designer">
+    {% include "_stage_plot_designer.html" %}
+    {% if not editable %}
+    <p class="rk-foot">Your seat can see this plot but not change it. The artist's
+      own account and a seat with the Stage Plot area can edit it.</p>
     {% endif %}
   </section>
 

@@ -4829,8 +4829,21 @@ def create_app():
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         sg = stage_room.build(show, plot_state, plot_image, version, cards,
                               sample=_session_is_demo(), can_open=can_open)
+
+        # The plot designer on this screen is the REAL editor, so this room
+        # is now a page that writes. A seat may only edit what its areas
+        # allow; read-only still shows the drawing and the input list, which
+        # is the partial's own behaviour and the reason it is safe here.
+        editable = True
+        if seat is not None:
+            editable = team_areas.allows(seat["areas"], "/stage-plot")
         return render_template("room_stage.html", active_page="room-stage",
-                               room=room, sg=sg, **build_dashboard_context())
+                               room=room, sg=sg,
+                               saved_plot=(json.dumps(plot_state) if plot_state else "null"),
+                               editable=editable,
+                               # The show the room's own instrument plays.
+                               sg_show=(json.dumps(show) if show else "null"),
+                               **build_dashboard_context())
 
     def _analytics_room(user, room):
         """The Analytics room as one screen (owner's mockup, 2026-09-22).
