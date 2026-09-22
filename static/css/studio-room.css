@@ -31,8 +31,13 @@
          moves every fraction and nothing in code will tell you. ---------- */
   --bay-x: 8.08%;   --bay-y: 12.34%; --bay-w: 17.51%; --bay-h: 70.47%;
   --disp-x: 29.00%; --disp-y: 12.66%; --disp-w: 47.22%; --disp-h: 38.75%;
-  --lcd-x: 84.6%;   --lcd-w: 12.0%;
-  --lcd-top-y: 12.50%; --lcd-top-h: 17.19%;
+  /* The LCDs, MEASURED off the file with PIL on 2026-09-22. The values
+     before were round placeholders (84.6% / 12.0%) that were never
+     re-measured with the bay and the display, and they put both windows
+     about five points right of their glass - the owner saw the readouts
+     "bleeding off the boxes by fifty percent". */
+  --lcd-x: 79.43%;  --lcd-w: 12.24%;
+  --lcd-top-y: 12.66%; --lcd-top-h: 16.88%;
   --lcd-bot-y: 36.88%; --lcd-bot-h: 16.41%;
   /* The dials, and the pivot a VU needle swings from - below the face. */
   --vu-l-x: 46.74%; --vu-r-x: 58.00%;

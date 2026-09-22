@@ -2,7 +2,7 @@
 
 {% block title %}Studio{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=3">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=4">
   <link rel="stylesheet" href="/static/css/studio-room.css?v=3">
 {% endblock %}
 
@@ -111,13 +111,13 @@
       </span>
     </div>
     {% endfor %}
-    <div class="rk-pl-win rk-tip-win" style="{{ sd.standby.tips.box }}">
+    <div class="rk-pl-win rk-tip-win" style="{{ sd.standby.tips.box }}; --tip-size: {{ sd.standby.tips.size }}">
       <p class="rk-pl-sr">{{ sd.standby.tips.name }}</p>
       <span class="rk-tips" style="--count: {{ sd.standby.tips.count }}">
         {% for t in sd.standby.tips.lines %}<span class="rk-tip" style="--n: {{ loop.index0 }}">{{ t }}</span>{% endfor %}
       </span>
     </div>
-    <div class="rk-pl-win rk-tick-win" style="{{ sd.standby.ticker.box }}">
+    <div class="rk-pl-win rk-tick-win" style="{{ sd.standby.ticker.box }}; --tick-size: {{ sd.standby.ticker.size }}">
       <p class="rk-pl-sr">{{ sd.standby.ticker.name }}</p>
       <span class="rk-tick" aria-hidden="true">
         {% for t in sd.standby.ticker.lines %}<span class="rk-tick-i">{{ t }}</span>{% endfor %}

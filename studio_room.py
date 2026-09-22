@@ -204,8 +204,8 @@ def path(tracks, measured, masters, covers_n, ready):
 PLATE = {
     "bay":     (8.08, 12.34, 17.51, 70.47),
     "display": (29.00, 12.66, 47.22, 38.75),
-    "lcd-top": (84.6, 12.50, 12.0, 17.19),
-    "lcd-bot": (84.6, 36.88, 12.0, 16.41),
+    "lcd-top": (79.43, 12.66, 12.24, 16.88),
+    "lcd-bot": (79.43, 36.88, 12.24, 16.41),
 }
 
 
@@ -228,7 +228,12 @@ STANDBY_FRAMES = (
     ("Cover Art", "Artwork at release size, yours to keep"),
 )
 STANDBY_REELS = [("bay", "The bay", ("rack", "mastered", "measured", "tracked", "art", "ready"))]
-STANDBY_TIPS = ("lcd-bot", "Headroom", ["Measure your master", "Make a cover", "Remix a stem", "Check before release"])
+# The LCDs are about 150px square at a desktop plate - the smallest
+# windows on any plate - so the words are two apiece and the sizes go
+# in with them (the first cut bled off the glass by half).
+STANDBY_TIPS = ("lcd-bot", "Headroom", ["Measure a master", "Make a cover", "Remix a stem", "Check a release"])
+STANDBY_TIP_SIZE = "clamp(8px, .78cqw, 12px)"
+STANDBY_TICK_SIZE = "clamp(8px, .82cqw, 12.5px)"
 STANDBY_TICKER = ("lcd-top", "Loudness", ["The Rack", "Release-Ready", "Mix Check", "Remix Lab", "Cover Art"])
 STANDBY_CINE = ("display", "The display")
 STANDBY_SIZE = ("clamp(22px, 4cqw, 64px)", "clamp(11px, 1.3cqw, 19px)")
@@ -256,9 +261,10 @@ def standby():
         "tips": None, "ticker": None,
     }
     k, n, lines = STANDBY_TIPS
-    out["tips"] = {"box": box(k), "name": n, "lines": lines, "count": len(lines)}
+    out["tips"] = {"box": box(k), "name": n, "lines": lines, "count": len(lines),
+                   "size": STANDBY_TIP_SIZE}
     k, n, lines = STANDBY_TICKER
-    out["ticker"] = {"box": box(k), "name": n, "lines": lines}
+    out["ticker"] = {"box": box(k), "name": n, "lines": lines, "size": STANDBY_TICK_SIZE}
     return out
 
 

@@ -621,7 +621,9 @@
 .rk-tips { position: absolute; inset: 0; display: grid; place-items: center; padding: 5% 9% 12%; }
 .rk-tip {
   grid-area: 1 / 1; text-align: center; line-height: 1.3;
-  font-size: clamp(11px, 1.25cqw, 18px);
+  /* Per window: Studio's LCDs are ~150px square at a desktop plate and
+     set --tip-size inline; this is the default for a normal window. */
+  font-size: var(--tip-size, clamp(11px, 1.25cqw, 18px));
   opacity: 0; transform: translateY(.4em);
   animation: rk-tip calc(var(--count) * 3.5s) ease-in-out infinite;
   animation-delay: calc(var(--n) * 3.5s);
@@ -638,6 +640,8 @@
 .rk-tick-i {
   flex: 0 0 100%; height: 100%; display: grid; place-items: center;
   text-align: center; padding: 0 6% 7%;
+  font-size: var(--tick-size, clamp(12px, 1.35cqw, 21px));
+  overflow-wrap: anywhere;
 }
 @keyframes rk-tick {
   0%,  13% { transform: translateY(0); }
