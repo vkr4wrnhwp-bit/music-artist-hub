@@ -893,11 +893,24 @@ def _preview_poll_result(job, out, measured=None):
     if k == "ok":
         return _store_preview(job, out.data, measured)
     if k in ("pending", "busy", "unavailable", "unknown", "server_error"):
+        # Whatever RoEx said while not producing a link. Keeping it is the
+        # difference between "the provider is slow" and "the provider is
+        # telling us something is wrong", which are otherwise the same
+        # thing seen from here for the full forty-five minutes. It goes on
+        # the job for the owner's desk, and into the log the first time it
+        # changes - a poll every fifteen seconds must not fill the log with
+        # one repeated sentence. The artist's wording is chosen by
+        # error_kind and never quotes this, so nothing leaks into their page.
+        said = (out.note or out.roex_message or "").strip()[:300]
+        note = {}
+        if said and said != (job.get("error_text") or "").strip():
+            log.info("release_ready: preview %s not ready, RoEx said: %s", job["id"], said)
+            note["error_text"] = said
         if _preview_elapsed(job) > PREVIEW_DEADLINE:
-            return _fail(job, "timeout")
+            return _fail(job, "timeout", said or (job.get("error_text") or ""))
         attempts = (job.get("attempts") or 0) + 1
         return store.update_job(job["id"], attempts=attempts,
-                                next_poll_at=_later(_backoff(attempts)))
+                                next_poll_at=_later(_backoff(attempts)), **note)
     if k == "not_found":
         return _fail(job, "not_found")
     if k == "credits":
@@ -2323,7 +2336,38 @@ def admin_data():
         "rate": roex.rate_counts(),
         "key_set": roex.configured(),
         "storage": storage_ready(),
+        "provider_notes": _provider_notes(jobs),
     }
+
+
+def _provider_notes(jobs, limit=10):
+    """What RoEx last said about work that did not come back.
+
+    "needs" is for jobs waiting on the owner, so a preview that failed or
+    is still in flight never reaches it, and a preview's stored reason had
+    nowhere on this desk to appear. That is how three quarters of an hour
+    passed with the desk showing nothing but "Making previews": the reason
+    existed and was never displayed. The artist's page still shows only its
+    own plain sentence; this is the owner's copy, RoEx's words and ours
+    kept apart by roex_client."""
+    rows = []
+    for j in jobs:
+        said = (j.get("error_text") or "").strip()
+        if not said:
+            continue
+        if j["status"] not in store.IN_FLIGHT and j["status"] != "failed":
+            continue
+        rows.append({"id": j["id"], "status": j["status"],
+                     "status_label": STATUS_WORDS.get(j["status"], j["status"]),
+                     "type_label": TYPE_WORDS.get(j["type"], j["type"]),
+                     "artist": j.get("artist_name") or j.get("artist_email") or "",
+                     "said": said,
+                     "still_trying": j["status"] in store.IN_FLIGHT,
+                     "created_day": day(j.get("created_at")),
+                     "updated_at": j.get("updated_at") or j.get("created_at") or "",
+                     "retry_url": "%s/jobs/%s/retry" % (ADMIN, j["id"])})
+    rows.sort(key=lambda r: r["updated_at"], reverse=True)
+    return rows[:limit]
 
 
 def _problem_words(p):
@@ -2356,8 +2400,36 @@ def money_back(payment_intent, what, cents=0):
 @bp.route(ADMIN)
 def admin_page():
     _owner_or_404()
+    return _admin_render()
+
+
+def _admin_render(storage_report=None):
     return render_template("release_ready_admin.html", active_page="release-ready-admin",
-                           data=admin_data(), msg=message_from_query(request.args))
+                           data=admin_data(), msg=message_from_query(request.args),
+                           storage_report=storage_report)
+
+
+@bp.route(ADMIN + "/storage", methods=["POST"])
+def admin_storage():
+    """Prove the bucket end to end, rather than reporting that its four
+    variables are set.
+
+    The badge beside this button reads "connected" whenever those
+    variables are non-empty, which is how a run can sit at "Making
+    previews" for three quarters of an hour while RoEx is in fact unable
+    to download the track at all: it is handed a presigned link, the link
+    is refused, and a provider that cannot fetch its input simply never
+    reports a result. This stores a few bytes, fetches them back through a
+    presigned link with no credentials attached - RoEx's exact position -
+    and deletes them, at both a short lifetime and the seven-day one the
+    app really hands out."""
+    _owner_or_404()
+    # Both lifetimes this module really hands out: the hour an analysis
+    # gets and the seven days a mastering task gets. The long one is
+    # R2's stated maximum, so it is the one most likely to be refused
+    # while a short test link sails through.
+    return _admin_render(storage_report=blob_store.round_trip(
+        ttls=(SOURCE_URL_TTL_ANALYSIS, SOURCE_URL_TTL_TASK)))
 
 
 @bp.route(ADMIN + ".json")

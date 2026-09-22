@@ -1229,11 +1229,13 @@ Remembers the one rack that loads with the page.
 
 **Release-Ready owner desk**
 
-Credits this month against the budget, job counts, per-artist and per-organisation spend, retries, resume, manual run and a RoEx health check.
+Credits this month against the budget, job counts, per-artist and per-organisation spend, retries, resume, manual run, a RoEx health check and an end-to-end bucket test.
 
 - Because: release_ready.py:2356/2363 render admin_data(), which reads the real release_ready_jobs/payments tables and the app_kv counters; release_ready.py:2233 _owner_or_404 gives a 404 to anyone else, confirmed by a probe returning 404 for an artist account. The cost figures are the app's own estimates from RoEx's price list and the desk says so (release_ready_settings.py docstring).
-- Routes: GET /admin/release-ready, GET /admin/release-ready.json, POST /admin/release-ready/settings, POST /admin/release-ready/jobs/<jid>/retry, POST /admin/release-ready/resume, POST /admin/release-ready/run, POST /admin/release-ready/health
-- Files: release_ready.py:2233 _owner_or_404, :2242 admin_data, :2356 admin_page, :2369 admin_settings, :2379 admin_retry, :2462 admin_resume, :2470 admin_run, :2478 admin_health; templates/release_ready_admin.html
+- Routes: GET /admin/release-ready, GET /admin/release-ready.json, POST /admin/release-ready/settings, POST /admin/release-ready/jobs/<jid>/retry, POST /admin/release-ready/resume, POST /admin/release-ready/run, POST /admin/release-ready/health, POST /admin/release-ready/storage
+- Files: release_ready.py:2233 _owner_or_404, :2242 admin_data, :2356 admin_page, :2369 admin_settings, :2379 admin_retry, :2462 admin_resume, :2470 admin_run, :2478 admin_health, admin_storage; blob_store.py round_trip; templates/release_ready_admin.html
+- Honesty: the storage badge reads "set up", not "connected", because blob_store.configured() only checks that four environment variables are non-empty. "Test the bucket end to end" is the only thing on this desk that proves a download: blob_store.round_trip stores a few bytes, fetches them back through a presigned link with no Authorization header - RoEx's exact position - at both lifetimes this module hands out (an hour for an analysis, R2's seven-day maximum for a mastering task), then deletes the object. It reports HTTP statuses and R2's own error codes and no secret. It runs on a press, never on a page view, because it writes into the production bucket.
+- Honesty: "Work that has not come back" (_provider_notes) lists jobs still in flight or given up on that have a stored reason. It exists because a preview RoEx will never produce and a slow one look identical from the app: retrieve_preview_master reads any answer without a download link as "pending", so roex_client now keeps that answer's field names and RoEx's own message, _preview_poll_result stores them on the job and logs them the first time they change, and the deadline failure keeps them instead of replacing them with a bare timeout. The artist's wording is chosen by error_kind and never quotes this, so a stored reason cannot leak into their page.
 - Access: Owner only (_is_owner_email, and not while acting as a seat or on behalf). 404 for everyone else. /admin is in app.py _TEAM_BLOCKED.
 
 **Resolve a finding**

@@ -369,6 +369,135 @@ def diagnose():
     return report
 
 
+def round_trip(ttls=(300, DEFAULT_TTL)):
+    """Prove an outside caller can actually download what we store.
+
+    configured() only says four variables are non-empty, and diagnose()
+    stops at the TLS handshake with "a failure past this point is
+    credentials or bucket". Neither answers the question RoEx faces: it is
+    handed a presigned URL and has to fetch it with no credentials of its
+    own. If that fetch is refused, RoEx accepts the task, never downloads
+    the track, and simply never finishes - which looks from the app's side
+    like a provider being slow, and is indistinguishable from it without
+    this check.
+
+    So: store a few bytes, presign the key, fetch it the way RoEx would
+    (no Authorization header at all), and delete it. Each TTL is fetched
+    separately because the one the app hands RoEx is 604800 seconds, which
+    is exactly R2's documented maximum - a bound checked exclusively at
+    Cloudflare's end would refuse every real link while a short-lived test
+    link passed.
+
+    Prints no secret: only HTTP statuses and R2's own error codes.
+    """
+    import re
+    import uuid
+
+    if not configured():
+        return {"ok": False, "step": "configured",
+                "verdict": "the bucket variables are not all set"}
+
+    key = "diagnostics/round-trip-%s.txt" % uuid.uuid4().hex
+    body = b"round trip"
+    report = {"key": key, "reads": []}
+
+    try:
+        put(key, body, "text/plain")
+        report["put"] = True
+    except urllib.error.HTTPError as exc:
+        return dict(report, ok=False, step="put", status=exc.code,
+                    code=_r2_error_code(exc),
+                    verdict=_put_verdict(exc))
+    except Exception as exc:
+        return dict(report, ok=False, step="put",
+                    error="%s: %s" % (type(exc).__name__, str(exc)[:140]),
+                    verdict="the bucket refused a write before any reply came back")
+
+    # A bare opener: no proxy, no handlers, and above all no credentials.
+    # This is RoEx's position exactly.
+    opener = urllib.request.build_opener()
+    try:
+        for ttl in ttls:
+            row = {"ttl": int(ttl)}
+            req = urllib.request.Request(presigned_get(key, ttl), method="GET")
+            try:
+                with opener.open(req, timeout=30) as resp:
+                    got = resp.read(64)
+                row["status"] = 200
+                row["bytes_match"] = (got == body)
+            except urllib.error.HTTPError as exc:
+                row["status"] = exc.code
+                row["code"] = _r2_error_code(exc)
+            except Exception as exc:
+                row["error"] = "%s: %s" % (type(exc).__name__, str(exc)[:140])
+            report["reads"].append(row)
+    finally:
+        try:
+            delete(key)
+            report["cleaned_up"] = True
+        except Exception:
+            report["cleaned_up"] = False
+
+    good = [r for r in report["reads"] if r.get("bytes_match")]
+    bad = [r for r in report["reads"] if not r.get("bytes_match")]
+    report["ok"] = not bad
+    if not bad:
+        report["verdict"] = ("an outside caller can download what we store, at "
+                             "every lifetime we hand out")
+    elif good:
+        report["verdict"] = (
+            "short-lived links work and the %s-second link RoEx is given does "
+            "not, so the lifetime is the problem, not the credentials"
+            % bad[0]["ttl"])
+    else:
+        report["verdict"] = _read_verdict(bad[0])
+    return report
+
+
+def _r2_error_code(exc):
+    """R2 answers a refusal with an S3 XML body. The <Code> is the part
+    worth repeating; the rest names the bucket and request id."""
+    try:
+        import re
+        body = exc.read(2048).decode("utf-8", "replace")
+    except Exception:
+        return ""
+    found = re.search(r"<Code>([^<]{1,60})</Code>", body)
+    return found.group(1) if found else ""
+
+
+def _put_verdict(exc):
+    code = _r2_error_code(exc)
+    if exc.code in (401, 403):
+        return ("Cloudflare refused the write. %s. The R2 API token in "
+                "R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY needs Object "
+                "Read & Write on this bucket." % (code or "No error code came back"))
+    if exc.code == 404:
+        return ("the bucket named in R2_BUCKET does not exist on this "
+                "account, so nothing can be stored in it")
+    return "the write was refused with HTTP %d%s" % (
+        exc.code, (" (%s)" % code) if code else "")
+
+
+def _read_verdict(row):
+    code = (row.get("code") or "").strip()
+    status = row.get("status")
+    if code == "SignatureDoesNotMatch":
+        return ("the link we sign is not a link Cloudflare accepts, so RoEx "
+                "cannot download the track and its task never finishes")
+    if code in ("AccessDenied", "Unauthorized") or status in (401, 403):
+        return ("Cloudflare refused an unauthenticated read of our own "
+                "presigned link%s. RoEx is handed that link and gets the same "
+                "refusal." % ((" (%s)" % code) if code else ""))
+    if code == "NoSuchKey" or status == 404:
+        return ("the object we had just written was not there to read, which "
+                "means writes and reads are not hitting the same bucket")
+    if status:
+        return "reading our own presigned link returned HTTP %s%s" % (
+            status, (" (%s)" % code) if code else "")
+    return "the read never got an answer: %s" % row.get("error", "no reply")
+
+
 def fetch(path, timeout=30):
     """Read an object back as bytes, or None.
 

@@ -250,6 +250,14 @@ def _jobs(source_id, jtype=None):
 def _due(job_id):
     rstore.update_job(job_id, next_poll_at=rstore.iso(rstore.now() - timedelta(seconds=1)))
 
+def _poll(c, job_id):
+    """Make the job due and let a request run the step, which is how the
+    queue is driven in the app: _due on its own only sets the clock."""
+    _due(job_id)
+    r = c.get(PAGE + "/jobs/%s.json" % job_id)
+    assert r.status_code == 200, r.get_json()
+    return r.get_json()
+
 
 def _mix_with_report(c, env, **kw):
     env.roex.on("/mixanalysis", _analysis_ok())
@@ -724,6 +732,102 @@ def test_the_webhook_is_refused_without_its_token_and_only_rereads_with_it(env, 
     assert env.roex.count("/retrievepreviewmaster") == 2
 
 
+def test_a_preview_that_never_arrives_says_why_on_the_owners_desk(env, monkeypatch, caplog):
+    """A mix sat at "Making previews" for forty-five minutes and then failed
+    with a plain timeout, while nothing anywhere recorded what RoEx had been
+    answering all that time. retrieve_preview_master read every answer
+    without a link as "still working" and discarded the rest of it, and the
+    desk had no place to show it even if it had been kept."""
+    caplog.set_level(logging.INFO)
+    c = _account("label")
+    sid = _mix_with_report(c, env)
+    env.roex.on("/masteringpreview", (200, {"mastering_task_id": "mt_slow"}))
+    jid = c.post(PAGE + "/sources/%s/previews" % sid,
+                 data={"style": "POP", "loudness": ["MEDIUM"]},
+                 headers=J).get_json()["jobs"][0]["id"]
+
+    # RoEx answers 200 with no link and nothing else we recognise. Before
+    # this change that was silently indistinguishable from progress.
+    env.roex.on("/retrievepreviewmaster",
+                (200, {"previewMasterTaskResults": {"error": True,
+                                                    "message": "could not fetch audio"}}))
+    _poll(c, jid)
+    job = rstore.get_job(jid)
+    assert job["status"] == "processing", "it keeps polling, as it should"
+    said = job["error_text"]
+    assert "RoEx sent no preview link" in said
+    # The field NAMES it carried, so the shape of the refusal is on record.
+    assert "error" in said and "message" in said
+    assert "release_ready: preview" in caplog.text
+
+    # A second identical poll does not repeat itself into the log.
+    caplog.clear()
+    _poll(c, jid)
+    assert "release_ready: preview" not in caplog.text
+    assert rstore.get_job(jid)["error_text"] == said
+
+    # The owner's desk now has somewhere to show it, with the job still live.
+    desk = _owner(env).get("/admin/release-ready").data.decode()
+    assert "Work that has not come back" in desk
+    assert "RoEx sent no preview link" in desk
+    assert "Still being polled." in desk
+
+    # The artist is told only the plain sentence for the state they are in.
+    page = c.get(PAGE + "/jobs/%s.json" % jid).get_json()
+    assert "RoEx sent no preview link" not in json.dumps(page)
+
+
+def test_the_deadline_keeps_the_reason_and_still_tells_the_artist_plainly(env, monkeypatch):
+    c = _account("label")
+    sid = _mix_with_report(c, env)
+    env.roex.on("/masteringpreview", (200, {"mastering_task_id": "mt_late"}))
+    jid = c.post(PAGE + "/sources/%s/previews" % sid,
+                 data={"style": "POP", "loudness": ["MEDIUM"]},
+                 headers=J).get_json()["jobs"][0]["id"]
+    env.roex.on("/retrievepreviewmaster",
+                (200, {"previewMasterTaskResults": {"error": True}}))
+    _poll(c, jid)
+    assert "RoEx sent no preview link" in rstore.get_job(jid)["error_text"]
+
+    # Past the deadline it gives up, and the reason it had is not thrown
+    # away by the act of giving up.
+    monkeypatch.setattr(rr, "PREVIEW_DEADLINE", timedelta(seconds=-1))
+    _poll(c, jid)
+    job = rstore.get_job(jid)
+    assert job["status"] == "failed" and job["error_kind"] == "timeout"
+    assert "RoEx sent no preview link" in job["error_text"]
+
+    desk = _owner(env).get("/admin/release-ready").data.decode()
+    assert "RoEx sent no preview link" in desk
+    assert "Given up on." in desk
+
+    # error_kind, not error_text, chooses the artist's words.
+    page = json.dumps(c.get(PAGE + "/jobs/%s.json" % jid).get_json())
+    assert "45 minutes" in page
+    assert "RoEx sent no preview link" not in page
+
+
+def test_work_that_came_back_is_not_listed_as_trouble(env):
+    """A preview that worked leaves nothing behind to explain, and one that
+    is merely queued has nothing to say yet. The list is keyed on a stored
+    reason, so neither reaches it.
+
+    This asks _provider_notes directly: the desk is the owner's and shows
+    every account, so a page-level assertion here would depend on what
+    other tests in this file happen to have left in the table."""
+    c = _account("label")
+    sid = _mix_with_report(c, env)
+    jid = _preview_ready(c, env, sid)
+    mine = rstore.jobs_for_source(sid)
+    assert {j["status"] for j in mine} == {"reported", "preview_ready"}
+    assert rr._provider_notes(mine) == []
+
+    # A reason on a job that has since finished is not trouble either: only
+    # work still in flight or given up on belongs on that list.
+    rstore.update_job(jid, error_text="something RoEx said earlier")
+    assert rr._provider_notes(rstore.jobs_for_source(sid)) == []
+
+
 # --- 7. the paid final: after a claimed payment, once ------------------------------------------------
 
 def test_nothing_but_a_payment_starts_the_paid_retrieval(env, monkeypatch):
@@ -1135,6 +1239,52 @@ def test_the_owner_desk_is_the_owners_alone(env):
     env.roex.on("/health", (200, "OK"))
     r = owner.post("/admin/release-ready/health", headers=J)
     assert r.get_json()["kind"] == "ok" and env.roex.paths() == ["/health"]
+
+
+def test_the_desk_can_prove_the_bucket_rather_than_report_it_set(env, monkeypatch):
+    """The badge said "connected" from four variables being non-empty while
+    a real run sat at "Making previews" for forty-five minutes and failed.
+    A provider handed a link it cannot fetch never reports a result, so the
+    desk needs a button that puts an object, reads it back through a
+    presigned link with no credentials, and says which lifetime worked."""
+    owner, other = _owner(env), _account("label")
+    assert other.post("/admin/release-ready/storage", headers=J).status_code == 404
+
+    asked = {}
+
+    def fake(ttls):
+        asked["ttls"] = tuple(ttls)
+        return {"ok": False, "key": "diagnostics/round-trip-x", "cleaned_up": True,
+                "verdict": "the link we sign is not a link Cloudflare accepts",
+                "reads": [{"ttl": ttls[0], "status": 200, "bytes_match": True},
+                          {"ttl": ttls[1], "status": 403,
+                           "code": "SignatureDoesNotMatch"}]}
+
+    monkeypatch.setattr(rr.blob_store, "round_trip", lambda ttls: fake(ttls))
+    page = owner.post("/admin/release-ready/storage").data.decode()
+
+    # It tests the two lifetimes this module really hands out, and the long
+    # one is the seven days a mastering task gets - not blob_store's own
+    # hour-long default, which nothing here ever asks for.
+    assert asked["ttls"] == (rr.SOURCE_URL_TTL_ANALYSIS, rr.SOURCE_URL_TTL_TASK)
+    assert rr.SOURCE_URL_TTL_TASK == 604800
+
+    assert "not a link Cloudflare accepts" in page
+    assert "The bucket is the problem" in page
+    assert "SignatureDoesNotMatch" in page
+    assert "Test file removed" in page
+    # The badge no longer claims more than it checked.
+    assert "Storage (R2): set up" in page
+    assert "Storage (R2): connected" not in page
+
+
+def test_the_desk_says_nothing_about_the_bucket_until_it_is_asked(env):
+    """The check writes into the production bucket, so it runs on a press
+    and never on a page view."""
+    page = _owner(env).get("/admin/release-ready").data.decode()
+    assert "The bucket is the problem" not in page
+    assert "The bucket answered" not in page
+    assert 'action="/admin/release-ready/storage"' in page
 
 
 # --- the words -----------------------------------------------------------------------------------------

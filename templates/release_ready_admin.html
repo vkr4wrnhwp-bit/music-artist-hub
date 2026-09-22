@@ -33,15 +33,39 @@
         <form method="post" action="/admin/release-ready/run">{{ sb.btn("Run the queue now", type="submit", size="sm") }}</form>
         <form method="post" action="/admin/release-ready/resume">{{ sb.btn("Resume paused reports", type="submit", size="sm",
             disabled_reason=(none if data.paused_reports else "No reports are paused.")) }}</form>
+        <form method="post" action="/admin/release-ready/storage">{{ sb.btn("Test the bucket end to end", type="submit", size="sm") }}</form>
       </div>
     </div>
     <div class="rr-state-list">
       {{ sb.badge("RoEx key: set" if data.key_set else "RoEx key: not set", "good" if data.key_set else "warn") }}
-      {{ sb.badge("Storage (R2): connected" if data.storage else "Storage (R2): not connected", "good" if data.storage else "warn") }}
+      {{ sb.badge("Storage (R2): set up" if data.storage else "Storage (R2): not set up", "good" if data.storage else "warn") }}
       {{ sb.badge("Open to artists" if s.open else "Closed to artists", "good" if s.open else "idle") }}
       {{ sb.badge("Mix report on every upload" if s.auto_analysis else "Mix report on request only", "info") }}
       {{ sb.badge("RoEx calls this minute: %d of %d" % (data.rate.this_minute or 0, data.rate.limit or 90), "idle") }}
     </div>
+    <p class="rr-note">"Set up" means the four bucket variables are filled in. It does not mean
+      Cloudflare will hand our files to RoEx. Test the bucket end to end to find that out.</p>
+    {% if storage_report %}
+      {{ sb.priority("The bucket answered" if storage_report.ok else "The bucket is the problem",
+                     storage_report.verdict, "good" if storage_report.ok else "warn",
+                     tag=("Tested just now"), tag_tone=("good" if storage_report.ok else "warn")) }}
+      <dl class="rr-state-list">
+        {% for read in storage_report.reads %}
+          {{ sb.badge("A %s-second link: %s" % (read.ttl,
+               "downloaded, bytes matched" if read.bytes_match
+               else ("HTTP %s%s" % (read.status, " (%s)" % read.code if read.code else ""))
+                    if read.status else read.error),
+             "good" if read.bytes_match else "warn") }}
+        {% endfor %}
+        {% if not storage_report.reads %}
+          {{ sb.badge("Nothing could be stored, so nothing was read back", "warn") }}
+        {% endif %}
+        {% if storage_report.cleaned_up is defined %}
+          {{ sb.badge("Test file removed" if storage_report.cleaned_up
+                      else "Test file left in the bucket", "idle") }}
+        {% endif %}
+      </dl>
+    {% endif %}
   </section>
 
   <section aria-labelledby="rr-month-h">
@@ -70,6 +94,31 @@
     </dl>
     <p class="rr-small rr-after">{{ data.estimate_note }}</p>
   </section>
+
+  {% if data.provider_notes %}
+  <section class="rr-card" aria-labelledby="rr-said-h">
+    <p class="rr-kicker">What RoEx said</p>
+    <h2 class="rr-h rr-h--sm" id="rr-said-h">Work that has not come back</h2>
+    <p class="rr-note">A preview that is taking a long time and a preview RoEx will never
+      produce look the same from here. This is whatever its answers carried while no file
+      arrived. The artist's page shows only its own plain sentence, never this.</p>
+    <div class="rr-after">
+      {% for n in data.provider_notes %}
+        <div class="rr-need">
+          <p><b>{{ n.artist or "An artist" }}</b>: {{ n.type_label }},
+            {{ n.status_label | lower }}. {{ n.created_day }}.
+            {{ "Still being polled." if n.still_trying else "Given up on." }}</p>
+          <p class="rr-note">{{ n.said }}</p>
+          {% if not n.still_trying %}
+            <form method="post" action="{{ n.retry_url }}">
+              {{ sb.btn("Try this one again", type="submit", size="sm") }}
+            </form>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
   <section class="rr-card" aria-labelledby="rr-needs-h">
     <p class="rr-kicker">Needs you</p>

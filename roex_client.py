@@ -629,7 +629,19 @@ def retrieve_preview_master(task_id):
     res = out.data.get("previewMasterTaskResults")
     url = res.get("download_url_mastered_preview") if isinstance(res, dict) else None
     if not url:
-        return Outcome("pending", {}, out.roex_message, out.status)
+        # An answer with no link is usually "still working". It is also how
+        # a refusal arrives - RoEx unable to download the source, say - and
+        # the two are indistinguishable from the missing link alone. So keep
+        # what the answer did carry (its field names, never their values)
+        # and RoEx's own message, the way retrieve_final_master does. The
+        # caller polls either way; without this, a preview RoEx will never
+        # produce looks exactly like a slow one until the deadline, and the
+        # reason is thrown away every time we ask.
+        keys = sorted(str(k) for k in (res if isinstance(res, dict) else out.data))[:12]
+        note = ""
+        if keys:
+            note = "RoEx sent no preview link (its answer had: %s)" % ", ".join(keys)
+        return Outcome("pending", {"keys": keys}, out.roex_message, out.status, note=note)
     start = res.get("preview_start_time")
     try:
         start = float(start)
