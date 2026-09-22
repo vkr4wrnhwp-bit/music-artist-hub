@@ -206,7 +206,10 @@
 /* 4% a side, not 6/7: at a desktop plate this glass is ~334px wide and
    "Announcements" at the -15% size needs the extra ~20px, or it breaks
    mid-word. overflow-wrap stays as the last resort for a longer word. */
-.mk-pl .rk-cine .rk-cine-reel { padding: 5% 3% 14% 3%; place-items: start; }
+/* center / start: centred on the glass vertically, set left across. The
+   first cut said `place-items: start`, which pins BOTH axes and put the
+   frame at the top of a window taller than it is wide. */
+.mk-pl .rk-cine .rk-cine-reel { padding: 5% 3% 8% 3%; place-items: center start; }
 .mk-pl .rk-cine-frame { align-items: flex-start; text-align: left; width: 100%; }
 .mk-pl .rk-cine-frame b { overflow-wrap: anywhere; }
 .mk-pl .rk-cine-frame i { max-width: none; }
