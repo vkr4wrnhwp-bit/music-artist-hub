@@ -12,9 +12,7 @@
 {#- The strip draws in both layouts again (2026-09-21): the Marketing room's
     screen closes with one Press Desk tile instead of four press cards, so this
     strip is the press pages' own door and no longer doubles the room's. -#}
-{#- In the rooms layout the room's cards are the tabs (owner, 2026-09-15:
-    "remove the double tabs"). This page was missed. -#}
-{% if not rooms_nav %}{{ sb.subnav([("/press-desk", "Desk"), ("/press-desk/contacts", "Media list"), ("/press-desk/announcements", "Announcements"), ("/press-desk/coverage", "Coverage"), ("/epk", "Press kit")], "/epk", label="Press") }}{% endif %}
+{{ sb.subnav([("/press-desk", "Desk"), ("/press-desk/contacts", "Media list"), ("/press-desk/announcements", "Announcements"), ("/press-desk/coverage", "Coverage"), ("/epk", "Press kit")], "/epk", label="Press") }}
 <div id="press-office" class="mx-auto max-w-[1300px] overflow-hidden rounded-2xl bg-sb-ink text-sb-surface-2 shadow-[0_0_60px_rgba(201,162,74,0.1)]">
 
   <!-- ===== Press Office top bar ===== -->
