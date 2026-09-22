@@ -186,7 +186,10 @@
    one icon size and one type scale, in every room. Marketing's 1.6fr lead
    tile is gone for the same reason - it was the one tile that was not like
    the others. */
-.rk-tiles, .fr-tiles, .mk-tiles, .pb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+/* 200px, not 240: at a desk this fits the five tiles the owner's
+   Publishing mockup draws in ONE row. At 240 the fifth dropped to a
+   row of its own, which reads as an afterthought rather than a set. */
+.rk-tiles, .fr-tiles, .mk-tiles, .pb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 .rk-tile, .fr-tile, .mk-tile, .pb-tile {
   display: flex; flex-direction: column; justify-content: space-between; gap: 18px; min-height: 148px;
   padding: 16px 16px 14px 18px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
