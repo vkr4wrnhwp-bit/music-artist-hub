@@ -523,7 +523,7 @@ Whether a store is actually late or just reporting on its normal delay, measured
 
 ## Releases and catalog
 
-46 features: 22 Live, 11 Partial, 11 Stubbed, 2 Dead code.
+47 features: 23 Live, 11 Partial, 11 Stubbed, 2 Dead code.
 
 ### Live
 
@@ -644,6 +644,16 @@ Twelve derived pass/fail checks on the selected campaign, grouped into five mete
 - Files: app.py _release_checks() (immediately above app.py:6093), _check_groups(); template templates/release_autopilot.html lines 99-150
 - Access: Same as Release Autopilot: Artist/Pro/Label, Fan 402, anonymous to /login; team seats via the Releases room.
 
+**Releases Room (/room/releases)**
+
+The Releases room's opening screen: three figures, the five-stage arc, what needs attention with a due day, the release itself, what is scheduled, per-recording Clean Release, and three closing tiles.
+
+- Because: every figure is a count or a date over this account's own rows. The checks figure is app.py _release_checks over the chosen campaign, shown as passed/total rather than a score, and the group meters are _CHECK_GROUPS counted from those same checks. Days left is the campaign's own release_date less today. Scheduled drops is every ro_posts row with a scheduled_date across ros.list_campaigns; an account with NO rollout at all cannot be counted, so it reads "Not measured" with "Nothing scheduled yet", while a rollout whose posts carry no dates has been counted and reads 0 - the distinction _release_drops exists for. The arc's stage is the TIGHTEST window still ahead of the release date (ten days out is the 14-day plan, not the 60-day one), and with no release date no step is marked now at all. A task's due day is its own window in releases_room.CHECK_WINDOW counted back from release day, so it is traceable in one step; a check with no window, or a release with no date, shows a dash. The per-recording panel is artist_os.clean_release over store.list_os_tracks and is labelled as a different measurement from the campaign checks. Nothing on the page says a release was delivered: the note panel says in as many words that delivery is the distributor's to confirm and we cannot see it.
+- Merged: Releases, Release Calendar and Release check were three cards pointing at /releases/autopilot with a different query string - one page behind three doors, which is the "no double tabs" rule broken as literally as it can be. They are this screen now. Rollout Studio, Sync Packs and Distribution are separate pages and stay as tiles; a tile a team seat cannot open is dropped rather than drawn (team_areas.allows).
+- Routes: GET /room/releases?campaign=<id> (dispatched from /room/<room_key>)
+- Files: app.py room_screen() -> app.py _releases_room(), _release_drops(); releases_room.py STAGES, CHECK_WINDOW, stage_now(), arc(), due_on(), tasks(), headline(), build(); templates/room_releases.html; static/css/releases-room.css; rooms.py ROOMS["releases"]; stores links_store.py (ml_campaigns), rollout_store.py (ro_campaigns, ro_posts), db.py (os_tracks)
+- Access: Any signed-in account, as /room/<key>: no tier gate. Team seats need the "releases" room ticked; a seat without a tile's page is not shown that tile. Anonymous redirected to /login.
+
 **Release-risk notification**
 
 Files one in-app notification when a dated track inside 14 days still has Clean Release blockers or an incomplete score.

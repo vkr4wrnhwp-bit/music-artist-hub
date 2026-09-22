@@ -22,7 +22,8 @@ each one can be pointed at:
   groups            app.py _CHECK_GROUPS, counted from those same checks
   days_left         the campaign's own release_date, date arithmetic
   stage             artist_os.autopilot_stage
-  plan windows      artist_os.campaign_plan, already flagged `passed`
+  due days          the campaign's own release_date, less the window
+                    a check belongs to (CHECK_WINDOW)
   drops             rollout posts with a scheduled_date
   passport rows     store.list_os_tracks + artist_os.clean_release
 
@@ -36,6 +37,7 @@ WHAT IT REFUSES TO DO
   * Nothing is described as delivered. Delivery is the partner's and this
     application cannot see it.
 """
+from datetime import date, timedelta
 
 # The arc, in the owner's words on the mockup. Each one is a window in
 # artist_os.campaign_plan except the last two, which are the days around
@@ -48,9 +50,9 @@ STAGES = (
     ("after", "Post-release", "Measure and grow", 0),
 )
 
-# Which plan window a check belongs to, so a task can carry a due date.
-# Anything not named here has no window and shows no date, which is the
-# honest answer rather than a guess.
+# How many days before release a check is wanted, so a task can carry a due
+# date. Anything not named here has no window and shows no date, which is
+# the honest answer rather than a guess.
 CHECK_WINDOW = {
     "release": 30,        # assets take the longest
     "metadata": 30,
@@ -95,29 +97,32 @@ def arc(days_left):
     return out
 
 
-def due_on(check_key, plan):
-    """The day a task is due, from the plan window it belongs to.
+def due_on(check_key, release_date):
+    """The day a task is due: its own window counted back from release day.
 
-    Only where the plan has that window with a date on it. A task with no
-    derivable day carries none: a date nobody can trace is worse than a
-    blank, because somebody will work to it.
+    Traceable in one step - "metadata is wanted 30 days out, the release is
+    the 1st, so it is due the 1st less 30 days". A task with no window, or a
+    release with no date, carries no day at all: a date nobody can trace is
+    worse than a blank, because somebody will work to it. A day already past
+    is still shown, because an overdue date is a fact and hiding it would be
+    the kinder lie.
     """
     want = CHECK_WINDOW.get(check_key)
-    if want is None or not plan:
+    if want is None:
         return ""
-    for w in plan.get("windows") or []:
-        label = (w.get("label") or "")
-        if label.startswith("%d " % want):
-            return w.get("date") or ""
-    return ""
+    try:
+        day = date.fromisoformat((release_date or "")[:10])
+    except (TypeError, ValueError):
+        return ""
+    return (day - timedelta(days=want)).isoformat()
 
 
-def tasks(checks, plan, limit=None):
+def tasks(checks, release_date, limit=None):
     """What needs attention, open first, each with where it came from."""
     out = []
     for label, ok, hint, href, key in checks or ():
         out.append({"label": label, "ok": bool(ok), "hint": hint,
-                    "href": href, "key": key, "due": due_on(key, plan)})
+                    "href": href, "key": key, "due": due_on(key, release_date)})
     out.sort(key=lambda t: (t["ok"], t["label"].lower()))
     return out[:limit] if limit else out
 
@@ -147,7 +152,7 @@ def headline(checks, days_left, drops):
     ]
 
 
-def build(campaign, checks, groups, days_left, plan, drops, calendar,
+def build(campaign, checks, groups, days_left, release_date, drops, calendar,
           passport, campaigns, cards, sample=False, can_open=None):
     """Everything the screen renders. No page logic beyond this."""
     tiles = []
@@ -165,8 +170,9 @@ def build(campaign, checks, groups, days_left, plan, drops, calendar,
         "campaigns": campaigns or [],
         "headline": headline(checks, days_left, drops),
         "arc": arc(days_left),
-        "tasks": tasks(checks, plan),
-        "open_count": sum(1 for t in tasks(checks, plan) if not t["ok"]),
+        "tasks": tasks(checks, release_date),
+        "open_count": sum(1 for t in tasks(checks, release_date)
+                          if not t["ok"]),
         "groups": groups or [],
         "calendar": calendar or [],
         "passport": passport or [],

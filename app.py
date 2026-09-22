@@ -4781,9 +4781,93 @@ def create_app():
             return _fan_room(user, room)
         if room_key == "marketing":
             return _marketing_room(user, room)
+        if room_key == "releases":
+            return _releases_room(user, room)
         return render_template("room.html", active_page="room-" + room_key,
                                room=room, room_images=rooms.images(),
                                **build_dashboard_context())
+
+    def _releases_room(user, room):
+        """The Releases room as one screen (owner's mockup, 2026-09-22).
+
+        Three of this room's cards were the same page with a different
+        query string - the desk, its calendar view and its ready view - so
+        they are this screen now. releases_room.py says where each figure
+        comes from; nothing here is computed from anything but this
+        account's own rows.
+        """
+        import releases_room
+
+        campaigns = _campaign_picker(user)
+        wanted = request.args.get("campaign") or (campaigns[0]["id"] if campaigns else None)
+        campaign = mls.get_campaign(wanted, user["id"]) if wanted else None
+
+        checks, _score = _release_checks(user, campaign) if campaign else ([], 0)
+        groups = _check_groups(checks) if checks else []
+
+        # The release date is the only thing a due day is counted from, so
+        # it goes through whole rather than as a rollout plan: the plan's
+        # windows carry no dates of their own, only labels.
+        release_date = (campaign or {}).get("release_date") or ""
+        days_left = None
+        if release_date:
+            try:
+                days_left = (date.fromisoformat(release_date[:10])
+                             - datetime.now(timezone.utc).date()).days
+            except ValueError:
+                days_left = None
+
+        # Every dated post across this account's rollouts. None at all is
+        # not the same as none due, so the figure says which.
+        drops, calendar = _release_drops(user)
+
+        # Per Track Passport, which is a different measurement from campaign
+        # readiness and is labelled as one.
+        osctx = _os_ctx(user["id"])
+        passport = [{"t": t, "clean": artist_os.clean_release(t, osctx)}
+                    for t in store.list_os_tracks(user["id"])][:8]
+
+        seat = current_team_seat()
+        can_open = None if seat is None else (
+            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # rooms.build gives each card as (key, href, icon, label, desc, state).
+        cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        rr = releases_room.build(
+            campaign, checks, groups, days_left, release_date, drops, calendar,
+            passport, campaigns, cards, sample=_session_is_demo(),
+            can_open=can_open)
+        return render_template("room_releases.html", active_page="room-releases",
+                               room=room, rr=rr, **build_dashboard_context())
+
+    def _release_drops(user):
+        """(count, rows) of dated posts across the account's rollouts.
+
+        None rather than 0 when the account has no rollout at all: nothing
+        scheduled anywhere is a different statement from nothing due.
+        """
+        try:
+            rollouts = ros.list_campaigns(user["id"])
+        except Exception:
+            return None, []
+        if not rollouts:
+            return None, []
+        rows = []
+        for r in rollouts:
+            for post in ros.list_posts(r["id"]):
+                when = (post.get("scheduled_date") or "")[:10]
+                if not when:
+                    continue
+                # ro_posts has no title and no channel: a post is a caption
+                # on a platform. Reading fields that do not exist made
+                # every entry on this calendar read "Post".
+                said = (post.get("caption") or "").strip().splitlines()
+                rows.append({"date": when,
+                             "title": (said[0][:56] if said else "")
+                                      or post.get("platform") or "Post",
+                             "where": post.get("platform") or "",
+                             "campaign": r.get("title") or ""})
+        rows.sort(key=lambda p: p["date"])
+        return len(rows), rows[:12]
 
     def _fan_room_rows(user):
         """The fans this screen reads: the account's own, or the labelled
