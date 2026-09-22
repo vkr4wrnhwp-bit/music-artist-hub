@@ -85,6 +85,13 @@ HUBS = [
         # with statements"); the Tax Center entry left with it.
         ("statements", "/statements", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 9h5M8 12h5M8 15h3M10 3v4h4", "Statements", "Upload or email statements; rows become data, and the Tax view files them by year."),
         ("recovery", "/recovery", "M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3l2 2", "Recovery", "Findings pulled from your own uploads."),
+        # "Money Queue" read like money queued to arrive; the page's own
+        # heading is "Missing Money Action Queue" and that is what it does
+        # (owner, 2026-09-22: "we dont want to show people this is coming
+        # only what they may miss"). Beside Recovery because they answer
+        # the same question from different rows: this one reads the track
+        # passports, Recovery reads the statements.
+        ("money-queue", "/money-queue", "M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3M10 13v.01|M7 7l6 6", "Missing money", "Rights gaps on your passports, priced by what each is costing you."),
         ("cases", "/royalty-recovery/cases", "M4 5h12v10H4z|M4 8h12M8 5V3h4v2M10 11v2", "Recovery Cases", "Tracked claims from open to paid."),
         ("disputes", "/disputes", "M10 3l7 4v5c0 3-3 5-7 5s-7-2-7-5V7z|M10 8v3M10 13v0", "Disputes", "Log and track conflicts on your catalog."),
         ("valuation", "/valuation", "M10 3l6 4v6l-6 4-6-4V7z|M10 8v4", "Valuation", "Catalog value from your real history."),

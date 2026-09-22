@@ -57,7 +57,8 @@ ROOMS = [
      # Tax is a view of Statements now, so its card sits beside that one
      # (owner, 2026-09-19: "move tax center with statements"). Sync packs
      # left for Releases the same day: "You're making a product for sale."
-     ["royalties", "statements", "tax", "recovery", "cases", "disputes", "valuation", "revenue-os",
+     ["royalties", "statements", "tax", "recovery", "money-queue", "cases", "disputes",
+      "valuation", "revenue-os",
       "hours", "deals", "deal-simulator", "team", "portal",
       "services", "roster",
       # Documents are not a separate place: /documents has redirected to

@@ -25,7 +25,12 @@ FOLDED = {
     # (owner, 2026-09-13); the queue keeps its page under it.
     "/publishing": "royalties", "/mechanicals": "royalties", "/neighboring-rights": "royalties",
     "/territories": "royalties", "/royalty-lanes": "royalties",
-    "/money-queue": "royalties",
+    # /money-queue is NOT folded any more (owner, 2026-09-22). It was
+    # reachable only from the Royalties strip; he asked to keep it - it
+    # answers a different question from different rows, reading the track
+    # passports where Recovery reads the statements - and it now has a card
+    # of its own in Business, named "Missing money" so it cannot read as
+    # money arriving.
     "/trust-score": "scores", "/insights": "scores", "/qualification": "scores",
     # Sync packs left Deals for the releases on 2026-09-19 (owner: "You're
     # making a product for sale"); it is an entry of its own now.
@@ -45,7 +50,7 @@ def _entries():
     return [it for _k, _l, _d, items in hubs.HUBS for it in items]
 
 
-def test_the_sidebar_is_thirty_seven_entries():
+def test_the_sidebar_is_thirty_nine_entries():
     # HUBS only; the Community and Account groups are counted by hubs.py's
     # own group walk. Fans lost two entries there (Fan Label parked, Fan
     # Club folded into the Fans front) without touching this number.
@@ -76,7 +81,12 @@ def test_the_sidebar_is_thirty_seven_entries():
     # 38 with Rights Conflicts, which came off the parked list on 2026-09-20
     # when it stopped rendering the demo's songs and started reading the
     # account's own passports (owner: "I would like to get it to compute").
-    assert len(_entries()) == 38
+    # 39 with Missing money (owner, 2026-09-22). It was folded into
+    # Royalties and reachable only from that page's strip; he kept it
+    # because it answers a different question from different rows - the
+    # track passports, where Recovery reads the statements - and renamed it
+    # so it cannot read as money on its way.
+    assert len(_entries()) == 39
 
 
 def test_nothing_parked_or_folded_is_a_sidebar_entry():
@@ -87,7 +97,7 @@ def test_nothing_parked_or_folded_is_a_sidebar_entry():
         assert href not in hrefs, href
     keys = {it[0] for it in _entries()}
     for key in ("capital", "benchmark", "funding", "profile", "mechanicals",
-                "neighboring", "territories", "money-queue", "trust-score", "insights",
+                "neighboring", "territories", "trust-score", "insights",
                 "connections", "deal-simulator", "releases", "documents", "tracks",
                 "fan-label", "fan-club-admin", "network", "overview", "income", "royalty-lanes"):
         assert key not in keys, key
