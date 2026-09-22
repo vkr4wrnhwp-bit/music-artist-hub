@@ -58,26 +58,6 @@
 
 /* ---- the lifecycle ------------------------------------------------- */
 .fr-life-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
-.fr-life-rail { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); }
-.fr-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 0 8px; }
-.fr-step + .fr-step::before {
-  /* the arrow from the previous ring to this one, at the rings' middle */
-  content: ""; position: absolute; top: 38px; right: calc(50% + 58px); width: calc(100% - 116px); height: 1px;
-  background: var(--sb-gold);
-}
-.fr-step + .fr-step::after {
-  content: ""; position: absolute; top: 34px; right: calc(50% + 58px); width: 8px; height: 8px;
-  border-top: 1px solid var(--sb-gold); border-right: 1px solid var(--sb-gold); transform: rotate(45deg);
-}
-.fr-ring {
-  display: grid; place-items: center; width: 78px; height: 78px; border-radius: 50%; margin-bottom: 6px;
-  border: 1.5px solid var(--sb-gold); color: var(--sb-gold-bright);
-  background: radial-gradient(circle at 50% 40%, var(--sb-surface-2), var(--sb-ground) 72%);
-  box-shadow: 0 0 22px color-mix(in srgb, var(--sb-gold) 22%, transparent), 0 0 0 4px color-mix(in srgb, var(--sb-gold) 7%, transparent);
-}
-.fr-ring-ico { width: 36px; height: 36px; stroke-width: 1.3; }
-.fr-step b { font-size: 17px; font-weight: 700; color: var(--sb-ink); }
-.fr-step span { font-size: 14px; color: var(--sb-ink-2); max-width: 20ch; line-height: 1.3; }
 
 /* ---- panels -------------------------------------------------------- */
 .fr-mid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 16px; }
@@ -146,11 +126,6 @@
   .fr-owned { margin-top: 26px; }
   .fr-big-n { font-size: 56px; }
   .fr-big-u { font-size: 30px; }
-  .fr-life-rail { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }
-  .fr-step { flex: 0 0 132px; scroll-snap-align: start; }
-  .fr-step + .fr-step::before, .fr-step + .fr-step::after { display: none; }
-  .fr-ring { width: 64px; height: 64px; }
-  .fr-ring-ico { width: 30px; height: 30px; }
   .fr-move { grid-template-columns: 40px minmax(0, 1fr); gap: 10px 12px; padding: 12px; }
   .fr-move-ico { width: 40px; height: 40px; }
   .fr-move-reach { grid-column: 2; flex-direction: row; align-items: baseline; gap: 8px; }

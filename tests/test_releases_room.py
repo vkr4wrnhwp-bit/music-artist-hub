@@ -169,10 +169,10 @@ def test_a_release_ten_days_out_puts_the_arc_on_the_14_day_plan():
     _campaign(uid, days_out=10, title="Ten days out")
     page = c.get("/room/releases").get_data(as_text=True)
     assert "Ten days out" in page
-    assert 'rl-step rl-step--now' in page
-    assert 'rl-step--now">\n      <span class="rl-dot"><svg' in page or "14-day plan" in page
-    # The now-stage is the 14-day plan: its name sits inside the now step.
-    now = page.split('rl-step rl-step--now')[1].split("</div>")[0]
+    # The rail is the shared one now (room-kit.css), so the state class is
+    # the kit's rk-step--now rather than this room's own.
+    assert 'rk-step rk-step--now' in page
+    now = page.split('rk-step rk-step--now')[1].split('</li>')[0]
     assert "14-day plan" in now, now[:400]
     assert "Finalise and confirm" in now
 
@@ -183,7 +183,7 @@ def test_a_release_with_no_date_says_so_rather_than_guessing_one():
     page = c.get("/room/releases").get_data(as_text=True)
     assert "No release date set" in page, "the days figure names what is missing"
     assert "No release date" in page, "and so does the release panel"
-    assert 'rl-step rl-step--now' not in page, (
+    assert 'rk-step rk-step--now' not in page, (
         "no date, no now: the arc cannot place a release it has no day for")
 
 

@@ -16,30 +16,13 @@
 /* His mockup numbers the stages and ticks the ones already passed, with the
    connecting line gold behind the release and grey ahead of it. */
 
-.rl-arc { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 22px 22px 18px; }
-.rl-step { position: relative; padding-right: 16px; min-width: 0; }
-.rl-step::after {
-  content: ""; position: absolute; left: 34px; right: 0; top: 15px; height: 1px;
-  background: var(--sb-line-strong);
-}
 .rl-step--done::after, .rl-step--now::after { background: var(--sb-gold); }
-.rl-step:last-child::after { display: none; }
-.rl-dot {
-  position: relative; z-index: 1; display: grid; place-items: center;
-  width: 30px; height: 30px; border-radius: 50%;
-  border: 1.5px solid var(--sb-line-strong); background: var(--sb-surface-2);
-  font-size: 13px; font-weight: 700; color: var(--sb-ink-2);
-  font-variant-numeric: tabular-nums;
-}
 .rl-step--done .rl-dot { border-color: var(--sb-gold); background: var(--sb-gold); color: var(--sb-on-gold); }
 .rl-step--now .rl-dot {
   border-color: var(--sb-gold-bright); background: var(--sb-ground); color: var(--sb-gold-bright);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--sb-gold) 12%, transparent);
 }
-.rl-tick { width: 17px; height: 17px; stroke-width: 2.4; }
-.rl-step-n { margin: 12px 0 0; font-size: 14px; font-weight: 700; color: var(--sb-ink); }
 .rl-step--now .rl-step-n { color: var(--sb-gold-bright); }
-.rl-step-s { margin: 3px 0 0; font-size: 12.5px; color: var(--sb-ink-2); }
 
 /* ---- the two columns -------------------------------------------------- */
 
@@ -117,7 +100,5 @@
 }
 
 @media (max-width: 860px) {
-  .rl-arc { grid-auto-flow: row; grid-auto-columns: auto; gap: 14px; }
-  .rl-step::after { display: none; }
   .rl-about { flex-direction: column; }
 }

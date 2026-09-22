@@ -110,15 +110,20 @@
     </div>
   </section>
 
-  {# ---- the arc: numbered, ticked once passed --------------------------- #}
-  <section class="rk-panel rl-arc" aria-label="The release arc">
-    {% for s in rr.arc %}
-    <div class="rl-step rl-step--{{ s.state }}">
-      <span class="rl-dot">{% if s.state == "done" %}{{ icon("tick", "rl-tick") }}{% else %}{{ s.n }}{% endif %}</span>
-      <p class="rl-step-n">{{ s.name }}</p>
-      <p class="rl-step-s">{{ s.sub }}</p>
-    </div>
-    {% endfor %}
+  {# ---- the arc ---------------------------------------------------------
+       The same circle every room uses (owner, 2026-09-22: "those round
+       circles should look the same"), with what it carries set by what the
+       step means here: the stage's number, or a tick once it is behind you. #}
+  <section class="rk-panel" aria-label="The release arc">
+    <ol class="rk-rail rl-arc">
+      {% for s in rr.arc %}
+      <li class="rk-step rk-step--{{ s.state }}">
+        <span class="rk-ring">{% if s.state == "done" %}{{ icon("tick", "rk-ring-tick") }}{% else %}<span class="rk-ring-n">{{ s.n }}</span>{% endif %}</span>
+        <b>{{ s.name }}</b>
+        <span>{{ s.sub }}</span>
+      </li>
+      {% endfor %}
+    </ol>
   </section>
 
   <div class="rl-row">

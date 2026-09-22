@@ -141,3 +141,24 @@ def test_the_shared_title_is_declared_exactly_once():
         css = _read(sheet)
         assert not re.search(r'\.%s-title[^-{,][^{]*\{' % prefix, css), (
             "%s declares its own title; the kit owns it" % sheet)
+
+def test_a_tile_is_the_same_WIDTH_in_every_room():
+    """Owner, 2026-09-22: "your tiles at the bottom are not the same width as
+    the other three. You need to lock that."
+
+    The bug was auto-fit with a 1fr track: a tile's width became a share of
+    the row, so Releases' three tiles were a third of the page each and
+    Publishing's five a fifth each. Same height, different width. A FIXED
+    track is the only way a Publishing tile and a Releases tile are the same
+    object - the cost, which he chose, is that a row which does not fill
+    stops early instead of stretching.
+    """
+    kit = _read(KIT)
+    rule = re.search(r'\.rk-tiles[^{]*\{([^}]*)\}', kit).group(1)
+    assert "auto-fill, 240px" in rule, rule
+    assert "1fr" not in rule, (
+        "a fractional track makes tile width depend on how many tiles the "
+        "room happens to have: " + rule)
+    assert "auto-fit" not in rule, (
+        "auto-fit collapses empty tracks and stretches the rest, which is the "
+        "same failure by another name")

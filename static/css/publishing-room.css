@@ -24,24 +24,9 @@
 
 /* ---- the state rail -------------------------------------------------- */
 
-
-.pb-rail { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin-top: 16px; }
-.pb-rung { position: relative; text-align: center; padding: 0 8px; min-width: 0; }
-.pb-rung::after {
-  content: ""; position: absolute; left: 50%; right: -50%; top: 15px; height: 1px;
-  background: var(--sb-line-strong);
-}
-.pb-rung:last-child::after { display: none; }
-.pb-ring {
-  position: relative; z-index: 1; display: block; width: 30px; height: 30px; margin: 0 auto;
-  border: 1.5px solid var(--sb-line-strong); border-radius: 50%; background: var(--sb-surface-1);
-}
 .pb-rung--goal .pb-ring { border-color: var(--sb-gold-bright); }
-.pb-rung-n { margin: 12px 0 0; font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--sb-ink); }
 .pb-rung--goal .pb-rung-n { color: var(--sb-gold-bright); }
-.pb-rung-c { margin: 4px 0 0; font-size: 13px; color: var(--sb-ink-2); font-variant-numeric: tabular-nums; }
 .pb-rung--goal .pb-rung-c { color: var(--sb-gold-bright); }
-.pb-rung-s { margin: 3px 0 0; font-size: 12px; color: var(--sb-ink-2); }
 
 /* ---- the two panels -------------------------------------------------- */
 
@@ -88,9 +73,6 @@
 
 @media (max-width: 1040px) {
   .pb-row { grid-template-columns: minmax(0, 1fr); }
-  .pb-rail { grid-auto-flow: row; grid-auto-columns: auto; gap: 14px; text-align: left; }
-  .pb-rung::after { display: none; }
-  .pb-ring { margin: 0; }
 }
 
 @media (max-width: 620px) {
@@ -98,4 +80,3 @@
   .pb-fields td { display: block; padding-top: 2px; }
   .pb-pick select { min-width: 0; width: 100%; max-width: none; }
 }
-

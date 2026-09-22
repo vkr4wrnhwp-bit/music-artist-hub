@@ -26,7 +26,12 @@
 
 {% macro icon(name, cls="") -%}
 <svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-{%- if name == "note" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 8h.01"/>
+{%- if name == "written" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
+{%- elif name == "split_agreed" -%}<path d="M4 17.5c2-4 4-2 6-5s2-5 4-6"/><path d="M14.5 6.5l4 1.5-1.5 4"/><path d="M3.5 20.5h17"/>
+{%- elif name == "registered" -%}<circle cx="12" cy="11" r="6.5"/><path d="M9.5 11l1.8 1.8 3.4-3.6"/><path d="M8 17l-1 4 5-2 5 2-1-4"/>
+{%- elif name == "claimed" -%}<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.7L12 16.8 6.8 19.5l1-5.7L3.5 9.7l5.9-.9z"/>
+{%- elif name == "collecting" -%}<path d="M12 3.5v17"/><path d="M16 7.5c0-1.7-1.8-2.5-4-2.5s-4 .8-4 2.5S9.8 10 12 10s4 .9 4 3-1.8 3-4 3-4-1-4-3"/>
+{%- elif name == "note" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 8h.01"/>
 {%- elif name == "doc" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
 {%- elif name == "plus" -%}<path d="M12 5v14M5 12h14"/>
 {%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
@@ -81,18 +86,19 @@
           your works on file.</p>
       </div>
     </div>
-    <div class="pb-rail">
+    <ol class="rk-rail">
       {% for s in pb.states %}
-      {#- Collecting is the goal, so it carries the gold. It is a destination,
-          not a score: a rung with nothing in it is still drawn. -#}
-      <div class="pb-rung{% if loop.last %} pb-rung--goal{% endif %}">
-        <span class="pb-ring"></span>
-        <p class="pb-rung-n">{{ s.name }}</p>
-        <p class="pb-rung-c">{{ s.count }} song{{ "" if s.count == 1 else "s" }}</p>
-        <p class="pb-rung-s">{{ s.sub }}</p>
-      </div>
+      {#- The same circle the other rooms use, carrying the icon for what
+          this rung means. A rung with nothing in it is still drawn, and it
+          is drawn unlit rather than red: an absence is not a failure. -#}
+      <li class="rk-step{% if not s.count %} rk-step--ahead{% endif %}">
+        <span class="rk-ring">{{ icon(s.key, "rk-ring-ico") }}</span>
+        <b>{{ s.name }}</b>
+        <span>{{ s.count }} song{{ "" if s.count == 1 else "s" }}</span>
+        <span>{{ s.sub }}</span>
+      </li>
       {% endfor %}
-    </div>
+    </ol>
     <p class="rk-foot">A song is counted at the furthest rung it has reached, not at
       every rung it satisfies &mdash; one that is collecting with no split sheet on file
       is counted as collecting, and its missing sheet is a conflict, below. Collecting
