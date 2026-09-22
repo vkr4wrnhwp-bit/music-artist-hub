@@ -139,7 +139,7 @@ def test_a_room_screen_is_one_grid_of_cards(monkeypatch):
     stage = c.get("/room/stage").get_data(as_text=True)
     assert "What the stage needs to know before you get there." in stage
     on_stage = re.findall(r'data-room-card="([a-z-]+)"', stage)
-    assert on_stage == ["passports", "tour-board", "live"], on_stage
+    assert on_stage == ["lights", "passports", "tour-board", "live"], on_stage
     assert 'data-hub="stage" data-room="1" data-active="1"' in stage
     assert c.get("/room/nope").status_code == 404
     studio = c.get("/room/studio").get_data(as_text=True)

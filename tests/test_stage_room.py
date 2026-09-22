@@ -193,36 +193,6 @@ def test_an_empty_account_is_told_in_words():
     assert "sp-canvas" in page
 
 
-def test_both_instruments_are_drawn_even_with_nothing_saved():
-    """Owner, 2026-09-22: "we did not agree to have the light studio and
-    stage block closed when you open the room."
-
-    I had collapsed both panels to a sentence and a button when an account
-    had nothing saved - which is every account on its first day, and the
-    opposite of what he asked for. The instrument is always drawn: the
-    stage, the fixture list, the cue table with its headers, the input
-    table. An empty rig claims nothing; it is the difference between a
-    collapsed panel and a desk at rest.
-    """
-    c, _uid = _account()
-    body = _room(c.get("/room/stage").get_data(as_text=True))
-
-    # the studio, unprogrammed but present
-    assert "sg-stage" in body, "the stage preview is drawn"
-    assert "data-sg-layer" in body, "and its Plot / Rig / Both toggle"
-    assert "sg-cues" in body, "the cue table keeps its headers"
-    assert "No cues yet" in body
-    assert "sg-looks" in body, "and something to click"
-
-    # the plot, unprogrammed but present - and it is the real editor, so
-    # its empty state is an empty stage you can immediately drag onto
-    assert "Input list" in body, "the input list is drawn"
-    assert "sp-canvas" in body, "the designer's own stage, not a placeholder"
-
-    # and nothing collapsed either of them away
-    assert "rk-calm" not in body, (
-        "a room-wide empty state replaced an instrument that should be drawn")
-
 
 def test_tour_appears_nowhere_on_the_stage_screen():
     """Owner, 2026-09-22: Tour comes out and becomes its own suite. The
@@ -266,103 +236,34 @@ def test_a_seat_without_the_plot_area_sees_it_but_cannot_change_it():
     assert "sp-items" in body
 
 
-def test_a_saved_show_puts_its_rig_on_the_screen():
-    c, uid = _account()
-    store.save_light_show(uid, _show(bars=12, chans=4, start=1,
-                                     cues=[{"t": 8, "note": "Verse Wash",
-                                            "intensity": 80, "fade": 2,
-                                            "color": "#e0a340"}]))
-    page = c.get("/room/stage").get_data(as_text=True)
-    assert "48 channels" in page and "12 fixtures" in page
-    assert "Verse Wash" in page
-    assert "Universe 1" in page and "Address 1" in page
+def test_the_room_is_the_plot_and_the_light_designer_is_a_card():
+    """Owner, 2026-09-22: "this looks way too cheap ... hide the light
+    designer, just call it light designer not light studio, and put it in one
+    of the cards underneath. Leave the stage plot there."
 
-
-def test_clicking_a_cue_can_light_the_rig():
-    """Owner, 2026-09-22: the instruments "don't do anything".
-
-    The small answer, and deliberately so: every cue row carries the look it
-    sets, so clicking one lights the stage above it. No animation loop, no
-    transport, nothing invented - every value comes off the row the server
-    already rendered from the saved show. With no script the page is still
-    exactly what the server drew, lit by the first cue.
-    """
-    c, uid = _account()
-    store.save_light_show(uid, _show(bars=4, cues=[
-        {"t": 0, "note": "Intro", "intensity": 0, "fade": 1, "color": "#8a8a8a"},
-        {"t": 8, "note": "Verse Wash", "intensity": 80, "fade": 2, "color": "#e0a340"}]))
-    body = _room(c.get("/room/stage").get_data(as_text=True))
-
-    assert body.count("data-sg-cue") == 2, "every cue is a control"
-    assert 'data-colour="#e0a340"' in body and 'data-intensity="80"' in body
-    assert 'role="button"' in body and 'tabindex="0"' in body, (
-        "a row that acts like a button answers the keys a button answers to")
-    assert "room-stage.js" in body
-    # the stage is lit by the first cue server-side, so it is never unlit
-    assert 'id="sg-stage"' in body and "--sg-dim" in body
-
-
-def test_an_account_with_no_show_still_sees_a_rig_and_something_to_click():
-    """Owner, 2026-09-22: "it's just a black empty box."
-
-    His account has no saved show, so the stage drew nothing: no bars, no
-    cues, a black rectangle. The Light Studio itself does not do that - it
-    boots a new user on six bars (lights.js:16) - so the room shows the same
-    six, marked, and offers the studio's OWN looks to put on them. Read from
-    lights-engine.js LOOKS in the browser, never copied here, so the room
-    cannot drift from the studio's palette.
-
-    The marking is the whole safety of it: the figures and the path must
-    still say the account has nothing.
+    Why it was withdrawn is in stage_room.py's docstring, because the fix is
+    known: the room drew its stage as flat SVG shapes while the Designer
+    itself draws onto a photographed stage with a photographed LED bar. The
+    working rig, cue and look code is in the history at 87fcbcc9.
     """
     c, _uid = _account()
     body = _room(c.get("/room/stage").get_data(as_text=True))
 
-    assert body.count('class="sg-fx"') == 6, "the editor's own starting rig"
-    assert "Starter rig" in body, "and it says so, every time"
-    assert "sg-looks" in body and "lights-engine.js" in body, (
-        "with the studio's looks to try on it, from the engine that owns them")
+    # the plot is the room
+    assert "sp-canvas" in body and "Input list" in body
 
-    # and nothing about it claims the account has a show
-    assert "No show saved yet" in body
-    assert "Nothing patched" in body
-    assert "No cues yet" in body
+    # the designer is a card, under its new name
+    assert "Light Designer" in body
+    assert "Light Studio" not in body
 
-
-def test_the_starter_rig_never_appears_once_a_show_is_saved():
-    c, uid = _account()
-    store.save_light_show(uid, _show(bars=3, cues=[{"t": 0, "note": "Wash",
-                                                    "intensity": 70, "fade": 1}]))
-    body = _room(c.get("/room/stage").get_data(as_text=True))
-    assert "Starter rig" not in body
-    assert body.count('class="sg-fx"') == 3, "the artist's rig, not the starter"
-    assert "sg-looks" not in body, "there are cues now, so the cues are what you click"
+    # and the stage view is gone, with the scripts that drove it
+    assert "sg-stage" not in body
+    assert "room-stage.js" not in body and "lights-engine.js" not in body
 
 
-def test_the_lights_can_be_dragged_and_nothing_is_saved():
-    """Owner, 2026-09-22: "people could just drag around ... that would just
-    entice them to open the light studio".
-
-    Every bar is a handle, by pointer and by keyboard - a thing you can drag
-    with a mouse and not with the arrow keys is a thing some people simply
-    cannot move. And it saves NOTHING: a room that quietly rewrote the rig
-    would be a second editor with no undo. The foot line says so.
-    """
+def test_the_stage_room_closes_with_four_cards():
     c, _uid = _account()
     body = _room(c.get("/room/stage").get_data(as_text=True))
-    assert body.count("data-sg-bar") == 6
-    assert 'tabindex="0"' in body and "arrow keys" in body
-    flat = " ".join(body.split())
-    assert "Nothing here is saved" in flat
-    # the room posts nothing of its own for the rig
-    assert "/lights/save" not in body
-
-
-def test_the_path_rail_is_gone_from_this_room():
-    """Owner, 2026-09-22: "lose the gauges ... it's so much text, it's hard
-    for people to read." The five-circle path was the most text on the page
-    and it described paperwork on a screen that should be a stage."""
-    c, _uid = _account()
-    body = _room(c.get("/room/stage").get_data(as_text=True))
-    assert "rk-rail" not in body
-    assert "RIGGED" not in body.upper() or "rk-ring" not in body
+    import re as _re
+    assert _re.findall(r'data-room-card="([a-z-]+)"', body) == [
+        "lights", "passports", "tour-board", "live"]

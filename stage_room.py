@@ -1,8 +1,22 @@
 """The Stage room, as one screen.
 
-The owner's mockup, 2026-09-22. The Light Studio is the centrepiece and is
-drawn open - the rig, the stage preview, the timeline and the cue list -
-with the Stage Plot under it. Tour appears nowhere: it is its own suite.
+The Stage Plot's own designer is the room, with the Light Designer as a card
+beside the others. Tour appears nowhere: it is its own suite.
+
+The room DID open on a lit stage you could drag lights around (owner,
+2026-09-22). It was withdrawn the same day, in his words: "this looks way too
+cheap ... looks like a two-year-old did it." He was right, and the reason is
+worth keeping, because the fix is known and cheap when it is wanted:
+
+    the room drew its stage as flat SVG rectangles and triangles, while the
+    Light Designer itself draws onto a PHOTOGRAPH (static/img/stage-bg-2.jpg)
+    using a sprite that is an 8-lens LED bar photographed head-on
+    (static/img/light-bar.png). Vector primitives next to a product whose
+    whole look is photo plates read as a toy.
+
+Both assets already ship. A second pass that uses them would look like the
+Designer rather than like a diagram, and the rig/cue/look code that drove it
+is intact in the history (87fcbcc9).
 
 WHERE EVERY FIGURE COMES FROM
 -----------------------------
@@ -285,7 +299,7 @@ def build(show, plot_state, plot_image, version, cards,
     cue_rows = cues(show)
 
     tiles = []
-    for key in ("passports", "tour-board", "live"):
+    for key in ("lights", "passports", "tour-board", "live"):
         card = (cards or {}).get(key)
         if not card:
             continue

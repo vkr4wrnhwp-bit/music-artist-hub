@@ -47,6 +47,7 @@
 {%- elif name == "expand" -%}<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>
 {%- elif name == "passports" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
 {%- elif name == "tour-board" -%}<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3 2.7-5.4 6-5.4s6 2.4 6 5.4"/><path d="M16.5 6.5a3 3 0 010 5.5"/><path d="M18 19c0-2-.8-3.7-2-4.8"/>
+{%- elif name == "lights" -%}<path d="M12 2v3M5 7l2 1.5M19 7l-2 1.5"/><path d="M8 13a4 4 0 118 0v4H8z"/><path d="M10 21h4"/>
 {%- elif name == "live" -%}<path d="M3 12h2l2-6 3 14 3-11 2 5h6"/>
 {%- else -%}<circle cx="12" cy="12" r="8"/>
 {%- endif -%}
@@ -72,7 +73,7 @@
             <span class="rk-avatar" aria-hidden="true">{{ (sg.artist_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ sg.artist_name }}">{{ sg.artist_name }}</span>
           </span>
           {% endif %}
-          <a class="rk-cta" href="/lights">{{ icon("bulb", "rk-ico") }}Open Light Studio</a>
+          <a class="rk-cta" href="/stage-plot">{{ icon("plotted", "rk-ico") }}Open the plot editor</a>
         </div>
       </div>
     </div>
@@ -96,120 +97,6 @@
         <p>A plot and a rig are what you intend &mdash; a venue confirms nothing here.</p>
       </div>
     </div>
-  </section>
-
-  {# ---- the stage: one drawing, two layers ------------------------------
-       Owner, 2026-09-22: "can we just make this one simpler". So one panel,
-       not three columns and a timeline: the stage with a Plot / Rig / Both
-       toggle over it, and the cue list underneath. Clicking a cue lights the
-       rig; the plot layer is the same items the designer below places.
-
-       No transport and no clock. A song's length lives only in the decoded
-       audio the Studio loads in the browser (lights.js:50, buffer.duration)
-       and is on no table, so "01:24 / 04:18" could not be true here. The cue
-       list IS the timeline. #}
-  <section class="rk-panel" aria-labelledby="sg-stage-h">
-    <div class="rk-panel-head sg-lx-head">
-      <div>
-        <h2 class="rk-h" id="sg-stage-h">Stage view</h2>
-        <p class="rk-said">Your saved rig and plot, on one stage.</p>
-      </div>
-      <div class="sg-rig">
-        <span class="sg-rig-name"><i class="sg-dot{% if not sg.has_show %} is-off{% endif %}"></i>{% if sg.has_show %}{{ sg.show_name or "Untitled show" }}{% else %}No show saved yet{% endif %}</span>
-        {% if sg.starter %}<span class="rk-lamp rk-lamp--off">Starter rig &mdash; not yours yet</span>{% endif %}
-        {% if sg.has_show %}
-        <span>Universe {{ sg.rig.universe }}</span>
-        <span>Address {{ sg.rig.start }}</span>
-        <span>{{ sg.rig.channels }} channels</span>
-        <span>{{ sg.rig.fixtures }} fixture{{ "" if sg.rig.fixtures == 1 else "s" }}</span>
-        {% endif %}
-        <span class="sg-layers" role="group" aria-label="What to show on the stage">
-          <button type="button" class="sg-layer" data-sg-layer="plot">Plot</button>
-          <button type="button" class="sg-layer" data-sg-layer="rig">Rig</button>
-          <button type="button" class="sg-layer is-on" data-sg-layer="both">Both</button>
-        </span>
-      </div>
-    </div>
-
-    <div class="sg-stage sg-stage--big">
-      <svg id="sg-stage" viewBox="0 0 600 300" role="img"
-           aria-label="The stage with {{ sg.rig.fixtures }} fixtures and {{ sg.plot.items }} items"
-           style="color: {{ (sg.cues[0].colour if sg.cues else "") or "#d8b25a" }}; --sg-dim: {{ (sg.cues[0].intensity / 100) if sg.cues else 0.85 }}">
-        <defs>
-          <linearGradient id="sg-beam" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="currentColor" stop-opacity=".55"/>
-            <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
-          </linearGradient>
-        </defs>
-        <rect class="sg-floor" x="20" y="232" width="560" height="50" rx="3"/>
-        <line class="sg-truss" x1="20" y1="42" x2="580" y2="42"/>
-
-        {# the rig layer: bars where they were dragged #}
-        <g data-sg-layer-g="rig">
-          {% for f in sg.fixtures %}
-          {% if f.across is not none %}
-          {% set x = 20 + 5.6 * f.across %}
-          {% set y = 42 if f.place == "Truss" else 236 %}
-          <g class="sg-fx">
-            <polygon fill="url(#sg-beam)" points="{{ x }},{{ y }} {{ x - 34 }},{{ y + 190 if f.place == "Truss" else y - 150 }} {{ x + 34 }},{{ y + 190 if f.place == "Truss" else y - 150 }}"/>
-            <rect class="sg-bar" data-sg-bar="{{ f.n }}" x="{{ x - 13 }}" y="{{ y - 5 }}" width="26" height="10" rx="2" tabindex="0" role="button" aria-label="Light {{ f.n }}. Drag to move it, or use the arrow keys."/>
-          </g>
-          {% endif %}
-          {% endfor %}
-        </g>
-
-        {# the plot layer: what the designer below has on the stage #}
-        <g data-sg-layer-g="plot">
-          {% for r in sg.plot.inputs[:10] %}
-          {% set px = 70 + (loop.index0 % 5) * 110 %}
-          {% set py = 120 + (40 * (loop.index0 // 5)) %}
-          <g class="sg-item">
-            <rect x="{{ px - 34 }}" y="{{ py - 13 }}" width="68" height="26" rx="3"/>
-            <text x="{{ px }}" y="{{ py + 4 }}" text-anchor="middle">{{ r.source[:10] }}</text>
-          </g>
-          {% endfor %}
-        </g>
-      </svg>
-      <p class="sg-stage-foot">Audience (front of house)</p>
-    </div>
-
-    {# the cue list: click one and the rig above shows that look #}
-    <div class="sg-scroll">
-      <table class="rk-table sg-cues">
-        <thead>
-          <tr><th scope="col">#</th><th scope="col">Time</th><th scope="col">Name</th>
-              <th scope="col">Group</th><th scope="col">Intensity</th>
-              <th scope="col">Fade</th><th scope="col">Colour</th></tr>
-        </thead>
-        <tbody>
-          {% if not sg.cues %}
-          <tr><td class="sg-none" colspan="7">
-            <p class="rk-dim">No cues yet. These are the Light Studio's own looks
-              &mdash; pick one to see it on the rig above.</p>
-            <div id="sg-looks" class="sg-looks"></div>
-          </td></tr>
-          {% endif %}
-          {% for c in sg.cues %}
-          <tr class="sg-cue{% if loop.first %} is-on{% endif %}" data-sg-cue
-              data-colour="{{ c.colour }}" data-intensity="{{ c.intensity }}"
-              data-name="{{ c.name }}" data-group="{{ c.group }}" data-fade="{{ c.fade }}"
-              tabindex="0" role="button"
-              aria-label="Show the look {{ c.name }} on the stage above">
-            <td class="rk-num">{{ c.n }}</td>
-            <td class="rk-num">{{ c.at }}</td>
-            <td><b>{{ c.name }}</b></td>
-            <td class="rk-dim">{{ c.group }}</td>
-            <td class="rk-num">{{ c.intensity }}%</td>
-            <td class="rk-num">{{ c.fade }}s</td>
-            <td><span class="sg-swatch{% if c.blackout %} is-black{% endif %}" style="background: {{ c.colour }}" title="{{ c.colour }}"></span></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <p class="rk-foot">{% if sg.starter %}Drag a light. Try a look. Nothing here is
-      saved &mdash; the Studio is where a show is kept.{% else %}Click a cue to light the
-      stage. Drag a light to move it.{% endif %}</p>
   </section>
 
   {# ---- the stage plot -------------------------------------------------- #}
@@ -268,7 +155,5 @@
   </section>
   {% endif %}
 
-  <script src="/static/js/lights-engine.js?v=7"></script>
-  <script src="/static/js/room-stage.js?v=4"></script>
 <!--/room:stage--></div>
 {% endblock %}
