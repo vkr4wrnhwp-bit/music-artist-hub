@@ -48,7 +48,8 @@
     {% if storage_report %}
       {{ sb.priority("The bucket answered" if storage_report.ok else "The bucket is the problem",
                      storage_report.verdict, "good" if storage_report.ok else "warn",
-                     tag=("Tested just now"), tag_tone=("good" if storage_report.ok else "warn")) }}
+                     tag=("Tested " + (storage_report.tested_at or "")),
+                     tag_tone=("good" if storage_report.ok else "warn")) }}
       <dl class="rr-state-list">
         {% for read in storage_report.reads %}
           {{ sb.badge("A %s-second link: %s" % (read.ttl,

@@ -777,6 +777,47 @@ def test_a_preview_that_never_arrives_says_why_on_the_owners_desk(env, monkeypat
     assert "RoEx sent no preview link" not in json.dumps(page)
 
 
+def test_a_bare_202_forever_is_itself_the_finding(env, monkeypatch, caplog):
+    """What the owner's staging run actually hit. RoEx answered HTTP 202 and
+    nothing else on every poll for forty-five minutes, and roex_client
+    returns a 202 before it looks for a download link, so there was no
+    answer to quote and the desk stayed empty. "202 on N asks and no file"
+    is the finding: it separates a provider refusing us from one whose queue
+    has swallowed the task, which is a different thing to go and ask about."""
+    caplog.set_level(logging.INFO)
+    c = _account("label")
+    sid = _mix_with_report(c, env)
+    env.roex.on("/masteringpreview", (200, {"mastering_task_id": "mt_202"}))
+    jid = c.post(PAGE + "/sources/%s/previews" % sid,
+                 data={"style": "POP", "loudness": ["MEDIUM"]},
+                 headers=J).get_json()["jobs"][0]["id"]
+
+    env.roex.on("/retrievepreviewmaster", (202, {}))
+    _poll(c, jid)
+    said = rstore.get_job(jid)["error_text"]
+    assert "RoEx keeps answering 202" in said
+    assert "has sent no file" in said
+    assert "ask(s) so far" in said
+    assert "release_ready: preview" in caplog.text
+
+    # The ask count rises, and that alone is not worth another log line: a
+    # poll every fifteen seconds would otherwise fill the log with one
+    # sentence and bury anything real.
+    caplog.clear()
+    _poll(c, jid)
+    assert "RoEx keeps answering 202" in rstore.get_job(jid)["error_text"]
+    assert "release_ready: preview" not in caplog.text
+
+    # A change in what RoEx is doing does get a line.
+    env.roex.on("/retrievepreviewmaster", (503, {}))
+    _poll(c, jid)
+    assert "release_ready: preview" in caplog.text
+
+    desk = _owner(env).get("/admin/release-ready").data.decode()
+    assert "Work that has not come back" in desk
+    assert "and has sent no file" in desk
+
+
 def test_the_deadline_keeps_the_reason_and_still_tells_the_artist_plainly(env, monkeypatch):
     c = _account("label")
     sid = _mix_with_report(c, env)
@@ -1261,7 +1302,11 @@ def test_the_desk_can_prove_the_bucket_rather_than_report_it_set(env, monkeypatc
                            "code": "SignatureDoesNotMatch"}]}
 
     monkeypatch.setattr(rr.blob_store, "round_trip", lambda ttls: fake(ttls))
-    page = owner.post("/admin/release-ready/storage").data.decode()
+    # It redirects, like every other button on this desk: a POST that renders
+    # its own page came back to the plain page with the answer lost.
+    posted = owner.post("/admin/release-ready/storage")
+    assert posted.status_code == 302 and "/admin/release-ready" in posted.headers["Location"]
+    page = owner.get(posted.headers["Location"]).data.decode()
 
     # It tests the two lifetimes this module really hands out, and the long
     # one is the seven days a mastering task gets - not blob_store's own
@@ -1276,11 +1321,16 @@ def test_the_desk_can_prove_the_bucket_rather_than_report_it_set(env, monkeypatc
     # The badge no longer claims more than it checked.
     assert "Storage (R2): set up" in page
     assert "Storage (R2): connected" not in page
+    # And the answer is still there on a later page view, rather than
+    # vanishing the moment he navigates.
+    assert "not a link Cloudflare accepts" in owner.get("/admin/release-ready").data.decode()
 
 
 def test_the_desk_says_nothing_about_the_bucket_until_it_is_asked(env):
     """The check writes into the production bucket, so it runs on a press
-    and never on a page view."""
+    and never on a page view. A server where none has been run says nothing
+    about the bucket beyond the badge - and the badge is careful."""
+    store.delete_kv(rr.STORAGE_REPORT_KEY)
     page = _owner(env).get("/admin/release-ready").data.decode()
     assert "The bucket is the problem" not in page
     assert "The bucket answered" not in page

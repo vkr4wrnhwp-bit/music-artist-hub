@@ -54,8 +54,10 @@ called from the daily /reminders/run and from the owner's desk.
 """
 import hashlib
 import hmac
+import json
 import logging
 import os
+import re
 import secrets
 import tempfile
 import threading
@@ -258,6 +260,8 @@ DESK_COPY = {
     "preview_polled": "RoEx is being asked for the free preview again.",
     "resumed": "%d paused report(s) resumed.",
     "queue_ran": "The queue ran: %d step(s) started.",
+    "bucket_ok": "The bucket answered. The result is below, beside the badge.",
+    "bucket_bad": "The bucket test failed. What it found is below, beside the badge.",
     "health_ok": "RoEx answered and accepted the key.",
     "health_not_configured": "No RoEx key is set on this server.",
     "health_auth": "RoEx refused the key.",
@@ -758,6 +762,13 @@ def advance(job_id):
     return store.get_job(job_id)
 
 
+_COUNT_TAIL = re.compile(r", on \d+ ask\(s\) so far$")
+
+
+def _without_count(text):
+    return _COUNT_TAIL.sub("", (text or "").strip())
+
+
 def _fail(job, kind, text="", status="failed"):
     store.update_job(job["id"], status=status, error_kind=kind, error_text=(text or "")[:300],
                      next_poll_at=None)
@@ -901,11 +912,26 @@ def _preview_poll_result(job, out, measured=None):
         # changes - a poll every fifteen seconds must not fill the log with
         # one repeated sentence. The artist's wording is chosen by
         # error_kind and never quotes this, so nothing leaks into their page.
-        said = (out.note or out.roex_message or "").strip()[:300]
-        note = {}
-        if said and said != (job.get("error_text") or "").strip():
+        said = (out.note or out.roex_message or "").strip()
+        if not said:
+            # The commonest case, and the one that left the desk blank: a
+            # bare HTTP 202 with nothing in it. roex_client returns that
+            # before it ever looks for a download link, so there is no
+            # answer to quote - but "RoEx said 202 thirty times and never
+            # sent a file" is still the fact worth having, because it
+            # separates a provider that is refusing us from one whose queue
+            # has swallowed the task.
+            said = ("RoEx keeps answering %s (%s) and has sent no file, on %d "
+                    "ask(s) so far" % (out.status if out.status is not None else "no status",
+                                       k, (job.get("attempts") or 0) + 1))
+        said = said[:300]
+        note = {"error_text": said}
+        # The count inside `said` changes on every poll, so comparing whole
+        # strings would log the same sentence every fifteen seconds. Only a
+        # change in what RoEx is doing is worth a line.
+        before = (job.get("error_text") or "").strip()
+        if _without_count(said) != _without_count(before):
             log.info("release_ready: preview %s not ready, RoEx said: %s", job["id"], said)
-            note["error_text"] = said
         if _preview_elapsed(job) > PREVIEW_DEADLINE:
             return _fail(job, "timeout", said or (job.get("error_text") or ""))
         attempts = (job.get("attempts") or 0) + 1
@@ -2400,13 +2426,30 @@ def money_back(payment_intent, what, cents=0):
 @bp.route(ADMIN)
 def admin_page():
     _owner_or_404()
-    return _admin_render()
-
-
-def _admin_render(storage_report=None):
     return render_template("release_ready_admin.html", active_page="release-ready-admin",
                            data=admin_data(), msg=message_from_query(request.args),
-                           storage_report=storage_report)
+                           storage_report=_last_storage_report())
+
+
+STORAGE_REPORT_KEY = "release_ready:storage_report"
+
+
+def _last_storage_report():
+    """The most recent bucket test, or None.
+
+    Kept rather than rendered straight back, for two reasons. A POST that
+    renders its own page does not survive this desk's own round trip - every
+    other button here redirects, and one that did not came back to the plain
+    page with the answer lost. And an answer worth having is worth still
+    being there on the next page view, beside the badge it corrects."""
+    raw = db.get_kv(STORAGE_REPORT_KEY)
+    if not raw:
+        return None
+    try:
+        got = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return got if isinstance(got, dict) else None
 
 
 @bp.route(ADMIN + "/storage", methods=["POST"])
@@ -2428,8 +2471,11 @@ def admin_storage():
     # gets and the seven days a mastering task gets. The long one is
     # R2's stated maximum, so it is the one most likely to be refused
     # while a short test link sails through.
-    return _admin_render(storage_report=blob_store.round_trip(
-        ttls=(SOURCE_URL_TTL_ANALYSIS, SOURCE_URL_TTL_TASK)))
+    report = blob_store.round_trip(ttls=(SOURCE_URL_TTL_ANALYSIS, SOURCE_URL_TTL_TASK))
+    report["tested_at"] = store.iso()
+    db.set_kv(STORAGE_REPORT_KEY, json.dumps(report))
+    return _answer(report["ok"], "", 200, ADMIN,
+                   code="bucket_ok" if report["ok"] else "bucket_bad")
 
 
 @bp.route(ADMIN + ".json")
