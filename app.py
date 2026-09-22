@@ -4787,9 +4787,50 @@ def create_app():
             return _publishing_room(user, room)
         if room_key == "analytics":
             return _analytics_room(user, room)
+        if room_key == "stage":
+            return _stage_room(user, room)
         return render_template("room.html", active_page="room-" + room_key,
                                room=room, room_images=rooms.images(),
                                **build_dashboard_context())
+
+    def _stage_room(user, room):
+        """The Stage room as one screen (owner's mockup, 2026-09-22).
+
+        The Light Studio open as the centrepiece, the Stage Plot under it,
+        and no Tour anywhere: Tour is its own suite now. Everything here is
+        a read of the two saved JSON blobs the editors write - this screen
+        edits nothing, and every control on it links into the editor that
+        owns it.
+        """
+        import passport_store
+        import stage_room
+
+        show = store.get_light_show(user["id"])
+        plot_state = store.get_stage_plot(user["id"])
+        plot_image = store.get_stage_plot_image(user["id"])
+
+        # The version a show could be advanced against. NULL until a first
+        # publish, and that absence is drawn as "Never published" rather
+        # than as a version 0 nobody issued.
+        version = None
+        try:
+            for head in passport_store.list_passports(user["id"]):
+                if head.get("current_version_id"):
+                    got = passport_store.current_version(head["id"], user["id"])
+                    if got:
+                        version = got.get("number")
+                        break
+        except Exception:
+            version = None
+
+        seat = current_team_seat()
+        can_open = None if seat is None else (
+            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        sg = stage_room.build(show, plot_state, plot_image, version, cards,
+                              sample=_session_is_demo(), can_open=can_open)
+        return render_template("room_stage.html", active_page="room-stage",
+                               room=room, sg=sg, **build_dashboard_context())
 
     def _analytics_room(user, room):
         """The Analytics room as one screen (owner's mockup, 2026-09-22).

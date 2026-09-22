@@ -1,0 +1,102 @@
+/* THE STAGE ROOM (/room/stage) - the owner's mockup, 2026-09-22.
+
+   Only what is this room's own: the rig strip, the stage preview, the
+   timeline and the two instrument tables. The head band, figure strip,
+   gold circles, panels, lamps and tiles are room-kit.css, shared with the
+   other five rooms, and tests/test_room_kit.py fails if anything there is
+   re-declared here.
+
+   The gold discipline has ONE exception in this room, and it is data
+   rather than decoration: a cue swatch and a beam are the gel the artist
+   actually chose, so they are whatever colour the show says. */
+
+/* The figure reads label-first, because two of the three are usually
+   sentences ("No show saved yet", "Never published") rather than numbers. */
+.sg-fig-l { margin: 0; }
+.sg-fig-n { margin: 12px 0 0; font-size: 38px; }
+.sg-fig-lamp { margin: 10px 0 0; }
+
+/* ---- the rig strip ------------------------------------------------------ */
+
+.sg-lx-head { align-items: center; }
+.sg-rig {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--sb-ink-2); font-variant-numeric: tabular-nums;
+}
+.sg-rig-name { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; color: var(--sb-ink); }
+.sg-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sb-good); }
+
+/* ---- the studio body ----------------------------------------------------- */
+
+.sg-lx { display: grid; grid-template-columns: 180px minmax(0, 1fr) 190px; gap: 16px; align-items: start; }
+
+.sg-groups { list-style: none; margin: 10px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sg-groups li {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 11px; border-radius: var(--sb-r-control); background: var(--sb-surface-2);
+  font-size: 13px; color: var(--sb-ink-2);
+}
+.sg-groups li b { color: var(--sb-ink); font-variant-numeric: tabular-nums; }
+
+.sg-stage {
+  border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-control);
+  background: radial-gradient(120% 90% at 50% 0%, #14120e, var(--sb-ground) 70%);
+  overflow: hidden;
+}
+.sg-stage svg { display: block; width: 100%; height: auto; }
+.sg-floor { fill: #1a1712; }
+.sg-truss { stroke: var(--sb-line-strong); stroke-width: 3; }
+.sg-bar { fill: currentColor; }
+.sg-stage-foot {
+  margin: 0; padding: 8px; text-align: center; font-size: 11.5px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--sb-ink-2);
+  border-top: 1px solid var(--sb-line);
+}
+
+.sg-sel-name { margin: 8px 0 10px; font-size: 16px; font-weight: 800; color: var(--sb-ink); }
+.sg-sel { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; margin: 0 0 12px; }
+.sg-sel dt { font-size: 12.5px; color: var(--sb-ink-2); }
+.sg-sel dd { margin: 0; font-size: 13px; font-weight: 700; color: var(--sb-ink); text-align: right; font-variant-numeric: tabular-nums; }
+.sg-swatch {
+  display: inline-block; width: 26px; height: 15px; border-radius: 3px;
+  border: 1px solid var(--sb-line-strong); vertical-align: middle;
+}
+.sg-swatch.is-black { background-image: linear-gradient(45deg, transparent 46%, var(--sb-ink-2) 46%, var(--sb-ink-2) 54%, transparent 54%); }
+
+/* ---- the timeline --------------------------------------------------------- */
+
+.sg-timeline { margin-top: 16px; }
+.sg-time { margin: 0 0 6px; font-size: 12.5px; color: var(--sb-ink-2); font-variant-numeric: tabular-nums; }
+.sg-timeline svg { display: block; width: 100%; height: 34px; }
+.sg-tl-bed { fill: var(--sb-surface-2); }
+
+/* ---- the tables ----------------------------------------------------------- */
+
+.sg-scroll { overflow-x: auto; margin-top: 14px; }
+.sg-cues { min-width: 620px; }
+.sg-cues td:first-child, .sg-cues th:first-child { width: 40px; }
+.sg-calm-cta { margin-top: 14px; }
+
+/* ---- the plot -------------------------------------------------------------- */
+
+.sg-plot { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.sg-plot-fig { margin: 0; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-control); background: var(--sb-surface-2); overflow: hidden; }
+.sg-plot-fig img { display: block; width: 100%; height: auto; }
+.sg-plot-fig figcaption {
+  padding: 8px; text-align: center; font-size: 11.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--sb-ink-2); border-top: 1px solid var(--sb-line);
+}
+.sg-plot-none {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; min-height: 190px; padding: 20px; text-align: center; color: var(--sb-ink-2);
+}
+.sg-plot-none p { margin: 0; font-size: 13px; max-width: 32ch; }
+.sg-inputs-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sg-in { margin-top: 10px; }
+
+/* ---- narrower --------------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .sg-lx { grid-template-columns: minmax(0, 1fr); }
+  .sg-plot { grid-template-columns: minmax(0, 1fr); }
+}

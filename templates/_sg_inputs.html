@@ -1,0 +1,30 @@
+{#- The plot's input list. Its own file because the plot panel draws it
+    beside a picture in one state and beside an explanation in another, and
+    one copy in two places beats two copies drifting apart. -#}
+<div class="sg-inputs">
+  <div class="sg-inputs-head">
+    <p class="rk-kicker rk-kicker--sm">Input list ({{ sg.plot.inputs|length }})</p>
+    <a class="rk-more" href="/stage-plot">Open the editor{{ icon("arrow", "rk-ico rk-ico--sm") }}</a>
+  </div>
+  {% if sg.plot.inputs %}
+  <table class="rk-table sg-in">
+    <thead>
+      <tr><th scope="col">#</th><th scope="col">Source</th><th scope="col">Mic / DI</th></tr>
+    </thead>
+    <tbody>
+      {% for r in sg.plot.inputs[:12] %}
+      <tr>
+        <td class="rk-num">{{ r.channel }}</td>
+        <td><b>{{ r.source }}</b></td>
+        <td class="rk-dim">{{ r.mic_di or "Not on file" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if sg.plot.inputs|length > 12 %}
+  <p class="rk-foot">{{ sg.plot.inputs|length - 12 }} more input{{ "" if sg.plot.inputs|length - 12 == 1 else "s" }} on the plot.</p>
+  {% endif %}
+  {% else %}
+  <p class="rk-empty">Nothing on the stage yet, so there are no inputs to list.</p>
+  {% endif %}
+</div>

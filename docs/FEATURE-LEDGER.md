@@ -709,6 +709,18 @@ Start-up pass that gives every Track Passport a catalog row and every catalog ro
 - Files: db.py:1311 (call site), db.py:3944 link_song_tables(); exercised by tests/test_tier_c_folds.py:183,198
 - Access: Not user-facing; runs as the process, for every account in the database.
 
+**Stage Room (/room/stage)**
+
+The Stage room's opening screen: three figures, the five-step stage path, the Light Studio open as the centrepiece (rig strip, stage preview, timeline, cue list), the Stage Plot under it, and three closing tiles.
+
+- Because: two saved JSON blobs per account, read back without a second copy of the editors' rules. The show is db.get_light_show -> {name, bars, chans, cues[], pos{}, rot{}, rigName, dmxUniverse, dmxStart, dmxAddr{}}; a cue is {t, group, color, intensity, fade, note, look, move}; the plot is db.get_stage_plot plus db.get_stage_plot_image. Channels are DERIVED - bars times their 3 or 4 channel width - never typed, and a bar's DMX address mirrors lights-engine.js fixtureAddress(): its own patch if it has one, else in order from the start address, clamped to 512. The stage preview is drawn server-side from the saved positions; "truss" or "floor" is the editor's own reading of a bar's height (lights.js: p[1] < 0.5), not a stored field. The input list is stage_plot_catalog.as_input_rows - the same catalogue the editor uses, already mirrored server-side and guarded by tests/test_stage_plot_catalog.py against the two drifting apart. The passport version is passport_store.current_version, and a passport that has never been published has NO version - drawn as "Never published", not version 0.
+- The room edits nothing. Every control the mockup drew that would change something - Add fixture, Update cue, the transport - is a link into the editor that owns it, and tests/test_stage_room.py asserts the room's own markup contains no form at all. A button that looks like it programmes a cue and does not is the dead control the 2026-09-22 audit found in Publishing.
+- Substitutes (the owner's mockup could not be built as drawn): "Fade in / Fade out" is ONE Fade row, because a saved cue has one fade and two rows would print one number twice. "Main Plot (v1)" is just the plot's name - there is one plot per account and no versions. "Front Truss / Back Truss / Floor" is All / Truss / Floor, because the editor knows truss from floor and nothing about front or back. No phantom-power column: stage_plot_catalog leaves what the editor does not know empty rather than guessing, and says so.
+- Tour: absent from this screen entirely (owner, 2026-09-22). Tour is its own suite and the suite strip is its door. "tours" stays a CARD of this room so /tours keeps its room, its team-seat access (team_areas.room_for_path) and its way back - the same shape Marketing uses for links.
+- Routes: GET /room/stage (dispatched from /room/<room_key>)
+- Files: app.py room_screen() -> app.py _stage_room(); stage_room.py STEPS, timecode(), rig(), address_of(), fixtures(), fixture_groups(), cue_name(), cues(), span(), plot(), figures(), path(), build(); templates/room_stage.html, templates/_sg_inputs.html; static/css/stage-room.css; rooms.py ROOMS["stage"]; engines stage_plot_catalog.py, passport_store.py; stores db.py (light_shows, stage_plots, stage_plot_images), passport_store.py (passports, passport_versions)
+- Access: Any signed-in account, as /room/<key>: no tier gate. Team seats need the "stage" room ticked; a tile whose page the seat cannot open is dropped. Anonymous redirected to /login.
+
 **Stage-plot import into the input list**
 
 Seeds a passport's input list from the channel list derived from the artist's drawn stage plot.

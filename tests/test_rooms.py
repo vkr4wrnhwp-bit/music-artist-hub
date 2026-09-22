@@ -125,11 +125,22 @@ def test_a_room_screen_is_one_grid_of_cards(monkeypatch):
     with app_obj.app_context():
         store.set_kv("nav_layout", "")
     c = _client(app_obj, "pro")
-    page = c.get("/room/stage").get_data(as_text=True)
-    assert "Everything between the booking and the encore." in page
+    # Business is still a card grid. Stage stopped being one on 2026-09-22
+    # when it became its own screen (room_stage.html), so the grid's own
+    # rules are checked somewhere that still has a grid.
+    page = c.get("/room/business").get_data(as_text=True)
+    assert "The money, the paperwork and the people." in page
     cards = re.findall(r'data-room-card="([a-z-]+)"', page)
-    assert cards[:3] == ["tours", "stage-plot", "lights"] and "tour-board" in cards and "passports" in cards
-    assert 'data-hub="stage" data-room="1" data-active="1"' in page
+    assert cards[:3] == ["royalties", "statements", "tax"]
+    assert "recovery" in cards and "valuation" in cards
+
+    # Stage is a built screen now: its own three tiles, and NO Tour on it -
+    # Tour is its own suite and the suite strip is its door.
+    stage = c.get("/room/stage").get_data(as_text=True)
+    assert "What the stage needs to know before you get there." in stage
+    on_stage = re.findall(r'data-room-card="([a-z-]+)"', stage)
+    assert on_stage == ["passports", "tour-board", "live"], on_stage
+    assert 'data-hub="stage" data-room="1" data-active="1"' in stage
     assert c.get("/room/nope").status_code == 404
     studio = c.get("/room/studio").get_data(as_text=True)
     # The Vault and Contracts moved to Business on 2026-09-22; Artwork
