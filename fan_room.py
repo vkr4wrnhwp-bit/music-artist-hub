@@ -257,7 +257,8 @@ def _fmt(n):
     return "{:,}".format(int(n or 0))
 
 
-def moves(rows, audience, days, today, link_visits=0, shopify=False):
+def moves(rows, audience, days, today, link_visits=0, shopify=False,
+          can_open=None):
     """Up to three things the artist can do now, strongest first. Each is
     one the app carries out, with the number of fans it acts on. `shopify`
     is whether this account may import the connected store's customers
@@ -306,6 +307,8 @@ def moves(rows, audience, days, today, link_visits=0, shopify=False):
                     "desc": "Put an email capture on a smart link.",
                     "reach_label": "", "reach": "",
                     "cta": "See your links", "href": "/links"})
+    if can_open:
+        out = [m for m in out if can_open(m["href"].split("?")[0])]
     return out[:3]
 
 
@@ -382,7 +385,7 @@ def tile_status(key, audience, new_count, days, club, open_briefs, state):
 
 def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
           open_briefs=0, link_visits=0, showcase=False, artist_name="",
-          shopify=False):
+          shopify=False, can_open=None):
     now = now or datetime.now(timezone.utc)
     today = now.date()
     days = days_from(days)
@@ -390,6 +393,12 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
     fresh = new_fans(rows, days, today)
     tiles = []
     for key, href, icon, label, desc, state in cards:
+        # A seat sees only the doors it can open. Every other room has done
+        # this since team rooms shipped; this one had no gate at all, so a
+        # Fans-only seat was offered /links - a Marketing page - and bounced
+        # (audit, 2026-09-22).
+        if can_open and not can_open(href):
+            continue
         tone, status = tile_status(key, audience, len(fresh), days, club, open_briefs, state)
         label, desc = TILE_COPY.get(key, (label, desc))
         tiles.append({"key": key, "href": href, "label": label,
@@ -407,7 +416,8 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
         "new_label": _fmt(len(fresh)),
         "reachable_pct": audience.get("contactable_pct") if total else None,
         "lifecycle": LIFECYCLE,
-        "moves": moves(rows, audience, days, today, link_visits, shopify=shopify),
+        "moves": moves(rows, audience, days, today, link_visits, shopify=shopify,
+                       can_open=can_open),
         "pulse": pulse(audience),
         # The plate: the big window's own box, and the three readings.
         "room_box": box("room"),
@@ -415,6 +425,10 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
         # printing four blanks. One real fan and this is gone for good.
         "idle": not total,
         "standby": standby(),
+        # The hero's gold pill goes to /links/new, which is not this room's
+        # page. A reader who cannot open it is offered the room's own list
+        # instead of a button that turns them away.
+        "can_capture": bool(can_open is None or can_open("/links/new")),
         "windows": windows(_fmt(total), total, _fmt(len(fresh)), len(fresh),
                            audience.get("contactable_pct") if total else None,
                            days),

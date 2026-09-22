@@ -68,7 +68,14 @@
             {% endfor %}
           </div>
         </details>
+        {#- /links/new belongs to Marketing, so a seat without that room is
+            turned away from this room's own gold pill. It is offered the
+            fan list instead (audit, 2026-09-22). -#}
+        {% if fr.can_capture %}
         <a class="fr-cta" href="/links/new">{{ icon("rocket", "fr-ico") }}Launch fan campaign</a>
+        {% else %}
+        <a class="fr-cta" href="/links/fans">{{ icon("rocket", "fr-ico") }}Open the fan list</a>
+        {% endif %}
       </div>
     </div>
 

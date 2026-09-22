@@ -284,3 +284,54 @@ def test_deleting_the_account_takes_its_team_and_their_record():
     owner.post("/account/delete", data={"confirm": owner._email})
     assert store.get_user(owner._id) is None
     assert store.list_team(owner._id) == [] and store.list_team_audit(owner._id) == []
+
+def test_the_fans_room_offers_a_seat_no_door_it_cannot_open():
+    """Audit, 2026-09-22. Every room drops a door its reader would be
+    turned away from - every room but this one, which had no can_open at
+    all. A seat holding only Fans was offered the room's GOLD PILL,
+    "Launch fan campaign", and a "See your links" move, both of which go
+    to /links: a Marketing page, which bounced it straight back.
+
+    Nothing leaked - the pages held - but the room's one call to action
+    was a dead end for the reader it was showing it to.
+    """
+    import re
+    import team_areas as ta
+
+    owner, member = _account(), _account(name="Manager")
+    _seat(owner, member, areas=["fans"])
+    _open_account(member, owner)
+
+    body = member.get("/room/fans").get_data(as_text=True)
+    main = re.search(r'<main id="sb-main"[^>]*>(.*?)</main>', body, re.S)
+    assert main, "no main on the fans room"
+
+    SHELL = {"/command-center", "/actions", "/settings", "/billing",
+             "/connections", "/contact", "/terms", "/privacy",
+             "/white-label", "/tours", "/royalties"}
+    offered = set()
+    for href in re.findall(r'<a [^>]*href="(/[^"]+)"', main.group(1)):
+        base = href.split("?")[0].split("#")[0]
+        if base.startswith("/room/") or base in SHELL:
+            continue
+        offered.add(base)
+
+    assert offered, "the room offered this seat nothing at all"
+    turned_away = sorted(h for h in offered if not ta.allows("fans", h))
+    assert not turned_away, (
+        "the Fans room offers a fans-only seat doors it cannot open: %s"
+        % ", ".join(turned_away))
+
+    # And the pill is still a pill - the room does not simply lose its
+    # call to action, it offers one this reader can use.
+    assert 'class="fr-cta"' in main.group(1), "the seat lost the room's way in"
+
+
+def test_the_owner_still_gets_the_capture_pill():
+    """The gate is for seats. The account holder keeps "Launch fan
+    campaign" - a fix that quietly took the owner's own button away
+    would be worse than the defect."""
+    owner = _account()
+    body = owner.get("/room/fans").get_data(as_text=True)
+    assert "Launch fan campaign" in body
+    assert 'href="/links/new"' in body

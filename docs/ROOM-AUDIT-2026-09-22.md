@@ -15,26 +15,28 @@ and `audit-links.json`.
 
 ## The headline
 
-**One real defect, and it was on phones.** Studio's plate never stepped
-aside at phone width, so its readings were clipped mid-sentence. Fixed
-and locked — details below.
+**Two real defects.** One on phones (Studio's plate never stepped
+aside, so its readings clipped mid-sentence) and one for team seats
+(the Fans room offered a seat a button that bounced it). Both fixed,
+both locked. Details below.
 
-**Navigation is otherwise clean.** Every one of the 74 links the eight rooms draw
-on a filled account returns 200, and every destination carries a way
-back to its room. There is no dead tile, no 404, no orphan page. That
-was the thing most likely to embarrass a launch week and it is not
-there.
+**Everything else is clean.** All 74 links the eight rooms draw on a
+filled account return 200, and every destination carries a way back to
+its room. No dead tile, no 404, no orphan page. Seven of eight rooms
+were already clean at phone width. Nothing leaked to a restricted team
+seat — the other seven rooms turn it away correctly and every page
+held. That was the family most likely to embarrass a launch week, and
+it is not there.
 
-What is left is not broken plumbing. It is **three names for one page,
-one room with sixteen doors, and one room that never asked you to do
-anything.** The third is fixed. The first two are decisions, not bugs,
-and they are yours — they are set out under *Your call* below.
+What is left is not broken plumbing. It is **three names for one page
+and one room with sixteen doors** — decisions, not bugs, and both
+yours. They are set out under *Your call* below.
 
 ---
 
 ## FIXED IN THIS PASS
 
-### 0. Studio was broken on a phone *(the one real defect)*
+### 0a. Studio was broken on a phone
 Every room hides its plate photograph below 560px and stacks the
 readings — a phone that kept the picture would show an instrument
 instead of this artist's numbers. The kit does that for the six rooms
@@ -57,6 +59,24 @@ I then checked the other seven at 375px the same way — every element
 that clips its own overflow, against what it actually contains, plus
 the page's own horizontal scroll. **All seven clean: nothing clipped,
 no sideways scroll anywhere.** Studio was the only one.
+
+### 0b. The Fans room showed a team seat a button that bounced it
+Seven of eight rooms take a `can_open` gate and drop any door the
+reader would be turned away from. `fan_room.build()` **did not have the
+parameter at all.**
+
+So a seat holding only the Fans room was offered the room's *gold pill*
+— **"Launch fan campaign"** — and a *"See your links"* move. Both go to
+`/links`, a Marketing page, which bounced it straight back. The room's
+one call to action was a dead end for the reader it was showing it to.
+
+**Nothing leaked.** I checked the other seven rooms from that seat: all
+redirect it home, and every page held. This was a dead end, not a
+privilege hole. Fixed with the same two lines the other seven use; the
+seat now gets *"Open the fan list"* instead, and the account holder's
+own button is untouched (there is a test for that too, because a fix
+that quietly took the owner's button away would be worse than the
+defect).
 
 ### 1. Publishing had no way in
 Every other room opens with a gold pill — *Upload a statement*, *Open

@@ -5263,6 +5263,11 @@ def create_app():
                 "SELECT COUNT(*) FROM collab_requests c JOIN users u ON u.id = c.user_id"
                 " WHERE c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
                 " OR substr(c.closes, 1, 10) >= ?)", (today,)).fetchone()[0]
+        # The same two lines the other seven rooms use: a seat opens
+        # only the pages its areas allow, so the room draws only those.
+        seat = current_team_seat()
+        can_open = None if seat is None else (
+            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         fr = fan_room.build(rows, audience, room["cards"], days=request.args.get("days"),
                             club={"on": bool(club_row), "members": members},
                             open_briefs=open_briefs,
@@ -5270,7 +5275,8 @@ def create_app():
                             showcase=showcase, artist_name=user.get("name") or "",
                             # "or Shopify customers" only where the import
                             # exists for this account (walk, 2026-09-20).
-                            shopify=_shopify_import_allowed(user))
+                            shopify=_shopify_import_allowed(user),
+                            can_open=can_open)
         return render_template("room_fans.html", active_page="room-fans", room=room, fr=fr,
                                **build_dashboard_context())
 
