@@ -425,12 +425,28 @@ def _download(url, max_bytes=MAX_MASTER_BYTES, timeout=120):
         # down. "(HTTPError)" said none of that and sent me looking at our
         # size cap instead. The URL still never appears: it is signed.
         _unlink(path)
+        # The host and path too. A 404 from RoEx's own API host and a 404
+        # from a storage bucket are different problems - the first is their
+        # endpoint, the second a link that has already been cleaned up - and
+        # the status alone cannot tell them apart. _scrub removes the query
+        # string, which is the part that carries the signature, so what is
+        # left is safe to show and to log.
         raise RoexDownloadError(
-            "RoEx's file link answered HTTP %s" % exc.code) from None
+            "RoEx's file link answered HTTP %s (%s)" % (exc.code, _where(url))) from None
     except Exception as exc:
         _unlink(path)
         raise RoexDownloadError("RoEx's file could not be fetched (%s)" % type(exc).__name__) from None
     return path, n, h.hexdigest()
+
+
+def _where(url):
+    """A link with its query removed: scheme, host and path only. The query
+    is the signature, and it never leaves this module."""
+    try:
+        bits = urllib.parse.urlsplit(url or "")
+        return _scrub("%s://%s%s" % (bits.scheme, bits.netloc, bits.path))
+    except Exception:
+        return "an unreadable link"
 
 
 def _unlink(path):

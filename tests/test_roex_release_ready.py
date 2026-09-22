@@ -2037,8 +2037,14 @@ def test_a_refused_file_link_reports_the_status_and_not_the_link(monkeypatch):
             mod._download(signed)
         said = str(caught.value)
         assert "HTTP %d" % status in said
-        assert "deadbeefsecret" not in said and "X-Amz-Signature" not in said
-        assert "93.184.216.34" not in said
+        # The host and path say WHOSE 404 it is - RoEx's own API endpoint or
+        # a storage bucket that has already cleaned the file up - which the
+        # status alone cannot. The query string is the signature and never
+        # appears.
+        assert "93.184.216.34/out.wav" in said
+        assert "deadbeefsecret" not in said
+        assert "X-Amz-Signature" not in said
+        assert "?" not in said
 
 
 def test_rr7_a_stuck_free_preview_is_made_again_for_free(env):
