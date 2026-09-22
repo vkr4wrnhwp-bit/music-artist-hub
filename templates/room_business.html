@@ -2,8 +2,8 @@
 
 {% block title %}Business{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=4">
-  <link rel="stylesheet" href="/static/css/business-room.css?v=1">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=5">
+  <link rel="stylesheet" href="/static/css/business-room.css?v=2">
 {% endblock %}
 
 {#- THE BUSINESS ROOM - the owner's mockup, 2026-09-22. Eighteen cards
@@ -143,12 +143,22 @@
               plate is not - the parenthetical read "ESTIMATED MISSING
               (ESTIMATE)". -#}
           <p class="bz-sr">{{ part.label }}</p>
-          <p class="bz-fig{% if not part.figure.measured %} is-none{% endif %}">{{ part.figure.value }}</p>
+          {% if part.figure.measured %}<p class="bz-fig">{{ part.figure.value }}</p>
+          {% else %}{#- Nothing measured here, so the window fills with a reel rather than
+          a line of words (owner, 2026-09-22); the small line beneath still
+          says what is missing. -#}
+      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in bz.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(bz.standby.fill[0], "rk-reel-ico") }}</span></span>
+          <p class="bz-move bz-move--quiet">{{ part.figure.value }}</p>{% endif %}
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <p class="bz-fig{% if not w.figure.measured %} is-none{% endif %}">{{ w.figure.value }}</p>
+      {% if w.figure.measured %}<p class="bz-fig">{{ w.figure.value }}</p>
+      {% else %}{#- Nothing measured here, so the window fills with a reel rather than
+          a line of words (owner, 2026-09-22); the small line beneath still
+          says what is missing. -#}
+      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in bz.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(bz.standby.fill[0], "rk-reel-ico") }}</span></span>
+      <p class="bz-move bz-move--quiet">{{ w.figure.value }}</p>{% endif %}
       {% if w.change %}
       <p class="bz-move {{ "is-up" if w.change.up else "is-down" }}">
         <span aria-hidden="true">{{ "▲" if w.change.up else "▼" }}</span>{{ w.change.pct }}

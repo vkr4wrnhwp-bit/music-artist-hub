@@ -2,8 +2,8 @@
 
 {% block title %}Studio{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=4">
-  <link rel="stylesheet" href="/static/css/studio-room.css?v=3">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=5">
+  <link rel="stylesheet" href="/static/css/studio-room.css?v=4">
 {% endblock %}
 
 {#- THE STUDIO ROOM - the owner's mockup, 2026-09-22, and his brief for every
@@ -156,11 +156,19 @@
     {# the two readouts #}
     <div class="sd-lcd sd-lcd--top">
       <span class="sd-lcd-l">Loudness</span>
-      <span class="sd-lcd-v{% if not a.loudness.measured %} is-none{% endif %}">{{ a.loudness.value }}{% if a.loudness.unit %}<i>{{ a.loudness.unit }}</i>{% endif %}</span>
+      {% if a.loudness.measured %}<span class="sd-lcd-v">{{ a.loudness.value }}<i>{{ a.loudness.unit }}</i></span>
+      {% else %}{#- Nothing measured here, so the window fills with a reel rather than
+          a line of words (owner, 2026-09-22); the small line beneath still
+          says what is missing. -#}
+      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in sd.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(sd.standby.fill[0], "rk-reel-ico") }}</span></span>{% endif %}
     </div>
     <div class="sd-lcd sd-lcd--bottom">
       <span class="sd-lcd-l">Headroom</span>
-      <span class="sd-lcd-v{% if not a.headroom.measured %} is-none{% endif %}">{{ a.headroom.value }}{% if a.headroom.unit %}<i>{{ a.headroom.unit }}</i>{% endif %}</span>
+      {% if a.headroom.measured %}<span class="sd-lcd-v">{{ a.headroom.value }}<i>{{ a.headroom.unit }}</i></span>
+      {% else %}{#- Nothing measured here, so the window fills with a reel rather than
+          a line of words (owner, 2026-09-22); the small line beneath still
+          says what is missing. -#}
+      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in sd.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(sd.standby.fill[0], "rk-reel-ico") }}</span></span>{% endif %}
     </div>
 
     {% endif %}

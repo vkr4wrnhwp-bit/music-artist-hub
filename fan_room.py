@@ -156,6 +156,19 @@ def _image_for(n):
         return "/%s?v=%d" % (path, STANDBY_IMAGE_V)
     return ""
 
+# The reel a READING window shows while it has nothing to read
+# (owner, 2026-09-22: no words in an empty window, icons).
+STANDBY_FILL = STANDBY_ICONS
+
+
+def _six(icons):
+    """Six stops, always: the roll's keyframes step through six, and a
+    five-icon reel ran its last stop into blank glass."""
+    icons = list(icons or ())
+    while icons and len(icons) < 6:
+        icons.append(icons[len(icons) % len(icons)])
+    return icons[:6]
+
 
 def standby():
     """The plate with nothing measured: a sequence, a reel, a hint and a
@@ -168,7 +181,8 @@ def standby():
                    for i, (t, l) in enumerate(STANDBY_FRAMES)],
         "count": len(STANDBY_FRAMES),
         "reel": {"box": box("on-file"), "name": "On file",
-                 "icons": STANDBY_ICONS},
+                 "icons": _six(STANDBY_ICONS)},
+        "fill": _six(STANDBY_FILL),
         # NOT "items": Jinja resolves foo.items to the dict's own method
         # before it looks for a key of that name, so {% for t in
         # tips.items %} iterated a built-in and 500'd.

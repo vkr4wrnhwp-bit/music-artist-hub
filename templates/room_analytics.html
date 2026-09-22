@@ -2,8 +2,8 @@
 
 {% block title %}Analytics{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=4">
-  <link rel="stylesheet" href="/static/css/analytics-room.css?v=1">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=5">
+  <link rel="stylesheet" href="/static/css/analytics-room.css?v=2">
 {% endblock %}
 
 {#- THE ANALYTICS ROOM - built from the owner's mockup image (2026-09-22),
@@ -158,7 +158,11 @@
     {% for w in an.windows %}
     <div class="rk-pl-win" style="{{ w.box }}">
       <p class="rk-pl-sr">{{ w.label }}</p>
-      <p class="rk-pl-n{% if not w.measured %} is-none{% endif %}">{{ w.value }}</p>
+      {% if w.measured %}<p class="rk-pl-n">{{ w.value }}</p>
+      {% else %}{#- Nothing measured here, so the window fills with a reel rather than
+          a line of words (owner, 2026-09-22); the small line beneath still
+          says what is missing. -#}
+      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in an.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(an.standby.fill[0], "rk-reel-ico") }}</span></span>{% endif %}
       <p class="rk-pl-s">{{ w.why or w.source }}</p>
     </div>
     {% endfor %}

@@ -3,7 +3,7 @@
 
 {% block title %}Stage{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=4">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=5">
   <link rel="stylesheet" href="/static/css/stage-room.css?v=6">
 {% endblock %}
 
@@ -148,7 +148,12 @@
     {% for w in sg.windows %}
     <div class="rk-pl-win" style="{{ w.box }}">
       <p class="rk-pl-sr">{{ w.label }}</p>
-      <p class="rk-pl-n{% if not w.measured %} is-none{% endif %}">{{ w.value }}</p>
+      {% if w.measured %}<p class="rk-pl-n">{{ w.value }}</p>
+      {% else %}{#- Nothing measured here, so the window fills with a reel rather than
+          a line of words (owner, 2026-09-22); the small line beneath still
+          says what is missing. -#}
+      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in sg.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(sg.standby.fill[0], "rk-reel-ico") }}</span></span>
+      <p class="rk-pl-s">{{ w.value }}</p>{% endif %}
       {% if w.note %}<p class="rk-pl-s">{{ w.note }}</p>{% endif %}
     </div>
     {% endfor %}

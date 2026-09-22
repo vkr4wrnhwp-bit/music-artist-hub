@@ -370,6 +370,15 @@
 .rk-pl {
   position: relative; width: 100%; margin: 0 auto; line-height: 0;
   container-type: inline-size;
+  /* THE SCREEN'S VOICE, for readings and display alike (owner,
+     2026-09-22: "if we flip the data to whatever comes up in the room
+     from uploads, I would like it to show up in that same green computer
+     text"). One look across the plate whether it is explaining itself
+     or showing the artist's own numbers. */
+  --screen: #5dff8f;
+  --screen-dim: #34c96a;
+  --screen-glow: 0 0 10px rgb(93 255 143 / .7), 0 0 28px rgb(93 255 143 / .35);
+  --screen-glow-s: 0 0 8px rgb(93 255 143 / .6);
 }
 .rk-pl-img { display: block; width: 100%; height: auto; }
 
@@ -385,23 +394,25 @@
    sit above one another and must not dance as they change. */
 .rk-pl-n {
   margin: 0; font-family: var(--sb-display); font-weight: 800;
-  letter-spacing: -.015em; line-height: 1; color: var(--sb-ink);
+  letter-spacing: -.015em; line-height: 1; color: var(--screen);
   font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
-  text-shadow: 0 0 26px color-mix(in srgb, var(--sb-gold) 26%, transparent);
+  text-shadow: var(--screen-glow);
   font-size: clamp(18px, 2.6cqw, 46px);
 }
 /* An absence is WORDS, and words are not set like a figure. */
 .rk-pl-n.is-none {
   font-family: inherit; font-weight: 600; letter-spacing: .01em;
-  color: var(--sb-ink-2); text-shadow: none;
+  color: var(--screen-dim); text-shadow: var(--screen-glow-s);
   font-size: clamp(10px, 1.15cqw, 17px);
 }
 .rk-pl-s {
   margin: 0; font-size: clamp(9px, .95cqw, 14px); font-weight: 600;
-  letter-spacing: .04em; color: var(--sb-ink-2);
+  letter-spacing: .04em; color: var(--screen-dim); text-shadow: var(--screen-glow-s);
 }
-.rk-pl-s.is-up { color: var(--sb-good); }
-.rk-pl-s.is-down { color: var(--sb-warn); }
+/* Direction stays in the glyph (the arrow) and the weight of the green,
+   not in a second colour: the screen has one. */
+.rk-pl-s.is-up { color: var(--screen); }
+.rk-pl-s.is-down { color: var(--screen-dim); opacity: .85; }
 
 /* The plate SILKSCREENS every window's name, so the markup carries it for
    a screen reader alone - and, below 560px, as the only thing naming each
@@ -467,8 +478,6 @@
    standby display: the moment a reading exists, the readings' own ink
    comes back. */
 .rk-cine {
-  --screen: #5dff8f;
-  --screen-dim: #34c96a;
   overflow: hidden; display: block; padding: 0;
   background: radial-gradient(90% 70% at 50% 50%,
               rgb(24 60 34 / .55), transparent 75%);
@@ -597,6 +606,22 @@
   color: #5dff8f;
   text-shadow: 0 0 8px rgb(93 255 143 / .7), 0 0 20px rgb(93 255 143 / .3);
 }
+
+/* A reading window with nothing measured: the reel fills it (owner,
+   2026-09-22). The window is a flex column, so the reel takes the height
+   the label and the small line leave, clips its own roll, and its items
+   size to it. */
+.rk-reel--fill { position: relative; flex: 1 1 0; align-self: stretch; min-height: 0; height: auto; overflow: hidden; }
+/* Basis 0, not auto: the items are 100% of the reel and the reel's own
+   content height would be measured from them - a circle that resolves to
+   nothing. With a zero basis the reel is the window's leftover height, a
+   definite size the items can be 100% of.
+   The window's 4% padding is a fraction of its WIDTH, so on a wide, short
+   window (Analytics' 900x72) it is the whole height and leaves the reel
+   nothing; a window holding a fill keeps a few pixels instead. */
+.rk-pl-win:has(.rk-reel--fill) { padding-top: 3px; padding-bottom: 3px; gap: 2px; }
+.rk-reel--fill .rk-reel-i { padding-bottom: 0; }
+.rk-reel--fill .rk-reel-ico { width: auto; height: 72%; max-height: none; }
 
 /* ON FILE - the reel */
 .rk-reel { display: flex; flex-direction: column; width: 100%; height: 100%;

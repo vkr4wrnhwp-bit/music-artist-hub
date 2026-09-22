@@ -118,9 +118,9 @@
 @media (max-width: 860px) {
   .rl-ribbon li:nth-child(n+3) { display: none; }
 }
-.rl-ribbon b { color: var(--sb-gold-bright); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.rl-ribbon span { color: var(--sb-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rl-ribbon-none { margin: 0; color: var(--sb-ink-2); font-size: clamp(10px, .8cqw, 12px); }
+.rl-ribbon b { color: var(--screen); white-space: nowrap; font-variant-numeric: tabular-nums; text-shadow: var(--screen-glow-s); }
+.rl-ribbon span { color: var(--screen-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-ribbon-none { margin: 0; color: var(--screen-dim); font-size: clamp(10px, .8cqw, 12px); }
 .rl-pl-foot { margin-top: 10px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 
 @media (max-width: 560px) {

@@ -28,6 +28,10 @@
 
 .bz-unit {
   position: relative; width: 100%; margin: 0 auto; line-height: 0;
+  /* the screen's voice - the same tokens room-kit.css sets on .rk-pl */
+  --screen: #5dff8f; --screen-dim: #34c96a;
+  --screen-glow: 0 0 10px rgb(93 255 143 / .7), 0 0 28px rgb(93 255 143 / .35);
+  --screen-glow-s: 0 0 8px rgb(93 255 143 / .6);
   /* Studio lost an afternoon to this being missing: cqw resolves against an
      inline-size container, and without one every clamp() below is invalid
      and the type falls back to page-sized and bursts out of the windows.
@@ -85,10 +89,10 @@
 /* ---- the figures ------------------------------------------------------- */
 
 .bz-fig {
-  margin: 0; color: var(--sb-ink); font-family: var(--sb-display);
+  margin: 0; color: var(--screen); font-family: var(--sb-display);
   font-weight: 800; letter-spacing: -.015em; line-height: 1;
   font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
-  text-shadow: 0 0 26px color-mix(in srgb, var(--sb-gold) 26%, transparent);
+  text-shadow: var(--screen-glow);
   font-size: clamp(22px, 3.3cqw, 56px);
 }
 .bz-part .bz-fig { font-size: clamp(15px, 2.1cqw, 35px); }
@@ -96,7 +100,7 @@
    figure's size it would not fit the pane anyway. */
 .bz-fig.is-none {
   font-family: inherit; font-weight: 600; letter-spacing: .01em;
-  color: var(--sb-ink-2); text-shadow: none;
+  color: var(--screen-dim); text-shadow: var(--screen-glow-s);
   font-size: clamp(11px, 1.25cqw, 19px);
 }
 .bz-part .bz-fig.is-none { font-size: clamp(9px, 1cqw, 15px); }
@@ -107,13 +111,14 @@
   margin: 0; display: flex; flex-wrap: wrap; align-items: baseline;
   justify-content: center; gap: .45em;
   font-size: clamp(9px, 1.02cqw, 15px); font-weight: 700;
-  letter-spacing: .04em; color: var(--sb-ink-2);
+  letter-spacing: .04em; color: var(--screen-dim); text-shadow: var(--screen-glow-s);
 }
-.bz-move.is-up { color: var(--sb-good); }
-.bz-move.is-down { color: var(--sb-warn); }
+/* One colour on the screen: direction is the arrow and the weight of the green. */
+.bz-move.is-up { color: var(--screen); }
+.bz-move.is-down { color: var(--screen-dim); opacity: .85; }
 .bz-move--quiet { font-weight: 500; letter-spacing: .02em; }
 /* The period the move is against - never louder than the move itself. */
-.bz-move-n { font-weight: 500; letter-spacing: .02em; color: var(--sb-ink-2); }
+.bz-move-n { font-weight: 500; letter-spacing: .02em; color: var(--screen-dim); }
 
 /* The rule that used to sit here - .bz-unit.is-idle .bz-fig - could not
    match once the standby landed: `idle` and `measured` are exact

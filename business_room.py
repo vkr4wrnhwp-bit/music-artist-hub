@@ -135,6 +135,19 @@ def _standby_image(n):
     path = STANDBY_IMAGES[n] if n < len(STANDBY_IMAGES) else ""
     return "/%s?v=%d" % (path, STANDBY_IMAGE_V) if path and os.path.exists(path) else ""
 
+# The reel a READING window shows while it has nothing to read
+# (owner, 2026-09-22: no words in an empty window, icons).
+STANDBY_FILL = ("reported", "named", "chased", "recovered", "kept", "upload")
+
+
+def _six(icons):
+    """Six stops, always: the roll's keyframes step through six, and a
+    five-icon reel ran its last stop into blank glass."""
+    icons = list(icons or ())
+    while icons and len(icons) < 6:
+        icons.append(icons[len(icons) % len(icons)])
+    return icons[:6]
+
 
 def standby():
     """The plate with nothing measured: a sequence, reels, a hint, a ticker."""
@@ -145,7 +158,7 @@ def standby():
         "frames": [{"n": i, "title": t, "line": l, "image": _standby_image(i)}
                    for i, (t, l) in enumerate(STANDBY_FRAMES)],
         "count": len(STANDBY_FRAMES),
-        "reels": [{"box": box(k), "name": n, "icons": icons, "n": i}
+        "reels": [{"box": box(k), "name": n, "icons": _six(icons), "n": i}
                   for i, (k, n, icons) in enumerate(STANDBY_REELS, start=1)],
         "tips": None, "ticker": None,
     }
@@ -155,6 +168,7 @@ def standby():
     if STANDBY_TICKER:
         k, n, lines = STANDBY_TICKER
         out["ticker"] = {"box": box(k), "name": n, "lines": lines}
+    out["fill"] = _six(STANDBY_FILL)
     return out
 
 
@@ -432,8 +446,11 @@ def build(reported, prior, actual, estimated, kept, kept_prior,
         "windows": windows(reported, prior, actual, estimated, kept,
                            kept_prior, note, kept_note),
         "measured": reported is not None,
-        # No statements at all: the plate explains itself rather than
-        # printing three "Not measured"s. One upload and this is gone.
+        # On the flip like every other room. Owner, 2026-09-22, twice in
+        # the hour: first "let's not do that" to the statement figures on
+        # the plate, then "switch to business too, so all the text
+        # matches in that green" - the display until a statement exists,
+        # the readings in the screen's own green once one does.
         "idle": reported is None,
         "standby": standby(),
         "scan": scan or "",

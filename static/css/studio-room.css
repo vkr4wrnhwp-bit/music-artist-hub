@@ -24,6 +24,10 @@
      of its windows. cqw resolves against an inline-size container; cqh does
      NOT, which is why nothing here is sized off the height. */
   container-type: inline-size;
+  /* the screen's voice - the same tokens room-kit.css sets on .rk-pl */
+  --screen: #5dff8f; --screen-dim: #34c96a;
+  --screen-glow: 0 0 10px rgb(93 255 143 / .7), 0 0 28px rgb(93 255 143 / .35);
+  --screen-glow-s: 0 0 8px rgb(93 255 143 / .6);
   /* --- plate regions, MEASURED off static/img/studio-bus-plate.webp
          (1993x640, cropped from the original and border-white cleared to
          alpha - it was RGB on a white ground and the corners showed).
@@ -56,9 +60,9 @@
 .sd-bay img { width: 100%; height: 100%; object-fit: cover; }
 .sd-bay-none {
   display: flex; flex-direction: column; gap: 4px; text-align: center;
-  line-height: 1.4; color: var(--sb-ink-2); font-size: clamp(10px, 0.85cqw, 13px);
+  line-height: 1.4; color: var(--screen-dim); font-size: clamp(10px, 0.85cqw, 13px);
 }
-.sd-bay-none span:first-child { color: var(--sb-ink); font-weight: 700; }
+.sd-bay-none span:first-child { color: var(--screen); font-weight: 700; }
 
 /* ---- the display: the title line and the waveform --------------------- */
 
@@ -68,9 +72,9 @@
   display: flex; flex-direction: column; justify-content: center;
   padding: 0 3%; line-height: 1.25; overflow: hidden;
 }
-.sd-track { margin: 0; font-size: clamp(14px, 1.6cqw, 26px); font-weight: 800; color: var(--sb-ink); }
-.sd-track--none { color: var(--sb-ink-2); }
-.sd-source { margin: 2px 0 0; font-size: clamp(9px, 0.85cqw, 13px); color: var(--sb-ink-2); }
+.sd-track { margin: 0; font-size: clamp(14px, 1.6cqw, 26px); font-weight: 800; color: var(--screen); text-shadow: var(--screen-glow); }
+.sd-track--none { color: var(--screen-dim); text-shadow: var(--screen-glow-s); }
+.sd-source { margin: 2px 0 0; font-size: clamp(9px, 0.85cqw, 13px); color: var(--screen-dim); }
 .sd-wave {
   /* NOT a waveform. The Rack stores numbers, not a shape, so drawing bars
      here would be inventing the artist's audio - and the striped gradient
@@ -108,7 +112,7 @@
   color: color-mix(in srgb, var(--sb-gold) 70%, transparent);
 }
 .sd-lcd-v {
-  font-size: clamp(15px, 1.7cqw, 30px); font-weight: 800; color: var(--sb-gold-bright);
+  font-size: clamp(15px, 1.7cqw, 30px); font-weight: 800; color: var(--screen); text-shadow: var(--screen-glow-s);
   font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
 }
 .sd-lcd-v i { font-style: normal; margin-left: .35em; font-size: .5em; font-weight: 700; }

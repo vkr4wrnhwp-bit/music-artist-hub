@@ -199,17 +199,31 @@ def test_kept_is_not_measured_when_no_costs_were_ever_logged():
         {"title": "HP", "source": "Spotify", "amount": 1200.0, "period": "2026-01"}])
     store.save_statement(uid, "q2.csv", [
         {"title": "HP", "source": "Spotify", "amount": 1500.0, "period": "2026-02"}])
+    # Owner, 2026-09-22, second ruling: the plate is on the flip like
+    # every other room - the display until a statement exists, then the
+    # readings in the screen's green. With a statement on file and no
+    # cost ever logged, REPORTED is a figure and KEPT is a window with
+    # nothing to read, which fills with the reel and says so beneath.
     body = _room(c.get("/room/business").get_data(as_text=True))
-    figures = re.findall(r'class="bz-fig[^"]*">([^<]*)', body)
-    assert figures[0] == "$1,500.00", "reported is the latest period"
-    assert figures[-1] == "Not measured", "kept is not income-minus-nothing"
-    assert "No costs logged yet" in body
-
+    assert "rk-cine" not in body, "a statement on file flips the plate off the display"
+    assert "bz-fig" in body, "reported is a figure"
+    assert "rk-reel--fill" in body, "kept has nothing to read: the reel fills it"
+    assert "Not measured" in body, "and the small line still says what is missing"
+    # The two noughts on this plate are measurements - every row of the
+    # statement is titled, so nothing is unattributed - and they print.
+    # KEPT is the absence, and it prints no figure at all.
+    kept = body.split('<p class="bz-sr">Kept</p>', 1)[1].split("</div>", 1)[0]
+    assert "bz-fig" not in kept and "rk-reel--fill" in kept
+    assert "$" not in kept, "an absence is never a nought"
+    order, totals, _ = bz.periods(store.get_statement_rows(uid))
+    reported, prior, _note = bz.reading(order, totals, None)
+    assert reported == 1500.0, "reported is the latest period"
+    assert bz.costs_in([], order[-1]) == 0.0
+    assert bz.money(None)["value"] == "Not measured", "kept is None with no costs on file"
     store.add_expense(uid, "Mastering", "Release-Ready", 120.0, "2026-02-04")
-    body = _room(c.get("/room/business").get_data(as_text=True))
-    figures = re.findall(r'class="bz-fig[^"]*">([^<]*)', body)
-    assert figures[-1] == "$1,380.00", "and now it is reported less that period's costs"
-    assert "After $120.00 in costs" in body
+    spent = bz.costs_in(store.list_expenses(uid), order[-1])
+    assert spent == 120.0
+    assert bz.money(reported - spent)["value"] == "$1,380.00", "reported less that period's costs"
 
 
 # --- where the money comes from ------------------------------------------

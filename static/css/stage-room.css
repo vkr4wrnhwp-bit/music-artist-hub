@@ -183,11 +183,11 @@
   align-items: baseline; gap: 2%; text-align: left;
   font-size: clamp(8px, .92cqw, 14px); line-height: 1.3;
 }
-.sg-cue-list b { color: var(--sb-gold-bright); font-variant-numeric: tabular-nums; }
-.sg-cue-list span { color: var(--sb-ink); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sg-cue-list i { color: var(--sb-ink-2); font-style: normal; text-transform: uppercase; letter-spacing: .1em; font-size: .86em; }
-.sg-cue-list em { color: var(--sb-ink-2); font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
-.sg-cue-more { margin: 1.5% 0 0; align-self: flex-start; color: var(--sb-ink-3); font-size: clamp(7px, .8cqw, 12px); }
+.sg-cue-list b { color: var(--screen); font-variant-numeric: tabular-nums; text-shadow: var(--screen-glow-s); }
+.sg-cue-list span { color: var(--screen); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-cue-list i { color: var(--screen-dim); font-style: normal; text-transform: uppercase; letter-spacing: .1em; font-size: .86em; }
+.sg-cue-list em { color: var(--screen-dim); font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
+.sg-cue-more { margin: 1.5% 0 0; align-self: flex-start; color: var(--screen-dim); font-size: clamp(7px, .8cqw, 12px); }
 
 .sg-pl-none {
   margin: 0; font-family: var(--sb-display); font-weight: 800;
