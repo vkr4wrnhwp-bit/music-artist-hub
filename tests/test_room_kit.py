@@ -162,3 +162,25 @@ def test_a_tile_is_the_same_WIDTH_in_every_room():
     assert "auto-fit" not in rule, (
         "auto-fit collapses empty tracks and stretches the rest, which is the "
         "same failure by another name")
+
+def test_the_ring_is_gold_in_every_room_and_every_state():
+    """Owner, 2026-09-22: "if you look in marketing and in fans, they have a
+    gold ring around them. The two publishing and releases don't."
+
+    I had given a not-yet-reached step a grey, unlit ring. On an account with
+    nothing on record every step is unreached, so every ring went out - which
+    is precisely the two rooms he was looking at. Fans and Marketing have no
+    such state and never dimmed. The ring keeps its gold border and its glow
+    in every state; only the symbol inside goes quiet.
+    """
+    kit = _read(KIT)
+    ring = re.search(r'\.rk-ring, [^{]*\{([^}]*)\}', kit).group(1)
+    assert "var(--sb-gold)" in ring and "box-shadow" in ring
+
+    ahead = re.search(r'\.rk-step--ahead \.rk-ring \{([^}]*)\}', kit)
+    assert ahead, "the unreached state should still exist, quietly"
+    body = ahead.group(1)
+    for killed in ("border-color", "box-shadow", "background"):
+        assert killed not in body, (
+            "a step not yet reached must not lose the gold ring: it sets %s"
+            % killed)

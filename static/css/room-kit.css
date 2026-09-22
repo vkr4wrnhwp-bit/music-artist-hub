@@ -167,16 +167,14 @@
 }
 .rk-ring-tick { width: 34px; height: 34px; stroke-width: 2.4; }
 
-/* A step that has not been reached is the same circle, unlit. An absence
-   must not look like a failure, so it is grey and quiet, never red. */
-.rk-step--ahead .rk-ring {
-  border-color: var(--sb-line-strong); color: var(--sb-ink-2);
-  background: var(--sb-surface-2); box-shadow: none;
-}
-.rk-step--ahead + .rk-step::before, .rk-step--ahead::before { background: var(--sb-line-strong); }
-.rk-step--ahead + .rk-step::after, .rk-step--ahead::after {
-  border-top-color: var(--sb-line-strong); border-right-color: var(--sb-line-strong);
-}
+/* A step not yet reached keeps the gold ring and the glow. I had made it
+   grey, which is why Publishing and Releases lost their gold entirely on an
+   account with nothing on record yet - every step is unreached there, so
+   every ring went out (owner, 2026-09-22: "if you look in marketing and in
+   fans, they have a gold ring around them. The two publishing and releases
+   don't"). Fans and Marketing have no such state and never dimmed, and they
+   are the house look. Only the symbol inside goes quiet. */
+.rk-step--ahead .rk-ring { color: var(--sb-ink-2); }
 /* Passed: the circle fills, because the step is behind you. */
 .rk-step--done .rk-ring {
   background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold));
