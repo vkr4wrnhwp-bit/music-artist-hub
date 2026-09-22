@@ -4,6 +4,7 @@
 {% block title %}{{ source.title }} - Release-Ready{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/release_ready.css?v=1">
+  <link rel="stylesheet" href="/static/css/rr-unit.css?v=1">
 {% endblock %}
 
 {#- One upload: RoEx's mix report, the free previews, the buy button and the
@@ -170,13 +171,16 @@
               <p class="rr-prev-msg" data-rr-msg>{{ p.message }}</p>
             {% endif %}
             {% if p.payment_note %}<p class="rr-prev-msg">{{ p.payment_note }}</p>{% endif %}
+            {#- The unit is shown in every state, not only when there is
+                something to play: unlit with its lamp breathing IS the
+                waiting state, which is why the plate was photographed with
+                every lamp off. The old spinner beside it would now be a
+                second thing saying the same thing. -#}
             {% if p.in_flight and not p.paid %}
-              <div class="rr-wait" role="status"><span class="rr-spin" aria-hidden="true"></span>This page updates by itself.</div>
+              <p class="rr-small" role="status">This page updates by itself.</p>
             {% endif %}
-            {% if p.preview %}
-              <audio controls preload="none" src="{{ p.preview.url }}" aria-label="Preview {{ loop.index }}, {{ p.settings.loudness_label }}"></audio>
-              {% if p.preview.starts_at %}<p class="rr-prev-meta">{{ p.preview.starts_at }} in the song.</p>{% endif %}
-              {% if p.preview.measured %}<p class="rr-measured">{{ p.preview.measured }}</p>{% endif %}
+            {% if not p.master %}
+              {% with n = loop.index %}{% include "_rr_unit.html" %}{% endwith %}
             {% endif %}
             {% if p.buy and not p.buy.hidden %}
               <div class="rr-buy">
@@ -254,4 +258,5 @@
 
 {% block scripts %}
 <script src="/static/js/release_ready.js?v=1" defer></script>
+<script src="/static/js/rr-unit.js?v=1" defer></script>
 {% endblock %}

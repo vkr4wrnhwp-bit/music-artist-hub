@@ -1,0 +1,130 @@
+/* The Release-Ready preview unit: a photographed faceplate with only the
+   moving parts in code.
+
+   The plate is one photograph (static/img/rr-plate-*.webp). Everything that
+   lights or moves is positioned on top of it as a fraction of the photo, so
+   the whole unit scales with one container query and nothing drifts:
+   every inner measurement below is a percentage taken off the original
+   1658x359 crop with PIL, not a guess.
+
+     display window   x 4.95%..52.05%   y 26.18%..74.93%
+     meter strips     x 55.40%..75.50%  y 27.86%..43.73% and 56.82%..73.26%
+     meter lenses     11 per strip, first left 55.99%, pitch 1.7292%, w 1.2666%
+     jewel lamp       centre 80.70%, 50.70%
+     knob             centre 91.07%, 50.28%, sprite 11.82% of the width
+
+   The knob sprite is cut from this same photograph, so it rotates onto its
+   own footprint and no sliver of the original can show at its edge.
+
+   Below 900px the photograph is dropped and the plain controls stand on
+   their own: the unit is a skin, never the only way to use the player. */
+
+.rr-unit-wrap { container-type: inline-size; width: 100%; }
+
+.rr-unit { display: none; }
+.rr-unit-plain { display: block; }
+
+@container (min-width: 900px) {
+  .rr-unit { display: block; }
+  .rr-unit-plain { display: none; }
+}
+
+.rr-unit {
+  position: relative;
+  /* The unit is its own container. cqw has to mean "1% of the faceplate",
+     not 1% of whatever column it sits in, or every measured position drifts
+     by the difference - which showed up as segments ~10% too wide walking
+     off the right of the strip. */
+  container-type: inline-size;
+  width: min(100%, 760px);
+  aspect-ratio: 1658 / 359;
+  background-image: image-set(url("/static/img/rr-plate-1100.webp") 1x,
+                              url("/static/img/rr-plate-1658.webp") 2x);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  user-select: none;
+}
+
+/* ---- the display window ------------------------------------------------ */
+
+.rr-unit-screen {
+  position: absolute;
+  left: 4.95%; top: 26.18%; width: 47.10%; height: 48.75%;
+  padding: 0; margin: 0; border: 0; background: transparent;
+  cursor: pointer; color: inherit; display: block;
+}
+.rr-unit-screen canvas { display: block; width: 100%; height: 100%; }
+.rr-unit-screen { --wave: var(--sb-gold-bright); --wave-rest: var(--sb-ink-2); }
+.rr-unit-screen:focus-visible { outline: 2px solid var(--sb-focus); outline-offset: 3px; }
+.rr-unit[data-state="working"] .rr-unit-screen { cursor: progress; }
+
+/* ---- the two meter strips ---------------------------------------------- */
+
+.rr-unit-meter { position: absolute; left: 55.99%; }
+.rr-unit-meter--l { top: 27.86%; height: 15.87%; }
+.rr-unit-meter--r { top: 56.82%; height: 16.44%; }
+
+.rr-unit-meter i {
+  position: absolute; top: 12%; height: 76%; width: 1.2666cqw;
+  background: var(--seg, var(--sb-good));
+  opacity: 0;
+  transition: opacity 90ms linear;
+}
+.rr-unit-meter i.on { opacity: .92; box-shadow: 0 0 .5cqw var(--seg, var(--sb-good)); }
+
+/* The top of the scale is where clipping lives, so it stops being green. */
+.rr-unit-meter i:nth-child(n+9)  { --seg: var(--sb-warn); }
+.rr-unit-meter i:nth-child(n+11) { --seg: var(--sb-crit); }
+
+/* ---- the jewel lamp ---------------------------------------------------- */
+
+.rr-unit-lamp {
+  /* Placed by its centre, which is what was measured off the photograph;
+     working back to a top-left corner needs the height in width units and
+     got it wrong by a few pixels. */
+  position: absolute; left: 80.70%; top: 50.70%;
+  transform: translate(-50%, -50%);
+  width: 3.38cqw; height: 3.38cqw; border-radius: 50%;
+  background: radial-gradient(circle at 42% 38%,
+              var(--lamp, var(--sb-gold-bright)), transparent 68%);
+  mix-blend-mode: screen; opacity: 0; pointer-events: none;
+}
+.rr-unit[data-state="working"] .rr-unit-lamp {
+  --lamp: var(--sb-gold-bright);
+  animation: rr-unit-breathe 2.4s ease-in-out infinite;
+}
+.rr-unit[data-state="ready"]  .rr-unit-lamp { --lamp: var(--sb-good); opacity: .85; }
+.rr-unit[data-state="failed"] .rr-unit-lamp { --lamp: var(--sb-crit); opacity: .8; }
+
+@keyframes rr-unit-breathe { 0%, 100% { opacity: .15; } 50% { opacity: .95; } }
+
+/* ---- the knob ---------------------------------------------------------- */
+
+.rr-unit-knob {
+  position: absolute; left: 91.07%; top: 50.28%;
+  transform: translate(-50%, -50%);
+  width: 11.82cqw; height: 11.82cqw;
+  cursor: ns-resize; touch-action: none;
+}
+.rr-unit-knob img { display: block; width: 100%; height: 100%; }
+.rr-unit-knob:focus-visible { outline: 2px solid var(--sb-focus); outline-offset: 4px; border-radius: 50%; }
+
+/* The real control, kept for the keyboard and for anything reading the page. */
+.rr-unit-knob input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: ns-resize; margin: 0;
+}
+
+/* ---- what sits under the unit ------------------------------------------ */
+
+.rr-unit-read {
+  display: flex; gap: 14px; flex-wrap: wrap; align-items: baseline;
+  margin: 8px 0 0; font-size: 13px; color: var(--sb-ink-2);
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+}
+.rr-unit-read b { color: var(--sb-ink); font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rr-unit[data-state="working"] .rr-unit-lamp { animation: none; opacity: .6; }
+  .rr-unit-meter i { transition: none; }
+}

@@ -1,0 +1,54 @@
+{#- One preview, on the photographed faceplate.
+
+    Takes `p` (a preview job) and `n` (its number on the page). The plate is
+    a photograph; the display window, the meter lenses, the jewel and the
+    knob are the only parts in code, and each is driven by something real
+    (static/js/rr-unit.js says which).
+
+    The <audio> element is the player, here and below 900px where the
+    photograph is dropped: it keeps its id and its ARIA label so the script,
+    the keyboard and the tests all still have it. With the script absent the
+    plain controls are what a reader gets, which is why they are marked up
+    first and hidden by the container query rather than the other way round.
+
+    A preview that is still being made, or that failed, gets the same unit
+    unlit - that is the loading state, and it is why the plate was shot with
+    every lamp off. -#}
+{%- set uid = "rr-audio-" ~ p.id -%}
+{%- set state = "ready" if p.preview else ("failed" if p.status in ("failed", "credits_short", "needs_owner") else "working") -%}
+<div class="rr-unit-wrap">
+  <div class="rr-unit" data-rr-unit data-state="{{ state }}" data-rr-audio="{{ uid }}">
+    {#- The window is the transport: the left tenth plays and pauses, the
+        rest seeks. It is a real button so the keyboard reaches it. -#}
+    <button type="button" class="rr-unit-screen"
+            aria-label="{% if state == 'ready' %}Play preview {{ n }}, {{ p.settings.loudness_label }}{% elif state == 'failed' %}Preview {{ n }} didn't finish{% else %}Preview {{ n }} is being made{% endif %}">
+      <canvas aria-hidden="true"></canvas>
+    </button>
+
+    <div class="rr-unit-meter rr-unit-meter--l" aria-hidden="true">
+      {%- for i in range(11) %}<i style="left: {{ "%.4f"|format(i * 1.7292) }}cqw"></i>{% endfor -%}
+    </div>
+    <div class="rr-unit-meter rr-unit-meter--r" aria-hidden="true">
+      {%- for i in range(11) %}<i style="left: {{ "%.4f"|format(i * 1.7292) }}cqw"></i>{% endfor -%}
+    </div>
+
+    <span class="rr-unit-lamp" aria-hidden="true"></span>
+
+    <span class="rr-unit-knob">
+      <img src="/static/img/rr-knob.png" alt="" aria-hidden="true">
+      <input type="range" min="0" max="100" step="1" value="100"
+             aria-label="Output level for preview {{ n }}">
+    </span>
+  </div>
+
+  <div class="rr-unit-plain">
+    <audio id="{{ uid }}" controls preload="none"{% if p.preview %} src="{{ p.preview.url }}"{% endif %}
+           aria-label="Preview {{ n }}, {{ p.settings.loudness_label }}"></audio>
+  </div>
+
+  <p class="rr-unit-read">
+    <b data-rr-unit-time></b>
+    {%- if p.preview and p.preview.starts_at %}<span>{{ p.preview.starts_at }} in the song.</span>{% endif -%}
+    {%- if p.preview and p.preview.measured %}<span>{{ p.preview.measured }}</span>{% endif -%}
+  </p>
+</div>
