@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Studio Room{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
+  <link rel="stylesheet" href="/static/css/studio-room.css?v=1">
+{% endblock %}
+
+{#- THE STUDIO ROOM - the owner's mockup, 2026-09-22, and his brief for every
+    room: "I want the rooms to open up to engagement and awesomeness, not a
+    lot of reading."
+
+    So it opens on ONE thing: a photographed master bus analyser carrying the
+    artist's last measured master. The cover art sits in the bay, the
+    waveform in the display, and the two figures that matter are read out on
+    the unit itself - there is no strip of stat cards above it, because the
+    numbers belong on the instrument.
+
+    THE PHOTO-PLATE METHOD, the same one the homepage EQ uses: the hardware
+    is one photograph (static/img/studio-bus-plate.webp) and only the moving
+    parts are drawn - art, waveform, two readouts, two needles. Nothing is
+    a vector drawing of a machine. A machine drawn as rectangles reads as a
+    toy beside this product, which is exactly what went wrong in Stage.
+
+    Every region below is positioned as a FRACTION of the plate, so the unit
+    scales to any width without the overlays drifting off their windows.
+    The fractions are measured off the plate itself - see
+    static/css/studio-room.css. -#}
+
+{% macro icon(name, cls="") -%}
+<svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == "tracked" -%}<path d="M3 12h2l2-7 3 14 3-11 2 6 2-2h4"/>
+{%- elif name == "measured" -%}<path d="M4 20V10M9 20V5M14 20v-8M19 20V8"/>
+{%- elif name == "mastered" -%}<path d="M5 8h14M5 12h14M5 16h14"/><circle cx="9" cy="8" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="11" cy="16" r="1.6"/>
+{%- elif name == "art" -%}<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 16l5-5 3.5 3.5 2.5-2.5 6 6"/><circle cx="15" cy="9" r="1.4"/>
+{%- elif name == "ready" -%}<path d="M5 12.5l4.5 4.5L19 7"/>
+{%- elif name == "rack" -%}<rect x="3" y="5" width="18" height="6" rx="1.5"/><rect x="3" y="13" width="18" height="6" rx="1.5"/><circle cx="7" cy="8" r="1"/><circle cx="7" cy="16" r="1"/>
+{%- elif name == "release-ready" -%}<path d="M4 10v4M8 6v12M12 4v16M16 8v8"/><path d="M18 16l2 2 3-4"/>
+{%- elif name == "studio" -%}<path d="M4 18V9M9 18V5M14 18v-6M19 18v-9"/><path d="M2.5 21h19"/>
+{%- elif name == "remix-lab" -%}<path d="M18 7.5A7 7 0 005.5 9.5M6 16.5A7 7 0 0018.5 14.5"/><path d="M19 3.5v4h-4M5 20.5v-4h4"/>
+{%- elif name == "audio-studio" -%}<path d="M4 11h2v4H4zM9 7h2v12H9zM14 9h2v8h-2zM19 12h2v2h-2z"/>
+{%- elif name == "artwork" -%}<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 16l5-5 3.5 3.5 2.5-2.5 6 6"/><circle cx="15" cy="9" r="1.4"/>
+{%- elif name == "plus" -%}<path d="M12 5v14M5 12h14"/>
+{%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
+{%- else -%}<circle cx="12" cy="12" r="8"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% block content %}
+<div class="rk sd" data-no-collapse><!--room:studio-->
+
+  {# ---- head band ------------------------------------------------------ #}
+  <section class="rk-hero" aria-labelledby="sd-title">
+    <div class="rk-hero-top">
+      <div class="rk-hero-said">
+        <p class="rk-eyebrow">Street Banker &middot; Studio</p>
+        <h1 class="rk-title" id="sd-title">Studio Room</h1>
+        <p class="rk-sub">From the take to the master.</p>
+      </div>
+      <div class="rk-aside">
+        <div class="rk-controls">
+          {% if sd.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
+          {% if sd.artist_name %}
+          <span class="rk-chip" title="The account this studio belongs to">
+            <span class="rk-avatar" aria-hidden="true">{{ (sd.artist_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ sd.artist_name }}">{{ sd.artist_name }}</span>
+          </span>
+          {% endif %}
+          <a class="rk-cta" href="/rack">{{ icon("rack", "rk-ico") }}Open The Rack</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ---- the analyser: one photograph, four live regions ----------------- #}
+  {% set a = sd.analyser %}
+  <section class="sd-unit{% if not a.measured %} is-idle{% endif %}"
+           aria-label="{% if a.measured %}Your last measured master, {{ a.title }}{% else %}The master bus analyser, with nothing measured yet{% endif %}">
+    <img class="sd-plate" src="/static/img/studio-bus-plate.webp" alt=""
+         width="2000" height="656" decoding="async">
+
+    {# the bay: the artist's own cover, or an empty sleeve #}
+    <div class="sd-bay">
+      {% if a.cover %}
+      <img src="{{ a.cover }}" alt="Cover art for {{ a.title }}">
+      {% else %}
+      <div class="sd-bay-none">
+        <span>No artwork yet</span>
+        <span>Add a track to begin.</span>
+      </div>
+      {% endif %}
+    </div>
+
+    {# the display: the title line and the waveform #}
+    <div class="sd-display">
+      {% if a.measured %}
+      <p class="sd-track">{{ a.title }}</p>
+      <p class="sd-source">{% if sd.artist_name %}{{ sd.artist_name }} &middot; {% endif %}{{ a.source }}</p>
+      {#- The waveform is drawn from the measurement's own shape where one
+          was stored; until then the display carries the reading rather than
+          a shape nobody measured. -#}
+      <div class="sd-wave" aria-hidden="true"></div>
+      {% else %}
+      <p class="sd-track sd-track--none">No master measured yet</p>
+      <p class="sd-source">Record or upload a track, then measure your master here.</p>
+      <div class="sd-wave is-flat" aria-hidden="true"></div>
+      {% endif %}
+    </div>
+
+    {# the two readouts #}
+    <div class="sd-lcd sd-lcd--top">
+      <span class="sd-lcd-l">Integrated loudness</span>
+      <span class="sd-lcd-v{% if not a.loudness.measured %} is-none{% endif %}">{{ a.loudness.value }}{% if a.loudness.unit %}<i>{{ a.loudness.unit }}</i>{% endif %}</span>
+    </div>
+    <div class="sd-lcd sd-lcd--bottom">
+      <span class="sd-lcd-l">True-peak headroom</span>
+      <span class="sd-lcd-v{% if not a.headroom.measured %} is-none{% endif %}">{{ a.headroom.value }}{% if a.headroom.unit %}<i>{{ a.headroom.unit }}</i>{% endif %}</span>
+    </div>
+
+    {# the needles: a picture of the figures printed above them #}
+    <span class="sd-needle sd-needle--left" style="--turn: {{ a.left }}" aria-hidden="true"></span>
+    <span class="sd-needle sd-needle--right" style="--turn: {{ a.right }}" aria-hidden="true"></span>
+  </section>
+  <p class="rk-foot sd-standard">Measured in your browser to {{ a.standard }}.
+    A platform's own encoder has the last word on what it finally sounds like.</p>
+
+  {# ---- the five gold circles ------------------------------------------- #}
+  <section class="rk-panel" aria-label="From the take to the master">
+    <ol class="rk-rail">
+      {% for s in sd.path %}
+      <li class="rk-step{% if not s.reached %} rk-step--ahead{% endif %}" title="{{ s.sub }}">
+        <span class="rk-ring">{{ icon(s.key, "rk-ring-ico") }}</span>
+        <b>{{ s.name }}</b>
+        <span>{{ s.line }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {# ---- cover art ------------------------------------------------------- #}
+  <section class="rk-panel" aria-labelledby="sd-art-h">
+    <div class="rk-panel-head">
+      <div>
+        <h2 class="rk-h" id="sd-art-h">Cover art</h2>
+        <p class="rk-said">Your own covers, newest first.</p>
+      </div>
+      {% if sd.covers.more %}
+      <a class="rk-more" href="/artwork">View all{{ icon("arrow", "rk-ico rk-ico--sm") }}</a>
+      {% endif %}
+    </div>
+    <div class="sd-covers">
+      {% for c in sd.covers.shown %}
+      <a class="sd-cover" href="/artwork" title="{{ c.name }}">
+        <img src="{{ c.url }}" alt="{{ c.name or 'Cover art' }}" loading="lazy">
+      </a>
+      {% endfor %}
+      <a class="sd-cover sd-cover--new" href="/artwork">
+        <span class="sd-new-ring">{{ icon("plus", "rk-ico") }}</span>
+        <b>Create new art</b>
+        <span>Turn your sound into a cover.</span>
+      </a>
+    </div>
+  </section>
+
+  {# ---- closing tiles --------------------------------------------------- #}
+  {% if sd.tiles %}
+  <section aria-labelledby="sd-tiles-h">
+    <div class="rk-panel-head">
+      <h2 class="rk-h" id="sd-tiles-h">Explore more in the Studio Room</h2>
+      <p class="rk-cap">{{ sd.tiles|length }} more tool{{ "" if sd.tiles|length == 1 else "s" }} for making the record.</p>
+    </div>
+    <div class="rk-tiles">
+      {% for t in sd.tiles %}
+      <a class="rk-tile" href="{{ t.href }}" data-room-card="{{ t.key }}">
+        <span class="rk-tile-top">
+          <span class="rk-tile-disc">{{ icon(t.key, "rk-tile-ico") }}</span>
+          <span class="rk-tile-text"><b>{{ t.name }}</b><span>{{ t.line }}</span></span>
+        </span>
+        <span class="rk-tile-foot">
+          <span></span>
+          <span class="rk-tile-go">{{ icon("arrow", "rk-ico rk-ico--sm") }}</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+<!--/room:studio--></div>
+{% endblock %}

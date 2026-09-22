@@ -537,6 +537,17 @@ Whether a store is actually late or just reporting on its normal delay, measured
 
 ### Live
 
+**Studio Room (/room/studio)**
+
+The Studio room's opening screen: a photographed master bus analyser carrying the artist's last measured master, the five-step path, their cover art, and six closing tiles.
+
+- Because: the room opens on ONE thing and every figure on it is the Rack's own. db.latest_track_analysis is the last run of the browser meter to ITU-R BS.1770 / EBU R128: `integrated` is the LUFS readout, `true_peak` the dBTP headroom, `duration`, `sample_rate` and `channels` the line under the title. Both readouts are NULLABLE and a null prints as "Not measured yet" in words - this matters more here than anywhere else in the app, because -0.0 dBTP would read as a master clipping the ceiling and 0.0 LUFS as an extraordinarily loud one, so a zero standing in for an absence would be alarming and wrong. A genuine 0.0 still prints. No bit depth appears anywhere: track_analysis has no bit-depth column, so the unit does not print one. The needles are studio_room.needle(), mapping -30..0 LUFS onto the dial and clamping at both ends - a picture of the figure printed above, never a substitute. The path counts os_tracks, the measurement's own date, release_ready_store.stored_masters (a master the account OWNS, not a job that was started), artwork_config.list_uploads, and artist_os.clean_release over the catalogue; "Ready" is None until something is checked, never a zero.
+- The photo-plate method, as the homepage EQ uses it: the hardware is ONE photograph, static/img/studio-bus-plate.webp (2000x667, 95KB), and only the moving parts are drawn on it - the cover into the bay, the title and waveform into the display, the two figures into the LCD windows, and the two needles. Every region is a FRACTION of the plate, measured off the file itself with PIL and recorded in static/css/studio-room.css (bay 8.25%/11.84%/17.45%/67.62%, display 29.10%/12.14%/47.05%/37.03%, LCDs at 84.5% wide 12.0% with tops at 11.99% and 35.38%, dial centres 46.77% and 58.00%, needle pivot 84.5%). If the plate is ever regenerated those must be re-measured: the windows move and nothing in code will say so. Nothing on this screen is a vector drawing of a machine - the Stage room was withdrawn the same day for exactly that.
+- Two tiles, not one: Release-Ready and Mix Check both answer "is this master ready" and the owner's mockup drew one Master Check tile, but they are still two pages, and one door over two pages is a door that lies (owner, 2026-09-22). They become one tile when they become one page.
+- Routes: GET /room/studio (dispatched from /room/<room_key>)
+- Files: app.py room_screen() -> app.py _studio_room(); studio_room.py STEPS, clock(), decibels(), source_line(), title_of(), analyser(), needle(), covers(), path(), build(); templates/room_studio.html; static/css/studio-room.css; static/img/studio-bus-plate.webp; rooms.py ROOMS["studio"]; stores db.py (track_analysis, os_tracks), release_ready_store.py, artwork_config.py
+- Access: Any signed-in account, as /room/<key>: no tier gate. Team seats need the "studio" room ticked; a tile whose page the seat cannot open is dropped. Anonymous redirected to /login.
+
 **Artwork upload, save and delete**
 
 Bring your own cover into the designer, pull a generated image into uploads, and take either back off the disk.

@@ -4789,9 +4789,69 @@ def create_app():
             return _analytics_room(user, room)
         if room_key == "stage":
             return _stage_room(user, room)
+        if room_key == "studio":
+            return _studio_room(user, room)
         return render_template("room.html", active_page="room-" + room_key,
                                room=room, room_images=rooms.images(),
                                **build_dashboard_context())
+
+    def _studio_room(user, room):
+        """The Studio room as one screen (owner's mockup, 2026-09-22).
+
+        It opens on the Rack's last measurement, on a photographed unit -
+        the artist's cover in the bay, the waveform in the display, and the
+        two figures read out on the hardware rather than in a strip of stat
+        cards above it. Every number is the Rack's own, to ITU-R BS.1770.
+        """
+        import release_ready_store
+        import studio_room
+
+        analysis = store.latest_track_analysis(user["id"])
+        tracks = store.list_os_tracks(user["id"])
+
+        try:
+            art_files = artwork_config.list_uploads(user["id"], _uploads_dir())
+        except Exception:
+            art_files = []
+
+        try:
+            masters = len(release_ready_store.stored_masters(user["id"]) or ())
+        except Exception:
+            masters = 0
+
+        # "Ready" is the catalogue's own Clean Release reading, and it is
+        # None when nothing has been checked - never a zero.
+        ready = None
+        if tracks:
+            osctx = _os_ctx(user["id"])
+            clean = [artist_os.clean_release(t, osctx) for t in tracks]
+            blocked = sum(1 for c in clean if c.get("blocked"))
+            ready = ("%d blocked" % blocked) if blocked else "Clear to submit"
+
+        measured_label = None
+        if analysis and analysis.get("measured_at"):
+            day = str(analysis["measured_at"])[:10]
+            measured_label = ("Last measured today"
+                              if day == datetime.now(timezone.utc).date().isoformat()
+                              else "Last measured %s" % day)
+
+        cover = ""
+        for f in art_files or ():
+            if f.get("url"):
+                cover = f["url"]
+                break
+
+        seat = current_team_seat()
+        can_open = None if seat is None else (
+            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        sd = studio_room.build(analysis, cover, art_files, len(tracks), masters,
+                               ready, cards,
+                               artist_name=artist_identity.display_name(user),
+                               measured_label=measured_label,
+                               sample=_session_is_demo(), can_open=can_open)
+        return render_template("room_studio.html", active_page="room-studio",
+                               room=room, sd=sd, **build_dashboard_context())
 
     def _stage_room(user, room):
         """The Stage room as one screen (owner's mockup, 2026-09-22).

@@ -1,219 +1,170 @@
-# -*- coding: utf-8 -*-
-"""Ask the Room.
+"""The Studio Room: the room's opening screen (owner's mockup, 2026-09-22).
 
-The property under test is not cleverness - it is grounding. Every answer
-must come from what the project actually holds, carry the spec's structure
-(observation / why / confidence / missing / action), admit what a stereo
-master cannot reveal, and never claim to have heard anything. A room that
-guesses fluently is worse than no room at all.
+It opens on a photographed master bus analyser carrying the artist's last
+measured master. What these lock:
+
+  a null reading is WORDS, never 0 - -0.0 dBTP would read as a clipping master
+  no bit depth is printed, because the Rack does not store one
+  the figures live on the unit, not in a strip of stat cards above it
+  Release-Ready and Mix Check are two tiles, because they are two pages
+  the hardware is a photograph; only the moving parts are drawn
 """
-import io
-import json
-import math
-import os
-import struct
 import uuid
 
 import pytest
 
-import studio_room
+import app as appmod
+import db as store
+import studio_room as sd
+
+PW = "studio-room-1"
 
 
-MEASURED = {"integrated": -6.2, "true_peak": -0.2, "lra": 2.1, "bpm": 120.1,
-            "bpm_confidence": 0.9, "key": "A minor", "key_fit": 0.49,
-            "loudest_at": 74.0}
+@pytest.fixture(autouse=True)
+def _open(monkeypatch):
+    monkeypatch.setenv("SIGNUP_MODE", "open")
 
 
-def _ctx(**over):
-    base = {"measurements": {}, "findings": [], "comments": [], "versions": [],
-            "checklist": [], "rail": [], "masters": [], "project": {}}
-    base.update(over)
-    return base
+def _room(page):
+    return page.split("<!--room:studio-->", 1)[1].split("<!--/room:studio-->")[0]
 
 
-# --- the structure ------------------------------------------------------------
-
-def test_every_answer_carries_the_spec_structure():
-    questions = ["what is blocking the release", "is this too compressed",
-                 "is it clipping", "why does my vocal disappear on the phone",
-                 "what changed between versions", "what notes are open",
-                 "what should I send the engineer", "what bpm is it",
-                 "how do i become famous"]
-    for q in questions:
-        a = studio_room.ask(q, _ctx(measurements=MEASURED))
-        for key in ("observation", "why", "confidence", "action", "topic"):
-            assert key in a, (q, key)
-        assert a["confidence"] in ("strong", "moderate", "limited"), q
+def _account(name="Studio Artist"):
+    email = "sdroom-%s@example.net" % uuid.uuid4().hex[:8]
+    c = appmod.app.test_client()
+    c.post("/signup", data={"name": name, "email": email, "password": PW})
+    uid = store.get_user_by_email(email)["id"]
+    c.post("/login", data={"email": email, "password": PW})
+    return c, uid
 
 
-def test_the_room_never_claims_to_have_ears():
-    """The one hard rule. Nothing here listened to anything."""
-    for q in ("is this too compressed", "vocal on the phone", "low end ready",
-              "chorus feels smaller", "what next", "nonsense question"):
-        a = studio_room.ask(q, _ctx(measurements=MEASURED))
-        text = json.dumps(a).lower()
-        for banned in ("i heard", "i listened", "sounds like", "i can hear"):
-            assert banned not in text, (q, banned)
+# --- a null is never a zero, and here it matters more than usual ----------
+
+def test_an_unmeasured_reading_is_words_not_zero():
+    """-0.0 dBTP would read as a master clipping the ceiling and 0.0 LUFS as
+    an extraordinarily loud one. Either would be alarming and wrong."""
+    got = sd.decibels(None, "LUFS")
+    assert got["value"] == "Not measured yet"
+    assert got["measured"] is False
+    assert "0" not in got["value"]
 
 
-# --- grounding ----------------------------------------------------------------
-
-def test_a_loudness_answer_cites_the_measured_number():
-    a = studio_room.ask("is this too compressed?", _ctx(measurements=MEASURED))
-    assert "-6.2" in a["observation"]
-    assert "2.1" in a["observation"]
-    assert a["confidence"] in ("strong", "moderate")
+def test_a_real_reading_keeps_its_sign_and_one_decimal():
+    assert sd.decibels(-9.8, "LUFS") == {"value": "-9.8", "unit": "LUFS", "measured": True}
+    assert sd.decibels(-1.2, "dBTP")["value"] == "-1.2"
 
 
-def test_an_unmeasured_project_admits_it_rather_than_guessing():
-    a = studio_room.ask("is this too loud?", _ctx())
-    assert "not been measured" in a["observation"]
-    assert a["confidence"] == "limited"
-    assert a["missing"]
+def test_a_genuine_zero_is_still_printed():
+    """0.0 dBTP is a measurement somebody took: a master right on the
+    ceiling. It must not be mistaken for the absence."""
+    got = sd.decibels(0.0, "dBTP")
+    assert got["value"] == "0.0" and got["measured"] is True
 
 
-def test_vocal_questions_admit_the_stereo_limit():
-    """"Vocal Translation 82" on a bare stereo file is the fabrication the
-    spec forbids; the room's version of that answer is the truth."""
-    a = studio_room.ask("why does my vocal disappear on the phone?",
-                        _ctx(measurements=MEASURED))
-    assert "cannot be measured" in a["observation"]
-    assert a["confidence"] == "limited"
-    assert "stems" in a["missing"]
-    assert "Phone" in a["action"]          # points at the real sim chips
+# --- the unit prints only what was read ----------------------------------
+
+def test_no_bit_depth_is_printed_because_none_is_stored():
+    """track_analysis stores sample_rate and channels and has NO bit-depth
+    column, so a "24-bit" on the unit would be a number nobody read off the
+    file."""
+    line = sd.source_line({"duration": 168, "sample_rate": 44100, "channels": 2})
+    assert "44.1 kHz" in line and "Stereo" in line and "2:48" in line
+    assert "bit" not in line.lower()
 
 
-def test_the_vocal_answer_surfaces_a_matching_open_note():
-    a = studio_room.ask("vocal buried?", _ctx(
-        measurements=MEASURED,
-        comments=[{"status": "open", "body": "vocal buried under the synth",
-                   "start_seconds": 84.0}]))
-    assert "vocal buried under the synth" in a["observation"]
-    assert "1:24" in a["observation"]
+def test_the_title_is_the_file_s_own_name_without_its_extension():
+    assert sd.title_of({"filename": "Higher Places.wav"}) == "Higher Places"
+    assert sd.title_of({"filename": ""}) == "Untitled measurement"
+    assert sd.title_of(None) == ""
 
 
-def test_blocking_answers_read_the_real_checklist():
-    a = studio_room.ask("what is blocking the release?", _ctx(checklist=[
-        {"key": "locked", "label": "A version is locked", "ok": False,
-         "required": True, "detail": "Lock the version that ships."},
-        {"key": "title", "label": "The project has a title", "ok": True,
-         "required": True, "detail": "Signal Fire"},
-    ]))
-    assert "1 required check" in a["observation"]
-    assert "version is locked" in a["observation"].lower()
-
-    done = studio_room.ask("what is blocking the release?", _ctx(checklist=[
-        {"key": "locked", "label": "A version is locked", "ok": True,
-         "required": True, "detail": "ok"}]))
-    assert "Every required delivery check is met" in done["observation"]
+def test_a_track_with_no_duration_says_nothing_rather_than_zero():
+    assert sd.clock(None) == "" and sd.clock(0) == ""
+    assert sd.clock(168) == "2:48"
 
 
-def test_what_next_puts_a_blocking_finding_first():
-    a = studio_room.ask("what should I fix first?", _ctx(
-        measurements=MEASURED,
-        findings=[{"status": "open", "severity": "blocking",
-                   "category": "true_peak", "start_seconds": 42.0,
-                   "explanation": "Over the ceiling.",
-                   "recommendation": "Bring it under -1 dBTP."}]))
-    assert "true peak" in a["observation"]
-    assert "0:42" in a["observation"]
-    assert a["confidence"] == "strong"
+# --- the needles are a picture of the figure, never a substitute ---------
+
+def test_a_needle_rests_at_the_bottom_when_nothing_was_measured():
+    assert sd.needle(None) == 0.0
 
 
-def test_version_comparison_reports_the_record_and_names_its_limit():
-    a = studio_room.ask("what changed between mix versions?", _ctx(
-        versions=[{"version_name": "Master A",
-                   "change_summary": "Normalised for Spotify: -6.2 to -14.0"},
-                  {"version_name": "Source", "change_summary": "Uploaded"}]))
-    assert "-6.2 to -14.0" in a["observation"]
-    assert "not built" in a["why"] or "not built" in (a["missing"] or "")
+def test_a_needle_maps_loudness_onto_the_dial_and_cannot_leave_it():
+    assert sd.needle(-30) == 0.0
+    assert sd.needle(-15) == 0.5
+    assert sd.needle(0) == 1.0
+    assert sd.needle(-60) == 0.0, "quieter than the dial still parks at rest"
+    assert sd.needle(12) == 1.0, "and louder than the dial cannot overshoot it"
 
 
-def test_the_fallback_lists_what_it_can_answer_instead_of_bluffing():
-    a = studio_room.ask("what color should the album art be?",
-                        _ctx(measurements=MEASURED))
-    assert a["topic"] == "fallback"
-    assert "blocking the release" in a["action"]
+# --- the five circles ----------------------------------------------------
+
+def test_the_path_says_what_each_step_counted():
+    steps = {s["key"]: s for s in sd.path(3, "Last measured today", 0, 2, None)}
+    assert steps["tracked"]["line"] == "3 tracks"
+    assert steps["measured"]["line"] == "Last measured today"
+    assert steps["mastered"]["line"] == "No master yet"
+    assert steps["art"]["line"] == "2 covers"
+    assert steps["ready"]["line"] == "Never checked"
+    assert steps["mastered"]["reached"] is False
+    assert steps["ready"]["reached"] is False
 
 
-def test_no_answer_promises_commercial_success():
-    for q in ("will this be a hit", "what next", "is this ready"):
-        text = json.dumps(studio_room.ask(q, _ctx(measurements=MEASURED))).lower()
-        for banned in ("hit", "viral", "chart"):
-            assert banned not in text, (q, banned)
+def test_an_empty_account_reaches_nothing_and_says_so():
+    steps = sd.path(0, None, 0, 0, None)
+    assert not any(s["reached"] for s in steps)
+    assert [s["line"] for s in steps] == [
+        "No tracks yet", "Never measured", "No master yet",
+        "No art yet", "Never checked"]
 
 
-# --- the route ----------------------------------------------------------------
+# --- the tiles -----------------------------------------------------------
 
-@pytest.fixture(scope="module")
-def application():
-    os.environ["STUDIO_V1_ENABLED"] = "1"
-    import app as appmod
-    return appmod.app
-
-
-def _artist(application):
-    email = "rm-%s@example.net" % uuid.uuid4().hex[:8]
-    client = application.test_client()
-    client.post("/signup", data={"name": "Artist", "email": email,
-                                 "password": "rm-pass-123"})
-    client.post("/login", data={"email": email, "password": "rm-pass-123"})
-    return client
+def test_release_ready_and_mix_check_are_two_tiles_because_they_are_two_pages():
+    """Owner, 2026-09-22: "if it's going to be two doors, then leave it two
+    tiles." His mockup drew one Master Check tile; that needs the two pages
+    merged first, and until then one tile would be a door that lies."""
+    cards = {k: ("/" + k, "M1", k.title(), "desc") for k in
+             ("rack", "release-ready", "studio", "remix-lab", "audio-studio",
+              "artwork")}
+    keys = [t["key"] for t in sd.build(None, "", [], 0, 0, None, cards)["tiles"]]
+    assert keys == ["rack", "release-ready", "studio", "remix-lab",
+                    "audio-studio", "artwork"]
 
 
-def _project_with_audio(client):
-    pid = client.post("/studio/new", data={
-        "title": "Signal Fire", "project_type": "master_single"}
-    ).headers["Location"].rstrip("/").split("/")[-1]
-    client.post("/studio/session/%s/rights" % pid,
-                data={"confirmed_by": "Artist"})
-    rate = 8000
-    frames = b"".join(struct.pack("<h", int(8000 * math.sin(2 * math.pi * 220 * n / rate)))
-                      for n in range(rate))
-    wav = (b"RIFF" + struct.pack("<I", 36 + len(frames)) + b"WAVEfmt "
-           + struct.pack("<IHHIIHH", 16, 1, 1, rate, rate * 2, 2, 16)
-           + b"data" + struct.pack("<I", len(frames)) + frames)
-    client.post("/studio/session/%s/upload" % pid,
-                data={"file": (io.BytesIO(wav), "m.wav")},
-                content_type="multipart/form-data")
-    return pid
+def test_a_seat_that_cannot_open_a_page_is_not_shown_its_tile():
+    cards = {"rack": ("/rack", "M1", "The Rack", "x"),
+             "artwork": ("/artwork", "M1", "Cover Art", "y")}
+    out = sd.build(None, "", [], 0, 0, None, cards,
+                   can_open=lambda href: href != "/artwork")
+    assert [t["key"] for t in out["tiles"]] == ["rack"]
 
 
-def test_the_panel_renders_the_answer_in_the_cockpit(application):
-    client = _artist(application)
-    pid = _project_with_audio(client)
-    response = client.post("/studio/session/%s/room" % pid,
-                           data={"q": "what is blocking the release?"},
-                           follow_redirects=True)
-    body = response.get_data(as_text=True)
-    assert "Ask the Room" in body
-    assert "Observation" in body
-    assert "required check" in body
-    assert "Confidence:" in body
+# --- the page itself ------------------------------------------------------
+
+def test_an_empty_account_opens_on_the_unit_not_on_an_empty_state():
+    """The room opens on the instrument whatever the account holds - the
+    same mistake as Stage, made once and not again. The plate is always
+    drawn; only its windows are empty."""
+    c, _uid = _account()
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    assert "studio-bus-plate" in body, "the photographed unit is always there"
+    assert "No master measured yet" in body
+    assert "No artwork yet" in body
+    assert body.count("Not measured yet") == 2, "both readouts, in words"
+    assert "rk-calm" not in body, "no collapsed empty state stood in for it"
 
 
-def test_another_account_cannot_ask_about_your_project(application):
-    client = _artist(application)
-    pid = _project_with_audio(client)
-    other = _artist(application)
-    assert other.post("/studio/session/%s/room" % pid,
-                      data={"q": "anything"}).status_code == 404
+def test_the_standard_is_named_because_a_loudness_figure_needs_one():
+    c, _uid = _account()
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    assert "ITU-R BS.1770" in body and "EBU R128" in body
+    assert "encoder has the last word" in body
 
 
-def test_studio_front_door_is_a_page_with_the_cockpit_one_click_away(application):
-    """The owner looked at /studio twice and saw no updates while the console
-    sat one click away - so for a while /studio redirected into it. That
-    landed him inside the same project every time and read as broken. It is
-    a page again: the newest project is offered as Continue working, and
-    its Mix and Master rooms are on the card once it has audio."""
-    client = _artist(application)
-    pid = _project_with_audio(client)
-    response = client.get("/studio")
-    assert response.status_code == 200
-    body = response.get_data(as_text=True)
-    assert "/studio/session/%s" % pid in body
-    assert "/studio/session/%s/mix" % pid in body
-    assert "/studio/session/%s/master" % pid in body
-
-    fresh = _artist(application)
-    assert fresh.get("/studio").status_code == 200   # no project: the start page
+def test_the_room_never_claims_a_track_is_released_or_approved():
+    c, _uid = _account()
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    for claim in ("Approved", "Released", "Will pass", "Guaranteed",
+                  "Ready for Spotify"):
+        assert claim not in body, claim
