@@ -12,8 +12,8 @@
      the knob            output level, which is a real range input underneath
 
    The <audio> element keeps its id and its ARIA label and stays the thing
-   that actually plays, so the page works with this script absent, and below
-   900px the plain controls are what is shown.
+   that actually plays, so the page works with this script absent, and in a
+   column too narrow for the faceplate the plain controls are what is shown.
 
    Nothing here invents a figure. With no audio yet the window says so
    rather than drawing a waveform that is not of anything. */
@@ -263,7 +263,8 @@
         var h = Math.max(1, this.wave[i] * (H / 2 - pad) * 2);
         var past = (i / n) <= at;
         g.fillStyle = past ? gold : dim;
-        g.globalAlpha = past ? 0.95 : 0.34;
+        // 0.34 vanished into the glass. The played part still leads.
+        g.globalAlpha = past ? 1 : 0.55;
         g.fillRect(i * bw, mid - h / 2, Math.max(1, bw - this.dpr), h);
       }
       g.globalAlpha = 1;

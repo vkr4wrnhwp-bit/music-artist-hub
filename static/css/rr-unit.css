@@ -16,15 +16,20 @@
    The knob sprite is cut from this same photograph, so it rotates onto its
    own footprint and no sliver of the original can show at its edge.
 
-   Below 900px the photograph is dropped and the plain controls stand on
-   their own: the unit is a skin, never the only way to use the player. */
+   In a column too narrow for it the photograph is dropped and the plain
+   controls stand on their own: the unit is a skin, never the only way to
+   use the player. */
 
 .rr-unit-wrap { container-type: inline-size; width: 100%; }
 
 .rr-unit { display: none; }
 .rr-unit-plain { display: block; }
 
-@container (min-width: 900px) {
+/* 700px, not 900: measured against the column the unit really sits in -
+   a preview card inside the previews section - not against the window.
+   At 700px the faceplate is 152px tall and its lenses about 9px, which
+   still reads as the unit it is a photograph of. */
+@container (min-width: 700px) {
   .rr-unit { display: block; }
   .rr-unit-plain { display: none; }
 }
@@ -54,7 +59,11 @@
   cursor: pointer; color: inherit; display: block;
 }
 .rr-unit-screen canvas { display: block; width: 100%; height: 100%; }
-.rr-unit-screen { --wave: var(--sb-gold-bright); --wave-rest: var(--sb-ink-2); }
+/* The part of the waveform not yet played is still lit glass, not grey
+   text: a neutral at low alpha disappears into a window this dark, and
+   a black box on black is the one thing this page must not be. It is
+   the same gold, held back. */
+.rr-unit-screen { --wave: var(--sb-gold-bright); --wave-rest: var(--sb-gold); }
 .rr-unit-screen:focus-visible { outline: 2px solid var(--sb-focus); outline-offset: 3px; }
 .rr-unit[data-state="working"] .rr-unit-screen { cursor: progress; }
 

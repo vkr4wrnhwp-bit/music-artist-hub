@@ -9,8 +9,8 @@ asserted here, against the same numbers the crop was taken with.
 
 The other thing held here is that the photograph is a skin and never the
 only way to use the player: the <audio> element keeps its id and its ARIA
-label, it is what actually plays, and below 900px the plain controls are
-what a reader gets.
+label, it is what actually plays, and in a column too narrow for it the
+plain controls are what a reader gets.
 """
 import io
 import os
@@ -126,9 +126,43 @@ def test_the_plain_player_is_what_a_narrow_column_gets(css):
         "the photograph has to be off by default and switched on by the "
         "container query, so a column that never matches still has a player")
     query = re.search(r"@container\s*\(min-width:\s*(\d+)px\)\s*\{([^}]*\}[^}]*)\}", css)
-    assert query and int(query.group(1)) == 900
+    # Measured against the column the unit sits in - a preview card - not
+    # the window. At 900 it never appeared at all: two-across preview
+    # cards are about 500px even on a wide screen.
+    assert query and int(query.group(1)) == 700
     assert ".rr-unit { display: block" in query.group(2)
     assert ".rr-unit-plain { display: none" in query.group(2)
+
+
+def test_the_unit_can_actually_appear_where_it_lives():
+    """The one that was missed, and shipped.
+
+    The unit was tested on its own, where it had a whole page to sit in, and
+    pushed to staging with a 900px threshold. On the real page previews sat
+    two across, so each card was about 500px even on a 1440px screen, and
+    the faceplate could not appear anywhere at any window size: the page
+    carried the photograph and showed the plain audio bar.
+
+    So the threshold is not a free number. It has to be reachable inside a
+    preview card, and that depends on how the previews are laid out - which
+    is in a different stylesheet, which is exactly why nothing caught it."""
+    rr = _read("static/css/release_ready.css")
+    grid = re.search(r"\.rr-prevs\s*\{([^}]*)\}", rr)
+    assert grid, "no previews grid"
+    cols = re.search(r"grid-template-columns:\s*([^;]+)", grid.group(1))
+    assert cols, "the previews grid sets no columns"
+    assert "repeat(" not in cols.group(1), (
+        "previews are back to more than one column; a card is then about "
+        "500px and the faceplate cannot show at any window size")
+
+    query = re.search(r"@container\s*\(min-width:\s*(\d+)px\)",
+                      _read("static/css/rr-unit.css"))
+    # A single-column card inside the previews section is roughly the page
+    # column less its padding. 700 clears that on a normal desktop; 900 did
+    # not clear it even at 1440.
+    assert query and int(query.group(1)) <= 760, (
+        "the threshold has to be reachable inside a preview card, not just "
+        "in a test page of its own")
 
 
 def test_the_audio_element_is_the_player_and_keeps_its_name():
