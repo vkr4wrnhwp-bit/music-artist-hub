@@ -3,7 +3,7 @@
 {% block title %}Studio Room{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
-  <link rel="stylesheet" href="/static/css/studio-room.css?v=1">
+  <link rel="stylesheet" href="/static/css/studio-room.css?v=2">
 {% endblock %}
 
 {#- THE STUDIO ROOM - the owner's mockup, 2026-09-22, and his brief for every
@@ -77,7 +77,7 @@
   <section class="sd-unit{% if not a.measured %} is-idle{% endif %}"
            aria-label="{% if a.measured %}Your last measured master, {{ a.title }}{% else %}The master bus analyser, with nothing measured yet{% endif %}">
     <img class="sd-plate" src="/static/img/studio-bus-plate.webp" alt=""
-         width="2000" height="656" decoding="async">
+         width="1993" height="640" decoding="async">
 
     {# the bay: the artist's own cover, or an empty sleeve #}
     <div class="sd-bay">
@@ -96,9 +96,9 @@
       {% if a.measured %}
       <p class="sd-track">{{ a.title }}</p>
       <p class="sd-source">{% if sd.artist_name %}{{ sd.artist_name }} &middot; {% endif %}{{ a.source }}</p>
-      {#- The waveform is drawn from the measurement's own shape where one
-          was stored; until then the display carries the reading rather than
-          a shape nobody measured. -#}
+      {#- NOT a waveform: the Rack stores numbers, not a shape, so bars here
+          would be inventing this artist's audio. It is the meter's own lit
+          baseline. -#}
       <div class="sd-wave" aria-hidden="true"></div>
       {% else %}
       <p class="sd-track sd-track--none">No master measured yet</p>
@@ -137,17 +137,25 @@
     </ol>
   </section>
 
-  {# ---- cover art ------------------------------------------------------- #}
+  {# ---- cover art ------------------------------------------------------
+       Owner, 2026-09-22: one small dashed box saying "create cover art" is
+       "not engaging ... not anything that is going to entice anybody to use
+       the page". So with nothing on file this is the invitation, at the
+       size the thing deserves: what the generator makes, in the generator's
+       own words, with one gold button. With covers on file it is their
+       gallery and the invitation becomes the last frame. #}
   <section class="rk-panel" aria-labelledby="sd-art-h">
     <div class="rk-panel-head">
       <div>
         <h2 class="rk-h" id="sd-art-h">Cover art</h2>
-        <p class="rk-said">Your own covers, newest first.</p>
+        <p class="rk-said">{% if sd.covers.total %}Your own covers, newest first.{% else %}Every release needs one. Make it here.{% endif %}</p>
       </div>
       {% if sd.covers.more %}
-      <a class="rk-more" href="/artwork">View all{{ icon("arrow", "rk-ico rk-ico--sm") }}</a>
+      <a class="rk-more" href="/artwork">View all {{ sd.covers.total }}{{ icon("arrow", "rk-ico rk-ico--sm") }}</a>
       {% endif %}
     </div>
+
+    {% if sd.covers.total %}
     <div class="sd-covers">
       {% for c in sd.covers.shown %}
       <a class="sd-cover" href="/artwork" title="{{ c.name }}">
@@ -157,9 +165,26 @@
       <a class="sd-cover sd-cover--new" href="/artwork">
         <span class="sd-new-ring">{{ icon("plus", "rk-ico") }}</span>
         <b>Create new art</b>
-        <span>Turn your sound into a cover.</span>
       </a>
     </div>
+    {% else %}
+    <div class="sd-art-invite">
+      <div class="sd-art-said">
+        <p class="sd-art-h">Turn your sound into a cover.</p>
+        <p class="sd-art-p">Describe the record and the generator makes artwork at
+          release size, yours to keep and re-run until it is right. Sleeves you upload
+          live here beside them.</p>
+        <a class="rk-cta" href="/artwork">{{ icon("artwork", "rk-ico") }}Make a cover</a>
+      </div>
+      {#- Frames, not pictures. Nothing here pretends to be art this account
+          made - they are the shape of what the generator returns. -#}
+      <div class="sd-art-frames" aria-hidden="true">
+        <span class="sd-frame sd-frame--a"></span>
+        <span class="sd-frame sd-frame--b"></span>
+        <span class="sd-frame sd-frame--c"></span>
+      </div>
+    </div>
+    {% endif %}
   </section>
 
   {# ---- closing tiles --------------------------------------------------- #}

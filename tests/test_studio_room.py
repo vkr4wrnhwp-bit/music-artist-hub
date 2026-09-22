@@ -168,3 +168,44 @@ def test_the_room_never_claims_a_track_is_released_or_approved():
     for claim in ("Approved", "Released", "Will pass", "Guaranteed",
                   "Ready for Spotify"):
         assert claim not in body, claim
+
+
+def test_the_plate_has_a_container_context_for_its_own_text():
+    """The bug the owner saw: "studio looks terrible".
+
+    Every text size on the plate is a clamp() in cqw, because the unit
+    scales and its windows are fractions. cqw resolves against an
+    inline-size container and there was none, so every one of those
+    declarations was invalid and the plate's text fell back to page-sized
+    type and burst out of its windows.
+
+    cqh does NOT resolve against an inline-size container, which is why
+    nothing here may be sized off the height.
+    """
+    import io as _io
+    import os as _os
+    here = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    css = _io.open(_os.path.join(here, "static", "css", "studio-room.css"),
+                   encoding="utf-8").read()
+    unit = css.split(".sd-unit {", 1)[1].split("}", 1)[0]
+    assert "container-type: inline-size" in unit, (
+        "cqw sizes on the plate need an inline-size container or they are "
+        "all invalid")
+    # Comments stripped first: this file EXPLAINS the cqh trap in prose, and
+    # the first cut of this test failed on its own explanation.
+    import re as _re
+    code = _re.sub(r"/\*.*?\*/", "", css, flags=_re.S)
+    assert "cqh" not in code, "cqh does not resolve against an inline-size container"
+
+
+def test_the_display_does_not_draw_a_waveform_nobody_measured():
+    """The Rack stores numbers, not a shape. Bars across the display would
+    be inventing the artist's audio - and the striped gradient that first
+    stood in for one looked like a barcode."""
+    import io as _io
+    import os as _os
+    here = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    css = _io.open(_os.path.join(here, "static", "css", "studio-room.css"),
+                   encoding="utf-8").read()
+    wave = css.split(".sd-wave {", 1)[1].split("}", 1)[0]
+    assert "repeating-linear-gradient" not in wave

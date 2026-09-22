@@ -19,19 +19,25 @@
 
 .sd-unit {
   position: relative; width: 100%; margin: 0 auto; line-height: 0;
+  /* EVERY cqw below needs this and it was missing, so every clamp() was
+     invalid and the plate's text fell back to page-sized type and burst out
+     of its windows. cqw resolves against an inline-size container; cqh does
+     NOT, which is why nothing here is sized off the height. */
+  container-type: inline-size;
   /* --- plate regions, MEASURED off static/img/studio-bus-plate.webp
-         (2000x667) with PIL, as fractions, so the overlays hold their
-         windows at any width. Re-measure if the plate is ever regenerated:
-         the windows move and nothing in code will tell you. --------------- */
-  --bay-x: 8.25%;   --bay-y: 11.84%;  --bay-w: 17.45%; --bay-h: 67.62%;
-  --disp-x: 29.10%; --disp-y: 12.14%; --disp-w: 47.05%; --disp-h: 37.03%;
-  --lcd-x: 84.5%;   --lcd-w: 12.0%;
-  --lcd-top-y: 11.99%; --lcd-top-h: 16.34%;
-  --lcd-bot-y: 35.38%; --lcd-bot-h: 15.74%;
-  /* The dials: centres and the pivot the needle swings from, which on a VU
-     is below the face, not at its middle. */
-  --vu-l-x: 46.77%; --vu-r-x: 58.00%;
-  --vu-pivot-y: 84.5%; --vu-len: 17%;
+         (1993x640, cropped from the original and border-white cleared to
+         alpha - it was RGB on a white ground and the corners showed).
+         RE-MEASURE IF THE PLATE IS EVER REGENERATED OR RE-CROPPED: cropping
+         moves every fraction and nothing in code will tell you. ---------- */
+  --bay-x: 8.08%;   --bay-y: 12.34%; --bay-w: 17.51%; --bay-h: 70.47%;
+  --disp-x: 29.00%; --disp-y: 12.66%; --disp-w: 47.22%; --disp-h: 38.75%;
+  --lcd-x: 84.6%;   --lcd-w: 12.0%;
+  --lcd-top-y: 12.50%; --lcd-top-h: 17.19%;
+  --lcd-bot-y: 36.88%; --lcd-bot-h: 16.41%;
+  /* The dials, and the pivot a VU needle swings from - below the face. */
+  --vu-l-x: 46.74%; --vu-r-x: 58.00%;
+  --vu-pivot-y: 88%; --vu-len: 18%;
+
 }
 .sd-plate { display: block; width: 100%; height: auto; }
 
@@ -54,27 +60,28 @@
 .sd-display {
   position: absolute; left: var(--disp-x); top: var(--disp-y);
   width: var(--disp-w); height: var(--disp-h);
-  padding: 2.2% 2.6%; line-height: 1.3; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 0 3%; line-height: 1.25; overflow: hidden;
 }
 .sd-track { margin: 0; font-size: clamp(14px, 1.6cqw, 26px); font-weight: 800; color: var(--sb-ink); }
 .sd-track--none { color: var(--sb-ink-2); }
 .sd-source { margin: 2px 0 0; font-size: clamp(9px, 0.85cqw, 13px); color: var(--sb-ink-2); }
 .sd-wave {
-  margin-top: 6%; height: 46%;
-  /* The waveform the Rack measured. Until a stored shape exists this is the
-     instrument's own idle trace, and the display says in words that nothing
-     has been measured - it is never presented as the artist's audio. */
-  background:
-    repeating-linear-gradient(90deg,
-      var(--sb-gold-bright) 0 1px, transparent 1px 4px);
-  -webkit-mask-image: linear-gradient(180deg, transparent 6%, #000 20%, #000 80%, transparent 94%);
-  mask-image: linear-gradient(180deg, transparent 6%, #000 20%, #000 80%, transparent 94%);
-  opacity: .75;
+  /* NOT a waveform. The Rack stores numbers, not a shape, so drawing bars
+     here would be inventing the artist's audio - and the striped gradient
+     that first stood in for it looked like a barcode. This is the meter's
+     own baseline: one lit trace across the display, which is honest about
+     being an instrument at rest rather than a picture of their music. */
+  margin-top: 4%; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%, color-mix(in srgb, var(--sb-gold-bright) 70%, transparent) 12%,
+    var(--sb-gold-bright) 50%,
+    color-mix(in srgb, var(--sb-gold-bright) 70%, transparent) 88%, transparent 100%);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--sb-gold) 45%, transparent);
 }
 .sd-wave.is-flat {
-  background: linear-gradient(180deg, transparent 49%, var(--sb-line-strong) 49%,
-              var(--sb-line-strong) 51%, transparent 51%);
-  opacity: 1;
+  background: var(--sb-line-strong);
+  box-shadow: none;
 }
 
 /* ---- the two readouts -------------------------------------------------- */
@@ -144,4 +151,37 @@
      read. */
   .sd-unit { --disp-h: 46%; }
   .sd-lcd-l { display: none; }
+}
+
+/* The invitation, when there is no art yet. It is the size the thing
+   deserves rather than one dashed square (owner, 2026-09-22: "that is not
+   engaging"). The frames are frames - nothing here pretends to be artwork
+   this account made. */
+.sd-art-invite {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 24px; align-items: center; margin-top: 14px;
+}
+.sd-art-said { min-width: 0; }
+.sd-art-h { margin: 0; font-family: var(--sb-display); font-size: 30px; line-height: 1.1;
+  font-weight: 800; font-variation-settings: "wdth" 112; color: var(--sb-ink); }
+.sd-art-p { margin: 10px 0 18px; max-width: 44ch; font-size: 14px; line-height: 1.6; color: var(--sb-ink-2); }
+.sd-art-frames { display: flex; justify-content: center; gap: 16px; padding: 8px 0; }
+.sd-frame {
+  display: block; width: 30%; max-width: 150px; aspect-ratio: 1; border-radius: var(--sb-r-control);
+  border: 1px solid var(--sb-line-strong);
+  background: linear-gradient(150deg, var(--sb-surface-2), var(--sb-ground) 70%);
+  box-shadow: var(--sb-e2);
+}
+.sd-frame--a { transform: rotate(-5deg) translateY(6px); }
+.sd-frame--c { transform: rotate(5deg) translateY(6px); }
+.sd-frame--b {
+  border-color: var(--sb-gold-line);
+  background:
+    radial-gradient(120% 120% at 30% 10%, color-mix(in srgb, var(--sb-gold) 18%, transparent), transparent 62%),
+    linear-gradient(150deg, var(--sb-surface-2), var(--sb-ground) 70%);
+}
+
+@media (max-width: 860px) {
+  .sd-art-invite { grid-template-columns: minmax(0, 1fr); }
+  .sd-art-h { font-size: 24px; }
 }
