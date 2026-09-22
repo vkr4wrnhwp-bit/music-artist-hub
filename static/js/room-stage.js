@@ -58,4 +58,30 @@
       });
     })(rows[i]);
   }
+
+  /* The Plot / Rig / Both toggle. One stage, two layers - the rig's bars
+     where they were dragged, the plot's items where the designer put them.
+     Both is the default because the whole point of one drawing is seeing
+     them together. */
+  var layers = document.querySelectorAll("[data-sg-layer]");
+  var groups = document.querySelectorAll("[data-sg-layer-g]");
+  function layer(which) {
+    for (var i = 0; i < groups.length; i++) {
+      var key = groups[i].getAttribute("data-sg-layer-g");
+      groups[i].style.display = (which === "both" || which === key) ? "" : "none";
+    }
+    for (var j = 0; j < layers.length; j++) {
+      var on = layers[j].getAttribute("data-sg-layer") === which;
+      layers[j].classList.toggle("is-on", on);
+      layers[j].setAttribute("aria-pressed", on ? "true" : "false");
+    }
+  }
+  for (var k = 0; k < layers.length; k++) {
+    (function (btn) {
+      btn.setAttribute("aria-pressed", btn.classList.contains("is-on") ? "true" : "false");
+      btn.addEventListener("click", function () {
+        layer(btn.getAttribute("data-sg-layer"));
+      });
+    })(layers[k]);
+  }
 })();

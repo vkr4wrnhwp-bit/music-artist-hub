@@ -4,7 +4,7 @@
 {% block title %}Stage Room{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
-  <link rel="stylesheet" href="/static/css/stage-room.css?v=4">
+  <link rel="stylesheet" href="/static/css/stage-room.css?v=5">
 {% endblock %}
 
 {#- THE STAGE ROOM - built from the owner's mockup image (2026-09-22).
@@ -67,6 +67,11 @@
       <div class="rk-aside">
         <div class="rk-controls">
           {% if sg.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
+          {% if sg.artist_name %}
+          <span class="rk-chip" title="The account this stage belongs to">
+            <span class="rk-avatar" aria-hidden="true">{{ (sg.artist_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ sg.artist_name }}">{{ sg.artist_name }}</span>
+          </span>
+          {% endif %}
           <a class="rk-cta" href="/lights">{{ icon("bulb", "rk-ico") }}Open Light Studio</a>
         </div>
       </div>
@@ -106,54 +111,53 @@
     </ol>
   </section>
 
-  {# ---- the Light Studio, the centrepiece ------------------------------- #}
-  <section class="rk-panel" aria-labelledby="sg-lx-h">
+  {# ---- the stage: one drawing, two layers ------------------------------
+       Owner, 2026-09-22: "can we just make this one simpler". So one panel,
+       not three columns and a timeline: the stage with a Plot / Rig / Both
+       toggle over it, and the cue list underneath. Clicking a cue lights the
+       rig; the plot layer is the same items the designer below places.
+
+       No transport and no clock. A song's length lives only in the decoded
+       audio the Studio loads in the browser (lights.js:50, buffer.duration)
+       and is on no table, so "01:24 / 04:18" could not be true here. The cue
+       list IS the timeline. #}
+  <section class="rk-panel" aria-labelledby="sg-stage-h">
     <div class="rk-panel-head sg-lx-head">
       <div>
-        <h2 class="rk-h" id="sg-lx-h">Light Studio</h2>
-        <p class="rk-said">Program and preview your show.</p>
+        <h2 class="rk-h" id="sg-stage-h">Stage view</h2>
+        <p class="rk-said">Your saved rig and plot, on one stage.</p>
       </div>
       <div class="sg-rig">
         <span class="sg-rig-name"><i class="sg-dot{% if not sg.has_show %} is-off{% endif %}"></i>{% if sg.has_show %}{{ sg.show_name or "Untitled show" }}{% else %}No show saved yet{% endif %}</span>
+        {% if sg.has_show %}
         <span>Universe {{ sg.rig.universe }}</span>
-        <span>Start address {{ sg.rig.start }}</span>
+        <span>Address {{ sg.rig.start }}</span>
         <span>{{ sg.rig.channels }} channels</span>
         <span>{{ sg.rig.fixtures }} fixture{{ "" if sg.rig.fixtures == 1 else "s" }}</span>
-        <a class="rk-more" href="/lights">{{ icon("expand", "rk-ico rk-ico--sm") }}Open</a>
+        {% endif %}
+        <span class="sg-layers" role="group" aria-label="What to show on the stage">
+          <button type="button" class="sg-layer" data-sg-layer="plot">Plot</button>
+          <button type="button" class="sg-layer" data-sg-layer="rig">Rig</button>
+          <button type="button" class="sg-layer is-on" data-sg-layer="both">Both</button>
+        </span>
       </div>
     </div>
 
-    {#- The studio is ALWAYS drawn (owner, 2026-09-22: "we did not agree to
-        have the light studio and stage block closed when you open the
-        room"). With nothing saved it is the same instrument unprogrammed -
-        the truss, the stage, the empty cue table - not a sentence where an
-        instrument should be. Showing an empty rig claims nothing; it is
-        the difference between a collapsed panel and a desk at rest. -#}
-    <div class="sg-lx">
-      {# the fixture list: what is hung, and where #}
-      <div class="sg-fixtures">
-        <p class="rk-kicker rk-kicker--sm">Fixtures</p>
-        <ul class="sg-groups">
-          {% for g in sg.groups %}
-          <li><span>{{ g.label }}</span><b>{{ g.n }}</b></li>
-          {% endfor %}
-        </ul>
-        <a class="rk-more" href="/lights">Add a fixture{{ icon("arrow", "rk-ico rk-ico--sm") }}</a>
-      </div>
+    <div class="sg-stage">
+      <svg id="sg-stage" viewBox="0 0 600 300" role="img"
+           aria-label="The stage with {{ sg.rig.fixtures }} fixtures and {{ sg.plot.items }} items"
+           style="color: {{ (sg.cues[0].colour if sg.cues else "") or "#d8b25a" }}; --sg-dim: {{ (sg.cues[0].intensity / 100) if sg.cues else 0.85 }}">
+        <defs>
+          <linearGradient id="sg-beam" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="currentColor" stop-opacity=".55"/>
+            <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <rect class="sg-floor" x="20" y="232" width="560" height="50" rx="3"/>
+        <line class="sg-truss" x1="20" y1="42" x2="580" y2="42"/>
 
-      {# the stage preview, drawn from the saved positions #}
-      <div class="sg-stage">
-        <svg id="sg-stage" viewBox="0 0 600 300" role="img"
-             aria-label="The stage with {{ sg.rig.fixtures }} fixtures in their saved positions"
-             style="color: {{ (sg.cues[0].colour if sg.cues else "") or "#d8b25a" }}; --sg-dim: {{ (sg.cues[0].intensity / 100) if sg.cues else 0.85 }}">
-          <defs>
-            <linearGradient id="sg-beam" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="currentColor" stop-opacity=".55"/>
-              <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
-            </linearGradient>
-          </defs>
-          <rect class="sg-floor" x="20" y="232" width="560" height="50" rx="3"/>
-          <line class="sg-truss" x1="20" y1="42" x2="580" y2="42"/>
+        {# the rig layer: bars where they were dragged #}
+        <g data-sg-layer-g="rig">
           {% for f in sg.fixtures %}
           {% if f.across is not none %}
           {% set x = 20 + 5.6 * f.across %}
@@ -164,47 +168,24 @@
           </g>
           {% endif %}
           {% endfor %}
-        </svg>
-        <p class="sg-stage-foot">Audience (front of house)</p>
-      </div>
+        </g>
 
-      {# the cue the preview is lit by #}
-      <div class="sg-selected">
-        <p class="rk-kicker rk-kicker--sm">Selected cue</p>
-        {% if not sg.cues %}
-        <p class="sg-sel-none">No cues programmed yet. The first look you save
-          appears here and lights the stage above.</p>
-        {% else %}
-        {% set c = sg.cues[0] %}
-        <p class="sg-sel-name" id="sg-sel-name">{{ c.name }}</p>
-        <dl class="sg-sel">
-          <dt>Group</dt><dd id="sg-sel-group">{{ c.group }}</dd>
-          <dt>Intensity</dt><dd id="sg-sel-int">{{ c.intensity }}%</dd>
-          <dt>Fade</dt><dd id="sg-sel-fade">{{ c.fade }}s</dd>
-          <dt>Colour</dt><dd><span class="sg-swatch" id="sg-sel-swatch" style="background: {{ c.colour }}"></span></dd>
-        </dl>
-        {% endif %}
-        <a class="rk-more" href="/lights">Edit in the studio{{ icon("arrow", "rk-ico rk-ico--sm") }}</a>
-      </div>
-    </div>
-
-    {# the timeline: every cue on the run, with the fade before it #}
-    <div class="sg-timeline">
-      <p class="sg-time">{{ sg.span_label }} programmed</p>
-      <svg viewBox="0 0 1000 34" preserveAspectRatio="none" role="img"
-           aria-label="{{ sg.cues|length }} cues across {{ sg.span_label }}">
-        <rect class="sg-tl-bed" x="0" y="10" width="1000" height="14" rx="3"/>
-        {% for c in sg.cues %}
-        {% set x = (1000 * c.t / (sg.span or 1))|round(1) %}
-        {% set w = (1000 * c.fade / (sg.span or 1))|round(1) %}
-        <rect x="{{ [0, x - w]|max }}" y="10" width="{{ [2, w]|max }}" height="14"
-              fill="{{ c.colour or "#d8b25a" }}" opacity=".45"/>
-        <rect class="sg-tl-cue" x="{{ x }}" y="6" width="3" height="22" fill="{{ c.colour or "#d8b25a" }}"/>
-        {% endfor %}
+        {# the plot layer: what the designer below has on the stage #}
+        <g data-sg-layer-g="plot">
+          {% for r in sg.plot.inputs[:10] %}
+          {% set px = 70 + (loop.index0 % 5) * 110 %}
+          {% set py = 120 + (40 * (loop.index0 // 5)) %}
+          <g class="sg-item">
+            <rect x="{{ px - 34 }}" y="{{ py - 13 }}" width="68" height="26" rx="3"/>
+            <text x="{{ px }}" y="{{ py + 4 }}" text-anchor="middle">{{ r.source[:10] }}</text>
+          </g>
+          {% endfor %}
+        </g>
       </svg>
+      <p class="sg-stage-foot">Audience (front of house)</p>
     </div>
 
-    {# the cue list #}
+    {# the cue list: click one and the rig above shows that look #}
     <div class="sg-scroll">
       <table class="rk-table sg-cues">
         <thead>
@@ -214,8 +195,8 @@
         </thead>
         <tbody>
           {% if not sg.cues %}
-          <tr><td class="rk-dim sg-none" colspan="7">No cues yet &mdash; open the studio
-            and the looks you programme land here, in time order.</td></tr>
+          <tr><td class="rk-dim sg-none" colspan="7">No cues yet &mdash; the looks you
+            programme in the Studio land here, in time order.</td></tr>
           {% endif %}
           {% for c in sg.cues %}
           <tr class="sg-cue{% if loop.first %} is-on{% endif %}" data-sg-cue
@@ -229,16 +210,15 @@
             <td class="rk-dim">{{ c.group }}</td>
             <td class="rk-num">{{ c.intensity }}%</td>
             <td class="rk-num">{{ c.fade }}s</td>
-            <td><span class="sg-swatch{% if c.blackout %} is-black{% endif %}" style="background: {{ c.colour }}"
-                      title="{{ c.colour }}"></span></td>
+            <td><span class="sg-swatch{% if c.blackout %} is-black{% endif %}" style="background: {{ c.colour }}" title="{{ c.colour }}"></span></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    <p class="rk-foot">A cue saves one fade, one group and one colour. Times are where the
-      cue lands in the song the show was programmed against.</p>
-
+    <p class="rk-foot">{% if sg.cues %}Click a cue to light the stage above it. Times are
+      where the look lands in the song it was programmed against.{% else %}Programming,
+      the song, DMX and the phone remote all live in the Light Studio.{% endif %}</p>
   </section>
 
   {# ---- the stage plot -------------------------------------------------- #}
@@ -297,6 +277,6 @@
   </section>
   {% endif %}
 
-  <script src="/static/js/room-stage.js?v=1"></script>
+  <script src="/static/js/room-stage.js?v=2"></script>
 <!--/room:stage--></div>
 {% endblock %}

@@ -4828,6 +4828,7 @@ def create_app():
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         sg = stage_room.build(show, plot_state, plot_image, version, cards,
+                              artist_name=artist_identity.display_name(user),
                               sample=_session_is_demo(), can_open=can_open)
 
         # The plot designer on this screen is the REAL editor, so this room

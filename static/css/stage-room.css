@@ -128,3 +128,18 @@
 @media (prefers-reduced-motion: reduce) {
   .sg-cue { transition: none; }
 }
+
+/* One stage, two layers, and a toggle that looks like a control. */
+.sg-layers { display: inline-flex; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-pill); overflow: hidden; }
+.sg-layer {
+  border: 0; padding: 6px 14px; background: none; cursor: pointer;
+  color: var(--sb-ink-2); font-family: inherit; font-size: 12.5px; font-weight: 700;
+}
+.sg-layer + .sg-layer { border-left: 1px solid var(--sb-line-strong); }
+.sg-layer:hover { color: var(--sb-ink); }
+.sg-layer.is-on { background: var(--sb-gold-wash); color: var(--sb-gold-bright); }
+.sg-layer:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: -2px; }
+
+/* The plot layer: the backline, drawn in the same space as the rig. */
+.sg-item rect { fill: var(--sb-surface-2); stroke: var(--sb-line-strong); stroke-width: 1; }
+.sg-item text { fill: var(--sb-ink-2); font-size: 11px; font-family: var(--sb-text); }

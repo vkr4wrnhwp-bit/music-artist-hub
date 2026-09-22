@@ -209,7 +209,7 @@ def test_both_instruments_are_drawn_even_with_nothing_saved():
 
     # the studio, unprogrammed but present
     assert "sg-stage" in body, "the stage preview is drawn"
-    assert "All fixtures" in body, "the fixture list is drawn"
+    assert "data-sg-layer" in body, "and its Plot / Rig / Both toggle"
     assert "sg-cues" in body, "the cue table keeps its headers"
     assert "No cues yet" in body
 
@@ -274,7 +274,7 @@ def test_a_saved_show_puts_its_rig_on_the_screen():
     page = c.get("/room/stage").get_data(as_text=True)
     assert "48 channels" in page and "12 fixtures" in page
     assert "Verse Wash" in page
-    assert "Universe 1" in page and "Start address 1" in page
+    assert "Universe 1" in page and "Address 1" in page
 
 
 def test_clicking_a_cue_can_light_the_rig():

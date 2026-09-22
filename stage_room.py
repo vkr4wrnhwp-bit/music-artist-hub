@@ -257,7 +257,7 @@ def path(show, the_rig, the_plot, version):
 
 
 def build(show, plot_state, plot_image, version, cards,
-          sample=False, can_open=None):
+          artist_name="", sample=False, can_open=None):
     """Everything the screen renders. No page logic beyond this."""
     the_rig = rig(show)
     the_plot = plot(plot_state, plot_image)
@@ -275,6 +275,7 @@ def build(show, plot_state, plot_image, version, cards,
                       "name": card[2], "line": card[3]})
 
     return {
+        "artist_name": artist_name or "",
         "show_name": (show or {}).get("name") or "",
         "has_show": bool(show),
         "rig": the_rig,
