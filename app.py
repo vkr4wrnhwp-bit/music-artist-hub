@@ -199,6 +199,7 @@ def _hours_float(value, default=0.0):
 from catalog_config import get_account, get_catalog_data
 from reports_config import get_reports_data
 from epk_config import get_epk_data, normalize_epk_overrides
+import artwork_config
 from artwork_config import (get_artwork_data, suggest_from_prompt,
                             list_uploads as list_artwork_uploads,
                             take_upload as take_artwork_upload,
@@ -4109,7 +4110,8 @@ def create_app():
         user = current_user()
         ctx["art_uploads"] = (list_artwork_uploads(user["id"], UPLOADS_DIR)
                               if user else [])
-        return render_template("artwork.html", active_page="artwork", **ctx)
+        return render_template("artwork.html", active_page="artwork",
+                               look_options=artwork_config.LOOK_OPTIONS, **ctx)
 
     @app.route("/artwork/generate", methods=["POST"])
     def artwork_generate():
@@ -4127,12 +4129,21 @@ def create_app():
                 seed = int(payload.get("seed"))
             except (TypeError, ValueError):
                 seed = random.randint(1, 10 ** 9)
+            # What the ticked boxes add. Every cover used to get the same
+            # four words, so every cover came back looking like the same
+            # cover; artwork_config.LOOK_OPTIONS is the difference, and it
+            # is real words, not a preset that hides what it did.
+            look = payload.get("look")
+            look = look if isinstance(look, list) else []
+            full = artwork_config.build_prompt(prompt, look[:8])
             image_url = ("https://image.pollinations.ai/prompt/"
-                         + urllib.parse.quote(prompt + ", album cover art, square, "
-                                              "no text, high detail")
+                         + urllib.parse.quote(full)
                          + "?width=1024&height=1024&nologo=true&seed=%d" % seed)
         return jsonify({"ok": True, "suggestion": suggestion,
-                        "image_url": image_url, "seed": seed})
+                        "image_url": image_url, "seed": seed,
+                        # Shown under the picture: a person can see exactly
+                        # what was asked for, and change it.
+                        "prompt_used": full if prompt else ""})
 
     @app.route("/artwork/check", methods=["POST"])
     def artwork_cover_check():

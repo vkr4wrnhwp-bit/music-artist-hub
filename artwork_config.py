@@ -193,3 +193,61 @@ def take_upload(user_id, name, uploads_dir):
     if not os.path.exists(os.path.join(uploads_dir, base)):
         return ""
     return "/uploads/" + base
+
+
+# --- what the ticked boxes add to the prompt --------------------------------
+# The model is Pollinations.ai: free, keyless, and generic unless it is told
+# what to make. Everything sent to it used to get the same four words, so
+# every cover came back looking like the same cover. These are the terms a
+# person actually means when they say "make it better", each one real words
+# that go into the prompt - not a style preset that hides what it did.
+#
+# (key, group, label, words)
+LOOK_OPTIONS = (
+    ("photo", "medium", "Photographic",
+     "photographic, shot on film, natural imperfections"),
+    ("illustrated", "medium", "Illustrated",
+     "illustrated, hand-drawn, painterly"),
+    ("graphic", "medium", "Graphic / type-led",
+     "bold graphic design, flat shapes, high contrast composition"),
+    ("moody", "light", "Moody light",
+     "low-key lighting, deep shadows, single light source"),
+    ("bright", "light", "Bright",
+     "high-key lighting, soft even light, airy"),
+    ("golden", "light", "Golden hour",
+     "golden hour light, warm rim lighting, long shadows"),
+    ("grain", "finish", "Film grain",
+     "35mm film grain, subtle halation, analogue texture"),
+    ("clean", "finish", "Clean digital",
+     "clean digital render, crisp edges, no grain"),
+    ("close", "frame", "Close up",
+     "close-up, shallow depth of field, subject fills the frame"),
+    ("wide", "frame", "Wide",
+     "wide shot, lots of negative space, small subject in a big frame"),
+)
+
+_LOOK_BY_KEY = {k: (g, lab, w) for k, g, lab, w in LOOK_OPTIONS}
+
+# One from each group: "photographic" and "illustrated" together is a
+# muddle, and the model resolves it by ignoring one of them anyway.
+LOOK_GROUPS = ("medium", "light", "finish", "frame")
+
+# Always true of an album cover, whatever is ticked. Stores reject covers
+# with the wrong shape or stray text, so this is not a style choice.
+ALWAYS = "album cover art, square, no text, no lettering, no watermark, high detail"
+
+
+def look_words(keys):
+    """The words the ticked boxes add, one per group, in group order."""
+    picked = {}
+    for key in (keys or []):
+        got = _LOOK_BY_KEY.get(key)
+        if got and got[0] not in picked:
+            picked[got[0]] = got[2]
+    return [picked[g] for g in LOOK_GROUPS if g in picked]
+
+
+def build_prompt(prompt, look=None):
+    """What actually goes to the model, and it is all readable."""
+    parts = [(prompt or "").strip()] + look_words(look) + [ALWAYS]
+    return ", ".join(p for p in parts if p)

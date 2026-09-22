@@ -37,7 +37,11 @@ ROOMS = [
      # The Vault and its Contracts view left for Business (owner,
      # 2026-09-22): the paperwork that proves who gets paid is business,
      # not making the record. Artwork stays - cover art is made here.
-     ["audio-studio", "rack", "release-ready", "remix-lab", "studio", "masterclip", "beats",
+     # Motion left this room on 2026-09-22 (owner: "motion needs to come out
+     # of the studio room"). It is its own app on its own service and was
+     # already on the suites strip; a card here as well made it look like a
+     # page of Street Banker, which it is not.
+     ["audio-studio", "rack", "release-ready", "remix-lab", "studio", "beats",
       "artwork"]),
     ("stage", "Stage", "Everything between the booking and the encore.",
      ["tours", "stage-plot", "lights", "live", "tour-board", "passports", "tour-suite"]),

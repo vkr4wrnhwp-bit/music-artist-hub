@@ -110,6 +110,26 @@
         <p class="mt-3 text-xs text-gray-300">AI Artwork for the cover. Describe the cover and a real image paints onto the proof. Square cover art only: for video, social graphics and any other image, <a href="/suites/go/motion" target="_blank" rel="noopener" class="font-bold text-sb-gold-bright hover:underline">make it in Motion</a> and upload the finished file to your <a href="/vault" class="font-bold text-sb-gold-bright hover:underline">Vault</a>.</p>
         <textarea aria-label="Describe the cover" id="prompt-input" rows="2" placeholder="e.g. moody midnight synthwave, neon city"
                   class="mt-2 w-full resize-none rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-sb-ink placeholder-gray-300 focus:border-sb-gold/60 focus:outline-none"></textarea>
+        {#- What the model is told, beyond the words typed above. Every
+            cover used to get the same four words, so every cover came back
+            looking like the same cover. One tick per row: "photographic"
+            and "illustrated" together is a muddle, and the model resolves
+            it by ignoring one of them anyway. -#}
+        <fieldset class="mt-3" id="look-boxes">
+          <legend class="sb-label text-gray-200">The look</legend>
+          {% for group, label in (("medium", "Made as"), ("light", "Light"), ("finish", "Finish"), ("frame", "Framing")) %}
+          <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <span class="w-16 shrink-0 text-xs text-gray-300">{{ label }}</span>
+            {% for key, g, text, words in look_options if g == group %}
+            <label class="cursor-pointer rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-xs text-gray-200 hover:border-sb-gold/50 has-[:checked]:border-sb-gold/70 has-[:checked]:bg-sb-gold/15 has-[:checked]:text-sb-gold-bright">
+              <input type="radio" name="look-{{ group }}" value="{{ key }}" class="sr-only" data-look>
+              {{ text }}
+            </label>
+            {% endfor %}
+            <button type="button" class="text-xs text-gray-300 underline hover:text-gray-100" data-look-clear="{{ group }}">clear</button>
+          </div>
+          {% endfor %}
+        </fieldset>
         <button type="button" id="generate-btn" class="mt-2 w-full rounded-lg border border-sb-gold/40 bg-sb-gold/10 px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright transition-colors hover:bg-sb-gold/20">Generate cover art</button>
           <button type="button" id="generate4-btn" class="rounded-lg border border-sb-gold/40 bg-sb-gold/10 px-3 py-2 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/20">4 variations</button>
         <div id="generate-note" class="mt-2 hidden text-xs text-gray-300 font-medium"></div>
@@ -641,7 +661,7 @@
       const res = await fetch("/artwork/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: document.getElementById("prompt-input").value }),
+        body: JSON.stringify({ prompt: document.getElementById("prompt-input").value, look: lookPicked() }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -679,7 +699,7 @@
       try {
         const res = await fetch("/artwork/generate", {method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({prompt})});
+          body: JSON.stringify({prompt, look: lookPicked()})});
         const data = await res.json();
         if (data.ok && data.image_url) {
           const img = document.createElement("img");
@@ -701,6 +721,20 @@
   document.getElementById("ai-remove-btn").addEventListener("click", () => setDesignerImage(null));
 
   // Studio files: one Remove per file, and the empty state comes back.
+  // The ticked boxes, one per row. Radios rather than checkboxes because
+  // only one medium, one light, one finish and one framing make sense
+  // together; "clear" puts a row back to nothing chosen.
+  function lookPicked() {
+    return [...document.querySelectorAll("#look-boxes input[data-look]:checked")]
+      .map(function (i) { return i.value; });
+  }
+  document.querySelectorAll("[data-look-clear]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.getElementsByName("look-" + b.getAttribute("data-look-clear"))
+        .forEach(function (i) { i.checked = false; });
+    });
+  });
+
   // The inline confirm is the only prompt - it cancels the event, and
   // this listener stands down on `defaultPrevented` rather than asking
   // a second time.

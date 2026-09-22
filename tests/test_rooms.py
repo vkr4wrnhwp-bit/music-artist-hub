@@ -137,7 +137,11 @@ def test_a_room_screen_is_one_grid_of_cards(monkeypatch):
     assert 'data-room-card="artwork"' in studio
     assert 'data-room-card="vault"' not in studio
     assert 'data-room-card="contracts"' not in studio
-    assert ">Opens app<" in studio, "Motion is another app"
+    # Motion left this room on 2026-09-22: it is its own app on its own
+    # service and was already on the suites strip, so a card here as well
+    # made it look like a page of Street Banker.
+    assert 'data-room-card="masterclip"' not in studio
+    assert ">Opens app<" not in studio, "no other-app cards left in this room"
     # rooms answer even when the sidebar shows hubs: a link to one never dies
     monkeypatch.delenv("NAV_ROOMS", raising=False)
     assert c.get("/room/marketing").status_code == 200
