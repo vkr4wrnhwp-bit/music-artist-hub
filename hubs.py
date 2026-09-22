@@ -487,6 +487,18 @@ def _with_live(hubs):
 # (key, href, label, plans that see it - empty means everyone)
 FOOTER_LINKS = (
     ("submit", "/submit", "Submit music", ("label",)),
+    # The legal row. These pages existed and nothing in the app linked to
+    # them, which is the one place a footer is not a nicety (owner,
+    # 2026-09-22: "shouldn't we have a footer anyways for policies and all
+    # the legal things"). Everyone sees these, on every plan.
+    #
+    # White label: /terms and /privacy are the two pages that keep naming
+    # the operating entity when a reseller's artists are looking, because
+    # an agreement has to say who it is with. Linking them does not change
+    # that; white_label.py decides what they say.
+    ("terms", "/terms", "Terms", ()),
+    ("privacy", "/privacy", "Privacy", ()),
+    ("contact", "/contact", "Contact", ()),
 )
 
 
