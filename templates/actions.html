@@ -105,7 +105,15 @@
       <div class="flex flex-wrap items-center gap-3">
         <span class="h-2 w-2 shrink-0 rounded-full {{ 'bg-red-500' if a.priority == 'high' else ('bg-amber-500' if a.priority == 'medium' else 'bg-gray-500') }}"></span>
         <div class="min-w-0 flex-1">
-          <div class="text-sm font-semibold {{ 'text-gray-300 line-through' if a.status == 'complete' else 'text-gray-100' }}">{{ a.title }}</div>
+          {#- An action about a thing links to that thing. "Click this to
+              set your reminders" has to be clickable; a title alone is a
+              chore with no door. -#}
+          {%- set go = action_link(a) if action_link else none %}
+          <div class="text-sm font-semibold {{ 'text-gray-300 line-through' if a.status == 'complete' else 'text-gray-100' }}">
+            {%- if go and a.status in ('new', 'in_progress') -%}
+              <a href="{{ go }}" class="text-sb-gold-bright underline decoration-sb-gold/40 underline-offset-2 hover:decoration-sb-gold-bright">{{ a.title }}</a>
+            {%- else -%}{{ a.title }}{%- endif -%}
+          </div>
           {% if a.description %}<div class="text-xs text-gray-300 font-medium">{{ a.description }}</div>{% endif %}
         </div>
         <span class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-bold uppercase text-gray-300">{{ a.category.replace('_', ' ') }}</span>

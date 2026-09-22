@@ -108,7 +108,12 @@ def test_the_sidebar_shows_the_rooms_with_the_top_rows_and_the_account_group(mon
     assert 'href="/settings"' in account and 'href="/connections"' in account and 'href="/billing"' in account
     assert 'href="/inbox"' not in account and 'id="sb-corner-inbox"' in aside
     studio = c.get("/room/studio").get_data(as_text=True)
-    assert 'href="/vault?view=contracts"' in studio, "no double tabs: Contracts is its own icon in the room"
+    # The Vault and its Contracts view moved to Business on 2026-09-22: the
+    # paperwork that proves who gets paid is business, not making the record.
+    # Artwork stayed in Studio, because cover art is made there.
+    assert 'href="/vault?view=contracts"' in business, "Contracts is its own icon, in Business"
+    assert 'data-room-card="vault"' in business
+    assert 'href="/vault?view=contracts"' not in studio, "and not in Studio any more"
     pro = _client(app_obj, "pro")
     b2 = pro.get("/room/business").get_data(as_text=True)
     assert 'data-room-card="services"' not in b2 and 'data-room-card="roster"' not in b2
@@ -127,7 +132,11 @@ def test_a_room_screen_is_one_grid_of_cards(monkeypatch):
     assert 'data-hub="stage" data-room="1" data-active="1"' in page
     assert c.get("/room/nope").status_code == 404
     studio = c.get("/room/studio").get_data(as_text=True)
-    assert 'data-room-card="vault"' in studio and 'data-room-card="contracts"' in studio
+    # The Vault and Contracts moved to Business on 2026-09-22; Artwork
+    # stayed, because cover art is made in the Studio.
+    assert 'data-room-card="artwork"' in studio
+    assert 'data-room-card="vault"' not in studio
+    assert 'data-room-card="contracts"' not in studio
     assert ">Opens app<" in studio, "Motion is another app"
     # rooms answer even when the sidebar shows hubs: a link to one never dies
     monkeypatch.delenv("NAV_ROOMS", raising=False)
@@ -190,7 +199,7 @@ def test_a_page_opened_from_a_room_offers_the_way_back(monkeypatch):
     body = c.get("/tours").get_data(as_text=True)
     assert 'id="sb-room-back"' in body and 'href="/room/stage"' in body and "Back to Stage" in body
     body = c.get("/vault?view=contracts").get_data(as_text=True)
-    assert "Back to Studio" in body, "an unfolded page goes back to its parent's room"
+    assert "Back to Business" in body, "an unfolded page goes back to its parent's room"
     assert 'id="sb-room-back"' not in c.get("/room/stage").get_data(as_text=True), "a room screen is the top"
     assert 'id="sb-room-back"' not in c.get("/command-center").get_data(as_text=True), "the top rows have none"
     monkeypatch.delenv("NAV_ROOMS", raising=False)

@@ -57,6 +57,47 @@ def create_action(user_id, title, category="general", priority="medium",
     return aid
 
 
+# Where an action points, by what it is about. An action that says "click
+# this to set your reminders" has to be clickable, and a title alone is not;
+# entity_type/entity_id were already on the row and nothing read them.
+ACTION_LINKS = {
+    "document": "/vault?view=contracts#doc-%s",
+}
+
+
+def action_link(action):
+    """The page this action is about, or None."""
+    kind = (action or {}).get("entity_type") or ""
+    ident = (action or {}).get("entity_id") or ""
+    shape = ACTION_LINKS.get(kind)
+    return (shape % ident) if (shape and ident) else None
+
+
+def complete_actions_for(user_id, entity_type, entity_id):
+    """Close the open actions about one thing, because it is now done.
+
+    The action that asks for a contract's dates is finished the moment
+    those dates are saved; leaving it open would make the list lie."""
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE street_actions SET status = 'complete', updated = ?"
+            " WHERE user_id = ? AND entity_type = ? AND entity_id = ?"
+            " AND status IN ('new', 'in_progress')",
+            (_now(), user_id, entity_type[:40], entity_id[:64]))
+        return cur.rowcount
+
+
+def open_action_for(user_id, entity_type, entity_id):
+    """Is there already one open for this thing? Re-reading a document
+    must not stack a second identical action on the list."""
+    with get_db() as db:
+        row = db.execute(
+            "SELECT id FROM street_actions WHERE user_id = ? AND entity_type = ?"
+            " AND entity_id = ? AND status IN ('new', 'in_progress') LIMIT 1",
+            (user_id, entity_type[:40], entity_id[:64])).fetchone()
+        return row["id"] if row else None
+
+
 def set_action_status(action_id, user_id, status):
     if status not in ACTION_STATUSES:
         return False

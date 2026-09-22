@@ -6132,6 +6132,7 @@ def create_app():
                  "pct": round(100 * done / len(all_actions)) if all_actions else 0}
         return render_template(
             "actions.html", active_page="actions",
+            action_link=cc.action_link,
             actions=cc.list_actions(user["id"], status_filter),
             all_actions=all_actions, stats=stats,
             view=request.args.get("view") or "list",
@@ -10623,6 +10624,9 @@ def create_app():
                                       (request.form.get("terms_note") or "").strip())
         if not ok:
             abort(404)
+        # The action that asked for these dates is finished. Leaving it
+        # open would make the Actions list lie about what is left to do.
+        cc.complete_actions_for(user["id"], "document", doc_id)
         return redirect("/vault?view=contracts&terms=saved#doc-%s" % doc_id)
 
     @app.route("/reminders/run", methods=["POST"])
@@ -12688,16 +12692,60 @@ def create_app():
         if ext not in _DOC_EXTS:
             return _render_vault(user, doc_error="Use PDF, DOC/DOCX, TXT, CSV, or an image file.")
         fname = "doc_%s.%s" % (uuid.uuid4().hex, ext)
+        # Read once: the upload is a stream, and reading it a second time
+        # for the contract reader returns nothing at all.
+        raw = f.read()
         # Same store as every other vault file: the object store when it
         # is configured, the disk when it is not.
-        path = blob_store.save(fname, f.read(), content_type=f.mimetype,
+        path = blob_store.save(fname, raw, content_type=f.mimetype,
                                uploads_dir=UPLOADS_DIR)
         doc_type = request.form.get("doc_type") or "Other"
-        store.add_document(user["id"], f.filename, path,
-                           doc_type if doc_type in _DOC_TYPES else "Other",
-                           (request.form.get("note") or "").strip(),
-                           (request.form.get("track") or "").strip())
-        return redirect("/vault?view=contracts")
+        doc_id = store.add_document(user["id"], f.filename, path,
+                                    doc_type if doc_type in _DOC_TYPES else "Other",
+                                    (request.form.get("note") or "").strip(),
+                                    (request.form.get("track") or "").strip())
+        _read_on_upload(user, doc_id, f.filename, raw, ext)
+        return redirect("/vault?view=contracts#doc-%s" % doc_id)
+
+    def _read_on_upload(user, doc_id, filename, raw, ext):
+        """Read a contract the moment it lands, and put the result where a
+        person will see it (owner, 2026-09-22: "should it send the action
+        into there? Like, click this to set your reminders").
+
+        It does not save a date. Every finding stays "found in the
+        document, check it", because a renewal date this got wrong would
+        set an alarm for the wrong day and be believed. What it does is
+        raise ONE action, which links to the contract's row, and saving
+        the dates there closes it.
+
+        Nothing here can stop an upload: a file that will not parse, a
+        scan with no text, or a reader that raises all end the same way -
+        the document is filed and no action is raised."""
+        try:
+            import contract_reader
+            if not raw or ext not in contract_reader.READABLE:
+                return
+            text, status = contract_reader.extract_text(raw, ext)
+            if status != "ok":
+                return
+            findings = contract_reader.find_terms(text)
+            # find_terms always returns every key; a key it found nothing
+            # for carries how="not_found". So "did it find anything" is
+            # not "is the dict non-empty" - a receipt passes that - it is
+            # whether one of the two the reminders actually need is there.
+            useful = any((findings.get(k) or {}).get("value")
+                         for k in ("renews_on", "notice_days"))
+            if not useful:
+                return
+            if cc.open_action_for(user["id"], "document", doc_id):
+                return
+            cc.create_action(
+                user["id"], "Set the renewal reminders for %s" % filename[:80],
+                category="rights", priority="medium",
+                description=contract_reader.summary(findings, status),
+                entity_type="document", entity_id=doc_id)
+        except Exception:
+            app.logger.info("vault: could not read %s on upload", doc_id)
 
     @app.route("/documents/<doc_id>/delete", methods=["POST"])
     @app.route("/vault/documents/<doc_id>/delete", methods=["POST"])

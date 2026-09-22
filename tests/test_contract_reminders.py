@@ -3,7 +3,7 @@
 Owner, 2026-09-14: "is there a reminder alarm built to notify you when
 your auto renewals are coming up?" There was not. This is the half that
 needs no document reader: dates typed on the contract's row, reminders
-at 90, 30 and 7 days before the notice deadline and on the day, in the
+at 60, 30, 7 and 1 days before the notice deadline, in the
 app and by email where one can be sent, each once, from a daily run the
 nightly job triggers with the backup token.
 """
@@ -54,14 +54,18 @@ def test_the_nearest_milestone_fires_and_the_passed_ones_are_superseded():
     terms = {"renews_on": "2026-12-31", "notice_days": 0}
     # 100 days out: nothing yet
     assert cr.due_milestone(terms, date(2026, 9, 22), set()) == (None, [])
-    # 90 days out: the 90
-    assert cr.due_milestone(terms, date(2026, 10, 2), set()) == (90, [])
-    # terms typed 20 days out: only the 30 fires, the 90 is superseded
-    assert cr.due_milestone(terms, date(2026, 12, 11), set()) == (30, [90])
-    # once 30 and 90 are on record, the 7 waits its turn
-    assert cr.due_milestone(terms, date(2026, 12, 11), {30, 90}) == (None, [])
-    assert cr.due_milestone(terms, date(2026, 12, 24), {30, 90}) == (7, [])
-    assert cr.due_milestone(terms, date(2026, 12, 31), {30, 90, 7}) == (0, [])
+    # 70 days out: still nothing, because the first milestone is 60
+    assert cr.due_milestone(terms, date(2026, 10, 22), set()) == (None, [])
+    # 60 days out: the 60
+    assert cr.due_milestone(terms, date(2026, 11, 1), set()) == (60, [])
+    # terms typed 20 days out: only the 30 fires, the 60 is superseded
+    assert cr.due_milestone(terms, date(2026, 12, 11), set()) == (30, [60])
+    # once 30 and 60 are on record, the 7 waits its turn
+    assert cr.due_milestone(terms, date(2026, 12, 11), {30, 60}) == (None, [])
+    assert cr.due_milestone(terms, date(2026, 12, 24), {30, 60}) == (7, [])
+    # The last one is the day BEFORE the deadline, which is what "24 hours
+    # out" means for a job that runs once a day.
+    assert cr.due_milestone(terms, date(2026, 12, 30), {30, 60, 7}) == (1, [])
     # after the renewal date nothing fires: the page says update the date
     assert cr.due_milestone(terms, date(2027, 1, 5), set()) == (None, [])
 
@@ -96,18 +100,18 @@ def test_the_run_reminds_once_per_milestone_in_the_app_and_by_email(world, monke
     sent = []
     monkeypatch.setattr(emailer, "_http", lambda url, payload, headers: sent.append(payload) or {"id": "em1"})
     with app_obj.app_context():
-        first = cr.run(date(2026, 10, 2), emailer=emailer, public_url=lambda p: "https://x.test" + p)
-        again = cr.run(date(2026, 10, 3), emailer=emailer, public_url=lambda p: "https://x.test" + p)
+        first = cr.run(date(2026, 11, 1), emailer=emailer, public_url=lambda p: "https://x.test" + p)
+        again = cr.run(date(2026, 11, 2), emailer=emailer, public_url=lambda p: "https://x.test" + p)
         notes = [n for n in store.list_notifications(uid) if n["kind"] == "contract"]
         recorded = store.reminders_sent(doc["id"])
     # the tests share one database, so other accounts' contracts ride along: read only this one's
     mine = [p for p in sent if p["to"] == [email]]
-    assert first["checked"] >= 1 and first["sent"] >= 1 and first["date"] == "2026-10-02"
-    assert len(notes) == 1 and "Notice deadline for distribution.pdf is in 90 days" in notes[0]["title"]
+    assert first["checked"] >= 1 and first["sent"] >= 1 and first["date"] == "2026-11-01"
+    assert len(notes) == 1 and "Notice deadline for distribution.pdf is in 60 days" in notes[0]["title"]
     assert notes[0]["link"] == "/vault?view=contracts"
     assert len(mine) == 1 and "distribution.pdf" in mine[0]["subject"]
     assert "https://x.test/vault?view=contracts" in mine[0]["html"]
-    assert recorded == {90}
+    assert recorded == {60}
     assert len([p for p in sent if p["to"] == [email]]) == 1, "the second run sent this account nothing"
 
     # a changed renewal date starts the reminders over
@@ -119,7 +123,9 @@ def test_the_run_reminds_once_per_milestone_in_the_app_and_by_email(world, monke
     monkeypatch.delenv("RESEND_API_KEY")
     monkeypatch.setattr(emailer, "_http", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not send")))
     with app_obj.app_context():
-        out = cr.run(date(2027, 4, 1), emailer=emailer)
+        # 60 days before the new renewal date, which is the first
+        # milestone now.
+        out = cr.run(date(2027, 5, 1), emailer=emailer)
         notes = [n for n in store.list_notifications(uid) if n["kind"] == "contract"]
     assert out["emailed"] == 0 and len(notes) == 2
 
@@ -141,7 +147,7 @@ def test_deleting_the_document_takes_its_terms_and_reminders(world):
     app_obj, client, email, uid, doc = world
     with app_obj.app_context():
         store.set_document_terms(uid, doc["id"], "2026-12-31", 0, False, "")
-        store.mark_reminder_sent(uid, doc["id"], 90)
+        store.mark_reminder_sent(uid, doc["id"], 60)
     client.post("/vault/documents/%s/delete" % doc["id"])
     with app_obj.app_context():
         assert store.get_document_terms(uid) == {} and store.reminders_sent(doc["id"]) == set()

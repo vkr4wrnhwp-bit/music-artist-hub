@@ -34,8 +34,11 @@ ROOMS = [
      # Release-Ready sits beside The Rack (owner's brief, 2026-09-19): the
      # Rack is mixing and mastering by hand in the browser, Release-Ready is
      # RoEx's check, previews and the finished master.
+     # The Vault and its Contracts view left for Business (owner,
+     # 2026-09-22): the paperwork that proves who gets paid is business,
+     # not making the record. Artwork stays - cover art is made here.
      ["audio-studio", "rack", "release-ready", "remix-lab", "studio", "masterclip", "beats",
-      "vault", "contracts", "artwork"]),
+      "artwork"]),
     ("stage", "Stage", "Everything between the booking and the encore.",
      ["tours", "stage-plot", "lights", "live", "tour-board", "passports", "tour-suite"]),
     ("analytics", "Analytics", "What is measured, by whom, and how it moved.",
@@ -52,7 +55,11 @@ ROOMS = [
      # left for Releases the same day: "You're making a product for sale."
      ["royalties", "statements", "tax", "recovery", "cases", "disputes", "valuation", "revenue-os",
       "hours", "deals", "deal-simulator", "team", "portal",
-      "services", "roster"]),
+      "services", "roster",
+      # Documents are not a separate place: /documents has redirected to
+      # /vault?view=contracts since 2026-09-09, so the Vault is the one
+      # store and Contracts is its view of the paperwork.
+      "vault", "contracts"]),
     ("publishing", "Publishing", "Rights, registrations and identifiers.",
      ["catalog", "track-passports", "conflicts", "fingerprints", "certified"]),
     ("releases", "Releases", "From finished master to the stores.",

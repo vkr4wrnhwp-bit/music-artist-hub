@@ -1,0 +1,140 @@
+"""Uploading a contract raises the action that sets its reminders.
+
+The owner, 2026-09-22: "when you upload a doc, it reads it, sets
+notifications" and "should it send the action into there? Like, click this
+to set your reminders? I think that's what the actions room should be for."
+
+So the chain is: file lands -> it is read -> ONE action appears in Actions,
+linking to that contract's row -> saving the dates there closes the action
+and the 60/30/7/1 reminders begin.
+
+The thing this must not do is save a date it read. A renewal date guessed
+wrong would set an alarm for the wrong day and be believed, so every
+finding stays "found in the document, check it" and a person confirms.
+"""
+import io
+import os
+import uuid
+
+import pytest
+from werkzeug.security import generate_password_hash
+
+import app as appmod
+import command_center as cc
+import db as store
+
+CONTRACT = (b"DISTRIBUTION AGREEMENT\n\n"
+            b"This agreement is effective on 1 January 2026 and shall renew on "
+            b"31 December 2027 unless terminated by either party upon ninety (90) "
+            b"days written notice. The term is twenty-four (24) months and the "
+            b"agreement renews automatically.\n")
+
+
+@pytest.fixture
+def world(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "t.db"))
+    app_obj = appmod.create_app()
+    app_obj.config.update(TESTING=True)
+    email = "artist-%s@example.net" % uuid.uuid4().hex[:8]
+    with app_obj.app_context():
+        uid = store.create_user(email, "Artist", generate_password_hash("a-long-password"))
+        store.set_user_plan(uid, "label")
+    client = app_obj.test_client()
+    with client.session_transaction() as sess:
+        sess["user_id"] = uid
+    return app_obj, client, uid
+
+
+def _upload(client, name="distribution.pdf", body=CONTRACT):
+    return client.post("/vault/documents",
+                       data={"document": (io.BytesIO(body), name), "doc_type": "Contract"},
+                       content_type="multipart/form-data")
+
+
+def _actions(app_obj, uid):
+    with app_obj.app_context():
+        return cc.list_actions(uid)
+
+
+def test_uploading_a_contract_raises_one_action_that_links_to_it(world):
+    app_obj, client, uid = world
+    assert _actions(app_obj, uid) == []
+
+    r = _upload(client, "distribution.txt")
+    assert r.status_code in (302, 303)
+
+    got = [a for a in _actions(app_obj, uid) if a["entity_type"] == "document"]
+    assert len(got) == 1, "one action, not one per finding"
+    a = got[0]
+    assert "distribution.txt" in a["title"]
+    assert "reminder" in a["title"].lower()
+    assert a["category"] == "rights"
+    assert a["status"] == "new"
+    # It says what was found, and that it needs checking.
+    assert "notice period" in a["description"] or "end date" in a["description"]
+    assert "check" in a["description"].lower()
+    # And it is clickable: an action about a thing points at that thing.
+    assert cc.action_link(a) == "/vault?view=contracts#doc-%s" % a["entity_id"]
+
+
+def test_nothing_is_saved_by_the_reading_itself(world):
+    """A date this got wrong would set an alarm for the wrong day and be
+    believed. The action asks; it does not decide."""
+    app_obj, client, uid = world
+    _upload(client, "distribution.txt")
+    with app_obj.app_context():
+        assert store.get_document_terms(uid) == {}, "no dates saved without a person"
+
+
+def test_saving_the_dates_closes_the_action(world):
+    app_obj, client, uid = world
+    _upload(client, "distribution.txt")
+    a = [x for x in _actions(app_obj, uid) if x["entity_type"] == "document"][0]
+
+    r = client.post("/vault/documents/%s/terms" % a["entity_id"],
+                    data={"renews_on": "2027-12-31", "notice_days": "90"})
+    assert r.status_code in (302, 303)
+
+    after = [x for x in _actions(app_obj, uid) if x["id"] == a["id"]][0]
+    assert after["status"] == "complete", "the list must not still ask for what is done"
+    with app_obj.app_context():
+        assert store.get_document_terms(uid), "and the dates are on the row"
+
+
+def test_a_file_with_nothing_in_it_raises_no_action(world):
+    """An action nobody can act on is noise. A receipt, a photograph or a
+    scan with no text layer is filed and left alone."""
+    app_obj, client, uid = world
+    _upload(client, "receipt.txt", b"Thanks for your order. Total 12.00.")
+    assert [a for a in _actions(app_obj, uid) if a["entity_type"] == "document"] == []
+
+
+def test_an_unreadable_kind_is_filed_without_being_read(world):
+    app_obj, client, uid = world
+    r = _upload(client, "cover.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 40)
+    assert r.status_code in (302, 303), "the upload still works"
+    assert [a for a in _actions(app_obj, uid) if a["entity_type"] == "document"] == []
+
+
+def test_a_reader_that_breaks_never_costs_the_upload(world, monkeypatch):
+    """The document is the thing being kept. Reading it is a convenience,
+    and a convenience must not be able to lose a file."""
+    app_obj, client, uid = world
+    import contract_reader
+    monkeypatch.setattr(contract_reader, "extract_text",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    r = _upload(client, "distribution.txt")
+    assert r.status_code in (302, 303)
+    with app_obj.app_context():
+        assert len(store.list_documents(uid)) == 1, "filed anyway"
+    assert [a for a in _actions(app_obj, uid) if a["entity_type"] == "document"] == []
+
+
+def test_reading_the_same_document_again_does_not_stack_actions(world):
+    app_obj, client, uid = world
+    _upload(client, "distribution.txt")
+    a = [x for x in _actions(app_obj, uid) if x["entity_type"] == "document"][0]
+    with app_obj.app_context():
+        assert cc.open_action_for(uid, "document", a["entity_id"]) == a["id"]
+        # A second identical action for the same document is refused.
+        assert cc.open_action_for(uid, "document", "no-such-doc") is None

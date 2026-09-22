@@ -5,7 +5,7 @@ reminded anyone of anything (owner, 2026-09-14: "is there a reminder
 alarm built to notify you when your auto renewals are coming up?").
 This is the half that needs no reader: the artist types the renewal
 date and the notice period on the contract's row, and the app tells
-them at 90, 30 and 7 days before the notice deadline, and on the day -
+them at 60, 30, 7 and 1 days before the notice deadline -
 in the app, and by email where the deployment can send one.
 
 The other half - reading the dates out of the document itself - waits
@@ -16,7 +16,7 @@ Rules:
   * the deadline that matters is the NOTICE date (renewal minus the
     notice period), because that is the last day a person can act
   * each milestone fires once per contract; if terms are set inside
-    the 90-day window, only the nearest milestone fires and the ones
+    the 60-day window, only the nearest milestone fires and the ones
     already passed are recorded as superseded, so nobody gets three
     alarms at once for one contract
   * nothing fires for a contract whose renewal is in the past: the
@@ -27,7 +27,11 @@ from datetime import date, timedelta
 import db as store
 
 # Days before the notice deadline; 0 is the deadline itself.
-MILESTONES = (90, 30, 7, 0)
+# The owner's numbers (2026-09-22): 60, 30, 7 and "24 hours out". The
+# job runs once a day, at 09:00 UTC, so 24 hours is the 1-day milestone
+# - the day before the deadline - not an exact hour. There is no 0: a
+# warning on the deadline itself is too late to act on.
+MILESTONES = (60, 30, 7, 1)
 
 
 def _day(text):
@@ -87,7 +91,9 @@ def due_milestone(terms, today, sent):
 
 
 def _subject(doc, st, milestone):
-    when = ("is today" if milestone == 0 else "is in %d days" % milestone)
+    when = ("is tomorrow" if milestone == 1
+            else "is today" if milestone == 0
+            else "is in %d days" % milestone)
     return "Notice deadline for %s %s" % (doc.get("filename") or "a contract", when)
 
 

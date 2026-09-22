@@ -90,6 +90,12 @@ _START_WORDS = re.compile(r"\b(?:effective|commenc|dated|as\s+of|entered\s+into|
 
 # --- text out of the file -----------------------------------------------------
 
+# The three a reader exists for. Anything else is filed without being
+# read, which extract_text already reports as "unsupported"; this lets a
+# caller skip the work rather than ask and be told no.
+READABLE = ("pdf", "docx", "txt")
+
+
 def extract_text(data, ext):
     """(text, status). Status is one of ok, empty, no_reader, unsupported,
     broken. "empty" is a file with no text layer, a scanned PDF usually."""
