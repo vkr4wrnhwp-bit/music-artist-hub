@@ -14503,6 +14503,55 @@ def create_app():
                                connected=CONNECTED, issues=ISSUES, use=USE,
                                standards=STANDARDS)
 
+    @app.route("/distribution/apply", methods=["GET", "POST"])
+    def distribution_apply():
+        """Street Banker Distribution, powered by Symphonic.
+
+        Our form, our words, posted into Symphonic's own sheet through
+        HubSpot's public endpoint. Symphonic decides; this page never
+        implies otherwise, and every application is kept here whether or
+        not their end accepted it.
+        """
+        import symphonic_signup as sym
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+
+        known = {"firstname": (user.get("name") or "").split(" ")[0],
+                 "lastname": " ".join((user.get("name") or "").split(" ")[1:]),
+                 "email": user.get("email") or ""}
+
+        def page(values=None, errors=None, sent=False, failed=""):
+            return render_template(
+                "distribution_apply.html", active_page="distribution",
+                sym=sym, values=dict(known, **(values or {})),
+                errors=errors or {}, sent=sent, failed=failed,
+                already=store.distribution_applications(user["id"], limit=5),
+                **build_dashboard_context())
+
+        if request.method != "POST":
+            return page()
+
+        if request.form.get("consent") != "1":
+            return page(request.form.to_dict(),
+                        {"consent": "Tick this so we can send it."})
+        values, errors = sym.check(request.form)
+        if errors:
+            return page(request.form.to_dict(), errors)
+
+        ok, why = sym.submit(values, page_url=request.url_root.rstrip("/") + "/distribution",
+                             ip=(request.headers.get("X-Forwarded-For") or "").split(",")[0].strip())
+        # Kept either way: an application nobody can see is an application
+        # lost, and a bounce is the owner's to chase, not the artist's.
+        store.add_distribution_application(user["id"], values, ok, why)
+        if ok:
+            return page(sent=True)
+        _notify_owners("An application to Street Banker Distribution did not send",
+                      "Symphonic's form refused one: %s. It is kept, and the "
+                      "artist has been told to try again." % (why or "no reason given"),
+                      "/distribution/apply")
+        return page(request.form.to_dict(), failed=why or "no reason given")
+
     @app.route("/distribution")
     def distribution_guide():
         """The distribution guide, in public.

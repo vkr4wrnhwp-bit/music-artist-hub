@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Distribution{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/release_ready.css?v=2">
+{% endblock %}
+
+{#- Street Banker Distribution, powered by Symphonic.
+
+    Our form, in our words, posted into Symphonic's own sheet. Three things
+    this page must keep saying, because it is easy for a branded form to
+    imply otherwise: Symphonic decides, not us; the details typed here go
+    to Symphonic, which is why there is a tick; and nothing on it is a
+    quote, a rate or a promise about when. -#}
+{% block content %}
+<div class="rr">
+  {% call sb.plate(none, [900], product_name ~ " · Distribution",
+                   product_name ~ " Distribution",
+                   "Powered by Symphonic. You apply here, Symphonic reviews it, and they decide.") %}
+    {{ sb.btn("How distribution works", href="/distribution") }}
+  {% endcall %}
+
+  {% if sent %}
+    <section class="rr-card rr-card--gold" aria-labelledby="rr-sent-h">
+      <p class="rr-kicker">Sent</p>
+      <h2 class="rr-h" id="rr-sent-h">Your application is with Symphonic.</h2>
+      <p class="rr-p">They review applications themselves and come back to you by email at
+        <b>{{ values.email }}</b>. We have kept a copy here. Nothing has been delivered to
+        any store yet, and no agreement is in place until Symphonic says so.</p>
+      <div class="rr-master-actions">
+        {{ sb.btn("Back to Releases", href="/room/releases") }}
+        {{ sb.btn("How distribution works", href="/distribution", variant="ghost") }}
+      </div>
+    </section>
+  {% else %}
+
+  {% if failed %}
+    <div class="rr-band rr-band--closed" role="alert">
+      <p><b>That did not reach Symphonic.</b> Their form said: &ldquo;{{ failed }}&rdquo;.
+         Your answers are kept and we have been told, so nothing is lost — try again in a
+         minute, or leave it with us.</p>
+    </div>
+  {% endif %}
+
+  <section class="rr-card" aria-labelledby="rr-apply-h">
+    <div class="rr-card-head">
+      <div>
+        <p class="rr-kicker">Apply</p>
+        <h2 class="rr-h" id="rr-apply-h">Tell Symphonic about your music</h2>
+        <p class="rr-p rr-p--dim">This is Symphonic's own application, asked here instead of
+          on their site, so you stay in one place and we can see who applied. Your name and
+          email come from your account.</p>
+      </div>
+    </div>
+
+    <form method="post" class="rr-form" novalidate>
+      <div class="rr-row2">
+        {{ sb.field("firstname", sym.WORDS["firstname"], values.firstname or "",
+                    hint=errors.get("firstname")) }}
+        {{ sb.field("lastname", sym.WORDS["lastname"], values.lastname or "",
+                    hint=errors.get("lastname")) }}
+      </div>
+      <div class="rr-row2">
+        {{ sb.field("email", sym.WORDS["email"], values.email or "", type="email",
+                    hint=errors.get("email")) }}
+        {{ sb.field("mobilephone", sym.WORDS["mobilephone"] ~ " (optional)",
+                    values.mobilephone or "", type="tel") }}
+      </div>
+
+      <label class="rr-lbl" for="select_your_home_country">{{ sym.WORDS["select_your_home_country"] }}</label>
+      <select id="select_your_home_country" name="select_your_home_country" class="rr-sel">
+        <option value="">Choose one</option>
+        {% for c in sym.COUNTRIES %}
+        <option value="{{ c }}"{% if values.select_your_home_country == c %} selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.get("select_your_home_country") %}<p class="rr-form-error">{{ errors["select_your_home_country"] }}</p>{% endif %}
+
+      {% for name, options in (("which_of_these_best_describes_you", sym.WHO),
+                               ("transfer_existing_catalog_to_symphonic", sym.CATALOG),
+                               ("primary_genre", sym.GENRES),
+                               ("how_did_you_hear_about_symphonic_", sym.HEARD)) %}
+      <label class="rr-lbl" for="{{ name }}">{{ sym.WORDS[name] }}</label>
+      <select id="{{ name }}" name="{{ name }}" class="rr-sel">
+        <option value="">Choose one</option>
+        {% for o in options %}
+        <option value="{{ o }}"{% if values[name] == o %} selected{% endif %}>{{ o }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.get(name) %}<p class="rr-form-error">{{ errors[name] }}</p>{% endif %}
+      {% endfor %}
+
+      <label class="rr-lbl" for="key_info_about_your_band">{{ sym.WORDS["key_info_about_your_band"] }}</label>
+      <textarea id="key_info_about_your_band" name="key_info_about_your_band" rows="4"
+                class="rr-sel" placeholder="Who you are, what you have released, where you are up to.">{{ values.key_info_about_your_band or "" }}</textarea>
+      {% if errors.get("key_info_about_your_band") %}<p class="rr-form-error">{{ errors["key_info_about_your_band"] }}</p>{% endif %}
+
+      {% for name, options in (("artist_label_social_media_links", sym.SOCIALS),
+                               ("planned_marketing_services", sym.SERVICES)) %}
+      <fieldset class="rr-after">
+        <legend class="rr-lbl">{{ sym.WORDS[name] }}</legend>
+        <div class="rr-level">
+          {% for o in options %}
+          <label><input type="checkbox" name="{{ name }}" value="{{ o }}"
+                        {% if values[name] and o in values[name] %}checked{% endif %}><span>{{ o }}</span></label>
+          {% endfor %}
+        </div>
+        {% if errors.get(name) %}<p class="rr-form-error">{{ errors[name] }}</p>{% endif %}
+      </fieldset>
+      {% endfor %}
+
+      {#- The details typed above go to a third party. That is said plainly
+          and ticked, the same rule the RoEx consent follows. -#}
+      <fieldset class="rr-after">
+        <legend class="sb-label text-gray-200">Before it is sent</legend>
+        <label class="rr-consent">
+          <input type="checkbox" name="consent" value="1"{% if values.consent %} checked{% endif %}>
+          <span>I want {{ product_name }} to send these answers to Symphonic Distribution so they
+            can consider my application. Symphonic decides, not {{ product_name }}, and they will
+            handle my details under their own terms.</span>
+        </label>
+        {% if errors.get("consent") %}<p class="rr-form-error">{{ errors["consent"] }}</p>{% endif %}
+      </fieldset>
+
+      <div class="rr-master-actions">
+        {{ sb.btn("Send it to Symphonic", type="submit", variant="primary") }}
+      </div>
+      <p class="rr-small">Nothing here is a quote, a rate or a date. Symphonic set their own
+        terms and answer you themselves.</p>
+    </form>
+  </section>
+
+  {% if already %}
+  <section class="rr-card" aria-labelledby="rr-prev-apps-h">
+    <p class="rr-kicker">Already sent</p>
+    <h2 class="rr-h rr-h--sm" id="rr-prev-apps-h">What you have applied with</h2>
+    <div class="rr-after">
+      {% for a in already %}
+      <p class="rr-p">{{ a.created[:10] }} — {{ a.payload.get("primary_genre") or "no genre given" }},
+        {{ a.payload.get("which_of_these_best_describes_you") or "" }}.
+        {% if a.sent %}<b>With Symphonic.</b>{% else %}<b>Did not send</b> ({{ a.error or "no reason given" }}). We have been told.{% endif %}</p>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -41,11 +41,17 @@ GUIDE_CTA = {"label": "View distribution guide", "href": "/distribution#guide"}
 # The partner, named, because "supported platforms" means nothing without
 # saying who supports them.
 PARTNER = {
-    "name": "SummitArts on Symphonic Distribution",
+    # Branded as ours, powered by theirs (owner, 2026-09-22). The work is
+    # Symphonic's and the page never pretends otherwise; what changed is
+    # that an artist applies on our page instead of being handed to
+    # somebody else's.
+    "name": "Street Banker Distribution, powered by Symphonic",
     # The one place the partner is named: the trust line above it
     # deliberately does not repeat the name.
-    "line": ("SummitArts on Symphonic Distribution delivers to stores and "
-             "streaming platforms."),
+    "line": ("Street Banker Distribution, powered by Symphonic, delivers to "
+             "stores and streaming platforms."),
+    "apply": "/distribution/apply",
+    "apply_label": "Apply for distribution",
 }
 
 CAPABILITIES = [

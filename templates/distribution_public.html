@@ -19,7 +19,13 @@
 {% block back_href %}/#global-distribution{% endblock %}
 
 {% block content %}
-{% if user_plan %}{{ sb.plate(none, [], "Street Banker · Releases", "Distribution", partner.line) }}{% endif %}
+{% if user_plan %}
+  {#- Signed in, the guide carries the way in. A guide with no door is a
+      page that tells you about something you cannot start. -#}
+  {% call sb.plate(none, [], product_name ~ " · Releases", "Distribution", partner.line) %}
+    {{ sb.btn(partner.apply_label, href=partner.apply, variant="primary") }}
+  {% endcall %}
+{% endif %}
 <div class="pp-col{% if user_plan %} pp-main{% endif %}">
 <h2 class="mt-11 text-sm font-semibold uppercase tracking-[0.2em] text-sb-gold">The five stages</h2>
   <ol class="mt-5 border-l border-[rgb(201_168_106_/_0.22)]">

@@ -1183,6 +1183,17 @@ def init_db():
             )""")
         # What the reader found in the document's own text (2026-09-14):
         # candidates for the row above, never the row itself.
+        # Every application to Street Banker Distribution, kept whether or
+        # not Symphonic accepted the submission. A form that loses an
+        # application silently is worse than no form.
+        db.execute("""CREATE TABLE IF NOT EXISTS distribution_applications (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            sent INTEGER NOT NULL DEFAULT 0,
+            error TEXT,
+            created TEXT NOT NULL
+        )""")
         db.execute("""CREATE TABLE IF NOT EXISTS document_readings (
                 document_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -5407,6 +5418,38 @@ def get_document_terms(user_id):
     with get_db() as db:
         rows = db.execute("SELECT * FROM document_terms WHERE user_id = ?", (user_id,)).fetchall()
     return {r["document_id"]: dict(r) for r in rows}
+
+
+def add_distribution_application(user_id, payload, sent, error=""):
+    """Keep our own copy. Called whether Symphonic took it or not."""
+    aid = uuid.uuid4().hex
+    with get_db() as db:
+        db.execute(
+            "INSERT INTO distribution_applications (id, user_id, payload, sent,"
+            " error, created) VALUES (?,?,?,?,?,?)",
+            (aid, user_id, json.dumps(payload), 1 if sent else 0,
+             (error or "")[:400], _now()))
+    return aid
+
+
+def distribution_applications(user_id=None, limit=200):
+    """Newest first. No user_id: every account, for the owner."""
+    where, args = "", []
+    if user_id:
+        where, args = " WHERE user_id = ?", [user_id]
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM distribution_applications%s ORDER BY created DESC"
+            " LIMIT ?" % where, tuple(args) + (limit,)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["payload"] = json.loads(d.get("payload") or "{}")
+        except ValueError:
+            d["payload"] = {}
+        out.append(d)
+    return out
 
 
 def set_document_reading(user_id, doc_id, status, findings, chars=0):
