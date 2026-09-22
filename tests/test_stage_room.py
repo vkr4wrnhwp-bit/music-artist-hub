@@ -186,8 +186,37 @@ def test_an_empty_account_is_told_in_words():
     page = c.get("/room/stage").get_data(as_text=True)
     assert "Stage Room" in page
     assert "What the stage needs to know before you get there." in page
-    assert "No show saved yet." in page
-    assert "No plot saved yet." in page
+    assert "No show saved yet" in page
+    assert "No plot saved yet" in page
+
+
+def test_both_instruments_are_drawn_even_with_nothing_saved():
+    """Owner, 2026-09-22: "we did not agree to have the light studio and
+    stage block closed when you open the room."
+
+    I had collapsed both panels to a sentence and a button when an account
+    had nothing saved - which is every account on its first day, and the
+    opposite of what he asked for. The instrument is always drawn: the
+    stage, the fixture list, the cue table with its headers, the input
+    table. An empty rig claims nothing; it is the difference between a
+    collapsed panel and a desk at rest.
+    """
+    c, _uid = _account()
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+
+    # the studio, unprogrammed but present
+    assert "sg-stage" in body, "the stage preview is drawn"
+    assert "All fixtures" in body, "the fixture list is drawn"
+    assert "sg-cues" in body, "the cue table keeps its headers"
+    assert "No cues yet" in body
+
+    # the plot, unprogrammed but present
+    assert "Input list" in body, "the input table is drawn"
+    assert "sg-plot-empty" in body, "an empty stage, not a sentence"
+
+    # and nothing collapsed either of them away
+    assert "rk-calm" not in body, (
+        "a room-wide empty state replaced an instrument that should be drawn")
 
 
 def test_tour_appears_nowhere_on_the_stage_screen():

@@ -3,7 +3,7 @@
 {% block title %}Stage Room{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
-  <link rel="stylesheet" href="/static/css/stage-room.css?v=1">
+  <link rel="stylesheet" href="/static/css/stage-room.css?v=2">
 {% endblock %}
 
 {#- THE STAGE ROOM - built from the owner's mockup image (2026-09-22).
@@ -112,19 +112,22 @@
         <h2 class="rk-h" id="sg-lx-h">Light Studio</h2>
         <p class="rk-said">Program and preview your show.</p>
       </div>
-      {% if sg.has_show %}
       <div class="sg-rig">
-        <span class="sg-rig-name"><i class="sg-dot"></i>{{ sg.show_name or "Untitled show" }}</span>
+        <span class="sg-rig-name"><i class="sg-dot{% if not sg.has_show %} is-off{% endif %}"></i>{% if sg.has_show %}{{ sg.show_name or "Untitled show" }}{% else %}No show saved yet{% endif %}</span>
         <span>Universe {{ sg.rig.universe }}</span>
         <span>Start address {{ sg.rig.start }}</span>
         <span>{{ sg.rig.channels }} channels</span>
         <span>{{ sg.rig.fixtures }} fixture{{ "" if sg.rig.fixtures == 1 else "s" }}</span>
         <a class="rk-more" href="/lights">{{ icon("expand", "rk-ico rk-ico--sm") }}Open</a>
       </div>
-      {% endif %}
     </div>
 
-    {% if sg.has_show %}
+    {#- The studio is ALWAYS drawn (owner, 2026-09-22: "we did not agree to
+        have the light studio and stage block closed when you open the
+        room"). With nothing saved it is the same instrument unprogrammed -
+        the truss, the stage, the empty cue table - not a sentence where an
+        instrument should be. Showing an empty rig claims nothing; it is
+        the difference between a collapsed panel and a desk at rest. -#}
     <div class="sg-lx">
       {# the fixture list: what is hung, and where #}
       <div class="sg-fixtures">
@@ -165,7 +168,10 @@
       {# the cue the preview is lit by #}
       <div class="sg-selected">
         <p class="rk-kicker rk-kicker--sm">First cue</p>
-        {% if sg.cues %}
+        {% if not sg.cues %}
+        <p class="sg-sel-none">No cues programmed yet. The first look you save
+          appears here and lights the stage above.</p>
+        {% else %}
         {% set c = sg.cues[0] %}
         <p class="sg-sel-name">{{ c.name }}</p>
         <dl class="sg-sel">
@@ -204,6 +210,10 @@
               <th scope="col">Fade</th><th scope="col">Colour</th></tr>
         </thead>
         <tbody>
+          {% if not sg.cues %}
+          <tr><td class="rk-dim sg-none" colspan="7">No cues yet &mdash; open the studio
+            and the looks you programme land here, in time order.</td></tr>
+          {% endif %}
           {% for c in sg.cues %}
           <tr>
             <td class="rk-num">{{ c.n }}</td>
@@ -222,14 +232,6 @@
     <p class="rk-foot">A cue saves one fade, one group and one colour. Times are where the
       cue lands in the song the show was programmed against.</p>
 
-    {% else %}
-    <div class="rk-calm">
-      <p>No show saved yet.</p>
-      <p>Place your fixtures, patch them to the desk, and cue the looks to a song.
-        What you save here is what this room shows.</p>
-      <a class="rk-cta sg-calm-cta" href="/lights">{{ icon("bulb", "rk-ico") }}Open Light Studio</a>
-    </div>
-    {% endif %}
   </section>
 
   {# ---- the stage plot -------------------------------------------------- #}
@@ -260,12 +262,22 @@
       {% include "_sg_inputs.html" %}
     </div>
     {% else %}
-    <div class="rk-calm">
-      <p>No plot saved yet.</p>
-      <p>Drag your backline onto a stage and the input list writes itself &mdash;
-        every venue asks for both.</p>
-      <a class="rk-cta sg-calm-cta" href="/stage-plot">{{ icon("plotted", "rk-ico") }}Open the editor</a>
+    {#- Same rule as the studio above: the plot is drawn as an empty stage,
+        not replaced by a sentence. An artist should see what the thing IS
+        before they have used it. -#}
+    <div class="sg-plot">
+      <div class="sg-plot-fig sg-plot-empty">
+        <svg viewBox="0 0 520 250" role="img" aria-label="An empty stage">
+          <rect class="sg-plot-edge" x="14" y="14" width="492" height="200" rx="4"/>
+          <line class="sg-plot-edge" x1="14" y1="214" x2="506" y2="214"/>
+          <text class="sg-plot-hint" x="260" y="120" text-anchor="middle">No plot saved yet</text>
+        </svg>
+        <figcaption>Audience (front of house)</figcaption>
+      </div>
+      {% include "_sg_inputs.html" %}
     </div>
+    <p class="rk-foot">Drag your backline onto a stage in the editor and the input
+      list writes itself &mdash; every venue asks for both.</p>
     {% endif %}
   </section>
 

@@ -100,3 +100,15 @@
   .sg-lx { grid-template-columns: minmax(0, 1fr); }
   .sg-plot { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* An instrument at rest still looks like the instrument (owner,
+   2026-09-22: "we did not agree to have the light studio and stage block
+   closed when you open the room"). Nothing here claims data - it is the
+   empty desk, the empty stage and the empty table, drawn. */
+.sg-dot.is-off { background: var(--sb-ink-2); }
+.sg-sel-none { margin: 8px 0 12px; font-size: 12.5px; line-height: 1.5; color: var(--sb-ink-2); }
+.sg-none { padding: 22px 0; text-align: center; }
+.sg-plot-empty { display: block; }
+.sg-plot-empty svg { display: block; width: 100%; height: auto; }
+.sg-plot-edge { fill: none; stroke: var(--sb-line-strong); stroke-width: 2; stroke-dasharray: 8 6; }
+.sg-plot-hint { fill: var(--sb-ink-2); font-size: 15px; font-family: var(--sb-text); }
