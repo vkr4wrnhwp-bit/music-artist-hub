@@ -121,4 +121,79 @@
       looksBox.appendChild(b);
     });
   }
+
+  /* Drag a light. The whole point of the room's stage (owner, 2026-09-22:
+     "people could just drag around ... that would just entice them to open
+     the light studio").
+
+     It moves the bar and its beam together and it saves NOTHING. A room
+     that quietly rewrote the rig would be a second editor with no undo, and
+     the foot line says plainly that the Studio is where a show is kept.
+     Keyboard works too, because a thing you can drag with a mouse and not
+     with the arrow keys is a thing some people simply cannot move. */
+  var bars = stage.querySelectorAll("[data-sg-bar]");
+  var box = stage.viewBox && stage.viewBox.baseVal;
+
+  function moveBar(bar, dxUser, dyUser) {
+    var beam = bar.previousElementSibling;   /* the polygon in the same <g> */
+    var x = parseFloat(bar.getAttribute("x")) + dxUser;
+    var y = parseFloat(bar.getAttribute("y")) + dyUser;
+    /* Kept on the stage: a light dragged into the caption is just lost. */
+    x = Math.max(6, Math.min((box ? box.width : 600) - 32, x));
+    y = Math.max(6, Math.min((box ? box.height : 300) - 16, y));
+    bar.setAttribute("x", x);
+    bar.setAttribute("y", y);
+    if (beam && beam.tagName.toLowerCase() === "polygon") {
+      var pts = beam.getAttribute("points").trim().split(/\s+/).map(function (p) {
+        return p.split(",").map(Number);
+      });
+      if (pts.length === 3) {
+        var cx = x + 13, cy = y + 5, down = pts[1][1] > pts[0][1];
+        var reach = down ? 190 : -150;
+        beam.setAttribute("points",
+          cx + "," + cy + " " + (cx - 34) + "," + (cy + reach) + " " +
+          (cx + 34) + "," + (cy + reach));
+      }
+    }
+  }
+
+  for (var b = 0; b < bars.length; b++) {
+    (function (bar) {
+      var dragging = false, lastX = 0, lastY = 0, scale = 1;
+
+      bar.addEventListener("pointerdown", function (e) {
+        dragging = true;
+        bar.setPointerCapture(e.pointerId);
+        var r = stage.getBoundingClientRect();
+        scale = (box ? box.width : 600) / (r.width || 1);
+        lastX = e.clientX; lastY = e.clientY;
+        bar.classList.add("is-held");
+        e.preventDefault();
+      });
+      bar.addEventListener("pointermove", function (e) {
+        if (!dragging) return;
+        moveBar(bar, (e.clientX - lastX) * scale, (e.clientY - lastY) * scale);
+        lastX = e.clientX; lastY = e.clientY;
+      });
+      function drop(e) {
+        if (!dragging) return;
+        dragging = false;
+        bar.classList.remove("is-held");
+        try { bar.releasePointerCapture(e.pointerId); } catch (err) {}
+      }
+      bar.addEventListener("pointerup", drop);
+      bar.addEventListener("pointercancel", drop);
+
+      bar.addEventListener("keydown", function (e) {
+        var step = e.shiftKey ? 20 : 6, dx = 0, dy = 0;
+        if (e.key === "ArrowLeft") dx = -step;
+        else if (e.key === "ArrowRight") dx = step;
+        else if (e.key === "ArrowUp") dy = -step;
+        else if (e.key === "ArrowDown") dy = step;
+        else return;
+        e.preventDefault();
+        moveBar(bar, dx, dy);
+      });
+    })(bars[b]);
+  }
 })();

@@ -4,7 +4,7 @@
 {% block title %}Stage Room{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
-  <link rel="stylesheet" href="/static/css/stage-room.css?v=5">
+  <link rel="stylesheet" href="/static/css/stage-room.css?v=6">
 {% endblock %}
 
 {#- THE STAGE ROOM - built from the owner's mockup image (2026-09-22).
@@ -98,19 +98,6 @@
     </div>
   </section>
 
-  {# ---- the stage path -------------------------------------------------- #}
-  <section class="rk-panel" aria-label="The stage path">
-    <ol class="rk-rail">
-      {% for s in sg.path %}
-      <li class="rk-step{% if not s.reached %} rk-step--ahead{% endif %}" title="{{ s.sub }}">
-        <span class="rk-ring">{{ icon(s.key, "rk-ring-ico") }}</span>
-        <b>{{ s.name }}</b>
-        <span>{{ s.line }}</span>
-      </li>
-      {% endfor %}
-    </ol>
-  </section>
-
   {# ---- the stage: one drawing, two layers ------------------------------
        Owner, 2026-09-22: "can we just make this one simpler". So one panel,
        not three columns and a timeline: the stage with a Plot / Rig / Both
@@ -144,7 +131,7 @@
       </div>
     </div>
 
-    <div class="sg-stage">
+    <div class="sg-stage sg-stage--big">
       <svg id="sg-stage" viewBox="0 0 600 300" role="img"
            aria-label="The stage with {{ sg.rig.fixtures }} fixtures and {{ sg.plot.items }} items"
            style="color: {{ (sg.cues[0].colour if sg.cues else "") or "#d8b25a" }}; --sg-dim: {{ (sg.cues[0].intensity / 100) if sg.cues else 0.85 }}">
@@ -165,7 +152,7 @@
           {% set y = 42 if f.place == "Truss" else 236 %}
           <g class="sg-fx">
             <polygon fill="url(#sg-beam)" points="{{ x }},{{ y }} {{ x - 34 }},{{ y + 190 if f.place == "Truss" else y - 150 }} {{ x + 34 }},{{ y + 190 if f.place == "Truss" else y - 150 }}"/>
-            <rect class="sg-bar" x="{{ x - 13 }}" y="{{ y - 5 }}" width="26" height="10" rx="2"/>
+            <rect class="sg-bar" data-sg-bar="{{ f.n }}" x="{{ x - 13 }}" y="{{ y - 5 }}" width="26" height="10" rx="2" tabindex="0" role="button" aria-label="Light {{ f.n }}. Drag to move it, or use the arrow keys."/>
           </g>
           {% endif %}
           {% endfor %}
@@ -220,9 +207,9 @@
         </tbody>
       </table>
     </div>
-    <p class="rk-foot">{% if sg.cues %}Click a cue to light the stage above it. Times are
-      where the look lands in the song it was programmed against.{% else %}Programming,
-      the song, DMX and the phone remote all live in the Light Studio.{% endif %}</p>
+    <p class="rk-foot">{% if sg.starter %}Drag a light. Try a look. Nothing here is
+      saved &mdash; the Studio is where a show is kept.{% else %}Click a cue to light the
+      stage. Drag a light to move it.{% endif %}</p>
   </section>
 
   {# ---- the stage plot -------------------------------------------------- #}
@@ -282,6 +269,6 @@
   {% endif %}
 
   <script src="/static/js/lights-engine.js?v=7"></script>
-  <script src="/static/js/room-stage.js?v=3"></script>
+  <script src="/static/js/room-stage.js?v=4"></script>
 <!--/room:stage--></div>
 {% endblock %}

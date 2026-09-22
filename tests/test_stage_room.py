@@ -337,3 +337,32 @@ def test_the_starter_rig_never_appears_once_a_show_is_saved():
     assert "Starter rig" not in body
     assert body.count('class="sg-fx"') == 3, "the artist's rig, not the starter"
     assert "sg-looks" not in body, "there are cues now, so the cues are what you click"
+
+
+def test_the_lights_can_be_dragged_and_nothing_is_saved():
+    """Owner, 2026-09-22: "people could just drag around ... that would just
+    entice them to open the light studio".
+
+    Every bar is a handle, by pointer and by keyboard - a thing you can drag
+    with a mouse and not with the arrow keys is a thing some people simply
+    cannot move. And it saves NOTHING: a room that quietly rewrote the rig
+    would be a second editor with no undo. The foot line says so.
+    """
+    c, _uid = _account()
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert body.count("data-sg-bar") == 6
+    assert 'tabindex="0"' in body and "arrow keys" in body
+    flat = " ".join(body.split())
+    assert "Nothing here is saved" in flat
+    # the room posts nothing of its own for the rig
+    assert "/lights/save" not in body
+
+
+def test_the_path_rail_is_gone_from_this_room():
+    """Owner, 2026-09-22: "lose the gauges ... it's so much text, it's hard
+    for people to read." The five-circle path was the most text on the page
+    and it described paperwork on a screen that should be a stage."""
+    c, _uid = _account()
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert "rk-rail" not in body
+    assert "RIGGED" not in body.upper() or "rk-ring" not in body

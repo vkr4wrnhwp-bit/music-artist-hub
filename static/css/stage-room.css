@@ -157,3 +157,13 @@
 .sg-look.is-on { border-color: var(--sb-gold); background: var(--sb-gold-wash); }
 .sg-look:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: 2px; }
 .sg-none { padding: 18px 0; text-align: left; }
+
+/* The stage is the room now, so it gets the height (owner, 2026-09-22:
+   "lose the gauges ... it's so much text"). */
+.sg-stage--big svg { min-height: 340px; }
+
+/* A light you can pick up says so. */
+.sg-bar[data-sg-bar] { cursor: grab; touch-action: none; }
+.sg-bar[data-sg-bar]:hover { filter: brightness(1.25); }
+.sg-bar[data-sg-bar].is-held { cursor: grabbing; filter: brightness(1.4); }
+.sg-bar[data-sg-bar]:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: 2px; }
