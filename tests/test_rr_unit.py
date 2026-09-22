@@ -127,9 +127,9 @@ def test_the_plain_player_is_what_a_narrow_column_gets(css):
         "container query, so a column that never matches still has a player")
     query = re.search(r"@container\s*\(min-width:\s*(\d+)px\)\s*\{([^}]*\}[^}]*)\}", css)
     # Measured against the column the unit sits in - a preview card - not
-    # the window. At 900 it never appeared at all: two-across preview
-    # cards are about 500px even on a wide screen.
-    assert query and int(query.group(1)) == 700
+    # the window. At 900 it never appeared at all: two-across preview cards
+    # are about 560px even on a 1536px screen.
+    assert query and int(query.group(1)) == 520
     assert ".rr-unit { display: block" in query.group(2)
     assert ".rr-unit-plain { display: none" in query.group(2)
 

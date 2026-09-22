@@ -25,11 +25,14 @@
 .rr-unit { display: none; }
 .rr-unit-plain { display: block; }
 
-/* 700px, not 900: measured against the column the unit really sits in -
-   a preview card inside the previews section - not against the window.
-   At 700px the faceplate is 152px tall and its lenses about 9px, which
-   still reads as the unit it is a photograph of. */
-@container (min-width: 700px) {
+/* Measured against the column the unit really sits in - a preview card -
+   not against the window. 900 was wrong twice over: the faceplate could
+   not appear at any window size, and even 700 drops it the moment the
+   window is narrowed, which for the one thing on this page you are meant
+   to USE is too easy a thing to lose. At 520 the plate is 113px tall and
+   its lenses about 7px, which still reads as the unit it is a photograph
+   of; below that it is a phone, and the plain controls are honest. */
+@container (min-width: 520px) {
   .rr-unit { display: block; }
   .rr-unit-plain { display: none; }
 }
