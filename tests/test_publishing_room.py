@@ -187,9 +187,13 @@ def test_the_tiles_carry_only_counts_that_were_counted():
     out = pb.build([_track("One")], [], [{"title": "x", "description": "y"}],
                    None, cards)
     by = {t["key"]: t for t in out["tiles"]}
+    # One tile over beats AND fingerprints (owner, 2026-09-22), so the
+    # fingerprints key keeps its card and its room but draws no door of its
+    # own - "not be two different ones in publishing".
     assert [t["key"] for t in out["tiles"]] == ["catalog", "track-passports",
-                                                "conflicts", "fingerprints",
+                                                "conflicts", "beats",
                                                 "certified"]
+    assert [t["name"] for t in out["tiles"]][3] == "Beat Fingerprints"
     assert by["track-passports"]["status"] == "1 record"
     assert by["conflicts"]["status"] == "1 open"
     assert by["catalog"]["status"] == "", "nothing counted it, so it says nothing"

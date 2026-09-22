@@ -41,7 +41,9 @@ ROOMS = [
      # of the studio room"). It is its own app on its own service and was
      # already on the suites strip; a card here as well made it look like a
      # page of Street Banker, which it is not.
-     ["audio-studio", "rack", "release-ready", "remix-lab", "studio", "beats",
+     # Beats left for Publishing (owner, 2026-09-22): a beat's registry,
+     # licences and usage cases are rights, not making the record.
+     ["audio-studio", "rack", "release-ready", "remix-lab", "studio",
       "artwork"]),
     ("stage", "Stage", "Everything between the booking and the encore.",
      ["tours", "stage-plot", "lights", "live", "tour-board", "passports", "tour-suite"]),
@@ -75,7 +77,13 @@ ROOMS = [
       # store and Contracts is its view of the paperwork.
       "vault", "contracts"]),
     ("publishing", "Publishing", "Rights, registrations and identifiers.",
-     ["catalog", "track-passports", "conflicts", "fingerprints", "certified"]),
+     # Beats arrived from the Studio on 2026-09-22. Both keys stay so both
+     # pages keep a room - and with it a team seat's access and a way back -
+     # but the screen draws ONE tile over them (owner: "beats and
+     # fingerprints should become like beat fingerprints ... not be two
+     # different ones in publishing"). publishing_room.build() decides that.
+     ["catalog", "track-passports", "conflicts", "beats", "fingerprints",
+      "certified"]),
     ("releases", "Releases", "From finished master to the stores.",
      # Rollout Studio left Marketing for this room (owner, 2026-09-21): a
      # rollout is the plan for one release, and the Marketing room's own
