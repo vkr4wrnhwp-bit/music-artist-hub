@@ -1515,11 +1515,11 @@ Complete, deterministic, credential-free adapters so the app runs with no vendor
 
 **Release-Ready (RoEx)**
 
-The preview player is a photographed rack unit (owner-supplied plate, 2026-09-22), not the browser's own audio controls. The faceplate is one photograph; the display window, the two eleven-lens meter strips, the jewel lamp and the knob are the only parts in code, each placed as a fraction of the 1658x359 crop measured with PIL.
+ONE photographed rack unit is the interface (owner-supplied black 2U plate, 2026-09-22): it is on the Release-Ready page the moment you open it and you load into it, and it carries the three takes as buttons. Not the browser's audio controls, and not one faceplate per preview - both were built and rejected. The faceplate is one photograph; the load slot, the display window, three take buttons, the transport, two thirteen-lens meter strips, the jewel and the knob are the only parts in code, each placed as a fraction of the 1658x509 crop measured with PIL.
 
 - Because: static/css/rr-unit.css carries the measurements and tests/test_rr_unit.py asserts them against the same numbers the crop was taken with, so a nudged value fails rather than quietly putting a lit segment on the metal between two lenses. The meters are fed by a WebAudio analyser on the preview itself and the waveform is decoded from the same file, so both are showing this track; with no audio yet the window draws no waveform at all.
-- Files: static/css/rr-unit.css, static/js/rr-unit.js, templates/_rr_unit.html, static/img/rr-plate-{1100,1658}.webp, static/img/rr-knob.png
-- Honesty: the unit is shown in every state and unlit IS the waiting state - the plate was photographed with every lamp off for exactly that, so there is no second loading graphic to keep in step. The skin is a skin: the <audio> element keeps its id and ARIA label, it is what plays, and below a 900px container the plain controls are what a reader gets.
+- Files: static/css/rr-unit.css, static/js/rr-unit.js, templates/_rr_unit.html, static/img/rr2-plate-{1120,1658}.webp, static/img/rr2-knob.png; included from templates/release_ready.html (load into it) and release_ready_source.html (play the takes)
+- Honesty: the unit is shown in every state and unlit IS the waiting state - the plate was photographed with every lamp off for exactly that, so there is no second loading graphic to keep in step. The load slot does NOT upload: it hands the file to the page's own form and takes you to the rights and licence boxes, which are not ours to skip. Buy stays off the faceplate - a payment should not be a button you can knock. The skin is a skin: the <audio> element keeps its id and ARIA label, it is what plays, and below a 520px container the plain controls are what a reader gets.
 
 Upload a mix, or a vocal and a beat, get a mix report and free 30-second previews, then buy the full master.
 

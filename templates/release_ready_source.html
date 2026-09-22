@@ -4,7 +4,7 @@
 {% block title %}{{ source.title }} - Release-Ready{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/release_ready.css?v=2">
-  <link rel="stylesheet" href="/static/css/rr-unit.css?v=2">
+  <link rel="stylesheet" href="/static/css/rr-unit.css?v=3">
 {% endblock %}
 
 {#- One upload: RoEx's mix report, the free previews, the buy button and the
@@ -152,6 +152,16 @@
       <p class="rr-small rr-num">{{ source.previews_left }} of {{ source.previews_per_file }} free previews left</p>
     </div>
 
+    {#- ONE unit for the upload, carrying the three takes: the owner's
+        brief was "not a separate face for all three or whatever". The
+        cards below it keep the things that must not be a button you can
+        knock - the buy, and each take's own words. can_load is false here
+        because the file is already in the machine; the slot is where it
+        went in, and loading another is a different page. -#}
+    {% with previews = source.previews, can_load = false, upload_url = "" %}
+      {% include "_rr_unit.html" %}
+    {% endwith %}
+
     {% if source.previews %}
       <div class="rr-prevs">
         {% for p in source.previews %}
@@ -171,16 +181,14 @@
               <p class="rr-prev-msg" data-rr-msg>{{ p.message }}</p>
             {% endif %}
             {% if p.payment_note %}<p class="rr-prev-msg">{{ p.payment_note }}</p>{% endif %}
-            {#- The unit is shown in every state, not only when there is
-                something to play: unlit with its lamp breathing IS the
-                waiting state, which is why the plate was photographed with
-                every lamp off. The old spinner beside it would now be a
-                second thing saying the same thing. -#}
             {% if p.in_flight and not p.paid %}
               <p class="rr-small" role="status">This page updates by itself.</p>
             {% endif %}
-            {% if not p.master %}
-              {% with n = loop.index %}{% include "_rr_unit.html" %}{% endwith %}
+            {#- Each take's own facts stay on its own card. The unit above
+                plays them; it cannot carry three sets of figures. -#}
+            {% if p.preview %}
+              {% if p.preview.starts_at %}<p class="rr-prev-meta">{{ p.preview.starts_at }} in the song.</p>{% endif %}
+              {% if p.preview.measured %}<p class="rr-measured">{{ p.preview.measured }}</p>{% endif %}
             {% endif %}
             {% if p.buy and not p.buy.hidden %}
               <div class="rr-buy">
@@ -258,5 +266,5 @@
 
 {% block scripts %}
 <script src="/static/js/release_ready.js?v=1" defer></script>
-<script src="/static/js/rr-unit.js?v=2" defer></script>
+<script src="/static/js/rr-unit.js?v=3" defer></script>
 {% endblock %}

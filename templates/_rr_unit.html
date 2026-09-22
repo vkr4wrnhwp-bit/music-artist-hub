@@ -1,54 +1,82 @@
-{#- One preview, on the photographed faceplate.
+{#- ONE unit for the whole upload: the owner's brief was "buttons on it,
+    upload on this, like an interface. Not a separate face for all three."
 
-    Takes `p` (a preview job) and `n` (its number on the page). The plate is
-    a photograph; the display window, the meter lenses, the jewel and the
-    knob are the only parts in code, and each is driven by something real
-    (static/js/rr-unit.js says which).
+    Takes `source` (the public source dict) and `previews` (its preview
+    jobs, newest last). The faceplate is a photograph; the load slot, the
+    display window, the three take buttons, the transport, the meter
+    lenses, the jewel and the knob are the only parts in code, and each is
+    driven by something real (static/js/rr-unit.js says which).
 
-    The <audio> element is the player, here and in a column too narrow for
-    the photograph: it keeps its id and its ARIA label so the script,
-    the keyboard and the tests all still have it. With the script absent the
-    plain controls are what a reader gets, which is why they are marked up
-    first and hidden by the container query rather than the other way round.
+    Every control here has an ordinary HTML twin in .rr-unit-plain, which
+    is what a column too narrow for the photograph shows, and what a reader
+    gets with the script absent. The <audio> element is the player in both
+    cases and keeps its id and ARIA label.
 
-    A preview that is still being made, or that failed, gets the same unit
-    unlit - that is the loading state, and it is why the plate was shot with
-    every lamp off. -#}
-{%- set uid = "rr-audio-" ~ p.id -%}
-{%- set state = "ready" if p.preview else ("failed" if p.status in ("failed", "credits_short", "needs_owner") else "working") -%}
+    Three take buttons because previews come in threes - the same track at
+    different loudness settings, made to be compared. A button is dark when
+    RoEx has not made that take, a low ember when it exists, and lit when
+    it is the one you are hearing. -#}
+{%- set takes = (previews or [])[:3] -%}
+{%- set ready = takes | selectattr("preview") | list -%}
+{%- set flying = takes | selectattr("in_flight") | list -%}
+{%- set state = "ready" if ready else ("working" if flying else ("failed" if takes else "idle")) -%}
 <div class="rr-unit-wrap">
-  <div class="rr-unit" data-rr-unit data-state="{{ state }}" data-rr-audio="{{ uid }}">
-    {#- The window is the transport: the left tenth plays and pauses, the
-        rest seeks. It is a real button so the keyboard reaches it. -#}
+  <div class="rr-unit" data-rr-unit
+       data-state="{{ state }}"
+       data-can-load="{{ '1' if can_load else '0' }}"
+       data-rr-audio="rr-audio-{{ source.id }}"
+       data-rr-upload="{{ upload_url or '' }}"
+       data-rr-title="{{ source.title }}">
+
+    <button type="button" class="rr-unit-slot"
+            {% if not can_load %}disabled aria-disabled="true"{% endif %}
+            aria-label="{% if can_load %}Load a mix: drop a file here or press to choose one{% else %}Loading is closed{% endif %}"></button>
+
     <button type="button" class="rr-unit-screen"
-            aria-label="{% if state == 'ready' %}Play preview {{ n }}, {{ p.settings.loudness_label }}{% elif state == 'failed' %}Preview {{ n }} didn't finish{% else %}Preview {{ n }} is being made{% endif %}">
+            aria-label="{% if ready %}Play the selected preview{% elif flying %}RoEx is making the previews{% else %}Nothing to play yet{% endif %}">
       <canvas aria-hidden="true"></canvas>
     </button>
 
+    {% for i in range(3) %}
+      {%- set t = takes[i] if takes | length > i else none -%}
+      <button type="button" class="rr-unit-take" data-i="{{ i }}"
+              data-has="{{ '1' if t and t.preview else '0' }}"
+              data-job="{{ t.id if t else '' }}"
+              data-src="{{ t.preview.url if t and t.preview else '' }}"
+              aria-pressed="false"
+              {% if not (t and t.preview) %}aria-disabled="true"{% endif %}
+              aria-label="{% if t %}Take {{ i + 1 }}, {{ t.settings.loudness_label }}{% if not t.preview %} - {{ t.chip | lower }}{% endif %}{% else %}Take {{ i + 1 }}, not made{% endif %}"></button>
+    {% endfor %}
+
+    <button type="button" class="rr-unit-go" data-playing="0"
+            aria-label="Play or pause"></button>
+
     <div class="rr-unit-meter rr-unit-meter--l" aria-hidden="true">
-      {%- for i in range(11) %}<i style="left: {{ "%.4f"|format(i * 1.7292) }}cqw"></i>{% endfor -%}
+      {%- for i in range(13) %}<i style="left: {{ "%.4f"|format(41.86 + i * 1.9348) }}%"></i>{% endfor -%}
     </div>
     <div class="rr-unit-meter rr-unit-meter--r" aria-hidden="true">
-      {%- for i in range(11) %}<i style="left: {{ "%.4f"|format(i * 1.7292) }}cqw"></i>{% endfor -%}
+      {%- for i in range(13) %}<i style="left: {{ "%.4f"|format(41.86 + i * 1.9348) }}%"></i>{% endfor -%}
     </div>
 
     <span class="rr-unit-lamp" aria-hidden="true"></span>
 
     <span class="rr-unit-knob">
-      <img src="/static/img/rr-knob.png" alt="" aria-hidden="true">
+      <img src="/static/img/rr2-knob.png" alt="" aria-hidden="true">
       <input type="range" min="0" max="100" step="1" value="100"
-             aria-label="Output level for preview {{ n }}">
+             aria-label="Output level">
     </span>
   </div>
 
+  {#- The same controls, plainly. This is what a narrow column shows, and
+      what a reader gets if the script never runs. -#}
   <div class="rr-unit-plain">
-    <audio id="{{ uid }}" controls preload="none"{% if p.preview %} src="{{ p.preview.url }}"{% endif %}
-           aria-label="Preview {{ n }}, {{ p.settings.loudness_label }}"></audio>
+    <audio id="rr-audio-{{ source.id }}" controls preload="none"
+           {% if ready %}src="{{ ready[0].preview.url }}"{% endif %}
+           aria-label="Preview of {{ source.title }}"></audio>
   </div>
 
   <p class="rr-unit-read">
     <b data-rr-unit-time></b>
-    {%- if p.preview and p.preview.starts_at %}<span>{{ p.preview.starts_at }} in the song.</span>{% endif -%}
-    {%- if p.preview and p.preview.measured %}<span>{{ p.preview.measured }}</span>{% endif -%}
+    <span data-rr-unit-says>{{ takes[0].message if takes else "" }}</span>
   </p>
 </div>

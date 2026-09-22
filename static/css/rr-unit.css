@@ -1,37 +1,40 @@
-/* The Release-Ready preview unit: a photographed faceplate with only the
-   moving parts in code.
+/* The Release-Ready unit: one photographed rack unit that IS the interface.
 
-   The plate is one photograph (static/img/rr-plate-*.webp). Everything that
-   lights or moves is positioned on top of it as a fraction of the photo, so
-   the whole unit scales with one container query and nothing drifts:
-   every inner measurement below is a percentage taken off the original
-   1658x359 crop with PIL, not a guess.
+   The owner's brief: "I thought maybe you would have the buttons on it,
+   upload on this, like an interface. Not a separate face for all three or
+   whatever." So there is ONE unit for an upload, not one per preview.
 
-     display window   x 4.95%..52.05%   y 26.18%..74.93%
-     meter strips     x 55.40%..75.50%  y 27.86%..43.73% and 56.82%..73.26%
-     meter lenses     11 per strip, first left 55.99%, pitch 1.7292%, w 1.2666%
-     jewel lamp       centre 80.70%, 50.70%
-     knob             centre 91.07%, 50.28%, sprite 11.82% of the width
+   The faceplate is a single photograph (static/img/rr2-plate-*.webp).
+   Everything that lights or moves sits on top of it, positioned as a
+   fraction of the photo, so the whole unit scales with one container query
+   and nothing drifts. Every number below was measured off the original
+   1658x509 crop with PIL - none of it is eyeballed:
+
+     load slot      left 4.46%  top 20.43%  w 33.24%  h 13.95%
+     display window left 40.41% top 15.32%  w 54.95%  h 25.74%
+     take buttons   3 of them, left 4.83% / 12.06% / 19.30%, top 64.05%
+     transport      left 27.86% top 58.94%  w 8.75%   h 27.70%
+     meter lenses   13 a strip, first left 41.86%, pitch 1.9348%, w 1.5681%
+                    upper row top 61.10%, lower row top 77.41%
+     jewel          centre 75.24%, 71.02%
+     knob           centre 88.39%, 72.40%, sprite 12.79% of the width
 
    The knob sprite is cut from this same photograph, so it rotates onto its
    own footprint and no sliver of the original can show at its edge.
 
-   In a column too narrow for it the photograph is dropped and the plain
+   Unlit IS the waiting state - the plate was shot with every lamp off for
+   exactly that, so there is no second loading graphic to keep in step.
+
+   In a column too narrow for the photograph it is dropped and the plain
    controls stand on their own: the unit is a skin, never the only way to
-   use the player. */
+   use the page. */
 
 .rr-unit-wrap { container-type: inline-size; width: 100%; }
 
 .rr-unit { display: none; }
 .rr-unit-plain { display: block; }
 
-/* Measured against the column the unit really sits in - a preview card -
-   not against the window. 900 was wrong twice over: the faceplate could
-   not appear at any window size, and even 700 drops it the moment the
-   window is narrowed, which for the one thing on this page you are meant
-   to USE is too easy a thing to lose. At 520 the plate is 113px tall and
-   its lenses about 7px, which still reads as the unit it is a photograph
-   of; below that it is a phone, and the plain controls are honest. */
+/* Measured against the column the unit sits in, not the window. */
 @container (min-width: 520px) {
   .rr-unit { display: block; }
   .rr-unit-plain { display: none; }
@@ -39,64 +42,124 @@
 
 .rr-unit {
   position: relative;
-  /* The unit is its own container. cqw has to mean "1% of the faceplate",
+  /* The unit is its own container: cqw has to mean "1% of the faceplate",
      not 1% of whatever column it sits in, or every measured position drifts
-     by the difference - which showed up as segments ~10% too wide walking
-     off the right of the strip. */
+     by the difference. */
   container-type: inline-size;
-  width: min(100%, 760px);
-  aspect-ratio: 1658 / 359;
-  background-image: image-set(url("/static/img/rr-plate-1100.webp") 1x,
-                              url("/static/img/rr-plate-1658.webp") 2x);
+  width: min(100%, 860px);
+  aspect-ratio: 1658 / 509;
+  background-image: image-set(url("/static/img/rr2-plate-1120.webp") 1x,
+                              url("/static/img/rr2-plate-1658.webp") 2x);
   background-size: 100% 100%;
   background-repeat: no-repeat;
   user-select: none;
 }
 
+/* ---- the load slot ----------------------------------------------------- */
+
+.rr-unit-slot {
+  position: absolute;
+  left: 4.46%; top: 20.43%; width: 33.24%; height: 13.95%;
+  padding: 0; margin: 0; border: 0; background: transparent;
+  display: block; cursor: pointer; color: inherit;
+}
+.rr-unit-slot::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg,
+              color-mix(in srgb, var(--sb-gold-bright) 60%, transparent), transparent 70%);
+  opacity: 0; transition: opacity 140ms var(--sb-ease, ease);
+  mix-blend-mode: screen; pointer-events: none;
+}
+.rr-unit-slot:hover::after,
+.rr-unit-slot:focus-visible::after,
+.rr-unit[data-over="1"] .rr-unit-slot::after { opacity: .85; }
+.rr-unit-slot:focus-visible { outline: 2px solid var(--sb-focus); outline-offset: 3px; }
+.rr-unit[data-can-load="0"] .rr-unit-slot { cursor: not-allowed; }
+.rr-unit[data-can-load="0"] .rr-unit-slot::after { display: none; }
+
 /* ---- the display window ------------------------------------------------ */
 
 .rr-unit-screen {
   position: absolute;
-  left: 4.95%; top: 26.18%; width: 47.10%; height: 48.75%;
+  left: 40.41%; top: 15.32%; width: 54.95%; height: 25.74%;
   padding: 0; margin: 0; border: 0; background: transparent;
-  cursor: pointer; color: inherit; display: block;
+  display: block; cursor: pointer; color: inherit;
 }
 .rr-unit-screen canvas { display: block; width: 100%; height: 100%; }
-/* The part of the waveform not yet played is still lit glass, not grey
-   text: a neutral at low alpha disappears into a window this dark, and
-   a black box on black is the one thing this page must not be. It is
-   the same gold, held back. */
-.rr-unit-screen { --wave: var(--sb-gold-bright); --wave-rest: var(--sb-gold); }
 .rr-unit-screen:focus-visible { outline: 2px solid var(--sb-focus); outline-offset: 3px; }
-.rr-unit[data-state="working"] .rr-unit-screen { cursor: progress; }
 
-/* ---- the two meter strips ---------------------------------------------- */
+/* The two colours the canvas draws with, declared here from the tokens so
+   the script holds no brand value of its own to drift. The part not yet
+   played is the same gold held back, never a neutral: a grey at low alpha
+   disappears into glass this dark. */
+.rr-unit-screen {
+  --wave: var(--sb-gold-bright);
+  --wave-rest: var(--sb-gold);
+}
 
-.rr-unit-meter { position: absolute; left: 55.99%; }
-.rr-unit-meter--l { top: 27.86%; height: 15.87%; }
-.rr-unit-meter--r { top: 56.82%; height: 16.44%; }
+/* ---- the three take buttons and the transport -------------------------- */
+
+.rr-unit-take,
+.rr-unit-go {
+  position: absolute;
+  padding: 0; margin: 0; border: 0; background: transparent;
+  display: block; cursor: pointer; color: inherit;
+}
+.rr-unit-take { top: 64.05%; height: 17.48%; width: 5.45%; }
+.rr-unit-take[data-i="0"] { left: 4.83%; }
+.rr-unit-take[data-i="1"] { left: 12.06%; }
+.rr-unit-take[data-i="2"] { left: 19.30%; }
+.rr-unit-go { left: 27.86%; top: 58.94%; width: 8.75%; height: 27.70%; }
+
+.rr-unit-take::after,
+.rr-unit-go::after {
+  content: ""; position: absolute; inset: 6%;
+  border-radius: 6px;
+  background: radial-gradient(ellipse at 40% 35%,
+              var(--lamp, var(--sb-gold-bright)), transparent 72%);
+  mix-blend-mode: screen; opacity: 0;
+  transition: opacity 140ms var(--sb-ease, ease);
+  pointer-events: none;
+}
+/* A take that exists but is not the one playing sits at a low ember, so you
+   can see at a glance which of the three RoEx has actually made. */
+.rr-unit-take[data-has="1"]::after { opacity: .22; }
+.rr-unit-take[aria-pressed="true"]::after { opacity: .95; }
+.rr-unit-take[data-has="0"] { cursor: default; }
+.rr-unit-go[data-playing="1"]::after { opacity: .9; }
+.rr-unit-go:hover::after,
+.rr-unit-take[data-has="1"]:hover::after { opacity: .6; }
+.rr-unit-take:focus-visible,
+.rr-unit-go:focus-visible { outline: 2px solid var(--sb-focus); outline-offset: 2px; }
+
+/* ---- the meters -------------------------------------------------------- */
+
+/* The strip spans the whole faceplate so each lens can be placed against
+   it in plain percentages. cqh is not available here on purpose: the unit
+   is an inline-size container, so cqw resolves and cqh does not, and a
+   height in cqh would silently collapse to nothing. */
+.rr-unit-meter { position: absolute; inset: 0; }
 
 .rr-unit-meter i {
-  position: absolute; top: 12%; height: 76%; width: 1.2666cqw;
+  position: absolute; width: 1.5681%;
   background: var(--seg, var(--sb-good));
   opacity: 0;
   transition: opacity 90ms linear;
 }
-.rr-unit-meter i.on { opacity: .92; box-shadow: 0 0 .5cqw var(--seg, var(--sb-good)); }
+.rr-unit-meter--l i { top: 61.10%; height: 6.48%; }
+.rr-unit-meter--r i { top: 77.41%; height: 6.88%; }
+.rr-unit-meter i.on { opacity: .9; box-shadow: 0 0 .5cqw var(--seg, var(--sb-good)); }
 
 /* The top of the scale is where clipping lives, so it stops being green. */
-.rr-unit-meter i:nth-child(n+9)  { --seg: var(--sb-warn); }
-.rr-unit-meter i:nth-child(n+11) { --seg: var(--sb-crit); }
+.rr-unit-meter i:nth-child(n+10) { --seg: var(--sb-warn); }
+.rr-unit-meter i:nth-child(n+13) { --seg: var(--sb-crit); }
 
-/* ---- the jewel lamp ---------------------------------------------------- */
+/* ---- the jewel --------------------------------------------------------- */
 
 .rr-unit-lamp {
-  /* Placed by its centre, which is what was measured off the photograph;
-     working back to a top-left corner needs the height in width units and
-     got it wrong by a few pixels. */
-  position: absolute; left: 80.70%; top: 50.70%;
+  position: absolute; left: 75.24%; top: 71.02%;
   transform: translate(-50%, -50%);
-  width: 3.38cqw; height: 3.38cqw; border-radius: 50%;
+  width: 3.62cqw; height: 3.62cqw; border-radius: 50%;
   background: radial-gradient(circle at 42% 38%,
               var(--lamp, var(--sb-gold-bright)), transparent 68%);
   mix-blend-mode: screen; opacity: 0; pointer-events: none;
@@ -113,19 +176,17 @@
 /* ---- the knob ---------------------------------------------------------- */
 
 .rr-unit-knob {
-  position: absolute; left: 91.07%; top: 50.28%;
+  position: absolute; left: 88.39%; top: 72.40%;
   transform: translate(-50%, -50%);
-  width: 11.82cqw; height: 11.82cqw;
+  width: 12.79cqw; height: 12.79cqw;
   cursor: ns-resize; touch-action: none;
 }
 .rr-unit-knob img { display: block; width: 100%; height: 100%; }
-.rr-unit-knob:focus-visible { outline: 2px solid var(--sb-focus); outline-offset: 4px; border-radius: 50%; }
-
-/* The real control, kept for the keyboard and for anything reading the page. */
 .rr-unit-knob input {
   position: absolute; inset: 0; width: 100%; height: 100%;
   opacity: 0; cursor: ns-resize; margin: 0;
 }
+.rr-unit-knob:focus-within { outline: 2px solid var(--sb-focus); outline-offset: 4px; border-radius: 50%; }
 
 /* ---- what sits under the unit ------------------------------------------ */
 
@@ -138,5 +199,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .rr-unit[data-state="working"] .rr-unit-lamp { animation: none; opacity: .6; }
-  .rr-unit-meter i { transition: none; }
+  .rr-unit-meter i,
+  .rr-unit-take::after,
+  .rr-unit-go::after,
+  .rr-unit-slot::after { transition: none; }
 }

@@ -1,22 +1,30 @@
-/* The Release-Ready preview unit.
+/* The Release-Ready unit: one photographed rack unit, lit by code.
 
-   The faceplate is a photograph; this drives the parts of it that light or
-   move, and every one of them is driven by something real:
+   One unit for the whole upload, not one per preview. Every part that
+   lights or moves is driven by something real:
 
-     the display window  the preview's own waveform, drawn from the decoded
-                         audio, with a playhead and the elapsed time
-     the meter lenses    the live signal through a WebAudio analyser, so the
-                         meters are showing this track and not an animation
-     the jewel           the job's state: breathing while RoEx is working,
-                         steady when the preview is here, red when it failed
-     the knob            output level, which is a real range input underneath
+     the load slot     lights when a file is over it, and hands that file to
+                       the page's own upload form. It does NOT upload by
+                       itself: uploading needs the rights and licence boxes
+                       ticked, and a slot that quietly skipped them would be
+                       the one dishonest thing on this faceplate.
+     the display       the selected take's own waveform, decoded from the
+                       file, with a playhead and the elapsed time
+     three take buttons  the previews RoEx has made. Dark when a take does
+                       not exist, a low ember when it does, lit when it is
+                       the one playing.
+     the transport     play/pause
+     the meter lenses  the live signal through a WebAudio analyser, so the
+                       meters are showing this track and not an animation
+     the jewel         the job's state
+     the knob          output level, a real range input underneath
 
-   The <audio> element keeps its id and its ARIA label and stays the thing
-   that actually plays, so the page works with this script absent, and in a
-   column too narrow for the faceplate the plain controls are what is shown.
+   The <audio> element keeps its id and its ARIA label and is what actually
+   plays, so the page works with this script absent, and in a column too
+   narrow for the faceplate the plain controls are what is shown.
 
-   Nothing here invents a figure. With no audio yet the window says so
-   rather than drawing a waveform that is not of anything. */
+   Nothing here invents a figure. With nothing to play the window draws no
+   waveform at all rather than one that is not of anything. */
 (function () {
   "use strict";
 
@@ -35,21 +43,28 @@
     this.audio = document.getElementById(root.getAttribute("data-rr-audio") || "");
     this.canvas = root.querySelector("canvas");
     this.screen = root.querySelector(".rr-unit-screen");
+    this.slot = root.querySelector(".rr-unit-slot");
+    this.takes = [].slice.call(root.querySelectorAll(".rr-unit-take"));
+    this.go = root.querySelector(".rr-unit-go");
     this.strips = [root.querySelector(".rr-unit-meter--l"),
                    root.querySelector(".rr-unit-meter--r")];
     this.knob = root.querySelector(".rr-unit-knob input");
     this.readout = root.parentNode.querySelector("[data-rr-unit-time]");
+    this.says = root.parentNode.querySelector("[data-rr-unit-says]");
     this.peak = [0, 0];
-    this.wave = null;
+    this.waves = {};
     this.ctx = this.canvas ? this.canvas.getContext("2d") : null;
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
     if (this.canvas) { this.fit(); }
     this.bind();
-    this.paint();
+    var first = this.takes.filter(function (b) {
+      return b.getAttribute("data-has") === "1";
+    })[0];
+    if (first) { this.pick(first, true); } else { this.paint(); }
   }
 
   Unit.prototype.state = function () {
-    return this.root.getAttribute("data-state") || "working";
+    return this.root.getAttribute("data-state") || "idle";
   };
 
   Unit.prototype.fit = function () {
@@ -59,35 +74,95 @@
     this.canvas.height = Math.round(box.height * this.dpr);
   };
 
+  Unit.prototype.tell = function (words) {
+    if (this.says) { this.says.textContent = words || ""; }
+  };
+
+  /* ---- the load slot --------------------------------------------------- */
+
+  Unit.prototype.formInput = function () {
+    // The page's own upload form. Its file input is the only way in: the
+    // consent boxes beside it are not ours to skip.
+    var url = this.root.getAttribute("data-rr-upload");
+    var form = url ? document.querySelector('form[action="' + url + '"]') : null;
+    if (!form) { form = document.querySelector('form[action*="/upload"]'); }
+    return form ? { form: form, input: form.querySelector('input[type="file"]') } : null;
+  };
+
+  Unit.prototype.hand = function (file) {
+    var got = this.formInput();
+    if (!got || !got.input) { return false; }
+    try {
+      var box = new DataTransfer();
+      box.items.add(file);
+      got.input.files = box.files;
+      got.input.dispatchEvent(new Event("change", { bubbles: true }));
+    } catch (err) {
+      return false;                   // an older browser: the picker still works
+    }
+    this.tell(file.name + " is on the form below. Tick the boxes to send it.");
+    got.form.scrollIntoView({ behavior: "smooth", block: "center" });
+    var first = got.form.querySelector('input[type="checkbox"]');
+    if (first) { first.focus({ preventScroll: true }); }
+    return true;
+  };
+
+  /* ---- wiring ---------------------------------------------------------- */
+
   Unit.prototype.bind = function () {
     var self = this;
 
-    if (this.screen) {
-      this.screen.addEventListener("click", function (e) {
-        if (self.state() !== "ready" || !self.audio) { return; }
-        var box = self.screen.getBoundingClientRect();
-        var x = e.clientX - box.left;
-        // The left tenth is play/pause; the rest of the window is a scrub
-        // strip, which is what a display of this shape reads as.
-        if (x > box.width * 0.1 && self.audio.duration) {
-          self.audio.currentTime = Math.max(0, Math.min(
-            self.audio.duration, (x / box.width) * self.audio.duration));
-          if (self.audio.paused) { self.play(); }
-        } else if (self.audio.paused) {
-          self.play();
-        } else {
-          self.audio.pause();
+    if (this.slot && this.root.getAttribute("data-can-load") === "1") {
+      this.slot.addEventListener("click", function () {
+        var got = self.formInput();
+        if (got && got.input) { got.input.click(); }
+      });
+      ["dragenter", "dragover"].forEach(function (n) {
+        self.slot.addEventListener(n, function (e) {
+          e.preventDefault();
+          self.root.setAttribute("data-over", "1");
+        });
+      });
+      ["dragleave", "drop"].forEach(function (n) {
+        self.slot.addEventListener(n, function () {
+          self.root.setAttribute("data-over", "0");
+        });
+      });
+      this.slot.addEventListener("drop", function (e) {
+        e.preventDefault();
+        var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f && !self.hand(f)) {
+          self.tell("Use the upload form below for this one.");
         }
       });
-      this.screen.addEventListener("keydown", function (e) {
-        if (e.key === " " || e.key === "Enter") { e.preventDefault(); self.screen.click(); }
+    }
+
+    this.takes.forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.getAttribute("data-has") !== "1") { return; }
+        self.pick(b, false);
+      });
+    });
+
+    if (this.go) {
+      this.go.addEventListener("click", function () { self.toggle(); });
+    }
+
+    if (this.screen) {
+      this.screen.addEventListener("click", function (e) {
+        if (!self.audio || !self.audio.duration) { self.toggle(); return; }
+        var box = self.screen.getBoundingClientRect();
+        self.audio.currentTime = Math.max(0, Math.min(
+          self.audio.duration,
+          ((e.clientX - box.left) / box.width) * self.audio.duration));
+        if (self.audio.paused) { self.play(); }
       });
     }
 
     if (this.audio) {
       ["play", "pause", "ended", "seeked", "timeupdate", "loadedmetadata"]
-        .forEach(function (name) {
-          self.audio.addEventListener(name, function () { self.paint(); });
+        .forEach(function (n) {
+          self.audio.addEventListener(n, function () { self.paint(); self.lamp(); });
         });
       this.audio.addEventListener("play", function () { self.run(); });
     }
@@ -104,8 +179,7 @@
       });
       wrap.addEventListener("pointermove", function (e) {
         if (!dragging) { return; }
-        // Up is louder, and 140px of travel covers the whole range.
-        var next = startV + ((startY - e.clientY) / 140) * 100;
+        var next = startV + ((startY - e.clientY) / 140) * 100;   // up is louder
         self.knob.value = String(Math.max(0, Math.min(100, Math.round(next))));
         self.level();
       });
@@ -120,11 +194,39 @@
     });
   };
 
+  Unit.prototype.lamp = function () {
+    if (this.go) {
+      this.go.setAttribute("data-playing",
+        (this.audio && !this.audio.paused) ? "1" : "0");
+    }
+  };
+
+  Unit.prototype.pick = function (button, quiet) {
+    var src = button.getAttribute("data-src");
+    if (!src || !this.audio) { return; }
+    this.takes.forEach(function (b) {
+      b.setAttribute("aria-pressed", b === button ? "true" : "false");
+    });
+    if (this.audio.getAttribute("src") !== src) {
+      var wasPlaying = !this.audio.paused;
+      this.audio.setAttribute("src", src);
+      this.audio.load();
+      if (wasPlaying && !quiet) { this.play(); }
+    }
+    this.tell(button.getAttribute("aria-label") || "");
+    this.paint();
+  };
+
+  Unit.prototype.toggle = function () {
+    if (!this.audio || !this.audio.getAttribute("src")) { return; }
+    if (this.audio.paused) { this.play(); } else { this.audio.pause(); }
+  };
+
   Unit.prototype.level = function () {
     var v = Number(this.knob.value) / 100;
     if (this.audio) { this.audio.volume = Math.max(0, Math.min(1, v)); }
     // A pointerless knob reads its position through the knurling and the
-    // brushed spin, so the sweep has to be wide enough to see: -150 to +150.
+    // brushed spin, so the sweep has to be wide enough to see.
     var img = this.root.querySelector(".rr-unit-knob img");
     if (img) { img.style.transform = "rotate(" + (-150 + v * 300) + "deg)"; }
     this.knob.setAttribute("aria-valuetext", Math.round(v * 100) + "% output");
@@ -149,9 +251,8 @@
       src.connect(this.ac.destination);
       this.buf = new Float32Array(this.analyser[0].fftSize);
     } catch (err) {
-      // A file the page may not read sample-by-sample, or a second source
-      // node on the same element. The player still plays; the meters stay
-      // dark rather than showing numbers that are not measurements.
+      // A file the page may not read sample by sample. It still plays; the
+      // meters stay dark rather than showing a number that is not measured.
       this.analyser = null;
       this.noAudioApi = true;
     }
@@ -190,10 +291,10 @@
         }
         rms = Math.sqrt(sum / this.buf.length);
       }
-      // dBFS across eleven lenses: the first at -48 dB, the last at 0.
+      // dBFS across thirteen lenses: the first at -48 dB, the last at 0.
       var db = rms > 0 ? 20 * Math.log10(rms) : -100;
-      var lit = Math.max(0, Math.min(11, Math.round((db + 48) / 48 * 11)));
-      this.peak[ch] = fade ? 0 : Math.max(lit, this.peak[ch] - 0.35);
+      var lit = Math.max(0, Math.min(13, Math.round((db + 48) / 48 * 13)));
+      this.peak[ch] = fade ? 0 : Math.max(lit, this.peak[ch] - 0.4);
       var strip = this.strips[ch];
       if (!strip) { continue; }
       var cells = strip.children, want = Math.round(this.peak[ch]);
@@ -206,14 +307,13 @@
   /* ---- the display window ---------------------------------------------- */
 
   Unit.prototype.shape = function () {
-    // The waveform of this preview, decoded once. Until it is here the
-    // window draws no waveform at all, rather than a decorative one.
     var self = this;
-    if (this.wave || this.shaping || !this.audio || !this.audio.currentSrc) { return; }
+    var src = this.audio && this.audio.currentSrc;
+    if (!src || this.waves[src] || this.shaping === src) { return; }
     var AC = window.AudioContext || window.webkitAudioContext;
     if (!AC || !window.fetch) { return; }
-    this.shaping = true;
-    fetch(this.audio.currentSrc).then(function (r) {
+    this.shaping = src;
+    fetch(src).then(function (r) {
       if (!r.ok) { throw new Error("not ours to read"); }
       return r.arrayBuffer();
     }).then(function (buf) {
@@ -224,7 +324,7 @@
       });
     }).then(function (audio) {
       var data = audio.getChannelData(0);
-      var n = 220, step = Math.floor(data.length / n) || 1, out = [];
+      var n = 260, step = Math.floor(data.length / n) || 1, out = [];
       for (var i = 0; i < n; i++) {
         var top = 0;
         for (var j = 0; j < step; j += 8) {
@@ -233,37 +333,39 @@
         }
         out.push(top);
       }
-      self.wave = out;
+      self.waves[src] = out;
+      self.shaping = null;
       self.paint();
-    }).catch(function () { self.wave = null; });
+    }).catch(function () { self.shaping = null; });
+  };
+
+  Unit.prototype.stillMotion = function () {
+    return window.matchMedia
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   };
 
   Unit.prototype.paint = function () {
     if (!this.ctx) { return; }
     var g = this.ctx, W = this.canvas.width, H = this.canvas.height;
     if (!W || !H) { return; }
-    // Read off the screen element, where rr-unit.css declares them from the
-    // tokens. Hard-coding the brand values here would be a second source of
-    // truth for them, and it is what the design system refuses.
     var css = getComputedStyle(this.screen || this.root);
     var gold = css.getPropertyValue("--wave").trim() || "rgba(255,255,255,.85)";
     var dim = css.getPropertyValue("--wave-rest").trim() || "rgba(255,255,255,.45)";
     g.clearRect(0, 0, W, H);
 
-    var st = this.state();
-    if (st === "ready") { this.shape(); }
-
+    var src = this.audio && this.audio.currentSrc;
+    if (src) { this.shape(); }
+    var wave = src ? this.waves[src] : null;
     var pad = H * 0.16, mid = H / 2, i;
 
-    if (st === "ready" && this.wave) {
-      var n = this.wave.length, bw = W / n;
+    if (wave) {
+      var n = wave.length, bw = W / n;
       var at = (this.audio && this.audio.duration)
         ? this.audio.currentTime / this.audio.duration : 0;
       for (i = 0; i < n; i++) {
-        var h = Math.max(1, this.wave[i] * (H / 2 - pad) * 2);
+        var h = Math.max(1, wave[i] * (H / 2 - pad) * 2);
         var past = (i / n) <= at;
         g.fillStyle = past ? gold : dim;
-        // 0.34 vanished into the glass. The played part still leads.
         g.globalAlpha = past ? 1 : 0.55;
         g.fillRect(i * bw, mid - h / 2, Math.max(1, bw - this.dpr), h);
       }
@@ -271,13 +373,13 @@
       g.fillStyle = gold;
       g.fillRect(Math.min(W - this.dpr * 2, at * W), pad * 0.5, this.dpr * 2, H - pad);
     } else {
-      // Nothing to display yet. One quiet line, and while RoEx is working a
+      // Nothing to display. One quiet line, and while RoEx is working a
       // sweep travelling along it, so the unit reads as alive without
       // pretending to show a signal it does not have.
       g.globalAlpha = 0.28;
       g.fillStyle = dim;
       g.fillRect(0, mid - this.dpr / 2, W, this.dpr);
-      if (st === "working" && !this.stillMotion()) {
+      if (this.state() === "working" && !this.stillMotion()) {
         var t = (Date.now() % 2600) / 2600, x = t * W;
         var grad = g.createLinearGradient(x - W * 0.14, 0, x + W * 0.14, 0);
         grad.addColorStop(0, "rgba(0,0,0,0)");
@@ -296,11 +398,6 @@
       this.readout.textContent = (a && a.duration && isFinite(a.duration))
         ? clock(a.currentTime) + " / " + clock(a.duration) : "";
     }
-  };
-
-  Unit.prototype.stillMotion = function () {
-    return window.matchMedia
-      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   };
 
   Unit.prototype.sweep = function () {

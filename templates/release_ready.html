@@ -4,6 +4,7 @@
 {% block title %}Release-Ready{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/release_ready.css?v=2">
+  <link rel="stylesheet" href="/static/css/rr-unit.css?v=3">
 {% endblock %}
 
 {#- Release-Ready: the upload page (owner's brief, 2026-09-19).
@@ -76,6 +77,19 @@
         </div>
       </div>
       {% if read_only %}<p class="rr-p rr-p--dim">{{ read_only_note }}</p>{% endif %}
+
+      {#- The unit is here the moment you open Release-Ready, and you load
+          into it: the owner's brief, "the rack unit should be there when
+          you straight open it, and then you upload into the rack unit".
+          The slot hands the file to the form below - it cannot upload by
+          itself, because the rights and licence boxes are not ours to
+          skip. -#}
+      {% with source = {"id": "new", "title": ""}, previews = [],
+              can_load = (state.open and not read_only),
+              upload_url = "/creative-studio/release-ready/upload" %}
+        {% include "_rr_unit.html" %}
+      {% endwith %}
+
       <form class="rr-form" id="rr-upload" method="post" action="/creative-studio/release-ready/upload"
             enctype="multipart/form-data" data-rr-upload>
         <input type="hidden" name="consent_version" value="{{ consent.version }}">
@@ -187,4 +201,5 @@
 
 {% block scripts %}
 <script src="/static/js/release_ready.js?v=1" defer></script>
+<script src="/static/js/rr-unit.js?v=3" defer></script>
 {% endblock %}
