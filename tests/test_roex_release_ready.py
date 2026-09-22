@@ -149,6 +149,12 @@ def env(monkeypatch, tmp_path):
         if url not in e.files:
             raise roex.RoexDownloadError("no such file in the test")
         data = e.files[url]
+        # The real _download refuses a file over max_bytes, and callers pass
+        # different caps (MAX_PREVIEW_BYTES is a fraction of MAX_MASTER_BYTES).
+        # The seam has to refuse it too, or the cap is untestable and a
+        # preview too large to keep looks like one that stored fine.
+        if len(data) > max_bytes:
+            raise roex.RoexDownloadError("RoEx's file was larger than expected")
         path = tmp_path / ("dl-%d" % len(e.downloads))
         path.write_bytes(data)
         return str(path), len(data), hashlib.sha256(data).hexdigest()
@@ -775,6 +781,75 @@ def test_a_preview_that_never_arrives_says_why_on_the_owners_desk(env, monkeypat
     # The artist is told only the plain sentence for the state they are in.
     page = c.get(PAGE + "/jobs/%s.json" % jid).get_json()
     assert "RoEx sent no preview link" not in json.dumps(page)
+
+
+def test_a_preview_roex_finished_that_we_cannot_keep_is_not_a_timeout(env, monkeypatch, caplog):
+    """The other half of the same blind spot. _store_preview's three failure
+    paths put the job back on the clock with nothing recorded, so a preview
+    RoEx had already produced and we could not store looked identical to one
+    RoEx was still making - for forty-five minutes, ending in "RoEx didn't
+    finish this preview within 45 minutes." RoEx did finish. These are our
+    problems, and each now says which one it was."""
+    caplog.set_level(logging.INFO)
+    c = _account("label")
+    sid = _mix_with_report(c, env)
+    env.roex.on("/masteringpreview", (200, {"mastering_task_id": "mt_big"}))
+    jid = c.post(PAGE + "/sources/%s/previews" % sid,
+                 data={"style": "POP", "loudness": ["MEDIUM"]},
+                 headers=J).get_json()["jobs"][0]["id"]
+
+    url = "https://roex.test/too-big.wav"
+    env.roex.on("/retrievepreviewmaster", (200, {"previewMasterTaskResults": {
+        "download_url_mastered_preview": url, "preview_start_time": 12}}))
+    # Bigger than MAX_PREVIEW_BYTES. This is the one that fits the owner's
+    # own file: a full-length 48 kHz 24-bit WAV is far over the 20 MB cap.
+    env.files[url] = bytes(roex.MAX_PREVIEW_BYTES + 1)
+
+    _poll(c, jid)
+    job = rstore.get_job(jid)
+    assert job["status"] == "processing", "it keeps trying, as it should"
+    assert "larger than expected" in job["error_text"]
+    assert "could not be kept" in caplog.text
+
+    desk = _owner(env).get("/admin/release-ready").data.decode()
+    assert "larger than expected" in desk
+
+    # Past the deadline this is not reported as RoEx running out of time.
+    monkeypatch.setattr(rr, "PREVIEW_DEADLINE", timedelta(seconds=-1))
+    _poll(c, jid)
+    job = rstore.get_job(jid)
+    assert job["status"] == "failed"
+    assert job["error_kind"] == "not_kept", "not 'timeout': RoEx finished"
+    assert "larger than expected" in job["error_text"]
+
+    page = json.dumps(c.get(PAGE + "/jobs/%s.json" % jid).get_json())
+    assert "couldn't store it" in page
+    assert "45 minutes" not in page
+    assert "hand the file to RoEx" not in page, "wrong direction"
+    assert "larger than expected" not in page, "our note, not the artist's words"
+
+
+def test_an_empty_or_unstorable_preview_each_say_which(env, monkeypatch):
+    c = _account("label")
+    sid = _mix_with_report(c, env)
+    env.roex.on("/masteringpreview", (200, {"mastering_task_id": "mt_empty"}))
+    jid = c.post(PAGE + "/sources/%s/previews" % sid,
+                 data={"style": "POP", "loudness": ["MEDIUM"]},
+                 headers=J).get_json()["jobs"][0]["id"]
+    url = "https://roex.test/empty.wav"
+    env.roex.on("/retrievepreviewmaster", (200, {"previewMasterTaskResults": {
+        "download_url_mastered_preview": url, "preview_start_time": 0}}))
+    env.files[url] = b""
+    _poll(c, jid)
+    assert "arrived empty" in rstore.get_job(jid)["error_text"]
+
+    # And a bucket that will not take it is named as ours, not RoEx's.
+    env.files[url] = PREVIEW_BYTES
+    monkeypatch.setattr(rr, "_store_private", lambda *a, **k: None)
+    _poll(c, jid)
+    said = rstore.get_job(jid)["error_text"]
+    assert "our bucket would not take it" in said
+    assert "RoEx" in said and "came back from RoEx" in said
 
 
 def test_a_bare_202_forever_is_itself_the_finding(env, monkeypatch, caplog):

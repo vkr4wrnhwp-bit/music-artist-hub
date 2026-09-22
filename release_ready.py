@@ -227,7 +227,12 @@ COPY = {
     "unreachable": "RoEx couldn't be reached. Try again later.",
     "preview_timeout": "RoEx didn't finish this preview within 45 minutes. Try again, it's free.",
     "preview_gone": "RoEx no longer has this preview. Make a new one, it's free.",
-    "handoff": "We couldn't hand the file to RoEx. Try again.",
+    "handoff": "We couldn't hand the file to RoEx. Try again.",
+    # The other direction: RoEx finished and we could not keep what came
+    # back. Our problem, not theirs, and not a timeout - so it does not
+    # borrow the handoff sentence or the timeout one.
+    "not_kept": ("RoEx finished this preview but we couldn't store it. Try again, "
+                 "it's free - and it's been reported to us."),
     "checking": "RoEx is checking your mix. This can take a few minutes.",
     "making": "RoEx is making this preview. It usually takes a few minutes.",
     "artist_cap": ("You've used this month's automatic mix reports. Press Get the mix report "
@@ -363,7 +368,8 @@ def message_for(job):
             return COPY["roex_failed"] % said if said else COPY["roex_failed_plain"]
         return COPY.get({"timeout": "preview_timeout", "not_found": "preview_gone",
                          "unreachable": "unreachable", "no_answer": "no_answer",
-                         "storage": "handoff", "not_connected": "not_connected",
+                         "storage": "handoff", "not_kept": "not_kept",
+                         "not_connected": "not_connected",
                          "bad_answer": "bad_answer", "roex_error": "roex_error"}.get(kind, ""),
                         COPY["unreachable"])
     return ""
@@ -966,25 +972,34 @@ def _preview_poll_result(job, out, measured=None):
 
 
 def _store_preview(job, data, measured=None):
+    """RoEx says the preview is ready. Fetch it and put it in our bucket.
+
+    Every failure here used to be silent: the job went back on the clock
+    with nothing recorded, so a preview RoEx had already produced and we
+    could not keep looked exactly like a preview RoEx was still making, for
+    forty-five minutes, and then failed as a timeout. It is not a timeout -
+    RoEx finished - and the difference matters, because these are our
+    problems to fix, not RoEx's. RoexDownloadError already says which one
+    ("larger than expected" is MAX_PREVIEW_BYTES; the rest name the
+    exception), so all that was missing was keeping it."""
     try:
         path, n, _sha = roex._download(data["url"], roex.MAX_PREVIEW_BYTES)
-    except roex.RoexDownloadError:
-        if _preview_elapsed(job) > PREVIEW_DEADLINE:
-            return _fail(job, "timeout")
-        return store.update_job(job["id"], next_poll_at=_later(60))
+    except roex.RoexDownloadError as exc:
+        return _preview_snag(job, str(exc) or "RoEx's file could not be fetched", 60)
     try:
         with open(path, "rb") as fh:
             body = fh.read()
     finally:
         _remove(path)
     if not body:
-        return store.update_job(job["id"], next_poll_at=_later(60))
+        return _preview_snag(job, "RoEx's file arrived empty", 60)
     wav = body[:4] == b"RIFF" and body[8:12] == b"WAVE"
     ext, ctype = (".wav", "audio/wav") if wav else (".mp3", "audio/mpeg")
     stored = _store_private("release_ready/%s/%s-preview%s" % (job["user_id"], job["id"], ext),
                             body, ctype)
     if not stored:
-        return store.update_job(job["id"], next_poll_at=_later(120))
+        return _preview_snag(job, "the preview came back from RoEx but our bucket "
+                                  "would not take it", 120)
     result = dict(job.get("result") or {})
     result["preview"] = {"start": data.get("start"), "bytes": n, "mime_type": ctype}
     if measured is not None:
@@ -993,6 +1008,21 @@ def _store_preview(job, data, measured=None):
                      preview_start=data.get("start"), result=result, next_poll_at=None,
                      error_kind=None, error_text=None)
     return None
+
+
+def _preview_snag(job, said, seconds):
+    """Our side could not keep a preview RoEx had ready. Say so and retry.
+
+    Recorded on the job for the owner's desk and logged once per distinct
+    reason, the same way a stalled poll is. The artist still reads their own
+    plain sentence, chosen by error_kind."""
+    said = said[:300]
+    if _without_count(said) != _without_count((job.get("error_text") or "").strip()):
+        log.warning("release_ready: preview %s came back but could not be kept: %s",
+                    job["id"], said)
+    if _preview_elapsed(job) > PREVIEW_DEADLINE:
+        return _fail(job, "not_kept", said)
+    return store.update_job(job["id"], error_text=said, next_poll_at=_later(seconds))
 
 
 def _step_master(job):
