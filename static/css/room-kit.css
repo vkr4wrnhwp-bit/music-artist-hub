@@ -348,3 +348,97 @@
 .rk-tile, .fr-tile, .mk-tile, .pb-tile { transition: none; }
   .rk-tile:hover { transform: none; }
 }
+
+/* ---- THE PLATE -------------------------------------------------------
+   The photo-plate method, shared. The hardware is ONE photograph and only
+   the readings are drawn on it; every window is positioned as a FRACTION
+   of the plate, so the unit scales to any width and nothing drifts off its
+   glass. The fractions live in each room's builder module (PLATE), are
+   measured off the file itself with PIL, and are emitted inline as
+   --x/--y/--w/--h - one source, and a test can read it.
+
+   Studio and Business keep their own bespoke sheets: Studio's plate has
+   needles, a bay and a waveform that do not generalise, and Business's
+   middle window is physically two panes. Everything since shares this.
+
+   TWO THINGS THE STUDIO PLATE TAUGHT THE HARD WAY, both encoded here:
+   the unit needs container-type or every cqw size on it is invalid and the
+   type falls back to page-sized and bursts out of the windows; and cqh does
+   NOT resolve against an inline-size container, so nothing is sized off the
+   height. */
+
+.rk-pl {
+  position: relative; width: 100%; margin: 0 auto; line-height: 0;
+  container-type: inline-size;
+}
+.rk-pl-img { display: block; width: 100%; height: auto; }
+
+.rk-pl-win {
+  position: absolute; left: var(--x); top: var(--y);
+  width: var(--w); height: var(--h);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3%;
+  padding: 4% 5%; text-align: center; overflow: hidden; line-height: 1.2;
+}
+
+/* The reading. Tabular numerals because these are figures in windows that
+   sit above one another and must not dance as they change. */
+.rk-pl-n {
+  margin: 0; font-family: var(--sb-display); font-weight: 800;
+  letter-spacing: -.015em; line-height: 1; color: var(--sb-ink);
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+  text-shadow: 0 0 26px color-mix(in srgb, var(--sb-gold) 26%, transparent);
+  font-size: clamp(18px, 2.6cqw, 46px);
+}
+/* An absence is WORDS, and words are not set like a figure. */
+.rk-pl-n.is-none {
+  font-family: inherit; font-weight: 600; letter-spacing: .01em;
+  color: var(--sb-ink-2); text-shadow: none;
+  font-size: clamp(10px, 1.15cqw, 17px);
+}
+.rk-pl-s {
+  margin: 0; font-size: clamp(9px, .95cqw, 14px); font-weight: 600;
+  letter-spacing: .04em; color: var(--sb-ink-2);
+}
+.rk-pl-s.is-up { color: var(--sb-good); }
+.rk-pl-s.is-down { color: var(--sb-warn); }
+
+/* The plate SILKSCREENS every window's name, so the markup carries it for
+   a screen reader alone - and, below 560px, as the only thing naming each
+   reading once the photograph steps aside. */
+.rk-pl-sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  padding: 0; border: 0; overflow: hidden; white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/* A big window carries the room's own drawing - a map, a chart, a plot -
+   which brings its own aspect and must never overflow the glass. */
+.rk-pl-art { width: 100%; height: 100%; display: grid; place-items: center; }
+.rk-pl-art > svg, .rk-pl-art > img { max-width: 100%; max-height: 100%; }
+
+@media (max-width: 560px) {
+  /* The readings ARE the screen. A phone that dropped them would show a
+     picture of an instrument instead of this artist's numbers, so the
+     photograph goes and the readings become an ordinary stacked list. */
+  .rk-pl-img { display: none; }
+  .rk-pl {
+    container-type: normal; display: flex; flex-direction: column;
+    gap: 10px; line-height: 1.2;
+  }
+  .rk-pl-win {
+    position: static; left: auto; top: auto; width: auto; height: auto;
+    align-items: flex-start; text-align: left; gap: 4px;
+    padding: 14px 16px; border: 1px solid var(--sb-line);
+    border-radius: var(--sb-r-panel); background: var(--sb-surface-1);
+  }
+  .rk-pl-sr {
+    position: static; width: auto; height: auto; margin: 0;
+    overflow: visible; white-space: normal; clip-path: none;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--sb-ink-2);
+  }
+  .rk-pl-n { font-size: 30px; }
+  .rk-pl-n.is-none { font-size: 15px; }
+  .rk-pl-s { font-size: 12px; }
+}

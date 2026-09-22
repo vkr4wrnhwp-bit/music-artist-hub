@@ -72,21 +72,86 @@
       </div>
     </div>
 
-    <div class="fr-owned">
-      <p class="fr-kicker">Your owned audience</p>
-      <p class="fr-big"><span class="fr-big-n">{{ fr.total_label }}</span><span class="fr-big-u">fan{{ "" if fr.total == 1 else "s" }}</span></p>
-      <div class="fr-stats">
-        <div class="fr-stat">
-          <span class="fr-stat-n{% if fr.new %} is-up{% endif %}">{% if fr.new %}{{ icon("up", "fr-ico") }}{% endif %}{{ fr.new_label }}</span>
-          <span class="fr-stat-l" title="Fans who joined through your links. An imported list is not counted as new.">new in {{ fr.days }} days</span>
-        </div>
-        <div class="fr-stat">
-          <span class="fr-stat-n">{% if fr.reachable_pct is not none %}{{ fr.reachable_pct }}%{% else %}None yet{% endif %}</span>
-          <span class="fr-stat-l" title="Fans with an email that has not bounced or unsubscribed.">reachable</span>
-        </div>
-      </div>
-    </div>
   </section>
+
+  {# ---- the plate: one photograph, four windows ------------------------
+       The hardware is a photograph (static/img/fans-plate.webp) and only
+       the readings are drawn on it, each positioned as a fraction of the
+       plate held in fan_room.PLATE. The plate silkscreens every name -
+       ON FILE, REACHABLE, NEW, THE ROOM - so the markup carries them for
+       a screen reader alone.
+
+       The ?v is not decoration: an image replaced in place is kept by
+       every browser that already has it while the stylesheet beside it
+       refetches, so the overlays land on the wrong picture. Studio lost
+       an afternoon to exactly that. #}
+  <section class="rk-pl fr-pl"
+           aria-label="{% if fr.total %}Your audience: {{ fr.total_label }} on file{% else %}The audience monitor, with nobody on file yet{% endif %}">
+    <img class="rk-pl-img" src="/static/img/fans-plate.webp?v=1" alt=""
+         width="1860" height="846" decoding="async">
+
+    {# the big window: the constellation, or the invitation that fills it #}
+    <div class="rk-pl-win fr-pl-room" style="{{ fr.room_box }}">
+      <p class="rk-pl-sr">The room</p>
+      {% if fr.pulse %}
+      <div class="rk-pl-art">
+        <svg viewBox="0 0 {{ fr.pulse.w }} {{ fr.pulse.h }}" aria-hidden="true" focusable="false">
+          <defs>
+            <radialGradient id="fr-glow">
+              <stop offset="0" style="stop-color: var(--sb-gold-bright); stop-opacity: .55"/>
+              <stop offset="1" style="stop-color: var(--sb-gold); stop-opacity: 0"/>
+            </radialGradient>
+          </defs>
+          {% for x1, y1, x2, y2 in fr.pulse.lines %}
+          <line class="fr-map-line" x1="{{ x1 }}" y1="{{ y1 }}" x2="{{ x2 }}" y2="{{ y2 }}"/>
+          {% endfor %}
+          {% for d in fr.pulse.dots %}
+          <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r * 3.2 }}" fill="url(#fr-glow)"/>
+          <circle class="fr-map-dot{% if d.label %} is-big{% endif %}" cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r }}"/>
+          {% endfor %}
+          {#- The names, IN the viewBox rather than positioned over it. The
+              window is not the map's own aspect, so the drawing letterboxes
+              inside its glass; a label placed as a percentage of the window
+              would sit a few pixels off its dot, and the whole point of a
+              named dot is that it points at something. In viewBox units it
+              cannot drift. -#}
+          {% for d in fr.pulse.dots if d.label %}
+          <text class="fr-map-name" x="{{ (d.x - 9) if d.right else (d.x + 9) }}" y="{{ d.y - 1 }}"
+                text-anchor="{{ "end" if d.right else "start" }}">{{ d.city }}</text>
+          <text class="fr-map-count" x="{{ (d.x - 9) if d.right else (d.x + 9) }}" y="{{ d.y + 8 }}"
+                text-anchor="{{ "end" if d.right else "start" }}">{{ "{:,}".format(d.count) }}</text>
+          {% endfor %}
+        </svg>
+      </div>
+      {% else %}
+      {#- Not an empty box: the window says what will fill it and how. -#}
+      <p class="fr-pl-none">No fan cities yet</p>
+      <p class="fr-pl-none-s">Cities arrive with your smart links, and from the
+        city column of a list you import.</p>
+      {% endif %}
+    </div>
+
+    {# the three readings #}
+    {% for w in fr.windows %}
+    <div class="rk-pl-win" style="{{ w.box }}">
+      <p class="rk-pl-sr">{{ w.name }}</p>
+      <p class="rk-pl-n{% if not w.measured %} is-none{% endif %}">{{ w.value }}</p>
+      <p class="rk-pl-s{% if w.tone %} {{ w.tone }}{% endif %}">{{ w.sub }}</p>
+    </div>
+    {% endfor %}
+  </section>
+  <p class="rk-foot fr-pl-foot">
+    {#- The Live / Sample mark. It used to sit in the head of the map panel;
+        that panel folded into the plate on 2026-09-22 and the mark has to
+        come with it, because it is the device that stops a demo account's
+        generated audience being read as a real one. -#}
+    {% if fr.showcase %}<span class="fr-mark fr-mark--sample"><i></i>Sample</span>
+    {% else %}<span class="fr-mark" title="Read from your own records when this page opened"><i></i>Live</span>{% endif %}
+    {%- if fr.pulse %}{{ fr.pulse.cities }} cit{{ "y" if fr.pulse.cities == 1 else "ies" }} on file{% if fr.pulse.unplotted %}, {{ fr.pulse.unplotted }} not on this map{% endif %}. The lines are drawing, not travel.
+    {%- else %}Nothing is plotted yet.{% endif %}
+    Reachable counts fans with an address we have not seen bounce or unsubscribe.
+    New counts arrivals that did not come from an import.
+  </p>
 
   {% if fr.showcase %}
   <p class="fr-showcase"><b>Sample data.</b> This is the demo account: every figure here is generated for the example.</p>
@@ -131,47 +196,6 @@
       </div>
     </section>
 
-    <section class="fr-panel fr-pulse" aria-labelledby="fr-pulse-h">
-      <div class="fr-panel-head">
-        <div>
-          <h2 class="fr-kicker" id="fr-pulse-h">Audience pulse</h2>
-          <p class="fr-kicker fr-kicker--dim fr-kicker--sm">Where your fans are, by city</p>
-        </div>
-        {% if fr.showcase %}<span class="fr-mark fr-mark--sample"><i></i>Sample</span>
-        {% else %}<span class="fr-mark" title="Read from your own records when this page opened"><i></i>Live</span>{% endif %}
-      </div>
-      {% if fr.pulse %}
-      <div class="fr-map" style="--map-w: {{ fr.pulse.w }}; --map-h: {{ fr.pulse.h }};">
-        <svg viewBox="0 0 {{ fr.pulse.w }} {{ fr.pulse.h }}" aria-hidden="true" focusable="false">
-          <defs>
-            <radialGradient id="fr-glow">
-              <stop offset="0" style="stop-color: var(--sb-gold-bright); stop-opacity: .55"/>
-              <stop offset="1" style="stop-color: var(--sb-gold); stop-opacity: 0"/>
-            </radialGradient>
-          </defs>
-          {% for x1, y1, x2, y2 in fr.pulse.lines %}
-          <line class="fr-map-line" x1="{{ x1 }}" y1="{{ y1 }}" x2="{{ x2 }}" y2="{{ y2 }}"/>
-          {% endfor %}
-          {% for d in fr.pulse.dots %}
-          <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r * 3.2 }}" fill="url(#fr-glow)"/>
-          <circle class="fr-map-dot{% if d.label %} is-big{% endif %}" cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r }}"/>
-          {% endfor %}
-        </svg>
-        {% for d in fr.pulse.dots if d.label %}
-        <span class="fr-map-label{% if d.right %} is-left{% endif %}" style="left: {{ (100 * d.x / fr.pulse.w)|round(2) }}%; top: {{ (100 * d.y / fr.pulse.h)|round(2) }}%;">
-          <b>{{ d.city }}</b>{{ "{:,}".format(d.count) }}
-        </span>
-        {% endfor %}
-      </div>
-      <p class="fr-map-foot">{{ fr.pulse.cities }} cit{{ "y" if fr.pulse.cities == 1 else "ies" }} on file{% if fr.pulse.unplotted %}, {{ fr.pulse.unplotted }} off this map{% endif %}. The lines are drawing, not travel.</p>
-      {% else %}
-      <div class="fr-map-empty">
-        <p>No fan cities on file yet.</p>
-        <p>Cities come from your smart links and from the city column of a list you
-           import &mdash; start from the Fans card below.</p>
-      </div>
-      {% endif %}
-    </section>
   </div>
 
   <section class="fr-tools" aria-labelledby="fr-tools-h">

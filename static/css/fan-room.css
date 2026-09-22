@@ -36,21 +36,6 @@
 .fr-range-menu a:hover { background: var(--sb-surface-3); }
 .fr-range-menu a[aria-current] { color: var(--sb-gold-bright); font-weight: 700; }
 
-.fr-owned { margin-top: 20px; }
-.fr-owned .fr-kicker { color: var(--sb-gold); }
-.fr-big { margin: 8px 0 0; display: flex; flex-direction: column; line-height: .88; }
-.fr-big-n {
-  font-family: var(--sb-display); font-size: 66px; font-weight: 800; font-variation-settings: "wdth" 112;
-  letter-spacing: -.02em; color: var(--sb-ink); font-variant-numeric: tabular-nums;
-}
-.fr-big-u { font-family: var(--sb-display); font-size: 36px; font-weight: 800; color: var(--sb-gold); margin-top: 2px; }
-.fr-stats { display: flex; align-items: stretch; gap: 30px; margin-top: 14px; }
-.fr-stat { display: flex; flex-direction: column; gap: 4px; }
-.fr-stat + .fr-stat { padding-left: 30px; border-left: 1px solid var(--sb-line-strong); }
-.fr-stat-n { display: inline-flex; align-items: center; gap: 8px; font-size: 26px; font-weight: 800; color: var(--sb-ink); font-variant-numeric: tabular-nums; }
-.fr-stat-n.is-up { color: var(--sb-good); }
-.fr-stat-n .fr-ico { width: 22px; height: 22px; stroke-width: 2; }
-.fr-stat-l { font-size: 14px; color: var(--sb-ink); }
 
 .fr-showcase { margin: 0; padding: 10px 14px; border: 1px solid var(--sb-gold-line); border-radius: var(--sb-r-panel);
   background: var(--sb-gold-wash); color: var(--sb-ink); font-size: 13px; }
@@ -60,7 +45,10 @@
 .fr-life-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 
 /* ---- panels -------------------------------------------------------- */
-.fr-mid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 16px; }
+/* The map moved onto the plate on 2026-09-22, so the row that held it
+   beside the moves is one column: a two-column grid with one child
+   leaves half the row empty. */
+.fr-mid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .fr-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
 .fr-panel-head .fr-kicker { color: var(--sb-gold); letter-spacing: .26em; }
 .fr-panel-head .fr-kicker--dim { color: var(--sb-ink-2); margin-top: 6px; }
@@ -97,22 +85,10 @@
 .fr-mark i { width: 8px; height: 8px; border-radius: 50%; background: var(--sb-good); box-shadow: 0 0 8px var(--sb-good-line); }
 .fr-mark--sample { color: var(--sb-info); }
 .fr-mark--sample i { background: var(--sb-info); box-shadow: none; }
-.fr-map { position: relative; width: 100%; aspect-ratio: var(--map-w) / var(--map-h); }
 .fr-map svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .fr-map-line { stroke: var(--sb-gold); stroke-opacity: .32; stroke-width: 1; }
 .fr-map-dot { fill: var(--sb-gold); }
 .fr-map-dot.is-big { fill: var(--sb-gold-bright); }
-.fr-map-label {
-  position: absolute; transform: translate(14px, -50%); display: flex; flex-direction: column;
-  font-size: 13px; font-weight: 600; line-height: 1.25; color: var(--sb-ink); white-space: nowrap;
-  text-shadow: 0 1px 6px rgb(0 0 0 / .9); pointer-events: none; font-variant-numeric: tabular-nums;
-}
-.fr-map-label b { font-size: 13.5px; font-weight: 700; }
-.fr-map-label.is-left { transform: translate(calc(-100% - 14px), -50%); text-align: right; }
-.fr-map-foot { margin: 10px 0 0; font-size: 12px; color: var(--sb-ink-3); }
-.fr-map-empty { display: grid; gap: 8px; align-content: center; min-height: 200px; padding: 12px 4px; }
-.fr-map-empty p { margin: 0; font-size: 14px; color: var(--sb-ink-2); }
-.fr-map-empty p:first-child { font-size: 16px; font-weight: 700; color: var(--sb-ink); }
 
 /* ---- tools --------------------------------------------------------- */
 .fr-tools .fr-kicker { color: var(--sb-ink); margin-bottom: 14px; }
@@ -123,15 +99,49 @@
 }
 @media (max-width: 860px) {
   .fr { gap: 18px; }
-  .fr-owned { margin-top: 26px; }
-  .fr-big-n { font-size: 56px; }
-  .fr-big-u { font-size: 30px; }
   .fr-move { grid-template-columns: 40px minmax(0, 1fr); gap: 10px 12px; padding: 12px; }
   .fr-move-ico { width: 40px; height: 40px; }
   .fr-move-reach { grid-column: 2; flex-direction: row; align-items: baseline; gap: 8px; }
   .fr-move-cta { grid-column: 1 / -1; justify-content: center; width: auto; height: 44px; }
 }
 @media (max-width: 420px) {
-  .fr-stats { gap: 18px; }
-  .fr-stat + .fr-stat { padding-left: 18px; }
+}
+/* ---- the plate -------------------------------------------------------
+   Position and type come from room-kit.css (.rk-pl*). Only what is
+   particular to THIS plate lives here: the constellation inside its big
+   window, and the words that fill that window before any city exists. */
+
+.fr-pl { margin-top: 18px; }
+.fr-pl-room .rk-pl-art { width: 100%; height: 100%; }
+.fr-pl-room svg { width: 100%; height: 100%; overflow: visible; }
+.fr-map-line { stroke: var(--sb-gold); stroke-opacity: .32; stroke-width: 1; }
+.fr-map-dot { fill: var(--sb-gold); }
+.fr-map-dot.is-big { fill: var(--sb-gold-bright); }
+
+/* The big window with nothing in it yet. Not a blank pane: it says what
+   fills it and where that comes from. */
+.fr-pl-none {
+  margin: 0; font-family: var(--sb-display); font-weight: 800;
+  color: var(--sb-ink); font-size: clamp(13px, 1.8cqw, 30px);
+}
+.fr-pl-none-s {
+  margin: 0; max-width: 62%; line-height: 1.45; color: var(--sb-ink-2);
+  font-size: clamp(9px, .95cqw, 14px);
+}
+.fr-pl-foot { margin-top: 10px; }
+
+@media (max-width: 560px) {
+  .fr-pl-none { font-size: 18px; }
+  .fr-pl-none-s { font-size: 13px; max-width: none; }
+}
+
+/* The named cities. Sized in viewBox units (the drawing is 604 wide), so
+   they scale with the map instead of being set in page pixels. */
+.fr-map-name {
+  fill: var(--sb-ink); font-family: var(--sb-display); font-weight: 700;
+  font-size: 9px; letter-spacing: -.2px;
+}
+.fr-map-count {
+  fill: var(--sb-ink-2); font-size: 7.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }

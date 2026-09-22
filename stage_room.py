@@ -291,6 +291,55 @@ def path(show, the_rig, the_plot, version):
     return out
 
 
+# --- THE PLATE --------------------------------------------------------
+# static/img/stage-plate.webp, 1859x846: a SHOW CONTROL desk. Each window
+# is (x, y, w, h) as a PERCENTAGE of the plate, MEASURED off the file with
+# PIL. RE-MEASURE ALL OF THEM if the plate is ever regenerated or
+# re-cropped - the overlays would otherwise land beside their glass and
+# nothing in code would say so.
+#
+# The plate silkscreens CUES, CHANNELS, PASSPORT and THE STAGE, so the
+# markup never prints those words; they ride along as screen-reader text
+# and appear only under 560px, where the photograph steps aside.
+#
+# The wide window carries the CUE LIST rather than a picture of the plot.
+# The plot has its own panel below, and that panel is the REAL designer
+# (owner, 2026-09-22: a rendering that "doesn't do anything" is not worth
+# drawing) - so a second drawing of the same plot would be the screen
+# folding on top of itself. The cue list is on no other part of this room.
+PLATE = {
+    "cues":     (5.33, 17.61, 26.52, 17.97),
+    "channels": (34.59, 17.49, 30.72, 18.09),
+    "passport": (68.05, 17.49, 26.20, 18.09),
+    "stage":    (5.38, 53.55, 88.86, 28.49),
+}
+# The reading keys figures() emits, in the order the plate prints them.
+PLATE_ORDER = ("cues", "channels", "version")
+PLATE_WINDOW = {"cues": "cues", "channels": "channels", "version": "passport"}
+
+
+def box(key):
+    """The inline custom properties that put a window on its glass."""
+    x, y, w, h = PLATE[key]
+    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+
+
+def plate_windows(rows):
+    """figures() again, each one carrying the window it is printed in.
+
+    The order is the silkscreen's, not the list's: a label etched on metal
+    cannot be reordered, so neither can these.
+    """
+    by = {r["key"]: r for r in rows or ()}
+    out = []
+    for key in PLATE_ORDER:
+        row = by.get(key)
+        if not row:
+            continue
+        out.append(dict(row, box=box(PLATE_WINDOW[key])))
+    return out
+
+
 def build(show, plot_state, plot_image, version, cards,
           artist_name="", sample=False, can_open=None):
     """Everything the screen renders. No page logic beyond this."""
@@ -326,6 +375,9 @@ def build(show, plot_state, plot_image, version, cards,
         "span_label": timecode(span(cue_rows)),
         "plot": the_plot,
         "figures": figures(show, the_rig, version),
+        # The plate: the same readings, each on its own glass.
+        "windows": plate_windows(figures(show, the_rig, version)),
+        "stage_box": box("stage"),
         "path": path(show, the_rig, the_plot, version),
         "tiles": tiles,
         # The mark is literal: it appears when this account is looking at

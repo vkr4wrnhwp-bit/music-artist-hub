@@ -59,6 +59,55 @@ LIFECYCLE = [
 TOP_BANDS = ("Superfan", "Hot")
 
 
+# --- THE PLATE --------------------------------------------------------
+# static/img/fans-plate.webp, 1860x846. The hardware is ONE photograph and
+# only the readings are drawn on it. Each window is (x, y, w, h) as a
+# PERCENTAGE of the plate, MEASURED off the file itself with PIL.
+#
+# RE-MEASURE EVERY ONE IF THE PLATE IS REGENERATED OR RE-CROPPED. Cropping
+# moves all of them and nothing in code will tell you - the overlays simply
+# land beside their glass. tests/test_fan_room.py asserts these numbers, so
+# a silent drift fails loudly instead.
+#
+# The plate SILKSCREENS each window's name - ON FILE, REACHABLE, NEW, and
+# THE ROOM under the big one - so the markup never prints them. They ride
+# along as screen-reader text and become visible only under 560px, where
+# the photograph steps aside and the readings stand on their own.
+PLATE = {
+    "room":      (6.67, 18.56, 59.30, 62.29),
+    "on-file":   (71.02, 14.78, 22.20, 13.95),
+    "reachable": (71.02, 41.02, 22.20, 13.83),
+    "new":       (71.02, 67.14, 22.20, 13.95),
+}
+
+
+def box(key):
+    """The inline custom properties that put a window on its glass."""
+    x, y, w, h = PLATE[key]
+    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+
+
+def windows(total_label, total, new_label, new, reachable_pct, days):
+    """The three small readings, in the order the plate prints them.
+
+    None of them reads 0 for an absence: "None yet" is the words for
+    nobody on file, while a real 0% is a measurement of an account whose
+    every fan is suppressed or has no address.
+    """
+    return [
+        {"key": "on-file", "name": "On file", "box": box("on-file"),
+         "value": total_label, "measured": True,
+         "sub": "fan" if total == 1 else "fans", "tone": ""},
+        {"key": "reachable", "name": "Reachable", "box": box("reachable"),
+         "value": ("%d%%" % reachable_pct) if reachable_pct is not None else "None yet",
+         "measured": reachable_pct is not None,
+         "sub": "can be emailed", "tone": ""},
+        {"key": "new", "name": "New", "box": box("new"),
+         "value": new_label, "measured": True,
+         "sub": "in %d days" % days, "tone": "is-up" if new else ""},
+    ]
+
+
 def days_from(value):
     try:
         n = int(value)
@@ -254,6 +303,11 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
         "lifecycle": LIFECYCLE,
         "moves": moves(rows, audience, days, today, link_visits, shopify=shopify),
         "pulse": pulse(audience),
+        # The plate: the big window's own box, and the three readings.
+        "room_box": box("room"),
+        "windows": windows(_fmt(total), total, _fmt(len(fresh)), len(fresh),
+                           audience.get("contactable_pct") if total else None,
+                           days),
         "tiles": tiles,
     }
 

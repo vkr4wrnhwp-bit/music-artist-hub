@@ -219,8 +219,19 @@ def suppressed(fans):
 
 def contactable(fans):
     """Everyone a send may go to. One definition, used everywhere, so a
-    suppressed fan cannot come back through a different door."""
-    return [f for f in (fans or ()) if not (f.get("suppressed") or "").strip()]
+    suppressed fan cannot come back through a different door.
+
+    AN ADDRESS IS PART OF BEING CONTACTABLE. This used to test the
+    suppression column alone, so a fan row with email='' counted as
+    reachable - and the Fans room printed that share on its plate under
+    the word REACHABLE. You cannot email somebody who has no address, and
+    every caller of this function means "who can we actually reach":
+    the reachable percentage, the region export, the intent bands, the
+    room's move rows. Found by the room audit, 2026-09-22.
+    """
+    return [f for f in (fans or ())
+            if not (f.get("suppressed") or "").strip()
+            and (f.get("email") or "").strip()]
 
 
 def first_send(fans):

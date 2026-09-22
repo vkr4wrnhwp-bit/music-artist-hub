@@ -80,24 +80,54 @@
   </section>
 
   {# ---- the three figures ---------------------------------------------- #}
-  <section class="rk-figures" aria-label="What this account has saved">
-    {% for f in sg.figures %}
-    <div class="rk-fig">
-      <p class="rk-fig-l sg-fig-l">{{ f.label }}</p>
-      <p class="rk-fig-s">{{ f.sub }}</p>
-      <p class="rk-fig-n{% if not f.measured %} rk-fig-n--none{% endif %} sg-fig-n">{{ f.value }}</p>
-      {% if f.note %}<p class="rk-fig-s">{{ f.note }}</p>{% endif %}
-      {% if f.measured %}<p class="sg-fig-lamp"><span class="rk-lamp rk-lamp--good">Saved</span></p>{% endif %}
+  {# ---- the plate: one photograph, four windows ------------------------
+       The hardware is a photograph (static/img/stage-plate.webp) and only
+       the readings are drawn on it, each positioned as a fraction held in
+       stage_room.PLATE. The plate silkscreens CUES, CHANNELS, PASSPORT and
+       THE STAGE, so the markup carries those names for a screen reader
+       alone.
+
+       The wide window is the CUE LIST, not a picture of the plot: the plot
+       has its own panel below and that panel is the real designer, so a
+       second drawing of it would be this screen folding onto itself.
+
+       The ?v is not decoration - an image replaced in place is kept by
+       every browser that already has it. #}
+  <section class="rk-pl sg-pl"
+           aria-label="{% if sg.has_show %}{{ sg.show_name or "Your show" }}: what is saved on this account{% else %}The show control desk, with no show saved yet{% endif %}">
+    <img class="rk-pl-img" src="/static/img/stage-plate.webp?v=1" alt=""
+         width="1859" height="846" decoding="async">
+
+    {% for w in sg.windows %}
+    <div class="rk-pl-win" style="{{ w.box }}">
+      <p class="rk-pl-sr">{{ w.label }}</p>
+      <p class="rk-pl-n{% if not w.measured %} is-none{% endif %}">{{ w.value }}</p>
+      {% if w.note %}<p class="rk-pl-s">{{ w.note }}</p>{% endif %}
     </div>
     {% endfor %}
-    <div class="rk-fig-note">
-      {{ icon("note", "rk-ico") }}
-      <div>
-        <b>This is what is saved on this account</b>
-        <p>A plot and a rig are what you intend &mdash; a venue confirms nothing here.</p>
-      </div>
+
+    {# the wide window: the saved cue list #}
+    <div class="rk-pl-win sg-pl-cues" style="{{ sg.stage_box }}">
+      <p class="rk-pl-sr">The stage</p>
+      {% if sg.cues %}
+      <ol class="sg-cue-list">
+        {% for c in sg.cues[:6] %}
+        <li><b>{{ c.at }}</b><span>{{ c.name }}</span><i>{{ c.group }}</i><em>{{ c.intensity }}%</em></li>
+        {% endfor %}
+      </ol>
+      {% if sg.cues|length > 6 %}<p class="sg-cue-more">{{ sg.cues|length - 6 }} more in the Light Designer</p>{% endif %}
+      {% else %}
+      <p class="sg-pl-none">No cues saved yet</p>
+      <p class="sg-pl-none-s">Programme looks against the song in the Light Designer
+        and they are listed here, in time order.</p>
+      {% endif %}
     </div>
   </section>
+  <p class="rk-foot sg-pl-foot">
+    {% if sg.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
+    This is what is saved on this account. A plot and a rig are what you intend
+    &mdash; a venue confirms nothing here.
+  </p>
 
   {# ---- the stage plot -------------------------------------------------- #}
   <section class="rk-panel" aria-labelledby="sg-plot-h">

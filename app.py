@@ -2214,16 +2214,17 @@ def create_app():
         w = _csv.writer(out)
         user = current_user()
         rows = store.get_statement_rows(user["id"]) if user else []
-        if rows:
-            w.writerow(["Title", "Source", "Amount", "Period"])
-            for r in rows:
-                w.writerow([r["title"], r["source"], "%.2f" % r["amount"], r["period"]])
-        else:
-            # No uploaded data yet — export the demo catalog earnings.
-            w.writerow(["Title", "Platform", "Earnings"])
-            for s in get_songs():
-                for platform, amount in (s.platform_earnings or {}).items():
-                    w.writerow([s.title, platform, "%.2f" % amount])
+        # ALWAYS the account's own rows, and an empty report when it has
+        # none. This used to fall back to the demo catalogue, so an artist
+        # with no statements downloaded a file called royalty-report.csv
+        # containing "Midnight Drive, Spotify, 2450.00" - invented songs and
+        # invented money, under their own account, in a document they might
+        # hand to an accountant, a manager or a lender. A report with no
+        # rows is the truth; a report full of somebody else's fiction is
+        # not. Found by the room audit, 2026-09-22.
+        w.writerow(["Title", "Source", "Amount", "Period"])
+        for r in rows:
+            w.writerow([r["title"], r["source"], "%.2f" % r["amount"], r["period"]])
         return Response(
             out.getvalue(), mimetype="text/csv",
             headers={"Content-Disposition": "attachment; filename=royalty-report.csv"},
