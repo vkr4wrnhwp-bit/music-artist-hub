@@ -110,9 +110,14 @@ def test_the_sidebar_shows_the_rooms_with_the_top_rows_and_the_account_group(mon
     studio = c.get("/room/studio").get_data(as_text=True)
     # The Vault and its Contracts view moved to Business on 2026-09-22: the
     # paperwork that proves who gets paid is business, not making the record.
-    # Artwork stayed in Studio, because cover art is made there.
+    # Artwork stayed in Studio, because cover art is made there. Contracts
+    # keeps its OWN icon on the built screen later the same day - a merge
+    # into the Vault tile was tried and reverted, because vault.html
+    # switches on {% if view == "contracts" %} and the bare page does not
+    # carry that section at all.
     assert 'href="/vault?view=contracts"' in business, "Contracts is its own icon, in Business"
     assert 'data-room-card="vault"' in business
+    assert 'data-room-card="contracts"' in business
     assert 'href="/vault?view=contracts"' not in studio, "and not in Studio any more"
     pro = _client(app_obj, "pro")
     b2 = pro.get("/room/business").get_data(as_text=True)
@@ -125,14 +130,17 @@ def test_a_room_screen_is_one_grid_of_cards(monkeypatch):
     with app_obj.app_context():
         store.set_kv("nav_layout", "")
     c = _client(app_obj, "pro")
-    # Business is still a card grid. Stage stopped being one on 2026-09-22
-    # when it became its own screen (room_stage.html), so the grid's own
-    # rules are checked somewhere that still has a grid.
+    # Business stopped being a card grid on 2026-09-22, the last room to do
+    # so - it is room_business.html now, an instrument over a tile row. So
+    # every room is a built screen and there is no grid left to check; what
+    # is checked here instead is that the room still OPENS every card it
+    # owns, which is what the grid used to guarantee.
     page = c.get("/room/business").get_data(as_text=True)
     assert "The money, the paperwork and the people." in page
     cards = re.findall(r'data-room-card="([a-z-]+)"', page)
     assert cards[:3] == ["royalties", "statements", "tax"]
     assert "recovery" in cards and "valuation" in cards
+    assert "vault" in cards and "contracts" in cards
 
     # Stage is a built screen now: its own three tiles, and NO Tour on it -
     # Tour is its own suite and the suite strip is its door.

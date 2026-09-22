@@ -27,7 +27,7 @@ HUBS = [
         # Motion is MASTERCLIP's proper name (owner, 2026-09-15).
         ("masterclip", "/suites/go/motion", "M3 5h14v10H3z|M3 8h14|M6 5v10M14 5v10|M9 10l3-1.5v3z", "Motion", "Video from your masters and art, in its own suite (opens Motion)."),
         ("artwork", "/artwork", "M4 4h12v12H4z|M4 13l4-4 3 3 2-2 3 3M13 7.5a.5.5 0 100-1 .5.5 0 000 1z", "Cover Art", "Generate and manage release artwork."),
-        ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Vault", "Stems, bounces and press assets - and the contracts and licences beside them."),
+        ("vault", "/vault", "M4 5h12v11H4z|M4 8h12M7 5V3h6v2M10 11v2", "Vault", "Stems, bounces and press assets, yours to deploy."),
         ("beats", "/beats", "M5 14a3 3 0 106 0 3 3 0 00-6 0z|M11 14V4l5 2v8|M14 12a2 2 0 104 0 2 2 0 00-4 0z", "Beats", "Beat registry, licences, cleared list, usage cases."),
         # The ACRCloud desk. It registered its blueprint and appeared in no
         # navigation at all - not the sidebar, not a hub desk, not the
@@ -83,7 +83,7 @@ HUBS = [
         ("royalties", "/royalties", "M4 7l6-3 6 3v6l-6 3-6-3z|M4 7l6 3 6-3M10 10v6", "Royalties", "Every stream, lane, store, track and market from your statements - one page."),
         # Tax is a view of this page (owner, 2026-09-19: "move tax center
         # with statements"); the Tax Center entry left with it.
-        ("statements", "/statements", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 9h5M8 12h5M8 15h3M10 3v4h4", "Statements", "Upload or email statements; rows become data, and the Tax view files them by year."),
+        ("statements", "/statements", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 9h5M8 12h5M8 15h3M10 3v4h4", "Statements", "Upload or email statements and the rows become data you can read."),
         ("recovery", "/recovery", "M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3l2 2", "Recovery", "Findings pulled from your own uploads."),
         # "Money Queue" read like money queued to arrive; the page's own
         # heading is "Missing Money Action Queue" and that is what it does

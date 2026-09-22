@@ -1,0 +1,183 @@
+/* THE BUSINESS ROOM (/room/business) - the owner's mockup, 2026-09-22.
+
+   THE PHOTO-PLATE METHOD, as Studio and the homepage EQ use it: the
+   hardware is ONE photograph and only the readings are drawn on top. Every
+   region is a FRACTION of the plate, held on .bz-unit as custom properties,
+   so the unit scales to any width and the figures stay on their windows.
+
+   THE RULE THE PLATE ITSELF ENFORCES: three windows, and the middle one is
+   physically two panes with a divider between them. There is nowhere on
+   this instrument to print a total, which is the point - recovery_engine
+   computes one by summing an actual with an estimate, and neither the
+   Recovery page nor this room will print it.
+
+   THE SILKSCREEN IS PART OF THE PICTURE. REPORTED, NOT COLLECTED and KEPT
+   are printed on the plate under the windows, and ACTUAL and ESTIMATE are
+   printed inside the two middle panes. Nothing in the markup repeats them -
+   the middle panes carry their names for screen readers only, and the
+   bottom 7% of those panes is left clear so a figure never lands on the
+   silkscreen.
+
+   MEASURED off static/img/business-plate.webp (1672x757, cropped from the
+   original 1672x941 - the blank sub-panel below the seam at y=756 held
+   nothing). RE-MEASURE EVERY FRACTION IF THE PLATE IS REGENERATED OR
+   RE-CROPPED: cropping moves all of them and nothing in code will say so.
+
+   Everything else on the page - head band, gold circles, panels, table,
+   tiles - is room-kit.css, shared with the other rooms. */
+
+.bz-unit {
+  position: relative; width: 100%; margin: 0 auto; line-height: 0;
+  /* Studio lost an afternoon to this being missing: cqw resolves against an
+     inline-size container, and without one every clamp() below is invalid
+     and the type falls back to page-sized and bursts out of the windows.
+     cqh does NOT resolve here, so nothing is ever sized off the height. */
+  container-type: inline-size;
+
+  /* --- the three windows, as fractions of the plate ------------------- */
+  --win-y: 19.95%;          /* 151px of 757 - all three share a top edge */
+  --win-h: 56.94%;          /* 431px - the tightest pane, so none overflow */
+  --rep-x: 6.70%;  --rep-w: 26.61%;   /* 112..557 */
+  --mid-x: 35.94%; --mid-w: 28.05%;   /* 601..1070, two panes + a 7px gutter */
+  --kept-x: 66.75%; --kept-w: 26.61%; /* 1116..1561 */
+  /* The gutter between the two middle panes, as a share of --mid-w. */
+  --mid-gap: 1.49%;
+  /* ACTUAL / ESTIMATE are printed across the bottom of the middle panes. */
+  --silkscreen: 7%;
+}
+.bz-plate { display: block; width: 100%; height: auto; }
+
+/* ---- a window ---------------------------------------------------------- */
+
+.bz-win {
+  position: absolute; top: var(--win-y); height: var(--win-h);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2%;
+  padding: 4% 3%; line-height: 1.2; text-align: center; overflow: hidden;
+}
+.bz-win--reported     { left: var(--rep-x);  width: var(--rep-w); }
+.bz-win--not-collected { left: var(--mid-x); width: var(--mid-w); padding: 4% 0; }
+.bz-win--kept         { left: var(--kept-x); width: var(--kept-w); }
+
+/* The middle window is TWO panes on the photograph, so it is two here. The
+   gap is the gutter the plate already draws between them. */
+.bz-split {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--mid-gap);
+  width: 100%; height: 100%;
+}
+.bz-part {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3%;
+  /* clear of the ACTUAL / ESTIMATE silkscreen at the foot of each pane */
+  padding: 0 6% var(--silkscreen);
+  min-width: 0;
+}
+
+/* The plate prints ACTUAL and ESTIMATE inside these panes and REPORTED,
+   NOT COLLECTED and KEPT beneath them. Repeating a label in the markup
+   would print it twice, so the name stays for screen readers alone. */
+.bz-sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  padding: 0; border: 0; overflow: hidden; white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/* ---- the figures ------------------------------------------------------- */
+
+.bz-fig {
+  margin: 0; color: var(--sb-ink); font-family: var(--sb-display);
+  font-weight: 800; letter-spacing: -.015em; line-height: 1;
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+  text-shadow: 0 0 26px color-mix(in srgb, var(--sb-gold) 26%, transparent);
+  font-size: clamp(22px, 3.3cqw, 56px);
+}
+.bz-part .bz-fig { font-size: clamp(15px, 2.1cqw, 35px); }
+/* "Not measured" is words, not a figure, so it is set as words - and at a
+   figure's size it would not fit the pane anyway. */
+.bz-fig.is-none {
+  font-family: inherit; font-weight: 600; letter-spacing: .01em;
+  color: var(--sb-ink-2); text-shadow: none;
+  font-size: clamp(11px, 1.25cqw, 19px);
+}
+.bz-part .bz-fig.is-none { font-size: clamp(9px, 1cqw, 15px); }
+
+/* ---- the move under a figure ------------------------------------------- */
+
+.bz-move {
+  margin: 0; display: flex; flex-wrap: wrap; align-items: baseline;
+  justify-content: center; gap: .45em;
+  font-size: clamp(9px, 1.02cqw, 15px); font-weight: 700;
+  letter-spacing: .04em; color: var(--sb-ink-2);
+}
+.bz-move.is-up { color: var(--sb-good); }
+.bz-move.is-down { color: var(--sb-warn); }
+.bz-move--quiet { font-weight: 500; letter-spacing: .02em; }
+/* The period the move is against - never louder than the move itself. */
+.bz-move-n { font-weight: 500; letter-spacing: .02em; color: var(--sb-ink-2); }
+
+/* With nothing measured the instrument reads as an instrument at rest
+   rather than one showing noughts. */
+.bz-unit.is-idle .bz-fig { text-shadow: none; }
+
+.bz-scan { margin-top: 10px; }
+
+/* ---- the two panels beneath -------------------------------------------- */
+
+.bz-row {
+  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 16px; align-items: start;
+}
+.bz-streams td:first-child { width: 34%; }
+
+.bz-chase { display: flex; flex-direction: column; }
+.bz-chase-i {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--sb-line);
+}
+.bz-chase-i:last-child { border-bottom: 0; }
+.bz-chase-t { margin: 0; font-weight: 700; color: var(--sb-ink); }
+.bz-chase-l { margin: 2px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--sb-ink-2); }
+
+@media (max-width: 900px) {
+  .bz-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Below this the windows are too small to hold a figure anybody could
+   read, so the photograph steps aside and the readings become an ordinary
+   stacked list. They are never hidden: the figures ARE the screen, and a
+   phone that dropped them would be showing a picture of an instrument
+   instead of this artist's money.
+
+   The labels come back with them. On the plate they are silkscreen, so the
+   markup keeps them for screen readers; with the plate gone they are the
+   only thing naming each figure and they have to be seen. */
+@media (max-width: 560px) {
+  .bz-plate { display: none; }
+  .bz-unit {
+    container-type: normal;            /* no plate, so nothing scales to it */
+    display: flex; flex-direction: column; gap: 10px;
+    line-height: 1.2;
+  }
+  .bz-win {
+    position: static; left: auto; top: auto; width: auto; height: auto;
+    align-items: flex-start; text-align: left; gap: 4px;
+    padding: 14px 16px; border: 1px solid var(--sb-line);
+    border-radius: var(--sb-r-panel); background: var(--sb-surface-1);
+  }
+  .bz-win--not-collected { padding: 14px 16px; }
+  .bz-split { grid-template-columns: 1fr; gap: 12px; height: auto; }
+  .bz-part { align-items: flex-start; padding: 0; gap: 4px; }
+  .bz-move { justify-content: flex-start; }
+
+  /* silkscreen no longer prints these, so the markup must */
+  .bz-sr {
+    position: static; width: auto; height: auto; margin: 0;
+    overflow: visible; white-space: normal; clip-path: none;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--sb-ink-2);
+  }
+  .bz-fig, .bz-part .bz-fig { font-size: 30px; }
+  .bz-part .bz-fig { font-size: 24px; }
+  .bz-fig.is-none, .bz-part .bz-fig.is-none { font-size: 15px; }
+  .bz-move { font-size: 12px; }
+}

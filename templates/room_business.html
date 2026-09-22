@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Business Room{% endblock %}
+{% block head_scripts %}
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
+  <link rel="stylesheet" href="/static/css/business-room.css?v=1">
+{% endblock %}
+
+{#- THE BUSINESS ROOM - the owner's mockup, 2026-09-22. Eighteen cards
+    became one screen, one instrument and eighteen tiles.
+
+    THE RULE THIS ROOM IS BUILT ON: three kinds of money, never added
+    together. Reported is measured. Not collected is TWO readings side by
+    side - what is actually unattributed on the statements, beside what is
+    estimated to be missing - each named for what it is. Kept is reported
+    less logged costs.
+
+    recovery_engine computes a total_at_stake that sums the actual and the
+    estimate, and the Recovery page deliberately refuses to print it. So
+    does this screen, and business_room.build has no code path that makes
+    one.
+
+    THE PHOTO-PLATE METHOD, as Studio uses it: the hardware is ONE
+    photograph and only the readings are drawn. Every region is a fraction
+    of the plate, measured off the file. Two things Studio taught the hard
+    way and this sheet states: the unit needs container-type for its own
+    cqw text, and the plate carries a ?v because replacing an image in
+    place leaves every browser holding the old one. -#}
+
+{% macro icon(name, cls="") -%}
+<svg class="{{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == "reported" -%}<path d="M4 20V10M9 20V5M14 20v-8M19 20V8"/>
+{%- elif name == "named" -%}<circle cx="12" cy="8.5" r="3.4"/><path d="M4.5 20c0-3.6 3.4-6.5 7.5-6.5s7.5 2.9 7.5 6.5"/>
+{%- elif name == "chased" -%}<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>
+{%- elif name == "recovered" -%}<path d="M20 12a8 8 0 01-13.7 5.6M4 12a8 8 0 0113.7-5.6"/><path d="M4 4v5h5M20 20v-5h-5"/>
+{%- elif name == "kept" -%}<path d="M6 3.5h12v17l-2.5-1.6-2.5 1.6-3-1.6-2.5 1.6L6 20.5z"/><path d="M9.5 8.5h5M9.5 12h5"/>
+{%- elif name == "info" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 8h.01"/>
+{%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
+{%- elif name == "upload" -%}<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/><path d="M4 21h16"/>
+{%- else -%}<circle cx="12" cy="12" r="8"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% block content %}
+<div class="rk bz" data-no-collapse><!--room:business-->
+
+  {# ---- head band ------------------------------------------------------ #}
+  <section class="rk-hero" aria-labelledby="bz-title">
+    <div class="rk-hero-top">
+      <div class="rk-hero-said">
+        <p class="rk-eyebrow">Street Banker &middot; Business</p>
+        <h1 class="rk-title" id="bz-title">Business Room</h1>
+        <p class="rk-sub">The money, the paperwork and the people.</p>
+      </div>
+      <div class="rk-aside">
+        <div class="rk-controls">
+          {% if bz.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
+          {% if bz.artist_name %}
+          <span class="rk-chip" title="The account this money belongs to">
+            <span class="rk-avatar" aria-hidden="true">{{ (bz.artist_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ bz.artist_name }}">{{ bz.artist_name }}</span>
+          </span>
+          {% endif %}
+          <a class="rk-cta" href="/statements">{{ icon("upload", "rk-ico") }}Upload a statement</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ---- the analyser: one photograph, three windows, never summed ------- #}
+  <section class="bz-unit{% if not bz.measured %} is-idle{% endif %}"
+           aria-label="{% if bz.measured %}What was reported, what is not collected, and what was kept{% else %}The business analyser, with no statements yet{% endif %}">
+    {#- The ?v is not decoration: an image replaced in place is kept by every
+        browser that already has it, while the stylesheet beside it refetches.
+        Studio lost an afternoon to exactly that. -#}
+    <img class="bz-plate" src="/static/img/business-plate.webp?v=1" alt=""
+         width="1672" height="757" decoding="async">
+
+    {% for w in bz.windows %}
+    <div class="bz-win bz-win--{{ w.key }}">
+      {#- The plate prints this name under the window. It is here for a
+          screen reader, and for the narrow layout where the photograph
+          steps aside and the readings stand on their own. -#}
+      <p class="bz-sr">{{ w.label }}</p>
+      {% if w.split %}
+      {#- TWO readings, side by side, each named. They are never added: one
+          is a measurement and one is an estimate, and a figure that merged
+          them would be the thing this room exists to refuse. -#}
+      <div class="bz-split">
+        {% for part in w.split %}
+        <div class="bz-part">
+          {#- ACTUAL and ESTIMATE are printed on the plate inside these two
+              panes, so printing them again here would say it twice. -#}
+          {#- No "(estimate)" appended: the label IS "Estimated missing",
+              and on a phone - where this label is visible because the
+              plate is not - the parenthetical read "ESTIMATED MISSING
+              (ESTIMATE)". -#}
+          <p class="bz-sr">{{ part.label }}</p>
+          <p class="bz-fig{% if not part.figure.measured %} is-none{% endif %}">{{ part.figure.value }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="bz-fig{% if not w.figure.measured %} is-none{% endif %}">{{ w.figure.value }}</p>
+      {% if w.change %}
+      <p class="bz-move {{ "is-up" if w.change.up else "is-down" }}">
+        <span aria-hidden="true">{{ "▲" if w.change.up else "▼" }}</span>{{ w.change.pct }}
+        <span class="bz-move-n">{{ w.note }}</span>
+      </p>
+      {% elif w.note %}
+      <p class="bz-move bz-move--quiet">{{ w.note }}</p>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+
+  <p class="rk-foot bz-scan">
+    Not collected is two readings and never one: what is <b>actually</b> unattributed
+    on your statements, beside what is <b>estimated</b> to be missing. Nothing here
+    adds an estimate to a measurement, so there is no total.
+    {%- if bz.scan %} Read from {{ bz.scan }}.
+    {%- else %} No statements yet - upload one and every figure above is read from it.{% endif %}
+  </p>
+
+  {# ---- the five gold circles ------------------------------------------- #}
+  <section class="rk-panel" aria-label="Where the money is">
+    <ol class="rk-rail">
+      {% for s in bz.path %}
+      <li class="rk-step{% if not s.reached %} rk-step--ahead{% endif %}" title="{{ s.sub }}">
+        <span class="rk-ring">{{ icon(s.key, "rk-ring-ico") }}</span>
+        <b>{{ s.name }}</b>
+        <span>{{ s.line }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <div class="bz-row">
+    {# ---- where the money comes from ------------------------------------ #}
+    <section class="rk-panel" aria-labelledby="bz-streams-h">
+      <div class="rk-panel-head">
+        <div>
+          <h2 class="rk-h" id="bz-streams-h">Where the money comes from</h2>
+          {#- The windows above read ONE period; this table reads every
+              statement on file, and says so. Scoping it to the period
+              instead would make it add up to Reported - and would also
+              tell an artist with a PRO statement from January that they
+              have no PRO statement. -#}
+          <p class="rk-said">Every statement on file, by stream - not only the period above.</p>
+        </div>
+        <a class="rk-more" href="/royalties">View all{{ icon("arrow", "rk-ico rk-ico--sm") }}</a>
+      </div>
+      <table class="rk-table bz-streams">
+        <thead>
+          <tr><th scope="col">Income stream</th><th scope="col">Amount</th>
+              <th scope="col">Source</th><th scope="col">Status</th></tr>
+        </thead>
+        <tbody>
+          {% for s in bz.streams %}
+          <tr>
+            <td><b>{{ s.label }}</b></td>
+            <td class="rk-num{% if not s.measured %} rk-dim{% endif %}">{{ s.amount }}</td>
+            <td class="rk-dim">{{ s.why or s.source }}</td>
+            <td>{% if s.measured %}<span class="rk-lamp rk-lamp--good">Measured</span>{% else %}<span class="rk-lamp rk-lamp--off">Not measured</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="rk-foot">A stream with no statement behind it says which one is
+        missing. A nought there would be a claim about your income rather than a
+        fact about your paperwork.</p>
+    </section>
+
+    {# ---- what you're chasing ------------------------------------------- #}
+    <section class="rk-panel" aria-labelledby="bz-chase-h">
+      <div class="rk-panel-head">
+        <div>
+          <h2 class="rk-h" id="bz-chase-h">What you're chasing</h2>
+          <p class="rk-said">Claims and disputes you have opened.</p>
+        </div>
+        <a class="rk-more" href="/royalty-recovery/cases">View all{{ icon("arrow", "rk-ico rk-ico--sm") }}</a>
+      </div>
+      {% if bz.chasing %}
+      <div class="bz-chase">
+        {% for c in bz.chasing %}
+        <div class="bz-chase-i">
+          <div>
+            <p class="bz-chase-t">{{ c.title }}</p>
+            {% if c.line %}<p class="bz-chase-l">{{ c.line }}</p>{% endif %}
+          </div>
+          <span class="rk-lamp rk-lamp--warn">{{ c.state }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="rk-foot">Nothing here predicts an outcome. It is what you claimed,
+        and what has arrived.</p>
+      {% else %}
+      <div class="rk-calm">
+        <p>Nothing open.</p>
+        <p>A claim appears here when you open one from Recovery, or raise a dispute
+          against a statement.</p>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+  {# ---- closing tiles --------------------------------------------------- #}
+  {% if bz.tiles %}
+  <section aria-labelledby="bz-tiles-h">
+    <div class="rk-panel-head">
+      <h2 class="rk-h" id="bz-tiles-h">Explore more in the Business Room</h2>
+      <p class="rk-cap">{{ bz.tiles|length }} tool{{ "" if bz.tiles|length == 1 else "s" }} for the money and the paperwork.</p>
+    </div>
+    <div class="rk-tiles">
+      {% for t in bz.tiles %}
+      <a class="rk-tile" href="{{ t.href }}" data-room-card="{{ t.key }}">
+        <span class="rk-tile-top">
+          <span class="rk-tile-disc">
+            <svg class="rk-tile-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{% for d in t.icon.split("|") if d %}<path d="{{ d }}"/>{% endfor %}</svg>
+          </span>
+          <span class="rk-tile-text"><b>{{ t.name }}</b><span>{{ t.line }}</span></span>
+        </span>
+        <span class="rk-tile-foot">
+          <span></span>
+          <span class="rk-tile-go">{{ icon("arrow", "rk-ico rk-ico--sm") }}</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+<!--/room:business--></div>
+{% endblock %}

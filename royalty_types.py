@@ -7,6 +7,8 @@ just as honestly, which streams show nothing, since a missing stream
 usually means an uncollected one.
 """
 
+import re
+
 import db as store
 
 # Source-name fragments -> royalty stream. Compared lowercased.
@@ -21,7 +23,7 @@ _BUCKETS = [
                    "youtube", "pandora", "soundcloud", "napster", "boomplay",
                    "distrokid", "tunecore", "cd baby", "distribution",
                    "bandcamp", "beatport", "meta", "tiktok", "facebook",
-                   "instagram", "snap")),
+                   "instagram", "snap", "snapchat")),
 ]
 
 LABELS = {
@@ -53,11 +55,30 @@ GUIDANCE = {
 }
 
 
+_WORDS = re.compile(r"[a-z0-9]+")
+
+
 def classify(source):
+    """Which kind of royalty a source pays.
+
+    An acronym has to be its OWN WORD. Matched as a substring, "ppl" sits
+    inside "apple", so every Apple payment this app has ever read was
+    filed as NEIGHBOURING RIGHTS - on the Royalties desk, the Publishing
+    room, recovery_mlc's lanes, artist_os and the type reports alike.
+    "Grand Metal" was recording revenue for the same reason ("meta").
+
+    Needles longer than four characters stay substrings, so "Harry Fox",
+    "CD Baby" and "performance royalt" go on matching mid-string.
+    """
     s = (source or "").lower()
+    words = set(_WORDS.findall(s))
     for bucket, needles in _BUCKETS:
-        if any(n in s for n in needles):
-            return bucket
+        for n in needles:
+            if len(n) <= 4 and " " not in n:
+                if n in words:
+                    return bucket
+            elif n in s:
+                return bucket
     return "other"
 
 

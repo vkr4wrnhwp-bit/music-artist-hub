@@ -4791,9 +4791,159 @@ def create_app():
             return _stage_room(user, room)
         if room_key == "studio":
             return _studio_room(user, room)
+        if room_key == "business":
+            return _business_room(user, room)
         return render_template("room.html", active_page="room-" + room_key,
                                room=room, room_images=rooms.images(),
                                **build_dashboard_context())
+
+    def _business_room(user, room):
+        """The Business room as one screen (owner's mockup, 2026-09-22).
+
+        Three windows that are never summed: reported, not collected -
+        itself two readings, actual beside estimate - and kept.
+
+        This room reads the heaviest table in the schema and is about to be
+        one of the most-opened doors in the app, so the rows are read ONCE
+        and the analysis run ONCE, then passed into recovery_engine, which
+        takes both arguments for exactly this reason.
+        """
+        import business_room
+        import recovery_engine
+        import statements_engine
+
+        rows_all = store.get_statement_rows(user["id"])
+        # _act_scope returns (roster, act, rows). Binding the tuple itself
+        # to `rows` handed statements_engine a list of lists and every
+        # account with a statement 500'd on r["amount"].
+        _roster, act, rows = _act_scope(rows_all)
+        analysis = statements_engine.analyze(rows) if rows else None
+        uploads = store.get_statements(user["id"])
+        # Scoped to one act, count only the statements that actually carry a
+        # row for them. The rows are scoped and the count was not, so the
+        # provenance line said "6 statements" under a figure read from two.
+        if act:
+            mine = {r.get("statement_id") for r in rows}
+            uploads = [u for u in (uploads or ()) if u.get("id") in mine]
+
+        # ONE basis for the whole plate. analyze() returns no by_period -
+        # the first cut of this route read a key that has never existed, so
+        # the window silently showed the lifetime total while the note under
+        # it said "One period on file" on every account. The buckets come
+        # off the rows, and the note names the period it read.
+        order, totals, undated = business_room.periods(rows)
+        reported, prior, note = business_room.reading(
+            order, totals, (analysis or {}).get("total"))
+        span = "%s – %s" % (order[0], order[-1]) if len(order) > 1 else ""
+
+        actual = estimated = None
+        # ONLY when there are rows. recovery_engine returns 0 for both on an
+        # empty account, and "£0 unattributed" would say we looked through
+        # the statements and found nothing adrift - on an account that has
+        # no statements to look through. That is the 2026-09-15 defect
+        # ("$0.00 Profitable") wearing different clothes.
+        try:
+            rv = (recovery_engine.build(user["id"], rows=rows, analysis=analysis)
+                  if rows else {})
+            actual = rv.get("actual_unattributed")
+            estimated = rv.get("estimated_gaps")
+            # rv["total_at_stake"] exists and is deliberately NOT read: it
+            # sums an actual and an estimate, which is the one figure this
+            # screen refuses to print.
+        except Exception:
+            pass
+
+        expenses = []
+        try:
+            expenses = store.list_expenses(user["id"])
+        except Exception:
+            pass
+        # Kept is Reported LESS the costs from the SAME period. Taking
+        # every cost the account ever logged off one period's income is how
+        # a page comes to report a negative month.
+        kept = kept_prior = None
+        kept_note = ""
+        if reported is not None:
+            spent = (business_room.costs_in(expenses, order[-1]) if order
+                     else sum(business_room._amount(e.get("amount"))
+                              for e in expenses))
+            if not expenses:
+                # Kept is income LESS costs, and an account that has logged
+                # no costs has not told us what it spent. Printing Reported
+                # again under KEPT would say this artist kept every penny -
+                # a claim about their finances drawn from missing data, the
+                # same shape as the £0 this room refuses elsewhere.
+                kept_note = "No costs logged yet"
+            elif spent is not None:
+                kept = round(float(reported) - spent, 2)
+                kept_note = ("No costs in this period" if not spent
+                             else "After %s in costs"
+                                  % business_room.money(spent)["value"])
+            if prior is not None and len(order) > 1:
+                before = business_room.costs_in(expenses, order[-2])
+                if before is not None:
+                    kept_prior = round(float(prior) - before, 2)
+
+        cases = disputes = []
+        try:
+            cases = store.list_recovery_cases(user["id"])
+        except Exception:
+            pass
+        try:
+            disputes = store.list_disputes(user["id"])
+        except Exception:
+            pass
+        open_claims = sum(1 for c in cases
+                          if (c.get("status") or "") in ("open", "submitted", "waiting"))
+        open_claims += sum(1 for d in disputes
+                           if (d.get("status") or "") in ("open", "submitted"))
+        recovered = sum(float(c.get("payout_result") or 0)
+                        for c in cases if (c.get("status") or "") == "won")
+
+        scan = business_room.provenance(
+            len(uploads or ()), len(rows or ()),
+            (analysis or {}).get("track_count"),
+            (analysis or {}).get("store_count"),
+            (analysis or {}).get("period_count"), span)
+        # A label reading one act's money says whose it is, the same way
+        # Statements, Recovery and Royalties do.
+        if act and scan:
+            scan = "%s · %s" % (act, scan)
+        # A period window leaves undated rows out. Say how many rather than
+        # let an artist wonder why the figure is short of their statements.
+        if undated and order:
+            scan = ("%s · %d row%s no period and %s not in this reading"
+                    % (scan, undated, " carries" if undated == 1 else "s carry",
+                       "is" if undated == 1 else "are")) if scan else scan
+        steps = business_room.path(
+            len(uploads or ()), (analysis or {}).get("unmatched_revenue"),
+            open_claims, recovered if analysis else None, len(expenses or ()))
+
+        seat = current_team_seat()
+        can_open = None if seat is None else (
+            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        bz = business_room.build(
+            reported, prior, actual, estimated, kept, kept_prior,
+            scan, steps, rows, _business_chasing(cases, disputes),
+            cards, artist_name=artist_identity.display_name(user),
+            sample=_session_is_demo(), can_open=can_open, note=note,
+            kept_note=kept_note)
+        return render_template("room_business.html", active_page="room-business",
+                               room=room, bz=bz, **build_dashboard_context())
+
+    def _business_chasing(cases, disputes):
+        """What is open, newest first. Nothing here predicts an outcome."""
+        out = []
+        for c in (cases or [])[:3]:
+            out.append({"title": c.get("title") or "Recovery claim",
+                        "line": c.get("category") or "",
+                        "state": (c.get("status") or "open").title()})
+        for d in (disputes or [])[:2]:
+            out.append({"title": d.get("title") or "Dispute",
+                        "line": d.get("counterparty") or "",
+                        "state": (d.get("status") or "open").title()})
+        return out
 
     def _studio_room(user, room):
         """The Studio room as one screen (owner's mockup, 2026-09-22).
