@@ -496,6 +496,9 @@ FOOTER_LINKS = (
     # the operating entity when a reseller's artists are looking, because
     # an agreement has to say who it is with. Linking them does not change
     # that; white_label.py decides what they say.
+    # For a label or manager wondering whether they could run this under
+    # their own name. There was nowhere to read about it.
+    ("white-label", "/white-label", "White label", ()),
     ("terms", "/terms", "Terms", ()),
     ("privacy", "/privacy", "Privacy", ()),
     ("contact", "/contact", "Contact", ()),

@@ -5048,6 +5048,9 @@ def create_app():
                      "/start", "/artist-control",
                      "/product-tour", "/product-tour/smart-link",
                      "/about", "/contact", "/partners", "/release-check",
+                     # The person deciding whether to run this under
+                     # their own name has not signed up yet.
+                     "/white-label",
                      "/release-signal",
                      # Exact only. "/press" explains the desk to a stranger;
                      # "/press-desk" and everything under it stays gated,
@@ -14412,6 +14415,26 @@ def create_app():
             "public_page.html", pg=get_contact(), page_title="Contact",
             page_description=("How to reach Street Banker, and where each "
                               "kind of question actually goes."))
+
+    @app.route("/white-label")
+    def white_label_page():
+        """What white label is, for someone deciding whether to buy it.
+
+        There was nowhere to read about it (owner, 2026-09-22: "where is
+        white label section located for someone to view or read about?").
+        /resellers is the owner's admin screen and /partners is about the
+        distribution partnership, so a label wondering whether they could
+        run this under their own name had nothing to read.
+
+        Public on purpose: the person who needs it has not signed up yet.
+        """
+        from public_pages_config import get_white_label
+
+        return render_template(
+            "public_page.html", pg=get_white_label(), page_title="White label",
+            page_description=("Run Street Banker under your own name: what "
+                              "your artists see, what stays named after us, "
+                              "and what you administer."))
 
     @app.route("/partners")
     def partners_page():

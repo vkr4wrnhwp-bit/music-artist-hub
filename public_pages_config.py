@@ -111,6 +111,50 @@ PARTNERS = {
 }
 
 
+WHITE_LABEL = {
+    "eyebrow": "White label",
+    "headline": ["Run it as yours."],
+    "lead": ("A label, a manager or a distributor can run Street Banker "
+             "under their own name. Their artists sign in to their brand, "
+             "see their colours, and never read ours - and the work "
+             "underneath is the same product, maintained by us."),
+    "sections": [
+        ("What an artist sees",
+         "Your name and your colours on every page, in the browser tab, on "
+         "the emails the app sends and on anything they can share. Not a "
+         "badge in a corner - the product names itself after you."),
+        ("What stays named after us",
+         "Two pages: the terms and the privacy notice. An agreement has to "
+         "say who it is actually with, and a privacy notice has to name the "
+         "operator who holds the data. Everywhere else is yours. We would "
+         "rather tell you this up front than have you find it later."),
+        ("What you get to do",
+         "Add your artists, decide what each of them can open, see the "
+         "roster in one place, and hand a seat back when someone leaves. "
+         "Their catalogs stay theirs; you administer, you do not absorb."),
+        ("What you do not have to do",
+         "Host anything, patch anything, or explain a broken page at "
+         "midnight. Updates land for your artists when they land for "
+         "everyone."),
+    ],
+    "current": [
+        ("Your brand on the app", "Live",
+         "Name, colours and logo across the pages, the tab and the mail."),
+        ("Your own artist roster", "Live",
+         "Invite, place and remove artists, each with their own account."),
+        ("Room-by-room access", "Live",
+         "Decide which parts of the app a seat can open."),
+        ("Your own domain", "Talk to us",
+         "Set up per tenant rather than switched on from a settings page."),
+    ],
+    "note": ("White label is sold as a conversation, not a checkout: the "
+             "seats, the domain and the hand-over are set up with you. Ask "
+             "and we will tell you what it costs for the size you have in "
+             "mind."),
+    "cta": {"label": "Talk to us about white label", "href": "/contact"},
+}
+
+
 def get_about():
     return ABOUT
 
@@ -121,3 +165,7 @@ def get_contact():
 
 def get_partners():
     return PARTNERS
+
+
+def get_white_label():
+    return WHITE_LABEL

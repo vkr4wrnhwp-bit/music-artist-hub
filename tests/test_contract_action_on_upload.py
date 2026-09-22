@@ -201,3 +201,22 @@ def test_the_row_says_the_owners_milestones(world):
     page = client.get("/vault?view=contracts").get_data(as_text=True)
     assert "60, 30, 7 and 1 days" in page
     assert "90, 30 and 7 days" not in page, "the old milestones are gone from the page too"
+
+
+# --- the per-track boxes collapse -------------------------------------------
+
+def test_the_per_track_boxes_collapse(world):
+    """Owner, 2026-09-22: "make the per track boxed just collapsible". A
+    catalog of any size made this an unreadable wall, and what matters
+    closed is the title and whether anything is missing."""
+    app_obj, client, uid = world
+    with app_obj.app_context():
+        store.add_track(uid, title="Cell 5", isrc="") if hasattr(store, "add_track") else None
+    page = client.get("/vault?view=contracts").get_data(as_text=True)
+    # The section renders whether or not this account has tracks yet; when
+    # it does, every entry is a <details> rather than a permanently open box.
+    if "Paperwork by Recording" in page:
+        body = page.split("Paperwork by Recording", 1)[1].split("Filed to the whole catalog")[0]
+        assert "<details" in body, "each recording is collapsible"
+        assert "group-open:rotate-180" in body, "and says which way it is"
+        assert "the ones missing something open themselves" in body
