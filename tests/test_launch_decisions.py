@@ -181,25 +181,47 @@ def test_the_sweep_mark_only_sits_on_the_royalty_sweep_pages():
 
 
 def test_the_rooms_layout_drops_each_page_s_own_tab_strip(monkeypatch):
-    """Owner, 2026-09-15: "remove the double tabs". With rooms on, the
-    room's cards are the tabs, so the page's own strip stays out; with rooms
-    off it is still there. The Calendar view keeps its door as a room card."""
+    """Owner, 2026-09-15: "remove the double tabs". With rooms on, the room's
+    cards are the tabs, so the page's own strip stays out.
+
+    The rule is about DOUBLING, not about strips, and two later decisions
+    took pages out of its reach. Both are recorded here because the list
+    above is otherwise read as "no page may have a strip", which is how I
+    came to guard /epk and take away its only door (see
+    tests/test_marketing_room.py, which locks the opposite for the press
+    pages and was failing while that guard was live):
+
+      2026-09-21  The Marketing room's screen closes with ONE Press Desk
+                  tile instead of four press cards, so the press pages'
+                  own strip doubles nothing and is their only door. /epk
+                  and /press-desk are no longer in this list.
+      2026-09-22  The Releases room absorbed the calendar and the ready
+                  view, so there is no calendar CARD to be a door any
+                  more - the room screen itself shows what is scheduled.
+    """
     import rooms
     c, _uid = _client("label")
     monkeypatch.setattr(rooms, "enabled", lambda: False)
     assert 'href="/press-desk/contacts"' in c.get("/epk").get_data(as_text=True)
     monkeypatch.setattr(rooms, "enabled", lambda: True)
-    for path, tab in (("/epk", "/press-desk/contacts"),
-                      ("/press-desk", "/press-desk/coverage"), ("/deal-room", "/sync/deal-simulator"),
+    for path, tab in (("/deal-room", "/sync/deal-simulator"),
                       ("/sync/deal-simulator", "/deal-room"),
                       ("/sync/clearance-packs", "/releases/autopilot"),
                       ("/releases/autopilot", "/releases/autopilot?view=ready")):
         body = c.get(path).get_data(as_text=True)
         assert "sb-subnav-a" not in body, path
         assert 'class="pd-btn pd-btn--ghost" href="%s"' % tab not in body, path
+
+    # The press pages keep their strip in this layout: it is their door,
+    # not a second copy of the room's.
+    assert "sb-subnav-a" in c.get("/epk").get_data(as_text=True)
+
     room = c.get("/room/releases").get_data(as_text=True)
-    assert 'href="/releases/autopilot?view=calendar"' in room
-    assert 'href="/press-desk/announcements"' in c.get("/room/marketing").get_data(as_text=True)
+    assert "What is scheduled" in room, (
+        "the calendar is this screen now, not a card pointing back at a "
+        "query string on the desk")
+    assert 'href="/releases/autopilot?view=calendar"' not in room
+    assert 'href="/press-desk"' in c.get("/room/marketing").get_data(as_text=True)
 
 
 def test_search_finds_pages_by_name():
