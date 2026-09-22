@@ -213,8 +213,17 @@ def build(tracks, statement_rows, conflicts, selected, cards,
                                   ) if tracks else "",
               "conflicts": ("%d open" % len(conflicts or ())
                             ) if conflicts else ""}
+    # ONE DOOR MEANS ONE PAGE (owner, 2026-09-22): "if there's going to be
+    # two pages behind it, then we don't need them to be one door ... if
+    # it's going to be two doors, then leave it two tiles."
+    #
+    # Beats and Fingerprints ARE meant to become one - Beat Fingerprints -
+    # but they are still two pages, so they are still two tiles. A single
+    # tile over two pages is a door that lies about what is behind it, and
+    # that is worse than the duplication it was hiding. The tile becomes one
+    # when the pages do.
     for key in ("catalog", "track-passports", "conflicts", "beats",
-                "certified"):
+                "fingerprints", "certified"):
         card = (cards or {}).get(key)
         if not card:
             continue
@@ -222,16 +231,6 @@ def build(tracks, statement_rows, conflicts, selected, cards,
         if can_open and not can_open(href):
             continue
         name, line = card[2], card[3]
-        if key == "beats":
-            # ONE tile over beats and fingerprints (owner, 2026-09-22:
-            # "beats and fingerprints should become like beat fingerprints
-            # ... not be two different ones in publishing"). Both keep their
-            # card in rooms.py, so both keep a room and a team seat's
-            # access; only one door is drawn. The pages themselves still
-            # need merging - this is the surface, not the surgery.
-            name = "Beat Fingerprints"
-            line = ("Your beats, their licences and the cleared list — and the "
-                    "fingerprints that find them being used.")
         tiles.append({"key": key, "href": href, "icon": card[1],
                       "name": name, "line": line,
                       "status": counts.get(key, "")})

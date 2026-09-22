@@ -188,13 +188,17 @@ def test_the_tiles_carry_only_counts_that_were_counted():
     out = pb.build([_track("One")], [], [{"title": "x", "description": "y"}],
                    None, cards)
     by = {t["key"]: t for t in out["tiles"]}
-    # One tile over beats AND fingerprints (owner, 2026-09-22), so the
-    # fingerprints key keeps its card and its room but draws no door of its
-    # own - "not be two different ones in publishing".
+    # ONE DOOR MEANS ONE PAGE (owner, 2026-09-22): "if there's going to be
+    # two pages behind it, then we don't need them to be one door ... if
+    # it's going to be two doors, then leave it two tiles." Beats and
+    # Fingerprints are still two pages, so they are still two tiles. They
+    # become one tile when they become one page, not before.
     assert [t["key"] for t in out["tiles"]] == ["catalog", "track-passports",
                                                 "conflicts", "beats",
-                                                "certified"]
-    assert [t["name"] for t in out["tiles"]][3] == "Beat Fingerprints"
+                                                "fingerprints", "certified"]
+    assert "Beat Fingerprints" not in [t["name"] for t in out["tiles"]], (
+        "a single tile over two pages is a door that lies about what is "
+        "behind it")
     assert by["track-passports"]["status"] == "1 record"
     assert by["conflicts"]["status"] == "1 open"
     assert by["catalog"]["status"] == "", "nothing counted it, so it says nothing"
