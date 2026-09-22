@@ -156,7 +156,7 @@ def test_a_seat_that_cannot_open_a_page_is_not_shown_its_tile():
 def test_an_empty_account_is_told_in_words_and_shown_no_zero_figures():
     c, _uid = _account()
     page = c.get("/room/releases").get_data(as_text=True)
-    assert "Releases Room" in page
+    assert ">Releases</h1>" in page
     assert page.count("Not measured") == 3, (
         "three figures, none of them measurable on an account with nothing")
     assert "Nothing is being checked yet." in page

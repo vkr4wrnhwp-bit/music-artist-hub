@@ -89,19 +89,30 @@ RENAMED = {
 }
 
 
-def money(value, currency="£"):
+def money(value):
     """A figure, or the words that say nobody measured one.
 
+    DOLLARS, and formatted by statements_desk.money - the same helper the
+    Statements desk, the Royalties desk and Recovery all print through, so
+    a figure on this plate reconciles character for character with the page
+    behind it. The first cut of this room printed pounds, because the
+    owner's mockup was rendered with them and I took that for a spec
+    instead of reading the app - which has never had one in it.
+
     None is not 0. A page printing "0.00 Profitable" for an account with no
-    statements is the defect this exists to prevent.
+    statements is the defect this exists to prevent, so the absence is
+    words and a genuine nought still prints.
     """
     if value is None:
         return {"value": "Not measured", "measured": False}
     try:
-        return {"value": "%s%s" % (currency, "{:,.0f}".format(float(value))),
-                "measured": True}
+        value = float(value)
     except (TypeError, ValueError):
         return {"value": "Not measured", "measured": False}
+    if value != value or abs(value) == float("inf"):
+        return {"value": "Not measured", "measured": False}
+    import statements_desk
+    return {"value": statements_desk.money(value), "measured": True}
 
 
 def change(now, before):
@@ -184,9 +195,13 @@ def path(statements, unmatched, open_claims, recovered, expenses):
         "chased": (open_claims > 0,
                    ("%d open claim%s" % (open_claims, "" if open_claims == 1 else "s"))
                    if open_claims else "Nothing opened"),
+        # Gated on the money itself, not on the upload count. It used to
+        # read `if statements`, which counts FILES: an upload that parsed
+        # to no rows printed "$0.00 recovered" on this rung while every
+        # window above it said "Not measured" - two bases on one screen.
         "recovered": ((recovered or 0) > 0,
-                      ("%s recovered" % money(recovered or 0)["value"])
-                      if statements else "Nothing recovered"),
+                      ("%s recovered" % money(recovered)["value"])
+                      if recovered else "Nothing recovered"),
         "kept": (expenses > 0,
                  ("%d expense%s logged" % (expenses, "" if expenses == 1 else "s"))
                  if expenses else "No costs logged"),

@@ -69,7 +69,7 @@ def test_the_three_windows_are_never_added_together():
         for part in (w["split"] or ()):
             figures.append(part["figure"])
     printed = {f["value"] for f in figures}
-    for forbidden in ("£2,152", "£44,220", "£2152"):   # 312+1840, 42380+1840
+    for forbidden in ("$2,152.00", "$44,220.00", "$2152.00"):  # 312+1840, 42380+1840
         assert forbidden not in printed, "an actual was added to an estimate"
 
 
@@ -78,7 +78,7 @@ def test_not_collected_is_two_readings_each_named_for_what_it_is():
     assert mid["figure"] is None, "the middle window has no single figure"
     assert [p["label"] for p in mid["split"]] == ["Actual unattributed",
                                                   "Estimated missing"]
-    assert [p["figure"]["value"] for p in mid["split"]] == ["£312", "£1,840"]
+    assert [p["figure"]["value"] for p in mid["split"]] == ["$312.00", "$1,840.00"]
     assert mid["split"][1]["tag"] == "estimate"
     assert mid["split"][0]["tag"] == "", "a measurement is not tagged as one"
     # The estimate is marked TWICE without the tag being printed: the plate
@@ -88,15 +88,35 @@ def test_not_collected_is_two_readings_each_named_for_what_it_is():
 
 # --- a null is not a nought ----------------------------------------------
 
+def test_every_figure_is_in_dollars_and_matches_the_statements_desk():
+    """Owner, 2026-09-22: "Why did the money turn into like euros or
+    something? It's not showing his dollar bills."
+
+    It was a pound, because the mockup he rendered happened to carry one
+    and I took it for a spec instead of reading the app - which has never
+    had a pound in it. Every figure now prints through
+    statements_desk.money, the same helper Statements, Royalties and
+    Recovery use, so a reading on this plate reconciles character for
+    character with the page behind it.
+    """
+    import statements_desk
+    for value in (0, 312, 42380.5, 1840):
+        assert bz.money(value)["value"] == statements_desk.money(value)
+    assert bz.money(42380.5)["value"] == "$42,380.50"
+    src = io.open(os.path.join(HERE, "business_room.py"), encoding="utf-8").read()
+    for bad in ("£", "€", "GBP", "EUR"):
+        assert bad not in src, bad
+
+
 def test_an_unmeasured_figure_is_words_not_zero():
     assert bz.money(None) == {"value": "Not measured", "measured": False}
     assert "0" not in bz.money(None)["value"]
 
 
 def test_a_genuine_zero_still_prints():
-    """£0 unattributed on an account WITH statements is a measurement
+    """$0.00 unattributed on an account WITH statements is a measurement
     somebody took. It must not be mistaken for the absence."""
-    assert bz.money(0) == {"value": "£0", "measured": True}
+    assert bz.money(0) == {"value": "$0.00", "measured": True}
 
 
 def test_no_move_is_drawn_when_there_is_nothing_to_compare():
@@ -181,15 +201,15 @@ def test_kept_is_not_measured_when_no_costs_were_ever_logged():
         {"title": "HP", "source": "Spotify", "amount": 1500.0, "period": "2026-02"}])
     body = _room(c.get("/room/business").get_data(as_text=True))
     figures = re.findall(r'class="bz-fig[^"]*">([^<]*)', body)
-    assert figures[0] == "£1,500", "reported is the latest period"
+    assert figures[0] == "$1,500.00", "reported is the latest period"
     assert figures[-1] == "Not measured", "kept is not income-minus-nothing"
     assert "No costs logged yet" in body
 
     store.add_expense(uid, "Mastering", "Release-Ready", 120.0, "2026-02-04")
     body = _room(c.get("/room/business").get_data(as_text=True))
     figures = re.findall(r'class="bz-fig[^"]*">([^<]*)', body)
-    assert figures[-1] == "£1,380", "and now it is reported less that period's costs"
-    assert "After £120 in costs" in body
+    assert figures[-1] == "$1,380.00", "and now it is reported less that period's costs"
+    assert "After $120.00 in costs" in body
 
 
 # --- where the money comes from ------------------------------------------
@@ -217,9 +237,9 @@ def test_the_streams_are_folded_out_of_the_rows():
             {"source": "Apple Music", "amount": 640.0},
             {"source": "BMI", "amount": 88.0}]
     got = {s["label"]: s for s in bz.streams(rows)}
-    assert got["Streaming"]["amount"] == "£1,840"
+    assert got["Streaming"]["amount"] == "$1,840.00"
     assert got["Streaming"]["measured"] is True
-    assert got["Performance"]["amount"] == "£88"
+    assert got["Performance"]["amount"] == "$88.00"
     assert got["Mechanicals"]["amount"] == "—", "no statement is not nought"
     assert got["Mechanicals"]["why"] == "No MLC statement"
 
@@ -227,7 +247,7 @@ def test_the_streams_are_folded_out_of_the_rows():
 def test_money_from_an_unclassifiable_source_is_never_hidden():
     """Four named streams and nothing else would swallow it between them."""
     got = {s["label"]: s for s in bz.streams([{"source": "Unknown", "amount": 312.0}])}
-    assert got["Unclassified"]["amount"] == "£312"
+    assert got["Unclassified"]["amount"] == "$312.00"
     assert "Unclassified" not in {s["label"] for s in bz.streams([])}
 
 
@@ -327,8 +347,21 @@ def test_an_empty_account_opens_on_the_unit_and_prints_no_nought():
     assert "business-plate.webp" in body, "the photographed unit is always there"
     figures = re.findall(r'class="bz-fig[^"]*">([^<]*)', body)
     assert figures == ["Not measured"] * 4, "all four readings, in words"
-    assert not re.search(r"[£$]\s?0\b", body), "a nought would be a claim"
+    assert not re.search(r"\$\s?0\b", body), "a nought would be a claim"
     assert "rk-calm" not in body or "Nothing open." in body
+
+
+def test_the_title_is_the_room_s_name_with_no_room_behind_it():
+    """Owner, 2026-09-22: "the rooms don't need room behind the title.
+    Stage is Stage not Stage Room." The sidebar has always called them by
+    the bare name; the screens now agree with it."""
+    import rooms
+    c, _uid = _account()
+    page = c.get("/room/business").get_data(as_text=True)
+    name = [r[1] for r in rooms.ROOMS if r[0] == "business"][0]
+    assert ">%s</h1>" % name in page
+    assert "Business Room" not in page
+    assert "<title>%s" % name in page, "the browser tab too"
 
 
 def test_the_plate_image_carries_a_cache_version():

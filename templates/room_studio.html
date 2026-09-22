@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Studio Room{% endblock %}
+{% block title %}Studio{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
   <link rel="stylesheet" href="/static/css/studio-room.css?v=3">
@@ -55,7 +55,7 @@
     <div class="rk-hero-top">
       <div class="rk-hero-said">
         <p class="rk-eyebrow">Street Banker &middot; Studio</p>
-        <h1 class="rk-title" id="sd-title">Studio Room</h1>
+        <h1 class="rk-title" id="sd-title">Studio</h1>
         <p class="rk-sub">From the take to the master.</p>
       </div>
       <div class="rk-aside">
@@ -197,7 +197,7 @@
   {% if sd.tiles %}
   <section aria-labelledby="sd-tiles-h">
     <div class="rk-panel-head">
-      <h2 class="rk-h" id="sd-tiles-h">Explore more in the Studio Room</h2>
+      <h2 class="rk-h" id="sd-tiles-h">Explore more tools</h2>
       <p class="rk-cap">{{ sd.tiles|length }} more tool{{ "" if sd.tiles|length == 1 else "s" }} for making the record.</p>
     </div>
     <div class="rk-tiles">

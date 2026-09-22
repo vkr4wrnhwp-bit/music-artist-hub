@@ -217,7 +217,7 @@ def test_a_seat_that_cannot_open_a_page_is_not_shown_its_tile():
 def test_an_empty_account_is_told_in_words_and_shown_no_zero_figures():
     c, _uid = _account()
     page = c.get("/room/publishing").get_data(as_text=True)
-    assert "Publishing Room" in page
+    assert ">Publishing</h1>" in page
     assert "Your songs, who owns them, and who is collecting." in page
     # Counted on the figure's own class, not on the words: the note panel
     # explains the rule and says "Not measured" in passing, which is prose

@@ -184,7 +184,7 @@ def test_no_phantom_power_column_is_invented():
 def test_an_empty_account_is_told_in_words():
     c, _uid = _account()
     page = c.get("/room/stage").get_data(as_text=True)
-    assert "Stage Room" in page
+    assert ">Stage</h1>" in page
     assert "What the stage needs to know before you get there." in page
     assert "No show saved yet" in page
     # The plot no longer has a "nothing saved" sentence of its own: the real

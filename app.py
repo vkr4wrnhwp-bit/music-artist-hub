@@ -4838,7 +4838,7 @@ def create_app():
 
         actual = estimated = None
         # ONLY when there are rows. recovery_engine returns 0 for both on an
-        # empty account, and "£0 unattributed" would say we looked through
+        # empty account, and "$0.00 unattributed" would say we looked through
         # the statements and found nothing adrift - on an account that has
         # no statements to look through. That is the 2026-09-15 defect
         # ("$0.00 Profitable") wearing different clothes.
@@ -4872,7 +4872,7 @@ def create_app():
                 # no costs has not told us what it spent. Printing Reported
                 # again under KEPT would say this artist kept every penny -
                 # a claim about their finances drawn from missing data, the
-                # same shape as the £0 this room refuses elsewhere.
+                # same shape as the $0.00 this room refuses elsewhere.
                 kept_note = "No costs logged yet"
             elif spent is not None:
                 kept = round(float(reported) - spent, 2)

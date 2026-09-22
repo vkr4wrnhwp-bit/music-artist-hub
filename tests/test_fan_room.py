@@ -38,7 +38,7 @@ MOCKUP_ONLY = ("12,486", "1,204", "Maya Cole", "Send welcomes", "Send invites",
 def test_an_empty_account_is_told_how_to_start_not_shown_a_crowd():
     c, _uid = _account()
     body = c.get("/room/fans").get_data(as_text=True)
-    assert "Fan Room" in body and "Your owned audience" in body
+    assert ">Fans</h1>" in body and "Your owned audience" in body
     assert "Bring in the fans you already have" in body
     assert "No fan cities on file yet" in body
     for gone in MOCKUP_ONLY:

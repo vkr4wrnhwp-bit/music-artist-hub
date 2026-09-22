@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "_sb.html" as sb %}
 
-{% block title %}Stage Room{% endblock %}
+{% block title %}Stage{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
   <link rel="stylesheet" href="/static/css/stage-room.css?v=6">
@@ -62,7 +62,7 @@
     <div class="rk-hero-top">
       <div class="rk-hero-said">
         <p class="rk-eyebrow">Street Banker &middot; Stage</p>
-        <h1 class="rk-title" id="sg-title">Stage Room</h1>
+        <h1 class="rk-title" id="sg-title">Stage</h1>
         <p class="rk-sub">What the stage needs to know before you get there.</p>
       </div>
       <div class="rk-aside">
@@ -135,7 +135,7 @@
   {% if sg.tiles %}
   <section aria-labelledby="sg-tiles-h">
     <div class="rk-panel-head">
-      <h2 class="rk-h" id="sg-tiles-h">Explore more in the Stage Room</h2>
+      <h2 class="rk-h" id="sg-tiles-h">Explore more tools</h2>
       <p class="rk-cap">{{ sg.tiles|length }} more tool{{ "" if sg.tiles|length == 1 else "s" }} for the night itself.</p>
     </div>
     <div class="rk-tiles">

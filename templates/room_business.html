@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Business Room{% endblock %}
+{% block title %}Business{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=2">
   <link rel="stylesheet" href="/static/css/business-room.css?v=1">
@@ -50,7 +50,7 @@
     <div class="rk-hero-top">
       <div class="rk-hero-said">
         <p class="rk-eyebrow">Street Banker &middot; Business</p>
-        <h1 class="rk-title" id="bz-title">Business Room</h1>
+        <h1 class="rk-title" id="bz-title">Business</h1>
         <p class="rk-sub">The money, the paperwork and the people.</p>
       </div>
       <div class="rk-aside">
@@ -209,7 +209,7 @@
   {% if bz.tiles %}
   <section aria-labelledby="bz-tiles-h">
     <div class="rk-panel-head">
-      <h2 class="rk-h" id="bz-tiles-h">Explore more in the Business Room</h2>
+      <h2 class="rk-h" id="bz-tiles-h">Explore more tools</h2>
       <p class="rk-cap">{{ bz.tiles|length }} tool{{ "" if bz.tiles|length == 1 else "s" }} for the money and the paperwork.</p>
     </div>
     <div class="rk-tiles">

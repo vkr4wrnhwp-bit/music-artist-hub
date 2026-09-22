@@ -71,7 +71,7 @@ def test_an_empty_account_is_told_in_words_and_never_shown_a_zero():
     is counted: each instrument says so in words."""
     c, _uid = _account()
     body = c.get("/room/marketing").get_data(as_text=True)
-    assert "Marketing Room" in body
+    assert ">Marketing</h1>" in body
     assert "Help independent musicians get heard and get written about." in body
     assert "No visits in this window" in body
     assert "None yet" in body                          # Clicks and Pre-saves
