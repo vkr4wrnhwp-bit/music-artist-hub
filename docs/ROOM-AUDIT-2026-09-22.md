@@ -15,7 +15,11 @@ and `audit-links.json`.
 
 ## The headline
 
-**Navigation is clean.** Every one of the 74 links the eight rooms draw
+**One real defect, and it was on phones.** Studio's plate never stepped
+aside at phone width, so its readings were clipped mid-sentence. Fixed
+and locked — details below.
+
+**Navigation is otherwise clean.** Every one of the 74 links the eight rooms draw
 on a filled account returns 200, and every destination carries a way
 back to its room. There is no dead tile, no 404, no orphan page. That
 was the thing most likely to embarrass a launch week and it is not
@@ -23,11 +27,36 @@ there.
 
 What is left is not broken plumbing. It is **three names for one page,
 one room with sixteen doors, and one room that never asked you to do
-anything.** The third is fixed; the first two need your call.
+anything.** The third is fixed. The first two are decisions, not bugs,
+and they are yours — they are set out under *Your call* below.
 
 ---
 
 ## FIXED IN THIS PASS
+
+### 0. Studio was broken on a phone *(the one real defect)*
+Every room hides its plate photograph below 560px and stacks the
+readings — a phone that kept the picture would show an instrument
+instead of this artist's numbers. The kit does that for the six rooms
+that share a plate; `business-room.css` does it by hand for its own
+unit. **Studio's bespoke sheet stopped at 720px.**
+
+So at 375px the photograph stayed and the overlays stayed *on* it:
+
+- *"No master measured yet"* sat over the top edge of its window
+- *"Record or upload a track, then measure your master here."* was
+  **clipped mid-sentence**
+- *"No artwork yet / Add a track to begin."* overflowed its small window
+- both right-hand readouts collapsed to unreadable specks
+
+Fixed with the same rule the other seven use, and
+`test_every_plate_steps_aside_on_a_phone` now holds all three kinds of
+plate to it so it cannot be lost again.
+
+I then checked the other seven at 375px the same way — every element
+that clips its own overflow, against what it actually contains, plus
+the page's own horizontal scroll. **All seven clean: nothing clipped,
+no sideways scroll anywhere.** Studio was the only one.
 
 ### 1. Publishing had no way in
 Every other room opens with a gold pill — *Upload a statement*, *Open
@@ -161,5 +190,6 @@ Two notes rather than defects:
 4. **D — merge the Beats and Fingerprints pages.** The real build job,
    and the one thing here that is a feature rather than a finish.
 
-Nothing in this list blocks a launch. A, B and C are the difference
+Nothing left in this list blocks a launch — the one thing that did
+(Studio on a phone) is fixed and pushed. A, B and C are the difference
 between *it works* and *it reads like one product*.
