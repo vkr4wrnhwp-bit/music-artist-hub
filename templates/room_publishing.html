@@ -2,7 +2,7 @@
 
 {% block title %}Publishing{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=5">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=6">
   <link rel="stylesheet" href="/static/css/publishing-room.css?v=3">
 {% endblock %}
 
@@ -57,7 +57,12 @@
           <span class="rk-avatar" aria-hidden="true">{{ (pb.artist_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ pb.artist_name }}">{{ pb.artist_name }}</span>
         </span>
         {% endif %}
-        <a class="rk-chip" href="/catalog?view=passports">{{ icon("plus", "rk-ico") }}Add a song</a>
+        {#- The room's ONE way in, and it wears the gold pill every other
+           room's does. It was an rk-chip until the 2026-09-22 audit, which
+           is the same object as the account name beside it - so Publishing
+           was the only room of the eight whose first step did not look
+           like one. -#}
+        <a class="rk-cta" href="/catalog?view=passports">{{ icon("plus", "rk-ico") }}Add a song</a>
       </div>
     </div>
   </section>

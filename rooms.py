@@ -78,10 +78,14 @@ ROOMS = [
       "vault", "contracts"]),
     ("publishing", "Publishing", "Rights, registrations and identifiers.",
      # Beats arrived from the Studio on 2026-09-22. Both keys stay so both
-     # pages keep a room - and with it a team seat's access and a way back -
-     # but the screen draws ONE tile over them (owner: "beats and
-     # fingerprints should become like beat fingerprints ... not be two
-     # different ones in publishing"). publishing_room.build() decides that.
+     # pages keep a room - and with it a team seat's access and a way back.
+     # The owner wants them to become ONE - "beats and fingerprints should
+     # become like beat fingerprints ... not be two different ones in
+     # publishing" - but they are still TWO PAGES, so the room still draws
+     # TWO TILES (publishing_room.py:343). A single tile over two pages is
+     # a door that lies about what is behind it. The tile becomes one when
+     # the pages do; until then this comment does not claim otherwise, as
+     # it did until the 2026-09-22 audit read it against the code.
      ["catalog", "track-passports", "conflicts", "beats", "fingerprints",
       "certified"]),
     ("releases", "Releases", "From finished master to the stores.",

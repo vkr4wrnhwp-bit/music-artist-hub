@@ -24,10 +24,18 @@ import pytest
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CSS = os.path.join(HERE, "static", "css")
 KIT = os.path.join(CSS, "room-kit.css")
+# All EIGHT, since the 2026-09-22 audit. The lock covered four, so half
+# the rooms could redeclare a shared part and nothing would say so. They
+# had not - the audit checked - but a lock that guards half the doors is
+# the kind of thing that is true until the week it matters.
 ROOMS = {"fans": ("fan-room.css", "fr"),
          "marketing": ("marketing-room.css", "mk"),
          "releases": ("releases-room.css", "rl"),
-         "publishing": ("publishing-room.css", "pb")}
+         "publishing": ("publishing-room.css", "pb"),
+         "stage": ("stage-room.css", "sg"),
+         "studio": ("studio-room.css", "sd"),
+         "analytics": ("analytics-room.css", "an"),
+         "business": ("business-room.css", "bz")}
 
 # What the kit owns. A room may not redefine any of these for itself.
 SHARED = ("hero", "hero-top", "eyebrow", "title", "sub", "controls", "chip",
@@ -184,3 +192,30 @@ def test_the_ring_is_gold_in_every_room_and_every_state():
         assert killed not in body, (
             "a step not yet reached must not lose the gold ring: it sets %s"
             % killed)
+
+def test_every_plate_steps_aside_on_a_phone():
+    """The readings ARE the screen. Below 560px the photograph goes and
+    they become a stacked list, because a phone that kept the picture
+    would show an instrument instead of this artist's numbers.
+
+    The six rooms that share .rk-pl get this from the kit. The two with
+    bespoke units - Business and Studio - have to do it themselves, and
+    STUDIO DID NOT until the 2026-09-22 audit looked at it on a phone:
+    the plate stayed at 375px and "Record or upload a track, then measure
+    your master here." was clipped mid-sentence by the window edge.
+    """
+    phone = r"@media \(max-width: 560px\)"
+    kit = _read(KIT)
+    assert re.search(phone + r"[^@]*\.rk-pl-img \{ display: none", kit), (
+        "the kit must drop the shared plate photograph on a phone")
+    for sheet, img in (("business-room.css", "bz-plate"),
+                       ("studio-room.css", "sd-plate")):
+        css = _read(sheet)
+        blocks = [css[m.end():m.end() + 1400]
+                  for m in re.finditer(phone, css)]
+        assert blocks, "%s has no 560px block: its plate never steps aside" % sheet
+        joined = "".join(blocks)
+        assert re.search(r"\.%s \{[^}]*display: none" % img, joined), (
+            "%s must hide .%s below 560px" % (sheet, img))
+        assert "container-type: normal" in joined, (
+            "%s: with no plate there is nothing for a cqw to scale against" % sheet)

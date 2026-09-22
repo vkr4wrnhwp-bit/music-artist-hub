@@ -86,14 +86,14 @@
   color: var(--sb-gold-bright); font-size: 12px; font-weight: 800;
 }
 
-.rk-cta, .fr-cta, .mk-cta {
+.rk-cta, .fr-cta, .mk-cta, .pb-cta {
   display: inline-flex; align-items: center; gap: 10px; height: 42px; padding: 0 22px;
   border: 0; border-radius: var(--sb-r-panel); text-decoration: none; white-space: nowrap; cursor: pointer;
   background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold));
   color: var(--sb-on-gold); font-family: inherit; font-size: 15px; font-weight: 800;
   box-shadow: 0 1px 0 rgb(255 255 255 / .25) inset, 0 8px 22px color-mix(in srgb, var(--sb-gold) 22%, transparent);
 }
-.rk-cta:hover, .fr-cta:hover, .mk-cta:hover { filter: brightness(1.05); }
+.rk-cta:hover, .fr-cta:hover, .mk-cta:hover, .pb-cta:hover { filter: brightness(1.05); }
 
 /* ---- headings and panels --------------------------------------------- */
 
