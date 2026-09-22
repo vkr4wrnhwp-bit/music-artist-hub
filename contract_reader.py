@@ -279,3 +279,91 @@ def summary(findings, status):
     else:
         joined = ", ".join(parts[:-1]) + " and " + parts[-1]
     return "Found " + joined + ". Check each against the document before saving."
+
+
+# --- the flags on a contract's row ------------------------------------------
+# Each is something the document LITERALLY SAYS, found by pattern, shown with
+# the sentence it came from. None of them is a judgement about whether the
+# deal is good: that is a lawyer's work, this is pattern matching, and a
+# confident wrong opinion on a contract is expensive. "watch" means it is
+# worth your attention, not that it is unfair.
+#
+# (key, tone, label, pattern)
+FLAG_RULES = (
+    ("auto_renew", "watch", "Renews automatically",
+     r"\b(?:automatically\s+renew\w*|renew\w*\s+automatically|auto[-\s]?renew\w*"
+     r"|shall\s+(?:be\s+)?(?:automatically\s+)?extended)\b"),
+    ("exclusive", "watch", "Exclusive",
+     r"\bexclusiv(?:e|ely|ity)\b"),
+    ("perpetual", "watch", "Perpetual",
+     r"\b(?:in\s+perpetuity|perpetual(?:ly)?|forever)\b"),
+    ("assignment", "watch", "Rights assigned, not licensed",
+     r"\b(?:hereby\s+)?assigns?\b(?:[^.;]{0,60}?\b(?:all\s+)?(?:right|title|interest|copyright)s?\b)"),
+    ("all_media", "watch", "All media, now known or later invented",
+     r"\b(?:now\s+known\s+or\s+(?:here)?(?:after|inafter)\s+(?:devised|invented|developed)"
+     r"|all\s+media\s+now\s+known)\b"),
+    ("nonexclusive", "fine", "Non-exclusive",
+     r"\bnon[-\s]?exclusiv(?:e|ely|ity)\b"),
+    ("terminate_any", "fine", "Can be ended by either party",
+     r"\beither\s+party\s+may\s+terminate\b"),
+)
+
+# A non-exclusive contract is not also an exclusive one: the word contains
+# the other, so the narrower finding wins.
+FLAG_BEATS = {"nonexclusive": ("exclusive",)}
+
+
+def find_flags(text, findings=None):
+    """What this contract says, flagged. [{key, tone, label, snippet}].
+
+    tone is "watch" or "fine". Order is watch first, then the order above,
+    so the ones that cost people money are read first.
+    """
+    out = {}
+    for sentence in _sentences(text or ""):
+        for key, tone, label, pattern in FLAG_RULES:
+            if key in out:
+                continue
+            if re.search(pattern, sentence, re.I):
+                out[key] = {"key": key, "tone": tone, "label": label,
+                            "snippet": _snippet(sentence)}
+    for winner, losers in FLAG_BEATS.items():
+        if winner in out:
+            for loser in losers:
+                out.pop(loser, None)
+
+    # Two that are not a phrase anywhere in the text but a fact about what
+    # was read: they come from the terms, not from a sentence.
+    f = findings or {}
+    months = (f.get("term_months") or {}).get("value")
+    if months and months > 36:
+        out["long_term"] = {"key": "long_term", "tone": "watch",
+                            "label": "Term over three years",
+                            "snippet": (f.get("term_months") or {}).get("snippet", "")}
+    notice = (f.get("notice_days") or {}).get("value")
+    if notice is not None and notice >= 60:
+        out["long_notice"] = {"key": "long_notice", "tone": "fine",
+                              "label": "%d days to give notice" % notice,
+                              "snippet": (f.get("notice_days") or {}).get("snippet", "")}
+    if not (f.get("renews_on") or {}).get("value") and f:
+        out["no_end"] = {"key": "no_end", "tone": "watch",
+                         "label": "No end date found",
+                         "snippet": ""}
+
+    order = [k for k, _t, _l, _p in FLAG_RULES] + ["long_term", "long_notice", "no_end"]
+    found = [out[k] for k in order if k in out]
+    return sorted(found, key=lambda x: 0 if x["tone"] == "watch" else 1)
+
+
+def flags_line(flags):
+    """'2 to watch, 2 fine' - or a plain sentence when there is nothing."""
+    watch = len([f for f in flags if f["tone"] == "watch"])
+    fine = len(flags) - watch
+    if not flags:
+        return "Nothing flagged in this one."
+    parts = []
+    if watch:
+        parts.append("%d to watch" % watch)
+    if fine:
+        parts.append("%d fine" % fine)
+    return ", ".join(parts)

@@ -67,8 +67,8 @@
         {% set rf = rd.findings if rd and rd.status == 'ok' else none %}
         <details class="w-full"{% if rd and read_result %} open{% endif %}>
           <summary class="cursor-pointer text-gray-200">
-            {% if dt and dt.status %}<span class="font-semibold {{ 'text-sb-gold-bright' if dt.status.phase == 'open' else 'text-amber-300' }}">{{ dt.status.sentence }}</span> <span class="text-gray-300">Reminders at 90, 30 and 7 days before the notice date, and on the day.</span>
-            {% else %}<span class="font-semibold">Renewal: not set.</span> <span class="text-gray-300">Type the renewal date and notice period and the app reminds you.</span>{% endif %}
+            {% if dt and dt.status %}<span class="font-semibold {{ 'text-sb-gold-bright' if dt.status.phase == 'open' else 'text-amber-300' }}">{{ dt.status.sentence }}</span> <span class="text-gray-300">Reminders at 60, 30, 7 and 1 days before the notice date.</span>
+            {% else %}<span class="font-semibold">Renewal: not set.</span> <span class="text-gray-300">Type the renewal date and notice period and the app reminds you at 60, 30, 7 and 1 days before the notice date.</span>{% endif %}
           </summary>
           <form method="post" action="/vault/documents/{{ d.id }}/read" class="mt-2 flex flex-wrap items-center gap-2">
             <button class="sb-btn sb-btn-secondary sb-btn-sm">{{ 'Read it again' if rd else 'Read the document' }}</button>
@@ -78,6 +78,31 @@
           <div class="mt-2 rounded-lg border border-sb-gold/30 bg-sb-surface-2 p-3">
             <div class="sb-label text-sb-gold-bright">Found in the document, check it</div>
             <p class="mt-1 text-gray-200">{{ rd.summary }}</p>
+            {#- What the contract SAYS, flagged. Not what it means: this is
+                pattern matching, not a lawyer, and a confident wrong
+                opinion on a contract is expensive. "Worth a look" is not
+                "this is unfair" - every flag shows its own sentence so it
+                can be checked in one glance. -#}
+            {% if rd.flags %}
+            <div class="mt-3 rounded-lg border border-white/10 bg-black/30 p-3">
+              <div class="flex flex-wrap items-baseline justify-between gap-2">
+                <span class="sb-label text-gray-200">What it says</span>
+                <span class="font-semibold text-gray-100">{{ rd.flags_line }}</span>
+              </div>
+              <ul class="mt-2 grid gap-1.5">
+                {% for fl in rd.flags %}
+                <li class="flex gap-2">
+                  <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full {{ 'bg-red-500' if fl.tone == 'watch' else 'bg-green-500' }}"></span>
+                  <span class="min-w-0">
+                    <span class="font-semibold {{ 'text-red-400' if fl.tone == 'watch' else 'text-green-400' }}">{{ fl.label }}</span>
+                    {% if fl.snippet %}<span class="block text-gray-300">&ldquo;{{ fl.snippet }}&rdquo;</span>{% endif %}
+                  </span>
+                </li>
+                {% endfor %}
+              </ul>
+              <p class="mt-2 text-gray-300">Found by pattern in the file's own text. Check each against the document. This is not legal advice.</p>
+            </div>
+            {% endif %}
             {% if rf %}
             <dl class="mt-2 grid gap-2 sm:grid-cols-2">
               {% for label, f in (("Ends or renews on", rf.renews_on), ("Starts on", rf.effective_on), ("Notice period", rf.notice_days), ("Renews on its own", rf.auto_renews), ("Term", rf.term_months)) %}

@@ -138,3 +138,66 @@ def test_reading_the_same_document_again_does_not_stack_actions(world):
         assert cc.open_action_for(uid, "document", a["entity_id"]) == a["id"]
         # A second identical action for the same document is refused.
         assert cc.open_action_for(uid, "document", "no-such-doc") is None
+
+
+# --- the flags on the row ---------------------------------------------------
+
+EXCLUSIVE = (b"This agreement grants the exclusive right to distribute the Work in all "
+             b"media now known or hereafter devised, in perpetuity. The term is "
+             b"forty-eight (48) months and shall automatically renew unless terminated "
+             b"upon ninety (90) days written notice. It expires on 31 December 2027.\n")
+
+
+def test_the_row_flags_what_the_contract_says(world):
+    """Facts, colour-coded by whether they need attention - never a verdict
+    on whether the deal is fair. That is a lawyer's work; this is pattern
+    matching, and a confident wrong opinion on a contract is expensive."""
+    app_obj, client, uid = world
+    _upload(client, "exclusive.txt", EXCLUSIVE)
+    page = client.get("/vault?view=contracts").get_data(as_text=True)
+
+    assert "What it says" in page
+    assert "Renews automatically" in page
+    assert "Exclusive" in page
+    assert "Perpetual" in page
+    assert "Term over three years" in page
+    assert "90 days to give notice" in page
+    # Every flag carries the sentence it came from.
+    assert "ninety (90) days written notice" in page
+    # And the page says what this is and is not.
+    assert "not legal advice" in page.lower()
+    assert "Found by pattern" in page
+
+
+def test_a_plain_agreement_is_not_dressed_up_as_a_problem(world):
+    app_obj, client, uid = world
+    _upload(client, "simple.txt",
+            b"This is a non-exclusive licence. Either party may terminate on thirty "
+            b"(30) days notice. It expires on 1 June 2027.\n")
+    page = client.get("/vault?view=contracts").get_data(as_text=True)
+    assert "Non-exclusive" in page
+    assert "Can be ended by either party" in page
+    assert "Exclusive</span>" not in page, "non-exclusive is not also exclusive"
+
+
+def test_the_flags_are_stored_with_the_reading_not_recomputed(world):
+    """Re-reading the document on every page view would mean fetching it
+    from the bucket to render a list."""
+    app_obj, client, uid = world
+    _upload(client, "exclusive.txt", EXCLUSIVE)
+    with app_obj.app_context():
+        reading = store.get_document_readings(uid)
+    assert len(reading) == 1
+    got = list(reading.values())[0]
+    assert got["status"] == "ok"
+    flags = got["findings"].get("flags")
+    assert flags and any(f["key"] == "auto_renew" for f in flags)
+    assert all(f["tone"] in ("watch", "fine") for f in flags)
+
+
+def test_the_row_says_the_owners_milestones(world):
+    app_obj, client, uid = world
+    _upload(client, "exclusive.txt", EXCLUSIVE)
+    page = client.get("/vault?view=contracts").get_data(as_text=True)
+    assert "60, 30, 7 and 1 days" in page
+    assert "90, 30 and 7 days" not in page, "the old milestones are gone from the page too"

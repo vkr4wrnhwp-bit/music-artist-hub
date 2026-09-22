@@ -10569,6 +10569,11 @@ def create_app():
         out = store.get_document_readings(user_id)
         for reading in out.values():
             reading["summary"] = contract_reader.summary(reading["findings"], reading["status"])
+            # The flags were worked out when the file was read and stored
+            # with it: re-reading the document on every page view would
+            # mean fetching it from the bucket to render a list.
+            reading["flags"] = (reading["findings"] or {}).get("flags") or []
+            reading["flags_line"] = contract_reader.flags_line(reading["flags"])
         return out
 
     @app.route("/vault/documents/<doc_id>/read", methods=["POST"])
@@ -10598,6 +10603,8 @@ def create_app():
             ext = (doc.get("filename") or "").rsplit(".", 1)[-1].lower()
             text, status = contract_reader.extract_text(data, ext)
             findings = contract_reader.find_terms(text) if status == "ok" else {}
+            if status == "ok":
+                findings["flags"] = contract_reader.find_flags(text, findings)
             chars = len(text)
         store.set_document_reading(user["id"], doc_id, status, findings, chars)
         return redirect("/vault?view=contracts&read=%s#doc-%s" % (status, doc_id))
@@ -12737,6 +12744,8 @@ def create_app():
                          for k in ("renews_on", "notice_days"))
             if not useful:
                 return
+            findings["flags"] = contract_reader.find_flags(text, findings)
+            store.set_document_reading(user["id"], doc_id, status, findings, len(text))
             if cc.open_action_for(user["id"], "document", doc_id):
                 return
             cc.create_action(
