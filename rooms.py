@@ -71,8 +71,11 @@ ROOMS = [
      # rollout is the plan for one release, and the Marketing room's own
      # screen already reaches it by the action that names the rollouts with
      # no smart link connected. The page and its address are unchanged.
+     # Submit Music left this room for the footer (owner, 2026-09-22). It is
+     # a door to the label desk, not a step in getting a release out, and a
+     # card beside Autopilot and the calendar read as though it were one.
      ["autopilot", "release-calendar", "release-check", "rollout",
-      "sync-packs", "distribution", "submit"]),
+      "sync-packs", "distribution"]),
     ("marketing", "Marketing", "Getting heard and getting written about.",
      # Apparel & Merch left this room on 2026-09-17: merch is something you
      # make and sell, not a way of getting heard, and it moves to Artifacts

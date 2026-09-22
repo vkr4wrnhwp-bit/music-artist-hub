@@ -101,7 +101,9 @@ HUBS = [
 LABEL_GROUP = ("Label Services", [
     ("services", "/services", "M4 6h12v10H4z|M4 9h12M8 6V4h4v2", "Services", "Street Banker label services."),
     ("apparel", "/apparel", "M6 6l4-2 2 2 2-2 4 2-2 4h-1v6H9v-6H8L6 6z", "Apparel & Merch", "The store's own checkout, on the page you are on."),
-    ("submit", "/submit", "M10 4v9M6 8l4-4 4 4|M4 15h12", "Submit Music", "Send music to the label desk."),
+    # Submit Music moved to the footer row (owner, 2026-09-22): it is a door
+    # to the label desk, not a service on this list. FOOTER_LINKS holds it,
+    # still label-only.
     # /admin/review is NOT here. It lists every account on the deployment
     # by email address, so it is an owner tool rather than a label-plan
     # feature, and it is offered from _internal_tools() in app.py beside
@@ -474,3 +476,22 @@ def _with_live(hubs):
             items = [_LIVE_ITEM] + list(items)
         out.append((hkey, name, tagline, items))
     return out
+
+
+# --- the quiet row under the suites -----------------------------------------
+# Pages that are a door to somewhere rather than a step in the work. They
+# had cards in rooms, where they read as part of the job on that screen;
+# the footer is where a door belongs (owner, 2026-09-22: "submit music can
+# be removed from studio and you can move that into the footer").
+#
+# (key, href, label, plans that see it - empty means everyone)
+FOOTER_LINKS = (
+    ("submit", "/submit", "Submit music", ("label",)),
+)
+
+
+def footer_links(plan):
+    """The footer row for this membership."""
+    plan = (plan or "").strip().lower()
+    return [(k, h, lab) for k, h, lab, plans_ in FOOTER_LINKS
+            if not plans_ or plan in plans_]

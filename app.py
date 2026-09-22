@@ -4736,6 +4736,7 @@ def create_app():
                 "hubs_account": account,
                 "rooms_nav": rooms_nav,
                 "tool_suites": hub_defs.tool_suites(),
+                "footer_links": hub_defs.footer_links(me.get("plan") if me else ""),
                 "suite_marks": hub_defs.SUITE_MARKS,
                 "suites_pending": hub_defs.suites_pending(),
                 # The same answer for a sidebar entry, asked by its address.

@@ -670,6 +670,16 @@
           {% endfor %}
         </div>
         <p class="mt-3 text-xs text-gray-300 font-medium">Each is its own app. Your Street Banker sign-in opens them; your membership decides which.</p>
+        {#- A quiet row for pages that are a door to somewhere rather than a
+            step in the work. They had cards in rooms, where they read as
+            part of the job on that screen. -#}
+        {% if footer_links %}
+        <nav class="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-1" aria-label="More">
+          {% for key, href, label in footer_links %}
+          <a href="{{ href }}" class="text-xs font-medium text-gray-300 underline decoration-white/20 underline-offset-4 hover:text-sb-gold-bright hover:decoration-sb-gold/60">{{ label }}</a>
+          {% endfor %}
+        </nav>
+        {% endif %}
       </footer>
       {% endif %}
     </main>
