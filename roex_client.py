@@ -418,6 +418,15 @@ def _download(url, max_bytes=MAX_MASTER_BYTES, timeout=120):
     except RoexDownloadError:
         _unlink(path)
         raise
+    except urllib.error.HTTPError as exc:
+        # The status is the whole diagnosis when RoEx has produced a file we
+        # then cannot fetch: 403 says the link needs something we are not
+        # sending, 404 that it is not there, 5xx that RoEx's file host is
+        # down. "(HTTPError)" said none of that and sent me looking at our
+        # size cap instead. The URL still never appears: it is signed.
+        _unlink(path)
+        raise RoexDownloadError(
+            "RoEx's file link answered HTTP %s" % exc.code) from None
     except Exception as exc:
         _unlink(path)
         raise RoexDownloadError("RoEx's file could not be fetched (%s)" % type(exc).__name__) from None

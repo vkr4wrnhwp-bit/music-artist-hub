@@ -2021,6 +2021,26 @@ def test_rr6_a_file_link_may_only_lead_to_a_public_https_address(monkeypatch):
     assert all(k is None for _u, k in seen), "no key on a file download"
 
 
+def test_a_refused_file_link_reports_the_status_and_not_the_link(monkeypatch):
+    """When RoEx has produced a file we then cannot fetch, the HTTP status is
+    the whole diagnosis: 403 says the link wants something we are not
+    sending, 404 that it is not there, 5xx that their file host is down.
+    The old message said only "(HTTPError)", which sent me looking at our
+    own size cap instead. The signed link itself must still never appear in
+    a message - it goes on the owner's desk and into the log."""
+    signed = "https://93.184.216.34/out.wav?X-Amz-Signature=deadbeefsecret"
+    for status in (401, 403, 404, 500, 503):
+        fake, _seen = _fake_https({signed: (status, None, b"")})
+        monkeypatch.setattr(urllib.request.HTTPSHandler, "https_open", fake)
+        mod = _fresh_roex()
+        with pytest.raises(mod.RoexDownloadError) as caught:
+            mod._download(signed)
+        said = str(caught.value)
+        assert "HTTP %d" % status in said
+        assert "deadbeefsecret" not in said and "X-Amz-Signature" not in said
+        assert "93.184.216.34" not in said
+
+
 def test_rr7_a_stuck_free_preview_is_made_again_for_free(env):
     """RR-7 / RR-14 (second list): the owner's action for an unpaid preview
     that stopped on RoEx credits reads the free preview again. The paid
