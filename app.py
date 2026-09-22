@@ -13,6 +13,11 @@ from flask import (Flask, Response, abort, g, jsonify, redirect, render_template
 from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
 
+import log_setup
+# Before anything else of ours imports and starts logging: without this
+# every log.info in the app is written and dropped.
+log_setup.setup()
+
 import db as store
 import demo_seed
 import acr_provider
