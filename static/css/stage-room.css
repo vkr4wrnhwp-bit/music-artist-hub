@@ -112,3 +112,19 @@
 .sg-plot-empty svg { display: block; width: 100%; height: auto; }
 .sg-plot-edge { fill: none; stroke: var(--sb-line-strong); stroke-width: 2; stroke-dasharray: 8 6; }
 .sg-plot-hint { fill: var(--sb-ink-2); font-size: 15px; font-family: var(--sb-text); }
+
+/* Clicking a cue lights the rig above (static/js/room-stage.js). The row
+   is a control, so it looks like one and takes a focus ring. */
+.sg-cue { cursor: pointer; transition: background var(--sb-fast) var(--sb-ease); }
+.sg-cue:hover { background: var(--sb-surface-2); }
+.sg-cue:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: -2px; }
+.sg-cue.is-on { background: var(--sb-gold-wash); }
+.sg-cue.is-on td:first-child { box-shadow: inset 2px 0 0 var(--sb-gold-bright); }
+
+/* Intensity dims the rig rather than re-tinting it: a 30% look is the same
+   gel, lower - which is what the desk actually does. */
+.sg-fx { opacity: calc(0.25 + 0.75 * var(--sg-dim, 1)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-cue { transition: none; }
+}

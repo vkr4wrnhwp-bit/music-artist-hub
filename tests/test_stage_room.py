@@ -275,3 +275,27 @@ def test_a_saved_show_puts_its_rig_on_the_screen():
     assert "48 channels" in page and "12 fixtures" in page
     assert "Verse Wash" in page
     assert "Universe 1" in page and "Start address 1" in page
+
+
+def test_clicking_a_cue_can_light_the_rig():
+    """Owner, 2026-09-22: the instruments "don't do anything".
+
+    The small answer, and deliberately so: every cue row carries the look it
+    sets, so clicking one lights the stage above it. No animation loop, no
+    transport, nothing invented - every value comes off the row the server
+    already rendered from the saved show. With no script the page is still
+    exactly what the server drew, lit by the first cue.
+    """
+    c, uid = _account()
+    store.save_light_show(uid, _show(bars=4, cues=[
+        {"t": 0, "note": "Intro", "intensity": 0, "fade": 1, "color": "#8a8a8a"},
+        {"t": 8, "note": "Verse Wash", "intensity": 80, "fade": 2, "color": "#e0a340"}]))
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+
+    assert body.count("data-sg-cue") == 2, "every cue is a control"
+    assert 'data-colour="#e0a340"' in body and 'data-intensity="80"' in body
+    assert 'role="button"' in body and 'tabindex="0"' in body, (
+        "a row that acts like a button answers the keys a button answers to")
+    assert "room-stage.js" in body
+    # the stage is lit by the first cue server-side, so it is never unlit
+    assert 'id="sg-stage"' in body and "--sg-dim" in body
