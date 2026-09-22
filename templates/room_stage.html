@@ -129,6 +129,7 @@
       </div>
       <div class="sg-rig">
         <span class="sg-rig-name"><i class="sg-dot{% if not sg.has_show %} is-off{% endif %}"></i>{% if sg.has_show %}{{ sg.show_name or "Untitled show" }}{% else %}No show saved yet{% endif %}</span>
+        {% if sg.starter %}<span class="rk-lamp rk-lamp--off">Starter rig &mdash; not yours yet</span>{% endif %}
         {% if sg.has_show %}
         <span>Universe {{ sg.rig.universe }}</span>
         <span>Address {{ sg.rig.start }}</span>
@@ -195,8 +196,11 @@
         </thead>
         <tbody>
           {% if not sg.cues %}
-          <tr><td class="rk-dim sg-none" colspan="7">No cues yet &mdash; the looks you
-            programme in the Studio land here, in time order.</td></tr>
+          <tr><td class="sg-none" colspan="7">
+            <p class="rk-dim">No cues yet. These are the Light Studio's own looks
+              &mdash; pick one to see it on the rig above.</p>
+            <div id="sg-looks" class="sg-looks"></div>
+          </td></tr>
           {% endif %}
           {% for c in sg.cues %}
           <tr class="sg-cue{% if loop.first %} is-on{% endif %}" data-sg-cue
@@ -277,6 +281,7 @@
   </section>
   {% endif %}
 
-  <script src="/static/js/room-stage.js?v=2"></script>
+  <script src="/static/js/lights-engine.js?v=7"></script>
+  <script src="/static/js/room-stage.js?v=3"></script>
 <!--/room:stage--></div>
 {% endblock %}

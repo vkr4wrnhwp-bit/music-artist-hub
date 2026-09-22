@@ -15,7 +15,8 @@
 
   var stage = document.getElementById("sg-stage");
   var rows = document.querySelectorAll("[data-sg-cue]");
-  if (!stage || !rows.length) return;
+  var looksBox = document.getElementById("sg-looks");
+  if (!stage || (!rows.length && !looksBox)) return;
 
   var out = {
     name: document.getElementById("sg-sel-name"),
@@ -26,9 +27,21 @@
   };
 
   function show(row) {
-    var colour = row.getAttribute("data-colour") || "#d8b25a";
-    var level = parseInt(row.getAttribute("data-intensity"), 10);
-    if (isNaN(level)) level = 100;
+    paint({
+      colour: row.getAttribute("data-colour") || "#d8b25a",
+      intensity: parseInt(row.getAttribute("data-intensity"), 10),
+      name: row.getAttribute("data-name") || "",
+      group: row.getAttribute("data-group") || "",
+      fade: row.getAttribute("data-fade") || "0"
+    });
+    for (var i = 0; i < rows.length; i++) rows[i].classList.remove("is-on");
+    row.classList.add("is-on");
+  }
+
+  function paint(look) {
+    var colour = look.colour || "#d8b25a";
+    var level = look.intensity;
+    if (isNaN(level) || level === null || level === undefined) level = 100;
 
     /* One colour on the svg: every fixture inherits it, and the beam
        gradient is currentColor, so bar and beam move together. Intensity
@@ -36,14 +49,11 @@
     stage.style.color = colour;
     stage.style.setProperty("--sg-dim", String(level / 100));
 
-    if (out.name) out.name.textContent = row.getAttribute("data-name") || "";
-    if (out.group) out.group.textContent = row.getAttribute("data-group") || "";
+    if (out.name) out.name.textContent = look.name || "";
+    if (out.group) out.group.textContent = look.group || "";
     if (out.intensity) out.intensity.textContent = level + "%";
-    if (out.fade) out.fade.textContent = (row.getAttribute("data-fade") || "0") + "s";
+    if (out.fade) out.fade.textContent = (look.fade || "0") + "s";
     if (out.swatch) out.swatch.style.background = colour;
-
-    for (var i = 0; i < rows.length; i++) rows[i].classList.remove("is-on");
-    row.classList.add("is-on");
   }
 
   for (var i = 0; i < rows.length; i++) {
@@ -83,5 +93,32 @@
         layer(btn.getAttribute("data-sg-layer"));
       });
     })(layers[k]);
+  }
+
+  /* With nothing programmed there is nothing to click, and a rig you cannot
+     touch is the black box the owner kept finding. These are the Light
+     Studio's OWN looks, read from the engine that defines them
+     (lights-engine.js LOOKS) rather than copied here, so the room can never
+     drift from the studio's palette. They are labelled as the studio's, not
+     as the artist's cues. */
+  if (looksBox && !rows.length && window.LightsEngine && window.LightsEngine.LOOKS) {
+    window.LightsEngine.LOOKS.forEach(function (look) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "sg-look";
+      b.setAttribute("aria-label", "Show " + look.name + " on the rig above");
+      var sw = document.createElement("i");
+      sw.style.background = look.color;
+      b.appendChild(sw);
+      b.appendChild(document.createTextNode(look.name));
+      b.addEventListener("click", function () {
+        paint({colour: look.color, intensity: look.intensity,
+               name: look.name, group: "all", fade: String(look.fade)});
+        var all = looksBox.querySelectorAll(".sg-look");
+        for (var i = 0; i < all.length; i++) all[i].classList.remove("is-on");
+        b.classList.add("is-on");
+      });
+      looksBox.appendChild(b);
+    });
   }
 })();

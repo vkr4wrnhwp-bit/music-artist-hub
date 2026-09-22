@@ -212,6 +212,7 @@ def test_both_instruments_are_drawn_even_with_nothing_saved():
     assert "data-sg-layer" in body, "and its Plot / Rig / Both toggle"
     assert "sg-cues" in body, "the cue table keeps its headers"
     assert "No cues yet" in body
+    assert "sg-looks" in body, "and something to click"
 
     # the plot, unprogrammed but present - and it is the real editor, so
     # its empty state is an empty stage you can immediately drag onto
@@ -299,3 +300,40 @@ def test_clicking_a_cue_can_light_the_rig():
     assert "room-stage.js" in body
     # the stage is lit by the first cue server-side, so it is never unlit
     assert 'id="sg-stage"' in body and "--sg-dim" in body
+
+
+def test_an_account_with_no_show_still_sees_a_rig_and_something_to_click():
+    """Owner, 2026-09-22: "it's just a black empty box."
+
+    His account has no saved show, so the stage drew nothing: no bars, no
+    cues, a black rectangle. The Light Studio itself does not do that - it
+    boots a new user on six bars (lights.js:16) - so the room shows the same
+    six, marked, and offers the studio's OWN looks to put on them. Read from
+    lights-engine.js LOOKS in the browser, never copied here, so the room
+    cannot drift from the studio's palette.
+
+    The marking is the whole safety of it: the figures and the path must
+    still say the account has nothing.
+    """
+    c, _uid = _account()
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+
+    assert body.count('class="sg-fx"') == 6, "the editor's own starting rig"
+    assert "Starter rig" in body, "and it says so, every time"
+    assert "sg-looks" in body and "lights-engine.js" in body, (
+        "with the studio's looks to try on it, from the engine that owns them")
+
+    # and nothing about it claims the account has a show
+    assert "No show saved yet" in body
+    assert "Nothing patched" in body
+    assert "No cues yet" in body
+
+
+def test_the_starter_rig_never_appears_once_a_show_is_saved():
+    c, uid = _account()
+    store.save_light_show(uid, _show(bars=3, cues=[{"t": 0, "note": "Wash",
+                                                    "intensity": 70, "fade": 1}]))
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert "Starter rig" not in body
+    assert body.count('class="sg-fx"') == 3, "the artist's rig, not the starter"
+    assert "sg-looks" not in body, "there are cues now, so the cues are what you click"

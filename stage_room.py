@@ -48,6 +48,13 @@ STEPS = (
 # offers only those two.
 DEFAULT_CHANS = 4
 
+# What the Light Studio itself starts a new user with (static/js/lights.js:16
+# boots `{name: "", bars: 6, chans: 4, cues: []}` when nothing is saved). The
+# room shows the same thing rather than a black rectangle, because an empty
+# stage is not what the editor would give you and a new account should see
+# what the tool IS. It is marked as the starter on the page, every time.
+STARTER_BARS = 6
+
 
 def _int(value, fallback=0):
     try:
@@ -97,6 +104,20 @@ def address_of(show, bar):
         return max(1, min(512, own))
     start = max(1, _int(show.get("dmxStart"), 1))
     return max(1, min(512, start + (bar - 1) * chans))
+
+
+def starter_fixtures():
+    """The starting rig, evenly across the truss.
+
+    Only ever drawn when NOTHING is saved, and always beside the words that
+    say so. The editor places an un-dragged bar itself; this is the room's
+    reading of the same six, spread along the truss so the stage is a rig
+    rather than an empty box.
+    """
+    step = 100.0 / (STARTER_BARS + 1)
+    return [{"n": i, "address": 1 + (i - 1) * DEFAULT_CHANS,
+             "place": "Truss", "across": round(step * i)}
+            for i in range(1, STARTER_BARS + 1)]
 
 
 def fixtures(show):
@@ -274,12 +295,17 @@ def build(show, plot_state, plot_image, version, cards,
         tiles.append({"key": key, "href": href, "icon": card[1],
                       "name": card[2], "line": card[3]})
 
+    # With no show at all the stage draws the editor's own starter rig,
+    # marked. With one, it draws the artist's.
+    placed = fixtures(show) if show else starter_fixtures()
+
     return {
         "artist_name": artist_name or "",
+        "starter": not bool(show),
         "show_name": (show or {}).get("name") or "",
         "has_show": bool(show),
         "rig": the_rig,
-        "fixtures": fixtures(show),
+        "fixtures": placed,
         "groups": fixture_groups(show),
         "cues": cue_rows,
         "span": span(cue_rows),

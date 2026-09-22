@@ -143,3 +143,17 @@
 /* The plot layer: the backline, drawn in the same space as the rig. */
 .sg-item rect { fill: var(--sb-surface-2); stroke: var(--sb-line-strong); stroke-width: 1; }
 .sg-item text { fill: var(--sb-ink-2); font-size: 11px; font-family: var(--sb-text); }
+
+/* The Light Studio's own looks, offered when nothing is programmed yet. */
+.sg-looks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.sg-look {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px;
+  border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-pill);
+  background: var(--sb-surface-2); color: var(--sb-ink);
+  font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.sg-look i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--sb-line-strong); }
+.sg-look:hover { border-color: var(--sb-gold-line); }
+.sg-look.is-on { border-color: var(--sb-gold); background: var(--sb-gold-wash); }
+.sg-look:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: 2px; }
+.sg-none { padding: 18px 0; text-align: left; }
