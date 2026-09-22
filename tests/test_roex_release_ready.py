@@ -1323,7 +1323,12 @@ def test_the_desk_can_prove_the_bucket_rather_than_report_it_set(env, monkeypatc
     assert "Storage (R2): connected" not in page
     # And the answer is still there on a later page view, rather than
     # vanishing the moment he navigates.
-    assert "not a link Cloudflare accepts" in owner.get("/admin/release-ready").data.decode()
+    later = owner.get("/admin/release-ready").data.decode()
+    assert "not a link Cloudflare accepts" in later
+    # And it says when, in the words the rest of this desk uses for a date,
+    # with the clock kept because he may test twice while chasing something.
+    assert "Tested %s" % rr.day_time(rstore.now().isoformat()) in later
+    assert "+00:00" not in later.split("Tested ")[1][:40]
 
 
 def test_the_desk_says_nothing_about_the_bucket_until_it_is_asked(env):

@@ -400,6 +400,19 @@ def day(iso):
         return text
 
 
+def day_time(iso):
+    """'2026-09-22T05:09:13+00:00' -> '22 Sep 2026, 05:09 UTC'.
+
+    The bucket test can be run twice in a minute while chasing something,
+    so unlike day() this keeps the clock. Blank for nothing."""
+    text = iso or ""
+    stamp = day(text)
+    clock = text[11:16]
+    if not stamp or len(clock) != 5:
+        return stamp
+    return "%s, %s UTC" % (stamp, clock)
+
+
 def size(n):
     """Bytes as the artist reads them: '106.2 MB'. Blank when unknown."""
     try:
@@ -2449,7 +2462,10 @@ def _last_storage_report():
         got = json.loads(raw)
     except (TypeError, ValueError):
         return None
-    return got if isinstance(got, dict) else None
+    if not isinstance(got, dict):
+        return None
+    got["tested_day"] = day_time(got.get("tested_at"))
+    return got
 
 
 @bp.route(ADMIN + "/storage", methods=["POST"])
