@@ -30,6 +30,14 @@
 {%- elif name == "apparel" -%}<path d="M8.5 4l-5.5 3 2 4 2.5-1.2V20h9V9.8L19 11l2-4-5.5-3a3.5 3.5 0 01-7 0z"/>
 {%- elif name == "rocket" -%}<path d="M13.5 15.5l-5-5A14 14 0 0116 4h4v4a14 14 0 01-6.5 7.5z"/><path d="M8.5 10.5H5l2.5-4h4"/><path d="M13.5 15.5V19l4-2.5v-4"/><path d="M6.5 16.5c-1.4 1-2 3-2 3s2-.6 3-2"/>
 {%- elif name == "calendar" -%}<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>
+{%- elif name == "upload" -%}<path d="M10 3v10M6 7l4-4 4 4M4 15v2h12v-2"/>
+{%- elif name == "tick" -%}<path d="M4 10l4 4 8-8"/>
+{%- elif name == "idea" -%}<path d="M10 3a5 5 0 00-3 9v2h6v-2a5 5 0 00-3-9z"/><path d="M8 17h4"/>
+{%- elif name == "consent" -%}<path d="M5 3h8l3 3v11H5z"/><path d="M13 3v3h3"/><path d="M8 12l2 2 3-4"/>
+{%- elif name == "organize" -%}<path d="M3 5h14"/><path d="M3 10h14"/><path d="M3 15h9"/>
+{%- elif name == "measure" -%}<path d="M3 15l4-5 3 3 4-6 3 4"/><path d="M3 17h14"/>
+{%- elif name == "link" -%}<path d="M8 12a4 4 0 010-5.7l2-2a4 4 0 015.7 5.7l-1 1"/><path d="M12 8a4 4 0 010 5.7l-2 2a4 4 0 01-5.7-5.7l1-1"/>
+{%- elif name == "people" -%}<circle cx="7" cy="7" r="3"/><circle cx="14" cy="8" r="2.5"/><path d="M2 17c0-3 2.2-5 5-5s5 2 5 5"/><path d="M12 12.5c2.3 0 4.5 1.6 4.5 4.5"/>
 {%- elif name == "chevron" -%}<path d="M6 9.5l6 6 6-6"/>
 {%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
 {%- elif name == "up" -%}<path d="M6 13l6-6 6 6"/><path d="M6 19l6-6 6 6"/>
@@ -103,77 +111,44 @@
          width="1860" height="846" decoding="async">
 
     {% if fr.idle %}
-    {#- THE STANDBY, the owner's way (2026-09-22). The big window plays a
-        sequence - one large headline at a time, with the rig of dots
-        drawing itself behind it - and the three small windows carry no
-        text at all. The previous cut put a caption in every window at
-        about eleven pixels, which on a unit photographed at 1860px read
-        as small print on expensive hardware.
-
-        Still words only: no figure appears here, not even an example. -#}
-    {#- A DISPLAY, not a button (owner, 2026-09-22: "remove the link to
-        create a smart link in the plate image"). The way in is the hero's
-        own gold pill, which comes back now that nothing duplicates it. -#}
-    <div class="rk-pl-win rk-cine" style="{{ fr.standby.lead_box }}"
-         aria-label="What this room does: {% for f in fr.standby.frames %}{{ f.title }}{{ ", " if not loop.last }}{% endfor %}.">
-      <p class="rk-pl-sr">The room</p>
-
-
-      {#- The frames. Each holds the window for its slot of the cycle;
-          the stylesheet does the timing from --n and --count. -#}
-      <span class="rk-cine-reel" style="--count: {{ fr.standby.count }}">
-        {% for f in fr.standby.frames %}
-        <span class="rk-cine-frame{% if f.image %} has-image{% endif %}" style="--n: {{ f.n }}">
-          {#- The owner's picture for this feature, full-bleed under the
-              words. Only emitted when the file is on disk, so a frame is
-              never a broken image. -#}
-          {% if f.image %}<img class="rk-cine-img" src="{{ f.image }}" alt="" decoding="async" loading="lazy">{% endif %}
-          {#- data-t feeds the two colour-split copies drawn during the
-              hand-over; they read the headline back through attr(). -#}
-          <b data-t="{{ f.title }}">{{ f.title }}</b>
-          <i>{{ f.line }}</i>
-        </span>
-        {% endfor %}
-      </span>
-
+    {#- THE PAGE FROM ZERO (owner's Fans spec, 2026-09-22): the rack is a
+        STABLE information centre - three modules, no rotation, no dots -
+        on the same photographed plate. PURPOSE takes the big window;
+        START HERE and GOOD TO KNOW the first two small ones; the third
+        small window is left unlit (it becomes STATUS once an import or
+        campaign has a result). List semantics inside the named region;
+        the silkscreen is on the photograph and hidden from AT. The
+        animated standby is retired on this room only. -#}
+    {#- The owner's mockup: ONE wide screen carrying the three modules side
+        by side with a rule between them - the big window. The three small
+        windows were photographed for a figure and a word, and the spec's
+        sentences do not fit them at any width the audit tried (62px tall
+        at 1300px); they stay unlit until there is data to read. -#}
+    <div class="rk-pl-win fr-z-win fr-z-win--big" style="{{ fr.room_box }}">
+      <ul class="fr-z-mods">
+        <li class="fr-z-mod">
+          <span class="fr-z-mod-ico" aria-hidden="true">{{ icon("belong", "fr-z-mod-svg") }}</span>
+          <span class="fr-z-k">{{ fr.zero.rack.purpose[0] }}</span>
+          <span class="fr-z-v">{{ fr.zero.rack.purpose[1] }}</span>
+          <span class="sr-only">{{ fr.zero.rack.purpose[2] }}</span>
+        </li>
+        <li class="fr-z-mod">
+          <span class="fr-z-mod-ico" aria-hidden="true">{{ icon("discover", "fr-z-mod-svg") }}</span>
+          <span class="fr-z-k">{{ fr.zero.rack.start[0] }}</span>
+          <span class="fr-z-v">{{ fr.zero.rack.start[1] }}</span>
+        </li>
+        <li class="fr-z-mod">
+          <span class="fr-z-mod-ico" aria-hidden="true">{{ icon("tick", "fr-z-mod-svg") }}</span>
+          <span class="fr-z-k">{{ fr.zero.rack.know[0] }}</span>
+          <span class="fr-z-v">{{ fr.zero.rack.know[1] }}</span>
+        </li>
+      </ul>
     </div>
-
-    {#- The three small windows each do a DIFFERENT thing (owner,
-        2026-09-22). No small print in any of them: the last cut set a
-        caption at about eleven pixels on a unit photographed at 1860px.
-        The plate silkscreens each window's name in metal; the name here
-        is for a screen reader and for the phone. -#}
-
-    {# ON FILE: icons rolling past #}
-    <div class="rk-pl-win rk-reel-win" style="{{ fr.standby.reel.box }}">
-      <p class="rk-pl-sr">{{ fr.standby.reel.name }}</p>
-      <span class="rk-reel" aria-hidden="true">
-        {% for name in fr.standby.reel.icons %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}
-        {#- the first again at the foot, so the roll lands back on it
-            without a jump -#}
-        <span class="rk-reel-i">{{ icon(fr.standby.reel.icons[0], "rk-reel-ico") }}</span>
-      </span>
-    </div>
-
-    {# REACHABLE: a hint, changed every few seconds #}
-    <div class="rk-pl-win rk-tip-win" style="{{ fr.standby.tips.box }}">
-      <p class="rk-pl-sr">{{ fr.standby.tips.name }}</p>
-      <span class="rk-tips" style="--count: {{ fr.standby.tips.count }}">
-        {% for t in fr.standby.tips.lines %}
-        <span class="rk-tip" style="--n: {{ loop.index0 }}">{{ t }}</span>
-        {% endfor %}
-      </span>
-    </div>
-
-    {# NEW: the room's feature names, ticking through #}
-    <div class="rk-pl-win rk-tick-win" style="{{ fr.standby.ticker.box }}">
-      <p class="rk-pl-sr">{{ fr.standby.ticker.name }}</p>
-      <span class="rk-tick" aria-hidden="true">
-        {% for t in fr.standby.ticker.lines %}<span class="rk-tick-i">{{ t }}</span>{% endfor %}
-        <span class="rk-tick-i">{{ fr.standby.ticker.lines[0] }}</span>
-      </span>
-    </div>
-
+    <ul class="fr-z-list" aria-hidden="true">
+      <li class="rk-pl-win fr-z-win fr-z-win--unlit" style="{{ fr.standby.reel.box }}"></li>
+      <li class="rk-pl-win fr-z-win fr-z-win--unlit" style="{{ fr.standby.tips.box }}"></li>
+      <li class="rk-pl-win fr-z-win fr-z-win--unlit" style="{{ fr.standby.ticker.box }}"></li>
+    </ul>
     {% else %}
     {# the big window: the constellation this account's own fans make #}
     <div class="rk-pl-win fr-pl-room" style="{{ fr.room_box }}">
@@ -249,6 +224,108 @@
   <p class="fr-showcase"><b>Sample data.</b> This is the demo account: every figure here is generated for the example.</p>
   {% endif %}
 
+  {% if fr.idle %}
+  {#- ---- choose your starting point: two EQUAL cards ------------------ -#}
+  <section class="fr-starts-wrap" aria-labelledby="fr-starts-h">
+    <h2 class="fr-z-h" id="fr-starts-h">Choose your starting point</h2>
+    <ol class="fr-starts">
+      {#- A seat sees only the doors it can open (the room's own rule
+          since the 2026-09-22 audit): /links/new belongs to Marketing, so
+          a seat without it is offered the import path alone rather than a
+          card that bounces. fr.can_capture is the same gate the hero pill
+          reads. -#}
+      {% for key, title, desc, cta, href, note in fr.zero.starts if key != "capture" or fr.can_capture %}
+      <li class="fr-start">
+        <span class="fr-start-ring" aria-hidden="true">{{ icon("link" if key == "capture" else "upload", "fr-start-ico") }}</span>
+        <div class="fr-start-body">
+          <h3 class="fr-start-t">{{ title }}</h3>
+          <p class="fr-start-p">{{ desc }}</p>
+        </div>
+        {#- Both are primary. The capture card's button is filled and the
+            import card's outlined only so the eye has an order to read
+            them in; neither is smaller, greyer or lower. -#}
+        <a class="fr-start-btn{% if loop.first %} fr-start-btn--fill{% else %} fr-start-btn--line{% endif %}" href="{{ href }}">{{ cta }}{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
+        <p class="fr-start-note">{{ note }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {#- ---- how the fan workflow works: education, not progress ---------- -#}
+  <section class="fr-life fr-z-life" aria-labelledby="fr-life-h">
+    <div class="fr-life-head">
+      <h2 class="fr-kicker" id="fr-life-h">How the fan workflow works</h2>
+    </div>
+    <ol class="fr-life-rail">
+      {% for key, name, line in fr.zero.workflow %}
+      <li class="fr-step{% if loop.first %} is-first{% endif %}">
+        <span class="fr-ring">{{ icon(key, "fr-ring-ico") }}</span>
+        <b>{{ name }}</b>
+        <span>{{ line }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {#- ---- your fans will appear here + you stay in control ------------- -#}
+  <div class="fr-z-two">
+    <section class="fr-panel fr-z-empty" aria-labelledby="fr-empty-h">
+      <span class="fr-z-ico" aria-hidden="true">{{ icon("people", "fr-ico fr-ico--lg") }}</span>
+      <div>
+        <h2 class="fr-z-h" id="fr-empty-h">Your fans will appear here</h2>
+        <p class="fr-z-p">Once you launch a capture campaign or confirm an import, Street Banker will organize your fan relationships here.</p>
+        <p class="fr-z-links">{% if fr.can_capture %}<a href="/links?returnTo=/room/fans">How fan capture works{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>{% endif %}<a href="/fans?returnTo=/room/fans">Import requirements{{ icon("arrow", "fr-ico fr-ico--sm") }}</a></p>
+      </div>
+    </section>
+    <section class="fr-panel fr-z-control" aria-labelledby="fr-control-h">
+      <h2 class="fr-z-h" id="fr-control-h">You stay in control</h2>
+      <ul class="fr-z-checks">
+        {% for line in fr.zero.control %}
+        <li>{{ icon("tick", "fr-ico") }}<span>{{ line }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
+
+  {#- ---- contextual help -------------------------------------------- -#}
+  <section class="fr-panel fr-z-help" aria-labelledby="fr-help-h">
+    <span class="fr-z-ico" aria-hidden="true">{{ icon("idea", "fr-ico fr-ico--lg") }}</span>
+    <div>
+      <h2 class="fr-z-h" id="fr-help-h">Not sure where to begin?</h2>
+      <p class="fr-z-p">Start with a fan campaign if you do not already have a contact list.</p>
+    </div>
+    <div class="fr-z-help-acts">
+      {%- if fr.can_capture %}
+      <a class="fr-start-btn fr-start-btn--fill" href="/links/new?type=bio&returnTo=/room/fans">Launch fan campaign{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
+      {%- else %}
+      <a class="fr-start-btn fr-start-btn--fill" href="/fans?returnTo=/room/fans">Import your list{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
+      {%- endif %}
+      <a class="fr-more" href="/contact" id="fr-ask">Ask Street Banker{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
+    </div>
+  </section>
+
+  {#- ---- more fan tools, folded ------------------------------------- -#}
+  <details class="fr-fold">
+    <summary class="fr-fold-sum">More fan tools{{ icon("chevron", "fr-ico fr-ico--sm") }}</summary>
+    <section class="fr-tools" aria-labelledby="fr-tools-h">
+      <h2 class="fr-kicker sr-only" id="fr-tools-h">More fan tools</h2>
+      <div class="fr-tiles">
+        {% for t in fr.tiles %}
+        <a class="fr-tile" href="{{ t.href }}"{% if t.external %} target="_blank" rel="noopener"{% endif %} data-room-card="{{ t.key }}">
+          <span class="fr-tile-top">
+            {{ icon(t.key, "fr-tile-ico") }}
+            <span class="fr-tile-text"><b>{{ t.label }}</b><span>{{ t.desc }}</span></span>
+          </span>
+          <span class="fr-tile-foot">
+            <span></span>
+            <span class="fr-tile-go">{{ icon("arrow", "fr-ico fr-ico--sm") }}</span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+  </details>
+  {% else %}
   <section class="fr-life" aria-labelledby="fr-life-h">
     <div class="fr-life-head">
       <h2 class="fr-kicker" id="fr-life-h">The fan lifecycle</h2>
@@ -308,5 +385,6 @@
     </div>
   </section>
 
+  {% endif %}
 </div>
 {% endblock %}

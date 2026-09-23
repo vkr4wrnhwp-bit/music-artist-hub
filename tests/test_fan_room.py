@@ -37,34 +37,53 @@ MOCKUP_ONLY = ("12,486", "1,204", "Maya Cole", "Send welcomes", "Send invites",
 
 
 def test_an_empty_account_is_told_how_to_start_not_shown_a_crowd():
+    """The page from zero (owner's Fans spec, 2026-09-22). The rack is a
+    STABLE information centre - three modules on the photographed plate,
+    no rotation, no reel, no ticker - and the page below it is the spec's
+    order: two equal starting cards, the five-stage workflow as
+    education, "Your fans will appear here" beside "You stay in control",
+    contextual help, and the tools folded away. The animated standby is
+    retired on this room only."""
+    import re as _re
     c, _uid = _account()
     body = c.get("/room/fans").get_data(as_text=True)
     assert ">Fans</h1>" in body
-    assert "Bring in the fans you already have" in body
-    # The plate explains itself on an empty account now (owner,
-    # 2026-09-22), so the map's own empty sentence is not reached: the
-    # constellation branch only runs once there is something to draw.
-    # Third cut of the day, his way: the big window sequences the room's
-    # FEATURES with a glitch hand-over, and the three small windows are a
-    # reel, a hint and a ticker - never a caption. "Your text is so small
-    # ... it's really cheap looking."
-    import re as _re
-    frames = _re.findall(r'rk-cine-frame[^>]*>\s*<b[^>]*>([^<]*)', body)
-    assert frames == ["Smart Links", "Fan CRM", "Fan Club", "Collab"], frames
-    # Fourth cut: the window is a DISPLAY. No door on it and no drawing
-    # behind the words (owner, 2026-09-22) - the way in is the hero's own
-    # pill, which is back on the empty account now nothing duplicates it.
-    assert "rk-cine-door" not in body and "rk-cine-art" not in body
-    # ?type=bio since 2026-09-22 (owner: "add the ?type=bio to the fans
-    # link"). The button keeps its own words - "keep the fans button as
-    # launch fan campaign" - and its door opens the builder on the Fan
-    # Hub rather than on a release, so page and door finally agree.
+    # the three modules, exact words, and nothing rotating
+    assert "Own the listener relationship" in body
+    assert "Choose how to add your first fans" in body
+    assert "Nothing is added until you review and confirm" in body
+    assert "rk-cine" not in body and "rk-reel-ico" not in body
+    assert 'class="rk-tip"' not in body and "rk-tick-i" not in body
+    # the owner's mockup: ONE wide screen carrying the three modules side by
+    # side; the three small windows stay unlit until there is data
+    assert body.count('class="fr-z-mod"') == 3, "three modules in the big window"
+    assert body.count("fr-z-win--unlit") == 3, "the small screens unlit"
+    # the hero's own pill, its door on the Fan Hub
     assert 'class="fr-cta" href="/links/new?type=bio"' in body
     assert "Launch fan campaign" in body
-    assert body.count("rk-reel-ico") >= 5, "the reel rolls through icons"
-    assert body.count('class="rk-tip"') >= 3, "the hint changes"
-    assert body.count("rk-tick-i") >= 5, "the ticker names the features"
-    assert "rk-pl-standby" not in body, "no caption-size text on this plate"
+    # two EQUAL starting cards, each with a way back
+    assert "Choose your starting point" in body
+    assert body.count('class="fr-start"') == 2
+    assert 'href="/links/new?type=bio&amp;returnTo=/room/fans"' in body
+    assert 'href="/fans?returnTo=/room/fans"' in body
+    assert "Best if you are starting from zero." in body
+    assert "CSV, spreadsheet, or pasted contacts." in body
+    # the workflow, five named stages, no progress claimed
+    assert "How the fan workflow works" in body
+    for stage in ("Capture", "Confirm consent", "Organize", "Activate", "Measure"):
+        assert stage in body, stage
+    rail = body.split("How the fan workflow works")[1].split("Your fans will appear here")[0]
+    assert "%" not in rail and "Complete" not in rail and "In progress" not in rail
+    # the empty workspace and the reassurance, in words - never a table or a nought
+    assert "Your fans will appear here" in body and "You stay in control" in body
+    assert "Nothing is sent without your approval" in body
+    text = _re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", body, flags=_re.S)
+    assert "0 fans" not in text and not _re.search(r"(?<![\d.])0%", text), "an absence is words, not a nought"
+    # help, and the tools folded
+    assert "Not sure where to begin?" in body
+    assert '<details class="fr-fold">' in body and "More fan tools" in body
+    # the populated room's parts are not on this page
+    assert "Next best moves" not in body and "The fan lifecycle" not in body
     for gone in MOCKUP_ONLY:
         assert gone not in body, gone
 
@@ -300,7 +319,7 @@ def test_the_plate_keeps_the_live_or_sample_mark():
     # standby there is no figure on the plate to mark as live or as an
     # example, and the foot that carries it is not drawn at all.
     empty = c.get("/room/fans").get_data(as_text=True)
-    assert "fr-pl-foot" not in empty, "nothing to mark while the plate is in standby"
+    assert "fr-pl-foot" not in empty, "nothing to mark on the page from zero"
     mls.upsert_fan(uid, "one@example.net", "", name="One")
     body = c.get("/room/fans").get_data(as_text=True)
     foot = body.split('class="rk-foot fr-pl-foot"', 1)[1].split("</p>", 1)[0]
@@ -318,3 +337,18 @@ def test_the_map_says_so_when_fans_exist_but_none_could_be_placed():
     assert "is-standby" not in body, "a fan on file is not an empty room"
     assert "No fan cities yet" in body
     assert "Cities arrive with your smart links" in body
+
+
+def test_a_fan_on_file_gets_the_populated_room_untouched():
+    """One real fan and the room is the room: readings on the plate, the
+    lifecycle rail, next best moves, tiles in the open - none of the
+    onboarding page."""
+    import links_store as mls
+    c, uid = _account()
+    cid = mls.create_campaign(uid, "f-%s" % uuid.uuid4().hex[:6], {"title": "HP"})
+    mls.upsert_fan(uid, "one@example.net", cid, name="One")
+    body = c.get("/room/fans").get_data(as_text=True)
+    assert 'class="fr-start"' not in body and "Choose your starting point" not in body
+    assert "The fan lifecycle" in body and "Next best moves" in body
+    assert '<details class="fr-fold">' not in body
+    assert "fr-z-win" not in body, "the plate carries readings, not the modules"

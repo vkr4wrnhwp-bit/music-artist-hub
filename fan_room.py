@@ -59,6 +59,51 @@ LIFECYCLE = [
 TOP_BANDS = ("Superfan", "Hot")
 
 
+# --- THE PAGE FROM ZERO (owner's Fans spec, 2026-09-22) ------------------
+# What the room says to an account with no fans. Words only - never a
+# figure, not even an example one - and every line is the spec's own.
+ZERO_RACK = {
+    "purpose": ("Purpose", "Own the listener relationship",
+                "Capture, organize, and activate an audience you can reach directly."),
+    "start": ("Start here", "Choose how to add your first fans"),
+    "know": ("Good to know", "Nothing is added until you review and confirm"),
+}
+# Two EQUAL ways to begin. Neither is drawn as the lesser (spec: "do not
+# visually imply that importing is less legitimate than capturing").
+STARTS = [
+    ("capture", "Capture new fans",
+     "Create a smart link or campaign that turns listeners into contacts you can reach.",
+     "Launch fan campaign", "/links/new?type=bio&returnTo=/room/fans",
+     "Best if you are starting from zero."),
+    ("import", "Bring an audience you already have",
+     "Import a permitted contact list. You will preview every record before anything is added.",
+     "Import your list", "/fans?returnTo=/room/fans",
+     "CSV, spreadsheet, or pasted contacts."),
+]
+# The five stages, EDUCATIONAL on a new account: no stage is complete, in
+# progress or blocked, and there is no percentage. Capture is highlighted
+# as the first step. LIFECYCLE (Discover .. Belong) stays the populated
+# room's rail; this is the onboarding one.
+WORKFLOW = [
+    ("capture", "Capture", "Collect fans through a campaign or import."),
+    ("consent", "Confirm consent", "Verify permission and review details."),
+    ("organize", "Organize", "Segment and prepare your fans."),
+    ("activate", "Activate", "Use your fans in marketing and releases."),
+    ("measure", "Measure", "See what is working over time."),
+]
+CONTROL = ("Preview imports before adding anyone",
+           "Record consent source and permission",
+           "Nothing is sent without your approval")
+HELP_QUESTIONS = ("How do I collect my first fans?",
+                  "Can I import my existing email list?",
+                  "What counts as permission to contact someone?")
+
+
+def zero_page():
+    return {"rack": ZERO_RACK, "starts": STARTS, "workflow": WORKFLOW,
+            "control": CONTROL, "help": HELP_QUESTIONS}
+
+
 # --- THE PLATE --------------------------------------------------------
 # static/img/fans-plate.webp, 1860x846. The hardware is ONE photograph and
 # only the readings are drawn on it. Each window is (x, y, w, h) as a
@@ -269,7 +314,9 @@ def moves(rows, audience, days, today, link_visits=0, shopify=False,
         out.append({"icon": "import", "title": "Bring in the fans you already have",
                     "desc": ("Import a list or Shopify customers. You preview it first."
                              if shopify else "Import a list. You preview it first."),
-                    "reach_label": "On file", "reach": "0 fans",
+                    # no "0 fans": an absence is words, not a nought
+                    # (audit, 2026-09-22)
+                    "reach_label": "", "reach": "",
                     "cta": "Import your list", "href": "/fans"})
     joined = new_fans(rows, days, today)
     fresh = fan_segments.contactable(joined)
@@ -425,6 +472,7 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
         # printing four blanks. One real fan and this is gone for good.
         "idle": not total,
         "standby": standby(),
+        "zero": zero_page(),
         # The hero's gold pill goes to /links/new, which is not this room's
         # page. A reader who cannot open it is offered the room's own list
         # instead of a button that turns them away.

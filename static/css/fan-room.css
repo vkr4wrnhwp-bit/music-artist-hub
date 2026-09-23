@@ -150,3 +150,86 @@
    is room-kit.css (.rk-cine*, .rk-reel*, .rk-tip*, .rk-tick*). It is one
    object across all eight rooms, so it lives once. This sheet keeps only
    what is particular to the Fans plate. */
+
+/* ---- the page from zero (owner's Fans spec, 2026-09-22) ------------
+   Nothing here is kit-owned (hero, tiles, panel, kicker, cta are the
+   kit's and are used as they are). Sizes never below 12px; radii and
+   colours are tokens. */
+.fr-z-list { display: contents; margin: 0; padding: 0; list-style: none; }
+.fr-z-win--unlit { pointer-events: none; }
+/* the big window carries the three modules side by side (the owner's
+   mockup: one wide AUDIENCE MONITOR screen, a rule between each) */
+.fr-z-win--big { padding: 3% 3.5%; justify-content: center; }
+.fr-z-mods { margin: 0; padding: 0; list-style: none; width: 100%; height: 100%;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; }
+.fr-z-mod { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  gap: 0.6cqw; padding: 0 2.2cqw; min-width: 0; }
+.fr-z-mod + .fr-z-mod { border-left: 1px solid color-mix(in srgb, var(--sb-crt) 45%, transparent); }
+.fr-z-mod-ico { display: inline-grid; place-items: center; color: var(--sb-crt);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--sb-crt) 55%, transparent)); }
+.fr-z-mod-svg { width: clamp(18px, 2.4cqw, 40px); height: clamp(18px, 2.4cqw, 40px); }
+.fr-z-k {
+  font-size: clamp(12px, 0.8cqw, 13px); font-weight: 800; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--sb-crt); text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 70%, transparent);
+}
+.fr-z-v {
+  font-family: var(--sb-display); font-weight: 800; line-height: 1.12; color: var(--sb-crt);
+  font-size: clamp(13px, 1.5cqw, 24px); text-wrap: balance;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 70%, transparent), 0 0 28px color-mix(in srgb, var(--sb-crt) 35%, transparent);
+}
+.fr-z-h { margin: 0; font-family: var(--sb-display); font-size: 22px; font-weight: 800; color: var(--sb-ink); line-height: 1.2; }
+.fr-z-p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--sb-ink-2); max-width: 52ch; }
+.fr-z-ico { display: inline-grid; place-items: center; width: 52px; height: 52px; flex: 0 0 auto; color: var(--sb-gold-bright); }
+.fr-ico--lg { width: 30px; height: 30px; }
+.fr-z-two { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; }
+.fr-z-empty, .fr-z-help { display: flex; align-items: center; gap: 18px; }
+.fr-z-empty > div, .fr-z-help > div { flex: 1 1 auto; min-width: 0; }
+.fr-z-links { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.fr-z-links a { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
+.fr-z-links a:hover { text-decoration: underline; }
+.fr-z-checks { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.fr-z-checks li { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--sb-ink); }
+.fr-z-checks .fr-ico { color: var(--sb-gold-bright); flex: 0 0 auto; }
+.fr-z-help-acts { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; flex: 0 0 auto; }
+.fr-starts-wrap .fr-z-h { margin-bottom: 12px; }
+.fr-starts { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.fr-start {
+  display: grid; grid-template-columns: 56px minmax(0, 1fr); grid-template-rows: auto auto auto; gap: 8px 16px; align-items: start;
+  padding: 20px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel); background: var(--sb-surface-1);
+}
+.fr-start-ring { grid-row: 1 / span 3; display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 999px; border: 1.5px solid var(--sb-gold-line); color: var(--sb-gold-bright); }
+.fr-start-ico { width: 24px; height: 24px; }
+.fr-start-t { margin: 0; font-size: 18px; font-weight: 800; color: var(--sb-ink); line-height: 1.2; }
+.fr-start-p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: var(--sb-ink-2); }
+.fr-start-btn {
+  grid-column: 2; justify-self: stretch; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 18px; border-radius: var(--sb-r-control); text-decoration: none; font-size: 15px; font-weight: 800; white-space: nowrap;
+}
+.fr-start-btn--fill { background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold)); color: var(--sb-on-gold); box-shadow: 0 6px 18px color-mix(in srgb, var(--sb-gold) 28%, transparent); }
+.fr-start-btn--fill:hover { filter: brightness(1.05); }
+.fr-start-btn--line { border: 1.5px solid var(--sb-gold-line); color: var(--sb-gold-bright); }
+.fr-start-btn--line:hover { border-color: var(--sb-gold-bright); }
+.fr-start-note { grid-column: 2; margin: 0; font-size: 13px; color: var(--sb-ink-2); }
+.fr-z-help .fr-start-btn { grid-column: auto; justify-self: auto; }
+.fr-z-life .fr-step.is-first .fr-ring { border-color: var(--sb-gold-bright); color: var(--sb-gold-bright); box-shadow: 0 0 18px color-mix(in srgb, var(--sb-gold) 30%, transparent); }
+.fr-z-life .fr-step.is-first b { color: var(--sb-gold-bright); }
+.fr-fold { border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel); background: var(--sb-surface-1); }
+.fr-fold-sum { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; cursor: pointer; list-style: none; font-size: 15px; font-weight: 800; color: var(--sb-ink); min-height: 44px; }
+.fr-fold-sum::-webkit-details-marker { display: none; }
+.fr-fold[open] .fr-fold-sum .fr-ico { transform: rotate(180deg); }
+.fr-fold .fr-tools { padding: 0 16px 16px; }
+@media (max-width: 860px) {
+  .fr-starts, .fr-z-two { grid-template-columns: 1fr; }
+  .fr-z-empty, .fr-z-help { flex-wrap: wrap; }
+}
+@media (max-width: 560px) {
+  .fr-z-list { display: none; }
+  .fr-z-win--big { position: static; width: auto; height: auto; padding: 0; }
+  .fr-z-mods { display: flex; flex-direction: column; gap: 10px; height: auto; }
+  .fr-z-mod { align-items: flex-start; text-align: left; padding: 14px 16px; gap: 4px;
+    border: 1px solid var(--sb-gold-deep); border-radius: var(--sb-r-control); background: color-mix(in srgb, var(--sb-crt) 6%, #000); }
+  .fr-z-mod + .fr-z-mod { border-left: 1px solid var(--sb-gold-deep); }
+  .fr-z-mod-svg { width: 22px; height: 22px; }
+  .fr-z-v { font-size: 17px; }
+  .fr-start-btn { width: 100%; }
+}
