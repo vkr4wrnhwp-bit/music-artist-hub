@@ -302,6 +302,10 @@
             <input type="hidden" name="description" value="{{ rec }}">
             <input type="hidden" name="category" value="{{ category }}">
             <input type="hidden" name="source" value="alert">
+            {#- The alert's own Fix now page rides along: it names the
+                room, the way back and, for a campaign, the record
+                (audit, 2026-09-23). -#}
+            <input type="hidden" name="fix" value="{{ link }}">
             {{ sb.btn("Create action", variant="ghost", size="sm", type="submit") }}
           </form>
         {% endcall %}
@@ -324,7 +328,10 @@
       {% if cc_actions %}
       {#- Open work on the board is something that needs attention; never
           say "nothing" over it (crawl, 2026-09-23). -#}
-      <p class="mt-3 text-sm text-gray-100">No alerts right now. {{ cc_actions|length }} open action{{ "s" if cc_actions|length != 1 }} on your board, listed under Open Actions.</p>
+      {#- The count is every open action, not the five the panel lists
+          (audit, 2026-09-23: "5 open actions" was said of a board of 8). -#}
+      {%- set open_n = cc_open_total if cc_open_total is defined else cc_actions|length %}
+      <p class="mt-3 text-sm text-gray-100">No alerts right now. {{ open_n }} open action{{ "s" if open_n != 1 }} on your board{% if open_n > cc_actions|length %}, the first {{ cc_actions|length }} listed under Open Actions{% else %}, listed under Open Actions{% endif %}.</p>
       {% elif summary and summary.campaign_count %}
       <p class="mt-3 text-sm text-sb-good">Nothing on fire — every live campaign is capturing fans and fully set up.</p>
       {% else %}

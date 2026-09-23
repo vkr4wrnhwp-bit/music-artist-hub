@@ -99,7 +99,11 @@ def assignee_words(action, people, me_id, others="Assigned to a former team memb
     rest of the team (the Studio's rule) - "a teammate"."""
     aid = (action or {}).get("assignee_id") or ""
     if not aid:
-        return "Unassigned"
+        # A tour's crew member has no account, so no id, but a name: the
+        # Tour tasks page and this board say the same person (audit,
+        # 2026-09-23: "Book the van — Sam ... Unassigned").
+        crew = ((action or {}).get("assignee_name") or "").strip()
+        return ("Tour crew: %s" % crew) if crew else "Unassigned"
     if aid == me_id:
         return "Assigned to you"
     name = dict(people).get(aid)
@@ -108,12 +112,25 @@ def assignee_words(action, people, me_id, others="Assigned to a former team memb
 
 # ---- the records an action can be about ------------------------------------
 
+class Records(dict):
+    """The records an action can be about, by "kind:id", plus the kinds
+    whose store could not be read this time (`failed`). A record of a
+    failed kind is not known to be gone, so nothing may say it is."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.failed = set()
+
+
 def records(user_id, store, mls, tour_store=None, is_mock=None):
     """{"kind:id": {kind, id, label, href, room, open}} for this account's
     releases, campaigns, songs, tours, shows and documents. Read once per
     page. A store that cannot be read contributes nothing rather than
-    failing the board."""
-    out = {}
+    failing the board, and its kinds are named in `.failed`, so the page
+    says it could not read the record rather than that the record is gone
+    (audit, 2026-09-23: a failed campaigns read told the person their
+    release was "no longer on file")."""
+    out = Records()
 
     def put(kind, ident, label, href):
         name, room, open_words = RECORD_KINDS[kind]
@@ -130,12 +147,12 @@ def records(user_id, store, mls, tour_store=None, is_mock=None):
             else:
                 put("campaign", c["id"], c.get("title"), "/links/%s/edit" % c["id"])
     except Exception:
-        pass
+        out.failed.update(("release", "campaign"))
     try:
         for t in store.list_os_tracks(user_id):
             put("song", t["id"], t.get("title"), "/tracks/%s" % t["id"])
     except Exception:
-        pass
+        out.failed.add("song")
     if tour_store is not None:
         try:
             for tour in tour_store.list_tours(user_id):
@@ -148,12 +165,14 @@ def records(user_id, store, mls, tour_store=None, is_mock=None):
                     put("tour_show", s["id"], ("%s, %s" % (where, when)) if when else where,
                         "/tours/%s/shows/%s" % (tour["id"], s["id"]))
         except Exception:
-            pass
+            out.failed.update(("tour", "tour_show"))
+    else:
+        out.failed.update(("tour", "tour_show"))
     try:
         for d in store.list_documents(user_id):
             put("document", d["id"], d.get("filename"), "/vault?view=contracts#doc-%s" % d["id"])
     except Exception:
-        pass
+        out.failed.add("document")
     return out
 
 
@@ -169,7 +188,9 @@ def related_options(recs):
 
 def related(action, recs):
     """The record this action is about: the resolved record, a note that
-    it is gone, or None when it is about nothing."""
+    it is gone, a note that it could not be read, or None when it is about
+    nothing. `keep` marks the two notes: the edit form cannot offer that
+    record, so it keeps the link as it is."""
     kind = (action or {}).get("entity_type") or ""
     ident = (action or {}).get("entity_id") or ""
     if not kind or not ident:
@@ -178,9 +199,16 @@ def related(action, recs):
     if rec:
         return rec
     if kind in RECORD_KINDS:
-        return {"kind": kind, "id": ident, "label": "This %s is no longer on file"
-                % RECORD_KINDS[kind][0].lower(), "href": None, "room": RECORD_KINDS[kind][1],
-                "open": None, "gone": True}
+        noun = RECORD_KINDS[kind][0].lower()
+        base = {"kind": kind, "id": ident, "href": None, "room": RECORD_KINDS[kind][1],
+                "open": None, "keep": True}
+        # A store that failed to read says nothing about the record: it is
+        # not gone, it is unread (the owner's rule: never turn a failed
+        # request into a statement about the data).
+        if kind in getattr(recs, "failed", ()):
+            return dict(base, label="This %s could not be read right now" % noun,
+                        unreadable=True)
+        return dict(base, label="This %s is no longer on file" % noun, gone=True)
     return None
 
 
@@ -224,6 +252,7 @@ def row(action, recs, people, me_id, today, others="Assigned to a former team me
         "assignee": assignee_words(a, people, me_id, others),
         "related": rel,
         "source": cc.ACTION_SOURCES.get(a.get("source") or "", ""),
+        "source_noun": cc.SOURCE_NOUNS.get(a.get("source") or "", ""),
         "source_href": a.get("source_href") or "",
         "door": door,
         "step": step,
@@ -283,12 +312,13 @@ SOURCE_BY_PATH = (
     ("/conflicts", "rights_conflict"),
     ("/qualification", "growth_score"),
     ("/trust-score", "trust_score"),
-    ("/recovery", "royalty_check"),
-    ("/statements", "royalty_check"),
-    ("/royalties", "royalty_check"),
-    ("/overview", "royalty_check"),
     ("/modules", "module"),
 )
+# The money pages name no source: no Create-action form sits on them. The
+# "royalty_check" source was produced by nothing - its forms lived in a
+# band mode no page set (audit, 2026-09-23) - and on the Recovery desk a
+# case is the action. Royalty work reaches the board from a Command
+# Center alert, as "From a Command Center alert".
 
 
 def source_for_path(path):

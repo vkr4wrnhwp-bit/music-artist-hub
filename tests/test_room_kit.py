@@ -38,7 +38,9 @@ ROOMS = {"fans": ("fan-room.css", "fr"),
          "business": ("business-room.css", "bz")}
 
 # What the kit owns. A room may not redefine any of these for itself.
-SHARED = ("hero", "hero-top", "eyebrow", "title", "sub", "controls", "chip",
+# hero-aside joined 2026-09-23: marketing-room.css redeclared it and beat
+# the kit's narrow-width rule, floating the chip mid-header at 768.
+SHARED = ("hero", "hero-top", "hero-aside", "eyebrow", "title", "sub", "controls", "chip",
           "chip-name", "avatar", "cta", "panel", "kicker",
           "tiles", "tile", "tile-top", "tile-ico", "tile-text", "tile-foot",
           "tile-status", "tile-go", "tone-good", "tone-info", "tone-gold",

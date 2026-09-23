@@ -21,7 +21,9 @@
 .mk-kicker--sm { font-size: 12px; letter-spacing: .18em; }
 .mk-hero-said { min-width: 0; }
 
-.mk-hero-aside { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; min-width: 0; }
+/* .mk-hero-aside is the kit's (room-kit.css), with its own narrow-width
+   rule; redeclaring it here beat that rule and left the account chip
+   floating mid-header at 768 (audit, 2026-09-23). */
 .mk-range { position: relative; }
 .mk-range summary { list-style: none; cursor: pointer; }
 .mk-range summary::-webkit-details-marker { display: none; }
@@ -299,28 +301,17 @@ a.mk-z-lens:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-of
 @media (prefers-reduced-motion: reduce) {
   .mk-z-fold-sum svg { transition: none; }
 }
-.mk-z-tools .mk-z-band { margin-top: 14px; }
-@media (max-width: 860px) {
-  .mk-z-two, .mk-z-pair { grid-template-columns: 1fr; }
-  .mk-z-empty, .mk-z-help { flex-wrap: wrap; }
-}
-@media (max-width: 560px) {
-  .mk-z-card { grid-template-columns: 1fr; grid-template-rows: auto; }
-  .mk-z-ring { grid-row: auto; }
-  .mk-z-btn, .mk-z-note, .mk-z-card .mk-z-links { grid-column: auto; }
-  .mk-z-btn { width: 100%; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .mk-z-fold-sum svg { transition: none; }
-}
 /* the drawer's category headings (this room had no band heading of its own) */
 .mk-z-band { margin: 14px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--sb-gold); }
-/* "What information do I need?" opens the first-draft list in place */
+/* "Compare campaign goals" and "Marketing checklist" open their lists in
+   place. The lists carry markers and a gap between items, so a wrapped
+   line never reads as an item of its own (audit, 2026-09-23). */
 .mk-z-need { grid-column: 2; margin-top: 4px; }
 .mk-z-need summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); }
 .mk-z-need summary::-webkit-details-marker { display: none; }
 .mk-z-need summary svg { width: 16px; height: 16px; flex: 0 0 auto; }
 .mk-z-need summary:hover { text-decoration: underline; }
-.mk-z-need ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--sb-ink-2); }
+.mk-z-need ul { margin: 8px 0 0; padding-left: 18px; list-style: disc; font-size: 13px; line-height: 1.5; color: var(--sb-ink); }
+.mk-z-need li + li { margin-top: 4px; }
 .mk-z-need p { margin: 6px 0 0; font-size: 13px; color: var(--sb-ink-2); }
 @media (max-width: 560px) { .mk-z-need { grid-column: auto; } }

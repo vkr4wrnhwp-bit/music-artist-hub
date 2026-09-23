@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}Actions{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/actions.css?v=3">{% endblock %}
+
+{% block content %}
+{#- The Action Center's actions could not be read. This page exists so a
+    failed request is NEVER an empty board ("No actions yet") or a bare
+    server error (audit, 2026-09-23; the owner's rule: "never translate a
+    failed request into zero values"). Nothing on this page is a figure. -#}
+<div class="ac" data-no-collapse>
+  {% call sb.plate(none, [], "Street Banker · Action Center", "Actions",
+                   "We could not load your actions. They are safe; nothing was changed.") %}
+    <a href="/command-center" class="sb-btn sb-btn-secondary">Command Center</a>
+  {% endcall %}
+  <section class="ac-panel" aria-labelledby="ac-err-h">
+    <h2 class="ac-h" id="ac-err-h">We could not load your actions</h2>
+    <p class="ac-p">Your actions are safe. Try again in a moment.</p>
+    <div class="ac-detail-acts">
+      <a class="ac-btn ac-btn--gold" href="{{ retry or '/actions' }}">Try again</a>
+      <a class="ac-btn ac-btn--line" href="/command-center">Command Center</a>
+    </div>
+    <p class="ac-p">If this keeps happening, tell us through <a href="/contact">Contact</a> and say what you were doing.</p>
+  </section>
+</div>
+{% endblock %}

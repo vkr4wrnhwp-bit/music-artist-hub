@@ -1007,7 +1007,10 @@ def init_db():
         # it belongs to, who it is assigned to, where it came from (and the
         # address to go back to), and who typed it in. Empty means unknown:
         # rows made before this say nothing rather than a guess.
-        for _col in ("room", "assignee_id", "source", "source_href", "created_by"):
+        # assignee_name (audit, 2026-09-23): a tour task's crew member, who
+        # has no Street Banker account and so no assignee_id.
+        for _col in ("room", "assignee_id", "source", "source_href", "created_by",
+                     "assignee_name"):
             try:
                 db.execute("ALTER TABLE street_actions ADD COLUMN %s TEXT NOT NULL DEFAULT ''" % _col)
             except sqlite3.OperationalError:
