@@ -5402,11 +5402,21 @@ def create_app():
         import marketing_room
         days = marketing_room.days_from(request.args.get("days"))
         showcase = _session_is_demo()
-        if showcase:
-            figures = marketing_room.showcase(days)
-            kit_live = True
-        else:
-            figures = marketing_room.for_account(user["id"], days)
+        # Every count the page from zero is decided on, read in ONE try: a
+        # failed read is the error page, 503, and never a fresh account
+        # (owner's spec, 2026-09-23).
+        try:
+            campaigns = [c for c in mls.list_campaigns(user["id"]) if not c.get("archived_at")]
+            if showcase:
+                figures = marketing_room.showcase(days)
+                kit_live = True
+            else:
+                figures = marketing_room.for_account(user["id"], days)
+        except Exception as exc:
+            app.logger.error("marketing room: state unreadable: %s", exc)
+            return render_template("room_marketing_error.html", active_page="room-marketing",
+                                   room=room, **build_dashboard_context()), 503
+        if not showcase:
             # His "Live" pill on the press kit tile, answered by the record.
             # The public address is not the answer: _ensure_epk_slug mints
             # one on a plain view of /epk, and on /fan-club without /epk
@@ -5422,12 +5432,22 @@ def create_app():
         seat = current_team_seat()
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # Who may plan the first campaign: the account holder, or an edit seat.
+        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         mk = marketing_room.build(figures, room["cards"], days=days,
                                   showcase=showcase, kit_live=kit_live,
                                   artist_name=user.get("name") or "",
-                                  can_open=can_open)
+                                  can_open=can_open,
+                                  zero=(not showcase) and marketing_room.new_account(figures, campaigns),
+                                  can_add=can_add)
         return render_template("room_marketing.html", active_page="room-marketing",
-                               room=room, mk=mk, **build_dashboard_context())
+                               room=room, mk=mk,
+                               # The sentence the builder carries back
+                               # (?from=marketing-zero-state), decided by the
+                               # SAVED campaign.
+                               done_line=marketing_room.done_line(
+                                   request.args.get("from"), len(campaigns)),
+                               **build_dashboard_context())
 
     @app.route("/room/fans/new.csv")
     def fan_room_new_csv():

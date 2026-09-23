@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}Marketing{% endblock %}
+
+{% block content %}
+{#- The Marketing room's state could not be read. This page exists so that
+    a failed request is NEVER shown as a fresh account (owner's Marketing
+    spec, 2026-09-23, Pass 1: "accurate new-account, loading, permission,
+    and error detection"). Nothing on this page is a figure. -#}
+<div class="mx-auto max-w-2xl">
+  <p class="sb-label sb-label-gold">Street Banker · Marketing</p>
+  <h1 class="sb-h1 mt-1">We could not load Marketing</h1>
+  <p class="mt-3 max-w-xl text-base text-gray-200">Your campaigns, links and contacts are safe. Try again.</p>
+  <div class="mt-6 flex flex-wrap gap-3">
+    {{ sb.btn("Try again", href="/room/marketing", variant="primary") }}
+    {{ sb.btn("Open Smart Links", href="/links", variant="secondary") }}
+  </div>
+  <p class="mt-8 text-xs text-gray-300">If this keeps happening, tell us through <a href="/contact" class="font-semibold text-sb-gold-bright hover:underline">Contact</a> and say what you were doing.</p>
+</div>
+{% endblock %}

@@ -66,23 +66,156 @@ def _link_events(user_id, kinds, days_ago=1):
 
 # --- the page, in every account state --------------------------------------
 
-def test_an_empty_account_is_told_in_words_and_never_shown_a_zero():
-    """The state a new artist sees first. Nothing is on record, so nothing
-    is counted: each instrument says so in words."""
+def _body(page):
+    """The room's own markup: from its container to the command palette
+    that base.html appends after every page (its hint row has arrows)."""
+    body = page.split('class="rk mk"', 1)[1] if 'class="rk mk"' in page else page.split("<main", 1)[-1]
+    return body.split("<!-- Command palette", 1)[0]
+
+
+def test_an_empty_account_meets_the_page_from_zero_not_an_empty_funnel():
+    """The page from zero (owner's Marketing spec + mockup, 2026-09-23). The
+    funnel waits for something sent or published; a new account meets the
+    Command Center's three-screen plate, STATIC, with this room's words,
+    and the spec's order under it. No 30-day filter, no empty figures, no
+    press funnel, no contact-city report, no trend arrow, no
+    recommendation - and none of the room's populated parts."""
+    import re as _re
     c, _uid = _account()
-    body = c.get("/room/marketing").get_data(as_text=True)
-    assert ">Marketing</h1>" in body
-    assert "Help independent musicians get heard and get written about." in body
-    assert "No visits in this window" in body
-    assert "None yet" in body                          # Clicks and Pre-saves
-    for words in ("No announcements ready", "No pitches sent", "No opens logged",
-                  "No coverage logged", "No smart link visits"):
-        assert words in body, words
-    assert "Nothing is waiting on you here." in body   # no action is not a zero row
-    assert "No contact cities on file yet." in body
-    assert "Read from your own records" in body        # the Live mark, not Sample
-    for gone in HIS_EXAMPLE:
+    page = c.get("/room/marketing").get_data(as_text=True)
+    body = _body(page)
+    assert ">Marketing</h1>" in page
+    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "marketing-plate.webp" not in body, "the funnel waits for something sent"
+    assert "rk-cine" not in body and "rk-reel-win" not in body and "rk-tick-win" not in body, "nothing rotates"
+    for gone in ("mk-range", "mk-band", "No visits in this window", "None yet", "No announcements ready",
+                 "No pitches sent", "Nothing is waiting on you here.", "No contact cities on file yet.",
+                 "counted over the last", "mk-map", "Explore more tools"):
         assert gone not in body, gone
+    for words in HIS_EXAMPLE:
+        assert words not in body, words
+    # the three screens, the spec's words exactly, none of them a door
+    for k, v in mr.ZERO_RACK:
+        assert k in body and v in body, (k, v)
+    assert body.count('<li class="cz-screen"') == 3 and 'class="cz-screen-v" href' not in body
+    # the header: the spec's subtitle, the account chip kept, the one door
+    assert mr.ZERO_SUBTITLE in body
+    assert "Room Artist" in body, "the account selector still says whose campaigns these are"
+    door = mr.DOOR.replace("&", "&amp;")
+    assert 'class="mk-cta" href="%s"' % door in body and "Plan your first campaign" in body
+    assert mr.DOOR.startswith("/links/new?"), "the campaign builder: its first question is the goal"
+    # the card, the goals in place, the four areas as doors
+    assert "Start with one goal" in body and "Choose your first marketing goal" in body
+    assert 'class="mk-z-btn" href="%s"' % door in body and "Start planning</a>" in body
+    assert "Compare campaign goals" in body
+    for goal, tools in mr.GOALS:
+        assert goal in body and tools in body, goal
+    assert "What Marketing will organize" in body
+    for _k, name, line, _d in mr.LENSES:
+        assert name.replace("&", "&amp;") in body and line in body, name
+    for href in ("/links/new?returnTo=/room/marketing", "/press-desk?returnTo=/room/marketing",
+                 "/links?returnTo=/room/marketing", "/rollout-studio?returnTo=/room/marketing"):
+        assert 'class="mk-z-lens" href="%s"' % href in body, href
+    # the five steps as education, numbered, Choose goal lit
+    for _k, name, line in mr.WORKFLOW:
+        assert name in body and line.replace("&", "&amp;") in body, name
+    rail = body.split("How Marketing works")[1].split("Your campaign plan will appear here")[0]
+    assert "%" not in rail and "Complete" not in rail and "In progress" not in rail
+    assert 'class="rk-step is-first"' in body
+    assert '<span class="rk-ring" aria-hidden="true">1</span>' in rail and ">5</span>" in rail
+    # the two empties in words, the checklist in place, help, the drawer open
+    assert "Your campaign plan will appear here" in body and "No results are measured yet" in body
+    assert "Drafts and scheduled work are not counted as reach." in body
+    assert 'href="#mk-z-flow-h">How campaigns work' in body
+    assert '<details class="mk-z-need" id="mk-z-checklist">' in body and "Marketing checklist" in body
+    assert body.count("Marketing checklist") == 1, "one control opens the list, not a link and a summary"
+    for item in mr.CHECKLIST:
+        assert item in body, item
+    assert "Not sure what to market first?" in body and 'href="/contact">Ask Street Banker' in body
+    assert '<details class="mk-z-fold" open>' in body and "More Marketing tools" in body, (
+        "the drawer starts OPEN (owner, 2026-09-23: people need to see it)")
+    drawer = body.split('<details class="mk-z-fold"')[1]
+    titles = _re.findall(r'<h3 class="mk-z-band">([^<]+)</h3>', drawer)
+    assert titles == ["Press &amp; media", "Smart links &amp; fan capture", "Referrals"], titles
+    assert _re.findall(r'data-room-card="([a-z-]+)"', drawer) == ["press-desk", "epk", "links", "referrals"]
+    assert "mk-tile-status" not in drawer, "no pill is judged from zero"
+    # no nought, no percentage, no trend
+    text = _re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", body, flags=_re.S)
+    assert not _re.search(r"\b0 (visits|clicks|pre-saves|campaigns|contacts)", text)
+    assert not _re.search(r"(?<![\d.])0%", text) and "\u2191" not in text and "\u2193" not in text
+
+
+def test_the_saved_campaign_says_the_line_never_the_param_alone():
+    c, uid = _account()
+    page = c.get("/room/marketing?from=marketing-zero-state").get_data(as_text=True)
+    assert mr.DONE_LINE not in page, "the param alone says nothing"
+    mls.create_campaign(uid, "mkt-%s" % uuid.uuid4().hex[:8], {"title": "First campaign"})
+    assert mr.DONE_LINE in c.get("/room/marketing?from=marketing-zero-state").get_data(as_text=True)
+    assert mr.DONE_LINE not in c.get("/room/marketing").get_data(as_text=True)
+    assert mr.done_line("marketing-zero-state", 0) == "" and mr.done_line(None, 2) == ""
+    assert mr.done_line("marketing-zero-state", 1) == mr.DONE_LINE
+
+
+def test_new_account_is_empty_on_every_count_the_room_reads():
+    assert mr.new_account({}, []) is True
+    assert mr.new_account({}, [{"id": "c"}]) is False, "a campaign is a plan"
+    assert mr.new_account({"visits_all": 1}, []) is False
+    assert mr.new_account({"ready": 1}, []) is False
+    assert mr.new_account({"contacts": 1}, []) is False
+    assert mr.new_account({"no_link": 1}, []) is False, "a rollout waiting on a link is activity"
+    assert mr.new_account({"story": {"headline": "x"}}, []) is False
+
+
+def test_one_campaign_brings_the_room_back_untouched():
+    c, uid = _account()
+    mls.create_campaign(uid, "mkt-%s" % uuid.uuid4().hex[:8], {"title": "First campaign"})
+    body = _body(c.get("/room/marketing").get_data(as_text=True))
+    assert "marketing-plate.webp?v=" in body and "command-plate" not in body
+    assert "mk-range" in body and "No visits in this window" in body and "Explore more tools" in body
+    assert "Start with one goal" not in body and "mk-z-fold" not in body
+
+
+def test_the_demo_account_is_the_showcase_never_from_zero():
+    demo = appmod.app.test_client()
+    demo.post("/demo-open", data={})
+    body = demo.get("/room/marketing").get_data(as_text=True)
+    if "Sample data" in body:
+        assert "Start with one goal" not in body, "the showcase is not a fresh account"
+
+
+def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
+    cards = CARDS + [("links", "/links", "i", "Smart Links", "d", "live")]
+    cards = [(k, h, i, l, d, "hidden" if k == "press-desk" else st) for k, h, i, l, d, st in cards]
+    z = mr.zero_page(cards=cards)
+    tiles = {t["key"]: t for b in z["bands"] for t in b["tiles"]}
+    assert tiles["press-desk"]["state"] == "hidden" and tiles["epk"]["state"] != "hidden"
+
+
+def test_a_seat_that_may_not_write_gets_no_door_and_an_area_it_cannot_open_is_words():
+    import team_areas
+    cards = CARDS + [("links", "/links", "i", "Smart Links", "d", "live")]
+    seat = lambda href: team_areas.allows("marketing", href.split("?")[0])
+    z = mr.zero_page(can_add="seat", can_open=seat, cards=cards)
+    assert z["project"]["can"] == "seat"
+    by = {l["key"]: l for l in z["lenses"]}
+    assert by["content"]["href"] == "", "a Marketing-only seat is refused at the Rollout Engine"
+    assert by["press"]["href"] == "/press-desk" and by["links"]["href"] == "/links"
+    assert by["plans"]["href"] == "/links/new"
+    assert [b["title"] for b in z["bands"]] == ["Press & media", "Smart links & fan capture", "Referrals"]
+    assert mr.zero_page(cards=cards)["project"]["can"] is True
+
+
+def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
+    def boom(*_a, **_k):
+        raise RuntimeError("marketing: store down")
+    monkeypatch.setattr(mr, "for_account", boom)
+    c, _uid = _account()
+    r = c.get("/room/marketing")
+    assert r.status_code == 503
+    page = r.get_data(as_text=True)
+    assert "We could not load Marketing" in page
+    assert 'href="/room/marketing"' in page and 'href="/links"' in page and "Open Smart Links" in page
+    assert "Start with one goal" not in page and "command-plate" not in page
 
 
 def test_every_figure_traces_to_a_record_this_account_holds():
@@ -129,7 +262,8 @@ def test_the_window_governs_the_band_and_the_rail_holds_the_record():
 
 
 def test_the_window_is_one_of_three():
-    c, _uid = _account()
+    c, uid = _account()
+    _link_events(uid, {"page_view": 1})
     head = c.get("/room/marketing?days=7").get_data(as_text=True).split("mk-range-menu")[0]
     assert "Last 7 days" in head
     head = c.get("/room/marketing?days=5000").get_data(as_text=True).split("mk-range-menu")[0]
@@ -196,7 +330,8 @@ def test_a_rollout_with_our_link_connected_is_not_on_the_list():
 
 def test_the_closing_grid_is_his_three_tiles_in_his_order():
     import re
-    c, _uid = _account()
+    c, uid = _account()
+    _link_events(uid, {"page_view": 1})
     body = c.get("/room/marketing").get_data(as_text=True)
     assert re.findall(r'data-room-card="([a-z-]+)"', body) == ["press-desk", "epk", "referrals"]
     assert "Explore more tools" in body
@@ -377,6 +512,7 @@ def test_1_the_press_kit_pill_waits_for_a_kit_that_was_saved():
     Against "Not shared yet", Live means shared, so it waits for what a real
     save writes: the data column of epk_profiles."""
     c, uid = _account()
+    _link_events(uid, {"page_view": 1})             # one event: the room, not the page from zero
     assert "Not shared yet" in _epk_pill(c)
     c.get("/epk")                                   # a plain page view
     assert (store.get_epk(uid) or {}).get("slug"), "the view minted the address"
@@ -528,8 +664,15 @@ def test_9_the_room_reaches_smart_links_in_both_layouts():
             email = "mktlinks-%s@example.net" % uuid.uuid4().hex[:8]
             c.post("/signup", data={"name": "Door", "email": email, "password": PW})
             c.post("/plan/switch", data={"plan": "pro"})
+            # From zero the room reaches Smart Links by its own door and its
+            # category, not by the figure; the figure's door is the
+            # populated room's, asserted once an event exists.
+            zero = c.get("/room/marketing").get_data(as_text=True)
+            assert 'href="/links?returnTo=/room/marketing"' in zero, "NAV_ROOMS=%s" % rooms_on
+            uid = store.get_user_by_email(email)["id"]
+            _link_events(uid, {"page_view": 2}, days_ago=400)
             body = c.get("/room/marketing").get_data(as_text=True)
-            assert "No visits in this window" in body, "the empty state"
+            assert "No visits in this window" in body, "the empty window, on an account with a record"
             assert '<a class="mk-big" href="/links"' in body, rooms_on
             assert "Open Smart Links" in body
             assert [h for h in re.findall(r'href="([^"]*)"', body)
