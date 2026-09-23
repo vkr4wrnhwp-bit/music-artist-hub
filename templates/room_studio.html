@@ -273,7 +273,8 @@
     <span class="sd-needle sd-needle--left" style="--turn: {{ a.left }}" aria-hidden="true"></span>
     <span class="sd-needle sd-needle--right" style="--turn: {{ a.right }}" aria-hidden="true"></span>
   </section>
-  <p class="rk-foot sd-standard">Integrated loudness and true-peak headroom, measured
+  <p class="rk-foot sd-standard">{% if sd.sample %}<b>Sample data.</b> Every figure in this
+    room is generated for the example. {% endif %}Integrated loudness and true-peak headroom, measured
     in your browser to {{ a.standard }}. A platform's own encoder has the last word on
     what it finally sounds like.</p>
 

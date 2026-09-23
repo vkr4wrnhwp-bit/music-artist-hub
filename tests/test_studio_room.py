@@ -335,3 +335,105 @@ def test_the_owners_hidden_mark_stays_on_a_populated_room_tile():
     out = sd.build(None, "", [], 1, 0, None, cards)
     tiles = {t["key"]: t for t in out["tiles"]}
     assert not out["idle"] and tiles["artwork"]["state"] == "hidden" and tiles["rack"]["state"] != "hidden"
+
+
+# --- the audit of 2026-09-23 ------------------------------------------------
+# Each test below failed at b6c1d949, before its fix. The audit's finding
+# ids (studio-N) are in the docstrings.
+
+import base64 as _b64
+import io as _io_mod
+import os as _os_mod
+import re as _re_mod
+
+# A 1x1 PNG, the smallest real cover the upload route accepts.
+_PNG = _b64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+_HERE = _os_mod.path.dirname(_os_mod.path.dirname(_os_mod.path.abspath(__file__)))
+
+
+def _upload_cover(c):
+    r = c.post("/artwork/upload", data={"art": (_io_mod.BytesIO(_PNG), "sleeve.png")},
+               content_type="multipart/form-data")
+    got = r.get_json()
+    assert got and got.get("ok"), got
+    return got["path"]
+
+
+def _populated(body):
+    return ("studio-bus-plate.webp?v=" in body
+            and "Create your first Studio project" not in body
+            and "Nothing to review yet" not in body)
+
+
+def test_covers_reads_the_path_list_uploads_hands_back():
+    """studio-1. artwork_config.list_uploads returns `path`; covers() read
+    only url/href, so every file was dropped. The file's storage key is
+    not a title, so the label is what the studio calls it."""
+    files = [{"name": "artup_7_1727.png", "path": "/uploads/artup_7_1727.png",
+              "kind": "Uploaded", "when": "23 Sep 2026", "bytes": 10, "sort": 1}]
+    got = sd.covers(files)
+    assert got["total"] == 1
+    assert got["shown"][0]["url"] == "/uploads/artup_7_1727.png"
+    assert got["shown"][0]["name"] == "Uploaded cover, 23 Sep 2026"
+    assert sd.covers([{"url": "/a.png"}])["total"] == 1, "url is still read"
+
+
+def test_a_cover_alone_brings_the_room_back_into_the_bay_the_gallery_and_the_circle():
+    """studio-1 / studio-23. One uploaded cover is a record: the room
+    returns, the cover sits in the bay, leads the gallery and counts on the
+    Art circle. The route looked the folder up through an undefined name and
+    swallowed the NameError, so every account with covers read "No art yet"
+    and a cover-only account met the page from zero."""
+    c, _uid = _account()
+    path = _upload_cover(c)
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    assert _populated(body), "one cover is a record"
+    bay = body.split('class="sd-bay"', 1)[1].split('class="sd-display"', 1)[0]
+    assert 'src="%s"' % path in bay, "the cover sits in the bay"
+    assert "No artwork yet" not in bay
+    gallery = body.split('class="sd-covers"', 1)[1].split("</section>", 1)[0]
+    assert 'src="%s"' % path in gallery and "Create new art" in gallery
+    assert "1 cover" in body and "No art yet" not in body
+    assert "Your own covers, newest first." in body
+
+
+def test_the_demo_account_is_the_showcase_never_the_page_from_zero():
+    """studio-7 / studio-20. Unconditional: the demo logs in and must see
+    the working room, marked Sample, and never the onboarding page or its
+    song door, which a locked demo cannot use."""
+    demo = appmod.app.test_client()
+    demo.post("/demo-open", data={"demo_workspace": "demo@streetbanker.io",
+                                  "demo_password": _os_mod.environ.get("DEMO_PASSWORD", "sweep")})
+    with demo.session_transaction() as sess:
+        assert sess.get("user_id"), "the demo login opened"
+    r = demo.get("/room/studio")
+    assert r.status_code == 200
+    body = _room(r.get_data(as_text=True))
+    assert "Create your first Studio project" not in body
+    assert "Add your first song" not in body and "from=song" not in body
+    assert "studio-bus-plate.webp?v=" in body, "the showcase is the working room"
+    assert "Sample data" in body and "generated for the example" in body
+    assert "Midnight Drive" in body and "-9.4" in body
+    assert "Sample reading" in body, "no date nobody measured it on"
+    assert "<form" not in body, "a locked demo is offered no write"
+
+
+def test_a_real_account_is_never_shown_the_showcase():
+    c, uid = _account()
+    _track(uid)
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    assert "Sample data" not in body and "Midnight Drive" not in body
+    assert "Sample reading" not in body
+    body = _room(_account()[0].get("/room/studio").get_data(as_text=True))
+    assert "Sample data" not in body and "Create your first Studio project" in body
+
+
+def test_the_showcase_is_the_working_room_whatever_its_rows():
+    fig = sd.showcase()
+    out = sd.build(fig["analysis"], "", fig["art_files"], fig["tracks"], fig["masters"],
+                   fig["ready"], {}, measured_label=fig["measured_label"],
+                   sample=True, zero=False)
+    assert out["idle"] is False and out["zero"] is None and out["sample"] is True
+    out = sd.build(None, "", [], 0, 0, None, {}, sample=True, zero=False)
+    assert out["idle"] is False, "the route's decision stands"
