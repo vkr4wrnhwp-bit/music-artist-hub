@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}Providers{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/providers.css?v=2">{% endblock %}
+
+{#- Providers (owner only, 2026-09-23). Two questions per outside service,
+    answered separately: are its keys set (by NAME; a value never reaches
+    this page), and did it answer one real, read-only question when last
+    checked. Nothing here calls out on a page view: checks run when the
+    owner presses a button, and one that spends money or a scarce quota, or
+    writes anything, has its own button with its cost beside it and is never
+    part of "Check all". A lamp is one of three: working, failing, or not
+    asked - and "not asked" never reads as failing. -#}
+
+{% block content %}
+<div class="pv" data-no-collapse>
+  {% call sb.plate(none, [], "Street Banker · Owner", "Providers",
+                   "Every outside service the app depends on: whether its keys are set, and whether it answered a real question when you last checked. Nothing is called until you press a button.") %}
+    <form method="post" action="/admin/providers/check" class="pv-inline">
+      <button type="submit" class="sb-btn sb-btn-primary">Check all free services</button>
+    </form>
+  {% endcall %}
+
+  {% if checked %}
+  <p class="pv-toast" role="status">
+    {%- if checked == "all" %}<b>Checked.</b> Every configured service with a free check was asked just now. The checks that cost money, spend a scarce quota or write anything were left for their own buttons.
+    {%- else %}<b>Checked.</b> The result is on its row below.{% endif -%}
+  </p>
+  {% endif %}
+
+  <section class="pv-panel pv-intro" aria-label="How to read this page">
+    <div class="pv-sum">
+      {%- for key, label in (("good", "working"), ("crit", "failing"), ("off", "not configured"), ("idle", "not asked")) %}
+      <p class="pv-fig is-{{ key }}"><b>{{ counts[key] }}</b> {{ label }}</p>
+      {%- endfor %}
+    </div>
+    <p class="pv-copy"><b>Working</b> means the service answered a real, read-only question when you last checked. <b>Failing</b> means it was asked and refused or did not answer, in its own words. <b>Not asked</b> means nothing was sent: no safe check exists, an owner ruling keeps it off, or it has not been checked yet. That is not a failure.</p>
+    <p class="pv-copy"><b>Check all free services</b> skips the {{ costed }} checks that cost money, spend a scarce quota or write a test file; each has its own button, with its cost beside it. Every setting the app reads, including switches that are not outside services, is on <a href="/admin/readiness">Readiness</a>.</p>
+  </section>
+
+  {% for fam in fams %}
+  <section class="pv-panel" aria-labelledby="pv-fam-{{ fam.key }}">
+    <h2 class="pv-h" id="pv-fam-{{ fam.key }}">{{ fam.name }}</h2>
+    <ul class="pv-rows">
+      {% for p in fam.providers %}
+      <li class="pv-row is-{{ p.lamp[0] }}" id="p-{{ p.key }}">
+        <div class="pv-main">
+          <h3 class="pv-name">{{ p.name }}</h3>
+          <p class="pv-powers">{{ p.powers }}{% if p.where %} <a href="{{ p.where }}">Open the page</a>{% endif %}</p>
+          {%- if p.env or p.flags or p.any_of or p.optional %}
+          <p class="pv-keys" aria-label="Keys, by name">
+            {%- for e in p.env %}<span class="pv-key {{ 'is-set' if (e.set or e.app) else 'is-missing' }}">{{ e.name }} &middot; {{ "held by the app" if e.app else ("set" if e.set else "missing") }}</span>{% endfor -%}
+            {%- for f in p.flags %}<span class="pv-key {{ 'is-set' if f.on else 'is-missing' }}">{{ f.name }} &middot; {{ "on" if f.on else "off" }}</span>{% endfor -%}
+            {%- for e in p.optional %}<span class="pv-key is-optional">{{ e.name }} &middot; {{ "held by the app" if e.app else ("set" if e.set else "not set") }} (optional)</span>{% endfor -%}
+          </p>
+          {%- if p.any_of %}
+          <p class="pv-keys" aria-label="Any one of these">
+            <span class="pv-or">Needs one of:</span>
+            {%- for g in p.any_of %}
+            <span class="pv-key {{ 'is-set' if (g | selectattr('set') | list | length) == (g | length) else 'is-optional' }}">
+              {%- for e in g %}{{ e.name }}{{ " + " if not loop.last }}{% endfor %} &middot; {{ "set" if (g | selectattr('set') | list | length) == (g | length) else "not set" }}</span>{% if not loop.last %}<span class="pv-or">or</span>{% endif %}
+            {%- endfor %}
+          </p>
+          {%- endif %}
+          {%- endif %}
+          {%- if p.note %}<p class="pv-note">{{ p.note }}</p>{% endif %}
+        </div>
+        <div class="pv-state">
+          <p class="pv-lamp is-{{ p.lamp[0] }}"><i aria-hidden="true"></i>{{ p.lamp[1] }}</p>
+          {%- if p.last %}
+          <p class="pv-detail">{{ p.last.detail }}</p>
+          <p class="pv-when">Checked {{ p.last.at[:16]|replace("T", " ") }} UTC{% if p.last.ms %} &middot; {{ p.last.ms }} ms{% endif %}</p>
+          {%- elif p.detail %}
+          <p class="pv-detail">{{ p.detail }}</p>
+          {%- endif %}
+        </div>
+        <div class="pv-acts">
+          {%- if p.can_check %}
+          <form method="post" action="/admin/providers/check/{{ p.key }}" class="pv-inline">
+            <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm{{ '' if p.auto else ' pv-btn-costed' }}">
+              {%- if p.auto %}Check now{% elif p.cost_kind == "writes" %}Check now &middot; writes a test file{% elif p.cost_kind == "quota" %}Check now &middot; uses quota{% else %}Check now &middot; billed{% endif -%}
+            </button>
+          </form>
+          <p class="pv-cost{{ ' is-costed' if not p.auto }}">{{ p.cost }}</p>
+          {%- elif p.has_check and p.built %}
+          <p class="pv-cost">{{ p.cost }}</p>
+          {%- elif p.built %}
+          <p class="pv-cost">No safe live check</p>
+          {%- endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+
+  <p class="pv-foot">Keys are shown by name only; no value reaches this page. To add or change one, set it on the Render service's Environment tab. <a href="/admin/readiness">Readiness</a> lists every setting the app reads.</p>
+</div>
+{% endblock %}

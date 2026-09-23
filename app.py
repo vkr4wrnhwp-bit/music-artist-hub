@@ -439,6 +439,9 @@ def _internal_tools():
         # email behind a tier anyone could buy.
         out.append({"href": "/admin/review", "label": "Artist accounts"})
         out.append({"href": "/admin/readiness", "label": "Readiness"})
+        # Whether each outside service answers, checked on a button press
+        # (owner, 2026-09-23). Readiness says what is set; this asks.
+        out.append({"href": "/admin/providers", "label": "Providers"})
         # The reseller back office (/resellers) was built and linked from
         # nowhere (audit, 2026-09-19). Owner only, like its route.
         out.append({"href": "/resellers", "label": "Resellers"})
@@ -5508,6 +5511,51 @@ def create_app():
             return bail
         split_home.set_band(request.form.get("band") or "rack")
         return redirect("/settings?band=saved#home-layout")
+
+    # ---- Providers (owner, 2026-09-23) --------------------------------------
+    # Is every outside service working right now? Keys by NAME only, a live
+    # check only when the owner presses a button (provider_status.py).
+
+    @app.route("/admin/providers")
+    def admin_providers():
+        """Owner only; a 404 for everyone else. Reads the environment and
+        the last remembered checks; calls nobody."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        import provider_status as ps
+        fams = ps.rows(store)
+        counts = {"good": 0, "crit": 0, "off": 0, "idle": 0}
+        for fam in fams:
+            for p in fam["providers"]:
+                counts[p["lamp"][0]] = counts.get(p["lamp"][0], 0) + 1
+        costed = sum(1 for p in ps.PROVIDERS if p.get("check") and not p.get("auto"))
+        return render_template("admin_providers.html", active_page="providers",
+                               fams=fams, counts=counts, costed=costed,
+                               checked=(request.args.get("checked") or "")[:40],
+                               **build_dashboard_context())
+
+    @app.route("/admin/providers/check", methods=["POST"])
+    def admin_providers_check_all():
+        """Every configured service whose check is free, together. The ones
+        that cost money to check keep their own button."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        import provider_status as ps
+        ps.check_all(store)
+        return redirect("/admin/providers?checked=all")
+
+    @app.route("/admin/providers/check/<key>", methods=["POST"])
+    def admin_providers_check(key):
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        import provider_status as ps
+        if ps.by_key(key) is None:
+            abort(404)
+        ps.check(key, store)
+        return redirect("/admin/providers?checked=%s#p-%s" % (key, key))
 
     @app.route("/desk/<hub_key>")
     def hub_desk(hub_key):
