@@ -243,6 +243,7 @@ import sales_switch
 import soundcharts_budget
 import release_ready               # Creative Studio's Release-Ready: RoEx mix report, previews, paid master
 import release_ready_settings
+import cover_ai                    # Cover Studio renders: OpenAI gpt-image-1 and the monthly allowance
 import release_ready_store
 import royalty_types
 import insights_engine
@@ -743,6 +744,7 @@ def create_app():
     app.jinja_env.filters["js_json"] = _js_json
 
     store.init_db()
+    cover_ai.init_db()
     # Seed one demo account per tier so partners can tour exactly what each
     # plan buys. All share the demo password; DEMO_PASSWORD rotates them all.
     _DEMO_ACCOUNTS = demo_accounts.ACCOUNTS
@@ -4141,40 +4143,123 @@ def create_app():
         user = current_user()
         ctx["art_uploads"] = (list_artwork_uploads(user["id"], UPLOADS_DIR)
                               if user else [])
+        ctx["cover_gen"] = _cover_gen_status(user)
         return render_template("artwork.html", active_page="artwork",
                                look_options=artwork_config.LOOK_OPTIONS, **ctx)
 
+    def _cover_who(user):
+        """(owner, demo) for the Cover Studio's generator. Owner is the
+        account or the person signed in (an owner acting inside an artist's
+        account is still the one paying). Demo is the showcase logins,
+        which never spend a real render."""
+        signed_in = None
+        try:
+            uid = session.get("user_id")
+            signed_in = store.get_user(uid) if uid else None
+        except RuntimeError:
+            signed_in = None
+        owner = bool(user) and (_is_owner_email(user.get("email"))
+                                or _is_owner_email((signed_in or {}).get("email")))
+        demo = bool(user) and (_session_is_demo()
+                               or demo_accounts.is_demo_email(user.get("email") or ""))
+        return owner, demo
+
+    def _cover_gen_status(user):
+        owner, demo = _cover_who(user)
+        return cover_ai.status_for(user, owner=owner, demo=demo)
+
     @app.route("/artwork/generate", methods=["POST"])
     def artwork_generate():
+        # Signed in, always: with OPENAI_API_KEY set a render spends the
+        # owner's money. A team seat is inside the account holder's account
+        # (current_user() is the holder), so it draws on their allowance.
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in to make cover art."}), 401
         payload = _json_body()
         prompt = (payload.get("prompt") or "").strip()[:300]
         suggestion = suggest_from_prompt(prompt)
         image_url, seed = None, None
-        if prompt:
-            # Real AI image via Pollinations.ai — free community model, no key.
-            # The browser loads the URL directly so slow generations never
-            # tie up a server worker. A remix reuses the seed so the model
-            # re-imagines the same concept with the requested changes.
+        if not prompt:
+            return jsonify({"ok": True, "suggestion": suggestion, "image_url": None,
+                            "seed": None, "prompt_used": "",
+                            "engine": "openai" if cover_ai.configured() else "pollinations"})
+        # What the ticked boxes add. Every cover used to get the same
+        # four words, so every cover came back looking like the same
+        # cover; artwork_config.LOOK_OPTIONS is the difference, and it
+        # is real words, not a preset that hides what it did.
+        look = payload.get("look")
+        look = look if isinstance(look, list) else []
+        full = artwork_config.build_prompt(prompt, look[:8])
+        if not cover_ai.configured():
+            # No OpenAI key (every local run, and a deployment before the
+            # owner pastes it): the free Pollinations.ai community model,
+            # exactly as before. The browser loads the URL directly so slow
+            # generations never tie up a server worker. A remix reuses the
+            # seed so the model re-imagines the same concept with the
+            # requested changes.
             import random
             try:
                 seed = int(payload.get("seed"))
             except (TypeError, ValueError):
                 seed = random.randint(1, 10 ** 9)
-            # What the ticked boxes add. Every cover used to get the same
-            # four words, so every cover came back looking like the same
-            # cover; artwork_config.LOOK_OPTIONS is the difference, and it
-            # is real words, not a preset that hides what it did.
-            look = payload.get("look")
-            look = look if isinstance(look, list) else []
-            full = artwork_config.build_prompt(prompt, look[:8])
             image_url = ("https://image.pollinations.ai/prompt/"
                          + urllib.parse.quote(full)
                          + "?width=1024&height=1024&nologo=true&seed=%d" % seed)
-        return jsonify({"ok": True, "suggestion": suggestion,
-                        "image_url": image_url, "seed": seed,
-                        # Shown under the picture: a person can see exactly
-                        # what was asked for, and change it.
-                        "prompt_used": full if prompt else ""})
+            return jsonify({"ok": True, "suggestion": suggestion,
+                            "image_url": image_url, "seed": seed,
+                            "engine": "pollinations",
+                            # Shown under the picture: a person can see exactly
+                            # what was asked for, and change it.
+                            "prompt_used": full})
+
+        # OpenAI. The showcase logins never spend a real render, and a
+        # render is never faked for them either.
+        owner, demo = _cover_who(user)
+        if demo:
+            return jsonify({"ok": False, "demo": True, "engine": "openai",
+                            "error": "Cover generation isn't part of the demo. Upload "
+                                     "your own art to try the designer."}), 403
+        status = cover_ai.status_for(user, owner=owner)
+        limit = None if owner else status["limit"]
+        rid = cover_ai.reserve(user["id"], session.get("user_id"), limit)
+        if rid is None:
+            if not limit:
+                msg = "Your plan has no cover renders. Upload your own art instead."
+            else:
+                msg = ("This month's %d covers are used. More on %s."
+                       % (limit, status["resets"]))
+            return jsonify({"ok": False, "engine": "openai", "used_up": True,
+                            "allowance": status, "error": msg}), 429
+        try:
+            data = cover_ai.render(full)
+        except cover_ai.RenderError as e:
+            cover_ai.finish(rid, e.kind)
+            code = {"refused": 422, "timeout": 504}.get(e.kind, 502)
+            return jsonify({"ok": False, "engine": "openai", "kind": e.kind,
+                            "error": e.message, "prompt_used": full,
+                            "allowance": _cover_gen_status(user)}), code
+        # Saved at render time, the way /artwork/save saves a Pollinations
+        # image: an aiart_<account>_ file in the uploads, so it is listed in
+        # the Cover Studio's files and the Studio cover bay straight away.
+        fname = "aiart_%s_%d.%s" % (user["id"],
+                                    int(datetime.now(timezone.utc).timestamp() * 1000),
+                                    cover_ai.extension(data))
+        try:
+            with open(os.path.join(UPLOADS_DIR, fname), "wb") as f:
+                f.write(data)
+        except OSError:
+            app.logger.exception("cover render save")
+            cover_ai.finish(rid, "failed")
+            return jsonify({"ok": False, "engine": "openai", "kind": "failed",
+                            "error": "The cover was made but could not be saved, so "
+                                     "it has not used one of your covers. Try again.",
+                            "allowance": _cover_gen_status(user)}), 500
+        cover_ai.finish(rid, "done", path="/uploads/" + fname)
+        return jsonify({"ok": True, "suggestion": suggestion, "engine": "openai",
+                        "image_url": "/uploads/" + fname, "path": "/uploads/" + fname,
+                        "saved": True, "seed": None, "prompt_used": full,
+                        "allowance": _cover_gen_status(user)})
 
     @app.route("/artwork/check", methods=["POST"])
     def artwork_cover_check():
@@ -14556,6 +14641,11 @@ def create_app():
                                               storage=release_ready.storage_ready())
                                          if user and _is_owner_email(user.get("email")) else None),
                                rr_msg=request.args.get("rr"),
+                               # Cover Studio renders: this month's count across
+                               # every account and the covers each plan gets.
+                               cover_month=(cover_ai.month_summary()
+                                            if user and _is_owner_email(user.get("email")) else None),
+                               cover_msg=request.args.get("covers"),
                                online_sales_contact=sales_switch.CONTACT,
                                **build_dashboard_context())
 
@@ -14614,6 +14704,18 @@ def create_app():
         except ValueError:
             return redirect("/settings?soundcharts=bad#soundcharts")
         return redirect("/settings?soundcharts=saved#soundcharts")
+
+    @app.route("/admin/cover-renders", methods=["POST"])
+    def admin_cover_renders():
+        """The owner sets how many covers each plan gets a month in the
+        Cover Studio. Owner only; a 404 for everyone else."""
+        user, deny = _owner_or_404()
+        if deny:
+            return deny
+        refused = cover_ai.save_allowances(request.form)
+        if refused:
+            return redirect("/settings?covers=refused:%s#cover-renders" % ",".join(refused))
+        return redirect("/settings?covers=saved#cover-renders")
 
     @app.route("/admin/online-sales", methods=["POST"])
     def admin_online_sales():

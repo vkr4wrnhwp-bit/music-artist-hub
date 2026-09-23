@@ -78,6 +78,11 @@ def _remix_lab():
     return _env("AUDIO_INTELLIGENCE_ENABLED", "REMIX_LAB_AUDIO_ENGINE_ENABLED")
 
 
+def _cover_openai():
+    """The Cover Studio's generator: OpenAI with the key, Pollinations without."""
+    return _env("OPENAI_API_KEY")
+
+
 def _press_sending():
     """Stricter than the fan-email probe on purpose. A provider key alone
     leaves the shared test sender in place, and that one delivers only to
@@ -98,7 +103,19 @@ CAPABILITIES = {
     "metadata_passport": {"status": LIVE, "name": "Metadata Passport"},
     "rights_ownership": {"status": LIVE, "name": "Rights & Ownership"},
     "creative_studio": {"status": LIVE, "name": "Creative Studio"},
-    "artwork_generator": {"status": LIVE, "name": "Artwork generator"},
+    # Live either way; what differs is which model paints the cover.
+    "artwork_generator": {
+        "name": "Artwork generator",
+        "probe": _cover_openai,
+        "when_true": LIVE,
+        "when_false": LIVE,
+        "note_true": ("Square cover art made by OpenAI's gpt-image-1, saved to the "
+                      "artist's uploads as it is made. Each account gets a number "
+                      "of covers a month by plan; a failed or refused cover is "
+                      "not counted."),
+        "note_false": ("Square cover art from the free Pollinations.ai community "
+                       "model. OpenAI is not connected on this deployment."),
+    },
     "smart_links": {"status": LIVE, "name": "Smart Links"},
     "email_capture": {"status": LIVE, "name": "Email capture with consent"},
     "rollout_plans": {"status": LIVE, "name": "Rollout plans"},

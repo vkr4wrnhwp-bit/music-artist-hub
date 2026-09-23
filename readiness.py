@@ -256,6 +256,19 @@ def _groups():
                        "quotes or whitespace - the three things that "
                        "silently break a pasted secret"),
         ] + _flags() + _other_flags()),
+        ("Cover art", "What paints a cover in the Cover Studio.", [
+            dict(name="OpenAI images",
+                 on=_try(__import__("cover_ai").configured),
+                 env=["OPENAI_API_KEY"],
+                 unlocks="Covers made by OpenAI's gpt-image-1, with a number of "
+                         "covers a month per account by plan. Without it the "
+                         "Generate button uses the free Pollinations.ai model "
+                         "and nothing is counted.",
+                 probe="/settings#cover-renders",
+                 proof="shows this month's covers made, refused and failed "
+                       "across every account, and the allowance per plan. A "
+                       "cover actually made is the proof the key works"),
+        ]),
         ("Live and tour", "Ticket counts, venues and maps.", [
             dict(name="Eventbrite", on=_try(eventbrite_provider.configured),
                  env=["EVENTBRITE_TOKEN"],
