@@ -81,7 +81,9 @@
       </div>
       <div class="rk-aside">
         <div class="rk-controls">
-          {% if an.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
+          {#- said only over the example's readings: the page from zero shows
+              no figure at all, so a lamp there would name a sample nobody sees -#}
+          {% if an.sample and not an.idle %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
           {%- if an.idle %}
           {#- the one door on the page from zero: Connections, carrying the
               way back; absent for a seat that may not connect anything -#}
@@ -91,7 +93,10 @@
             <span>Tracking</span>
             <b class="an-field-v">{{ an.artist or "Nobody pinned" }}</b>
           </span>
-          <a class="rk-cta" href="/pulse">{{ icon("person", "rk-ico") }}{% if an.pinned %}Change artist{% else %}Pin your artist{% endif %}</a>
+          {#- the example's artist is not the demo's pin: a shared demo is
+              offered a way to look, never a write door -#}
+          {% if an.sample %}<a class="rk-cta" href="/pulse">{{ icon("pulse", "rk-ico") }}Open Artist Pulse</a>
+          {%- else %}<a class="rk-cta" href="/pulse">{{ icon("person", "rk-ico") }}{% if an.pinned %}Change artist{% else %}Pin your artist{% endif %}</a>{% endif %}
           {%- endif %}
         </div>
       </div>
