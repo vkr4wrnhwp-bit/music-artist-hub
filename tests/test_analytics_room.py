@@ -326,7 +326,7 @@ def test_the_screens_are_the_three_figures_named_and_an_absence_is_words():
 
 def test_the_working_page_draws_the_rooms_plate_with_three_named_screens():
     page, body = _working([("2026-09-10", 1200), ("2026-09-11", 1340)])
-    assert "command-zero.css?v=3" in page and "analytics-room.css?v=4" in page
+    assert "command-zero.css?v=4" in page and "analytics-room.css?v=4" in page
     assert 'class="cz-plate" src="/static/img/room-plate.webp?v=' in body
     assert "analytics-plate.webp" not in body, "the old four-window analyser is gone"
     assert body.count('<li class="cz-screen"') == 3

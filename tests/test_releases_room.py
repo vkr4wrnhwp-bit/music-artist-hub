@@ -282,7 +282,7 @@ def test_the_working_room_draws_the_rooms_three_window_plate():
     assert "releases-plate.webp" not in page, "the release clock is gone from the working page"
     assert "rk-pl-win" not in body and "rk-pl-img" not in body and "rk-reel" not in body
     # the plate's rules are linked on the working page, not only from zero
-    assert "/static/css/command-zero.css?v=3" in page
+    assert "/static/css/command-zero.css?v=4" in page
     assert "/static/css/releases-room.css?v=6" in page
     got = _screens(body)
     assert [g[0] for g in got] == ["Checks passed", "Days to release", "Open tasks"], got

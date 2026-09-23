@@ -494,7 +494,7 @@ def test_the_working_room_draws_the_rooms_three_window_plate():
     assert 'class="cz-plate" src="/static/img/room-plate.webp' in body
     assert "stage-plate.webp" not in body, "the old desk is not on the working page"
     assert body.count('<li class="cz-screen"') == 3
-    assert "command-zero.css?v=3" in page and "stage-room.css?v=10" in page
+    assert "command-zero.css?v=4" in page and "stage-room.css?v=10" in page
     got = _screens(body)
     assert [k for k, _v, _s in got] == ["Cues", "Channels", "Passport"]
     assert got[0][1] == "2" and got[0][2] == "In Main Show"

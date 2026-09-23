@@ -768,7 +768,7 @@ def test_the_working_room_draws_the_rooms_plate_with_three_screens():
     body = _body(page)
     assert 'class="cz-plate" src="/static/img/room-plate.webp' in body
     assert "marketing-plate.webp" not in body, "the BROADCAST plate left the working room"
-    assert "command-zero.css?v=3" in page, "the rack's rules, on the working room as well"
+    assert "command-zero.css?v=4" in page, "the rack's rules, on the working room as well"
     assert body.count('<li class="cz-screen"') == 3
     assert _screen_names(body) == ["Ready", "Sent", "Coverage"], "the owner's three, named"
     assert '<a class="cz-screen-v' not in body, "no door on the plate"
