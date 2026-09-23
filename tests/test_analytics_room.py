@@ -237,7 +237,11 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_analyser():
         assert control not in zone, control
     text = _re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", body, flags=_re.S)
     assert not _re.search(r"(?<![\d.])0%", text) and not _re.search(r"\b0 (visits|followers|listeners)", text)
-    assert "Explore more tools" not in body and "The measurement path" not in body
+    assert "Explore more tools" not in body
+    # The rendered heading is "Measurement path"; the old check looked for
+    # "The measurement path", which is only a template comment and could
+    # never fail (audit analytics-15).
+    assert "Measurement path" not in body and 'id="an-path-h"' not in body
 
 
 def test_connections_carries_the_way_back_and_the_saved_source_says_the_line():
@@ -405,7 +409,10 @@ def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
     assert r.status_code == 503
     page = r.get_data(as_text=True)
     assert "We could not load Analytics" in page
-    assert 'href="/room/analytics"' in page and 'href="/connections"' in page and "Review connections" in page
+    # "Review connections" carries the way back (audit analytics-11); the
+    # bare /connections this pinned dropped it.
+    assert 'href="/room/analytics"' in page and 'href="/connections?returnTo=%2Froom%2Fanalytics"' in page
+    assert "Review connections" in page
     assert "Connect your first data source" not in page and "room-plate" not in page
 
 
@@ -422,10 +429,16 @@ def test_the_room_never_shows_income(monkeypatch):
     """Owner, 2026-09-22: "let analytics stay about measurements." Royalties
     live in the Business room; a panel here would put the same figures in a
     second room."""
-    c, _uid = _account()
+    c, uid = _account()
+    _pin(uid)
+    store.save_statement(uid, "q1.csv", [
+        {"title": "Higher Places", "source": "Spotify", "amount": 2640.0, "period": "2026-01"}])
     page = c.get("/room/analytics").get_data(as_text=True)
-    body = page.split('class="rk an"', 1)[1].split("</div>\n{% endblock %}")[0]
-    for claim in ("Income at a glance", "Total earnings", "Royalties at a glance"):
+    body = page.split('class="rk an"', 1)[1]
+    # the populated room, never the page from zero (audit analytics-15: this
+    # used to render a fresh account, which is always the page from zero)
+    assert 'id="an-path-h"' in body and "Start with a trusted source" not in body
+    for claim in ("Income at a glance", "Total earnings", "Royalties at a glance", "$2,640"):
         assert claim not in body, claim
 
 
@@ -527,3 +540,264 @@ def test_a_real_account_never_sees_the_sample_lamp():
     c, uid = _account()
     _pin(uid)
     assert "Sample data" not in c.get("/room/analytics").get_data(as_text=True), "the working room"
+
+
+# --- the audit of 2026-09-23 ---------------------------------------------
+
+import html as _html
+import io as _io
+import json as _json
+import urllib.parse as _u
+
+import command_center as cc
+import signal_providers as sp
+
+
+def _links(page):
+    """(href, text) for every action button on Connections."""
+    return [(_html.unescape(h), t.strip()) for h, t in re.findall(
+        r'<a href="([^"]*)" class="sb-btn sb-btn-secondary sb-btn-sm">([^<]*)', page)]
+
+
+def _back(page):
+    """Where the shell's back link goes."""
+    return _html.unescape(re.search(r'<a href="([^"]*)" id="sb-room-back"', page).group(1))
+
+
+def test_the_pin_path_through_connections_comes_back_with_the_done_line(monkeypatch):
+    """Audit analytics-1: every action on Connections was a bare path, so
+    after pinning on Artist Pulse its back link was plain /room/analytics
+    and the done line never showed on the real trip."""
+    import spotify_provider as spotify
+    monkeypatch.setattr(spotify, "artist_pulse", lambda *a, **k: None)
+    c, uid = _account()
+    page = c.get(ar.CONNECT_DOOR).get_data(as_text=True)
+    links = _links(page)
+    assert links and all("returnTo=" in h for h, _t in links), links
+    pulse = [h for h, t in links if t.startswith("Link on Artist Pulse")][0]
+    assert _u.unquote(pulse.split("returnTo=", 1)[1]) == "/room/analytics?from=connect"
+    r = c.post("/pulse/select", data=_json.dumps({"id": "sp-1", "name": "Pinned Artist"}),
+               content_type="application/json")
+    assert r.get_json()["ok"]
+    back = _back(c.get(pulse).get_data(as_text=True))     # the page reloads in place
+    assert back == "/room/analytics?from=connect"
+    assert ar.DONE_LINE in c.get(back).get_data(as_text=True)
+    # a fragment stays after the query
+    mlc = [h for h, t in links if "MLC" in t]
+    assert not mlc or ("?returnTo=" in mlc[0] and mlc[0].endswith("#mlc"))
+
+
+def test_the_demo_showcase_names_no_write_door_and_no_zero_lamp():
+    """The Sample data lamp is drawn only over the example's readings."""
+    c, _uid = _account()
+    head = c.get("/room/analytics").get_data(as_text=True).split('class="rk-hero"', 1)[1].split("</section>", 1)[0]
+    assert "Sample data" not in head
+
+
+@pytest.mark.parametrize("target", [
+    (store, "get_pulse_profile"), (store, "list_pulse_snapshots"), (store, "list_pulse_peers"),
+    (store, "get_statements"), (cc, "list_actions")])
+def test_every_failed_read_is_the_error_page(monkeypatch, target):
+    """Audit analytics-14(3): each read the page is decided on, not only
+    the peers, is the error page when it fails."""
+    def boom(*_a, **_k):
+        raise RuntimeError("analytics: store down")
+    c, _uid = _account()
+    monkeypatch.setattr(target[0], target[1], boom)
+    r = c.get("/room/analytics")
+    assert r.status_code == 503 and "We could not load Analytics" in r.get_data(as_text=True)
+
+
+def test_a_failed_link_count_is_the_error_page(monkeypatch):
+    import links_store
+    def boom(*_a, **_k):
+        raise RuntimeError("links down")
+    c, _uid = _account()
+    monkeypatch.setattr(links_store, "account_event_counts", boom)
+    assert c.get("/room/analytics").status_code == 503
+
+
+def test_the_error_page_s_second_door_works_and_keeps_the_way_back(monkeypatch):
+    """Audit analytics-11(b): with the profile unreadable, 'Review
+    connections' answered 500 and dropped the way back."""
+    def boom(*_a, **_k):
+        raise RuntimeError("profiles down")
+    c, _uid = _account()
+    monkeypatch.setattr(store, "get_pulse_profile", boom)
+    page = c.get("/room/analytics").get_data(as_text=True)
+    assert 'href="/connections?returnTo=%2Froom%2Fanalytics"' in page
+    r = c.get("/connections?returnTo=%2Froom%2Fanalytics")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "Could not be read just now" in body
+    row = body.split("Your Spotify profile", 1)[1].split("</a>", 1)[0]
+    assert "Not connected" not in row, "a failed read is never shown as nothing connected"
+
+
+def test_a_failed_observation_read_is_never_worded_as_empty(monkeypatch):
+    """Audit analytics-11(a): the section's failure read 'Nothing to read
+    yet'. And an account that is otherwise empty cannot be confirmed
+    brand-new while the observations are unreadable."""
+    import insights_engine
+    def boom(*_a, **_k):
+        raise RuntimeError("insights down")
+    monkeypatch.setattr(insights_engine, "build_insights", boom)
+    c, uid = _account()
+    _pin(uid)
+    body = c.get("/room/analytics").get_data(as_text=True).split('class="rk an"', 1)[1]
+    assert "Nothing to read yet" not in body
+    assert "Observations could not be read just now" in body
+    assert "Could not be read" in body.split('id="an-path-h"', 1)[1].split("</section>", 1)[0]
+    c2, _uid2 = _account()
+    assert c2.get("/room/analytics").status_code == 503
+
+
+def _read_seat(access="read", areas=None):
+    import team_areas
+
+    def acct(name):
+        email = "%s-%s@example.net" % (name, uuid.uuid4().hex[:8])
+        cl = appmod.app.test_client()
+        cl.post("/signup", data={"name": name, "email": email, "password": PW})
+        uid = store.get_user_by_email(email)["id"]
+        store.set_user_plan(uid, "pro")
+        cl.post("/login", data={"email": email, "password": PW})
+        return cl, uid, email
+    owner, oid, _ = acct("anowner")
+    member, _mid, memail = acct("anseat")
+    assert owner.post("/team/invite", data={
+        "email": memail, "role": "manager", "access": access, "areas_sent": "1",
+        "areas": list(areas if areas is not None else team_areas.keys())}).get_json()["ok"]
+    row = [m for m in store.list_team(oid) if m["email"] == memail][0]
+    member.post("/team/join/" + row["invite_token"], data={})
+    member.post("/portal/%s/open" % oid)
+    return member, oid
+
+
+def test_a_read_seat_gets_no_door_at_the_route_and_a_shut_room_is_words():
+    """Audit analytics-14(4): seats were tested only through zero_page()."""
+    member, oid = _read_seat("read", ["analytics"])
+    body = member.get("/room/analytics").get_data(as_text=True).split('class="rk an"', 1)[1]
+    assert "Start with a trusted source" in body
+    assert 'class="rk-cta"' not in body and 'class="an-z-btn"' not in body
+    assert ar.ZERO_PROJECT["locked"] in body
+    words = re.findall(r'<span class="an-z-lens"[^>]*>', body)
+    assert len(words) == 4 and 'class="an-z-lens" href' not in body, "no room but Analytics is open"
+    _pin(oid)
+    body = member.get("/room/analytics").get_data(as_text=True).split('class="rk an"', 1)[1]
+    assert "Change artist" not in body and 'class="rk-cta"' not in body, "a read seat changes no pin"
+
+
+def test_a_statement_or_an_observation_is_not_a_new_account():
+    """Audit analytics-5, spec 8: brand-new only with no connected source
+    and no insights. A statement is a connected source (Connections says
+    so) and gives real observations."""
+    assert ar.new_account(None, [], None, [], statements=[{"id": "s"}]) is False
+    assert ar.new_account(None, [], None, [], observations=[{"kind": "start"}]) is True, "a tip is not a measurement"
+    assert ar.new_account(None, [], None, [], observations=[{"kind": "hygiene"}]) is False
+    assert ar.new_account(None, [], None, [], actions=[{"id": "a"}]) is False
+    c, uid = _account()
+    store.save_statement(uid, "q1.csv", [
+        {"title": "Higher Places", "source": "Spotify", "amount": 2640.0, "period": "2026-01"}])
+    body = c.get("/room/analytics").get_data(as_text=True).split('class="rk an"', 1)[1]
+    assert "Start with a trusted source" not in body and "Nothing is measured yet" not in body
+    assert "Uncollected royalty streams" in body
+    assert ar.DONE_LINE in c.get("/room/analytics?from=connect").get_data(as_text=True), (
+        "Connections calls an uploaded statement Connected")
+
+
+def test_an_open_analytics_action_is_not_a_new_account():
+    c, uid = _account()
+    cc.create_action(uid, "Read the spring numbers", room="analytics")
+    body = c.get("/room/analytics").get_data(as_text=True)
+    assert "Start with a trusted source" not in body
+
+
+class _FakeMetrics:
+    key, label = "soundcharts", "Soundcharts"
+
+    def supports(self, cap):
+        return cap == sp.CAP_METRICS
+
+    def configured(self):
+        return True
+
+    def health_check(self):
+        return {"key": self.key, "ok": True}
+
+    def __getattr__(self, name):
+        def refuse(*_a, **_k):
+            raise AssertionError("the room called the provider: %s" % name)
+        return refuse
+
+
+def test_stored_metrics_provider_readings_are_shown_and_credited(monkeypatch):
+    """Audit analytics-3: with a metrics provider configured and its
+    readings on file, the room said 'Not measured', named the raw key and
+    claimed a key was missing. It reads what is stored, without a call."""
+    sp.reset_registry(sp.ProviderRegistry(adapters=[_FakeMetrics()]))
+    c, uid = _account()
+    _pin(uid)
+    body = c.get("/room/analytics").get_data(as_text=True).split('class="rk an"', 1)[1]
+    assert "Needs a metrics provider" not in body, "a provider is configured"
+    assert "Soundcharts has no reading for this artist yet" in body
+    day = date.today().isoformat()
+    store.record_pulse_snapshot(uid, 5000, None, None, provider="soundcharts", day=day,
+                                monthly_listeners=12345)
+    body = c.get("/room/analytics").get_data(as_text=True).split('class="rk an"', 1)[1]
+    got = {g[0]: g for g in _screens(body)}
+    assert got["Monthly listeners"][2] == "12,345" and got["Monthly listeners"][3] == "From Soundcharts"
+    assert got["Followers"][2] == "5,000" and got["Followers"][3] == "From Soundcharts"
+    rows = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", body.split('id="an-meas-h"', 1)[1].split("</section>", 1)[0]))
+    assert "12,345 Monthly listeners Soundcharts Read: %s" % day in rows, rows
+    assert "soundcharts" not in rows and "Needs a metrics provider key" not in rows
+
+
+def test_connections_lists_the_metrics_provider_and_the_mlc_as_they_are(monkeypatch):
+    """Audit analytics-4: no metrics-provider row, and MLC filed under
+    'Not connectable yet' while the app runs MLC checks."""
+    c, _uid = _account()
+    page = c.get("/connections").get_data(as_text=True)
+    assert "Metrics provider" in page and "Monthly listeners" in page
+    assert "MusicBrainz" not in page, "credits come from The MLC since 2026-09-18"
+
+    class _MLC:
+        label = "The MLC"
+
+        def configured(self):
+            return True
+    monkeypatch.setattr(sp, "mlc_adapter", lambda: _MLC())
+    sp.reset_registry(sp.ProviderRegistry(adapters=[_FakeMetrics()]))
+    page = c.get("/connections").get_data(as_text=True)
+    assert "Soundcharts" in page
+    shut = page.split("Not connectable yet", 1)[1]
+    assert "MLC" not in shut and "ASCAP" in shut
+    row = page.split(">The MLC<", 1)[1].split("</a>", 1)[0]
+    assert "Connected" in row and "/recovery" in row
+
+
+def test_every_source_says_what_it_gives_before_it_is_connected():
+    """Audit analytics-7, spec 3: what a source provides, what it does not,
+    what access it asks, synced or imported, when the first reading comes,
+    and what disconnecting does."""
+    c, _uid = _account()
+    page = c.get("/connections").get_data(as_text=True)
+    for source in ("Your Spotify profile", "Royalty statements", "Metrics provider"):
+        block = page.split(source, 1)[1].split("</details>", 1)[0]
+        for said in ("Gives", "Does not give", "Access", "How it arrives", "To disconnect"):
+            assert said in block, (source, said)
+
+
+def test_the_zero_header_carries_the_account_chip():
+    """Audit analytics-8: the mockup's account chip, as Business keeps it."""
+    c, _uid = _account("Chip Artist")
+    head = c.get("/room/analytics").get_data(as_text=True).split('class="rk-hero"', 1)[1].split("</section>", 1)[0]
+    assert '<span class="rk-chip"' in head and "Chip Artist" in head
+
+
+def test_ask_street_banker_opens_the_corner_box():
+    c, _uid = _account()
+    page = c.get("/room/analytics").get_data(as_text=True)
+    assert '<a class="an-z-more" id="an-ask" href="/contact">' in page
+    script = page.split('getElementById("an-ask")', 1)[1][:600]
+    assert 'getElementById("sbq-open")' in script and "preventDefault" in script

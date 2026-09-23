@@ -1638,6 +1638,22 @@ def create_app():
             else:
                 error = _ingest_statement(user["id"], f.filename, f.read())
                 if error is None:
+                    # The desk's form has no action, so it posts to the
+                    # address it was opened at. A door's way back rides
+                    # through the save: with ?from= the trip is over and
+                    # the room says its done line (decided by the saved
+                    # statement there); without it the desk keeps its back
+                    # link. Same-site only (audit business-1, 2026-09-23).
+                    back = _safe_next(request.args.get("returnTo"), "")
+                    came = (request.args.get("from") or "").strip()[:64]
+                    if back and came:
+                        path, _hash, frag = back.partition("#")
+                        return redirect(path + ("&" if "?" in path else "?")
+                                        + "from=" + urllib.parse.quote(came, safe="")
+                                        + ("#" + frag if frag else ""))
+                    if back:
+                        return redirect(url_for("statements") + "?returnTo="
+                                        + urllib.parse.quote(back, safe="/"))
                     return redirect(url_for("statements"))
         ctx = build_dashboard_context()
         ctx["user"] = user
@@ -3035,28 +3051,102 @@ def create_app():
 
     @app.route("/connections")
     def connections():
+        """Every source this account runs on, as it is (Analytics spec 3).
+
+        Each row says before anything is connected what the source gives,
+        what it does not, what access it asks for, how its data arrives
+        and when, and what disconnecting does (audit analytics-7,
+        2026-09-23). A row whose state could not be read says so rather
+        than "Not connected" (audit analytics-11), and every action
+        carries the page's own way back (?returnTo=), so a door opened
+        from a room still leads back to it after the pin or the upload
+        (audit analytics-1)."""
+        import signal_providers as sp
         user = current_user()
         if user is None:
             return login_required_redirect()
-        pulse_profile = store.get_pulse_profile(user["id"])
-        statements = store.get_statements(user["id"])
-        epk_dates_n = len(tour_dates_feed.upcoming(user["id"]))
+        ret = _safe_next(request.args.get("returnTo"), "")
+
+        def read(fn, *args):
+            """(value, True), or (None, False) when the store did not answer."""
+            try:
+                return fn(*args), True
+            except Exception as exc:
+                app.logger.error("connections: %s unreadable: %s",
+                                 getattr(fn, "__name__", "read"), exc)
+                return None, False
+
+        unread = "Could not be read just now. Try again in a moment."
+        pulse_profile, profile_ok = read(store.get_pulse_profile, user["id"])
+        statements, statements_ok = read(store.get_statements, user["id"])
+        upcoming, dates_ok = read(tour_dates_feed.upcoming, user["id"])
+        epk_dates_n = len(upcoming or ())
+        prov, _ = read(_metrics_provider)
+        mlc, _ = read(sp.mlc_adapter)
+        mlc_on = False
+        if mlc is not None:
+            mlc_on = bool(read(mlc.configured)[0])
+        n_statements = len(statements or ())
         integrations = [
             {"name": "Spotify", "kind": "Live API",
              "on": spotify.pulse_configured(),
-             "detail": ("Powers Artist Pulse, real pre-saves, and artist search."
+             "detail": ("Powers artist search on Artist Pulse and real pre-saves."
                         if spotify.pulse_configured() else
                         "Server credentials not configured."),
              "action": ("/pulse", "Open Artist Pulse")},
             {"name": "Your Spotify profile", "kind": "Artist link",
-             "on": bool(pulse_profile),
-             "detail": ("Linked: %s — followers and popularity track daily."
-                        % pulse_profile["artist_name"]) if pulse_profile
-             else "Pick your artist on Artist Pulse to start tracking.",
-             "action": ("/pulse", "Link on Artist Pulse")},
+             "on": bool(pulse_profile) if profile_ok else None,
+             "detail": (unread if not profile_ok else
+                        ("Linked: %s. Artist Pulse, Analytics and the metrics provider "
+                         "read this artist." % pulse_profile["artist_name"]) if pulse_profile
+                        else "Pick your artist on Artist Pulse to start tracking."),
+             "action": ("/pulse", "Link on Artist Pulse"),
+             "about": (
+                 ("Gives", "Which artist is yours, so Artist Pulse, Analytics and the "
+                           "metrics provider read the right one."),
+                 ("Does not give", "Streams, listeners or anything from your own Spotify "
+                                   "account. Spotify no longer sends follower or popularity "
+                                   "counts to apps like this one."),
+                 ("Access", "None. You pick a public artist from search; nothing signs in "
+                            "to Spotify and no permission is granted."),
+                 ("How it arrives", "Synced: a reading is stored each day Artist Pulse is "
+                                    "opened, starting the first time you open it."),
+                 ("To disconnect", "Change Artist on Artist Pulse unpins it. Readings "
+                                   "already stored stay on file."))},
+            {"name": prov.label if prov else "Metrics provider", "kind": "Metrics provider",
+             "on": bool(prov),
+             "detail": ("Monthly listeners and followers for your pinned artist, each "
+                        "dated, on Artist Pulse and in Analytics." if prov else
+                        "Not set up on this server, so monthly listeners read Not measured."),
+             "action": ("/pulse", "Open Artist Pulse"),
+             "about": (
+                 ("Gives", "Monthly listeners and followers for your pinned artist, each "
+                           "with the day it was measured."),
+                 ("Does not give", "Income, or anything from your own streaming accounts."),
+                 ("Access", "None from you: the server's own key. Your pinned artist is "
+                            "looked up by name once."),
+                 ("How it arrives", "Synced when Artist Pulse opens: the provider's dated "
+                                    "history for the last %d days is stored, and Analytics "
+                                    "reads what is stored." % _METRICS_WINDOW_DAYS),
+                 ("To disconnect", "Nothing to disconnect on your side. Unpinning your "
+                                   "artist stops new readings; stored ones stay."))},
+            {"name": "The MLC", "kind": "Rights registry",
+             "on": mlc_on,
+             "detail": ("Writers and publishers registered for a recording, looked up "
+                        "by its ISRC." if mlc_on else
+                        "Not set up on this server, so no MLC check runs."),
+             "action": ("/recovery#mlc", "Run an MLC check"),
+             "about": (
+                 ("Gives", "The writers, publishers and collection shares The MLC has "
+                           "registered for a recording, by ISRC."),
+                 ("Does not give", "Payments or statements, or ASCAP and BMI registrations."),
+                 ("Access", "None from you: the server's own MLC login."),
+                 ("How it arrives", "Asked when you run a check on Recovery, or when a song "
+                                    "with an ISRC is added to your catalog."),
+                 ("To disconnect", "Nothing to disconnect on your side."))},
             {"name": "Deezer", "kind": "Public API",
              "on": True,
-             "detail": "Fan counts and track identifiers — no key needed.",
+             "detail": "Fan counts and track identifiers, no key needed.",
              "action": ("/pulse", "See fan count")},
             {"name": "Email (Resend)", "kind": "Delivery",
              "on": emailer.configured(),
@@ -3065,30 +3155,54 @@ def create_app():
              if emailer.configured() else "RESEND_API_KEY not set on the server.",
              "action": ("/links", "Campaigns that use it")},
             {"name": "Tour dates", "kind": "Your tour (first-party)",
-             "on": bool(epk_dates_n),
-             "detail": (("Tour dates: from your tour in Street Banker (%d confirmed)."
+             "on": bool(epk_dates_n) if dates_ok else None,
+             "detail": (unread if not dates_ok else
+                        ("Tour dates: from your tour in Street Banker (%d confirmed)."
                          % epk_dates_n if epk_dates_n else
                          "Tour dates: confirm a date in TOUR and it appears here.")
                         + " Bandsintown declined this platform an app_id "
                         "(2026-09-07); that listing stays dormant."),
              "action": ("/epk", "EPK tour section")},
             {"name": "Royalty statements", "kind": "Your uploads",
-             "on": bool(statements),
-             "detail": ("%d statement%s uploaded — powering Royalties, Recovery, "
-                        "Tax, and Capital." % (len(statements),
-                                               "" if len(statements) == 1 else "s"))
-             if statements else "Upload CSVs — they power the entire money engine.",
-             "action": ("/statements", "Upload statements")},
-            {"name": "iTunes / Odesli / MusicBrainz", "kind": "Public APIs",
+             "on": bool(statements) if statements_ok else None,
+             "detail": (unread if not statements_ok else
+                        ("%d statement%s uploaded, powering Royalties, Recovery, "
+                         "Tax, and Capital." % (n_statements, "" if n_statements == 1 else "s"))
+                        if statements else "Upload CSVs. They power the entire money engine."),
+             "action": ("/statements", "Upload statements"),
+             "about": (
+                 ("Gives", "Reported income by track, store, period and territory, read "
+                           "line by line from the files you upload."),
+                 ("Does not give", "Listener or follower counts, or anything the file does "
+                                   "not contain. CSV only: PDF and spreadsheet statements "
+                                   "can't be read yet."),
+                 ("Access", "None. You upload a file; nothing signs in to your "
+                            "distributor or society."),
+                 ("How it arrives", "Imported: read the moment you upload it. The file "
+                                    "itself is not kept, only its rows."),
+                 ("To disconnect", "Remove on Statements takes an upload and every figure "
+                                   "from it back out."))},
+            {"name": "iTunes / Odesli", "kind": "Public APIs",
              "on": True,
-             "detail": "Catalog search, universal links, credits — no keys needed.",
+             "detail": "Catalog search and universal links, no keys needed.",
              "action": ("/catalog", "Search the catalog")},
         ]
-        # Not honest to pretend these connect today.
+        # The way back rides on every action, before any #fragment.
+        for i in integrations:
+            href = i["action"][0]
+            if ret:
+                path, _hash, frag = href.partition("#")
+                href = (path + ("&" if "?" in path else "?") + "returnTo="
+                        + urllib.parse.quote(ret, safe="") + ("#" + frag if frag else ""))
+            i["href"] = href
+        # Not honest to pretend these connect today. The MLC leaves this
+        # list when its login is set up: the app then asks it by ISRC
+        # (audit analytics-4).
         unavailable = [
             ("Distributor analytics (DistroKid, TuneCore, CD Baby)",
-             "Per-track stream counts and listener data need distributor feeds — no public API exists yet."),
-            ("PRO / MLC registrations (ASCAP, BMI, MLC)",
+             "Per-track stream counts and listener data need distributor feeds. No public API exists yet."),
+            ("PRO registrations (ASCAP, BMI)" if mlc_on else
+             "PRO / MLC registrations (ASCAP, BMI, MLC)",
              "Registration status requires society data access."),
         ]
         return render_template("connections.html", active_page="settings",
@@ -3111,6 +3225,11 @@ def create_app():
     # returnTo=/command-center"). Same-site paths only; anything else is
     # ignored and the rooms rule applies.
     app.jinja_env.globals["safe_return"] = lambda v: _safe_next(v, "")
+    # A room's own name for its key ("business" -> "Business"), so the
+    # shell's returnTo back link names a room the way the sidebar does
+    # (audit business-13: it read "Back to the business room").
+    _room_names = {r[0]: r[1] for r in rooms.ROOMS}
+    app.jinja_env.globals["room_name"] = lambda key: _room_names.get(key or "", "")
 
     def _created_action(action_id):
         """The action a "Create action" button just made, when it is this
@@ -4862,11 +4981,15 @@ def create_app():
             expenses = store.list_expenses(user["id"])
             cases = store.list_recovery_cases(user["id"])
             disputes = store.list_disputes(user["id"])
+            # Spec 3 names "Business actions" among the counts: an open
+            # action filed under this room is work (audit business-2).
+            actions = [a for a in cc.list_actions(user["id"])
+                       if a.get("room") == "business" and a.get("status") in cc.ACTIVE_STATUSES]
         except Exception as exc:
             app.logger.error("business room: state unreadable: %s", exc)
             return render_template("room_business_error.html", active_page="room-business",
                                    room=room, **build_dashboard_context()), 503
-        zero = business_room.new_account(uploads, rows_all, expenses, cases, disputes)
+        zero = business_room.new_account(uploads, rows_all, expenses, cases, disputes, actions)
         # _act_scope returns (roster, act, rows). Binding the tuple itself
         # to `rows` handed statements_engine a list of lists and every
         # account with a statement 500'd on r["amount"].
@@ -5174,20 +5297,36 @@ def create_app():
             visits = counts.get("page_view")
             if visits is not None or counts.get("pageview") is not None:
                 visits = (counts.get("page_view") or 0) + (counts.get("pageview") or 0)
+            # A statement is a connected source (Connections says so), and an
+            # open action filed under this room is work: both are counts
+            # spec 8 names (audit analytics-5, 2026-09-23).
+            statements = store.get_statements(user["id"])
+            actions = [a for a in cc.list_actions(user["id"])
+                       if a.get("room") == "analytics" and a.get("status") in cc.ACTIVE_STATUSES]
+            # Monthly listeners and followers from the metrics provider: what
+            # is STORED, read without a call (fetch=False) - the Pulse page
+            # spends the provider's quota, this door only reads what it
+            # kept. Unconfigured is the normal case and is reported as an
+            # absence with a reason, never a zero (audit analytics-3).
+            prov = _metrics_provider()
+            metrics = _provider_metrics(user["id"], profile, fetch=False) if profile else None
         except Exception as exc:
             app.logger.error("analytics room: state unreadable: %s", exc)
             return render_template("room_analytics_error.html", active_page="room-analytics",
                                    room=room, **build_dashboard_context()), 503
-
-        # Monthly listeners come from a metrics provider. Unconfigured is
-        # the normal case, and it is reported as an absence with a reason
-        # rather than as a zero.
+        # Passed as `metrics`, so each reading is credited to its provider
+        # with its own day; nothing here is a bare number.
         listeners = None
 
+        # The observations keep their own fallback: one section's failure
+        # does not block the room - but it is said as a failure, never as
+        # "nothing to read" (audit analytics-11).
+        observations_failed = False
         try:
             observations = insights_engine.build_insights(user["id"])
-        except Exception:
-            observations = []
+        except Exception as exc:
+            app.logger.error("analytics room: observations unreadable: %s", exc)
+            observations, observations_failed = [], True
 
         seat = current_team_seat()
         can_open = None if seat is None else (
@@ -5195,10 +5334,17 @@ def create_app():
         # Who may connect a source: the account holder, or an edit seat.
         can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
-        # Said by the account's OWN saved source, never by the example.
-        connected = bool(profile or snaps)
-        zero = (not showcase) and analytics_room.new_account(profile, snaps, visits, peers)
-        metrics = None
+        # Said by the account's OWN saved source, never by the example. An
+        # uploaded statement counts: Connections calls it Connected.
+        connected = bool(profile or snaps or statements)
+        zero = (not showcase) and analytics_room.new_account(
+            profile, snaps, visits, peers, statements, observations, actions)
+        if zero and observations_failed:
+            # "No insights" cannot be confirmed while they are unreadable,
+            # so the page from zero would be a failure mistaken for an
+            # empty account (spec 8): the error page instead.
+            return render_template("room_analytics_error.html", active_page="room-analytics",
+                                   room=room, **build_dashboard_context()), 503
         if showcase:
             sc = analytics_room.showcase(artist_name=artist_identity.display_name(user)
                                          or user.get("name") or "")
@@ -5207,7 +5353,10 @@ def create_app():
         an = analytics_room.build(profile, snaps, peers, visits, listeners,
                                   observations, cards,
                                   sample=showcase, can_open=can_open,
-                                  zero=zero, can_add=can_add, metrics=metrics)
+                                  zero=zero, can_add=can_add, metrics=metrics,
+                                  metrics_label=getattr(prov, "label", "") if prov else "",
+                                  observations_failed=observations_failed,
+                                  account_name=artist_identity.display_name(user))
         return render_template("room_analytics.html",
                                active_page="room-analytics",
                                room=room, an=an,

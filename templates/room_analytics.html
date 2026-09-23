@@ -85,6 +85,13 @@
               no figure at all, so a lamp there would name a sample nobody sees -#}
           {% if an.sample and not an.idle %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
           {%- if an.idle %}
+          {#- the account chip the mockup draws ("New label"), as Business keeps
+              it: whose readings these will be (audit analytics-8) -#}
+          {% if an.account_name %}
+          <span class="rk-chip" title="The account these readings are for">
+            <span class="rk-avatar" aria-hidden="true">{{ (an.account_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ an.account_name }}">{{ an.account_name }}</span>
+          </span>
+          {% endif %}
           {#- the one door on the page from zero: Connections, carrying the
               way back; absent for a seat that may not connect anything -#}
           {% if an.zero.project.can == True %}<a class="rk-cta" href="{{ an.zero.door }}">{{ icon("connect", "rk-ico") }}Connect your first source</a>{% endif %}
@@ -96,7 +103,8 @@
           {#- the example's artist is not the demo's pin: a shared demo is
               offered a way to look, never a write door -#}
           {% if an.sample %}<a class="rk-cta" href="/pulse">{{ icon("pulse", "rk-ico") }}Open Artist Pulse</a>
-          {%- else %}<a class="rk-cta" href="/pulse">{{ icon("person", "rk-ico") }}{% if an.pinned %}Change artist{% else %}Pin your artist{% endif %}</a>{% endif %}
+          {#- a seat that may not write is offered no write door -#}
+          {%- elif an.can_add == True %}<a class="rk-cta" href="/pulse">{{ icon("person", "rk-ico") }}{% if an.pinned %}Change artist{% else %}Pin your artist{% endif %}</a>{% endif %}
           {%- endif %}
         </div>
       </div>
@@ -196,7 +204,10 @@
       <p class="an-z-p">{{ z.help[1] }}</p>
     </div>
     <div class="an-z-help-acts">
-      <a class="an-z-more" href="/contact">Ask Street Banker{{ icon("arrow") }}</a>
+      {#- The corner Ask box (partials/support_ask.html) is on every page and
+          carries the same name; this opens it, as the Command Center's
+          button does. With scripts off the link goes to Contact. -#}
+      <a class="an-z-more" id="an-ask" href="/contact">Ask Street Banker{{ icon("arrow") }}</a>
     </div>
   </section>
 
@@ -334,7 +345,14 @@
           <p class="rk-said">Straight answers, each citing the figure it came from.</p>
         </div>
       </div>
-      {% if an.observations %}
+      {% if an.observations_failed %}
+      {#- one section's failure does not block the room, and it is never
+          worded as empty (spec 8/13; audit analytics-11) -#}
+      <div class="rk-calm" role="status">
+        <p>Observations could not be read just now.</p>
+        <p>Your records are safe. Try again in a moment.</p>
+      </div>
+      {% elif an.observations %}
       <div class="an-says">
         {% for o in an.observations %}
         <div class="an-say">
@@ -385,4 +403,22 @@
   {% endif %}
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // The page from zero's help button opens the corner Ask box: show its
+  // panel if it is closed, then put the caret in the question.
+  var a = document.getElementById("an-ask");
+  var open = document.getElementById("sbq-open");
+  var q = document.getElementById("sbq-q");
+  if (!a || !open || !q) return;
+  a.addEventListener("click", function (e) {
+    e.preventDefault();
+    if (open.getAttribute("aria-expanded") !== "true") open.click();
+    q.focus();
+  });
+})();
+</script>
 {% endblock %}

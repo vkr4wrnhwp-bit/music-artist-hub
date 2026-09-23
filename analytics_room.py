@@ -192,22 +192,37 @@ ZERO_HELP = ("Not sure what to connect first?",
 # are the Connections page itself.
 ZERO_LINKS = (("How data coverage works", "#an-z-lang-h"),
               ("Supported sources", CONNECT_DOOR))
-# The drawer at the foot: the room's own tools, by their cards.
+# The drawer at the foot: the room's own tools, by their cards. This is a
+# DEPARTURE from spec 12, which lists Artist Pulse, Detailed reports,
+# Comparisons, Source health and Exports: Reports is the one page holding
+# both detailed reports and exports; Comparisons are Artist Pulse's peers
+# (one door, one page: no second /pulse tile); Source health is
+# Connections, which the card above already opens; Growth Score and
+# Artist Twin are this room's own cards (rooms.ROOMS). Whether the drawer
+# should follow the spec's list instead is the owner's call, recorded in
+# the ledger (audit analytics-6, 2026-09-23).
 ZERO_TILES = ("pulse", "scores", "artist-twin", "reports")
 # The sentence the room carries back from Connections.
 DONE_LINE = ("Your first source is connected. Analytics will show what it "
              "measures once the first sync has finished.")
 
 
-def new_account(profile, snaps, visits, peers):
-    """The spec's brand-new account: confirmed empty on every count the
-    room reads - no source connected (no pinned artist), no completed
+def new_account(profile, snaps, visits, peers, statements=(), observations=(),
+                actions=()):
+    """The spec's brand-new account (spec 8): confirmed empty on every
+    count the room reads - no source connected (no pinned artist and no
+    uploaded statement, which Connections calls Connected), no completed
     sync (no snapshot), no measurable internal event (no link visit),
-    nobody to compare with. Every argument is what the store returned;
-    an unreadable store never reaches here - the route shows the error
-    page instead. Observations are not a count: insights_engine writes
-    a general tip for an empty account, and a tip is not a measurement."""
-    return not profile and not snaps and visits is None and not peers
+    nobody to compare with, no insight and no open Analytics action.
+    Every argument is what the store returned; an unreadable store never
+    reaches here - the route shows the error page instead. An observation
+    of kind "start" is not a count: insights_engine writes that general
+    tip for an empty account, and a tip is not a measurement. Any other
+    observation is drawn from the account's own records (audit
+    analytics-5, 2026-09-23)."""
+    return (not profile and not snaps and visits is None and not peers
+            and not statements and not actions
+            and not any((o or {}).get("kind") != "start" for o in observations or ()))
 
 
 def done_line(came_from, connected):
@@ -255,12 +270,15 @@ def rack_screens(rows):
     return out
 
 
-def figures(visits, followers, listeners, sources=None):
+def figures(visits, followers, listeners, sources=None, whys=None):
     """The three across the top. Each may be unmeasured, and says why.
 
     `sources` names who took a reading when it is not the default - a
-    metrics provider's followers or listeners say "From <its name>"."""
+    metrics provider's followers or listeners say "From <its name>";
+    `whys` replaces the reason an absence gives, when a provider is set
+    up and simply holds nothing yet."""
     sources = sources or {}
+    whys = whys or {}
     out = []
     for key, label, source, value, why in (
         ("visits", "Link visits", "From your smart links", visits,
@@ -271,6 +289,7 @@ def figures(visits, followers, listeners, sources=None):
          "Needs a metrics provider"),
     ):
         source = sources.get(key) or source
+        why = whys.get(key) or why
         out.append({"key": key, "label": label, "source": source,
                     "value": _n(value) if value is not None else "Not measured",
                     "measured": value is not None,
@@ -278,8 +297,9 @@ def figures(visits, followers, listeners, sources=None):
     return out
 
 
-def path(pinned, snaps, peers, observations):
-    """The five circles, each carrying what it actually counted."""
+def path(pinned, snaps, peers, observations, observations_failed=False):
+    """The five circles, each carrying what it actually counted. A failed
+    observations read says so; it is never "Nothing to read yet"."""
     days = days_measured(snaps)
     rows = len(snaps or ())
     state = {
@@ -294,7 +314,8 @@ def path(pinned, snaps, peers, observations):
                      if peers else "No peers yet"),
         "read": (observations > 0,
                  ("%s observation%s" % (_n(observations), "" if observations == 1 else "s"))
-                 if observations else "Nothing to read yet"),
+                 if observations else
+                 ("Could not be read" if observations_failed else "Nothing to read yet")),
     }
     out = []
     for i, (key, name, sub) in enumerate(STEPS, start=1):
@@ -379,7 +400,8 @@ def showcase(today=None, artist_name=""):
 
 def build(profile, snaps, peers, visits, listeners, observations, cards,
           today=None, sample=False, can_open=None, zero=None, can_add=True,
-          metrics=None):
+          metrics=None, metrics_label="", observations_failed=False,
+          account_name=""):
     """Everything the screen renders. No page logic beyond this.
 
     `zero` is new_account() decided by the route from every count the
@@ -387,7 +409,10 @@ def build(profile, snaps, peers, visits, listeners, observations, cards,
     is who may connect a source (see zero_page). `metrics` is a metrics
     provider's readings on file - {"label", "followers",
     "monthly_listeners", "as_of", "snapshots"} - or None; each reading it
-    supplies is credited to its label with its own day."""
+    supplies is credited to its label with its own day. `metrics_label`
+    names the metrics provider set up on this server ("" for none), so an
+    absence says "needs a key" only when there really is none;
+    `observations_failed` says the observations could not be read."""
     today = today or date.today()
     snaps = list(snaps or ())
     msnaps = list((metrics or {}).get("snapshots") or ())
@@ -401,8 +426,9 @@ def build(profile, snaps, peers, visits, listeners, observations, cards,
         if followers is not None:
             followers_by = metrics["label"]
             sources["followers"] = "From %s" % metrics["label"]
-    provider_name = (profile or {}).get("provider") or ""
-    listeners_by, listeners_day = provider_name or "Metrics provider", ""
+    # Never the profile's raw provider key ("soundcharts"): a reading is
+    # credited to a provider by its label (audit analytics-3).
+    listeners_by, listeners_day = "Metrics provider", ""
     if listeners is None and metrics:
         listeners, listeners_day = latest(msnaps, "monthly_listeners")
         if listeners is None and metrics.get("monthly_listeners") is not None:
@@ -411,13 +437,30 @@ def build(profile, snaps, peers, visits, listeners, observations, cards,
         if listeners is not None:
             sources["listeners"] = "From %s" % metrics["label"]
 
+    # An absence names what would fill it: a missing key only when this
+    # server has no metrics provider; with one set up, the provider by its
+    # name, holding nothing yet (audit analytics-3, 2026-09-23).
+    label = metrics_label or (metrics or {}).get("label") or ""
+    whys = {}
+    if label:
+        if listeners is None:
+            listeners_by = label
+        whys = {"followers": "%s has no reading yet" % label,
+                "listeners": "%s has no reading yet" % label}
     rows = [
         reading("Followers", followers, followers_by, followers_day, today,
-                why="Spotify no longer sends this to apps like this one"),
+                why=("Spotify no longer sends this, and %s has no reading for this "
+                     "artist yet" % label) if label else
+                "Spotify no longer sends this to apps like this one"),
         reading("Monthly listeners", listeners, listeners_by,
-                listeners_day, today, why="Needs a metrics provider key"),
-        reading("Audience geography", None, provider_name or "Metrics provider",
-                "", today, why="Needs a metrics provider key"),
+                listeners_day, today,
+                why=("%s has no reading for this artist yet" % label) if label
+                else "Needs a metrics provider key"),
+        # the provider set up on this server, never an example's source
+        reading("Audience geography", None, metrics_label or "Metrics provider",
+                "", today,
+                why=("Not stored for this room. Artist Pulse asks %s for it" % metrics_label)
+                if metrics_label else "Needs a metrics provider key"),
         reading("Link visits", visits, "Street Banker Smart Links",
                 today.isoformat() if visits is not None else "", today,
                 why="No tracking rows yet"),
@@ -466,19 +509,26 @@ def build(profile, snaps, peers, visits, listeners, observations, cards,
         # head band until the page-from-zero tests caught it (2026-09-23).
         "artist": (profile or {}).get("artist_name") or (profile or {}).get("name") or "",
         "pinned": bool(profile),
-        "figures": figures(visits, followers, listeners, sources),
+        "figures": figures(visits, followers, listeners, sources, whys),
         # The rooms' shared plate: the same readings, one per screen. The
         # trend is the panel under it (chart below).
-        "screens": rack_screens(figures(visits, followers, listeners, sources)),
+        "screens": rack_screens(figures(visits, followers, listeners, sources, whys)),
         # Nothing connected, synced or counted: the page from zero. One
         # source, reading or visit and the analyser takes over untouched.
         "idle": bool(zero),
         "zero": zero_page(can_add, can_open) if zero else None,
         "zero_tiles": zero_tiles,
-        "path": path(bool(profile), snaps + msnaps, len(peers or ()), len(observations or ())),
+        "path": path(bool(profile), snaps + msnaps, len(peers or ()), len(observations or ()),
+                     observations_failed),
         "readings": rows,
         "chart": trend,
         "observations": list(observations or ()),
+        # The section's failure, said as one - never the empty wording.
+        "observations_failed": bool(observations_failed),
+        # Who may connect a source or change the pin (True, or "seat").
+        "can_add": can_add,
+        # The account chip on the page from zero (the mockup's "New label").
+        "account_name": account_name or "",
         "tiles": tiles,
         # The mark is literal: it appears when this account is looking at
         # the showcase, and never as decoration.

@@ -3,7 +3,7 @@
 {% block title %}Business{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/business-room.css?v=5">
+  <link rel="stylesheet" href="/static/css/business-room.css?v=6">
   {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
       page from zero and the working room alike -#}
   <link rel="stylesheet" href="/static/css/command-zero.css?v=4">
@@ -180,7 +180,11 @@
       <p class="bz-z-p">{{ z.help[1] }}</p>
     </div>
     <div class="bz-z-help-acts">
-      <a class="bz-z-more" href="/contact">Ask Street Banker{{ icon("arrow") }}</a>
+      {#- The corner Ask box (partials/support_ask.html) is on every page and
+          carries the same name; this opens it, as the Command Center's
+          button does. With scripts off the link goes to Contact, which is
+          a person (audit business-6, 2026-09-23). -#}
+      <a class="bz-z-more" id="bz-ask" href="/contact">Ask Street Banker{{ icon("arrow") }}</a>
     </div>
   </section>
 
@@ -354,4 +358,22 @@
   {% endif %}
 
 <!--/room:business--></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // The page from zero's help button opens the corner Ask box: show its
+  // panel if it is closed, then put the caret in the question.
+  var a = document.getElementById("bz-ask");
+  var open = document.getElementById("sbq-open");
+  var q = document.getElementById("sbq-q");
+  if (!a || !open || !q) return;
+  a.addEventListener("click", function (e) {
+    e.preventDefault();
+    if (open.getAttribute("aria-expanded") !== "true") open.click();
+    q.focus();
+  });
+})();
+</script>
 {% endblock %}

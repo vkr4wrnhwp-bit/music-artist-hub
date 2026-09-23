@@ -125,8 +125,11 @@ DOOR = "/statements?returnTo=/room/business&from=business-zero-state"
 ZERO_PROJECT = {
     "heading": "Start with your first statement",
     "title": "Upload a statement",
-    "desc": ("Add a CSV, spreadsheet, or PDF from a distributor, PRO, publisher, "
-             "or rights society."),
+    # The spec wrote "a CSV, spreadsheet, or PDF"; the upload reads CSV
+    # only (statements_engine.parse_statement), so the card names what
+    # works until another format is read (audit business-3, 2026-09-23).
+    "desc": ("Add a CSV export from a distributor, PRO, publisher, or rights "
+             "society."),
     "cta": "Upload statement",
     "how": "How statements work",
     # A seat that may not write here is told who uploads rather than
@@ -192,12 +195,15 @@ ZERO_BANDS = (
 DONE_LINE = "Your first statement was added. Business is organizing what it reports."
 
 
-def new_account(uploads, rows, expenses, cases, disputes):
+def new_account(uploads, rows, expenses, cases, disputes, actions=()):
     """The spec's new_account: confirmed empty on every count the room
-    reads - no statement, no measured row, no cost, no claim, no dispute.
-    Every argument is what the store returned; an unreadable store never
-    reaches here - the route shows the error page instead."""
-    return not uploads and not rows and not expenses and not cases and not disputes
+    reads - no statement, no measured row, no cost, no claim, no dispute,
+    and no open Business action (spec 3 names "Business actions"; audit
+    business-2, 2026-09-23). Every argument is what the store returned;
+    an unreadable store never reaches here - the route shows the error
+    page instead."""
+    return (not uploads and not rows and not expenses and not cases
+            and not disputes and not actions)
 
 
 def done_line(came_from, uploads):
