@@ -77,3 +77,20 @@ def test_the_fans_page_from_zero_uses_the_same_rack_as_every_room():
     for words in ("Own the listener relationship", "Choose how to add your first fans",
                   "Nothing is added until you review and confirm"):
         assert words in fans, words
+
+
+def test_every_sentence_fits_the_short_glass_and_a_live_title_is_clamped():
+    """Measured with headless Chrome on 2026-09-23 on all nine pages at
+    rack widths 890-1320: every word inside its glass once the lines use
+    the screen's full width and the size steps from 14px. The live values
+    (a campaign or action title on the working Command Center) can be any
+    length, so four lines is the most a screen shows; a linked value keeps
+    its full words in its title."""
+    css = _read("static", "css", "command-zero.css")
+    rule = css.split(".cz-screen-v {", 1)[1].split("}", 1)[0]
+    assert "font-size: clamp(14px, 1.5cqw, 26px)" in rule
+    assert "max-width: none" in rule
+    assert "-webkit-line-clamp: 4" in rule and "overflow: hidden" in rule
+    rack = _read("templates", "partials", "cc_rack.html")
+    assert 'href="{{ sc.href }}" title="{{ sc.v }}"' in rack
+

@@ -63,10 +63,15 @@
   color: var(--sb-crt); text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 70%, transparent);
 }
 .cz-screen-v {
-  font-family: var(--sb-display); font-weight: 800; line-height: 1.15;
-  font-size: clamp(15px, 1.75cqw, 30px); color: var(--sb-crt);
+  font-family: var(--sb-display); font-weight: 800; line-height: 1.12;
+  font-size: clamp(14px, 1.5cqw, 26px); color: var(--sb-crt);
   text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 70%, transparent), 0 0 28px color-mix(in srgb, var(--sb-crt) 35%, transparent);
-  max-width: 22ch;
+  max-width: none;
+  /* The live values (a campaign's or an action's title) can be any
+     length; four lines is what the short glass holds, so a longer one
+     ends in an ellipsis and carries its full words in its title. Every
+     fixed sentence on the rooms' pages from zero fits in four. */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden;
 }
 .cz-screen-v--n { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
