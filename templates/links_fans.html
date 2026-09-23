@@ -28,6 +28,11 @@
   {% if removed %}
   <p class="au-showcase" role="status"><b>Removed.</b> Their record, consent log and link activity are gone.</p>
   {% endif %}
+  {% if marked %}
+  <p class="au-showcase" role="status"><b>Marked do not contact.</b> They are left out of every email sent from here and out of the default export until you lift it.</p>
+  {% elif lifted %}
+  <p class="au-showcase" role="status"><b>Contact allowed again.</b> Your do-not-contact mark is lifted. A fan who unsubscribed themselves stays unsubscribed.</p>
+  {% endif %}
 
   <div class="au-crm-tools">
     <form method="get" role="search">
@@ -104,7 +109,9 @@
           <td class="py-3 pr-4">
             <div class="font-semibold text-gray-100">{{ f.email }}</div>
             {% if f.name %}<div class="text-xs text-gray-300 font-medium">{{ f.name }}</div>{% endif %}
-            {% if f.suppressed %}<span class="au-supp au-supp--crm" title="Never in a send or the default export">Suppressed: {{ f.suppressed }}</span>{% endif %}
+            {#- Never in a send or the default export. The two reasons this app
+                writes say whose they are to lift (fan_mail). -#}
+            {% if f.suppressed %}<span class="au-supp au-supp--crm">Suppressed: {{ f.suppressed }}{% if f.suppressed == unsubscribed %}. Only they can undo it.{% elif f.suppressed == do_not_contact %}, your mark{% endif %}</span>{% endif %}
           </td>
           <td class="py-3 pr-4">
             <div class="flex items-center gap-2">
@@ -119,6 +126,17 @@
           <td class="py-3 pr-4 text-xs text-gray-300 font-medium">{{ campaign_titles.get(f.first_campaign_id, 'Imported or added') }}</td>
           <td class="py-3 text-xs sb-num text-gray-300 font-medium">{{ f.updated[:10] }}</td>
           {% if not au_showcase %}<td class="py-3 pl-3 text-right">
+            {#- The artist's own mark, and only theirs to lift: a fan who
+                unsubscribed is not offered back (fan_mail). -#}
+            {% if not f.suppressed %}
+            <form method="post" action="/links/fans/{{ f.id }}/do-not-contact" class="mb-1">
+              <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm" aria-label="Do not contact {{ f.email }}">Do not contact</button>
+            </form>
+            {% elif f.suppressed == do_not_contact %}
+            <form method="post" action="/links/fans/{{ f.id }}/contact-again" class="mb-1">
+              <button type="submit" class="sb-btn sb-btn-secondary sb-btn-sm" aria-label="Allow contact with {{ f.email }} again">Allow contact</button>
+            </form>
+            {% endif %}
             {#- The confirm says exactly what the route does (owner notes,
                 2026-09-19): links_store.delete_fan deletes the fan row, their
                 consent records and their link activity. It is not a

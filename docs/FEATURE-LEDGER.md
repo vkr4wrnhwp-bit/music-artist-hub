@@ -1837,7 +1837,7 @@ Name, blurb, monthly price, perks and an on/off switch for a paid membership, wi
 
 **Fan CRM (/links/fans)**
 
-The table of every fan on file with intent band, pre-saves, captures, first campaign and last activity.
+The table of every fan on file with intent band, visits, clicks, pre-saves, captures, first campaign and last activity, and a per-fan Do not contact mark.
 
 - Because: app.py:11001 def ml_fans() calls links_store.list_fans(user_id, q) and renders real rows; probed end-to-end — a fan captured on a smart link and a fan filed by the Hypeddit webhook both appeared with their tags and scores.
 - Routes: GET /links/fans
@@ -1961,6 +1961,15 @@ Per-fan Visits and Clicks in the Fan CRM table, its CSV export and the intent sc
 - Files: fan_mail.py fan_token(), read_fan_token(), VISIT_WINDOW_MINUTES; app.py _link_fan(), _credit_fan(), smart_link_redirect(), ml_go(), ml_subscribe(), _send_release_emails(); links_store.py fan_event_since(), bump_fan(); templates/link_campaign.html; templates/links_fans.html; tests/test_fan_counters.py
 - Access: the crediting happens on the public link pages; the CRM and its CSV are Artist tier or higher, own account only.
 
+**Suppression: unsubscribe and do not contact**
+
+Every marketing email the app sends a fan carries a no-login way out, the artist can mark a fan do not contact from the Fan CRM, and every send list leaves both out.
+
+- Because: the release-day email and the Fan Club drop notice each carry the recipient's own unsubscribe link, /unsubscribe/<token>, where the token is fan_mail.unsubscribe_token() (itsdangerous, salt "fan-unsubscribe", no expiry) naming the artist's account and the address, plus List-Unsubscribe and List-Unsubscribe-Post: List-Unsubscribe=One-Click headers (RFC 8058) passed through email_provider.send(headers=). GET shows one button and changes nothing (mail scanners follow links); POST, from that button or the mail client's one-click POST, calls links_store.suppress_fan(owner, email, "unsubscribed") and notifies the artist. A Fan Club member with no CRM row gets one through links_store.add_suppressed_fan(), dated from their membership so they are not a new fan today. The CRM's per-row Do not contact (POST /links/fans/<id>/do-not-contact) writes "do not contact"; Allow contact (POST /links/fans/<id>/contact-again) lifts only that reason, and the unsubscribe page's Subscribe again lifts only "unsubscribed" (links_store.unsuppress_fan(only_reason=)), so neither side can undo the other's. The release-day list goes through fan_segments.contactable() and the drop loop skips fan_mail.suppressed_emails(). Until 2026-09-23 nothing in the app wrote the column.
+- Routes: GET/POST /unsubscribe/<token> (public), POST /links/fans/<fan_id>/do-not-contact, POST /links/fans/<fan_id>/contact-again
+- Files: fan_mail.py (unsubscribe_token, read_unsubscribe_token, unsubscribe_headers, suppressed_emails, footer_html, UNSUBSCRIBED, DO_NOT_CONTACT); app.py fan_unsubscribe(), ml_fan_do_not_contact(), ml_fan_contact_again(), _fan_unsubscribe_url(), _send_release_emails(), fan_club_drop_post(), "/unsubscribe/" in _PUBLIC_PREFIXES; links_store.py suppress_fan(), add_suppressed_fan(), unsuppress_fan(); email_provider.py send(headers=), release_email_html(unsubscribe_url=); templates/fan_unsubscribe.html, templates/links_fans.html, templates/fan_club.html; tests/test_fan_unsubscribe.py
+- Access: /unsubscribe/ is public; the signed token is the authorisation and names one address on one account. The CRM marks are Artist tier or higher, own fans only (another account gets 404); a read team seat is refused by team_seat_gate.
+
 **Region selection export ("Use this selection")**
 
 Downloads the contactable fans in the ticked places as a CSV.
@@ -2048,7 +2057,7 @@ Lists the account's campaigns and older quick links with their real counts.
 
 Posts a members-only update and emails every active member a sign-in link to it.
 
-- Because: The write is real and unconditional — app.py:6536 fan_club_drop_post() calls db.add_club_drop, and the delete at app.py:6585 is scoped to the artist. The notification half only runs when RESEND_API_KEY is set (otherwise it redirects ?email_off=1, which is honest), it is capped at the first 200 members, and the redirect carries the real notified/failed counts. The sends were not exercised here.
+- Because: The write is real and unconditional — app.py:6536 fan_club_drop_post() calls db.add_club_drop, and the delete at app.py:6585 is scoped to the artist. The notification half only runs when RESEND_API_KEY is set (otherwise it redirects ?email_off=1, which is honest), it is capped at the first 200 members, and the redirect carries the real notified/failed counts. A member whose address is suppressed on the artist's list (unsubscribed or do not contact) is not emailed and is counted in ?unsubscribed=N, which the banner reports; every message carries the member's own unsubscribe link and the List-Unsubscribe headers, and says unsubscribing leaves the membership as it is. The sends were not exercised here.
 - Routes: POST /fan-club/drops, POST /fan-club/drops/<drop_id>/delete
 - Files: app.py:6535-6589; db.py:2420 add_club_drop(), :2438 delete_club_drop(); email_provider.py; templates/fan_club.html
 - Access: Artist tier or higher (/fan-club prefix); read team seats cannot POST.
@@ -2135,7 +2144,7 @@ The Marketing room holds four cards (links, press-desk, epk, referrals); the pre
 
 The first page view after release day emails every consented fan of that campaign the listen link.
 
-- Because: app.py:1679 _send_release_emails() is real — it claims a release_email_sent flag in the campaign settings before sending, builds the HTML and calls emailer.send() per fan — but it only runs when RESEND_API_KEY is set (emailer.configured()), and the recipient list is links_store.campaign_fans(), whose query joins ml_consents with no `suppressed` filter, so a suppressed fan would still be mailed. Not exercised here (no key).
+- Because: app.py:1679 _send_release_emails() is real — it claims a release_email_sent flag in the campaign settings before sending, then sends one message per fan in fan_segments.contactable(links_store.campaign_fans()), so a fan who unsubscribed or was marked do not contact is left out (since 2026-09-23; before that the list had no suppression filter). Each message is the fan's own: its listen link carries their signed ?f= (see Fan engagement counters) and its foot carries their signed unsubscribe link, with List-Unsubscribe and List-Unsubscribe-Post headers (see Suppression). It only runs when RESEND_API_KEY is set (emailer.configured()); tests/test_fan_unsubscribe.py and tests/test_fan_counters.py exercise it against a patched transport.
 - Routes: triggered inside GET /l/<slug> (no route of its own)
 - Files: app.py:1679-1703, called from app.py:1708 _process_due_presaves(); links_store.py:452 campaign_fans(); email_provider.py:28 configured(), release_email_html()
 - Access: No user-facing gate — it fires on a public page view of a released campaign. Nothing in the UI triggers it directly.
@@ -2231,15 +2240,6 @@ A fan-funded label page with a raise total, backers, milestones and demo voting.
 - Routes: GET /fan-label, POST /fan-label/vote/<demo_id>
 - Files: app.py:12191-12204; community_config.py (get_fan_label_data, vote_demo); templates/fan_label.html; docs/PARKED_PAGES.md:16
 - Access: Any signed-in account (no tier gate). team_areas.EXTRA puts it in the Fans room.
-
-**Suppression (do-not-contact)**
-
-Marks a fan as not to be emailed, with the reason, and keeps them out of sends and the default export.
-
-- Because: The read half is everywhere — links_fans.html:84 shows the reason, fans.html:94 and :262 count the suppressed per region, fan_segments.contactable() is the single door used by every export and the Fan Room CSV. The write half has no caller: grep for suppress_fan and unsuppress_fan across the repo found only their definitions at links_store.py:352 and :366 plus tests/test_fans_audience.py:66-67 and tests/test_collab_marketplace.py:290. There is no route, form, unsubscribe link or bounce/complaint webhook that sets ml_fans.suppressed, so on a real account the column can only ever be empty.
-- Routes: none — no route writes it
-- Files: links_store.py:352 def suppress_fan(), :366 def unsuppress_fan(); db.py:1075-1083 (the ALTER that adds suppressed/suppressed_at); readers fan_segments.py:201/:212, fan_audience.py:284, app.py:11310, fan_room.py:285; templates/links_fans.html, templates/fans.html
-- Access: n/a — unreachable from the product.
 
 **Voice of Fan**
 

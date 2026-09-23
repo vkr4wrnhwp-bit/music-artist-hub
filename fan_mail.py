@@ -48,3 +48,75 @@ def read_fan_token(secret, token):
     except (BadSignature, ValueError, TypeError):
         return None
     return value if isinstance(value, str) and value else None
+
+
+# --- The way out ------------------------------------------------------------
+#
+# Every marketing email the app sends a fan for an artist - the release-day
+# note and the Fan Club drop notice - carries an unsubscribe link that
+# works with no login: a signed token naming the artist's account and the
+# address. It never expires, because an unsubscribe link that stops working
+# is not one.
+#
+# ONE LIST. A fan who unsubscribes, or whom the artist marks do not
+# contact from the Fan CRM, is ml_fans.suppressed with the reason below;
+# every send list goes through fan_segments.contactable() or
+# suppressed_emails() before a message goes, the same door the CSV export
+# and the Audience counts already use.
+#
+# WHO MAY UNDO WHAT. A fan's own unsubscribe is theirs: only they can
+# reverse it, from the same link. The artist's do-not-contact mark is the
+# artist's: only they can lift it, from the CRM. Neither can lift the
+# other's.
+#
+# In the mail client: each message also carries List-Unsubscribe and
+# List-Unsubscribe-Post (RFC 8058), so Gmail and Apple Mail offer their own
+# unsubscribe button, which POSTs to the same address in one click. The
+# link in the body opens a page with one button: a GET never unsubscribes,
+# because mail scanners follow links in messages and would unsubscribe
+# fans who never asked.
+
+_UNSUB_SALT = "fan-unsubscribe"
+
+UNSUBSCRIBED = "unsubscribed"       # the fan's own, from the link
+DO_NOT_CONTACT = "do not contact"   # the artist's mark, from the CRM
+
+
+def unsubscribe_token(secret, owner_id, email):
+    return URLSafeSerializer(secret, salt=_UNSUB_SALT).dumps(
+        [str(owner_id), (email or "").strip().lower()])
+
+
+def read_unsubscribe_token(secret, token):
+    """(owner_id, email) the token names, or None."""
+    if not token:
+        return None
+    try:
+        value = URLSafeSerializer(secret, salt=_UNSUB_SALT).loads(token)
+    except (BadSignature, ValueError, TypeError):
+        return None
+    if (not isinstance(value, list) or len(value) != 2
+            or not all(isinstance(v, str) and v for v in value) or "@" not in value[1]):
+        return None
+    return value[0], value[1]
+
+
+def unsubscribe_headers(url):
+    """RFC 8058 one-click unsubscribe, for the mail client's own button."""
+    return {"List-Unsubscribe": "<%s>" % url,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
+
+
+def suppressed_emails(fans):
+    """The addresses on this list that must not be written to."""
+    return {(f.get("email") or "").strip().lower() for f in fans or ()
+            if (f.get("suppressed") or "").strip()}
+
+
+def footer_html(why, unsubscribe_url):
+    """The foot of every fan email: why they are getting it, and the way
+    out. `why` is plain text and is escaped here."""
+    import html as _html
+    return ('<p style="color:#91836A;font-size:12px;margin:24px 0 0;">%s '
+            '<a href="%s" style="color:#91836A;text-decoration:underline;">Unsubscribe</a></p>'
+            % (_html.escape(why), _html.escape(unsubscribe_url, quote=True)))

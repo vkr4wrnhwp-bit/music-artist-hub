@@ -248,6 +248,7 @@ import royalty_types
 import insights_engine
 import email_provider as emailer
 import fan_mail             # the signed ?f= fan link and the way out of fan email
+import fan_segments         # contactable(): the one door every fan send list goes through
 import spotify_provider as spotify
 import artist_twin as twin
 import plans
@@ -1736,6 +1737,12 @@ def create_app():
 
     # --- Spotify pre-save OAuth (env-gated; notify-me fallback otherwise) ------
 
+    def _fan_unsubscribe_url(owner_id, email):
+        """The way out that every marketing email to a fan carries: signed,
+        no login, no expiry (fan_mail)."""
+        return (request.url_root.rstrip("/") + "/unsubscribe/"
+                + fan_mail.unsubscribe_token(app.config["SECRET_KEY"], owner_id, email))
+
     def _send_release_emails(campaign):
         """Once per campaign, on the first page view after release: email
         every consented fan the listen link. Env-gated on RESEND_API_KEY."""
@@ -1751,15 +1758,19 @@ def create_app():
         # Replies go to the artist, never to the sending address.
         owner = store.get_user(campaign["user_id"]) or {}
         sent = 0
-        for f in mls.campaign_fans(campaign["id"]):
+        # Nobody who unsubscribed or was marked do not contact: the one
+        # door every send list goes through (fan_segments.contactable).
+        for f in fan_segments.contactable(mls.campaign_fans(campaign["id"])):
             # Each fan's listen link is their own (fan_mail.fan_token): the
             # visit it starts, and the click after it, go on their record.
             listen_url = page_url + "?f=" + fan_mail.fan_token(app.config["SECRET_KEY"], f["id"])
+            way_out = _fan_unsubscribe_url(campaign["user_id"], f["email"])
             html = emailer.release_email_html(
                 campaign["title"], campaign.get("artist_name") or "",
-                listen_url, campaign.get("cover_url") or "")
+                listen_url, campaign.get("cover_url") or "", unsubscribe_url=way_out)
             if emailer.send(f["email"], "%s is out now" % campaign["title"], html,
-                            reply_to=owner.get("email") or None):
+                            reply_to=owner.get("email") or None,
+                            headers=fan_mail.unsubscribe_headers(way_out)):
                 sent += 1
         if sent:
             store.notify(campaign["user_id"], "fan",
@@ -2250,6 +2261,64 @@ def create_app():
         # fan makes after signing up is credited to them (fan_mail).
         return jsonify({"ok": True, "message": message, "reward": reward,
                         "fan_token": fan_mail.fan_token(app.config["SECRET_KEY"], fan_id)})
+
+    # --- The way out of fan email ----------------------------------------------
+
+    @app.route("/unsubscribe/<token>", methods=["GET", "POST"])
+    def fan_unsubscribe(token):
+        """The link at the foot of every marketing email the app sends a fan
+        (fan_mail). No login: the signed token names the artist's account
+        and the address, and nothing else.
+
+        GET shows one button and changes nothing, because mail scanners
+        follow links in messages. POST unsubscribes: from that button, or
+        in one click from the mail client's own button (RFC 8058: the body
+        is List-Unsubscribe=One-Click and carries no action). A fan who
+        changes their mind can subscribe again from the same page; that
+        lifts only their own unsubscribe, never the artist's do-not-contact
+        mark."""
+        named = fan_mail.read_unsubscribe_token(app.config["SECRET_KEY"], token)
+        owner = store.get_user(named[0]) if named else None
+        if owner is None:
+            return render_template("fan_unsubscribe.html", state="invalid"), 404
+        owner_id, email = named
+        artist = artist_identity.display_name(owner) or owner.get("name") or "This artist"
+        fan = mls.fan_by_email(owner_id, email)
+        state = "ask"
+        if request.method == "POST":
+            if request.form.get("action") == "resubscribe":
+                if mls.unsuppress_fan(owner_id, email, only_reason=fan_mail.UNSUBSCRIBED):
+                    store.notify(owner_id, "fan", "A fan subscribed again",
+                                 "%s turned your emails back on." % email, "/links/fans")
+                fan = mls.fan_by_email(owner_id, email)
+            elif not (fan or {}).get("suppressed"):
+                marked = mls.suppress_fan(owner_id, email, fan_mail.UNSUBSCRIBED)
+                if not marked:
+                    # No CRM record: a Fan Club member whose record was
+                    # removed still gets drop emails, so the suppression
+                    # needs a row to live on. Anyone else has no record
+                    # that anything is sent to.
+                    member = store.get_active_club_member(owner_id, email)
+                    if member:
+                        mls.add_suppressed_fan(owner_id, email, fan_mail.UNSUBSCRIBED,
+                                               created=member.get("created"))
+                        marked = True
+                if marked:
+                    store.notify(owner_id, "fan", "A fan unsubscribed",
+                                 "%s will not get your fan emails any more." % email,
+                                 "/links/fans")
+                fan = mls.fan_by_email(owner_id, email)
+        why = ((fan or {}).get("suppressed") or "").strip()
+        if why == fan_mail.UNSUBSCRIBED:
+            state = "out"
+        elif why:
+            state = "held"          # the artist's mark, or a bounce: not theirs to lift
+        elif request.method == "POST" and request.form.get("action") != "resubscribe":
+            state = "out"           # nothing on file to send to, which is the same promise
+        elif request.method == "POST":
+            state = "back"
+        return render_template("fan_unsubscribe.html", state=state, artist=artist,
+                               email=email, token=token)
 
     # --- Reports: real CSV download --------------------------------------------
 
@@ -5774,7 +5843,12 @@ def create_app():
                         "/tour-share/",
                         # The Team-Up Board's one-click renew link from the
                         # expiry email; single-use token, renews one listing.
-                        "/board-renew/")
+                        "/board-renew/",
+                        # The way out at the foot of every fan email. The
+                        # fan has no account; the signed token is the
+                        # authorisation and names one address on one
+                        # artist's list (fan_mail).
+                        "/unsubscribe/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/catalog-sweep", "/demo-open", "/plan",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
@@ -7738,15 +7812,23 @@ def create_app():
         if not emailer.configured() or not club:
             return redirect("/fan-club?posted=1&email_off=1")
         import html as _html
-        notified = failed = 0
+        notified = failed = skipped = 0
         slug = _ensure_epk_slug(user)
         base = request.url_root.rstrip("/")
+        # A member who unsubscribed from these emails, or whom the artist
+        # marked do not contact, keeps the membership and the members
+        # area; they are just not written to (fan_mail).
+        blocked = fan_mail.suppressed_emails(mls.list_fans(user["id"]))
         for m in store.list_club_members(user["id"])[:200]:
             if m["status"] != "active":
+                continue
+            if (m["member_email"] or "").strip().lower() in blocked:
+                skipped += 1
                 continue
             token = _club_serializer().dumps(
                 {"artist_id": user["id"], "email": m["member_email"]})
             link = base + "/club/" + slug + "/members?token=" + token
+            way_out = _fan_unsubscribe_url(user["id"], m["member_email"])
             ok = emailer.send(
                 m["member_email"],
                 "%s: new members-only drop" % (club["name"] or "Fan club"),
@@ -7758,19 +7840,24 @@ def create_app():
                 'color:#14100A;padding:11px 20px;border-radius:10px;'
                 'text-decoration:none;font-weight:800">Open the drop</a></p>'
                 '<p style="color:#91836A;font-size:12px">This link signs you '
-                'straight in and works for 7 days.</p></div>'
+                'straight in and works for 7 days.</p>%s</div>'
                 % (_html.escape(artist_identity.display_name(user)
                                 or "Your artist"),
                    _html.escape(title),
                    ('<p style="color:#3A3226">%s</p>' % _html.escape(body[:300])
                     if body else ""),
-                   link), reply_to=user["email"])
+                   link,
+                   fan_mail.footer_html(
+                       "You get these because you are a member of %s. Unsubscribing "
+                       "stops these emails; your membership stays as it is."
+                       % (club["name"] or "this fan club"), way_out)),
+                reply_to=user["email"], headers=fan_mail.unsubscribe_headers(way_out))
             if ok:
                 notified += 1
             else:
                 failed += 1
-        return redirect("/fan-club?posted=1&notified=%d&failed=%d"
-                        % (notified, failed))
+        return redirect("/fan-club?posted=1&notified=%d&failed=%d&unsubscribed=%d"
+                        % (notified, failed, skipped))
 
     @app.route("/fan-club/drops/<drop_id>/delete", methods=["POST"])
     def fan_club_drop_delete(drop_id):
@@ -12319,6 +12406,10 @@ def create_app():
                                # Remove redirects here with ?removed=1; until
                                # now nothing read it back (walk, 2026-09-20).
                                removed=request.args.get("removed") == "1",
+                               marked=request.args.get("marked") == "1",
+                               lifted=request.args.get("lifted") == "1",
+                               do_not_contact=fan_mail.DO_NOT_CONTACT,
+                               unsubscribed=fan_mail.UNSUBSCRIBED,
                                fans=fans, q=q, campaign_titles=campaigns,
                                intent_tones=links_engine.INTENT_TONES,
                                shopify=(shopify_customers.status()
@@ -12551,6 +12642,34 @@ def create_app():
             shopify_customers.forget_grant()
             shopify_customers.token()
         return redirect("/links/fans?imp=reconnected#import")
+
+    @app.route("/links/fans/<fan_id>/do-not-contact", methods=["POST"])
+    def ml_fan_do_not_contact(fan_id):
+        """The artist's own mark: this fan is never in a send list or the
+        default export again until the artist lifts it. Scoped to the
+        account; a fan who already unsubscribed keeps their own reason."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        fan = mls.get_fan(fan_id)
+        if fan is None or fan["user_id"] != user["id"]:
+            abort(404)
+        if not (fan.get("suppressed") or "").strip():
+            mls.suppress_fan(user["id"], fan["email"], fan_mail.DO_NOT_CONTACT)
+        return redirect("/links/fans?marked=1")
+
+    @app.route("/links/fans/<fan_id>/contact-again", methods=["POST"])
+    def ml_fan_contact_again(fan_id):
+        """Lift the artist's own do-not-contact mark. Only that one: a fan
+        who unsubscribed themselves is theirs to undo, not the artist's."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        fan = mls.get_fan(fan_id)
+        if fan is None or fan["user_id"] != user["id"]:
+            abort(404)
+        mls.unsuppress_fan(user["id"], fan["email"], only_reason=fan_mail.DO_NOT_CONTACT)
+        return redirect("/links/fans?lifted=1")
 
     @app.route("/links/fans/<fan_id>/delete", methods=["POST"])
     def ml_fan_delete(fan_id):

@@ -365,24 +365,56 @@ def confirm_list_import(user_id, draft_id, make_note):
 
 
 def suppress_fan(user_id, email, reason):
-    """Stop contacting this address, and record why.
+    """Stop contacting this address, and record why. Returns whether a fan
+    row on this account was marked.
 
     A reason rather than a flag: "why is this person not being emailed" is
     the question anyone actually asks, and a bare boolean cannot answer it.
-    Scoped to the account in the UPDATE itself.
+    Scoped to the account in the UPDATE itself. Callers: the fan's own
+    unsubscribe link and the artist's do-not-contact mark (fan_mail).
     """
     reason = (reason or "").strip()[:120] or "suppressed"
     with get_db() as db:
-        db.execute("UPDATE ml_fans SET suppressed = ?, suppressed_at = ?, updated = ?"
-                   " WHERE user_id = ? AND email = ?",
-                   (reason, _now(), _now(), user_id, (email or "").lower().strip()))
+        cur = db.execute("UPDATE ml_fans SET suppressed = ?, suppressed_at = ?, updated = ?"
+                         " WHERE user_id = ? AND email = ?",
+                         (reason, _now(), _now(), user_id, (email or "").lower().strip()))
+    return cur.rowcount > 0
 
 
-def unsuppress_fan(user_id, email):
+def add_suppressed_fan(user_id, email, reason, created=None):
+    """A fan row that exists only to hold a suppression: a Fan Club member
+    whose CRM record was removed still gets drop emails (the membership is
+    its own table), so their unsubscribe needs a row to land on. `created`
+    is when they joined, so they are not counted as a new fan today.
+    Returns the fan id; an address already on file is marked instead."""
+    email = (email or "").lower().strip()
+    if suppress_fan(user_id, email, reason):
+        return (fan_by_email(user_id, email) or {}).get("id")
+    fan_id = uuid.uuid4().hex
+    now = _now()
     with get_db() as db:
-        db.execute("UPDATE ml_fans SET suppressed = '', suppressed_at = '', updated = ?"
-                   " WHERE user_id = ? AND email = ?",
-                   (_now(), user_id, (email or "").lower().strip()))
+        db.execute(
+            "INSERT INTO ml_fans (id, user_id, email, name, first_campaign_id, last_campaign_id,"
+            " suppressed, suppressed_at, created, updated) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (fan_id, user_id, email, "", None, None, (reason or "suppressed")[:120], now,
+             created or now, now))
+    return fan_id
+
+
+def unsuppress_fan(user_id, email, only_reason=None):
+    """Lift a suppression. only_reason, when given, lifts it only if that is
+    the reason on file, so the artist cannot lift a fan's own unsubscribe
+    and a fan cannot lift the artist's do-not-contact mark (fan_mail).
+    Returns whether a row changed."""
+    q = ("UPDATE ml_fans SET suppressed = '', suppressed_at = '', updated = ?"
+         " WHERE user_id = ? AND email = ?")
+    args = [_now(), user_id, (email or "").lower().strip()]
+    if only_reason is not None:
+        q += " AND suppressed = ?"
+        args.append(only_reason)
+    with get_db() as db:
+        cur = db.execute(q, args)
+    return cur.rowcount > 0
 
 
 _FAN_COUNTERS = ("total_visits", "total_clicks", "total_presaves", "total_captures")
