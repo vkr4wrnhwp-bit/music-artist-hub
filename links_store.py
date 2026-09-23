@@ -162,6 +162,9 @@ def get_destination(dest_id):
 
 def track(campaign_id, event_type, variant_id=None, service_key=None,
           fan_id=None, referrer=None, utm_source=None):
+    """One event. fan_id is set when the request said who it was: a
+    capture, a pre-save, or a view or click through a fan's own link
+    (fan_mail.fan_token). Everything else is anonymous."""
     with get_db() as db:
         db.execute(
             "INSERT INTO ml_events (campaign_id, variant_id, event_type, service_key,"
@@ -169,6 +172,18 @@ def track(campaign_id, event_type, variant_id=None, service_key=None,
             (campaign_id, variant_id, event_type, service_key, fan_id,
              (referrer or "")[:300], (utm_source or "")[:100], _now()),
         )
+
+
+def fan_event_since(campaign_id, fan_id, event_type, since):
+    """Whether this fan raised this event on this campaign at or after
+    `since` (an ISO stamp, the format _now() writes). The Fan CRM counts a
+    visit once per sitting, not once per reload."""
+    with get_db() as db:
+        row = db.execute(
+            "SELECT 1 FROM ml_events WHERE campaign_id = ? AND fan_id = ?"
+            " AND event_type = ? AND created >= ? LIMIT 1",
+            (campaign_id, fan_id, event_type, since)).fetchone()
+    return row is not None
 
 
 def event_counts(campaign_id):

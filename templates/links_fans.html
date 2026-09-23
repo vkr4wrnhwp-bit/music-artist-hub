@@ -78,12 +78,19 @@
   {% endif %}
 
   {% if fans %}
+  <p class="au-selnote" data-crm-counts>Visits and Clicks count what a fan does through the link in an email you sent them, and the service buttons they press after signing up on a page. Anonymous views and clicks stay on each link's own analytics.</p>
   <section class="au-card au-table-wrap">
     <table class="w-full text-left text-sm">
       <thead>
         <tr class="border-b border-white/5 text-xs uppercase tracking-wide text-gray-300 font-medium">
           <th class="py-2 pr-4 font-medium">Fan</th>
           <th class="py-2 pr-4 font-medium">Intent</th>
+          {#- Visits and Clicks are counted when a fan comes through their own
+              link, the one in each email the app sends them, or clicks a
+              service button after signing up on the page (fan_mail).
+              Anonymous views and clicks stay on the link's own analytics. -#}
+          <th class="py-2 pr-4 text-right font-medium" title="Visits to your smart links through the link in an email you sent them">Visits</th>
+          <th class="py-2 pr-4 text-right font-medium" title="Service buttons they pressed on your smart links, after signing up or from an email you sent them">Clicks</th>
           <th class="py-2 pr-4 text-right font-medium">Pre-saves</th>
           <th class="py-2 pr-4 text-right font-medium">Captures</th>
           <th class="py-2 pr-4 font-medium">First Campaign</th>
@@ -105,6 +112,8 @@
               <span class="text-xs font-bold sb-num text-gray-200">{{ f.intent_score }}</span>
             </div>
           </td>
+          <td class="py-3 pr-4 text-right sb-num text-gray-200">{{ f.total_visits }}</td>
+          <td class="py-3 pr-4 text-right sb-num text-gray-200">{{ f.total_clicks }}</td>
           <td class="py-3 pr-4 text-right sb-num text-gray-200">{{ f.total_presaves }}</td>
           <td class="py-3 pr-4 text-right sb-num text-gray-200">{{ f.total_captures }}</td>
           <td class="py-3 pr-4 text-xs text-gray-300 font-medium">{{ campaign_titles.get(f.first_campaign_id, 'Imported or added') }}</td>

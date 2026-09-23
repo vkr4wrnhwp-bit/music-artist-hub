@@ -247,6 +247,7 @@ import release_ready_store
 import royalty_types
 import insights_engine
 import email_provider as emailer
+import fan_mail             # the signed ?f= fan link and the way out of fan email
 import spotify_provider as spotify
 import artist_twin as twin
 import plans
@@ -1492,13 +1493,13 @@ def create_app():
     @app.route("/privacy")
     def privacy():
         return render_template("legal.html", title="Privacy Policy",
-                               updated="July 9, 2026", sections=[
+                               updated="September 23, 2026", sections=[
             ("What we collect", "Account data (name, email, hashed password), the content you upload (statements, artwork, documents), campaign analytics (link clicks, referrers), and — when you connect them — data from services you authorize, like Spotify artist stats."),
             # The pre-save sentence is resolved against the running
             # deployment rather than asserted. With Spotify credentials
             # unset the flow falls back to notify-me and no token is ever
             # requested - claiming we encrypt one would be false.
-            ("Fan data you capture", "When a fan subscribes on your campaign pages, we store their email with a consent record, on your behalf. Artists control this data; we process it. " + (
+            ("Fan data you capture", "When a fan subscribes on your campaign pages, we store their email with a consent record, on your behalf. Artists control this data; we process it. Links in the emails we send a fan for an artist carry a code that credits their visits and button clicks on that artist's pages to their record, and the page passes it on after they sign up; nothing is stored on the fan's device for this. " + (
                 "Where a fan pre-saves, they authorize Spotify directly; that token is encrypted at rest and deleted once the release-day save completes."
                 if capability_status.is_live("spotify_presave")
                 else "Spotify pre-save is not connected on this deployment: pre-save buttons collect a notify-me address instead, and no Spotify token is requested, stored or processed.")),
@@ -1746,15 +1747,20 @@ def create_app():
         settings["release_email_sent"] = True
         mls.update_campaign(campaign["id"], campaign["user_id"],
                             {"settings": settings})
-        listen_url = request.url_root.rstrip("/") + "/l/" + campaign["slug"]
-        html = emailer.release_email_html(
-            campaign["title"], campaign.get("artist_name") or "",
-            listen_url, campaign.get("cover_url") or "")
+        page_url = request.url_root.rstrip("/") + "/l/" + campaign["slug"]
         # Replies go to the artist, never to the sending address.
         owner = store.get_user(campaign["user_id"]) or {}
-        sent = sum(1 for f in mls.campaign_fans(campaign["id"])
-                   if emailer.send(f["email"], "%s is out now" % campaign["title"], html,
-                                   reply_to=owner.get("email") or None))
+        sent = 0
+        for f in mls.campaign_fans(campaign["id"]):
+            # Each fan's listen link is their own (fan_mail.fan_token): the
+            # visit it starts, and the click after it, go on their record.
+            listen_url = page_url + "?f=" + fan_mail.fan_token(app.config["SECRET_KEY"], f["id"])
+            html = emailer.release_email_html(
+                campaign["title"], campaign.get("artist_name") or "",
+                listen_url, campaign.get("cover_url") or "")
+            if emailer.send(f["email"], "%s is out now" % campaign["title"], html,
+                            reply_to=owner.get("email") or None):
+                sent += 1
         if sent:
             store.notify(campaign["user_id"], "fan",
                          "Release emails sent: %s" % campaign["title"],
@@ -2098,6 +2104,25 @@ def create_app():
         variant = mls.get_variant_by_slug(vslug)
         return variant["id"] if variant and variant["campaign_id"] == campaign_id else None
 
+    def _link_fan(campaign):
+        """The fan a smart-link request comes from, when it says so: the
+        signed ?f= the app puts in the links of an email it sent that fan
+        (fan_mail.fan_token), passed on by the page to its own buttons.
+        Only a fan on this campaign's own account counts. A token naming
+        another account's fan, a tampered one, or none, is nobody."""
+        fan_id = fan_mail.read_fan_token(app.config["SECRET_KEY"], request.args.get("f"))
+        fan = mls.get_fan(fan_id) if fan_id else None
+        return fan if fan and fan["user_id"] == campaign["user_id"] else None
+
+    def _credit_fan(fan_id, counter):
+        """Add one to a fan's Visits or Clicks and re-score them, the same
+        way a capture or a pre-save re-scores them."""
+        mls.bump_fan(fan_id, counter)
+        fan = mls.get_fan(fan_id)
+        if fan:
+            score, level = links_engine.calculate_fan_intent(fan)
+            mls.set_fan_intent(fan_id, score, level)
+
     @app.route("/l/<slug>")
     def smart_link_redirect(slug):
         # Street Banker Links campaigns share the /l/ namespace with quick links.
@@ -2110,16 +2135,30 @@ def create_app():
             if campaign["status"] != "live" and not owner_preview:
                 abort(404)
             variant_id = _ml_variant_id(campaign["id"])
+            fan = None if owner_preview else _link_fan(campaign)
             if not owner_preview:
+                # A known fan's view is their visit, once per sitting: a
+                # reload inside the window is still recorded as a view, but
+                # it is not a second visit on their record.
+                new_visit = fan is not None and not mls.fan_event_since(
+                    campaign["id"], fan["id"], "page_view",
+                    (datetime.now(timezone.utc) - timedelta(
+                        minutes=fan_mail.VISIT_WINDOW_MINUTES)).isoformat(timespec="seconds"))
                 mls.track(campaign["id"], "page_view", variant_id=variant_id,
+                          fan_id=fan["id"] if fan else None,
                           referrer=request.referrer,
                           utm_source=request.args.get("utm_source"))
+                if new_visit:
+                    _credit_fan(fan["id"], "total_visits")
                 if request.args.get("src") == "qr":
                     mls.track(campaign["id"], "qr_scan", variant_id=variant_id)
                 _process_due_presaves(campaign)
             owner_epk = store.get_epk(campaign["user_id"]) or {}
             return render_template(
                 "link_campaign.html", c=campaign,
+                # Passed on to the page's own service buttons, so the click
+                # that follows a known fan's visit is theirs too.
+                fan_token=(request.args.get("f") or "") if fan else "",
                 store_url=((owner_epk.get("data") or {}).get("store_url") or ""),
                 spotify_presave=spotify.configured(),
                 presave_state=(request.args.get("presave") or ""),
@@ -2156,8 +2195,12 @@ def create_app():
         if campaign["status"] != "live" and not owner_preview:
             abort(404)
         if not owner_preview:
+            fan = _link_fan(campaign)
             mls.track(campaign["id"], "service_click", variant_id=_ml_variant_id(campaign["id"]),
-                      service_key=dest["service_key"], referrer=request.referrer)
+                      service_key=dest["service_key"], referrer=request.referrer,
+                      fan_id=fan["id"] if fan else None)
+            if fan:
+                _credit_fan(fan["id"], "total_clicks")
         target = dest["url"]
         if not target.startswith(("http://", "https://")):
             abort(400)
@@ -2203,7 +2246,10 @@ def create_app():
                 reward = {"url": v["path"],
                           "label": settings.get("gate_label")
                           or v["label"] or "Your unlock"}
-        return jsonify({"ok": True, "message": message, "reward": reward})
+        # The page hands this to its own service buttons, so a click the
+        # fan makes after signing up is credited to them (fan_mail).
+        return jsonify({"ok": True, "message": message, "reward": reward,
+                        "fan_token": fan_mail.fan_token(app.config["SECRET_KEY"], fan_id)})
 
     # --- Reports: real CSV download --------------------------------------------
 

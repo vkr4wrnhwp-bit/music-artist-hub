@@ -7,9 +7,10 @@ the records cannot support is said in words rather than drawn:
   the hero band     visits, clicks and pre-saves from ml_events, joined to
                     this account's campaigns and filtered on the event's
                     own timestamp, so the range chooser governs all three
-                    and the band says so. The ml_fans counters
-                    total_visits and total_clicks are never read: nothing
-                    in the application increments them
+                    and the band says so. It does not read the ml_fans
+                    counters total_visits and total_clicks: those count
+                    only what a known fan did (fan_mail), and the band is
+                    every view and click, known or not
   the stage rail    Written, Pitched, Opened, Written about, Heard, each
                     counted over the whole record. The band above is a
                     window; the rail is everything, and the line under
