@@ -5103,39 +5103,41 @@ def create_app():
                                **build_dashboard_context())
 
     def _analytics_room(user, room):
-        """The Analytics room as one screen (owner's mockup, 2026-09-22).
+        """The Analytics room as one screen (owner's mockup, 2026-09-22), or
+        the page from zero (owner's spec, 2026-09-23).
 
         Nothing here is read live from a provider. A room door is opened
         constantly and the Pulse page already spends the provider calls and
         caches them; this screen shows what is ON FILE and says how old it
         is. That is also the honest thing to draw: the room's own line is
         "what is measured, by whom, and how it moved".
+
+        Which page is decided from every count the spec names - the pinned
+        artist, the snapshots, the link events, the peers - read in ONE
+        try, because a loading failure must never be mistaken for an empty
+        account: it is the error page, 503. The observations keep their
+        own fallback: a failure in one section does not block the room.
         """
         import analytics_room
         import insights_engine
 
-        profile = store.get_pulse_profile(user["id"])
-        snaps = store.list_pulse_snapshots(user["id"], limit=30)
         try:
+            profile = store.get_pulse_profile(user["id"])
+            snaps = store.list_pulse_snapshots(user["id"], limit=30)
             peers = store.list_pulse_peers(user["id"])
-        except Exception:
-            peers = []
-
-        # The account's own smart-link traffic: no provider, no key, and the
-        # one figure on this screen that is always available.
-        try:
+            # The account's own smart-link traffic: no provider, no key, and
+            # the one figure on this screen that is always available. BOTH
+            # spellings: events are written as "page_view" now, but older
+            # rows carry "pageview" and two other places in this file
+            # already sum the pair (room audit, 2026-09-22).
             counts = mls.account_event_counts(user["id"])
-            # BOTH spellings. Events are written as "page_view" now, but
-            # older rows carry "pageview" and two other places in this file
-            # already sum the pair. Counting one of them here made Analytics
-            # disagree with Artist Pulse - the page its own head band sends
-            # you to - about the same number. Found by the room audit,
-            # 2026-09-22.
             visits = counts.get("page_view")
             if visits is not None or counts.get("pageview") is not None:
                 visits = (counts.get("page_view") or 0) + (counts.get("pageview") or 0)
-        except Exception:
-            visits = None
+        except Exception as exc:
+            app.logger.error("analytics room: state unreadable: %s", exc)
+            return render_template("room_analytics_error.html", active_page="room-analytics",
+                                   room=room, **build_dashboard_context()), 503
 
         # Monthly listeners come from a metrics provider. Unconfigured is
         # the normal case, and it is reported as an absence with a reason
@@ -5150,13 +5152,22 @@ def create_app():
         seat = current_team_seat()
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # Who may connect a source: the account holder, or an edit seat.
+        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         an = analytics_room.build(profile, snaps, peers, visits, listeners,
                                   observations, cards,
-                                  sample=_session_is_demo(), can_open=can_open)
+                                  sample=_session_is_demo(), can_open=can_open,
+                                  zero=analytics_room.new_account(profile, snaps, visits, peers),
+                                  can_add=can_add)
         return render_template("room_analytics.html",
                                active_page="room-analytics",
-                               room=room, an=an, **build_dashboard_context())
+                               room=room, an=an,
+                               # The sentence Connections carries back
+                               # (?from=connect), decided by the SAVED source.
+                               done_line=analytics_room.done_line(
+                                   request.args.get("from"), bool(profile or snaps)),
+                               **build_dashboard_context())
 
     def _publishing_room(user, room):
         """The Publishing room as one screen (owner's mockup, 2026-09-22).

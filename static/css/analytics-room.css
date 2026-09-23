@@ -103,3 +103,92 @@
   .an-pl-none { font-size: 17px; }
   .an-pl-none-s { font-size: 13px; max-width: none; }
 }
+
+/* ---- the page from zero (owner's Analytics spec, 2026-09-23) ----------
+   The plate is the Command Center's (partials/cc_rack.html) and its rules
+   are command-zero.css, linked only on this state. Everything below is
+   this page's own: nothing kit-owned is redeclared (rk-h, rk-panel,
+   rk-panel-head, rk-rail, rk-step, rk-ring, rk-tiles are used as they
+   are). Sizes never below 12px; radii and colours are tokens. Green is
+   information on the glass; gold is the customer's action. */
+.an-z-h1 { font-size: 24px; margin: 0 0 12px; }
+.an-z-t { margin: 0; font-size: 18px; font-weight: 800; color: var(--sb-ink); line-height: 1.2; }
+.an-z-p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--sb-ink-2); max-width: 52ch; }
+.an-z-two { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.an-z-card {
+  display: grid; grid-template-columns: 56px minmax(0, 1fr); grid-template-rows: auto auto auto; gap: 8px 16px; align-items: start; padding: 20px 22px;
+  border: 1px solid var(--sb-gold-line); border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1); box-shadow: inset 3px 0 0 var(--sb-gold);
+}
+.an-z-said { min-width: 0; }
+.an-z-ring {
+  grid-row: 1 / span 3; display: inline-grid; place-items: center; width: 56px; height: 56px;
+  border-radius: 999px; border: 1.5px solid var(--sb-gold-line); color: var(--sb-gold-bright);
+}
+.an-z-ring svg { width: 24px; height: 24px; }
+.an-z-btn {
+  grid-column: 2; justify-self: start; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 18px; border-radius: var(--sb-r-control); text-decoration: none;
+  font-size: 15px; font-weight: 800; white-space: nowrap;
+  background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold)); color: var(--sb-on-gold);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--sb-gold) 28%, transparent);
+}
+.an-z-btn:hover { filter: brightness(1.05); }
+.an-z-btn:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 3px; }
+.an-z-btn svg, .an-z-links svg, .an-z-more svg, .an-z-fold-sum svg, .an-z-lens-go svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.an-z-note { grid-column: 2; margin: 0; font-size: 13px; color: var(--sb-ink-2); }
+/* the four lenses: each a door to the room that owns the next step */
+.an-z-lenses { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.an-z-lens {
+  display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 12px 10px 14px;
+  border: 1px solid var(--sb-gold-line); border-radius: var(--sb-r-control); background: var(--sb-surface-2);
+  color: var(--sb-ink); text-decoration: none;
+}
+a.an-z-lens:hover, a.an-z-lens:focus-visible { border-color: var(--sb-gold-bright); }
+a.an-z-lens:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; }
+.an-z-lens-ico { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 auto; color: var(--sb-gold-bright); }
+.an-z-lens-ico svg { width: 20px; height: 20px; }
+.an-z-lens-said { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.an-z-lens-said b { font-size: 15px; line-height: 1.2; }
+.an-z-lens-said span { font-size: 12.5px; line-height: 1.4; color: var(--sb-ink-2); }
+.an-z-lens-go { display: inline-grid; place-items: center; width: 24px; height: 24px; flex: 0 0 auto; color: var(--sb-gold-bright); }
+/* the first stage is where a new account starts: lit, not complete */
+.an-z-flow .rk-step.is-first .rk-ring { border-color: var(--sb-gold-bright); color: var(--sb-gold-bright); box-shadow: 0 0 18px color-mix(in srgb, var(--sb-gold) 30%, transparent); }
+.an-z-flow .rk-step.is-first b { color: var(--sb-gold-bright); }
+.an-z-pair { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; }
+.an-z-empty, .an-z-help { display: flex; align-items: center; gap: 18px; }
+.an-z-empty > div, .an-z-help > div { flex: 1 1 auto; min-width: 0; }
+.an-z-ico { display: inline-grid; place-items: center; width: 52px; height: 52px; flex: 0 0 auto; color: var(--sb-gold-bright); }
+.an-z-ico svg { width: 30px; height: 30px; }
+.an-z-links { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.an-z-links a { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
+.an-z-links a:hover { text-decoration: underline; }
+.an-z-help-acts { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; flex: 0 0 auto; }
+.an-z-more {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 18px;
+  border: 1.5px solid var(--sb-gold-line); border-radius: var(--sb-r-control); text-decoration: none;
+  font-size: 15px; font-weight: 800; color: var(--sb-gold-bright); white-space: nowrap;
+}
+.an-z-more:hover { border-color: var(--sb-gold-bright); }
+.an-z-fold { border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel); background: var(--sb-surface-1); }
+.an-z-fold-sum {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; min-height: 44px;
+  cursor: pointer; list-style: none; font-size: 15px; font-weight: 800; color: var(--sb-ink);
+}
+.an-z-fold-sum::-webkit-details-marker { display: none; }
+.an-z-fold-sum svg { transition: transform .2s; }
+.an-z-fold[open] .an-z-fold-sum svg { transform: rotate(180deg); }
+.an-z-tools { padding: 0 16px 16px; }
+@media (max-width: 860px) {
+  .an-z-two, .an-z-pair { grid-template-columns: 1fr; }
+  .an-z-empty, .an-z-help { flex-wrap: wrap; }
+}
+@media (max-width: 560px) {
+  .an-z-card { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .an-z-ring { grid-row: auto; }
+  .an-z-btn, .an-z-note { grid-column: auto; }
+  .an-z-btn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .an-z-fold-sum svg { transition: none; }
+}

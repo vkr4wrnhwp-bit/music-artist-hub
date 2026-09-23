@@ -3,7 +3,12 @@
 {% block title %}Analytics{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=8">
-  <link rel="stylesheet" href="/static/css/analytics-room.css?v=2">
+  <link rel="stylesheet" href="/static/css/analytics-room.css?v=3">
+  {%- if an.idle %}
+  {#- the page from zero draws the Command Center's three-screen plate
+      (partials/cc_rack.html); the plate's rules live with that page -#}
+  <link rel="stylesheet" href="/static/css/command-zero.css?v=1">
+  {%- endif %}
 {% endblock %}
 
 {#- THE ANALYTICS ROOM - built from the owner's mockup image (2026-09-22),
@@ -40,6 +45,22 @@
 {%- elif name == "read" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
 {%- elif name == "person" -%}<circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c0-3.6 3.4-6.5 7.5-6.5s7.5 2.9 7.5 6.5"/>
 {%- elif name == "note" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 8h.01"/>
+{%- elif name == "source" -%}<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>
+{%- elif name == "connect" -%}<path d="M8 12a4 4 0 010-5.7l2-2a4 4 0 015.7 5.7l-1 1"/><path d="M12 8a4 4 0 010 5.7l-2 2a4 4 0 01-5.7-5.7l1-1"/>
+{%- elif name == "coverage" -%}<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12l2.5 2.5L16 9"/>
+{%- elif name == "lens" -%}<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>
+{%- elif name == "change" -%}<path d="M3 16.5l5.5-6 4 3.5 8.5-9"/><path d="M15 5h6v6"/>
+{%- elif name == "action" -%}<path d="M5 12h11"/><path d="M12 7l5 5-5 5"/><rect x="3" y="4" width="18" height="16" rx="2"/>
+{%- elif name == "audience" -%}<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3 2.7-5.4 6-5.4s6 2.4 6 5.4"/><path d="M16.5 6.5a3 3 0 010 5.5"/><path d="M18 19c0-2-.8-3.7-2.2-4.8"/>
+{%- elif name == "release" -%}<path d="M4 20V11M10 20V6M16 20v-6M21.5 20h-19"/>
+{%- elif name == "live" -%}<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>
+{%- elif name == "revenue" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 7v10M14.5 9.5c0-1.1-1.1-1.8-2.5-1.8s-2.5.7-2.5 1.8c0 2.6 5 1.6 5 4.3 0 1.1-1.1 1.8-2.5 1.8s-2.5-.7-2.5-1.8"/>
+{%- elif name == "insight" -%}<path d="M3 17l5-6 4 3 4-5 5 4"/><circle cx="8" cy="11" r="1.4"/><circle cx="12" cy="14" r="1.4"/><circle cx="16" cy="9" r="1.4"/>
+{%- elif name == "doc" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
+{%- elif name == "bulb" -%}<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z"/>
+{%- elif name == "chevron" -%}<path d="M6 9l6 6 6-6"/>
+{%- elif name == "chevron-right" -%}<path d="M9 6l6 6-6 6"/>
+{%- elif name == "pulse" -%}<path d="M3 12h2l2-6 3 14 3-11 2 5h6"/>
 {%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
 {%- elif name == "scores" -%}<path d="M4 20V11M10 20V6M16 20v-6M21.5 20h-19"/>
 {%- elif name == "artist-twin" -%}<path d="M4 20h4l11-11-4-4L4 16z"/><path d="M14.5 5.5l4 4"/>
@@ -58,21 +79,151 @@
       <div class="rk-hero-said">
         <p class="rk-eyebrow">Street Banker &middot; Analytics</p>
         <h1 class="rk-title" id="an-title">Analytics</h1>
-        <p class="rk-sub">What is measured, by whom, and how it moved.</p>
+        <p class="rk-sub">{% if an.idle %}{{ an.zero.subtitle }}{% else %}What is measured, by whom, and how it moved.{% endif %}</p>
       </div>
       <div class="rk-aside">
         <div class="rk-controls">
           {% if an.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
+          {%- if an.idle %}
+          {#- the one door on the page from zero: Connections, carrying the
+              way back; absent for a seat that may not connect anything -#}
+          {% if an.zero.project.can == True %}<a class="rk-cta" href="{{ an.zero.door }}">{{ icon("connect", "rk-ico") }}Connect your first source</a>{% endif %}
+          {%- else %}
           <span class="rk-field" title="The artist these readings are for">
             <span>Tracking</span>
             <b class="an-field-v">{{ an.artist or "Nobody pinned" }}</b>
           </span>
           <a class="rk-cta" href="/pulse">{{ icon("person", "rk-ico") }}{% if an.pinned %}Change artist{% else %}Pin your artist{% endif %}</a>
+          {%- endif %}
         </div>
       </div>
     </div>
   </section>
 
+  {% if an.idle %}
+  {#- THE PAGE FROM ZERO (owner's Analytics spec + mockup, 2026-09-23). The
+      analyser waits for a source; a new account meets the Command
+      Center's photographed three-screen plate, STATIC - PURPOSE / START
+      HERE / GOOD TO KNOW, green for information, never a button - and the
+      spec's order under it: one card that opens Connections, the four
+      lenses as doors to the rooms that own the next step, the workflow as
+      education, the two empties in words, help, and the tools in a drawer
+      that starts open. No chart frame, no date filter, no comparison, no
+      nought: unavailable data is never shown as zero. -#}
+  {% with screens=an.zero.screens, rack_label="What Analytics is for" %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
+
+  {# ---- start with a trusted source ------------------------------------- #}
+  {% set z = an.zero %}
+  <section class="an-z-start" aria-labelledby="an-z-start-h">
+    <h2 class="rk-h an-z-h1" id="an-z-start-h">{{ z.project.heading }}</h2>
+    <div class="an-z-two">
+      <div class="an-z-card" id="an-z-connect">
+        <span class="an-z-ring" aria-hidden="true">{{ icon("source") }}</span>
+        <div class="an-z-said">
+          <h3 class="an-z-t">{{ z.project.title }}</h3>
+          <p class="an-z-p">{{ z.project.desc }}</p>
+        </div>
+        {%- if z.project.can == True %}
+        <a class="an-z-btn" href="{{ z.door }}">{{ z.project.cta }}{{ icon("arrow") }}</a>
+        <p class="an-z-note">{{ z.project.note }}</p>
+        {%- else %}
+        <p class="an-z-note">{{ z.project.locked }}</p>
+        {%- endif %}
+      </div>
+      {# ---- what Analytics will organize: four lenses, each a door ------- #}
+      <section class="rk-panel an-z-lens-panel" aria-labelledby="an-z-lenses-h">
+        <h2 class="rk-h" id="an-z-lenses-h">What Analytics will organize</h2>
+        <ul class="an-z-lenses">
+          {% for l in z.lenses %}
+          <li>
+            {%- if l.href %}<a class="an-z-lens" href="{{ l.href }}?returnTo=/room/analytics" title="{{ l.rooms }}">{% else %}<span class="an-z-lens" title="{{ l.rooms }}">{% endif %}
+              <span class="an-z-lens-ico" aria-hidden="true">{{ icon(l.key) }}</span>
+              <span class="an-z-lens-said"><b>{{ l.name }}</b><span>{{ l.line }}</span></span>
+              {%- if l.href %}<span class="an-z-lens-go" aria-hidden="true">{{ icon("chevron-right") }}</span>{% endif %}
+            {%- if l.href %}</a>{% else %}</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+    </div>
+  </section>
+
+  {# ---- how Analytics works: education, not progress -------------------- #}
+  <section class="rk-panel an-z-flow" aria-labelledby="an-z-flow-h">
+    <div class="rk-panel-head">
+      <h2 class="rk-h" id="an-z-flow-h">How Analytics works</h2>
+    </div>
+    <ol class="rk-rail">
+      {% for key, name, line in z.workflow %}
+      <li class="rk-step{% if loop.first %} is-first{% endif %}">
+        <span class="rk-ring">{{ icon(key, "rk-ring-ico") }}</span>
+        <b>{{ name }}</b>
+        <span>{{ line }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {# ---- your insights will appear here + nothing is measured yet -------- #}
+  <div class="an-z-pair">
+    <section class="rk-panel an-z-empty" aria-labelledby="an-z-insights-h">
+      <span class="an-z-ico" aria-hidden="true">{{ icon("insight") }}</span>
+      <div>
+        <h2 class="rk-h" id="an-z-insights-h">{{ z.insights[0] }}</h2>
+        <p class="an-z-p">{{ z.insights[1] }}</p>
+        <p class="an-z-links">{% for label, href in z.links %}<a href="{{ href }}">{{ label }}{{ icon("arrow") }}</a>{% endfor %}</p>
+      </div>
+    </section>
+    <section class="rk-panel an-z-empty" aria-labelledby="an-z-lang-h">
+      <span class="an-z-ico" aria-hidden="true">{{ icon("doc") }}</span>
+      <div>
+        <h2 class="rk-h" id="an-z-lang-h">{{ z.language[0] }}</h2>
+        <p class="an-z-p">{{ z.language[1] }}</p>
+      </div>
+    </section>
+  </div>
+
+  {# ---- contextual help -------------------------------------------------- #}
+  <section class="rk-panel an-z-help" aria-labelledby="an-z-help-h">
+    <span class="an-z-ico" aria-hidden="true">{{ icon("bulb") }}</span>
+    <div>
+      <h2 class="rk-h" id="an-z-help-h">{{ z.help[0] }}</h2>
+      <p class="an-z-p">{{ z.help[1] }}</p>
+    </div>
+    <div class="an-z-help-acts">
+      <a class="an-z-more" href="/contact">Ask Street Banker{{ icon("arrow") }}</a>
+    </div>
+  </section>
+
+  {# ---- more Analytics tools: a drawer that starts open ------------------ #}
+  {#- OPEN by default (owner, 2026-09-23): "a lot of people won't read,
+      they need to see it". The spec said collapsed; the ruling came the
+      same day. The fold stays so it can be closed. -#}
+  {% if an.zero_tiles %}
+  <details class="an-z-fold" open>
+    <summary class="an-z-fold-sum">More Analytics tools{{ icon("chevron") }}</summary>
+    <section class="an-z-tools" aria-labelledby="an-z-tools-h">
+      <h2 class="rk-h sr-only" id="an-z-tools-h">More Analytics tools</h2>
+      <div class="rk-tiles">
+        {% for t in an.zero_tiles %}
+        <a class="rk-tile" href="{{ t.href }}" data-room-card="{{ t.key }}">
+          <span class="rk-tile-top">
+            <span class="rk-tile-disc">{{ icon(t.key, "rk-tile-ico") }}</span>
+            <span class="rk-tile-text"><b>{{ t.name }}</b><span>{{ t.line }}</span></span>
+          </span>
+          <span class="rk-tile-foot">
+            <span></span>
+            <span class="rk-tile-go">{{ icon("arrow", "rk-ico rk-ico--sm") }}</span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+  </details>
+  {% endif %}
+  {% else %}
   {# ---- the three figures ---------------------------------------------- #}
   {# ---- the plate: one photograph, four windows ------------------------
        The hardware is a photograph (static/img/analytics-plate.webp) and
@@ -85,53 +236,6 @@
     <img class="rk-pl-img" src="/static/img/analytics-plate.webp?v=1" alt=""
          width="1859" height="846" decoding="async">
 
-    {% if an.idle %}
-    {#- THE STANDBY DISPLAY (owner, 2026-09-22): the big window sequences
-        the room's features and glitches between them; the small windows
-        are a reel, a hint and a ticker, never a caption. Words only - no
-        figure appears here, not even an example one. The plate prints
-        every window's name in metal; the names here are for a screen
-        reader and for the phone. -#}
-    <div class="rk-pl-win rk-cine" style="{{ an.standby.cine.box }}; --cine-size: {{ an.standby.cine.size }}; --cine-line: {{ an.standby.cine.line }}"
-         aria-label="What this room does: {% for f in an.standby.frames %}{{ f.title }}{{ ", " if not loop.last }}{% endfor %}.">
-      <p class="rk-pl-sr">{{ an.standby.cine.name }}</p>
-      <span class="rk-cine-reel" style="--count: {{ an.standby.count }}">
-        {% for f in an.standby.frames %}
-        <span class="rk-cine-frame{% if f.image %} has-image{% endif %}" style="--n: {{ f.n }}">
-          {% if f.image %}<img class="rk-cine-img" src="{{ f.image }}" alt="" decoding="async" loading="lazy">{% endif %}
-          <b data-t="{{ f.title }}">{{ f.title }}</b>
-          <i>{{ f.line }}</i>
-        </span>
-        {% endfor %}
-      </span>
-    </div>
-    {% for q in an.standby.reels %}
-    <div class="rk-pl-win rk-reel-win" style="{{ q.box }}; --n: {{ q.n }}">
-      <p class="rk-pl-sr">{{ q.name }}</p>
-      <span class="rk-reel" aria-hidden="true">
-        {% for name in q.icons %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}
-        <span class="rk-reel-i">{{ icon(q.icons[0], "rk-reel-ico") }}</span>
-      </span>
-    </div>
-    {% endfor %}
-    {% if an.standby.tips %}
-    <div class="rk-pl-win rk-tip-win" style="{{ an.standby.tips.box }}">
-      <p class="rk-pl-sr">{{ an.standby.tips.name }}</p>
-      <span class="rk-tips" style="--count: {{ an.standby.tips.count }}">
-        {% for t in an.standby.tips.lines %}<span class="rk-tip" style="--n: {{ loop.index0 }}">{{ t }}</span>{% endfor %}
-      </span>
-    </div>
-    {% endif %}
-    {% if an.standby.ticker %}
-    <div class="rk-pl-win rk-tick-win" style="{{ an.standby.ticker.box }}">
-      <p class="rk-pl-sr">{{ an.standby.ticker.name }}</p>
-      <span class="rk-tick" aria-hidden="true">
-        {% for t in an.standby.ticker.lines %}<span class="rk-tick-i">{{ t }}</span>{% endfor %}
-        <span class="rk-tick-i">{{ an.standby.ticker.lines[0] }}</span>
-      </span>
-    </div>
-    {% endif %}
-    {% else %}
     {# the oscilloscope: the line over time, or the reason there is none #}
     <div class="rk-pl-win an-pl-trend" style="{{ an.trend_box }}">
       <p class="rk-pl-sr">The trend</p>
@@ -166,7 +270,6 @@
       <p class="rk-pl-s">{{ w.why or w.source }}</p>
     </div>
     {% endfor %}
-    {% endif %}
   </section>
   <p class="rk-foot an-pl-foot">
     {% if an.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>
@@ -278,6 +381,7 @@
       {% endfor %}
     </div>
   </section>
+  {% endif %}
   {% endif %}
 
 </div>
