@@ -57,7 +57,7 @@ LIFECYCLE = [
     ("discover", "Discover", "smart link visit", "smart link visits", "No smart link visits"),
     ("capture", "Capture", "fan on file", "fans on file", "Nobody on file"),
     ("know", "Know", "with a name or place", "with a name or place", "No names or places yet"),
-    ("activate", "Activate", "clicked or pre-saved", "clicked or pre-saved", "Nobody has clicked yet"),
+    ("activate", "Activate", "clicked through", "clicked through", "Nobody has clicked through yet"),
     ("belong", "Belong", "Fan Club member", "Fan Club members", "No members yet"),
 ]
 
@@ -376,9 +376,11 @@ def lifecycle(rows, link_visits=0, club=None):
                  who has not signed up.
       Capture    fans on file.
       Know       fans whose record carries a name, a city or a country.
-      Activate   fans who pressed a service button or pre-saved
-                 (fan_audience._clicked): a press is credited to a fan only
-                 when they are known on the link (fan_mail).
+      Activate   fans who pressed a service button on a smart link
+                 (total_clicks). A press is credited to a fan only when they
+                 are known on the link (fan_mail). A sign-up before release
+                 is a capture, not an activation, so pre-saves are not
+                 counted here: most of them are email reminders.
       Belong     active Fan Club members; "No Fan Club yet" when the
                  account has none.
 
@@ -390,7 +392,7 @@ def lifecycle(rows, link_visits=0, club=None):
         "discover": int(link_visits or 0),
         "capture": len(rows),
         "know": sum(1 for f in rows if _known(f)),
-        "activate": sum(1 for f in rows if fan_audience._clicked(f)),
+        "activate": sum(1 for f in rows if int(f.get("total_clicks") or 0) > 0),
         "belong": int(club.get("members") or 0),
     }
     out = []

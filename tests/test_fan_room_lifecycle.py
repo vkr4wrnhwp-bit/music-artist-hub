@@ -48,8 +48,9 @@ def test_each_stage_is_counted_from_the_rows():
     assert st["discover"]["line"] == "40 smart link visits"
     assert st["capture"]["line"] == "4 fans on file"
     assert st["know"]["line"] == "2 with a name or place"
-    # a visit alone is not a click: c@ is not Activated
-    assert st["activate"]["line"] == "2 clicked or pre-saved"
+    # a visit alone is not a click, and a sign-up before release (a
+    # pre-save, mostly an email reminder) is a capture: only a@ clicked
+    assert st["activate"]["line"] == "1 clicked through"
     assert st["belong"]["line"] == "1 Fan Club member"
 
 
@@ -57,7 +58,7 @@ def test_nothing_counted_is_words_never_a_nought():
     rows = [{"email": "a@x.net", "name": ""}]
     st = {s["key"]: s["line"] for s in fan_room.lifecycle(rows, 0, {"on": True, "members": 0})}
     assert st == {"discover": "No smart link visits", "capture": "1 fan on file",
-                  "know": "No names or places yet", "activate": "Nobody has clicked yet",
+                  "know": "No names or places yet", "activate": "Nobody has clicked through yet",
                   "belong": "No members yet"}
     no_club = fan_room.lifecycle(rows, 0, {"on": False, "members": 0})
     assert no_club[-1]["line"] == "No Fan Club yet"
@@ -81,7 +82,7 @@ def test_the_room_draws_the_accounts_own_counts_on_the_rail():
         "discover": "3 smart link visits",
         "capture": "2 fans on file",
         "know": "1 with a name or place",
-        "activate": "1 clicked or pre-saved",
+        "activate": "1 clicked through",
         "belong": "1 Fan Club member",
     }
     # the old aspiration lines are gone from the rail
