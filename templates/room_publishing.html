@@ -3,7 +3,7 @@
 {% block title %}Publishing{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/publishing-room.css?v=6">
+  <link rel="stylesheet" href="/static/css/publishing-room.css?v=7">
   {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
       page from zero and the working room alike; its rules live with it -#}
   <link rel="stylesheet" href="/static/css/command-zero.css?v=4">
@@ -67,7 +67,8 @@
             The page from zero shows none, so it never wears the lamp. -#}
         {% if pb.sample and not pb.idle %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
         {% if pb.artist_name %}
-        <span class="rk-chip" title="The account these figures are for">
+        {#- The page from zero draws no figures (audit publishing-11). -#}
+        <span class="rk-chip" title="{{ 'The account this room is for' if pb.idle else 'The account these figures are for' }}">
           <span class="rk-avatar" aria-hidden="true">{{ (pb.artist_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ pb.artist_name }}">{{ pb.artist_name }}</span>
         </span>
         {% endif %}
@@ -167,7 +168,8 @@
       <div>
         <h2 class="rk-h" id="pb-z-catalog-h">{{ z.catalog[0] }}</h2>
         <p class="pb-z-p">{{ z.catalog[1] }}</p>
-        <p class="pb-z-links">{% for label, href in z.links %}<a href="{{ href }}">{{ label }}{{ icon("arrow") }}</a>{% endfor %}</p>
+        {#- "Import catalog" is a write door: absent for a seat or demo that may not add songs. -#}
+        <p class="pb-z-links">{% for label, href, writes in z.links if not writes or z.project.can == True %}<a href="{{ href }}">{{ label }}{{ icon("arrow") }}</a>{% endfor %}</p>
       </div>
     </section>
     <section class="rk-panel pb-z-empty" aria-labelledby="pb-z-verified-h">
@@ -187,7 +189,9 @@
       <p class="pb-z-p">{{ z.help[1] }}</p>
     </div>
     <div class="pb-z-help-acts">
-      <a class="pb-z-more" href="/contact">Ask Street Banker{{ icon("arrow") }}</a>
+      {#- Opens the corner Ask box on this page (the script below), as the
+          Command Center's does; /contact is the fallback with scripts off. -#}
+      <a class="pb-z-more" href="/contact" id="pb-ask">Ask Street Banker{{ icon("arrow") }}</a>
     </div>
   </section>
 
@@ -198,9 +202,10 @@
       as the spec asks. -#}
   {% if z.bands %}
   <details class="pb-z-fold" open>
-    <summary class="pb-z-fold-sum">More Publishing tools{{ icon("chevron") }}</summary>
+    {#- The heading IS the summary's text, so the drawer's name is read
+        once, not twice (audit publishing-12, 2026-09-23). -#}
+    <summary class="pb-z-fold-sum"><h2 class="pb-z-fold-h" id="pb-z-tools-h">More Publishing tools</h2>{{ icon("chevron") }}</summary>
     <section class="pb-z-tools" aria-labelledby="pb-z-tools-h">
-      <h2 class="rk-h sr-only" id="pb-z-tools-h">More Publishing tools</h2>
       {% for band in z.bands %}
       <h3 class="pb-z-band">{{ band.title }}</h3>
       <div class="rk-tiles">
@@ -406,4 +411,23 @@
   {% endif %}
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // The corner Ask box (partials/support_ask.html) keeps its panel hidden
+  // behind #sbq-open; open it first, then put the caret in the question.
+  // The same wiring as the Command Center's cz-ask.
+  var a = document.getElementById("pb-ask");
+  var open = document.getElementById("sbq-open");
+  var q = document.getElementById("sbq-q");
+  if (!a || !open || !q) return;
+  a.addEventListener("click", function (e) {
+    e.preventDefault();
+    if (open.getAttribute("aria-expanded") !== "true") open.click();
+    q.focus();
+  });
+})();
+</script>
 {% endblock %}

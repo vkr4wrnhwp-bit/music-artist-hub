@@ -383,3 +383,62 @@ def test_a_fans_only_edit_seat_keeps_the_import_door_and_its_own_words():
     assert "Your starting point" in main and "Choose your starting point" not in main
     assert "Choose how to add your first fans" not in main
     assert "Fans are added by the account holder" not in main, "an edit seat can add them"
+
+
+def test_no_room_claims_another_rooms_card_through_extra():
+    """Audit publishing-6, 2026-09-23. /conflicts is the Publishing room's
+    own "conflicts" card and was also in EXTRA["business"]; room_for_path
+    broke the tie by ROOMS order, so a Publishing seat could not open its
+    own card. An EXTRA prefix may name only a page no other room holds as
+    a card."""
+    import urllib.parse
+    import rooms
+    cat = rooms.catalogue()
+    cards = {}
+    for rkey, _n, _p, keys in rooms.ROOMS:
+        for k in keys:
+            if k in cat:
+                path = urllib.parse.urlsplit(cat[k][0]).path.rstrip("/")
+                cards.setdefault(path, set()).add(rkey)
+    clashes = [(rkey, p, sorted(cards[p] - {rkey}))
+               for rkey, prefixes in team_areas.EXTRA.items()
+               for p in prefixes if cards.get(p, set()) - {rkey}]
+    assert not clashes, clashes
+    assert team_areas.room_for_path("/conflicts") == "publishing"
+
+
+def test_a_publishing_seat_opens_every_publishing_card():
+    """publishing-17: a seat with only Publishing ticked opens every card
+    of the Publishing room, Rights Conflicts included - and the room draws
+    that card for it."""
+    import rooms
+    cat = rooms.catalogue()
+    keys = [r for r in rooms.ROOMS if r[0] == "publishing"][0][3]
+    owner, member = _account("label"), _account(name="Publisher")
+    _seat(owner, member, access="read", areas=["publishing"])
+    _open_account(member, owner)
+    for k in keys:
+        if k not in cat or cat[k][0].startswith(("http", "/suites/go")):
+            continue
+        r = member.get(cat[k][0])
+        assert r.status_code == 200 or "team=room" not in (r.headers.get("Location") or ""), (
+            k, cat[k][0], r.status_code, r.headers.get("Location"))
+    assert member.get("/conflicts").status_code == 200
+    body = member.get("/room/publishing").get_data(as_text=True)
+    assert 'class="pb-z-lens" href="/conflicts?returnTo=/room/publishing"' in body
+
+
+def test_a_read_seat_on_the_populated_publishing_room_gets_no_add_button():
+    """publishing-5 and -16: the page from zero held the door back from a
+    read seat, but once a song existed the header's gold "Add a song" was
+    drawn for everybody, and the save bounced."""
+    owner, member = _account(), _account(name="Looker")
+    store.add_os_track(owner._id, "Owner Song")
+    _seat(owner, member, access="read", areas=["publishing"])
+    _open_account(member, owner)
+    body = member.get("/room/publishing").get_data(as_text=True)
+    assert "Works on file" in body
+    assert 'class="rk-cta"' not in body
+    assert "Songs are added by the account owner or a seat with edit access." in body
+    assert 'class="rk-cta" href="/catalog?view=passports"' in owner.get(
+        "/room/publishing").get_data(as_text=True), "the owner keeps it"

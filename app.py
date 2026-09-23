@@ -8056,7 +8056,8 @@ def create_app():
                 made += 1
         except (UnicodeDecodeError, _csv.Error):
             pass
-        return redirect(_passports_home(user))
+        # The door's way back rides through the import too (publishing-8).
+        return _after_song_saved(user)
 
     @app.route("/tracks/add", methods=["POST"])
     def os_tracks_add():
@@ -8064,11 +8065,44 @@ def create_app():
         if user is None:
             return login_required_redirect()
         title = (request.form.get("title") or "").strip()
+        # The first draft takes at least one writer, or "Writers not known
+        # yet" (Publishing spec, section 3): the form requires one of the
+        # two. A post with neither is read as "not known yet" - the
+        # passport then says Songwriters Not on file, which is true - so
+        # the scripted and older callers of this route keep working.
+        writers = (request.form.get("songwriters") or "").strip()[:300]
+        tid = None
         if title:
-            store.add_os_track(user["id"], title,
-                               (request.form.get("release_title") or "").strip(),
-                               (request.form.get("release_date") or "").strip())
-        return redirect(_passports_home(user))
+            tid = store.add_os_track(user["id"], title,
+                                     (request.form.get("release_title") or "").strip(),
+                                     (request.form.get("release_date") or "").strip())
+            if tid and writers:
+                # add_os_track can hand back a passport the catalog already
+                # had, so the writers go in beside what is on it, and never
+                # over a name somebody already wrote there.
+                have = store.get_os_track(user["id"], tid) or {}
+                passport = dict(have.get("passport") or {})
+                if not (passport.get("songwriters") or "").strip():
+                    passport["songwriters"] = writers
+                    store.update_os_track_passport(user["id"], tid, passport)
+        return _after_song_saved(user, tid)
+
+    def _after_song_saved(user, song_id=None):
+        """Where the shared add-song form lands. A door that carried a way
+        back is answered there, with its `from`, so the room it came from
+        says its done line - decided by the saved record, never the param
+        alone (audit publishing-1, 2026-09-23: the save dropped both, and
+        the Publishing done line could only be reached by typing it). The
+        Publishing room opens on the song just added (spec section 3:
+        "return to that song's Publishing checklist")."""
+        ret = _safe_next(request.form.get("returnTo"), "")
+        if not ret:
+            return redirect(_passports_home(user))
+        extra = [("from", (request.form.get("from") or "")[:60])]
+        if song_id and ret.split("?")[0].split("#")[0] == "/room/publishing":
+            extra.append(("song", song_id))
+        q = "&".join("%s=%s" % (k, urllib.parse.quote(v, safe="")) for k, v in extra if v)
+        return redirect(ret + (("&" if "?" in ret else "?") + q if q else ""))
 
     @app.route("/tracks/<track_id>")
     def os_track_detail(track_id):

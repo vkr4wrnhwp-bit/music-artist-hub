@@ -4105,7 +4105,16 @@ def _attach_mlc_checks(db, user_id, tracks):
         [user_id] + ids).fetchall()
     newest = {}
     for r in rows:                       # ascending, so the last one wins
-        newest[r["track_id"]] = _mlc_check_dict(r)
+        d = _mlc_check_dict(r)
+        # ...unless it is a failed ask. The vendor being down says nothing
+        # about the registration, so an outage never replaces an earlier
+        # real answer (audit publishing-7, 2026-09-23: one later error
+        # dropped a claimed song to "Nobody has asked"). A failed ask is
+        # attached only while there is no answer at all.
+        kept = newest.get(r["track_id"])
+        if d.get("result") == "error" and kept and kept.get("result") != "error":
+            continue
+        newest[r["track_id"]] = d
     for t in tracks:
         t["mlc_check"] = newest.get(t["id"])
     return tracks
