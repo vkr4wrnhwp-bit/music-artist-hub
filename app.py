@@ -4445,7 +4445,16 @@ def create_app():
                                        **build_dashboard_context())
             cid = mls.create_campaign(user["id"], _ml_slug(fields["title"]), fields)
             mls.set_destinations(cid, _ml_form_destinations())
-            return redirect("/links/%s/edit" % cid)
+            # A door's ?returnTo=...&from=... rides through the save, as
+            # /catalog/new's does, so the way back survives to the page
+            # the save lands on (audit, 2026-09-23: the Marketing room's
+            # done line was never reached by the real form). Same-site
+            # only; anything else is dropped.
+            carry = [(k, v) for k, v in (("returnTo", _safe_next(request.args.get("returnTo"), "")),
+                                         ("from", (request.args.get("from") or "")[:60]))
+                     if v]
+            return redirect("/links/%s/edit" % cid
+                            + ("?" + urllib.parse.urlencode(carry) if carry else ""))
         return render_template("links_builder.html", active_page="links",
                                c=None, destinations=[], engine=links_engine,
                                error=None,
@@ -5424,26 +5433,29 @@ def create_app():
                 kit_live = True
             else:
                 figures = marketing_room.for_account(user["id"], days)
+                # His "Live" pill on the press kit tile, answered by the
+                # record. The public address is not the answer:
+                # _ensure_epk_slug mints one on a plain view of /epk, and on
+                # /fan-club without /epk being opened at all, so a slug said
+                # Live about a kit nobody had written (honesty review,
+                # 2026-09-21). A saved kit is what POST /epk/save writes, the
+                # data column; a row holding only a minted slug is not one.
+                # Read inside the one try: a failed kit read was a bare 500
+                # (audit, 2026-09-23).
+                saved = store.get_epk(user["id"]) or {}
+                kit_live = bool(saved.get("slug")) and bool(saved.get("data"))
         except Exception as exc:
             app.logger.error("marketing room: state unreadable: %s", exc)
             return render_template("room_marketing_error.html", active_page="room-marketing",
                                    room=room, **build_dashboard_context()), 503
-        if not showcase:
-            # His "Live" pill on the press kit tile, answered by the record.
-            # The public address is not the answer: _ensure_epk_slug mints
-            # one on a plain view of /epk, and on /fan-club without /epk
-            # being opened at all, so a slug said Live about a kit nobody
-            # had written (honesty review, 2026-09-21). A saved kit is what
-            # POST /epk/save writes, the data column, so that is what it
-            # asks for; a row holding only a minted slug is not one.
-            saved = store.get_epk(user["id"]) or {}
-            kit_live = bool(saved.get("slug")) and bool(saved.get("data"))
-        # A team seat is shown no action it would be bounced at: the rollout
+        # A reader is shown no door it would be bounced at (honesty review,
+        # 2026-09-21; audit, 2026-09-23): a team seat's rooms (the rollout
         # row leads to the Releases room, which a Marketing-only seat is
-        # refused at (honesty review, 2026-09-21).
+        # refused at), the account holder's own pages a seat never reaches
+        # (/referrals), and a page the owner switched off, which bounces
+        # everyone but an owner to the Command Center.
+        can_open = _door_check(user)
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         # Who may plan the first campaign: the account holder, or an edit seat.
         can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         mk = marketing_room.build(figures, room["cards"], days=days,
@@ -6011,6 +6023,29 @@ def create_app():
         if user and _is_owner_email(user.get("email")):
             return None
         return redirect("/command-center?off=" + urllib.parse.quote(hit["label"]))
+
+    def _door_check(user):
+        """can_open(href) for a room's doors, or None when every door opens.
+        The same three gates the request will meet: a team seat's
+        blocked pages and rooms (team_seat_gate), and a page the owner
+        switched off (page_switch_gate, which lets an owner through)."""
+        seat = current_team_seat()
+        hidden = set() if (user and _is_owner_email(user.get("email"))) else _page_hidden()
+        if seat is None and not hidden:
+            return None
+
+        def can_open(href):
+            path, _q, query = (href or "").split("#", 1)[0].partition("?")
+            if seat is not None:
+                if any(_under(path, p) for p in _TEAM_BLOCKED) or _team_blocked_inside(path):
+                    return False
+                if not team_areas.allows(seat["areas"], path):
+                    return False
+            if hidden and page_switches.hidden_for_path(
+                    path, hidden, dict(urllib.parse.parse_qsl(query))):
+                return False
+            return True
+        return can_open
 
     @app.route("/admin/pages", methods=["POST"])
     def admin_pages():
