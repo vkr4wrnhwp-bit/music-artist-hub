@@ -85,6 +85,11 @@
   font-family: var(--sb-text); font-weight: 700; font-size: clamp(14px, 1.3cqw, 20px);
   color: color-mix(in srgb, var(--sb-crt) 72%, black);
 }
+/* A figure and an absence are one short line: no four-line clamp, whose
+   overflow:hidden cut the glow into a faint box behind the number. */
+.cz-screen-v--fig, .cz-screen-v--none {
+  display: block; overflow: visible; -webkit-line-clamp: none; line-clamp: none;
+}
 .cz-screen-s {
   font-size: clamp(12px, 1.05cqw, 16px); font-weight: 600; line-height: 1.2; letter-spacing: .02em;
   color: color-mix(in srgb, var(--sb-crt) 78%, black); text-shadow: 0 0 8px color-mix(in srgb, var(--sb-crt) 35%, transparent);
