@@ -195,6 +195,8 @@ a.pb-z-lens:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-of
   cursor: pointer; list-style: none; font-size: 15px; font-weight: 800; color: var(--sb-ink);
 }
 .pb-z-fold-sum::-webkit-details-marker { display: none; }
+/* the drawer's heading is the summary's own text, read once */
+.pb-z-fold-h { margin: 0; font: inherit; color: inherit; }
 .pb-z-fold-sum svg { transition: transform .2s; }
 .pb-z-fold[open] .pb-z-fold-sum svg { transform: rotate(180deg); }
 .pb-z-tools { padding: 0 16px 16px; }

@@ -208,16 +208,26 @@ def mlc_evidence(track):
                 "detail": ("The MLC has no work linked to this recording's "
                            "ISRC, so nobody is collecting its mechanicals."),
                 "share_total": None, "song_code": "", "iswc": "", "typed": typed}
+    # A failed ask is not an answer, but it is not "nobody has asked"
+    # either: somebody did, and The MLC could not be reached.
+    failed = result == "error"
     if typed:
         state = field_state("mlc_status", typed, False)
         return {"source": "typed",
                 "state": "red" if state == "red" else "yellow",
                 "lane": "needs action",
                 "label": "typed, unverified",
-                "detail": ("Nobody has asked The MLC about this recording; "
-                           "“%s” is what was typed into the passport."
-                           % typed[:120]),
+                "detail": (("The MLC could not be reached when this recording was "
+                            "checked; " if failed else
+                            "Nobody has asked The MLC about this recording; ")
+                           + "“%s” is what was typed into the passport." % typed[:120]),
                 "share_total": None, "song_code": "", "iswc": "", "typed": typed}
+    if failed:
+        return {"source": "none", "state": "yellow", "lane": "missing",
+                "label": "no answer yet",
+                "detail": ("The MLC could not be reached when this recording was "
+                           "checked, so nothing is known about it yet."),
+                "share_total": None, "song_code": "", "iswc": "", "typed": ""}
     return {"source": "none", "state": "yellow", "lane": "missing",
             "label": "not checked",
             "detail": "Nobody has asked The MLC about this recording yet.",

@@ -49,8 +49,13 @@ EXTRA = {
     "stage": ("/stage", "/showday", "/rider", "/tour", "/network/outreach"),
     "analytics": ("/stats", "/benchmark", "/territories", "/playlists", "/release-signal",
                   "/world"),
+    # /conflicts left this list on 2026-09-23: it is the Publishing room's
+    # own "conflicts" card, and while Business named it too, the tie went to
+    # Business by ROOMS order and a Publishing seat could not open its own
+    # card (audit publishing-6). tests/test_team_rooms.py now holds that no
+    # EXTRA prefix is another room's card.
     "business": ("/money-queue", "/royalty-lanes", "/lanes", "/royalty-recovery",
-                 "/royalty-sweep", "/mechanicals", "/neighboring-rights", "/conflicts",
+                 "/royalty-sweep", "/mechanicals", "/neighboring-rights",
                  "/fraud-sentinel", "/spend-optimizer", "/funding", "/capital",
                  "/capital-score", "/documents", "/deal-room", "/sync"),
     "publishing": ("/tracks", "/isrc", "/identifiers", "/metadata", "/metadata-passport",

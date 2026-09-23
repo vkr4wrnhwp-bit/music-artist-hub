@@ -212,8 +212,12 @@ FIRST_DRAFT = ("The song title",
 # registration wizard was deleted - its status lives on the passport
 # too, and /registration forwards there).
 LENSES = (
+    # One song record here is one Track Passport: the song and its single
+    # recording, until a works table exists (the spec's section 4
+    # song/recording split is the owner's to decide - audit publishing-4),
+    # so the line does not promise "its recordings".
     ("catalog", "Catalog & passports",
-     "The composition, its recordings, identifiers, credits, documents, and next step.",
+     "Every song record: identifiers, credits, documents, and next step.",
      "catalog"),
     ("writers", "Writers & splits",
      "Writers, roles, ownership, publishers, administrators, and agreement status.",
@@ -243,11 +247,15 @@ ZERO_VERIFIED = ("Nothing has been verified yet",
                  "registered, or collecting.")
 ZERO_HELP = ("Not sure what belongs in Publishing?",
              "Ask Street Banker what to record now and what can wait.")
-# The link under "Your publishing catalog will appear here". The spec
-# names two - "How song records work" and "Import catalog" - and there
-# is no catalog import in the app, so the second waits until there is
-# one; a link to nothing is the dead control the audits keep finding.
-ZERO_LINKS = (("How song records work", "#pb-z-flow-h"),)
+# The links under "Your publishing catalog will appear here", the spec's
+# two: "How song records work" into the workflow in place, and "Import
+# catalog" - the shared form's CSV import (POST /tracks/import), which
+# takes title, release, ISRC, UPC and a writers column. It was left out as
+# "no catalog import exists" until the 2026-09-23 audit found that it did
+# (publishing-8). The import carries the way back like the add form, and
+# it is a write door: (label, href, writes).
+ZERO_LINKS = (("How song records work", "#pb-z-flow-h", False),
+              ("Import catalog", DOOR + "#pp-import", True))
 # The drawer at the foot: the spec's four categories, each tool by its
 # room card. A category with no page of its own yet is not drawn.
 ZERO_BANDS = (
@@ -465,6 +473,9 @@ def headline(tracks, rows):
          "value": str(len(missing)) if answered else "Not measured",
          "label": "Uncollected",
          "sub": ("Recordings with no work linked to them" if answered
+                 # an ask that failed is not "nobody asked"
+                 else "No registry has answered yet" if any(
+                     (t.get("mlc_check") or {}).get("result") == "error" for t in tracks or ())
                  else "Nobody has asked a registry yet")},
     ]
 

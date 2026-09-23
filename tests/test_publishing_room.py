@@ -276,8 +276,13 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_plate():
     assert "Your publishing catalog will appear here" in body and "Nothing has been verified yet" in body
     assert "never zero, registered, or collecting." in body
     assert 'href="#pb-z-flow-h">How song records work' in body
-    assert "Import catalog" not in body, "no catalog import exists to link to"
-    assert "Not sure what belongs in Publishing?" in body and 'href="/contact">Ask Street Banker' in body
+    # "Import catalog" was left out as "no catalog import exists"; one
+    # does (POST /tracks/import), so the spec's second link is there, to
+    # the shared form's import, carrying the way back (audit publishing-8)
+    assert 'href="%s#pp-import">Import catalog' % door in body
+    # the Ask link carries the id its script opens the corner Ask box by
+    # (audit, 2026-09-23); /contact stays its no-script fallback
+    assert "Not sure what belongs in Publishing?" in body and 'href="/contact" id="pb-ask">Ask Street Banker' in body
     assert '<details class="pb-z-fold" open>' in body and "More Publishing tools" in body, (
         "the drawer starts OPEN (owner, 2026-09-23: people need to see it)")
     drawer = body.split('<details class="pb-z-fold"')[1]
@@ -470,3 +475,157 @@ def test_a_locked_demo_is_offered_no_write_door():
     body = _body(c.get("/room/publishing").get_data(as_text=True))
     assert "Works on file" in body
     assert 'class="rk-cta"' not in body, "the populated header's Add a song is a write door too"
+
+
+# --- the Publishing audit of 2026-09-23 ----------------------------------------
+
+def _landing(c):
+    """Follow the room's door to the shared add-song form, as a person does."""
+    r = c.get(pb.DOOR)
+    assert r.status_code == 302
+    loc = r.headers["Location"]
+    page = c.get(loc)
+    if page.status_code in (301, 302):
+        loc = page.headers["Location"]
+        page = c.get(loc)
+    assert page.status_code == 200, loc
+    return page.get_data(as_text=True)
+
+
+def _hidden(page, form_action):
+    form = page.split('action="%s"' % form_action, 1)[1].split("</form>", 1)[0]
+    return dict(re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]*)"', form)), form
+
+
+def test_the_real_add_song_form_brings_the_song_back_to_publishing():
+    """publishing-1 and -15: the door carried returnTo and from to the
+    shared form, the form posted neither, and the save landed on the
+    catalogue - so the done line could only be reached by typing it. This
+    drives the form the door opens: its own hidden fields, its own post."""
+    c, uid = _account()
+    page = _landing(c)
+    fields, form = _hidden(page, "/tracks/add")
+    assert fields == {"returnTo": "/room/publishing", "from": "publishing-zero-state"}, fields
+    data = dict(fields, title="First Light", songwriters="A. Rivera, J. Cole")
+    r = c.post("/tracks/add", data=data)
+    loc = r.headers["Location"]
+    assert loc.startswith("/room/publishing?from=publishing-zero-state&song="), loc
+    tid = loc.split("song=", 1)[1]
+    room = c.get(loc).get_data(as_text=True)
+    assert pb.DONE_LINE in room, "the room says the line, decided by the saved song"
+    assert '<option value="%s" selected>' % tid in room or "First Light" in room
+    song = store.get_os_track(uid, tid)
+    assert song["title"] == "First Light"
+    assert song["passport"]["songwriters"] == "A. Rivera, J. Cole", "the writers went in with it"
+
+
+def test_the_first_draft_takes_a_writer_or_writers_not_known_yet():
+    """publishing-3: the card asks for "the title and writers now" and the
+    form behind it had no writer field and no "Writers not known yet"."""
+    c, uid = _account()
+    page = _landing(c)
+    _fields, form = _hidden(page, "/tracks/add")
+    assert 'name="songwriters" required' in form
+    assert 'name="writers_unknown"' in form and "Writers not known yet" in form
+    # the tick lifts the writers field's requirement, in the form itself
+    assert "document.getElementById('pp-writers').required = !this.checked" in form
+    base = {"returnTo": "/room/publishing", "from": "publishing-zero-state"}
+    # "Writers not known yet" is an answer: the song is saved with no
+    # writers on file, and the passport says so rather than inventing one
+    r = c.post("/tracks/add", data=dict(base, title="Unknown Writers", writers_unknown="1"))
+    assert r.headers["Location"].startswith("/room/publishing?")
+    assert [t["title"] for t in store.list_os_tracks(uid)] == ["Unknown Writers"]
+    assert not (store.list_os_tracks(uid)[0]["passport"] or {}).get("songwriters")
+    # and a plain save from the catalogue itself still lands on the catalogue
+    r = c.post("/tracks/add", data={"title": "Plain", "songwriters": "Me"})
+    assert "/room/" not in r.headers["Location"]
+
+
+def test_the_import_carries_the_way_back_too():
+    """publishing-8: the spec's "Import catalog" link opens the shared
+    form's CSV import, which now carries the door's way back as well."""
+    import io as _io
+    c, uid = _account()
+    body = _body(c.get("/room/publishing").get_data(as_text=True))
+    assert 'href="%s#pp-import">Import catalog' % pb.DOOR.replace("&", "&amp;") in body
+    page = _landing(c)
+    fields, _form = _hidden(page, "/tracks/import")
+    assert 'id="pp-import"' in page
+    assert fields == {"returnTo": "/room/publishing", "from": "publishing-zero-state"}
+    csv = b"title,writers,isrc\nImported Song,A. Writer,USAAA2600001\n"
+    r = c.post("/tracks/import", data=dict(fields, csv=(_io.BytesIO(csv), "cat.csv")),
+               content_type="multipart/form-data")
+    assert r.headers["Location"].startswith("/room/publishing?from=publishing-zero-state"), r.headers["Location"]
+    assert pb.DONE_LINE in c.get(r.headers["Location"]).get_data(as_text=True)
+    assert store.list_os_tracks(uid)[0]["passport"]["songwriters"] == "A. Writer"
+
+
+def test_a_way_back_to_another_site_is_never_followed():
+    c, _uid = _account()
+    r = c.post("/tracks/add", data={"title": "Safe", "songwriters": "Me",
+                                    "returnTo": "//evil.example/x", "from": "x"})
+    assert "evil" not in r.headers["Location"]
+
+
+def test_a_later_outage_never_wipes_the_registrys_answer():
+    """publishing-7 and -17: after a stored 100% match, one failed lookup
+    dropped the song from Claimed to Written and the room said "Nobody
+    has asked". The vendor being down says nothing about the registration."""
+    c, uid = _account()
+    tid = store.add_os_track(uid, "Cell Five")
+    works = [{"song_code": "T1", "share_total": 100}]
+    store.add_track_mlc_check(uid, tid, "ISRC US-ABC-24-00001", "match", "", works)
+    store.add_track_mlc_check(uid, tid, "ISRC US-ABC-24-00001", "error", "simulated outage", [])
+    track = store.get_os_track(uid, tid)
+    assert track["mlc_check"]["result"] == "match", "the answer, not the outage"
+    assert pb.state_of(track, set()) == "claimed"
+    body = _body(c.get("/room/publishing").get_data(as_text=True))
+    assert "Nobody has asked" not in body
+    assert "song code T1" in body
+    # both are still on the record, newest first
+    assert [k["result"] for k in store.list_track_mlc_checks(uid, tid)] == ["error", "match"]
+
+
+def test_a_failed_ask_with_no_answer_is_not_nobody_asked():
+    c, uid = _account()
+    tid = store.add_os_track(uid, "Never Reached")
+    store.add_track_mlc_check(uid, tid, "ISRC US-ABC-24-00002", "error", "down", [])
+    track = store.get_os_track(uid, tid)
+    ev = __import__("artist_os").mlc_evidence(track)
+    assert ev["source"] == "none" and "could not be reached" in ev["detail"]
+    assert "Nobody has asked" not in ev["detail"]
+    body = _body(c.get("/room/publishing").get_data(as_text=True))
+    assert "Nobody has asked" not in body and "No registry has answered yet" in body
+
+
+def test_the_zero_chip_does_not_speak_of_figures():
+    """publishing-11."""
+    c, uid = _account()
+    zero = c.get("/room/publishing").get_data(as_text=True)
+    assert "The account these figures are for" not in zero
+    assert "The account this room is for" in zero
+    _song(uid)
+    assert "The account these figures are for" in c.get("/room/publishing").get_data(as_text=True)
+
+
+def test_the_drawer_is_named_once_and_ask_opens_the_box():
+    """publishing-12: the summary and an sr-only h2 said the same words, so
+    the drawer's name was read twice. And "Ask Street Banker" opens the
+    corner Ask box on the page, as the Command Center's does."""
+    c, _uid = _account()
+    body = c.get("/room/publishing").get_data(as_text=True)
+    assert body.count(">More Publishing tools<") == 1
+    assert ('<summary class="pb-z-fold-sum"><h2 class="pb-z-fold-h" id="pb-z-tools-h">'
+            'More Publishing tools</h2>') in body
+    assert 'href="/contact" id="pb-ask"' in body
+    script = body.split('getElementById("pb-ask")', 1)
+    assert len(script) == 2 and 'getElementById("sbq-open")' in script[1]
+
+
+def test_a_reader_who_may_not_add_songs_is_not_offered_the_import_either():
+    z = pb.zero_page(can_add="seat")
+    assert [l for l in z["links"] if l[2]] == [("Import catalog", pb.DOOR + "#pp-import", True)]
+    c, uid = _account()
+    store.set_demo_lock(uid, True)
+    body = _body(c.get("/room/publishing").get_data(as_text=True))
+    assert "Import catalog" not in body and "How song records work" in body

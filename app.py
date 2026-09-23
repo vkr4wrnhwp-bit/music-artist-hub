@@ -4453,7 +4453,16 @@ def create_app():
                                        **build_dashboard_context())
             cid = mls.create_campaign(user["id"], _ml_slug(fields["title"]), fields)
             mls.set_destinations(cid, _ml_form_destinations())
-            return redirect("/links/%s/edit" % cid)
+            # A door's way back rides through the save, or the Fans room's
+            # capture door landed on a builder offering "Back to Marketing"
+            # (audit, 2026-09-23). The form posts to its own address, so
+            # the door's ?returnTo=...&from=... is on this request; the
+            # edit form posts to its own address too, and keeps it.
+            carry = "&".join("%s=%s" % (k, urllib.parse.quote(v, safe="/"))
+                             for k, v in (("returnTo", _safe_next(request.args.get("returnTo"), "")),
+                                          ("from", request.args.get("from") or ""))
+                             if v)
+            return redirect("/links/%s/edit" % cid + ("?" + carry if carry else ""))
         return render_template("links_builder.html", active_page="links",
                                c=None, destinations=[], engine=links_engine,
                                error=None,
@@ -5472,32 +5481,45 @@ def create_app():
         fan_room.py says where each figure comes from."""
         import fan_audience
         import fan_room
-        rows, audience, showcase = _fan_room_rows(user)
-        club_row = None if showcase else store.get_fan_club(user["id"])
-        members = 0
-        if club_row:
-            members = sum(1 for m in store.list_club_members(user["id"])
-                          if (m.get("status") or "active") == "active")
-        today = datetime.now(timezone.utc).date().isoformat()
-        with store.get_db() as db:
-            open_briefs = db.execute(
-                "SELECT COUNT(*) FROM collab_requests c JOIN users u ON u.id = c.user_id"
-                " WHERE c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
-                " OR substr(c.closes, 1, 10) >= ?)", (today,)).fetchone()[0]
+        # Every read the page is decided on, in ONE try: a failed read is
+        # the room's error page, 503, and never a fresh account or a bare
+        # 500 with no way out (owner's spec, 2026-09-23; the Fans audit
+        # found this the one room of eight without it).
+        try:
+            rows, audience, showcase = _fan_room_rows(user)
+            club_row = None if showcase else store.get_fan_club(user["id"])
+            members = 0
+            if club_row:
+                members = sum(1 for m in store.list_club_members(user["id"])
+                              if (m.get("status") or "active") == "active")
+            today = datetime.now(timezone.utc).date().isoformat()
+            with store.get_db() as db:
+                open_briefs = db.execute(
+                    "SELECT COUNT(*) FROM collab_requests c JOIN users u ON u.id = c.user_id"
+                    " WHERE c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
+                    " OR substr(c.closes, 1, 10) >= ?)", (today,)).fetchone()[0]
+            link_visits = 0 if showcase else fan_audience._visits(user["id"])
+        except Exception as exc:
+            app.logger.error("fans room: state unreadable: %s", exc)
+            return render_template("room_fans_error.html", active_page="room-fans",
+                                   room=room, **build_dashboard_context()), 503
         # The same two lines the other seven rooms use: a seat opens
         # only the pages its areas allow, so the room draws only those.
         seat = current_team_seat()
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # Who may add fans: the account holder, or an edit seat. A read seat
+        # is offered no door its save would bounce at, and is told who can.
+        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         fr = fan_room.build(rows, audience, room["cards"], days=request.args.get("days"),
                             club={"on": bool(club_row), "members": members},
                             open_briefs=open_briefs,
-                            link_visits=0 if showcase else fan_audience._visits(user["id"]),
+                            link_visits=link_visits,
                             showcase=showcase, artist_name=user.get("name") or "",
                             # "or Shopify customers" only where the import
                             # exists for this account (walk, 2026-09-20).
                             shopify=_shopify_import_allowed(user),
-                            can_open=can_open)
+                            can_open=can_open, can_add=can_add)
         return render_template("room_fans.html", active_page="room-fans", room=room, fr=fr,
                                **build_dashboard_context())
 
@@ -5567,7 +5589,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        rows, _audience, _showcase = _fan_room_rows(user)
+        try:
+            rows, _audience, _showcase = _fan_room_rows(user)
+        except Exception as exc:
+            # The room's own error page, never an empty file that reads as
+            # "nobody new" (the same guard as the room itself).
+            app.logger.error("fans room csv: state unreadable: %s", exc)
+            return render_template("room_fans_error.html", active_page="room-fans",
+                                   **build_dashboard_context()), 503
         days = fan_room.days_from(request.args.get("days"))
         body = fan_room.new_fans_csv(rows, days, datetime.now(timezone.utc).date())
         return Response(body, mimetype="text/csv", headers={
@@ -8077,7 +8106,7 @@ def create_app():
             return "/catalog?view=passports"
         return "/tracks"
 
-    def _songs_saved_home(user, saved):
+    def _songs_saved_home(user, saved, song_id=None):
         """Where the add-song and import forms go after a save.
 
         A door that sent the artist here (Studio's "Add your first song",
@@ -8088,12 +8117,27 @@ def create_app():
         saved stays on the form with the way back still carried. Until
         2026-09-23 both forms dropped the two fields and landed on the
         catalog, so no done line could be reached through the real form
-        (audit studio-2). Same-site only, via _safe_next."""
+        (audit studio-2). Same-site only, via _safe_next.
+
+        One helper for every door (merged 2026-09-23 from the Studio,
+        Publishing and Command Center audit fixes): a from= the returnTo
+        already carries (the Command Center's doors put it inside) is not
+        added twice, and a song added from Publishing opens on that song
+        (Publishing spec section 3, audit publishing-1)."""
         back = _safe_next(request.form.get("returnTo"), "")
         came = (request.form.get("from") or "").strip()[:60]
+        import re as _re
+        if came and not _re.fullmatch(r"[a-z0-9_-]{1,60}", came):
+            came = ""
         if saved and back:
-            if came:
-                back += ("&" if "?" in back else "?") + "from=" + urllib.parse.quote(came, safe="")
+            extra = []
+            if came and "from=" not in back:
+                extra.append(("from", came))
+            if song_id and back.split("?")[0].split("#")[0] == "/room/publishing":
+                extra.append(("song", str(song_id)))
+            if extra:
+                back += ("&" if "?" in back else "?") + "&".join(
+                    "%s=%s" % (k, urllib.parse.quote(v, safe="")) for k, v in extra)
             return back
         home = _passports_home(user)
         keep = [(k, v) for k, v in (("returnTo", back), ("from", came)) if v]
@@ -8144,11 +8188,27 @@ def create_app():
         if user is None:
             return login_required_redirect()
         title = (request.form.get("title") or "").strip()
+        # The first draft takes at least one writer, or "Writers not known
+        # yet" (Publishing spec, section 3): the form requires one of the
+        # two. A post with neither is read as "not known yet" - the
+        # passport then says Songwriters Not on file, which is true - so
+        # the scripted and older callers of this route keep working.
+        writers = (request.form.get("songwriters") or "").strip()[:300]
+        tid = None
         if title:
-            store.add_os_track(user["id"], title,
-                               (request.form.get("release_title") or "").strip(),
-                               (request.form.get("release_date") or "").strip())
-        return redirect(_songs_saved_home(user, bool(title)))
+            tid = store.add_os_track(user["id"], title,
+                                     (request.form.get("release_title") or "").strip(),
+                                     (request.form.get("release_date") or "").strip())
+            if tid and writers:
+                # add_os_track can hand back a passport the catalog already
+                # had, so the writers go in beside what is on it, and never
+                # over a name somebody already wrote there.
+                have = store.get_os_track(user["id"], tid) or {}
+                passport = dict(have.get("passport") or {})
+                if not (passport.get("songwriters") or "").strip():
+                    passport["songwriters"] = writers
+                    store.update_os_track_passport(user["id"], tid, passport)
+        return redirect(_songs_saved_home(user, bool(tid), tid))
 
     @app.route("/tracks/<track_id>")
     def os_track_detail(track_id):
