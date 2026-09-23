@@ -600,7 +600,8 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     # Dark glass with particles adrift, not snow (owner, 2026-09-23: "that
     # blackish color ... not like full-blown TV static").
     static = body.split(".sbrk-static {", 1)[1].split("}", 1)[0]
-    assert "crt-particles.png" in static and "sbrk-drift" in static
+    assert "crt-particles.png" in static and "opacity: 0" in static, "nothing moves at rest"
+    assert "animation" not in static and "sbrk-drift" not in body, "no resting drift (owner: cheesy)"
     assert "crt-static.png" not in body, "the dense snow tile is retired"
     assert os.path.exists(os.path.join(HERE, "static", "img", "crt-particles.png"))
     hover = body.split(".sbrk-door:hover .sbrk-static,", 1)[1].split("}", 1)[0]

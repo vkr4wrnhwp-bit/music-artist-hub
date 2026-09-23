@@ -748,17 +748,16 @@
   background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--sb-crt) 16%, transparent) 50%, transparent);
 }
 
-/* the particles: dark glass with a sparse field of phosphor dots adrift
- * (owner, 2026-09-23: "that blackish color ... not like full-blown TV
- * static"). One transparent tile, drifting slowly; the glass itself is
- * the photograph's. */
+/* the particles: NOTHING at rest - the glass is the photograph's own dark
+ * screen (owner, 2026-09-23: "that blackish color"; and of a drift of
+ * dots at rest, "the TV static looks weird, it's cheesy"). The particle
+ * tile exists only for the two moments that need it: gathering into the
+ * number under the pointer, and bursting back as it goes. */
 .sbrk-static {
-  position: absolute; inset: 0; pointer-events: none; opacity: .6; mix-blend-mode: screen;
+  position: absolute; inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen;
   background: url(/static/img/crt-particles.png) 0 0 / 192px 192px repeat; image-rendering: pixelated;
-  animation: sbrk-drift 16s linear infinite;
   transform-origin: 50% 50%;
 }
-@keyframes sbrk-drift { from { background-position: 0 0; } to { background-position: -192px 96px; } }
 
 /* the reading, dark until the pointer arrives */
 .sbrk-read {
@@ -812,9 +811,7 @@
  * are gone by the time the number has struck */
 .sbrk-door:hover .sbrk-static,
 .sbrk-door:focus-visible .sbrk-static,
-.sbrk-door.is-on .sbrk-static {
-  animation: sbrk-drift 16s linear infinite, sbrk-gather .75s steps(7, end) forwards;
-}
+.sbrk-door.is-on .sbrk-static { animation: sbrk-gather .75s steps(7, end) forwards; }
 @keyframes sbrk-gather {
   0%   { opacity: .95; transform: scale(1);   filter: brightness(1.4); }
   55%  { opacity: .8;  transform: scale(.6);  filter: brightness(2); }
@@ -824,13 +821,11 @@
  * memberships-rack.js, for the length of the animation): the number
  * breaks into slices and goes, the particles burst back across the glass
  * and settle into their drift */
-.sbrk-door.is-out .sbrk-static {
-  animation: sbrk-drift 16s linear infinite, sbrk-burst .7s steps(7, end) both;
-}
+.sbrk-door.is-out .sbrk-static { animation: sbrk-burst .7s steps(7, end) both; }
 @keyframes sbrk-burst {
   0%   { opacity: .95; transform: scale(.45); filter: brightness(2.4); }
-  50%  { opacity: .85; transform: scale(1.3);  filter: brightness(1.6); }
-  100% { opacity: .6;  transform: none;        filter: none; }
+  50%  { opacity: .8;  transform: scale(1.3);  filter: brightness(1.6); }
+  100% { opacity: 0;   transform: scale(1.5);  filter: none; }
 }
 .sbrk-door.is-out .sbrk-read { opacity: 0; animation: sbrk-out .55s steps(1, end) both; }
 @keyframes sbrk-out {
@@ -909,7 +904,7 @@
  * opens. Only the phone layout below renders resolved from the start. */
 /* less motion: no snow, and the reveal arrives instead of settling */
 @media (prefers-reduced-motion: reduce) {
-  .sbrk-static { animation: none; opacity: .35; transition: none; }
+  .sbrk-static { animation: none; opacity: 0; transition: none; }
   .sbrk-read { transition: none; }
   .sbrk-door:hover .sbrk-static,
   .sbrk-door:focus-visible .sbrk-static,
