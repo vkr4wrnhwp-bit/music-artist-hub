@@ -2463,6 +2463,14 @@ def create_app():
         "error", and the page says so."""
         if user is None or (user.get("plan") or "") == "fan":
             return {"state": "operational", "essentials": None, "error": None}
+        # The demo account is the SHOWCASE, never the page from zero (owner
+        # ruling) - decided by who it is, not by its rows: after Start over
+        # (/account/reset) its seeded statements are gone until the next
+        # boot re-seeds them, and the Command Center fell to "0 of 5
+        # essentials complete" while every room still showed its showcase
+        # (audit, 2026-09-23).
+        if _session_is_demo() or demo_accounts.is_demo_email(user.get("email")):
+            return {"state": "operational", "essentials": None, "error": None}
         uid = user["id"]
         try:
             has_records = bool(mls.list_fans(uid) or store.get_statements(uid))
@@ -9281,7 +9289,19 @@ def create_app():
         if user is None:
             return login_required_redirect()
         saved = store.get_rack_preset(user["id"])
+        # Which song the Rack is measuring for (audit, 2026-09-23: the
+        # Command Center's "Open the Rack" step counts a measurement only
+        # when it names a song, and the Rack never named one, so the step
+        # could not be completed). ?track= from the door, else the
+        # account's only song; with several and no ?track= nothing is
+        # guessed - the select starts on "No song".
+        rack_tracks = [{"id": t["id"], "title": t.get("title") or "Untitled"}
+                       for t in store.list_os_tracks(user["id"])]
+        asked = (request.args.get("track") or "").strip()
+        rack_track = (asked if any(t["id"] == asked for t in rack_tracks)
+                      else (rack_tracks[0]["id"] if len(rack_tracks) == 1 else ""))
         return render_template("rack.html", active_page="rack",
+                               rack_tracks=rack_tracks, rack_track=rack_track,
                                saved_rack=(_json.dumps(saved) if saved else "null"),
                                studio_split=stemsplit.configured(),
                                studio_modes=stemsplit.mode_list(),
@@ -9519,8 +9539,16 @@ def create_app():
             # Reject anything that is not a real measurement.
             return f if f == f and abs(f) != float("inf") else None
 
+        # The song this measurement is for (the Rack's song select). Only
+        # one of THIS account's songs is kept: an id the account does not
+        # own would complete the Command Center's "Open the Rack" step
+        # against nothing (account_state.read counts a measurement that
+        # names a track).
+        track_id = str(body.get("track_id") or "").strip()[:80]
+        if track_id and store.get_os_track(user["id"], track_id) is None:
+            track_id = ""
         row = {
-            "track_id": str(body.get("track_id") or "")[:80],
+            "track_id": track_id,
             "filename": str(body.get("filename") or "")[:200],
             "integrated": num("integrated"), "lra": num("lra"),
             "true_peak": num("true_peak"), "sample_peak": num("sample_peak"),

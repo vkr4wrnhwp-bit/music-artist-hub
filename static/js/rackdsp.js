@@ -4779,7 +4779,12 @@ function sbWhenRunning(c, fn) {
   function reportAnalysis(res) {
     if (!res || res.integrated === null || res.integrated === undefined) { return; }
     var tk = tkFound || {};
+    // The song this is working audio for (rack.html's "Measuring for"
+    // select). Without it the measurement is kept but names no song, and
+    // the Command Center's "Open the Rack" step can never complete.
+    var songPick = document.getElementById("rk-track");
     var payload = {
+      track_id: songPick ? songPick.value : "",
       filename: loadedName || "",
       integrated: res.integrated, lra: res.range,
       true_peak: res.truePeak, sample_peak: res.samplePeak,
@@ -4808,6 +4813,12 @@ function sbWhenRunning(c, fn) {
       body: sig
     }).catch(function () { lastReported = null; });
   }
+  // Choosing the song AFTER measuring files the same reading against it:
+  // the song is part of the report, so the report goes again.
+  var songSel = document.getElementById("rk-track");
+  if (songSel) songSel.addEventListener("change", function () {
+    if (ldnLast) { reportAnalysis(ldnLast); }
+  });
 
   function ldnBuffer() {
     if (pickedValue("rk-ldnsrc", "raw") === "master") {

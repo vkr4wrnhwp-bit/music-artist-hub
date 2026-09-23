@@ -88,9 +88,11 @@ def read(uid, store, mls, release_ready_store):
               a title on a statement the account uploaded (a statement
               is a record of a song the account owns).
     asset     working audio attached to a song: a Release-Ready master
-              stored against a passport, or a Studio measurement that
-              names a track. A rack PRESET is a setting, not an asset,
-              so it does not count here.
+              stored against a passport, or a Rack measurement that
+              names one of the account's songs (the Rack's "Measuring
+              for" select; /rack/analysis keeps only an id the account
+              owns). A rack PRESET is a setting, not an asset, so it does
+              not count here.
     link      a smart link or campaign, in either of the two tables one
               can live in.
     capture   a campaign that captures email AND carries consent text -
@@ -335,12 +337,16 @@ def in_progress(tracks, masters_by_track, analyses, campaigns):
     HAS a link when any campaign exists (links are not per-song yet)."""
     measured = {(a.get("track_id") or "").strip() for a in (analyses or ()) if (a.get("track_id") or "").strip()}
     has_link = any(not x.get("archived_at") for x in (campaigns or ()))
+    from urllib.parse import quote
     rows = []
     for t in tracks or ():
         tid = t.get("id")
         has_asset = tid in (masters_by_track or {}) or tid in measured
         if not has_asset:
-            nxt = ("No working audio yet.", "Open the Rack", "/rack?returnTo=/command-center&from=asset")
+            # The Rack arrives attached to THIS song, so what it measures
+            # is filed against it (audit, 2026-09-23).
+            nxt = ("No working audio yet.", "Open the Rack",
+                   "/rack?track=%s&returnTo=/command-center&from=asset" % quote(str(tid), safe=""))
         elif not has_link:
             nxt = ("No smart link yet.", "Create smart link", "/links/new?returnTo=/command-center&from=link")
         else:
