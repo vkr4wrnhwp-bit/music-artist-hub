@@ -109,31 +109,14 @@ def reading(label, value, provider, as_of, today, why=""):
     }
 
 
-# --- THE PLATE --------------------------------------------------------
-# static/img/analytics-plate.webp, 1859x846: a TREND ANALYSER, its long
-# oscilloscope screen across the top and the three readings beneath it.
-# Each window is (x, y, w, h) as a PERCENTAGE of the plate, MEASURED off
-# the file with PIL. RE-MEASURE ALL OF THEM if the plate is regenerated or
-# re-cropped: the overlays would land beside their glass and nothing in
-# code would say so.
-#
-# The plate silkscreens THE TREND, LINK VISITS, FOLLOWERS and LISTENERS,
-# so the markup never prints those words - they ride along as
-# screen-reader text and appear only under 560px.
-PLATE = {
-    "trend":     (5.65, 18.09, 88.60, 28.72),
-    "visits":    (5.65, 64.54, 27.17, 17.49),
-    "followers": (35.77, 65.37, 28.19, 16.55),
-    "listeners": (67.35, 65.48, 26.90, 16.55),
-}
-# The order the silkscreen prints them in. Metal cannot be reordered.
-PLATE_ORDER = ("visits", "followers", "listeners")
-
-
-def box(key):
-    """The inline custom properties that put a window on its glass."""
-    x, y, w, h = PLATE[key]
-    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+# --- THE RACK (owner, 2026-09-23) ---------------------------------------
+# Every room's working page draws the rooms' shared three-window plate
+# (templates/partials/cc_rack.html, static/img/room-plate.webp). The three
+# readings sit on its three screens in this order; the trend line, which
+# had the old analyser's long upper screen, is its own panel directly
+# under the plate, so nothing is lost. The shared plate prints no names,
+# so each screen carries its own label.
+RACK_ORDER = ("visits", "followers", "listeners")
 
 
 # --- THE PAGE FROM ZERO (owner's Analytics spec + mockup, 2026-09-23) -----
@@ -144,8 +127,9 @@ def box(key):
 # doors to the rooms that own the next step, the five-step workflow as
 # education, the two empties in words, help, and the tools in a drawer
 # that starts open. No chart, no date filter, no comparison, no nought.
-# The animated standby that used to run on the analyser is retired here;
-# the fill reel below stays for a populated analyser's empty windows.
+# The animated standby that used to run on the analyser is retired here,
+# and since the working page moved onto the shared plate (2026-09-23) an
+# unmeasured screen says so in words rather than rolling a reel.
 ZERO_SUBTITLE = "Turn connected data into clear next moves."
 ZERO_RACK = (
     ("Purpose", "Understand what changed and what to do next."),
@@ -252,32 +236,23 @@ def zero_page(can_add=True, can_open=None):
     }
 
 
-# The reel a READING window shows while it has nothing to read (owner,
-# 2026-09-22: no words in an empty window, icons). The one piece of the
-# old standby still read: a populated analyser's empty windows.
-STANDBY_FILL = ("pinned", "measuring", "trending", "compared", "read", "person")
-
-
-def _six(icons):
-    """Six stops, always: the roll's keyframes step through six, and a
-    five-icon reel ran its last stop into blank glass."""
-    icons = list(icons or ())
-    while icons and len(icons) < 6:
-        icons.append(icons[len(icons) % len(icons)])
-    return icons[:6]
-
-
-def standby():
-    """What a populated analyser's empty windows fill with. The animated
-    standby that once ran on an empty account is retired: that account
-    meets the page from zero instead."""
-    return {"fill": _six(STANDBY_FILL)}
-
-
-def plate_windows(rows):
-    """figures() again, each carrying the window it is printed in."""
+def rack_screens(rows):
+    """figures() on the rooms' shared plate: link visits, followers,
+    monthly listeners, one per screen, each NAMED (the plate prints no
+    names). A reading is set as a figure; an absence stays the words "Not
+    measured", never a nought. The line under it is what the old window
+    printed there: where the reading came from, or - when nobody measured
+    it - what would fill it. No change arrow: the room keeps no prior
+    period for these three, and it does not invent one."""
     by = {r["key"]: r for r in rows or ()}
-    return [dict(by[k], box=box(k)) for k in PLATE_ORDER if k in by]
+    out = []
+    for key in RACK_ORDER:
+        r = by.get(key)
+        if not r:
+            continue
+        out.append({"k": r["label"], "v": r["value"], "fig": r["measured"],
+                    "none": not r["measured"], "sub": r["why"] or r["source"]})
+    return out
 
 
 def figures(visits, followers, listeners):
@@ -337,6 +312,8 @@ def chart(snaps, key, label, provider):
         if day and value is not None:
             points.append({"day": day, "value": value})
     days = len({p["day"] for p in points})
+    low = min([p["value"] for p in points]) if points else None
+    high = max([p["value"] for p in points]) if points else None
     return {
         "label": label,
         "provider": provider,
@@ -344,8 +321,14 @@ def chart(snaps, key, label, provider):
         "can_draw": days > 1,
         "why": ("" if days > 1 else
                 "Needs two readings on different days before it can draw."),
-        "low": min([p["value"] for p in points]) if points else None,
-        "high": max([p["value"] for p in points]) if points else None,
+        "low": low,
+        "high": high,
+        # The axis is printed, and it is the MEASURED range: the line is
+        # never flattered by a zero baseline nobody measured, and the
+        # labels say so rather than leaving the scale to be guessed.
+        "axis": ({"high": _n(high), "low": _n(low),
+                  "first": points[0]["day"], "last": points[-1]["day"]}
+                 if days > 1 else None),
     }
 
 
@@ -412,15 +395,14 @@ def build(profile, snaps, peers, visits, listeners, observations, cards,
         "artist": (profile or {}).get("artist_name") or (profile or {}).get("name") or "",
         "pinned": bool(profile),
         "figures": figures(visits, followers, listeners),
-        # The plate: the same readings, each on its own glass.
-        "windows": plate_windows(figures(visits, followers, listeners)),
-        "trend_box": box("trend"),
+        # The rooms' shared plate: the same readings, one per screen. The
+        # trend is the panel under it (chart below).
+        "screens": rack_screens(figures(visits, followers, listeners)),
         # Nothing connected, synced or counted: the page from zero. One
         # source, reading or visit and the analyser takes over untouched.
         "idle": bool(zero),
         "zero": zero_page(can_add, can_open) if zero else None,
         "zero_tiles": zero_tiles,
-        "standby": standby(),
         "path": path(bool(profile), snaps, len(peers or ()), len(observations or ())),
         "readings": rows,
         "chart": chart(snaps, "followers", "Followers over time", "Spotify"),
