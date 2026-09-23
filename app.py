@@ -1503,7 +1503,7 @@ def create_app():
             ("Fan data you capture", "When a fan subscribes on your campaign pages, we store their email with a consent record, on your behalf. Artists control this data; we process it. Links in the emails we send a fan for an artist carry a code that credits their visits and button clicks on that artist's pages to their record, and the page passes it on after they sign up; nothing is stored on the fan's device for this. " + (
                 "Where a fan pre-saves, they authorize Spotify directly; that token is encrypted at rest and deleted once the release-day save completes."
                 if capability_status.is_live("spotify_presave")
-                else "Spotify pre-save is not connected on this deployment: pre-save buttons collect a notify-me address instead, and no Spotify token is requested, stored or processed.")),
+                else "Spotify pre-save is not connected on this deployment: the page offers a release-day email reminder instead, and no Spotify token is requested, stored or processed.")),
             ("What we don't do", "We don't sell personal data. We don't use your uploads to train AI models. We don't read fan tokens for anything beyond the save and the consented email."),
             ("Service providers", "We use Render (hosting), Resend (email delivery), and public music APIs (Spotify, Deezer, iTunes, Odesli, MusicBrainz, Bandsintown) to provide features you invoke. Each receives only what's needed for that feature."),
             ("Cookies", "We use a single session cookie to keep you signed in. No advertising trackers."),
@@ -1744,11 +1744,13 @@ def create_app():
                 + fan_mail.unsubscribe_token(app.config["SECRET_KEY"], owner_id, email))
 
     def _send_release_emails(campaign):
-        """Once per campaign, on the first page view after release: email
-        every consented fan the listen link. Env-gated on RESEND_API_KEY."""
+        """Once per campaign, on the first page view after release or the
+        daily run (/reminders/run), whichever comes first: email every
+        consented fan the listen link. Env-gated on RESEND_API_KEY. Returns
+        how many messages Resend accepted."""
         if (not emailer.configured() or links_engine.is_prerelease(campaign)
                 or (campaign.get("settings") or {}).get("release_email_sent")):
-            return
+            return 0
         # Claim the flag before sending so concurrent page views can't double-send.
         settings = dict(campaign.get("settings") or {})
         settings["release_email_sent"] = True
@@ -1777,6 +1779,7 @@ def create_app():
                          "Release emails sent: %s" % campaign["title"],
                          "%d fan%s notified with the listen link." % (sent, "" if sent == 1 else "s"),
                          "/links/%s/analytics" % campaign["id"])
+        return sent
 
     def _process_due_presaves(campaign):
         """Lazy release-day conversion: whenever a released campaign page is
@@ -2172,6 +2175,10 @@ def create_app():
                 fan_token=(request.args.get("f") or "") if fan else "",
                 store_url=((owner_epk.get("data") or {}).get("store_url") or ""),
                 spotify_presave=spotify.configured(),
+                # The email box stores an address for the release-day
+                # email, so it never says Pre-Save (links_engine).
+                notify_label=links_engine.notify_button_text(campaign.get("settings"),
+                                                             emailer.configured()),
                 presave_state=(request.args.get("presave") or ""),
                 destinations=mls.get_destinations(campaign["id"], active_only=True),
                 prerelease=links_engine.is_prerelease(campaign),
@@ -2240,7 +2247,7 @@ def create_app():
         fan = mls.get_fan(fan_id)
         score, level = links_engine.calculate_fan_intent(fan)
         mls.set_fan_intent(fan_id, score, level)
-        message = ("You're locked in — we'll remind you the moment it drops."
+        message = (links_engine.notify_done_text(emailer.configured())
                    if prerelease else "You're on the list. Welcome to the inner circle.")
         store.notify(campaign["user_id"], "fan",
                      "%s: %s" % ("New pre-save" if prerelease else "New fan captured", email),
@@ -11774,6 +11781,10 @@ def create_app():
         cc.complete_actions_for(user["id"], "document", doc_id)
         return redirect("/vault?view=contracts&terms=saved#doc-%s" % doc_id)
 
+    # How late the daily run will still send a release-day email: a week.
+    # Later than that it is not a reminder, it is news that is not news.
+    RELEASE_EMAIL_DAYS = 7
+
     @app.route("/reminders/run", methods=["POST"])
     def reminders_run():
         """Fire the contract reminders that are due today.
@@ -11800,7 +11811,21 @@ def create_app():
             rr = release_ready.run_due()
         except Exception as exc:           # noqa: BLE001 - reminders already ran
             rr = {"error": type(exc).__name__}
-        return jsonify({"ok": True, "run": result, "release_ready": rr})
+        # The release-day email to the fans who asked to be reminded. It
+        # also goes on the first view of the page after release; this run
+        # sends it for a page nobody has opened yet. _send_release_emails
+        # claims the campaign's once-only flag itself, so a view that got
+        # there first means nothing more is sent.
+        released = 0
+        try:
+            today = datetime.now(timezone.utc).date()
+            for camp in mls.released_unsent_campaigns(
+                    today.isoformat(), (today - timedelta(days=RELEASE_EMAIL_DAYS)).isoformat()):
+                released += _send_release_emails(camp)
+        except Exception as exc:           # noqa: BLE001 - reminders already ran
+            released = {"error": type(exc).__name__}
+        return jsonify({"ok": True, "run": result, "release_ready": rr,
+                        "release_emails": released})
 
     VAULT_KINDS = ("cover_art", "master", "stems", "press_photo", "video", "file")
     VAULT_EXTS = ("png", "jpg", "jpeg", "webp", "gif", "wav", "mp3", "flac",

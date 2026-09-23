@@ -115,6 +115,32 @@ def is_prerelease(campaign):
     return bool(date and date > _today())
 
 
+# The email box on a pre-release page stores an address for the
+# release-day email; it saves nothing to any library. Until 2026-09-23 its
+# button defaulted to "Pre-Save", so on a deployment without Spotify keys
+# the only thing on the page called Pre-Save was an email box (audit
+# overclaim 17). An artist's own button text is kept unless it claims a
+# save.
+_SAVE_WORDS = ("save", "pre-add", "library")
+
+
+def notify_button_text(settings, reminders_on):
+    """What the pre-release email button says. "Remind me" only where the
+    release-day email can go (emailer.configured()); otherwise the box is
+    a sign-up and says so."""
+    cta = ((settings or {}).get("cta_text") or "").strip()
+    if cta and not any(w in cta.lower() for w in _SAVE_WORDS):
+        return cta
+    return "Remind me" if reminders_on else "Join the list"
+
+
+def notify_done_text(reminders_on):
+    """The line a pre-release sign-up gets back. It promises the reminder
+    only where the release-day email can go."""
+    return ("You're on the list. We'll email you on release day." if reminders_on
+            else "You're on the list.")
+
+
 STATUS_TONES = {
     "Draft": "gray", "Pre-save live": "gold", "Released": "green",
     "Live": "green", "Archived": "dim",

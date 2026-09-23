@@ -115,6 +115,23 @@ def list_campaigns(user_id):
     return [_row(r) for r in rows]
 
 
+def released_unsent_campaigns(today, since):
+    """Live campaigns released between `since` and `today` (ISO dates,
+    both inclusive) whose release-day email has not been claimed. The
+    daily run sends them, so a fan who asked to be reminded is not waiting
+    on somebody else opening the page. `since` keeps an old release that
+    never had its email (a page nobody opened, or one released before
+    email was set up) from mailing its fans "out now" months late."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM ml_campaigns WHERE status = 'live'"
+            " AND (archived_at IS NULL OR archived_at = '')"
+            " AND release_date != '' AND release_date <= ? AND release_date >= ?",
+            (today, since)).fetchall()
+    return [c for c in (_row(r) for r in rows)
+            if not (c.get("settings") or {}).get("release_email_sent")]
+
+
 def duplicate_campaign(campaign_id, user_id, new_slug):
     src = get_campaign(campaign_id, user_id)
     if src is None:

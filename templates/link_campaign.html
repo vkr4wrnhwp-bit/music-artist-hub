@@ -69,12 +69,12 @@
 
     {% set capture_on = c.settings.get('email_capture') %}
     {% if prerelease and capture_on %}
-    <!-- Primary CTA: pre-save / notify -->
+    {#- Primary CTA: the release-day reminder. It stores an address; it saves nothing to any library (links_engine.notify_button_text). -#}
     <form id="capture-form" class="mt-4">
       <input type="hidden" name="v" value="{{ variant_slug }}">
       <div class="flex gap-2">
         <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-300 backdrop-blur focus:border-white/40 focus:outline-none">
-        <button type="submit" class="shrink-0 rounded-xl px-5 py-3.5 text-sm font-black uppercase tracking-wide text-sb-on-gold" style="background: {{ accent }};">{{ c.settings.get('cta_text') or 'Pre-Save' }}</button>
+        <button type="submit" class="shrink-0 rounded-xl px-5 py-3.5 text-sm font-black uppercase tracking-wide text-sb-on-gold" style="background: {{ accent }};">{{ notify_label }}</button>
       </div>
       <p class="mt-2 text-xs leading-snug text-gray-300 font-medium">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
       {% if c.settings.get('gate_reward') %}
@@ -95,7 +95,7 @@
       <a href="/l/{{ c.slug }}/go/{{ d.id }}{% if go_q %}?{{ go_q|join('&') }}{% endif %}" data-go
          class="flex items-center justify-between rounded-xl border border-white/10 bg-black/45 px-5 py-3.5 backdrop-blur transition-all hover:border-white/35 hover:bg-black/60">
         <span class="text-sm font-bold">{{ d.service_name }}</span>
-        <span class="text-xs font-bold uppercase tracking-wide" style="color: {{ accent }};">{{ 'Pre-save' if prerelease and d.service_key in ('spotify', 'apple_music', 'deezer') else 'Play' }} →</span>
+        <span class="text-xs font-bold uppercase tracking-wide" style="color: {{ accent }};">{{ 'Open' if prerelease else 'Play' }} →</span>
       </a>
       {% endfor %}
     </div>
