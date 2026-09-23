@@ -323,8 +323,11 @@ def test_done_line_is_decided_by_saved_state_not_the_param():
 def test_every_setup_door_carries_a_way_back():
     c, _uid = _account()
     body = c.get("/command-center").get_data(as_text=True)
+    # The step's key rides INSIDE the way back (audit, 2026-09-23, cc-3): a
+    # from= beside returnTo was dropped by the shell's back link and by
+    # every save, so the done line was only ever reached by hand.
     for key, href in (("identity", "/epk"), ("song", "/tracks")):
-        assert '%s?returnTo=/command-center&amp;from=%s' % (href, key) in body, key
+        assert '%s?returnTo=/command-center%%3Ffrom%%3D%s' % (href, key) in body, key
     # the locked card has no door, so no returnTo
     assert "/links/new?returnTo" not in body
 
@@ -404,7 +407,7 @@ def test_the_compass_reads_setup_then_the_real_priorities():
     scr = acs.compass(half, [], [], False)
     assert [x["k"] for x in scr] == ["Resume", "Next action", "Blocker"]
     assert scr[0]["v"] == "Setup: 2 of 5 essentials done."
-    assert scr[1]["v"] == "Open the Rack." and scr[1]["href"].startswith("/rack?returnTo=/command-center&from=asset")
+    assert scr[1]["v"] == "Open the Rack." and scr[1]["href"].startswith("/rack?returnTo=/command-center%3Ffrom%3Dasset")
     assert scr[2]["v"] == "Nothing blocking." and scr[2]["href"] is None
 
     done = acs.build({k: True for k in acs.KEYS})
@@ -426,7 +429,7 @@ def test_in_progress_names_the_next_missing_thing_per_song():
     assert [r["state"] for r in rows] == ["No working audio yet."] * 2
     # the Rack door names the song it is for (audit, 2026-09-23, cc-1): it
     # used to be the bare /rack, which could not file the measurement
-    assert rows[0]["href"].startswith("/rack?track=t1&returnTo=/command-center&from=asset")
+    assert rows[0]["href"].startswith("/rack?track=t1&returnTo=/command-center%3Ffrom%3Dasset")
     rows = acs.in_progress(tracks, {"t1": {"job": 1}}, [{"track_id": "t2"}], [])
     assert [r["state"] for r in rows] == ["No smart link yet."] * 2
     rows = acs.in_progress(tracks, {"t1": {}}, [{"track_id": "t2"}], [{"id": "c", "status": "draft", "settings": {}}])
@@ -440,7 +443,7 @@ def test_attention_is_real_or_nothing():
     assert a["title"].startswith("Publish") and a["href"] == "/links/c1/edit"
     live_no_capture = [{"id": "c1", "title": "HP", "status": "live", "settings": {}}]
     a = acs.attention(live_no_capture)
-    assert a["title"].startswith("Turn on fan capture") and "from=capture" in a["href"]
+    assert a["title"].startswith("Turn on fan capture") and "from%3Dcapture" in a["href"] and a["href"].endswith("#capture")
     live_capturing = [{"id": "c1", "title": "HP", "status": "live",
                        "settings": {"email_capture": True, "consent_text": "ok"}}]
     assert acs.attention(live_capturing) is None

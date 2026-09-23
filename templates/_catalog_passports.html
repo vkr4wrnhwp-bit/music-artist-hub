@@ -46,6 +46,14 @@
     <div class="mt-4 rounded-xl border border-white/10 bg-black/30 p-4">
       <h3 class="sb-label text-gray-300">Add a track</h3>
       <form method="post" action="/tracks/add" class="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_140px_auto]">
+        {#- The way back rides through the save (audit, 2026-09-23): a door
+            that sent someone here with ?returnTo= gets them back there,
+            with ?from= if the door gave one, once the song is saved. -#}
+        {%- set pp_back = safe_return(request.args.get('returnTo')) %}
+        {%- if pp_back %}
+        <input type="hidden" name="returnTo" value="{{ pp_back }}">
+        {%- if request.args.get('from') %}<input type="hidden" name="from" value="{{ request.args.get('from') }}">{% endif %}
+        {%- endif %}
         <input id="pp-title" name="title" required placeholder="Track title"
                class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-300 focus:border-sb-gold focus:outline-none">
         <input name="release_title" placeholder="Release / album title (optional)"

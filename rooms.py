@@ -383,3 +383,38 @@ def back_map():
             parent = parent_of(key)
             out.setdefault(parent, (rkey, name))
     return out
+
+
+# ---- doors a reader can follow (audit, 2026-09-23) --------------------------
+# A room's page from zero draws one fixed primary door (business_room.DOOR,
+# publishing_room.DOOR, ...) plus a few help links, none of which went
+# through the reader's can_open - so when the owner switched the page
+# behind one off, every other account was handed a door that bounced it to
+# /command-center?off=. The routes' can_open (app.py _room_can_open) now
+# answers for the switched-off pages as well as for a team seat, and can
+# say WHY through .why(href): "off", "seat" or "". gate_zero() applies it to
+# what a zero_page() returned, in the route, so no room module changes.
+OFF_WORDS = "This is switched off on this account for now."
+
+
+def gate_zero(zero, can_open):
+    """The page from zero with every door this reader cannot follow taken
+    out: the primary door becomes words (OFF_WORDS for a switched-off page;
+    a seat's own words are the room's `locked` and stay the room's call),
+    and help links and starting points that would bounce are dropped.
+    Returns `zero`; a reader nothing refuses gets it untouched."""
+    why = getattr(can_open, "why", None)
+    if not zero or why is None:
+        return zero
+    project = zero.get("project") or {}
+    door = zero.get("door") or project.get("href") or ""
+    if door and why(door) == "off":
+        zero["project"] = dict(project, can=False, locked=OFF_WORDS)
+        if zero.get("cta"):
+            zero["cta"] = None
+    if isinstance(zero.get("links"), (list, tuple)):
+        zero["links"] = [lk for lk in zero["links"]
+                         if lk[1].startswith("#") or not why(lk[1])]
+    if isinstance(zero.get("starts"), (list, tuple)):
+        zero["starts"] = [s for s in zero["starts"] if not why(s[4])]
+    return zero

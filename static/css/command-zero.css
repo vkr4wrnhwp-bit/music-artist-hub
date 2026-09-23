@@ -2,10 +2,9 @@
 
    Scoped to .cz. Every colour is a token; every radius is one of the
    three the design system allows (6px control, 10px panel, 999px pill);
-   nothing is set below 12px. The rack is drawn here in CSS until the
-   owner's photographed plate lands - same proportions as the room plates
-   (a 1860-ish unit with three inset screens), so the photograph drops in
-   under the same markup. */
+   nothing is set below 12px. The rack is the owner's photographed plate
+   (partials/cc_rack.html, static/img/room-plate.webp): only the three
+   readouts are drawn, at fractions measured off the file. */
 
 .cz { display: flex; flex-direction: column; gap: 22px; max-width: 1300px; margin: 0 auto; }
 
@@ -35,8 +34,15 @@
 }
 .cz-cta:hover { filter: brightness(1.05); }
 /* Icons come from the page sprite (<use href="#sb-i-…">): they need a
-   box, or a <use> with no size draws as a dot. */
-.cz svg.cz-ico { width: 18px; height: 18px; flex: 0 0 auto; }
+   box, or a <use> with no size draws as a dot. A symbol states geometry
+   only; the stroke rules ride on the instance (.sb-i, app-chrome.css), and
+   the page carries them itself too, so an icon is never a black silhouette
+   or, for a pure-stroke symbol like the wave or the tick, nothing at all
+   (audit, 2026-09-23). */
+.cz svg.cz-ico {
+  width: 18px; height: 18px; flex: 0 0 auto;
+  fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+}
 .cz svg.cz-ico--lg { width: 30px; height: 30px; }
 .cz .cz-card-ring svg.cz-ico { width: 24px; height: 24px; }
 
@@ -108,6 +114,12 @@
 .cz-two { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; }
 .cz-explore, .cz-help { justify-content: space-between; }
 .cz-explore > div, .cz-help > div { flex: 1 1 auto; min-width: 0; }
+/* The explore panel sits in the narrower column: its button goes UNDER the
+   words, in line with them, rather than squeezing the heading to four
+   lines of two words beside it (audit, 2026-09-23, at 1280). */
+.cz-explore { flex-wrap: wrap; align-content: center; }
+.cz-explore > div { flex: 1 1 calc(100% - 70px); }
+.cz-explore .cz-btn { margin-left: 70px; }
 
 /* ---- the cards ---------------------------------------------------------- */
 .cz-steps .cz-h { margin-bottom: 12px; }
@@ -138,8 +150,10 @@
 .cz-btn {
   grid-column: 2; justify-self: stretch; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 44px; padding: 0 18px; border-radius: var(--sb-r-control); text-decoration: none;
-  font-size: 15px; font-weight: 800; white-space: nowrap;
+  font-family: inherit; font-size: 15px; font-weight: 800; white-space: nowrap;
 }
+/* a step this reader cannot take: who does it, or that it is off */
+.cz-note { grid-column: 2; margin: 0; font-size: 13px; line-height: 1.45; color: var(--sb-ink-2); }
 .cz-btn--primary { background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold)); color: var(--sb-on-gold); box-shadow: 0 6px 18px color-mix(in srgb, var(--sb-gold) 28%, transparent); }
 .cz-btn--primary:hover { filter: brightness(1.05); }
 .cz-btn--outline { border: 1.5px solid var(--sb-gold-line); color: var(--sb-gold-bright); background: transparent; }
@@ -176,6 +190,7 @@
   .cz-cta { width: 100%; justify-content: center; }
   .cz-panel { flex-wrap: wrap; }
   .cz-btn { width: 100%; }
+  .cz-explore .cz-btn { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cz-cta, .cz-btn--primary { transition: none; }

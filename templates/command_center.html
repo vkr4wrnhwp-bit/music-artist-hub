@@ -2,7 +2,7 @@
 {% import "_sb.html" as sb %}
 {% block head_scripts %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="/static/css/money-desks.css?v=5">
-<link rel="stylesheet" href="/static/css/command-zero.css?v=4">{% endblock %}
+<link rel="stylesheet" href="/static/css/command-zero.css?v=5">{% endblock %}
 
 {% block title %}Command Center{% endblock %}
 
@@ -78,7 +78,7 @@
             {% if not step.done %}<div class="mt-0.5 text-xs leading-relaxed text-gray-300 font-medium">{{ step.why }}</div>{% endif %}
           </div>
           {% if not step.done %}
-          <a href="{{ step.href }}?returnTo=/command-center&amp;from={{ step.key }}" class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-black
+          <a href="{{ step.href }}?returnTo=/command-center%3Ffrom%3D{{ step.key }}" class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-black
              {{ 'bg-sb-gold text-black hover:brightness-110' if tutor.next and step.key == tutor.next.key
                 else 'border border-white/15 text-gray-300 hover:text-white' }}">{{ step.cta }}</a>
           {% endif %}
@@ -110,13 +110,11 @@
     <div>
       <p class="sb-label text-sb-gold-bright">Start here</p>
       <p class="mt-1 max-w-xl text-sm text-gray-300">
-        {% if firstrun.fresh %}
-          {#- The count, not the word "Five": a step whose door this plan
-              cannot open is dropped from the list (walk, 2026-09-20). -#}
-          This is a big app and it is completely empty, which makes it hard to know where to start. {{ firstrun.total }} things, in the order that makes each one useful.
-        {% else %}
+        {#- Never "completely empty" here: an account reaches the operational
+            page mid-setup only because it has real records - fans or
+            statements (account_state.state_of) - and was told it was empty
+            beside a Fans tile reading 1 (audit, 2026-09-23). -#}
           {{ firstrun.remaining }} to go. This panel disappears on its own once the essentials are in — it is not something you have to dismiss.
-        {% endif %}
       </p>
     </div>
     <div class="text-right">
@@ -145,11 +143,15 @@
           reason beside it, so a disabled button is never a mystery. -#}
       {% if step.status == "locked" %}
       <span class="shrink-0 text-right">
-        <span class="inline-block cursor-not-allowed rounded-lg border border-white/10 px-3 py-1.5 text-xs font-black text-gray-500" aria-disabled="true">{{ step.cta }}</span>
+        <button type="button" disabled class="inline-block cursor-not-allowed rounded-lg border border-white/10 px-3 py-1.5 text-xs font-black text-gray-500">{{ step.cta }}</button>
         <span class="mt-1 block max-w-[14rem] text-xs leading-snug text-gray-300">{{ step.lock_text }}</span>
       </span>
+      {% elif not step.done and (not firstrun_can_edit or step.key in firstrun_shut) %}
+      <span class="shrink-0 max-w-[14rem] text-right text-xs leading-snug text-gray-300">{{ firstrun_shut.get(step.key) or firstrun_seat_line }}</span>
       {% elif not step.done %}
-      <a href="{{ step.href }}" class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-black
+      {#- The door carries the way back with the key inside it (Pass 4;
+          audit, 2026-09-23: these three were bare /epk, /rack, /links/new). -#}
+      <a href="{{ step.door }}" class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-black
          {{ 'bg-sb-gold text-black hover:brightness-110' if firstrun.next and step.key == firstrun.next.key
             else 'border border-white/15 text-gray-300 hover:text-white' }}">{{ step.cta }}</a>
       {% endif %}
@@ -167,11 +169,9 @@
       the ranked alerts. The first thing on the screen says where you
       were, what to do, and what is in the way - every visit, not only
       the first. -#}
-  {% if compass %}
-  {% with screens=compass, rack_label="Where you are and what is next" %}
-  {% include "partials/cc_rack.html" %}
-  {% endwith %}
-  {% endif %}
+  {#- The title first, then the rack: the page's one h1 is its first
+      heading, as on the page from zero (audit, 2026-09-23: the rack's
+      sr-only h2 came before it). -#}
   <div class="md-cc-title">
     <p class="sb-label sb-label-gold">Street Banker</p>
     <h1 class="sb-h1 mt-1">Command Center</h1>
@@ -187,6 +187,11 @@
     </form>
     {% endif %}
   </div>
+  {% if compass %}
+  {% with screens=compass, rack_label="Where you are and what is next" %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
+  {% endif %}
 
   {% include "partials/signal_profile_card.html" %}
 

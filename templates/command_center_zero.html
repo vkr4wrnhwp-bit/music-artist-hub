@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_sb.html" as sb %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/command-zero.css?v=4">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/command-zero.css?v=5">{% endblock %}
 {% block title %}Command Center{% endblock %}
 
 {% block content %}
@@ -19,10 +19,17 @@
     your last visit".
 
     THE RACK IS STATIC. Three screens, no rotation (owner, same day:
-    "static on zero-state pages"). Until the owner's photographed plate
-    for this room lands, the hardware is drawn in CSS to the same
-    proportions - blackened brushed metal, brass frames, inset CRTs -
-    and swaps for the photograph without the markup changing. -#}
+    "static on zero-state pages"). It is the owner's photographed plate
+    (partials/cc_rack.html, static/img/room-plate.webp) with the three
+    readouts drawn on it at fractions measured off the file.
+
+    EVERY DOOR IS ONE THIS READER CAN FOLLOW (audit, 2026-09-23). A seat
+    that may only read gets no setup door - the step's words say who does
+    it (cz.can_edit, the rooms' "seat" rule). A page the owner switched off
+    is words too, never a door that bounces (cz.shut). Each door is the
+    step's `door` from account_state.build(): the way back with the step's
+    key inside it, so the shell's back link and the target's save both
+    come back to ?from=<key>. -#}
 {#- data-no-collapse: the shell folds sections under their h2 and draws a
     chevron on each; a setup page is read top to bottom and its headings
     are not controls (the rooms opt out the same way). -#}
@@ -38,10 +45,10 @@
       <span class="cz-chip" title="The account this setup is for">
         <span class="cz-avatar" aria-hidden="true">{{ (cz.account_name[:1] or "N")|upper }}</span><span class="cz-chip-name">{{ cz.account_name }}</span>
       </span>
-      {%- if essentials.next %}
+      {%- if essentials.next and cz.can_edit and essentials.next.key not in cz.shut %}
       {#- "Continue setup" opens the FIRST INCOMPLETE MILESTONE, never a
           generic settings page (spec). -#}
-      <a class="cz-cta" href="{{ essentials.next.href }}?returnTo=/command-center&amp;from={{ essentials.next.key }}"><svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-bolt"/></svg>Continue setup</a>
+      <a class="cz-cta" href="{{ essentials.next.door }}"><svg class="sb-i cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-bolt"/></svg>Continue setup</a>
       {%- endif %}
     </div>
   </header>
@@ -60,7 +67,7 @@
     <ol class="cz-cards">
       {% for s in essentials.shown %}
       <li class="cz-card{% if s.status == 'locked' %} is-locked{% elif s.status == 'complete' %} is-done{% endif %}">
-        <span class="cz-card-ring" aria-hidden="true"><svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-{{ cz.icons.get(s.key, "list-check") }}"/></svg></span>
+        <span class="cz-card-ring" aria-hidden="true"><svg class="sb-i cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-{{ cz.icons.get(s.key, "list-check") }}"/></svg></span>
         <div class="cz-card-body">
           <h3 class="cz-card-t">{{ s.title }}</h3>
           <p class="cz-card-p">{{ s.why }}</p>
@@ -71,14 +78,21 @@
           <p class="cz-lock">{{ s.lock_text }}</p>
           {%- endif %}
         </div>
+        {#- Done is a STATE, not a control: plain words with the tick. A
+            locked step is a real disabled button, which is what a screen
+            reader announces as one (a span's aria-disabled means nothing). -#}
         {%- if s.status == "complete" %}
-        <span class="cz-btn cz-btn--done" aria-disabled="true"><svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-tick"/></svg>Done</span>
+        <span class="cz-btn cz-btn--done"><svg class="sb-i cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-tick"/></svg>Done</span>
         {%- elif s.status == "locked" %}
-        <span class="cz-btn cz-btn--locked" aria-disabled="true">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></span>
+        <button type="button" class="cz-btn cz-btn--locked" disabled>{{ s.cta }}<svg class="sb-i cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></button>
+        {%- elif not cz.can_edit %}
+        <p class="cz-note">{{ cz.seat_line }}</p>
+        {%- elif s.key in cz.shut %}
+        <p class="cz-note">{{ cz.shut[s.key] }}</p>
         {%- elif essentials.next and s.key == essentials.next.key %}
-        <a class="cz-btn cz-btn--primary" href="{{ s.href }}?returnTo=/command-center&amp;from={{ s.key }}">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></a>
+        <a class="cz-btn cz-btn--primary" href="{{ s.door }}">{{ s.cta }}<svg class="sb-i cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></a>
         {%- else %}
-        <a class="cz-btn cz-btn--outline" href="{{ s.href }}?returnTo=/command-center&amp;from={{ s.key }}">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></a>
+        <a class="cz-btn cz-btn--outline" href="{{ s.door }}">{{ s.cta }}<svg class="sb-i cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></a>
         {%- endif %}
       </li>
       {% endfor %}
@@ -111,7 +125,9 @@
       <li class="cz-inprog-row">
         <span class="cz-inprog-t">{{ row.title }}</span>
         <span class="cz-inprog-s">{{ row.state }}</span>
+        {%- if cz.can_edit and not row.shut %}
         <a class="cz-btn cz-btn--outline cz-btn--sm" href="{{ row.href }}">{{ row.cta }}</a>
+        {%- endif %}
       </li>
       {% endfor %}
     </ul>
@@ -125,16 +141,18 @@
         this panel is a priority with one source record, one owning room,
         one action - never a zero. -#}
     <section class="cz-panel cz-attn" aria-labelledby="cz-quiet-h">
-      <span class="cz-panel-ico" aria-hidden="true"><svg class="cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-bolt"/></svg></span>
+      <span class="cz-panel-ico" aria-hidden="true"><svg class="sb-i cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-bolt"/></svg></span>
       <div>
         <h2 id="cz-quiet-h" class="cz-h">{{ cz.attention.title }}</h2>
         <p class="cz-p">{{ cz.attention.body }}</p>
       </div>
+      {%- if cz.attention.href %}
       <a class="cz-btn cz-btn--primary" href="{{ cz.attention.href }}">{{ cz.attention.cta }}</a>
+      {%- endif %}
     </section>
     {%- else %}
     <section class="cz-panel cz-quiet" aria-labelledby="cz-quiet-h">
-      <span class="cz-panel-ico" aria-hidden="true"><svg class="cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-folder"/></svg></span>
+      <span class="cz-panel-ico" aria-hidden="true"><svg class="sb-i cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-folder"/></svg></span>
       <div>
         <h2 id="cz-quiet-h" class="cz-h">Nothing needs attention yet</h2>
         <p class="cz-p">Priorities will appear here after you add music, connect data, or start a project.</p>
@@ -142,25 +160,27 @@
     </section>
     {%- endif %}
     <section class="cz-panel cz-explore" aria-labelledby="cz-explore-h">
-      <span class="cz-panel-ico" aria-hidden="true"><svg class="cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-compass"/></svg></span>
+      <span class="cz-panel-ico" aria-hidden="true"><svg class="sb-i cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-compass"/></svg></span>
       <div>
         <h2 id="cz-explore-h" class="cz-h">You can explore at your own pace</h2>
         <p class="cz-p">Every tool remains available, but setup only asks for the essentials.</p>
       </div>
+      {%- if cz.explore %}
       <a class="cz-btn cz-btn--outline" href="/all-tools">Browse all tools</a>
+      {%- endif %}
     </section>
   </div>
 
   {#- ---- help ------------------------------------------------------ -#}
   <section class="cz-panel cz-help" aria-labelledby="cz-help-h">
-    <span class="cz-panel-ico" aria-hidden="true"><svg class="cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-speech"/></svg></span>
+    <span class="cz-panel-ico" aria-hidden="true"><svg class="sb-i cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-speech"/></svg></span>
     <div>
       <h2 id="cz-help-h" class="cz-h">Need help choosing your first step?</h2>
       <p class="cz-p">Ask Street Banker to explain any room or workflow.</p>
     </div>
     {#- The corner Ask box is on every page; this focuses it. With
         scripts off the link goes to Contact, which is a person. -#}
-    <a class="cz-btn cz-btn--outline" href="/contact" id="cz-ask"><svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-speech"/></svg>Ask Street Banker</a>
+    <a class="cz-btn cz-btn--outline" href="/contact" id="cz-ask"><svg class="sb-i cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-speech"/></svg>Ask Street Banker</a>
   </section>
 
 </div>
