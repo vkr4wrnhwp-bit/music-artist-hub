@@ -5017,37 +5017,35 @@ def create_app():
         # only, so they opened the onboarding page under a "Sample data"
         # lamp (audit studio-7).
         showcase = _session_is_demo()
-        if showcase:
-            fig = studio_room.showcase()
-            analysis, art_files = fig["analysis"], fig["art_files"]
-            n_tracks, masters, ready = fig["tracks"], fig["masters"], fig["ready"]
-        else:
-            analysis = store.latest_track_analysis(user["id"])
-            tracks = store.list_os_tracks(user["id"])
-            n_tracks = len(tracks)
-
-            # UPLOADS_DIR is where /artwork/upload and /artwork/save write.
-            # This called _uploads_dir(), which app.py never defined, and the
-            # NameError fell into the except below: no cover ever reached
-            # this room (audit studio-1).
-            try:
+        # Every record the room is decided on, read in ONE try: a failed
+        # read is the error page, 503, and never a fresh account, a "No
+        # master yet" or a "No art yet" (owner's spec, 2026-09-23). Covers
+        # and masters used to fall back to nothing on their own, and that
+        # silence hid a NameError that kept every cover off this page
+        # (audit studio-1, -3, -4).
+        try:
+            if showcase:
+                fig = studio_room.showcase()
+                analysis, art_files = fig["analysis"], fig["art_files"]
+                n_tracks, masters, ready = fig["tracks"], fig["masters"], fig["ready"]
+            else:
+                analysis = store.latest_track_analysis(user["id"])
+                tracks = store.list_os_tracks(user["id"])
                 art_files = artwork_config.list_uploads(user["id"], UPLOADS_DIR)
-            except Exception:
-                art_files = []
-
-            try:
                 masters = len(release_ready_store.stored_masters(user["id"]) or ())
-            except Exception:
-                masters = 0
-
-            # "Ready" is the catalogue's own Clean Release reading, and it
-            # is None when nothing has been checked - never a zero.
-            ready = None
-            if tracks:
-                osctx = _os_ctx(user["id"])
-                clean = [artist_os.clean_release(t, osctx) for t in tracks]
-                blocked = sum(1 for c in clean if c.get("blocked"))
-                ready = ("%d blocked" % blocked) if blocked else "Clear to submit"
+                n_tracks = len(tracks)
+                # "Ready" is the catalogue's own Clean Release reading, and
+                # it is None when nothing has been checked - never a zero.
+                ready = None
+                if tracks:
+                    osctx = _os_ctx(user["id"])
+                    clean = [artist_os.clean_release(t, osctx) for t in tracks]
+                    blocked = sum(1 for c in clean if c.get("blocked"))
+                    ready = ("%d blocked" % blocked) if blocked else "Clear to submit"
+        except Exception as exc:
+            app.logger.error("studio room: state unreadable: %s", exc)
+            return render_template("room_studio_error.html", active_page="room-studio",
+                                   room=room, **build_dashboard_context()), 503
 
         measured_label = None
         if showcase:
@@ -5066,6 +5064,9 @@ def create_app():
         seat = current_team_seat()
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # Who may add the first song: the account holder, or an edit seat.
+        # A read-only seat is told who does (audit studio-6).
+        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         sd = studio_room.build(analysis, cover, art_files, n_tracks, masters,
                                ready, cards,
@@ -5074,7 +5075,8 @@ def create_app():
                                sample=showcase, can_open=can_open,
                                zero=(not showcase) and studio_room.new_account(
                                    analysis, n_tracks,
-                                   studio_room.covers(art_files)["total"]))
+                                   studio_room.covers(art_files)["total"], masters),
+                               can_add=can_add)
         # The sentence the song door carries back (?from=song), decided by
         # the SAVED track, not the param (studio_room.done_line). The
         # showcase saved nothing, so it never says it.
@@ -8075,6 +8077,31 @@ def create_app():
             return "/catalog?view=passports"
         return "/tracks"
 
+    def _songs_saved_home(user, saved):
+        """Where the add-song and import forms go after a save.
+
+        A door that sent the artist here (Studio's "Add your first song",
+        Publishing's, the Command Center's) carries ?returnTo=&from=; the
+        form posts them back as hidden fields. A song SAVED goes back to
+        the door with ?from= on, so the room can say its done line - which
+        it decides from the saved record, never from the param. Nothing
+        saved stays on the form with the way back still carried. Until
+        2026-09-23 both forms dropped the two fields and landed on the
+        catalog, so no done line could be reached through the real form
+        (audit studio-2). Same-site only, via _safe_next."""
+        back = _safe_next(request.form.get("returnTo"), "")
+        came = (request.form.get("from") or "").strip()[:60]
+        if saved and back:
+            if came:
+                back += ("&" if "?" in back else "?") + "from=" + urllib.parse.quote(came, safe="")
+            return back
+        home = _passports_home(user)
+        keep = [(k, v) for k, v in (("returnTo", back), ("from", came)) if v]
+        if not keep:
+            return home
+        return home + ("&" if "?" in home else "?") + "&".join(
+            "%s=%s" % (k, urllib.parse.quote(v, safe="/")) for k, v in keep)
+
     @app.route("/tracks/import", methods=["POST"])
     def os_tracks_import():
         """Bulk CSV import: title required per row; known metadata columns
@@ -8084,13 +8111,13 @@ def create_app():
             return login_required_redirect()
         f = request.files.get("csv")
         if f is None or not f.filename:
-            return redirect(_passports_home(user))
+            return redirect(_songs_saved_home(user, False))
         import csv as _csv
         import io as _io
+        made = 0
         try:
             text = f.read().decode("utf-8-sig", errors="replace")
             reader = _csv.DictReader(_io.StringIO(text))
-            made = 0
             for row in reader:
                 if made >= 200:
                     break
@@ -8109,7 +8136,7 @@ def create_app():
                 made += 1
         except (UnicodeDecodeError, _csv.Error):
             pass
-        return redirect(_passports_home(user))
+        return redirect(_songs_saved_home(user, made > 0))
 
     @app.route("/tracks/add", methods=["POST"])
     def os_tracks_add():
@@ -8121,7 +8148,7 @@ def create_app():
             store.add_os_track(user["id"], title,
                                (request.form.get("release_title") or "").strip(),
                                (request.form.get("release_date") or "").strip())
-        return redirect(_passports_home(user))
+        return redirect(_songs_saved_home(user, bool(title)))
 
     @app.route("/tracks/<track_id>")
     def os_track_detail(track_id):

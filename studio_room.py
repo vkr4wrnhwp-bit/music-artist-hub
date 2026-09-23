@@ -21,6 +21,11 @@ WHERE EVERY FIGURE COMES FROM
                 one's `path`
   ready         artist_os.clean_release over the catalogue
 
+Every one of these is read in ONE try in the route: a failed read is the
+room's error page at 503 (templates/room_studio_error.html), never a
+zero, never "No master yet" and never the page from zero. The demo
+account is shown showcase() instead, marked Sample.
+
 WHAT IT REFUSES TO DO
 ---------------------
   * Nothing unmeasured reads 0. -0.0 LUFS is a measurement; "Not measured
@@ -40,8 +45,8 @@ empty instrument. It meets an onboarding page: the Command Center's
 three-screen plate drawn STATIC with this room's words, one card that
 adds the first song, what Studio keeps together, the five-stage workflow
 as education, the two empties in words, help, and the tools folded away.
-The analyser above waits for a record - one track, cover or reading and
-the populated room returns untouched. zero_page() holds it all; the
+The analyser above waits for a record - one track, cover, reading or
+stored master and the populated room returns untouched. zero_page() holds it all; the
 animated standby that used to run on the analyser is retired here.
 """
 import artwork_config
@@ -243,9 +248,10 @@ ZERO_PROJECT = {
     "cta": "Add your first song",
     "href": SONG_DOOR,
     "note": "One catalog record, shared with Publishing and Releases.",
-    # /tracks is the Publishing room's (team_areas), so a Studio-only seat
-    # is told who adds songs rather than handed a button that bounces.
-    "locked": ("Songs are added by the account owner or a seat with the "
+    # /tracks is the Publishing room's (team_areas) and POST /tracks/add
+    # refuses a read-only seat, so a seat without both is told who adds
+    # songs rather than handed a button that bounces.
+    "locked": ("Songs are added by the account owner or an edit seat with the "
                "Publishing room. The Studio opens here once one exists."),
 }
 # What one song record carries through this room. GOLD icons - the spec's
@@ -281,8 +287,11 @@ HELP_QUESTIONS = ("What is the difference between a track and a master?",
                   "How does Mix Check measure loudness?",
                   "What does Release-Ready need before it approves a version?")
 # The two doors under "Your tracks will appear here", each with the way
-# back; a seat sees only the ones it can open.
-ZERO_LINKS = (("How the Rack measures", "/rack?returnTo=/room/studio"),
+# back; a seat sees only the ones it can open. "How the Rack measures"
+# lands on the LDN-1 Loudness unit (#sb15), whose explanation the Rack
+# opens when the address names the unit (static/js/rackdsp.js); it opened
+# the top of the signal chain until 2026-09-23 (audit studio-17).
+ZERO_LINKS = (("How the Rack measures", "/rack?returnTo=/room/studio#sb15"),
               ("What a song record holds", "/tracks?returnTo=/room/studio"))
 # The sentence the room carries back from the song door.
 DONE_LINE = "Your first song was added. Its Studio workspace is ready."
@@ -294,11 +303,15 @@ def done_line(came_from, tracks):
     return DONE_LINE if came_from == "song" and tracks > 0 else ""
 
 
-def zero_page(can_open=None):
-    """The page from zero. A seat sees only the doors it can open."""
+def zero_page(can_open=None, can_add=True):
+    """The page from zero. A seat sees only the doors it can open, and
+    the song door only when it may also write: `can_add` is True for the
+    account holder and an edit seat, "seat" for a read-only one (the
+    rooms' pattern). A read-only seat with the Publishing room was handed
+    the door and refused at the save until 2026-09-23 (audit studio-6)."""
     def may(href):
         return can_open is None or bool(can_open(href))
-    song = may(SONG_DOOR)
+    song = may(SONG_DOOR) and can_add is True
     return {
         "subtitle": ZERO_SUBTITLE,
         "screens": [{"k": k, "v": v} for k, v in ZERO_RACK],
@@ -364,18 +377,26 @@ def showcase():
             "ready": SHOWCASE_READY, "measured_label": SHOWCASE_MEASURED}
 
 
-def new_account(analysis, tracks, covers_total):
-    """Nothing measured, tracked or drawn: the page from zero."""
-    return not analysis and not tracks and not covers_total
+def new_account(analysis, tracks, covers_total, masters):
+    """Nothing measured, tracked, drawn or mastered: the page from zero.
+
+    A stored master is a record the account OWNS and paid for. It was left
+    out of this until 2026-09-23, so an account whose song was deleted
+    after Release-Ready stored its master - or that stored one from the
+    drawer without a song - was told "Nothing to review yet" with the
+    master on file (audit studio-5).
+    """
+    return not analysis and not tracks and not covers_total and not masters
 
 
 def build(analysis, cover, art_files, tracks, masters, ready, cards,
           artist_name="", measured_label=None, sample=False, can_open=None,
-          zero=None):
+          zero=None, can_add=True):
     """Everything the screen renders. No page logic beyond this.
 
     `zero` is the route's decision (False for the showcase, whatever its
-    rows); None decides it here from the counts."""
+    rows); None decides it here from the counts. `can_add` is who may add
+    the first song (see zero_page)."""
     art = covers(art_files)
 
     tiles = []
@@ -396,15 +417,16 @@ def build(analysis, cover, art_files, tracks, masters, ready, cards,
                       "name": card[2], "line": card[3],
                       "state": card[4] if len(card) > 4 else ""})
 
-    # Nothing measured, nothing tracked, no art: the page from zero. One
-    # track, one cover or one reading and the unit takes over untouched.
-    idle = (new_account(analysis, tracks, art["total"])
+    # Nothing measured, nothing tracked, no art, no master: the page from
+    # zero. One track, cover, reading or master and the unit takes over
+    # untouched.
+    idle = (new_account(analysis, tracks, art["total"], masters)
             if zero is None else bool(zero))
     return {
         "artist_name": artist_name or "",
         "analyser": analyser(analysis, cover),
         "idle": idle,
-        "zero": zero_page(can_open) if idle else None,
+        "zero": zero_page(can_open, can_add) if idle else None,
         "standby": standby(),
         "covers": art,
         "path": path(tracks, measured_label, masters, art["total"], ready),
