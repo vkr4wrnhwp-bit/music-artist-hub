@@ -3,7 +3,7 @@
 {% block title %}Business{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/business-room.css?v=4">
+  <link rel="stylesheet" href="/static/css/business-room.css?v=5">
   {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
       page from zero and the working room alike -#}
   <link rel="stylesheet" href="/static/css/command-zero.css?v=4">
@@ -264,6 +264,7 @@
         </div>
         <a class="rk-more" href="/royalties">View all{{ icon("arrow", "rk-ico rk-ico--sm") }}</a>
       </div>
+      <div class="bz-streams-scroll">{#- a phone scrolls the table in its panel, never the page -#}
       <table class="rk-table bz-streams">
         <thead>
           <tr><th scope="col">Income stream</th><th scope="col">Amount</th>
@@ -280,6 +281,7 @@
           {% endfor %}
         </tbody>
       </table>
+      </div>
       <p class="rk-foot">A stream with no statement behind it says which one is
         missing. A nought there would be a claim about your income rather than a
         fact about your paperwork.</p>

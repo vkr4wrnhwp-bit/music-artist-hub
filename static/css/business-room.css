@@ -134,6 +134,7 @@
   gap: 16px; align-items: start;
 }
 .bz-streams td:first-child { width: 34%; }
+.bz-streams-scroll { overflow-x: auto; }
 
 .bz-chase { display: flex; flex-direction: column; }
 .bz-chase-i {
