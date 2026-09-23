@@ -5370,6 +5370,18 @@ def create_app():
         split_home.set_layout(request.form.get("layout") or "full")
         return redirect("/settings?home=saved#home-layout")
 
+    @app.route("/admin/membership-band", methods=["POST"])
+    def admin_membership_band():
+        """Which memberships band the app home shows: the three-screen
+        rack (owner, 2026-09-23) or the engraved metal passes it
+        replaced. Owner only, 404 to everybody else, flippable both ways
+        while looking at the page (split_home.band)."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        split_home.set_band(request.form.get("band") or "rack")
+        return redirect("/settings?band=saved#home-layout")
+
     @app.route("/desk/<hub_key>")
     def hub_desk(hub_key):
         user = current_user()
@@ -14189,6 +14201,7 @@ def create_app():
         user = current_user()
         return render_template("settings.html", active_page="settings",
                                home_split=split_home.enabled(),
+                               home_band=split_home.band(),
                                notification_kinds=store.NOTIFICATION_KINDS,
                                muted_kinds=(store.muted_kinds(user["id"]) if user else set()),
                                can_backup=_backup_allowed(current_user()),

@@ -109,6 +109,42 @@ def set_layout(value):
     db.set_kv("home_layout", "split" if value == "split" else "full")
 
 
+# --- THE MEMBERSHIP RACK (owner, 2026-09-23) -------------------------------
+# The memberships band as the Command Center's photographed three-screen
+# plate: CRT static on each screen at rest, and the tier renders when it
+# is pointed at ("make it when you hover over it they render"). The
+# engraved metal passes it replaces stay in the repo, one switch away.
+BANDS = ("rack", "passes")
+
+# The three screens as (x, y, w, h) percentages of command-plate.webp,
+# MEASURED off the file - the same numbers partials/cc_rack.html carries,
+# and tests/test_split_home.py holds the two copies equal. Re-measure both
+# if the plate is ever regenerated.
+RACK_SCREENS = (("6.22", "16.82", "25.14", "61.61"),
+                ("36.5", "16.82", "26.84", "61.61"),
+                ("68.49", "16.82", "25.24", "61.61"))
+
+
+def band():
+    """Which memberships band the split home shows. The owner's saved
+    choice wins over the environment, as with the home layout; nothing
+    set anywhere means the rack."""
+    try:
+        import db
+        choice = db.get_kv("membership_band")
+    except Exception:
+        choice = None
+    if choice in BANDS:
+        return choice
+    env = (os.environ.get("MEMBERSHIP_BAND") or "").strip().lower()
+    return env if env in BANDS else "rack"
+
+
+def set_band(value):
+    import db
+    db.set_kv("membership_band", "passes" if value == "passes" else "rack")
+
+
 def coming_soon(paid):
     """The line under each pass naming what on it is not open yet.
 
@@ -224,6 +260,11 @@ def get_split_home_config(signup_open=False):
             "reads": ENGRAVED[key],
             # What on this plate is not open yet, or "".
             "soon": soon.get(key, ""),
+            # The rack draws the price rather than photographing it: the
+            # figure from plans.PLANS ("$29/mo" -> "29"), and the words a
+            # screen reader gets for it.
+            "amount": price.split("/")[0].lstrip("$"),
+            "price_words": "%s a month" % price.split("/")[0],
         })
     # No pack prices while packs are off sale (owner, 2026-09-18: "hide
     # them until we know what the credits actually cost"). Billing already
@@ -239,6 +280,9 @@ def get_split_home_config(signup_open=False):
         "foot": FOOT,
         "signup_open": bool(signup_open),
         "tiers": tiers,
+        # Which band draws the tiers, and where the rack's screens sit.
+        "band": band(),
+        "rack_screens": RACK_SCREENS,
         "credit_note": CREDIT_NOTE,
         "packs": packs,
         # Hidden while SHOW_CREDITS is off, unless packs are actually on sale:

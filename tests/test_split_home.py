@@ -21,6 +21,7 @@ from being what it was.
 """
 import io
 import os
+import re
 import uuid
 
 import pytest
@@ -151,6 +152,16 @@ def test_the_owner_can_look_at_either_without_switching_it(monkeypatch):
 @pytest.fixture
 def page(monkeypatch):
     monkeypatch.setenv("SPLIT_HOME", "1")
+    monkeypatch.delenv("MEMBERSHIP_BAND", raising=False)
+    return appmod.app.test_client().get("/").get_data(as_text=True)
+
+
+@pytest.fixture
+def passes(monkeypatch):
+    """The page with the engraved metal passes, the band the rack replaced
+    (owner, 2026-09-23). One switch away, and still tested."""
+    monkeypatch.setenv("SPLIT_HOME", "1")
+    monkeypatch.setenv("MEMBERSHIP_BAND", "passes")
     return appmod.app.test_client().get("/").get_data(as_text=True)
 
 
@@ -265,7 +276,8 @@ def test_the_story_sections_are_gone_from_the_page_but_not_the_repo(page):
         assert os.path.exists(os.path.join(HERE, "templates", "partials", kept)), kept
 
 
-def test_the_engraved_price_still_matches_plans(page):
+def test_the_engraved_price_still_matches_plans(passes):
+    page = passes
     """The prices are cut into metal in a photograph, so nothing in the
     code can correct them. This is the thing that goes wrong quietly:
     change a tier in plans.PLANS and the plate keeps advertising the old
@@ -285,7 +297,8 @@ def test_the_engraved_price_still_matches_plans(page):
             "photograph needs reshooting" % (key, reads, price))
 
 
-def test_each_pass_is_a_plate_a_word_mask_and_the_light_between(page):
+def test_each_pass_is_a_plate_a_word_mask_and_the_light_between(passes):
+    page = passes
     """Two images per pass, and the mask is the one that matters: the
     light is poured through the words, which is what makes them light a
     line at a time. A pass that lost its mask would still look right at
@@ -327,7 +340,8 @@ def test_the_credits_band_is_off_the_page_for_now(page):
     assert "{% if sh.show_credits %}" in t and "credit-coin.webp" in t
 
 
-def test_the_home_page_has_no_dim_text_and_the_artist_letters_are_bronze(page):
+def test_the_home_page_has_no_dim_text_and_the_artist_letters_are_bronze(passes):
+    page = passes
     """Owner, 2026-09-20: the Plans link "is really hard to see... any text
     that color needs to be brighter", and "the artist package should be
     the same kind of brown as pro and label is written in". The home
@@ -352,7 +366,7 @@ def test_the_home_page_has_no_dim_text_and_the_artist_letters_are_bronze(page):
     # The tint sits before the light layers, so the hover still lights the letters.
     assert band.index('class="sbmem-tint"') < band.index('class="sbmem-bloom"')
     # A fresh sheet and script version, so no browser keeps the old look.
-    assert "split-home.css?v=13" in page and "artist-eq.js?v=15" in page
+    assert "split-home.css?v=14" in page and "artist-eq.js?v=15" in page
 
 def _band(body):
     return body.split('class="sbmem"')[1].split("</section>")[0]
@@ -399,18 +413,21 @@ def test_the_passes_and_the_plans_link_go_somewhere_real(page, client):
     assert "next=%2Fbilling" in r.headers["Location"] or "next=/billing" in r.headers["Location"]
 
 
-def test_each_pass_says_what_on_it_is_not_open_yet(page):
+def test_each_pass_says_what_on_it_is_not_open_yet(page, passes):
     """Owner, 2026-09-17: mark them coming soon. The plates are engraved,
     so the line under each pass says it, built from the list that puts
-    Soon on the suites strip rather than written down a second time."""
+    Soon on the suites strip rather than written down a second time. On
+    the rack the same line is printed on the glass under the plan's."""
     import hubs
     pending = hubs.suites_pending()
     names = {k: label for k, _h, _i, label, _d in hubs.tool_suites()}
     lines = split_home.coming_soon(("artist", "pro", "label"))
-    band = _band(page)
+    band = _band(passes)
+    rack = _band(page)
     for tier, line in lines.items():
         if line:
             assert '<p class="sbmem-soon">%s</p>' % line in band, tier
+            assert '<span class="sbrk-soon">%s</span>' % line in rack, tier
     # Every waiting suite is named on the Label pass, which carries them all.
     for key in pending:
         assert names[key] in lines["label"], key
@@ -512,3 +529,127 @@ def test_the_bar_has_no_logo_and_no_sign_in_link(page):
     assert ">Sign in<" not in bar and 'aria-current="page"' not in bar
     assert 'href="#memberships">Plans</a>' in bar
 
+
+# --- the membership rack (owner, 2026-09-23) --------------------------------
+
+def _rack(body):
+    band = _band(body)
+    assert 'data-band="rack"' in band, "the rack is the band"
+    return band
+
+
+def test_the_rack_is_the_band_and_the_passes_are_one_switch_away(page, monkeypatch):
+    """Nothing set anywhere means the rack. MEMBERSHIP_BAND=passes brings
+    the engraved plates back; the owner's saved choice beats both."""
+    band = _rack(page)
+    assert "command-plate.webp" in band and "sbmem-pass" not in band
+    assert "pass-plate-" not in band, "no photographed metal on the rack"
+    monkeypatch.setenv("MEMBERSHIP_BAND", "passes")
+    assert split_home.band() == "passes"
+    other = _band(appmod.app.test_client().get("/").get_data(as_text=True))
+    assert "sbmem-pass" in other and "sbrk-screen" not in other
+    monkeypatch.setenv("MEMBERSHIP_BAND", "nonsense")
+    assert split_home.band() == "rack", "anything else is the rack"
+
+
+def test_each_screen_reads_its_price_from_plans(page):
+    """The owner's render of this band had the prices cut into the
+    picture. Here the figure is read from plans.PLANS at render, so a
+    price change is one edit and this test would catch a template that
+    typed a number instead."""
+    band = _rack(page)
+    assert band.count('<li class="sbrk-screen"') == 3
+    for key, name, price, blurb, _inc in plans.PLANS:
+        if key == "fan":
+            assert "Fan" not in band.split("sbrk-screens")[1], "free, and no screen"
+            continue
+        amount = price.split("/")[0].lstrip("$")
+        assert '<span class="sbrk-cur">$</span>%s</span>' % amount in band, (key, amount)
+        assert '<span class="sbrk-k">%s</span>' % name in band, name
+        assert blurb in band, blurb
+        assert 'aria-label="%s, %s a month. ' % (name, price.split("/")[0]) in band, name
+        assert "Choose %s." % name in band, name
+        assert price not in band, "the plans string itself is never printed"
+    # every screen is the door to Billing, one per tier, as the passes were
+    doors = re.findall(r'class="sbrk-door[^"]*" href="([^"]+)"', band)
+    assert doors == ["/billing"] * 3, doors
+    assert "sbrk-go" not in band, "the screens are the doors; no second button"
+
+
+def test_the_screens_sit_where_the_command_center_s_do():
+    """One plate, one set of fractions. cc_rack.html carries them inline
+    for the Command Center; split_home.RACK_SCREENS carries them for the
+    rack. If the plate is re-measured, both move or this fails."""
+    t = io.open(os.path.join(HERE, "templates", "partials", "cc_rack.html"),
+                encoding="utf-8").read()
+    boxes = re.findall(r'\("([\d.]+)","([\d.]+)","([\d.]+)","([\d.]+)"\)', t)
+    assert tuple(boxes) == split_home.RACK_SCREENS
+
+
+def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
+    """At rest the glass is snow; hover, focus or a first tap clears it
+    and the tier settles in. No media query decides who gets the static -
+    a touchscreen laptop reports no hover at all in Chrome (the owner's
+    own machine, 2026-09-23) and a gate would have shown him nothing. A
+    phone gets the screens stacked and resolved. Less motion stops the
+    jitter. The touch reveal is one small script; the band works as doors
+    without it."""
+    css = io.open(os.path.join(HERE, "static", "css", "split-home.css"),
+                  encoding="utf-8").read()
+    body = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    static = body.split(".sbrk-static {", 1)[1].split("}", 1)[0]
+    assert "crt-static.png" in static and "steps(1, end)" in static
+    assert os.path.exists(os.path.join(HERE, "static", "img", "crt-static.png"))
+    hover = body.split(".sbrk-door:hover .sbrk-static,", 1)[1].split("}", 1)[0]
+    assert "opacity: 0" in hover
+    assert ".sbrk-door:focus-visible .sbrk-static" in body, "the keyboard clears it too"
+    assert ".sbrk-door.is-on .sbrk-static" in body, "a first tap clears it too"
+    for q in ("@media (prefers-reduced-motion: reduce)", "@media (max-width: 759px)"):
+        assert q in body, q
+    for gate in ("(hover: none)", "(any-hover: none)", "(pointer: coarse)"):
+        assert gate not in body, gate + " would hide the static from a touchscreen laptop"
+    js_path = os.path.join(HERE, "static", "js", "memberships-rack.js")
+    assert os.path.exists(js_path)
+    js = io.open(js_path, encoding="utf-8").read()
+    assert '"touchend"' in js and 'classList.add("is-on")' in js and "preventDefault" in js
+    page_t = io.open(os.path.join(HERE, "templates", "landing_split.html"), encoding="utf-8").read()
+    assert "memberships-rack.js?v=1" in page_t
+    phone = body.split("@media (max-width: 759px)", 1)[1]
+    assert ".sbrk-plate { display: none; }" in phone and ".sbrk-static { display: none; }" in phone
+    calm = body.split("@media (prefers-reduced-motion: reduce)")
+    assert any("animation: none" in part and ".sbrk-static" in part for part in calm[1:])
+    t = io.open(os.path.join(HERE, "templates", "partials", "memberships_rack.html"),
+                encoding="utf-8").read()
+    assert "<script" not in t, "the script is the page's, loaded once with the others"
+    assert "cqh" not in body.split(".sbrk-unit {", 1)[1], "nothing on a plate is sized off its height"
+
+
+def test_only_an_owner_flips_the_band(monkeypatch):
+    """Same rule as the home layout: 404 to anybody signed in who is not
+    the owner, sign-in first for anybody else, and nothing moves."""
+    _off(monkeypatch)
+    monkeypatch.delenv("MEMBERSHIP_BAND", raising=False)
+    app_obj = create_app()
+    stranger = _signed_in(app_obj)
+    monkeypatch.setenv("OWNER_EMAILS", "somebody-else@example.net")
+    assert stranger.post("/admin/membership-band", data={"band": "passes"}).status_code == 404
+    assert split_home.band() == "rack"
+    anon = app_obj.test_client()
+    assert anon.post("/admin/membership-band", data={"band": "passes"}).status_code in (302, 404)
+    assert split_home.band() == "rack"
+    # the owner can, both ways, and the saved choice beats the environment
+    owner = _signed_in(app_obj, "label")
+    monkeypatch.setenv("OWNER_EMAILS", owner._email)
+    try:
+        r = owner.post("/admin/membership-band", data={"band": "passes"})
+        assert r.status_code == 302 and r.headers["Location"].endswith("/settings?band=saved#home-layout")
+        assert split_home.band() == "passes"
+        monkeypatch.setenv("MEMBERSHIP_BAND", "rack")
+        assert split_home.band() == "passes", "the saved choice wins"
+        owner.post("/admin/membership-band", data={"band": "rack"})
+        assert split_home.band() == "rack"
+        settings = owner.get("/settings").get_data(as_text=True)
+        assert 'action="/admin/membership-band"' in settings
+    finally:
+        with app_obj.app_context():
+            store.set_kv("membership_band", "")

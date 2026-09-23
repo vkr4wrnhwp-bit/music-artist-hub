@@ -714,3 +714,129 @@
   .sbhome-foot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; row-gap: 32px; }
   .sbhome-foot-grid > :first-child { grid-column: 1 / -1; }
 }
+
+/* --- the membership rack (owner, 2026-09-23) ------------------------- */
+/* The three memberships on the Command Center's photographed three-screen
+ * plate. CRT static on every screen at rest; point at one and the static
+ * clears and the tier renders. The words are drawn in the screen type the
+ * Command Center's screens use, never photographed, so the price is read
+ * from plans.PLANS. Same photo-plate method as every other plate: the
+ * unit is a container, each screen's box comes in as --x/--y/--w/--h
+ * measured off the file, every size on the glass is a cqw clamp, nothing
+ * is sized in cqh. No JavaScript anywhere in this band. */
+
+.sbrk-unit { position: relative; container-type: inline-size; max-width: 1240px; margin: 26px auto 0; }
+.sbrk-plate { display: block; width: 100%; height: auto; border-radius: var(--sb-r-panel); }
+.sbrk-screens { margin: 0; padding: 0; list-style: none; }
+.sbrk-screen { position: absolute; left: var(--x); top: var(--y); width: var(--w); height: var(--h); }
+
+.sbrk-door {
+  position: absolute; inset: 0; box-sizing: border-box; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 5% 6%; text-align: center; text-decoration: none; border-radius: 2% / 3%;
+}
+/* scanlines: it is a CRT behind glass, so everything rides on them */
+.sbrk-door::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(180deg, rgb(0 0 0 / .16) 0 1px, transparent 1px 3px);
+}
+
+/* the static: one noise tile in the screen's green, jittered eight frames a
+ * cycle. steps(1, end) holds each frame, so it is snow, not a slide. */
+.sbrk-static {
+  position: absolute; inset: 0; pointer-events: none; opacity: .72; mix-blend-mode: screen;
+  background: url(/static/img/crt-static.png) 0 0 / 160px 160px repeat; image-rendering: pixelated;
+  animation: sbrk-snow .64s steps(1, end) infinite;
+  transition: opacity .22s ease;
+}
+@keyframes sbrk-snow {
+  0%    { background-position: 0 0; }
+  12.5% { background-position: -37px 23px; }
+  25%   { background-position: 41px -19px; }
+  37.5% { background-position: -11px -47px; }
+  50%   { background-position: 29px 53px; }
+  62.5% { background-position: -59px -7px; }
+  75%   { background-position: 17px -31px; }
+  87.5% { background-position: -23px 43px; }
+  100%  { background-position: 0 0; }
+}
+
+/* the reading, dark until the pointer arrives */
+.sbrk-read {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 1.5%;
+  opacity: 0; transform: scale(.985);
+  transition: opacity .28s ease .06s, transform .28s ease .06s;
+}
+.sbrk-k {
+  font-size: clamp(12px, .95cqw, 15px); font-weight: 800; letter-spacing: .24em; text-transform: uppercase;
+  color: var(--sb-crt); text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 70%, transparent);
+}
+.sbrk-price {
+  margin-top: 2%; font-family: var(--sb-display); font-weight: 800; line-height: 1;
+  font-size: clamp(30px, 5.4cqw, 96px); color: var(--sb-crt);
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+  text-shadow: 0 0 12px color-mix(in srgb, var(--sb-crt) 70%, transparent), 0 0 34px color-mix(in srgb, var(--sb-crt) 35%, transparent);
+}
+.sbrk-cur { font-size: .58em; vertical-align: .34em; margin-right: .06em; }
+.sbrk-per {
+  font-size: clamp(12px, 1.15cqw, 18px); letter-spacing: .08em; color: var(--sb-crt);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 60%, transparent);
+}
+.sbrk-line {
+  margin-top: 4%; font-size: clamp(12px, .98cqw, 15px); line-height: 1.35; max-width: 26ch;
+  color: var(--sb-crt-dim);
+}
+.sbrk-soon { margin-top: 1.5%; font-size: clamp(12px, .85cqw, 13px); line-height: 1.3; max-width: 28ch; color: var(--sb-crt-dim); }
+
+/* under the pointer, the keyboard, or a first tap (.is-on, from
+ * memberships-rack.js): the static clears, the tier settles in */
+.sbrk-door:hover .sbrk-static,
+.sbrk-door:focus-visible .sbrk-static,
+.sbrk-door.is-on .sbrk-static { opacity: 0; }
+.sbrk-door:hover .sbrk-read,
+.sbrk-door:focus-visible .sbrk-read,
+.sbrk-door.is-on .sbrk-read { opacity: 1; transform: none; animation: sbrk-settle .34s steps(4, end); }
+@keyframes sbrk-settle {
+  0%   { opacity: .15; }
+  30%  { opacity: .8; }
+  55%  { opacity: .35; }
+  100% { opacity: 1; }
+}
+.sbrk-door:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 4px; }
+
+/* No media query decides who gets the static. A touchscreen laptop reports
+ * no hover at all in Chrome (the owner's own machine, 2026-09-23: hover
+ * none, any-hover none, no fine pointer), so a (hover) or (any-hover) gate
+ * would have shown him resolved screens and no static. Touch gets the
+ * reveal from memberships-rack.js instead: first tap renders, second
+ * opens. Only the phone layout below renders resolved from the start. */
+/* less motion: no snow, and the reveal arrives instead of settling */
+@media (prefers-reduced-motion: reduce) {
+  .sbrk-static { animation: none; opacity: .35; transition: none; }
+  .sbrk-read { transition: none; }
+  .sbrk-door:hover .sbrk-read,
+  .sbrk-door:focus-visible .sbrk-read,
+  .sbrk-door.is-on .sbrk-read { animation: none; }
+}
+/* the phone: the photograph steps aside and the three screens stack,
+ * resolved - the same rule as every plate in the app. The band's own
+ * breakpoint is 760px, where the passes went to one column, because these
+ * screens carry five lines and are unreadable on the picture below it. */
+@media (max-width: 759px) {
+  .sbrk-plate { display: none; }
+  .sbrk-unit { container-type: normal; max-width: 420px; }
+  .sbrk-screens { display: flex; flex-direction: column; gap: 22px; }
+  .sbrk-screen { position: static; left: auto; top: auto; width: auto; height: auto; }
+  .sbrk-door {
+    position: relative; inset: auto; width: 100%; min-height: 150px; padding: 20px 18px;
+    border: 1px solid var(--sb-gold-deep); border-radius: var(--sb-r-control);
+    background: color-mix(in srgb, var(--sb-crt) 6%, #000);
+  }
+  .sbrk-static { display: none; }
+  .sbrk-read { opacity: 1; transform: none; gap: 6px; }
+  .sbrk-k { font-size: 12px; }
+  .sbrk-price { font-size: 46px; margin-top: 4px; }
+  .sbrk-per { font-size: 13px; }
+  .sbrk-line { font-size: 13px; margin-top: 8px; max-width: none; }
+  .sbrk-soon { font-size: 12px; margin-top: 4px; max-width: none; }
+}

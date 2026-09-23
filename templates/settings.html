@@ -220,6 +220,16 @@
           <button class="sb-btn sb-btn-secondary sb-btn-sm">Save home page</button>
         </form>
         <p class="mt-2 text-xs text-gray-300">Preview it either way at <a class="text-sb-gold-bright" href="/?home=split">/?home=split</a> and <a class="text-sb-gold-bright" href="/?home=full">/?home=full</a>. Owner only; nobody else's page changes.</p>
+        {#- The memberships band on the app home (owner, 2026-09-23): the
+            three-screen rack with static until you point at one, or the
+            engraved metal passes it replaced. Both stay; this picks. -#}
+        {% if request.args.get('band') == 'saved' %}<p class="mt-4 text-sm text-green-400">Saved. The memberships band changed for everybody.</p>{% endif %}
+        <form method="post" action="/admin/membership-band" class="mt-4 flex flex-wrap items-center gap-3 text-sm text-gray-100">
+          <span class="font-bold">Memberships band:</span>
+          <label class="flex items-center gap-2"><input type="radio" name="band" value="rack" class="accent-sb-gold"{% if home_band != 'passes' %} checked{% endif %}> Rack &mdash; three screens, static until you point at one</label>
+          <label class="flex items-center gap-2"><input type="radio" name="band" value="passes" class="accent-sb-gold"{% if home_band == 'passes' %} checked{% endif %}> Metal passes</label>
+          <button class="sb-btn sb-btn-secondary sb-btn-sm">Save band</button>
+        </form>
       </section>
 
       <section id="page-switches" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
