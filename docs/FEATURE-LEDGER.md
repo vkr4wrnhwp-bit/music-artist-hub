@@ -469,6 +469,7 @@ Three questions from a visitor with no account, answered with what a sweep check
 A JSON scan that returns the account's recovery findings.
 
 - Because: For a signed-in, non-demo account it returns recovery_engine.build output — proved: it returned the two findings computed from the uploaded CSV. For the demo session (and for any path where _session_is_demo() is true) it falls through to royalty_data.get_missing_royalty_findings(get_platform_catalog()), which is the hardcoded platform list, so the same endpoint answers with seed findings there.
+- total_estimated is the estimate alone and total_actual the unattributed money (2026-09-23); total_estimated used to be recovery_engine's total_at_stake, which counted the actual money as estimated.
 - Routes: POST /scan/missing-royalties
 - Files: app.py:14336; recovery_engine.py:89 build; royalty_data.py:730 get_missing_royalty_findings, :152 get_platform_catalog
 - Access: Not in _PRO_PATHS or _ARTIST_PATHS, so required_tier is None — any signed-in account; anonymous is redirected to /login by plan_gate.
@@ -3749,6 +3750,7 @@ Finds pages by name, and the account's own statement tracks, sources and dispute
 Total collected, monthly trend, goal ring, money-left-on-the-table and the recovery view, at the top of the Command Center.
 
 - Because: for a real account every figure comes from that account's statement_rows (_real_royalty, recovery_engine.build, store.get_royalty_goal); when _session_is_demo() is true the same band is fed royalty_data's hard-coded get_platform_balances()/get_earnings_trend() and the $25,000 goal instead
+- MONEY LEFT ON THE TABLE (make-it-real, 2026-09-23): for a real account the card prints two figures side by side, Actual (recovery_engine's actual_unattributed: paid, no track named) and Estimate (estimated_gaps: stores silent on a track), and never the sum. It used to lead with total_at_stake, which adds the two. The same sum is gone from the Valuation driver ("$X actual, about $Y estimated" instead of "$X at stake") and from POST /scan/missing-royalties, whose total_estimated is now the estimate alone beside a new total_actual. tests/test_real_money.py.
 - Routes: /command-center, /overview (rendered by _front_money_context)
 - Files: app.py:2472 _front_money_context; app.py:2302 _real_royalty; app.py:361 _session_is_demo; templates/_front_money.html; since_engine.py; recovery_engine.py; royalty_data.py (showcase seed)
 - Access: Same as the Command Center: artist tier and above, whole-account for team seats.

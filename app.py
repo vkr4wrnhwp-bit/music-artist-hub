@@ -15768,7 +15768,11 @@ def create_app():
             return jsonify({
                 "ok": True,
                 "count": view["finding_count"],
-                "total_estimated": view["total_at_stake"],
+                # Two bases, two keys. total_estimated was total_at_stake,
+                # which counted the actual unattributed money as estimated
+                # (make-it-real, 2026-09-23).
+                "total_actual": view["actual_unattributed"],
+                "total_estimated": view["estimated_gaps"],
                 "findings": [{"id": f["id"], "source": f["source"],
                               "issue_type": f["issue_type"],
                               "estimated_value": f["amount"],
