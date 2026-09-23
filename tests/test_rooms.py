@@ -142,12 +142,16 @@ def test_a_room_screen_is_one_grid_of_cards(monkeypatch):
     assert "recovery" in cards and "valuation" in cards
     assert "vault" in cards and "contracts" in cards
 
-    # Stage is a built screen now: its own three tiles, and NO Tour on it -
-    # Tour is its own suite and the suite strip is its door.
+    # Stage is a built screen now. A fresh account meets its page from
+    # zero (owner's spec, 2026-09-23): the spec's own words and the six
+    # tools of its drawer - Tours among them, because a show IS the Tour
+    # desk's record. The populated room still carries no Tour
+    # (tests/test_stage_room.py).
+    import stage_room
     stage = c.get("/room/stage").get_data(as_text=True)
-    assert "What the stage needs to know before you get there." in stage
+    assert stage_room.ZERO_SUBTITLE in stage
     on_stage = re.findall(r'data-room-card="([a-z-]+)"', stage)
-    assert on_stage == ["lights", "passports", "tour-board", "live"], on_stage
+    assert on_stage == list(stage_room.ZERO_TILES), on_stage
     assert 'data-hub="stage" data-room="1" data-active="1"' in stage
     assert c.get("/room/nope").status_code == 404
     studio = c.get("/room/studio").get_data(as_text=True)

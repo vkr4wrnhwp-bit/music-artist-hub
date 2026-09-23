@@ -4824,13 +4824,27 @@ def create_app():
         import recovery_engine
         import statements_engine
 
-        rows_all = store.get_statement_rows(user["id"])
+        # Every count the page from zero is decided on, read in ONE try:
+        # a failed read is the error page, 503, and never a fresh account
+        # (owner's spec, 2026-09-23). The three that used to fall back to
+        # nothing on their own - costs, claims, disputes - are in here for
+        # exactly that reason.
+        try:
+            rows_all = store.get_statement_rows(user["id"])
+            uploads = store.get_statements(user["id"])
+            expenses = store.list_expenses(user["id"])
+            cases = store.list_recovery_cases(user["id"])
+            disputes = store.list_disputes(user["id"])
+        except Exception as exc:
+            app.logger.error("business room: state unreadable: %s", exc)
+            return render_template("room_business_error.html", active_page="room-business",
+                                   room=room, **build_dashboard_context()), 503
+        zero = business_room.new_account(uploads, rows_all, expenses, cases, disputes)
         # _act_scope returns (roster, act, rows). Binding the tuple itself
         # to `rows` handed statements_engine a list of lists and every
         # account with a statement 500'd on r["amount"].
         _roster, act, rows = _act_scope(rows_all)
         analysis = statements_engine.analyze(rows) if rows else None
-        uploads = store.get_statements(user["id"])
         # Scoped to one act, count only the statements that actually carry a
         # row for them. The rows are scoped and the count was not, so the
         # provenance line said "6 statements" under a figure read from two.
@@ -4865,11 +4879,6 @@ def create_app():
         except Exception:
             pass
 
-        expenses = []
-        try:
-            expenses = store.list_expenses(user["id"])
-        except Exception:
-            pass
         # Kept is Reported LESS the costs from the SAME period. Taking
         # every cost the account ever logged off one period's income is how
         # a page comes to report a negative month.
@@ -4896,15 +4905,6 @@ def create_app():
                 if before is not None:
                     kept_prior = round(float(prior) - before, 2)
 
-        cases = disputes = []
-        try:
-            cases = store.list_recovery_cases(user["id"])
-        except Exception:
-            pass
-        try:
-            disputes = store.list_disputes(user["id"])
-        except Exception:
-            pass
         open_claims = sum(1 for c in cases
                           if (c.get("status") or "") in ("open", "submitted", "waiting"))
         open_claims += sum(1 for d in disputes
@@ -4935,14 +4935,23 @@ def create_app():
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        # Who may upload the first statement: the account holder, or an
+        # edit seat.
+        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         bz = business_room.build(
             reported, prior, actual, estimated, kept, kept_prior,
             scan, steps, rows, _business_chasing(cases, disputes),
             cards, artist_name=artist_identity.display_name(user),
             sample=_session_is_demo(), can_open=can_open, note=note,
-            kept_note=kept_note)
+            kept_note=kept_note, zero=zero, can_add=can_add)
         return render_template("room_business.html", active_page="room-business",
-                               room=room, bz=bz, **build_dashboard_context())
+                               room=room, bz=bz,
+                               # The sentence the statements desk carries
+                               # back (?from=business-zero-state), decided
+                               # by the SAVED statement.
+                               done_line=business_room.done_line(
+                                   request.args.get("from"), len(uploads or ())),
+                               **build_dashboard_context())
 
     def _business_chasing(cases, disputes):
         """What is open, newest first. Nothing here predicts an outcome."""

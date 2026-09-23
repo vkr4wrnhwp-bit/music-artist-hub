@@ -53,6 +53,12 @@ def _css():
                    encoding="utf-8").read()
 
 
+def _statement(uid):
+    """One statement on file: the populated analyser, not the page from zero."""
+    store.save_statement(uid, "q1.csv", [
+        {"title": "Higher Places", "source": "Spotify", "amount": 2640.0, "period": "2026-01"}])
+
+
 # --- the one figure this room must never produce -------------------------
 
 def test_the_three_windows_are_never_added_together():
@@ -353,28 +359,134 @@ def test_a_renamed_tile_keeps_its_card_s_own_href():
 
 # --- the page itself ------------------------------------------------------
 
-def test_an_empty_account_opens_on_the_unit_and_prints_no_nought():
-    """The room opens on the instrument whatever the account holds - the
-    same mistake as Stage, made once and not again."""
+def test_an_empty_account_meets_the_page_from_zero_not_an_empty_analyser():
+    """The page from zero (owner's Business spec + mockup, 2026-09-23). The
+    analyser waits for paperwork; a new account meets the Command Center's
+    three-screen plate, STATIC, with this room's words, and the spec's
+    order under it. No date range, no income total, no profit, no recovery
+    estimate, no percentage, no nought - and none of the analyser's parts."""
+    import re as _re
     c, _uid = _account()
     body = _room(c.get("/room/business").get_data(as_text=True))
-    assert "business-plate.webp" in body, "the photographed unit is always there"
-    # Owner, 2026-09-22: a plate whose every window reads "Not measured"
-    # is worse than no plate, so an account that has measured nothing
-    # now meets the STANDBY - words about what will fill each window.
-    # The zero rule is unchanged and still checked below.
-    # The caption standby became the DISPLAY the same afternoon (owner:
-    # "slot machine-y" - the big window sequences the room's features,
-    # the small ones are a reel, a hint and a ticker, never a caption).
-    # The zero rule is unchanged and still checked.
-    import re as _re
-    _f = _re.findall(r"rk-cine-frame[^>]*>\s*(?:<img[^>]*>\s*)?<b[^>]*>([^<]*)", body)
-    assert _f == ['Statements', 'Royalties', 'Recovery', 'Profit &amp; Loss'], _f
-    assert body.count("rk-tip-win") == 1 and body.count("rk-tick-win") == 1, "the hint and the ticker"
-    assert "Upload a statement" in body, "the hero pill is the way in"
-    assert "bz-fig" not in body, "no reading is drawn while nothing is measured"
-    assert not re.search(r"\$\s?0\b", body), "a nought would be a claim"
-    assert "rk-calm" not in body or "Nothing open." in body
+    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "business-plate.webp" not in body, "the analyser waits for paperwork"
+    assert "rk-cine" not in body and "rk-tip-win" not in body and "rk-tick-win" not in body, "nothing rotates"
+    assert "bz-fig" not in body and "bz-win" not in body, "no reading, measured or not"
+    # the three screens, the spec's words exactly, none of them a door
+    for k, v in bz.ZERO_RACK:
+        assert k in body and v in body, (k, v)
+    assert body.count('<li class="cz-screen"') == 3 and 'class="cz-screen-v" href' not in body
+    # the header: the spec's subtitle, the account chip kept, the one door
+    assert "See what you earned, what you spent, and what still needs attention." in body
+    assert "Business Artist" in body, "the account selector still says whose information it is"
+    assert 'class="rk-cta" href="%s"' % bz.DOOR.replace("&", "&amp;") in body and "Upload your first statement" in body
+    assert bz.DOOR == "/statements?returnTo=/room/business&from=business-zero-state", "exactly as the spec writes it"
+    # the card and the four categories, each a door by its own room card
+    assert "Start with your first statement" in body and "Upload a statement" in body
+    assert 'class="bz-z-btn" href="%s"' % bz.DOOR.replace("&", "&amp;") in body
+    assert "Upload statement</a>" in body and "How statements work" in body
+    assert "What Business will organize" in body
+    for _k, name, line, _card in bz.LENSES:
+        assert name.replace("&", "&amp;") in body and line in body, name
+    for href in ("/statements", "/revenue-os", "/recovery", "/vault"):
+        assert 'class="bz-z-lens" href="%s?returnTo=/room/business"' % href in body, href
+    # the five steps as education, numbered, Upload lit
+    for _k, name, line in bz.WORKFLOW:
+        assert name in body and line in body, name
+    rail = body.split("How Business works")[1].split("Your money picture will appear here")[0]
+    assert "%" not in rail and "Complete" not in rail and "In progress" not in rail
+    assert 'class="rk-step is-first"' in body and "rk-step--ahead" not in body
+    assert '<span class="rk-ring" aria-hidden="true">1</span>' in rail and '>5</span>' in rail
+    # the two empties in words, help, the drawer open under four categories
+    assert "Your money picture will appear here" in body and "No income is measured yet" in body
+    assert "Missing statements never become $0." in body
+    assert 'href="/statements?returnTo=/room/business#intake">Supported statements' in body
+    assert "Import history" not in body, "an empty history is the empty table the spec forbids"
+    assert "Not sure which statement to upload?" in body and 'href="/contact">Ask Street Banker' in body
+    assert '<details class="bz-z-fold" open>' in body and "More Business tools" in body, (
+        "the drawer starts OPEN (owner, 2026-09-23: people need to see it)")
+    drawer = body.split('<details class="bz-z-fold"')[1]
+    titles = _re.findall(r'<h3 class="bz-band">([^<]+)</h3>', drawer)
+    assert titles == ["Statements &amp; royalties", "Costs &amp; profit", "Recovery &amp; claims", "Contracts &amp; people"], titles
+    # every tool this plan has, in the spec's order (Label-only cards such
+    # as the roster and services are not this Artist account's to draw)
+    drawn = _re.findall(r'data-room-card="([a-z-]+)"', drawer)
+    expected = [k for _t, keys in bz.ZERO_BANDS for k in keys]
+    assert set(drawn) <= set(expected) and drawn == [k for k in expected if k in set(drawn)], drawn
+    for must_have in ("royalties", "statements", "tax", "recovery", "vault", "contracts", "deals"):
+        assert must_have in drawn, must_have
+    # no money, no nought, no date range, no comparison
+    text = _re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", body, flags=_re.S)
+    money = [m for m in _re.findall(r"\$\s?[\d,]+(?:\.\d+)?", text) if m.replace("$", "").strip() != "0"]
+    assert not money, money
+    assert not _re.search(r"(?<![\d.])0%", text)
+    zone = body.split("Start with your first statement", 1)[1].split("More Business tools", 1)[0]
+    for control in ('name="range"', 'name="period"', "Compare", "Last 30 days", "<select"):
+        assert control not in zone, control
+    assert "Explore more tools" not in body and "Where the money is" not in body
+
+
+def test_the_desk_carries_the_way_back_and_the_saved_statement_says_the_line():
+    c, uid = _account()
+    page = c.get("/room/business?from=business-zero-state").get_data(as_text=True)
+    assert bz.DONE_LINE not in page, "the param alone says nothing"
+    _statement(uid)
+    assert bz.DONE_LINE in c.get("/room/business?from=business-zero-state").get_data(as_text=True)
+    assert bz.DONE_LINE not in c.get("/room/business").get_data(as_text=True)
+
+
+def test_the_done_line_is_said_by_the_record_not_the_param():
+    assert bz.done_line("business-zero-state", 0) == ""
+    assert bz.done_line(None, 2) == ""
+    assert bz.done_line("statement", 2) == ""
+    assert bz.done_line("business-zero-state", 1) == bz.DONE_LINE
+
+
+def test_new_account_is_empty_on_every_count_the_spec_names():
+    assert bz.new_account([], [], [], [], []) is True
+    assert bz.new_account([{"id": "s"}], [], [], [], []) is False
+    assert bz.new_account([], [{"amount": 1}], [], [], []) is False
+    assert bz.new_account([], [], [{"amount": 5}], [], []) is False
+    assert bz.new_account([], [], [], [{"id": "c"}], []) is False
+    assert bz.new_account([], [], [], [], [{"id": "d"}]) is False
+
+
+def test_one_statement_brings_the_analyser_back_untouched():
+    c, uid = _account()
+    _statement(uid)
+    body = _room(c.get("/room/business").get_data(as_text=True))
+    assert "business-plate.webp?v=" in body and "command-plate" not in body
+    assert "bz-win" in body and "Explore more tools" in body
+    assert "Start with your first statement" not in body and "bz-z-fold" not in body
+    titles = re.findall(r'<h3 class="bz-band">([^<]+)</h3>', body)
+    assert titles == ["The money you have", "The money you&#39;re owed", "The paperwork and the people"], (
+        "the populated room keeps its own three bands (owner, 2026-09-22)")
+
+
+def test_a_seat_that_may_not_write_gets_no_door_and_a_category_it_cannot_open_is_words():
+    z = bz.zero_page(can_add="seat", can_open=lambda href: href != "/vault", cards=_CARDS)
+    assert z["project"]["can"] == "seat"
+    by = {l["key"]: l for l in z["lenses"]}
+    assert by["people"]["href"] == "" and by["statements"]["href"] == "/statements"
+    assert [b["title"] for b in z["bands"]][-1] == "Contracts & people"
+    assert "vault" not in [t["key"] for b in z["bands"] for t in b["tiles"]]
+    assert bz.zero_page(cards=_CARDS)["project"]["can"] is True
+
+
+def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
+    """Owner's spec: never convert a loading failure into the new-account
+    state. Before this, costs, claims and disputes each fell back to
+    nothing on their own, which read as a fresh account."""
+    def boom(*_a, **_k):
+        raise RuntimeError("business: store down")
+    monkeypatch.setattr(store, "list_recovery_cases", boom)
+    c, _uid = _account()
+    r = c.get("/room/business")
+    assert r.status_code == 503
+    page = r.get_data(as_text=True)
+    assert "We could not load Business" in page
+    assert 'href="/room/business"' in page and 'href="/statements"' in page and "Open statements" in page
+    assert "Start with your first statement" not in page and "command-plate" not in page
 
 
 def test_the_title_is_the_room_s_name_with_no_room_behind_it():
@@ -394,7 +506,8 @@ def test_the_plate_image_carries_a_cache_version():
     """Studio's lost afternoon: the file was REPLACED in place, so browsers
     took the new stylesheet - whose fractions are measured against the new
     crop - and kept the old picture they already had."""
-    c, _uid = _account()
+    c, uid = _account()
+    _statement(uid)
     body = _room(c.get("/room/business").get_data(as_text=True))
     assert "business-plate.webp?v=" in body
 
@@ -404,7 +517,8 @@ def test_the_markup_never_prints_the_plate_s_own_silkscreen():
     ACTUAL and ESTIMATE inside the two middle panes. Owner, 2026-09-22:
     "make sure you check for duplicate buttons and text". The names are in
     the markup for screen readers only."""
-    c, _uid = _account()
+    c, uid = _account()
+    _statement(uid)
     body = _room(c.get("/room/business").get_data(as_text=True))
     unit = body.split('class="bz-unit', 1)[1].split("</section>", 1)[0]
     for word in ("Reported", "Not collected", "Kept",
@@ -456,35 +570,14 @@ def test_a_narrow_screen_keeps_the_figures_and_loses_the_photograph():
 
 
 def test_the_room_never_claims_money_will_be_recovered():
-    c, _uid = _account()
-    body = _room(c.get("/room/business").get_data(as_text=True))
-    for claim in ("you will recover", "guaranteed", "owed to you",
-                  "On The Table", "at stake"):
-        assert claim.lower() not in body.lower(), claim
-
-
-def test_the_plate_fractions_agree_between_the_module_and_the_sheet():
-    """This room measured its windows in CSS before the shared kit existed,
-    and the standby needs the same numbers in Python to position itself.
-    Two copies with nothing between them drift the first time the plate is
-    re-cropped, and the failure is silent: the readings stay on their glass
-    and the standby lands beside it.
-    """
-    css = io.open(os.path.join(HERE, "static", "css", "business-room.css"),
-                  encoding="utf-8").read()
-    unit = css.split(".bz-unit {", 1)[1].split("}", 1)[0]
-
-    def var(name):
-        return float(re.search(r"--%s:\s*([\d.]+)%%" % name, unit).group(1))
-
-    top, height = var("win-y"), var("win-h")
-    for key, x_var, w_var in (("reported", "rep-x", "rep-w"),
-                              ("not-collected", "mid-x", "mid-w"),
-                              ("kept", "kept-x", "kept-w")):
-        x, y, w, h = bz.PLATE[key]
-        assert (x, y, w, h) == (var(x_var), top, var(w_var), height), (
-            "%s: module says %s, the sheet says %s"
-            % (key, (x, y, w, h), (var(x_var), top, var(w_var), height)))
+    c, uid = _account()
+    pages = [_room(c.get("/room/business").get_data(as_text=True))]
+    _statement(uid)
+    pages.append(_room(c.get("/room/business").get_data(as_text=True)))
+    for body in pages:
+        for claim in ("you will recover", "guaranteed", "owed to you",
+                      "On The Table", "at stake"):
+            assert claim.lower() not in body.lower(), claim
 
 
 def test_the_board_is_three_bands():

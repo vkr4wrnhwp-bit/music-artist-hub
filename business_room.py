@@ -101,54 +101,156 @@ RENAMED = {
 }
 
 
-# --- THE PLATE --------------------------------------------------------
-# This room's fractions have always lived in static/css/business-room.css,
-# which predates the shared kit. They are repeated here ONLY so the
-# standby state can position itself the way every other room's does, and
-# they must stay in step with that sheet: same file, same measurements.
-PLATE = {
-    "reported":      (6.70, 19.95, 26.61, 56.94),
-    "not-collected": (35.94, 19.95, 28.05, 56.94),
-    "kept":          (66.75, 19.95, 26.61, 56.94),
+# --- THE PAGE FROM ZERO (owner's Business spec + mockup, 2026-09-23) ------
+# An account with no statement, no row, no cost, no claim and no dispute
+# does not meet an empty analyser. It meets an onboarding page: the
+# Command Center's photographed three-screen plate drawn STATIC with this
+# room's words, one card that opens the statements desk, the four
+# categories as doors to the pages that own the work, the five-step
+# workflow as education, the two empties in words, help, and the tools in
+# a drawer that starts open. No date range, no income total, no profit,
+# no recovery estimate, no percentage - and never a nought: missing
+# paperwork is never shown as zero income. The animated standby that
+# used to run on the analyser is retired here; the fill reel below stays
+# for a populated analyser's empty windows.
+ZERO_SUBTITLE = "See what you earned, what you spent, and what still needs attention."
+ZERO_RACK = (
+    ("Purpose", "Know what came in, what went out, and what you kept."),
+    ("Start here", "Upload one royalty statement."),
+    ("Good to know", "Missing paperwork is never shown as zero income."),
+)
+# The one door: the statements desk, carrying the way back exactly as the
+# spec writes it. The desk's intake section is the top of that page.
+DOOR = "/statements?returnTo=/room/business&from=business-zero-state"
+ZERO_PROJECT = {
+    "heading": "Start with your first statement",
+    "title": "Upload a statement",
+    "desc": ("Add a CSV, spreadsheet, or PDF from a distributor, PRO, publisher, "
+             "or rights society."),
+    "cta": "Upload statement",
+    "how": "How statements work",
+    # A seat that may not write here is told who uploads rather than
+    # handed a door that bounces.
+    "locked": ("Statements are uploaded by the account owner or a seat with edit "
+               "access. Business opens here once one is on file."),
 }
+# The four categories (spec section 7). Each is a door to the page that
+# owns the work, by that page's own room card, so a renamed or moved page
+# follows; a seat that cannot open the page gets the words alone.
+LENSES = (
+    ("statements", "Statements & royalties",
+     "Reported income by source, store, track, territory, period, and currency.",
+     "statements"),
+    ("costs", "Costs & profit",
+     "Measured income beside the costs you choose to log.",
+     "revenue-os"),
+    ("recovery", "Recovery & claims",
+     "Evidence-backed gaps, and the follow-up work on each.",
+     "recovery"),
+    ("people", "Contracts & people",
+     "The documents and the people connected to the business.",
+     "vault"),
+)
+# The five steps, EDUCATIONAL on a new account: Upload lit, the rest
+# neutral, numbered as the owner's mockup numbers them, no percentage -
+# "each statement can move through the workflow independently". STEPS
+# (Statements .. Costs) stays the populated room's rail.
+WORKFLOW = (
+    ("upload", "Upload", "Add one statement"),
+    ("review", "Review", "Confirm the import"),
+    ("match", "Match", "Connect income to music"),
+    ("investigate", "Investigate", "Find gaps and issues"),
+    ("track", "Track", "See what you kept"),
+)
+ZERO_MONEY = ("Your money picture will appear here",
+              "After the first statement is reviewed, Street Banker will organize "
+              "income, sources, tracks, and periods.")
+ZERO_LANGUAGE = ("No income is measured yet",
+                 "Business uses Not measured until real paperwork exists. Missing "
+                 "statements never become $0.")
+ZERO_HELP = ("Not sure which statement to upload?",
+             "Ask Street Banker which document gives you the clearest first picture.")
+# The link under "Your money picture will appear here". The spec names
+# two - "Supported statements" and "Import history" - and both would
+# open the statements desk, which is one door under two names (the
+# owner's own rule); an import history with nothing in it is the empty
+# table the spec forbids. So: the one link, to the desk's intake.
+ZERO_LINKS = (("Supported statements", "/statements?returnTo=/room/business#intake"),)
+# The drawer at the foot: the spec's four categories, each tool by its
+# room card, in place of one wall of eighteen. The populated room keeps
+# its own three bands (owner, 2026-09-22).
+ZERO_BANDS = (
+    # In the room's own card order (tests/test_rooms.py holds every room
+    # screen's first cards to rooms.ROOMS).
+    ("Statements & royalties", ("royalties", "statements", "tax", "valuation")),
+    ("Costs & profit", ("revenue-os",)),
+    ("Recovery & claims", ("recovery", "cases", "money-queue", "disputes")),
+    ("Contracts & people", ("vault", "contracts", "deals", "deal-simulator", "hours",
+                            "team", "portal", "roster", "services")),
+)
+# The sentence the room carries back from the statements desk.
+DONE_LINE = "Your first statement was added. Business is organizing what it reports."
 
 
-def box(key):
-    """The inline custom properties that put a window on its glass."""
-    x, y, w, h = PLATE[key]
-    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+def new_account(uploads, rows, expenses, cases, disputes):
+    """The spec's new_account: confirmed empty on every count the room
+    reads - no statement, no measured row, no cost, no claim, no dispute.
+    Every argument is what the store returned; an unreadable store never
+    reaches here - the route shows the error page instead."""
+    return not uploads and not rows and not expenses and not cases and not disputes
 
 
-# --- THE STANDBY DISPLAY, the owner's way (2026-09-22) -------------------
-# "Slot machine-y": the big window sequences the room's FEATURES, each
-# frame cutting in large and glitching out to the next; the small windows
-# each do a different thing - icons rolling like a reel, a hint that
-# changes, the feature names ticking through - and never carry a caption.
-# One voice, phosphor green: the plate's own screen.
-#
-# The frames name cards that exist in rooms.ROOMS for this room, by what
-# they actually do. The owner supplies the final text per room at the
-# audit; until then nothing here claims more than the card does.
-# WORDS ONLY - never a figure, not even an example one.
-STANDBY_FRAMES = [('Statements', 'Upload one and every figure reads from it'), ('Royalties', 'Every stream, store, lane and track on one page'), ('Recovery', 'Findings pulled from your own uploads'), ('Profit & Loss', 'Income beside the costs you log')]
-STANDBY_REELS = []
-STANDBY_TIPS = ('not-collected', 'Not collected', ['Upload a statement to begin', 'Every stream, store and track', 'Findings from your own uploads', 'Income less the costs you log'])
-STANDBY_TICKER = ('kept', 'Kept', ['Royalties', 'Statements', 'Recovery', 'Claims', 'Deals'])
-STANDBY_CINE = ('reported', 'Reported')
-STANDBY_SIZE = ('clamp(20px, 3.2cqw, 50px)', 'clamp(10px, 1.15cqw, 16px)')
-# One picture per frame, generated by the owner; a missing file draws
-# nothing rather than a broken image. The ?v moves when one is replaced.
-STANDBY_IMAGES = tuple("static/img/standby/business-%d.webp" % n for n in (1, 2, 3, 4))
-STANDBY_IMAGE_V = 1
+def done_line(came_from, uploads):
+    """Said by the SAVED statement, never by the param alone."""
+    return DONE_LINE if came_from == "business-zero-state" and uploads > 0 else ""
 
 
-def _standby_image(n):
-    import os
-    path = STANDBY_IMAGES[n] if n < len(STANDBY_IMAGES) else ""
-    return "/%s?v=%d" % (path, STANDBY_IMAGE_V) if path and os.path.exists(path) else ""
+def _tile(cards, key, can_open=None):
+    """A tile from a room card, renamed where this room renames it, or
+    None when there is no card or the seat cannot open its page."""
+    card = (cards or {}).get(key)
+    if not card:
+        return None
+    href = card[0]
+    if can_open and not can_open(href):
+        return None
+    name, line = card[2], card[3]
+    if key in RENAMED:
+        name, line = RENAMED[key]
+    return {"key": key, "href": href, "icon": card[1], "name": name, "line": line}
 
-# The reel a READING window shows while it has nothing to read
-# (owner, 2026-09-22: no words in an empty window, icons).
+
+def zero_page(can_add=True, can_open=None, cards=None):
+    """The page from zero. A seat sees only the doors it can open; a
+    category whose page a seat cannot open is words, not a door."""
+    lenses = []
+    for key, name, line, card_key in LENSES:
+        tile = _tile(cards, card_key, can_open)
+        lenses.append({"key": key, "name": name, "line": line,
+                       "href": tile["href"] if tile else ""})
+    bands = []
+    for title, keys in ZERO_BANDS:
+        got = [t for t in (_tile(cards, k, can_open) for k in keys) if t]
+        if got:
+            bands.append({"title": title, "tiles": got})
+    return {
+        "subtitle": ZERO_SUBTITLE,
+        "screens": [{"k": k, "v": v} for k, v in ZERO_RACK],
+        "door": DOOR,
+        "project": dict(ZERO_PROJECT, can=can_add),
+        "lenses": lenses,
+        "workflow": WORKFLOW,
+        "money": ZERO_MONEY,
+        "language": ZERO_LANGUAGE,
+        "help": ZERO_HELP,
+        "links": ZERO_LINKS,
+        "bands": bands,
+    }
+
+
+# The reel a READING window shows while it has nothing to read (owner,
+# 2026-09-22: no words in an empty window, icons). The one piece of the
+# old standby still read: a populated analyser's empty windows.
 STANDBY_FILL = ("reported", "named", "chased", "recovered", "kept", "upload")
 
 
@@ -162,26 +264,10 @@ def _six(icons):
 
 
 def standby():
-    """The plate with nothing measured: a sequence, reels, a hint, a ticker."""
-    key, name = STANDBY_CINE
-    size, line = STANDBY_SIZE
-    out = {
-        "cine": {"box": box(key), "name": name, "size": size, "line": line},
-        "frames": [{"n": i, "title": t, "line": l, "image": _standby_image(i)}
-                   for i, (t, l) in enumerate(STANDBY_FRAMES)],
-        "count": len(STANDBY_FRAMES),
-        "reels": [{"box": box(k), "name": n, "icons": _six(icons), "n": i}
-                  for i, (k, n, icons) in enumerate(STANDBY_REELS, start=1)],
-        "tips": None, "ticker": None,
-    }
-    if STANDBY_TIPS:
-        k, n, lines = STANDBY_TIPS
-        out["tips"] = {"box": box(k), "name": n, "lines": lines, "count": len(lines)}
-    if STANDBY_TICKER:
-        k, n, lines = STANDBY_TICKER
-        out["ticker"] = {"box": box(k), "name": n, "lines": lines}
-    out["fill"] = _six(STANDBY_FILL)
-    return out
+    """What a populated analyser's empty windows fill with. The animated
+    standby that once ran on an empty account is retired: that account
+    meets the page from zero instead."""
+    return {"fill": _six(STANDBY_FILL)}
 
 
 def money(value):
@@ -437,29 +523,22 @@ def reading(order, totals, analysis_total):
 def build(reported, prior, actual, estimated, kept, kept_prior,
           scan, steps, rows, chasing, cards,
           artist_name="", sample=False, can_open=None, note="",
-          kept_note=""):
-    """Everything the screen renders. No page logic beyond this."""
-    def _tile(key):
-        card = (cards or {}).get(key)
-        if not card:
-            return None
-        href = card[0]
-        if can_open and not can_open(href):
-            return None
-        name, line = card[2], card[3]
-        if key in RENAMED:
-            name, line = RENAMED[key]
-        return {"key": key, "href": href, "icon": card[1],
-                "name": name, "line": line}
+          kept_note="", zero=None, can_add=True):
+    """Everything the screen renders. No page logic beyond this.
 
+    `zero` is new_account() decided by the route from every count the
+    spec names (None here means: nothing reported, the old rule);
+    `can_add` is who may upload a statement (see zero_page)."""
     # A band with nothing in it is not drawn - a Label-only card or a
     # seat's gate can empty one.
     bands, tiles = [], []
     for title, keys in BANDS:
-        got = [t for t in (_tile(k) for k in keys) if t]
+        got = [t for t in (_tile(cards, k, can_open) for k in keys) if t]
         if got:
             bands.append({"title": title, "tiles": got})
             tiles.extend(got)
+    if zero is None:
+        zero = reported is None
 
     return {
         "artist_name": artist_name or "",
@@ -467,12 +546,11 @@ def build(reported, prior, actual, estimated, kept, kept_prior,
         "windows": windows(reported, prior, actual, estimated, kept,
                            kept_prior, note, kept_note),
         "measured": reported is not None,
-        # On the flip like every other room. Owner, 2026-09-22, twice in
-        # the hour: first "let's not do that" to the statement figures on
-        # the plate, then "switch to business too, so all the text
-        # matches in that green" - the display until a statement exists,
-        # the readings in the screen's own green once one does.
-        "idle": reported is None,
+        # Nothing on file on any count: the page from zero. One
+        # statement, cost, claim or dispute and the analyser takes over
+        # untouched, its readings in the screen's own green.
+        "idle": bool(zero),
+        "zero": zero_page(can_add, can_open, cards) if zero else None,
         "standby": standby(),
         "scan": scan or "",
         "path": steps,
