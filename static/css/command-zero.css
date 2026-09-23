@@ -164,3 +164,27 @@
 @media (prefers-reduced-motion: reduce) {
   .cz-cta, .cz-btn--primary { transition: none; }
 }
+
+/* ---- in progress (after the first song) ---------------------------- */
+.cz-inprog { display: block; }
+.cz-inprog-head { margin-bottom: 10px; }
+.cz-inprog-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.cz-inprog-row {
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; align-items: center; gap: 14px;
+  padding: 10px 12px; border: 1px solid var(--sb-line); border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2);
+}
+.cz-inprog-t { font-size: 15px; font-weight: 800; color: var(--sb-ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cz-inprog-s { font-size: 13px; color: var(--sb-ink-2); }
+.cz-btn--sm { height: 36px; padding: 0 14px; font-size: 14px; grid-column: auto; justify-self: auto; }
+.cz-btn--sm svg.cz-ico { width: 16px; height: 16px; }
+/* the attention panel is a priority: the gold edge says so */
+.cz-attn { border-color: var(--sb-gold-line); box-shadow: inset 3px 0 0 var(--sb-gold); }
+.cz-attn > div { flex: 1 1 auto; min-width: 0; }
+.cz-attn .cz-btn { grid-column: auto; justify-self: auto; flex: 0 0 auto; }
+/* a screen that is a door still reads as a screen */
+a.cz-screen-v { text-decoration: none; }
+a.cz-screen-v:hover { filter: brightness(1.12); }
+@media (max-width: 860px) {
+  .cz-inprog-row { grid-template-columns: 1fr; gap: 6px; }
+}

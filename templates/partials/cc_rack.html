@@ -1,0 +1,23 @@
+{#- The Command Center's rack: the owner's photographed plate
+    (static/img/command-plate.webp, 1916x821) with three screens drawn on
+    it at fractions MEASURED off the file. Both the page from zero
+    (WELCOME / START HERE / PROGRESS) and the operational page (RESUME /
+    NEXT ACTION / BLOCKER) render it; only `screens` differs. STATIC - no
+    rotation (owner, 2026-09-22). A screen with an href is a door. -#}
+{%- set boxes = [("6.22","16.82","25.14","61.61"), ("36.5","16.82","26.84","61.61"), ("68.49","16.82","25.24","61.61")] %}
+<section class="cz-rack" aria-labelledby="cz-rack-h">
+  <h2 id="cz-rack-h" class="sr-only">{{ rack_label or "Where you are" }}</h2>
+  <img class="cz-plate" src="/static/img/command-plate.webp?v=1" alt="" width="1916" height="821">
+  <ul class="cz-screens">
+    {%- for sc in screens %}{% set b = boxes[loop.index0] %}
+    <li class="cz-screen" style="--x:{{ b[0] }}%;--y:{{ b[1] }}%;--w:{{ b[2] }}%;--h:{{ b[3] }}%">
+      <span class="cz-screen-k">{{ sc.k }}</span>
+      {%- if sc.href %}
+      <a class="cz-screen-v{% if sc.n %} cz-screen-v--n{% endif %}" href="{{ sc.href }}">{{ sc.v }}</a>
+      {%- else %}
+      <span class="cz-screen-v{% if sc.n %} cz-screen-v--n{% endif %}">{{ sc.v }}</span>
+      {%- endif %}
+    </li>
+    {%- endfor %}
+  </ul>
+</section>

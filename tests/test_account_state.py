@@ -392,3 +392,89 @@ def test_the_rack_is_the_owners_plate_with_measured_screens():
     css = io.open("static/css/command-zero.css", encoding="utf-8").read()
     for drawn in ("cz-rack-plate", "cz-screw", "cz-ear", "cz-rack-silk"):
         assert drawn not in css, "the drawn rack is still in the sheet: %s" % drawn
+
+
+# ---- Pass 5: the gradual transition, and the compass ---------------------
+
+def test_the_compass_reads_setup_then_the_real_priorities():
+    """RESUME / NEXT ACTION / BLOCKER. While setup is incomplete the rack
+    carries the count and the next essential; once done it reads the
+    last thing touched and the ranked alerts. Never a figure."""
+    half = acs.build({"identity": True, "song": True})
+    scr = acs.compass(half, [], [], False)
+    assert [x["k"] for x in scr] == ["Resume", "Next action", "Blocker"]
+    assert scr[0]["v"] == "Setup: 2 of 5 essentials done."
+    assert scr[1]["v"] == "Open the Rack." and scr[1]["href"].startswith("/rack?returnTo=/command-center&from=asset")
+    assert scr[2]["v"] == "Nothing blocking." and scr[2]["href"] is None
+
+    done = acs.build({k: True for k in acs.KEYS})
+    alerts = [("high", "\u201cHP\u201d is live with no destinations", "Fans hit a dead page.", "/links/abc/edit", "smart_link"),
+              ("medium", "\u201cHP\u201d isn't capturing fans", "Enable capture.", "/links/abc/edit", "fan_growth")]
+    camps = [{"id": "abc", "title": "Higher Places", "status": "live", "settings": {}}]
+    scr = acs.compass(done, alerts, camps, True)
+    assert scr[0]["v"] == "Higher Places" and scr[0]["href"] == "/links/abc/edit"
+    assert scr[1]["v"].startswith("\u201cHP\u201d is live") and scr[1]["href"] == "/links/abc/edit"
+    assert scr[2]["v"].startswith("\u201cHP\u201d is live"), "the blocker is the top HIGH alert"
+    # nothing at all: honest words, no nought
+    scr = acs.compass(done, [], [], False)
+    assert scr[0]["v"] == "Nothing in progress." and scr[1]["v"] == "Nothing on fire."
+
+
+def test_in_progress_names_the_next_missing_thing_per_song():
+    tracks = [{"id": "t1", "title": "Cell 5"}, {"id": "t2", "title": "Dust"}]
+    rows = acs.in_progress(tracks, {}, [], [])
+    assert [r["state"] for r in rows] == ["No working audio yet."] * 2
+    assert rows[0]["href"].startswith("/rack?returnTo=/command-center&from=asset")
+    rows = acs.in_progress(tracks, {"t1": {"job": 1}}, [{"track_id": "t2"}], [])
+    assert [r["state"] for r in rows] == ["No smart link yet."] * 2
+    rows = acs.in_progress(tracks, {"t1": {}}, [{"track_id": "t2"}], [{"id": "c", "status": "draft", "settings": {}}])
+    assert [r["state"] for r in rows] == ["Ready to publish."] * 2
+
+
+def test_attention_is_real_or_nothing():
+    assert acs.attention([]) is None
+    draft = [{"id": "c1", "title": "HP", "status": "draft", "settings": {}}]
+    a = acs.attention(draft)
+    assert a["title"].startswith("Publish") and a["href"] == "/links/c1/edit"
+    live_no_capture = [{"id": "c1", "title": "HP", "status": "live", "settings": {}}]
+    a = acs.attention(live_no_capture)
+    assert a["title"].startswith("Turn on fan capture") and "from=capture" in a["href"]
+    live_capturing = [{"id": "c1", "title": "HP", "status": "live",
+                       "settings": {"email_capture": True, "consent_text": "ok"}}]
+    assert acs.attention(live_capturing) is None
+    archived = [{"id": "c1", "title": "HP", "status": "draft", "settings": {}, "archived_at": "2026-01-01"}]
+    assert acs.attention(archived) is None
+
+
+def test_the_page_from_zero_transitions_after_a_song_and_a_link():
+    import links_store as mls
+    c, uid = _account()
+    body = c.get("/command-center").get_data(as_text=True)
+    assert "In progress" not in body and "Nothing needs attention yet" in body
+    # a song: the in-progress panel names it and what it is missing
+    store.save_epk(uid, {"artist_name": "Rello"})
+    store.add_os_track(uid, "Cell 5")
+    body = c.get("/command-center").get_data(as_text=True)
+    assert 'class="cz"' in body, "still the page from zero: setup is not done"
+    assert "In progress" in body and "Cell 5" in body and "No working audio yet." in body
+    assert "Nothing needs attention yet" in body, "no link yet: nothing real to say"
+    # a draft link: the attention panel becomes a real priority
+    cid = mls.create_campaign(uid, "hp-%s" % uuid.uuid4().hex[:6], {"title": "Higher Places"})
+    body = c.get("/command-center").get_data(as_text=True)
+    assert "Nothing needs attention yet" not in body
+    assert "Publish \u201cHigher Places\u201d" in body and "/links/%s/edit" % cid in body
+    assert "No smart link yet." not in body
+
+
+def test_the_operational_page_carries_the_compass_and_three_priorities():
+    c, uid = _account()
+    store.save_statement(uid, "q1.csv", [
+        {"title": "Higher Places", "source": "Spotify", "amount": 100.0, "period": "2026-01"}])
+    body = c.get("/command-center").get_data(as_text=True)
+    assert 'class="cz"' not in body, "operational"
+    assert 'class="cz-rack"' in body, "the compass is on the operational page"
+    assert "Resume" in body and "Next action" in body and "Blocker" in body
+    assert "Setup: 1 of 5 essentials done." in body, "setup incomplete: RESUME carries the count"
+    assert body.count('class="cz-screen"') == 3
+    # at most three priorities, however many alerts there are
+    assert body.count("Fix now") <= 3

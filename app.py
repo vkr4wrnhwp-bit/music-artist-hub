@@ -6603,10 +6603,19 @@ def create_app():
             # figure but the one that is - "N of 5 essentials complete".
             ess = acs["essentials"]
             nxt = ess.get("next") if ess else None
+            # Pass 5: after the first song an IN PROGRESS panel; after the
+            # first link a real priority in place of "nothing yet". Both
+            # derived, both from this account's own rows.
+            _campaigns = mls.list_campaigns(user["id"])
+            _tracks = store.list_os_tracks(user["id"])
             return render_template(
                 "command_center_zero.html", active_page="command-center",
                 account_state=acs["state"], essentials=ess, done_line=done_line,
                 cz={
+                    "in_progress": account_state.in_progress(
+                        _tracks, release_ready_store.masters_by_track(user["id"]),
+                        store.get_track_analyses(user["id"], 50), _campaigns) if _tracks else [],
+                    "attention": account_state.attention(_campaigns),
                     "account_name": artist_identity.display_name(user, default="") or "New label",
                     # START HERE names the next actual step; on a fresh
                     # account that is the profile (spec's exact words).
@@ -6618,12 +6627,20 @@ def create_app():
                 },
                 **build_dashboard_context())
         tutor_panel = _tutor_panel(user)
+        alerts = cc.build_alerts(user["id"])
         return render_template(
             "command_center.html", active_page="command-center",
             account_state=acs["state"], done_line=done_line,
             essentials=acs["essentials"],
+            # RESUME / NEXT ACTION / BLOCKER from the ranked alerts, the
+            # last campaign touched and the essentials (Pass 5).
+            compass=account_state.compass(acs["essentials"], alerts,
+                                          mls.list_campaigns(user["id"]),
+                                          bool(store.get_statements(user["id"]))),
             summary=cc.get_summary(user["id"]),
-            cc_alerts=cc.build_alerts(user["id"]),
+            # No more than three real priorities (spec). They are ranked,
+            # so the three that matter most are the three that show.
+            cc_alerts=alerts[:3],
             cc_actions=cc.open_actions(user["id"]),
             modules=cc.MODULES, module_groups=cc.module_groups(),
             signal=signal_ctx,

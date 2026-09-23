@@ -46,34 +46,13 @@
     </div>
   </header>
 
-  {#- ---- the rack ------------------------------------------------ -#}
-  <section class="cz-rack" aria-labelledby="cz-rack-h">
-    <h2 id="cz-rack-h" class="sr-only">Where you are</h2>
-    {#- THE PHOTOGRAPH (owner, 2026-09-22, static/img/command-plate.webp,
-        1916x821). Three brass-framed screens on blackened brushed metal;
-        only the readouts are drawn on it. Each screen's box below is a
-        FRACTION MEASURED off the file with PIL (the glass, inset 3.5%/5%
-        so type never kisses the brass) - a round number here would be
-        an unmeasured placeholder, the Studio LCD lesson. Regenerate the
-        plate and these must be re-measured. -#}
-    <img class="cz-plate" src="/static/img/command-plate.webp?v=1" alt="" width="1916" height="821">
-    <ul class="cz-screens">
-      <li class="cz-screen" style="--x:6.22%;--y:16.82%;--w:25.14%;--h:61.61%">
-        <span class="cz-screen-k">Welcome</span>
-        <span class="cz-screen-v">Build your foundation one step at a time.</span>
-      </li>
-      <li class="cz-screen" style="--x:36.5%;--y:16.82%;--w:26.84%;--h:61.61%">
-        <span class="cz-screen-k">Start here</span>
-        {#- The next actual step. On a fresh account that is the profile;
-            after the first milestone it is whatever is next. -#}
-        <span class="cz-screen-v">{% if essentials.next %}{{ cz.start_here }}{% else %}Every essential is in place.{% endif %}</span>
-      </li>
-      <li class="cz-screen" style="--x:68.49%;--y:16.82%;--w:25.24%;--h:61.61%">
-        <span class="cz-screen-k">Progress</span>
-        <span class="cz-screen-v cz-screen-v--n">{{ essentials.progress }}</span>
-      </li>
-    </ul>
-  </section>
+  {#- ---- the rack: WELCOME / START HERE / PROGRESS (partials/cc_rack.html) -#}
+  {% with screens=[
+      {"k": "Welcome", "v": "Build your foundation one step at a time."},
+      {"k": "Start here", "v": (cz.start_here if essentials.next else "Every essential is in place.")},
+      {"k": "Progress", "v": essentials.progress, "n": true}] %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
 
   {#- ---- your first steps ------------------------------------------ -#}
   <section class="cz-steps" aria-labelledby="cz-steps-h">
@@ -120,8 +99,40 @@
     </ol>
   </section>
 
-  {#- ---- nothing needs attention + explore ------------------------ -#}
+  {#- ---- in progress: after the first song (Pass 5) ---------------- -#}
+  {% if cz.in_progress %}
+  <section class="cz-panel cz-inprog" aria-labelledby="cz-inprog-h">
+    <div class="cz-inprog-head">
+      <h2 id="cz-inprog-h" class="cz-h">In progress</h2>
+      <p class="cz-p">Each song, and the next thing it is missing.</p>
+    </div>
+    <ul class="cz-inprog-list">
+      {% for row in cz.in_progress %}
+      <li class="cz-inprog-row">
+        <span class="cz-inprog-t">{{ row.title }}</span>
+        <span class="cz-inprog-s">{{ row.state }}</span>
+        <a class="cz-btn cz-btn--outline cz-btn--sm" href="{{ row.href }}">{{ row.cta }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {#- ---- attention + explore ------------------------------------------ -#}
   <div class="cz-two">
+    {%- if cz.attention %}
+    {#- After the first smart link there is something REAL to say (Pass 5):
+        this panel is a priority with one source record, one owning room,
+        one action - never a zero. -#}
+    <section class="cz-panel cz-attn" aria-labelledby="cz-quiet-h">
+      <span class="cz-panel-ico" aria-hidden="true"><svg class="cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-bolt"/></svg></span>
+      <div>
+        <h2 id="cz-quiet-h" class="cz-h">{{ cz.attention.title }}</h2>
+        <p class="cz-p">{{ cz.attention.body }}</p>
+      </div>
+      <a class="cz-btn cz-btn--primary" href="{{ cz.attention.href }}">{{ cz.attention.cta }}</a>
+    </section>
+    {%- else %}
     <section class="cz-panel cz-quiet" aria-labelledby="cz-quiet-h">
       <span class="cz-panel-ico" aria-hidden="true"><svg class="cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-folder"/></svg></span>
       <div>
@@ -129,6 +140,7 @@
         <p class="cz-p">Priorities will appear here after you add music, connect data, or start a project.</p>
       </div>
     </section>
+    {%- endif %}
     <section class="cz-panel cz-explore" aria-labelledby="cz-explore-h">
       <span class="cz-panel-ico" aria-hidden="true"><svg class="cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-compass"/></svg></span>
       <div>

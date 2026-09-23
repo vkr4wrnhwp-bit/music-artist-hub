@@ -2251,8 +2251,17 @@ def test_command_center_and_actions():
     cid = r.headers["Location"].split("/")[2]
     client.post("/links/%s/publish" % cid)
     body = client.get("/command-center").get_data(as_text=True)
-    assert "Command Center" in body and "capturing fans" in body
-    assert "with no rollout" in body           # release in 3 days, no rollout
+    assert "Command Center" in body
+    # The gaps drive real DERIVED alerts. Since Pass 5 (owner's spec,
+    # 2026-09-22) the page shows at most THREE priorities, ranked, and on
+    # this account the money findings outrank a campaign's capture gap -
+    # so the alert is asserted where it is made, and the page is asserted
+    # to show the top of the ranking and no more than three.
+    user_id = store_mod.get_user_by_email("demo@streetbanker.io")["id"]
+    titles = [a[1] for a in cc_mod.build_alerts(user_id)]
+    assert any("capturing fans" in t for t in titles), titles
+    assert any("with no rollout" in t for t in titles), titles     # release in 3 days, no rollout
+    assert 1 <= body.count("Fix now") <= 3
     assert "OS Drop" in body and "Autopilot" in body
     assert "Fraud Sentinel" in body            # module grid with previews
     # Alert -> action -> lifecycle.

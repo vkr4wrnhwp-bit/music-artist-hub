@@ -280,3 +280,85 @@ def decide(uid, store, mls, release_ready_store, reachable=None,
         has_records = False
     return {"state": state_of(essentials, bool(has_records)),
             "essentials": essentials, "error": None}
+
+
+# ---- the gradual transition (Pass 5) --------------------------------------
+
+def compass(essentials, alerts, campaigns, has_statements):
+    """The three screens of the rack on the OPERATIONAL page: where you
+    were, what to do, what is in the way. Every value is a saved record
+    or a derived alert; none is a figure.
+
+    `alerts`  ranked (severity, title, rec, link, category) tuples,
+              biggest real problem first (command_center.rank_alerts)
+    """
+    alerts = list(alerts or ())
+    campaigns = [x for x in (campaigns or ()) if not x.get("archived_at")]
+    top = alerts[0] if alerts else None
+    block = next((a for a in alerts if a[0] == "high"), None)
+
+    if essentials and not essentials["complete"]:
+        nxt = essentials.get("next")
+        resume = {"k": "Resume", "v": "Setup: %d of %d essentials done." % (essentials["done"], essentials["total"]),
+                  "href": "/command-center"}
+        action = {"k": "Next action", "v": (nxt["title"] + ".") if nxt else "Finish setup.",
+                  "href": (nxt["href"] + "?returnTo=/command-center&from=" + nxt["key"]) if nxt else "/command-center"}
+    else:
+        if campaigns:
+            last = campaigns[0]           # list_campaigns orders by updated DESC
+            resume = {"k": "Resume", "v": last.get("title") or "Your last smart link",
+                      "href": "/links/%s/edit" % last["id"]}
+        elif has_statements:
+            resume = {"k": "Resume", "v": "Your statements.", "href": "/statements"}
+        else:
+            resume = {"k": "Resume", "v": "Nothing in progress.", "href": "/command-center"}
+        action = ({"k": "Next action", "v": top[1], "href": top[3]} if top
+                  else {"k": "Next action", "v": "Nothing on fire.", "href": "/actions"})
+    blocker = ({"k": "Blocker", "v": block[1], "href": block[3]} if block
+               else {"k": "Blocker", "v": "Nothing blocking.", "href": None})
+    return [resume, action, blocker]
+
+
+def in_progress(tracks, masters_by_track, analyses, campaigns):
+    """After the first song: each song, and the next thing it is missing.
+    `tracks` are os_tracks rows (id, title); a song HAS an asset when a
+    master is stored against it or a Studio measurement names it; it
+    HAS a link when any campaign exists (links are not per-song yet)."""
+    measured = {(a.get("track_id") or "").strip() for a in (analyses or ()) if (a.get("track_id") or "").strip()}
+    has_link = any(not x.get("archived_at") for x in (campaigns or ()))
+    rows = []
+    for t in tracks or ():
+        tid = t.get("id")
+        has_asset = tid in (masters_by_track or {}) or tid in measured
+        if not has_asset:
+            nxt = ("No working audio yet.", "Open the Rack", "/rack?returnTo=/command-center&from=asset")
+        elif not has_link:
+            nxt = ("No smart link yet.", "Create smart link", "/links/new?returnTo=/command-center&from=link")
+        else:
+            nxt = ("Ready to publish.", "Open the link", "/links")
+        rows.append({"id": tid, "title": t.get("title") or "Untitled",
+                     "state": nxt[0], "cta": nxt[1], "href": nxt[2],
+                     "asset": has_asset, "link": has_link})
+    return rows
+
+
+def attention(campaigns):
+    """After the first smart link, the page from zero has a real priority
+    to show in place of "Nothing needs attention yet": publish the link,
+    or turn capture on. None when there is nothing real to say."""
+    live = [x for x in (campaigns or ()) if not x.get("archived_at")]
+    if not live:
+        return None
+    unpublished = [x for x in live if x.get("status") != "live"]
+    if unpublished:
+        x = unpublished[0]
+        return {"title": "Publish \u201c%s\u201d and share it with listeners." % (x.get("title") or "your link"),
+                "body": "The link exists but is not live yet. Nothing reaches a listener until it is.",
+                "cta": "Open the link", "href": "/links/%s/edit" % x["id"]}
+    uncaptured = [x for x in live if not (x.get("settings") or {}).get("email_capture")]
+    if uncaptured:
+        x = uncaptured[0]
+        return {"title": "Turn on fan capture for \u201c%s\u201d." % (x.get("title") or "your link"),
+                "body": "Traffic without capture is rented attention. Capture needs consent text too.",
+                "cta": "Set up capture", "href": "/links/%s/edit?returnTo=/command-center&from=capture" % x["id"]}
+    return None
