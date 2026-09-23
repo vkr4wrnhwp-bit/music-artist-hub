@@ -414,3 +414,31 @@ def test_nobody_else_sees_or_sets_them(openai):
     assert 'id="cover-renders"' not in artist.get("/settings").get_data(as_text=True)
     assert artist.post("/admin/cover-renders", data={"covers_artist": "999"}).status_code == 404
     assert cover_ai.allowance("artist") == 10
+
+
+# --- what the rest of the app says about it ---------------------------------------
+
+def test_the_capability_note_names_the_generator_in_use(monkeypatch):
+    import capability_status
+    got = capability_status.resolve("artwork_generator")
+    assert got["status"] == capability_status.LIVE and "Pollinations" in got["note"]
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    got = capability_status.resolve("artwork_generator")
+    assert got["status"] == capability_status.LIVE and "gpt-image-1" in got["note"]
+
+
+def test_the_readiness_page_names_the_key(monkeypatch):
+    import readiness
+    row = [r for g in readiness.report() for r in g["rows"] if r["name"] == "OpenAI images"][0]
+    assert row["env"] == ["OPENAI_API_KEY"] and not row["on"]
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    row = [r for g in readiness.report() for r in g["rows"] if r["name"] == "OpenAI images"][0]
+    assert row["on"]
+
+
+def test_the_tour_does_not_promise_a_remix_keeps_the_picture():
+    """OpenAI has no seed: a remix is a new render, not an edit."""
+    import product_tour_config
+    revision = dict(product_tour_config.CREATIVE_STEPS)["Revision"]
+    assert "keeping the concept" not in revision
+    assert "made again" in revision
