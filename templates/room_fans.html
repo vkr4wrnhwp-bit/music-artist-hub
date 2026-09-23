@@ -3,10 +3,10 @@
 {% block title %}Fans{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/fan-room.css?v=8">
-  {%- if fr.idle %}
+  <link rel="stylesheet" href="/static/css/fan-room.css?v=9">
+  {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
+      page from zero and the working room alike; its rules live with it -#}
   <link rel="stylesheet" href="/static/css/command-zero.css?v=3">
-  {%- endif %}
 {% endblock %}
 
 {#- THE FAN ROOM - the Fans room's opening screen, built from the owner's
@@ -97,39 +97,48 @@
 
   </section>
 
-  {# ---- the plate: one photograph, four windows ------------------------
-       The hardware is a photograph (static/img/fans-plate.webp) and only
-       the readings are drawn on it, each positioned as a fraction of the
-       plate held in fan_room.PLATE. The plate silkscreens every name -
-       ON FILE, REACHABLE, NEW, THE ROOM - so the markup carries them for
-       a screen reader alone.
-
-       The ?v is not decoration: an image replaced in place is kept by
-       every browser that already has it while the stylesheet beside it
-       refetches, so the overlays land on the wrong picture. Studio lost
-       an afternoon to exactly that. #}
+  {# ---- the rack: the rooms' shared three-window plate -----------------
+       Every room's rack is the owner's shorter three-window plate
+       (static/img/room-plate.webp, drawn by partials/cc_rack.html; owner,
+       2026-09-23). The page from zero puts PURPOSE / START HERE / GOOD TO
+       KNOW on it; the working room puts its three readings - On file,
+       Reachable, New - and the room's big window, the map, moves into its
+       own panel directly under the plate. Nothing is lost. #}
   {% if fr.idle %}
-  {#- THE PAGE FROM ZERO: the rooms' three-window rack (owner, 2026-09-23:
-      "one room has a different plate on it... swap it out to this
-      three-window one like the rest"). PURPOSE / START HERE / GOOD TO
-      KNOW on the shared plate, STATIC, as every other room. The Fans
-      room's own plate - the map and its three readings - is the working
-      room's, once there is an audience to draw. -#}
+  {#- THE PAGE FROM ZERO (owner, 2026-09-23: "one room has a different
+      plate on it... swap it out to this three-window one like the rest"),
+      STATIC, as every other room. -#}
   {% with screens=fr.zero.screens, rack_label="What Fans is for" %}
   {% include "partials/cc_rack.html" %}
   {% endwith %}
   {% else %}
-  <section class="rk-pl fr-pl"
-           aria-label="{% if fr.total %}Your audience: {{ fr.total_label }} on file{% else %}The audience monitor, with nobody on file yet{% endif %}">
-    <img class="rk-pl-img" src="/static/img/fans-plate.webp?v=1" alt=""
-         width="1860" height="846" decoding="async">
+  {#- THE WORKING ROOM: the three readings on the three screens. The plate
+      prints no names, so each screen says what it is. "None yet" is an
+      absence in words; a real 0% is a reading and is set as one. -#}
+  {% with screens=fr.screens, rack_label="Your audience: " ~ fr.total_label ~ " on file" %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
 
-    {# the big window: the constellation this account's own fans make #}
-    <div class="rk-pl-win fr-pl-room" style="{{ fr.room_box }}">
-      <p class="rk-pl-sr">The room</p>
-      {% if fr.pulse %}
+  {#- ---- the map: the old plate's big window, in its own panel ---------
+      The constellation this account's own fans make: a dot per city sized
+      by fans, the biggest few named, each joined to its nearest
+      neighbours. The names are drawn IN the viewBox, never positioned
+      over it: the panel is not the map's aspect, so the drawing
+      letterboxes and a label placed as a percentage of the box would sit
+      off its dot. -#}
+  <section class="fr-panel fr-map-panel" aria-labelledby="fr-map-h">
+    <div class="fr-panel-head">
+      <div>
+        <h2 class="fr-kicker" id="fr-map-h">Audience pulse</h2>
+        <p class="fr-kicker fr-kicker--dim">Reachable fans by city</p>
+      </div>
+    </div>
+    {% if fr.pulse %}
+    <div class="fr-map">
       <div class="rk-pl-art">
-        <svg viewBox="0 0 {{ fr.pulse.w }} {{ fr.pulse.h }}" aria-hidden="true" focusable="false">
+        {#- A reader who cannot see the drawing is told what it names. -#}
+        <svg viewBox="0 0 {{ fr.pulse.w }} {{ fr.pulse.h }}" role="img" focusable="false"
+             aria-label="Reachable fans by city: {% for d in fr.pulse.dots if d.label %}{{ d.city }} {{ "{:,}".format(d.count) }}{{ ", " if not loop.last }}{% endfor %}">
           <defs>
             <radialGradient id="fr-glow">
               <stop offset="0" style="stop-color: var(--sb-gold-bright); stop-opacity: .55"/>
@@ -143,51 +152,40 @@
           <circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r * 3.2 }}" fill="url(#fr-glow)"/>
           <circle class="fr-map-dot{% if d.label %} is-big{% endif %}" cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r }}"/>
           {% endfor %}
-          {#- The names, IN the viewBox rather than positioned over it: the
-              window is not the map's aspect, so the drawing letterboxes
-              inside its glass and a label placed as a percentage of the
-              window would sit a few pixels off its dot. -#}
+          {#- The count sits one line under its name by dy in em, so on a
+              phone - where the sheet sets both larger to stay legible -
+              the two never collide. A name that would run into a bigger
+              city's at some width carries is-off-N, and the sheet leaves
+              it out from that step down (fan_room._place_labels). -#}
           {% for d in fr.pulse.dots if d.label %}
-          <text class="fr-map-name" x="{{ (d.x - 10) if d.right else (d.x + 10) }}" y="{{ d.y - 2 }}"
-                text-anchor="{{ "end" if d.right else "start" }}">{{ d.city }}</text>
-          <text class="fr-map-count" x="{{ (d.x - 10) if d.right else (d.x + 10) }}" y="{{ d.y + 12 }}"
-                text-anchor="{{ "end" if d.right else "start" }}">{{ "{:,}".format(d.count) }}</text>
+          <g class="fr-map-lab{% if d.off is not none %} is-off-{{ d.off }}{% endif %}">
+            <text class="fr-map-name" x="{{ (d.x - 10) if d.right else (d.x + 10) }}" y="{{ d.y - 2 }}"
+                  text-anchor="{{ "end" if d.right else "start" }}">{{ d.city }}</text>
+            <text class="fr-map-count" x="{{ (d.x - 10) if d.right else (d.x + 10) }}" y="{{ d.y - 2 }}" dy="1.15em"
+                  text-anchor="{{ "end" if d.right else "start" }}">{{ "{:,}".format(d.count) }}</text>
+          </g>
           {% endfor %}
         </svg>
       </div>
-      {% else %}
-      <p class="fr-pl-none">No fan cities yet</p>
-      <p class="fr-pl-none-s">Cities arrive with your smart links, and from the
+    </div>
+    {% else %}
+    <div class="fr-map-none">
+      <p class="fr-map-none-t">No fan cities yet</p>
+      <p class="fr-map-none-s">Cities arrive with your smart links, and from the
         city column of a list you import.</p>
-      {% endif %}
     </div>
-
-    {# the three readings #}
-    {% for w in fr.windows %}
-    <div class="rk-pl-win" style="{{ w.box }}">
-      <p class="rk-pl-sr">{{ w.name }}</p>
-      {% if w.measured %}<p class="rk-pl-n">{{ w.value }}</p>
-      {% else %}{#- Nothing measured here, so the window fills with a reel rather than
-          a line of words (owner, 2026-09-22); the small line beneath still
-          says what is missing. -#}
-      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in fr.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(fr.standby.fill[0], "rk-reel-ico") }}</span></span>{% endif %}
-      <p class="rk-pl-s{% if w.tone %} {{ w.tone }}{% endif %}">{{ w.sub }}</p>
-    </div>
-    {% endfor %}
+    {% endif %}
   </section>
-  {% endif %}
-  {#- The glossary belongs to the readings. In standby the windows are
-      already saying what each one means, so printing it again underneath
-      says everything twice. -#}
-  {% if not fr.idle %}
+
+  {#- The glossary belongs to the readings and the map, so it is drawn only
+      when there are some. The Live / Sample mark rides on it: it is the
+      device that stops a demo account's generated audience being read as
+      a real one. -#}
   <p class="rk-foot fr-pl-foot">
-    {#- The Live / Sample mark. It used to sit in the head of the map panel;
-        that panel folded into the plate on 2026-09-22 and the mark has to
-        come with it, because it is the device that stops a demo account's
-        generated audience being read as a real one. -#}
     {% if fr.showcase %}<span class="fr-mark fr-mark--sample"><i></i>Sample</span>
     {% else %}<span class="fr-mark" title="Read from your own records when this page opened"><i></i>Live</span>{% endif %}
-    {%- if fr.pulse %}{{ fr.pulse.cities }} cit{{ "y" if fr.pulse.cities == 1 else "ies" }} on file{% if fr.pulse.unplotted %}, {{ fr.pulse.unplotted }} not on this map{% endif %}. The lines are drawing, not travel.
+    {#- a space after the mark: it read "Live8 cities on file" -#}
+    {{ " " }}{% if fr.pulse %}{{ fr.pulse.cities }} cit{{ "y" if fr.pulse.cities == 1 else "ies" }} on file{% if fr.pulse.unplotted %}, {{ fr.pulse.unplotted }} not on this map{% endif %}. The lines are drawing, not travel.
     {%- else %}Nothing is plotted yet.{% endif %}
     Reachable counts fans with an address we have not seen bounce or unsubscribe.
     New counts arrivals that did not come from an import.

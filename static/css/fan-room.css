@@ -45,9 +45,9 @@
 .fr-life-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 
 /* ---- panels -------------------------------------------------------- */
-/* The map moved onto the plate on 2026-09-22, so the row that held it
-   beside the moves is one column: a two-column grid with one child
-   leaves half the row empty. */
+/* The map has its own panel under the rack (2026-09-23), so the row that
+   once held it beside the moves is one column: a two-column grid with one
+   child leaves half the row empty. */
 .fr-mid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .fr-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
 .fr-panel-head .fr-kicker { color: var(--sb-gold); letter-spacing: .26em; }
@@ -80,15 +80,11 @@
 }
 .fr-move-cta:hover { filter: brightness(1.06); }
 
-/* ---- audience pulse ------------------------------------------------ */
+/* ---- the Live / Sample mark (the foot under the rack and map) ------- */
 .fr-mark { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--sb-good); white-space: nowrap; }
 .fr-mark i { width: 8px; height: 8px; border-radius: 50%; background: var(--sb-good); box-shadow: 0 0 8px var(--sb-good-line); }
 .fr-mark--sample { color: var(--sb-info); }
 .fr-mark--sample i { background: var(--sb-info); box-shadow: none; }
-.fr-map svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.fr-map-line { stroke: var(--screen-dim); stroke-opacity: .45; stroke-width: 1; }
-.fr-map-dot { fill: var(--screen-dim); }
-.fr-map-dot.is-big { fill: var(--screen); }
 
 /* ---- tools --------------------------------------------------------- */
 .fr-tools .fr-kicker { color: var(--sb-ink); margin-bottom: 14px; }
@@ -106,77 +102,89 @@
 }
 @media (max-width: 420px) {
 }
-/* ---- the plate -------------------------------------------------------
-   Position and type come from room-kit.css (.rk-pl*). Only what is
-   particular to THIS plate lives here: the constellation inside its big
-   window, and the words that fill that window before any city exists. */
+/* ---- the map, in its own panel under the rack (owner, 2026-09-23) ----
+   The old Audience Monitor plate's big window. Every room's rack is now
+   the shared three-window plate (command-zero.css), so the constellation
+   this account's fans make is a panel of its own directly under it:
+   gold on the ground, names in near-white, counts in bright gold.
 
-.fr-pl { margin-top: 18px; }
-.fr-pl-room .rk-pl-art { width: 100%; height: 100%; }
-.fr-pl-room svg { width: 100%; height: 100%; overflow: visible; }
+   The box keeps the map's own 604:306 aspect and its padding keeps the
+   same ratio, so the drawing fills it instead of letterboxing; on a wide
+   screen it stops growing taller at 400px and the drawing centres in it,
+   so the panel never towers over the page. */
+.fr-map {
+  position: relative; width: 100%; max-height: 400px; aspect-ratio: 604 / 306;
+  container: frmap / inline-size;
+  border: 1px solid var(--sb-gold-line); border-radius: var(--sb-r-control);
+  background: radial-gradient(ellipse at 50% 45%, var(--sb-surface-2), var(--sb-ground) 72%);
+  overflow: hidden;
+}
+/* a block, not the kit's grid: a grid row sized by its content leaves the
+   drawing's height: 100% unresolved, and it overflowed the capped box */
+.fr-map .rk-pl-art { position: absolute; inset: 0; display: block; padding: 8px 16px; }
+.fr-map svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .fr-map-line { stroke: var(--sb-gold); stroke-opacity: .32; stroke-width: 1; }
 .fr-map-dot { fill: var(--sb-gold); }
 .fr-map-dot.is-big { fill: var(--sb-gold-bright); }
 
-/* The big window with nothing in it yet. Not a blank pane: it says what
-   fills it and where that comes from. */
-.fr-pl-none {
-  margin: 0; font-family: var(--sb-display); font-weight: 800;
-  color: var(--screen); text-shadow: var(--screen-glow); font-size: clamp(13px, 1.8cqw, 30px);
-}
-.fr-pl-none-s {
-  margin: 0; max-width: 62%; line-height: 1.45; color: var(--screen-dim);
-  font-size: clamp(9px, .95cqw, 14px);
-}
-.fr-pl-foot { margin-top: 10px; }
-
-@media (max-width: 560px) {
-  .fr-pl-none { font-size: 18px; }
-  .fr-pl-none-s { font-size: 13px; max-width: none; }
-}
-
 /* The named cities. Sized in viewBox units (the drawing is 604 wide), so
-   they scale with the map instead of being set in page pixels. */
+   they scale with the map instead of being set in page pixels: 13 and 12
+   read at 13px and 12px or more once the map is 660px wide. A narrower
+   map draws them smaller, so each step below sets them larger in its own
+   units - every step keeps the name at 13px and the count at 12px or more
+   on the page at its narrowest width (tests/test_fan_room.py computes
+   it). The count sits one line under its name by dy in em, so the two
+   never collide at any step. */
 .fr-map-name {
-  fill: var(--screen); font-family: var(--sb-display); font-weight: 700;
+  fill: var(--sb-ink); font-family: var(--sb-display); font-weight: 700;
   font-size: 13px; letter-spacing: -.2px;
 }
 .fr-map-count {
-  fill: var(--screen-dim); font-size: 12px; font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  fill: var(--sb-gold-bright); font-size: 12px; font-weight: 600;
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+}
+/* Two names drawn over each other read as neither. fan_room.py places
+   them (fan_room.LABEL_STEPS is these sizes) and marks a name that would
+   run into a bigger city's at a step is-off-N; it is left out from that
+   step down. The dot stays, and the drawing's label still names it. */
+.fr-map-lab.is-off-0 { display: none; }
+@container frmap (max-width: 659px) {
+  .fr-map-name { font-size: 17px; }
+  .fr-map-count { font-size: 15px; }
+  .fr-map-lab.is-off-1 { display: none; }
+}
+@container frmap (max-width: 519px) {
+  .fr-map-name { font-size: 22px; }
+  .fr-map-count { font-size: 20px; }
+  .fr-map-lab.is-off-2 { display: none; }
+}
+@container frmap (max-width: 399px) {
+  .fr-map-name { font-size: 30px; }
+  .fr-map-count { font-size: 28px; }
+  .fr-map-lab.is-off-3 { display: none; }
+}
+@container frmap (max-width: 299px) {
+  .fr-map-name { font-size: 40px; }
+  .fr-map-count { font-size: 37px; }
+  .fr-map-lab.is-off-4 { display: none; }
 }
 
-/* The standby display - the sequence, the reel, the hint and the ticker -
-   is room-kit.css (.rk-cine*, .rk-reel*, .rk-tip*, .rk-tick*). It is one
-   object across all eight rooms, so it lives once. This sheet keeps only
-   what is particular to the Fans plate. */
+/* Fans on file and no city the map can plot - a list imported with no
+   city column. Not an empty box: it says what fills it and where from. */
+.fr-map-none {
+  padding: 22px 18px; text-align: center;
+  border: 1px dashed var(--sb-gold-line); border-radius: var(--sb-r-control);
+}
+.fr-map-none-t { margin: 0; font-family: var(--sb-display); font-size: 18px; font-weight: 800; color: var(--sb-ink); }
+.fr-map-none-s { margin: 6px auto 0; max-width: 52ch; font-size: 14px; line-height: 1.5; color: var(--sb-ink-2); }
+
+.fr-pl-foot { margin-top: 10px; }
 
 /* ---- the page from zero (owner's Fans spec, 2026-09-22) ------------
    Nothing here is kit-owned (hero, tiles, panel, kicker, cta are the
-   kit's and are used as they are). Sizes never below 12px; radii and
-   colours are tokens. */
-.fr-z-list { display: contents; margin: 0; padding: 0; list-style: none; }
-.fr-z-win--unlit { pointer-events: none; }
-/* the big window carries the three modules side by side (the owner's
-   mockup: one wide AUDIENCE MONITOR screen, a rule between each) */
-.fr-z-win--big { padding: 3% 3.5%; justify-content: center; }
-.fr-z-mods { margin: 0; padding: 0; list-style: none; width: 100%; height: 100%;
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; }
-.fr-z-mod { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-  gap: 0.6cqw; padding: 0 2.2cqw; min-width: 0; }
-.fr-z-mod + .fr-z-mod { border-left: 1px solid color-mix(in srgb, var(--sb-crt) 45%, transparent); }
-.fr-z-mod-ico { display: inline-grid; place-items: center; color: var(--sb-crt);
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--sb-crt) 55%, transparent)); }
-.fr-z-mod-svg { width: clamp(18px, 2.4cqw, 40px); height: clamp(18px, 2.4cqw, 40px); }
-.fr-z-k {
-  font-size: clamp(12px, 0.8cqw, 13px); font-weight: 800; letter-spacing: .2em; text-transform: uppercase;
-  color: var(--sb-crt); text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 70%, transparent);
-}
-.fr-z-v {
-  font-family: var(--sb-display); font-weight: 800; line-height: 1.12; color: var(--sb-crt);
-  font-size: clamp(13px, 1.5cqw, 24px); text-wrap: balance;
-  text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 70%, transparent), 0 0 28px color-mix(in srgb, var(--sb-crt) 35%, transparent);
-}
+   kit's and are used as they are). Its rack is the rooms' shared plate
+   (partials/cc_rack.html), whose rules live in command-zero.css. Sizes
+   never below 12px; radii and colours are tokens. */
 .fr-z-h { margin: 0; font-family: var(--sb-display); font-size: 22px; font-weight: 800; color: var(--sb-ink); line-height: 1.2; }
 .fr-z-p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--sb-ink-2); max-width: 52ch; }
 .fr-z-ico { display: inline-grid; place-items: center; width: 52px; height: 52px; flex: 0 0 auto; color: var(--sb-gold-bright); }
@@ -223,13 +231,5 @@
   .fr-z-empty, .fr-z-help { flex-wrap: wrap; }
 }
 @media (max-width: 560px) {
-  .fr-z-list { display: none; }
-  .fr-z-win--big { position: static; width: auto; height: auto; padding: 0; }
-  .fr-z-mods { display: flex; flex-direction: column; gap: 10px; height: auto; }
-  .fr-z-mod { align-items: flex-start; text-align: left; padding: 14px 16px; gap: 4px;
-    border: 1px solid var(--sb-gold-deep); border-radius: var(--sb-r-control); background: color-mix(in srgb, var(--sb-crt) 6%, #000); }
-  .fr-z-mod + .fr-z-mod { border-left: 1px solid var(--sb-gold-deep); }
-  .fr-z-mod-svg { width: 22px; height: 22px; }
-  .fr-z-v { font-size: 17px; }
   .fr-start-btn { width: 100%; }
 }

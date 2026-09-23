@@ -98,7 +98,8 @@ def test_the_figures_are_the_accounts_own():
         fid = mls.upsert_fan(uid, "fan%d-%s@example.net" % (i, uid[:6]), None)
         mls.set_fan_place(fid, "US", "Atlanta")
     body = c.get("/room/fans").get_data(as_text=True)
-    assert '<p class="rk-pl-n">3</p>' in body
+    # three on file and three new, each a figure on its screen
+    assert body.count('<span class="cz-screen-v cz-screen-v--fig">3</span>') == 2
     assert "Welcome 3 new fans" in body and "Get their emails" in body
     assert "Real Artist" in body                       # the account, not a stand-in name
     assert "Atlanta" in body and "Read from your own records" in body   # the Live badge
@@ -204,31 +205,51 @@ def test_the_fan_room_has_no_banner_photograph():
     assert got >= 6, got
 
 
-# --- the plate (2026-09-22) ----------------------------------------------
-# The owner's photographed Audience Monitor. The hardware is one image and
-# only the readings are drawn on it.
+# --- the rack and the map (2026-09-23) --------------------------------------
+# Every room's rack is the owner's shorter three-window plate
+# (static/img/room-plate.webp, partials/cc_rack.html). The working Fans room
+# puts its three readings on its three screens, and the old Audience Monitor
+# plate's big window - the map - is a panel of its own directly under it.
 
-def test_the_windows_sit_where_they_were_measured_on_the_plate():
-    """Every window is a fraction of static/img/fans-plate.webp, measured
-    off the file with PIL. If the plate is ever regenerated or re-cropped
-    these move, and nothing else in the code would say so - the overlays
-    simply land beside their glass."""
-    assert fan_room.PLATE == {
-        "room":      (6.67, 18.56, 59.30, 62.29),
-        "on-file":   (71.02, 14.78, 22.20, 13.95),
-        "reachable": (71.02, 41.02, 22.20, 13.83),
-        "new":       (71.02, 67.14, 22.20, 13.95),
-    }
-    got = fan_room.box("on-file")
-    for part in ("--x:71.02%", "--y:14.78%", "--w:22.2%", "--h:13.95%"):
-        assert part in got, got
+def _working(cities=("Atlanta",)):
+    """An account with a fan in each city, so the working room draws."""
+    c, uid = _account()
+    for i, city in enumerate(cities):
+        fid = mls.upsert_fan(uid, "f%d-%s@example.net" % (i, uid[:6]), None)
+        mls.set_fan_place(fid, "US", city)
+    return c, c.get("/room/fans").get_data(as_text=True)
 
 
-def test_the_three_small_windows_read_in_the_order_the_plate_prints_them():
-    """ON FILE, REACHABLE, NEW, top to bottom. The silkscreen cannot be
-    reordered, so neither can these."""
-    keys = [w["key"] for w in fan_room.windows("240", 240, "37", 37, 62, 30)]
-    assert keys == ["on-file", "reachable", "new"]
+def _rack(body):
+    return body.split('<section class="cz-rack"', 1)[1].split("</section>", 1)[0]
+
+
+def test_the_working_room_draws_the_rooms_plate_with_three_named_screens():
+    """Owner, 2026-09-23: every room's rack uses the shorter three-window
+    plate, and each working room shows its three figures on the three
+    screens. The Audience Monitor photograph is not drawn any more."""
+    import re
+    _c, body = _working()
+    assert 'class="cz-plate" src="/static/img/room-plate.webp?v=' in body
+    assert "command-zero.css?v=" in body, "the shared plate's rules load on the working room too"
+    rack = _rack(body)
+    assert rack.count('<li class="cz-screen"') == 3
+    assert re.findall(r'<span class="cz-screen-k">([^<]*)</span>', rack) == ["On file", "Reachable", "New"]
+    assert "fans-plate.webp" not in body, "the old plate is gone from the working room"
+    assert "rk-pl-win" not in body and "rk-reel" not in body
+    assert not hasattr(fan_room, "PLATE") and not hasattr(fan_room, "standby"), (
+        "the old plate's measured windows and its standby have nothing left to place")
+
+
+def test_the_three_screens_read_on_file_reachable_new():
+    """Left to right, the order the old plate printed them top to bottom."""
+    wins = fan_room.windows("240", 240, "37", 37, 62, 30)
+    assert [w["key"] for w in wins] == ["on-file", "reachable", "new"]
+    screens = fan_room.rack_screens(wins)
+    assert [(s["k"], s["v"], s["sub"]) for s in screens] == [
+        ("On file", "240", "fans"), ("Reachable", "62%", "can be emailed"),
+        ("New", "37", "in 30 days")]
+    assert all(s["fig"] and not s["none"] for s in screens)
 
 
 def test_reachable_says_words_when_nobody_is_on_file_and_a_figure_otherwise():
@@ -238,52 +259,188 @@ def test_reachable_says_words_when_nobody_is_on_file_and_a_figure_otherwise():
     real = fan_room.windows("10", 10, "0", 0, 0, 30)[1]
     assert real["value"] == "0%" and real["measured"] is True, (
         "0% IS a real reading - every fan suppressed or with no address")
+    # and on the screen: the absence is set as words, the 0% as a figure
+    words = fan_room.rack_screens(fan_room.windows("0", 0, "0", 0, None, 30))[1]
+    assert words["v"] == "None yet" and words["none"] and not words["fig"]
+    nought = fan_room.rack_screens(fan_room.windows("10", 10, "0", 0, 0, 30))[1]
+    assert nought["v"] == "0%" and nought["fig"] and not nought["none"]
 
 
-def test_the_markup_never_prints_what_the_plate_silkscreens():
-    """ON FILE, REACHABLE, NEW and THE ROOM are printed on the photograph.
-    Owner, 2026-09-22: "check for duplicate buttons and text". The Fans
-    plate is the working room's, so the account holds a fan."""
+def test_every_screen_says_what_it_is_once():
+    """The new plate prints no names, so each screen carries its own - once,
+    as its label, and never again inside the rack (owner, 2026-09-22:
+    "check for duplicate buttons and text")."""
     import re
-    c, uid = _account()
-    mls.upsert_fan(uid, "one@example.net", "", name="One")
-    body = c.get("/room/fans").get_data(as_text=True)
-    unit = body.split('class="rk-pl fr-pl"', 1)[1].split("</section>", 1)[0]
-    for word in ("On file", "Reachable", "New", "The room"):
-        for hit in re.finditer(re.escape(">" + word + "<"), unit):
-            before = unit[:hit.start()].rsplit("<", 1)[-1]
-            assert 'class="rk-pl-sr"' in before, (
-                '"%s" is on the plate; the markup prints it again' % word)
+    _c, body = _working()
+    rack = _rack(body)
+    for word in ("On file", "Reachable", "New"):
+        hits = list(re.finditer(re.escape(">" + word + "<"), rack))
+        assert len(hits) == 1, (word, len(hits))
+        before = rack[:hits[0].start()].rsplit("<", 1)[-1]
+        assert 'class="cz-screen-k"' in before, word
 
 
 def test_the_plate_image_carries_a_cache_version():
-    c, uid = _account()
-    mls.upsert_fan(uid, "one@example.net", "", name="One")
-    body = c.get("/room/fans").get_data(as_text=True)
-    assert "fans-plate.webp?v=" in body, (
+    _c, body = _working()
+    assert "room-plate.webp?v=" in body, (
         "an image replaced in place is kept by every browser that has it")
 
 
+def test_the_map_is_its_own_panel_directly_under_the_plate():
+    """Nothing is lost: the constellation, its names, dots and lines, now in a
+    panel of its own straight after the rack, and the Live mark and the
+    glossary under them."""
+    _c, body = _working(("Atlanta", "Chicago", "Denver"))
+    after = body.split('<section class="cz-rack"', 1)[1].split("</section>", 1)[1]
+    assert after.lstrip().startswith('<section class="fr-panel fr-map-panel"'), after[:200]
+    panel = after.split("</section>", 1)[0]
+    assert "<svg viewBox=" in panel and "fr-map-dot" in panel and "fr-map-line" in panel
+    for city in ("Atlanta", "Chicago", "Denver"):
+        assert ">%s</text>" % city in panel, city
+    # a reader who cannot see the drawing is told what it names
+    assert 'aria-label="Reachable fans by city: ' in panel
+    foot = body.index('class="rk-foot fr-pl-foot"')
+    assert body.index('class="fr-panel fr-map-panel"') < foot
+    assert body.index("The fan lifecycle") > foot
+
+
 def test_the_city_names_are_drawn_inside_the_viewbox_not_over_it():
-    """The window is not the map's own aspect, so the drawing letterboxes
-    inside its glass. A label positioned as a percentage of the WINDOW sits
+    """The box is not always exactly the map's aspect, so the drawing can
+    letterbox inside it. A label positioned as a percentage of the BOX sits
     a few pixels off its dot, and a named dot that points at nothing is
     worse than no name at all."""
     page = io.open("templates/room_fans.html", encoding="utf-8").read()
-    unit = page.split('class="rk-pl fr-pl"', 1)[1].split("</section>", 1)[0]
+    unit = page.split('class="fr-panel fr-map-panel"', 1)[1].split("</section>", 1)[0]
     assert "fr-map-name" in unit and "<text" in unit
     assert "fr-map-label" not in unit, "the absolutely-positioned labels are gone"
+    # the count hangs one line under its name in em, so a larger name on a
+    # phone never runs into it
+    assert 'dy="1.15em"' in unit
 
 
-def test_the_readings_survive_a_phone_losing_the_photograph():
+def _map_sizes():
+    """(the map's padding, its base sizes, and each narrower step) read out
+    of fan-room.css."""
+    import re
+    css = io.open("static/css/fan-room.css", encoding="utf-8").read()
+    code = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    pad = re.search(r"\.fr-map \.rk-pl-art \{[^}]*padding: (\d+)px (\d+)px", code)
+    name = re.search(r"\n\.fr-map-name \{[^}]*font-size: (\d+)px", code)
+    count = re.search(r"\n\.fr-map-count \{[^}]*font-size: (\d+)px", code)
+    steps = []
+    for m in re.finditer(r"@container frmap \(max-width: (\d+)px\) \{(.*?)\n\}", code, re.S):
+        body = m.group(2)
+        steps.append((int(m.group(1)),
+                      int(re.search(r"\.fr-map-name \{ font-size: (\d+)px", body).group(1)),
+                      int(re.search(r"\.fr-map-count \{ font-size: (\d+)px", body).group(1))))
+    return (int(pad.group(1)), int(pad.group(2))), (int(name.group(1)), int(count.group(1))), steps
+
+
+def test_the_city_names_stay_legible_at_every_map_width():
+    """The names were raised to 13 and 12 viewBox units for legibility, and
+    a unit is a page pixel only at 604px. At 375 the map is about 300px
+    wide, so 13 units would read at about six pixels. Each container step
+    sets them larger; at the NARROWEST width of every step the name must
+    still read at 13px and the count at 12px on the page. The last step is
+    held to a 240px map, narrower than a 320px phone gives it."""
+    import re
+    (pad_y, pad_x), (name, count), steps = _map_sizes()
+    assert (name, count) == (13, 12), "the sizes the owner's legibility pass set"
+    assert steps, "no narrower step: the names shrink with the map on a phone"
+    assert [(name, count)] + [(n, c) for _w, n, c in steps] == list(fan_room.LABEL_STEPS), (
+        "fan_room places the names at the sizes the sheet draws them")
+    css = io.open("static/css/fan-room.css", encoding="utf-8").read()
+    assert "container: frmap / inline-size" in css and "aspect-ratio: 604 / 306" in css
+    tiers = [(steps[0][0] + 1, name, count)]
+    for i, (width, n, c) in enumerate(steps):
+        low = steps[i + 1][0] + 1 if i + 1 < len(steps) else 240
+        tiers.append((low, n, c))
+    for low, n, c in tiers:
+        # the container's content box is `low` wide; the box keeps the map's
+        # aspect (border 1px), and the drawing sits inside the padding
+        height = (low + 2) * 306.0 / 604 - 2
+        scale = min((low - 2 * pad_x) / 604.0, (height - 2 * pad_y) / 306.0)
+        assert n * scale >= 13, "a %dpx map sets the names at %.1fpx" % (low, n * scale)
+        assert c * scale >= 12, "a %dpx map sets the counts at %.1fpx" % (low, c * scale)
+
+
+def _drawn(p, step):
+    """The label boxes drawn at a step, in viewBox units."""
+    fn, fc = fan_room.LABEL_STEPS[step]
+    return [(d["city"], fan_room._label_box(d, "end" if d["right"] else "start", fn, fc))
+            for d in p["dots"] if d["label"] and (d["off"] is None or d["off"] > step)]
+
+
+def test_no_two_city_names_are_drawn_over_each_other():
+    """New York and Chicago, drawn at 1280 and at 375 on 2026-09-23, sat on
+    top of each other and read as neither. Each name takes the side that
+    keeps it clear, and at a narrower step - where every name is set larger
+    - a smaller city's name that would still collide is left out there,
+    never drawn over."""
+    dots = [{"x": 520.0, "y": 110.0, "core": 9, "city": "New York", "count": 5},
+            {"x": 470.0, "y": 118.0, "core": 7, "city": "Chicago", "count": 3},
+            {"x": 480.0, "y": 180.0, "core": 10, "city": "Atlanta", "count": 6},
+            {"x": 90.0, "y": 170.0, "core": 8, "city": "Los Angeles", "count": 4},
+            {"x": 505.0, "y": 125.0, "core": 5, "city": "Philadelphia", "count": 2}]
+    p = fan_room.pulse({"geo": {"dots": dots, "cities": 5}})
+    for step in range(len(fan_room.LABEL_STEPS)):
+        boxes = _drawn(p, step)
+        assert boxes, "the biggest city is always named"
+        for i, (a_city, a) in enumerate(boxes):
+            assert a[0] >= 0 and a[2] <= p["w"] and a[1] >= 0 and a[3] <= p["h"], (step, a_city)
+            for b_city, b in boxes[i + 1:]:
+                assert not (a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]), (
+                    "step %d draws %s over %s" % (step, a_city, b_city))
+    # the biggest city keeps its name at every width
+    assert p["dots"][0]["city"] == "Atlanta" and p["dots"][0]["off"] is None
+    # and a name left out at one step stays out at every narrower one: the
+    # sheet hides is-off-N from step N down
+    css = io.open("static/css/fan-room.css", encoding="utf-8").read()
+    assert ".fr-map-lab.is-off-0 { display: none; }" in css
+    for n, width in ((1, 659), (2, 519), (3, 399), (4, 299)):
+        block = css.split("@container frmap (max-width: %dpx) {" % width, 1)[1].split("@", 1)[0]
+        assert ".fr-map-lab.is-off-%d { display: none; }" % n in block, n
+
+
+def test_the_readings_and_the_map_survive_a_phone():
+    """The figures ARE the screen, and the map is the room's picture of its
+    audience. On a phone the shared rack steps its photograph aside for
+    the three screens stacked (command-zero.css), and nothing hides them
+    or the map."""
+    import re
+    zero = io.open("static/css/command-zero.css", encoding="utf-8").read()
+    block = zero.split("@container czrack (max-width: 880px) {", 1)[1].split("\n}", 1)[0]
+    assert ".cz-plate { display: none; }" in block
+    assert not re.search(r"\.cz-screen[^{-]*\{[^}]*display:\s*none", block), (
+        "the readings must survive the plate")
+    fans = re.sub(r"/\*.*?\*/", "", io.open("static/css/fan-room.css", encoding="utf-8").read(), flags=re.S)
+    # (a name that would collide at a step is left out there - the test
+    # above - but the map itself, its dots and lines, never are)
+    fans = re.sub(r"\.fr-map-lab\.is-off-\d \{ display: none; \}", "", fans)
+    assert not re.search(r"\.fr-map[^{]*\{[^}]*display:\s*none", fans), "the map must survive a phone"
+
+
+def test_the_map_is_sized_off_its_width_never_its_height():
+    """cqw resolves against an inline-size container; cqh does not resolve
+    there at all. The map box is the container its names step against."""
+    import re
+    for sheet in ("fan-room.css", "command-zero.css"):
+        code = re.sub(r"/\*.*?\*/", "", io.open("static/css/" + sheet, encoding="utf-8").read(), flags=re.S)
+        assert "cqh" not in code, sheet
+
+
+# --- the kit's photographed plate ---------------------------------------------
+# Fans no longer draws it, but the rooms not yet on the shared three-window
+# plate still do, and these two guards were written here first.
+
+def test_the_kit_plates_readings_survive_a_phone_losing_the_photograph():
     """The figures ARE the screen. A phone that dropped them would be
-    showing a picture of an instrument instead of this artist's audience."""
+    showing a picture of an instrument instead of this artist's numbers."""
     import re
     css = io.open("static/css/room-kit.css", encoding="utf-8").read()
     code = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
-    # The sheet carries more than one 560px block now (the plate's, and
-    # the standby's), so this reads every one of them rather than
-    # whichever happens to be last.
+    # The sheet carries more than one 560px block (the plate's, and the
+    # standby's), so this reads every one of them.
     blocks = code.split("@media (max-width: 560px)")[1:]
     assert blocks, "no narrow block at all"
     assert any(".rk-pl-img { display: none; }" in b for b in blocks), (
@@ -293,7 +450,7 @@ def test_the_readings_survive_a_phone_losing_the_photograph():
             "the readings must survive the plate")
 
 
-def test_the_plate_has_a_container_context_and_is_never_sized_off_its_height():
+def test_the_kit_plate_has_a_container_context_and_is_never_sized_off_its_height():
     """cqw resolves against an inline-size container; with none, every
     clamp() on the plate is invalid and the type falls back to page-sized
     and bursts out of the windows. cqh does not resolve there at all."""
@@ -317,14 +474,14 @@ def test_reachable_requires_an_address_not_just_an_unsuppressed_row():
 
 
 def test_the_plate_keeps_the_live_or_sample_mark():
-    """It used to sit in the head of the map panel, and that panel folded
-    into the plate. The mark is what stops a demo account's generated
-    audience being read as a real one, so it moved with the map rather
-    than going out with it."""
+    """It sat in the head of the map panel, then under the Audience Monitor
+    plate, and now under the rooms' plate and the map's own panel. The mark
+    is what stops a demo account's generated audience being read as a real
+    one, so it moves with the readings rather than going out with them."""
     c, uid = _account()
-    # It belongs to the READINGS, so it appears once there are some. In
-    # standby there is no figure on the plate to mark as live or as an
-    # example, and the foot that carries it is not drawn at all.
+    # It belongs to the READINGS, so it appears once there are some. On
+    # the page from zero there is no figure on the plate to mark as live or
+    # as an example, and the foot that carries it is not drawn at all.
     empty = c.get("/room/fans").get_data(as_text=True)
     assert "fr-pl-foot" not in empty, "nothing to mark on the page from zero"
     mls.upsert_fan(uid, "one@example.net", "", name="One")
@@ -342,8 +499,10 @@ def test_the_map_says_so_when_fans_exist_but_none_could_be_placed():
     mls.upsert_fan(uid, "nowhere@example.net", "", name="No City")
     body = c.get("/room/fans").get_data(as_text=True)
     assert "is-standby" not in body, "a fan on file is not an empty room"
-    assert "No fan cities yet" in body
-    assert "Cities arrive with your smart links" in body
+    panel = body.split('class="fr-panel fr-map-panel"', 1)[1].split("</section>", 1)[0]
+    assert "No fan cities yet" in panel, "the words live in the map's own panel"
+    assert "Cities arrive with your smart links" in panel
+    assert "<svg viewBox=" not in panel, "nothing plotted, nothing drawn"
 
 
 def test_a_fan_on_file_gets_the_populated_room_untouched():
