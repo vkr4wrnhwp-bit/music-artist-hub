@@ -340,3 +340,17 @@ def test_a_dated_rollout_post_appears_on_the_page_and_an_undated_one_does_not():
     assert "No day on this one" not in page, (
         "there is no day to show it on, so the calendar does not show it")
     assert "Not measured" in page  # the other two figures, still unmeasured
+
+
+def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
+    """rooms.build keeps a page the owner hid as a card in state "hidden"
+    for the owner alone; the drawer from zero carries that mark to its
+    tile as the populated Marketing room does, instead of dropping it."""
+    cards = {"autopilot": ("/releases/autopilot", "M1", "Releases", "x", "live"),
+             "release-check": ("/releases/autopilot?view=ready", "M1", "Release check", "y", "live"),
+             "release-calendar": ("/releases/autopilot?view=calendar", "M1", "Release Calendar", "z", "live"),
+             "distribution": ("/distribution", "M1", "Distribution", "d", "live"),
+             "sync-packs": ("/sync/clearance-packs", "M1", "Sync Packs", "s", "hidden")}
+    z = rl.zero_page(cards=cards)
+    tiles = {t["key"]: t for b in z["bands"] for t in b["tiles"]}
+    assert tiles["sync-packs"]["state"] == "hidden" and tiles["autopilot"]["state"] != "hidden"

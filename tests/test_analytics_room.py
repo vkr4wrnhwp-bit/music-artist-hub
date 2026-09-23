@@ -352,3 +352,13 @@ def test_uncollected_insight_opens_the_publishing_room():
     near = src[max(0, i - 400):i]
     assert '"/room/publishing"' in near, near[-160:]
     assert '"/publishing"' not in near, "still the redirect, not the room"
+
+
+def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
+    """rooms.build keeps a page the owner hid as a card in state "hidden"
+    for the owner alone; the drawer from zero carries that mark to its
+    tile as the populated Marketing room does, instead of dropping it."""
+    cards = {k: ("/" + k, "M1", k.title(), "desc", "hidden" if k == "artist-twin" else "live")
+             for k in ar.ZERO_TILES}
+    tiles = {t["key"]: t for t in ar.build(None, [], [], None, None, [], cards, zero=True)["zero_tiles"]}
+    assert tiles["artist-twin"]["state"] == "hidden" and tiles["pulse"]["state"] != "hidden"

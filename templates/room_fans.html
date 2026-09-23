@@ -320,7 +320,7 @@
             <span class="fr-tile-text"><b>{{ t.label }}</b><span>{{ t.desc }}</span></span>
           </span>
           <span class="fr-tile-foot">
-            <span></span>
+            {% if t.state == "hidden" %}<span class="fr-tile-status fr-tone-off"><i></i>Hidden</span>{% else %}<span></span>{% endif %}
             <span class="fr-tile-go">{{ icon("arrow", "fr-ico fr-ico--sm") }}</span>
           </span>
         </a>

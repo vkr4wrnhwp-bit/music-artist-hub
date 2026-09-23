@@ -353,3 +353,16 @@ def test_a_fan_on_file_gets_the_populated_room_untouched():
     assert "The fan lifecycle" in body and "Next best moves" in body
     assert '<details class="fr-fold">' not in body
     assert "fr-z-win" not in body, "the plate carries readings, not the modules"
+
+
+def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
+    """rooms.build keeps a page the owner hid as a card in state "hidden"
+    for the owner alone; the drawer from zero carries that mark to its
+    tile as the populated Marketing room does, instead of dropping it."""
+    cards = [("fans", "/fans", "i", "Fans", "d", "live"),
+             ("fan-crm", "/fan-crm", "i", "Fan CRM", "d", "live"),
+             ("fan-club", "/fan-club", "i", "Fan Club", "d", "hidden"),
+             ("marketplace", "/marketplace", "i", "Marketplace", "d", "live")]
+    tiles = {t["key"]: t for t in fan_room.build([], {"total": 0}, cards)["tiles"]}
+    assert tiles["fan-club"]["state"] == "hidden" and tiles["fan-club"]["status"] == "Hidden"
+    assert tiles["fans"]["state"] != "hidden"

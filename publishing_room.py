@@ -280,7 +280,10 @@ def _tile(cards, key, can_open=None):
     href = card[0]
     if can_open and not can_open(href):
         return None
-    return {"key": key, "href": href, "icon": card[1], "name": card[2], "line": card[3]}
+    # The owner's mark on a page they hid rides with the tile (rooms.build
+    # keeps a hidden page for the owner alone); nothing else is judged.
+    return {"key": key, "href": href, "icon": card[1], "name": card[2], "line": card[3],
+            "state": card[4] if len(card) > 4 else ""}
 
 
 def zero_page(can_add=True, can_open=None, cards=None):

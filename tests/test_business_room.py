@@ -610,3 +610,13 @@ def test_an_empty_band_is_not_drawn():
     out = bz.build(None, None, None, None, None, None, {}, [], [], [],
                    only_money)
     assert [b["title"] for b in out["bands"]] == ["The money you have"]
+
+
+def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
+    """rooms.build keeps a page the owner hid as a card in state "hidden"
+    for the owner alone; the drawer from zero carries that mark to its
+    tile as the populated Marketing room does, instead of dropping it."""
+    cards = {k: v + ("hidden" if k == "vault" else "live",) for k, v in _CARDS.items()}
+    z = bz.zero_page(cards=cards)
+    tiles = {t["key"]: t for b in z["bands"] for t in b["tiles"]}
+    assert tiles["vault"]["state"] == "hidden" and tiles["statements"]["state"] != "hidden"

@@ -315,3 +315,13 @@ def test_the_plate_image_carries_a_cache_version():
     assert "studio-bus-plate.webp?v=" in body, (
         "an image replaced in place needs a cache version or browsers keep "
         "the old one")
+
+
+def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
+    """rooms.build keeps a page the owner hid as a card in state "hidden"
+    for the owner alone; the drawer from zero carries that mark to its
+    tile as the populated Marketing room does, instead of dropping it."""
+    cards = {k: ("/" + k, "M1", k.title(), "desc", "hidden" if k == "remix-lab" else "live")
+             for k in ("rack", "release-ready", "studio", "remix-lab", "audio-studio", "artwork")}
+    tiles = {t["key"]: t for t in sd.build(None, "", [], 0, 0, None, cards)["tiles"]}
+    assert tiles["remix-lab"]["state"] == "hidden" and tiles["rack"]["state"] != "hidden"

@@ -217,7 +217,10 @@ def _tile(cards, key, can_open=None):
     name, line = card[2], card[3]
     if key in RENAMED:
         name, line = RENAMED[key]
-    return {"key": key, "href": href, "icon": card[1], "name": name, "line": line}
+    # The owner's mark on a page they hid rides with the tile (rooms.build
+    # keeps a hidden page for the owner alone); nothing else is judged.
+    return {"key": key, "href": href, "icon": card[1], "name": name, "line": line,
+            "state": card[4] if len(card) > 4 else ""}
 
 
 def zero_page(can_add=True, can_open=None, cards=None):

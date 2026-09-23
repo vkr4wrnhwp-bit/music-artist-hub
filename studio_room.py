@@ -339,8 +339,11 @@ def build(analysis, cover, art_files, tracks, masters, ready, cards,
         href = card[0]
         if can_open and not can_open(href):
             continue
+        # The owner's mark on a page they hid rides with the tile: the
+        # drawer from zero shows it as the populated Marketing room does.
         tiles.append({"key": key, "href": href, "icon": card[1],
-                      "name": card[2], "line": card[3]})
+                      "name": card[2], "line": card[3],
+                      "state": card[4] if len(card) > 4 else ""})
 
     # Nothing measured, nothing tracked, no art: the page from zero. One
     # track, one cover or one reading and the unit takes over untouched.

@@ -450,6 +450,9 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
         label, desc = TILE_COPY.get(key, (label, desc))
         tiles.append({"key": key, "href": href, "label": label,
                       "desc": desc, "tone": tone, "status": status,
+                      # the raw state too: the drawer from zero shows the
+                      # owner's Hidden mark and none of the counts
+                      "state": state,
                       "external": href.startswith(("http://", "https://", "/suites/go/"))})
     total = audience["total"]
     return {

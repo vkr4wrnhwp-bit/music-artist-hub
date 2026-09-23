@@ -428,3 +428,13 @@ def test_the_stage_room_closes_with_four_cards():
     import re as _re
     assert _re.findall(r'data-room-card="([a-z-]+)"', body) == [
         "lights", "passports", "tour-board", "live"]
+
+
+def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
+    """rooms.build keeps a page the owner hid as a card in state "hidden"
+    for the owner alone; the drawer from zero carries that mark to its
+    tile as the populated Marketing room does, instead of dropping it."""
+    cards = {k: ("/" + k, "M1", k.title(), "desc", "hidden" if k == "lights" else "live")
+             for k in sr.ZERO_TILES}
+    tiles = {t["key"]: t for t in sr.build(None, None, None, None, cards, zero=True)["zero_tiles"]}
+    assert tiles["lights"]["state"] == "hidden" and tiles["stage-plot"]["state"] != "hidden"

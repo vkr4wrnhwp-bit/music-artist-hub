@@ -385,3 +385,16 @@ def test_the_five_states_are_all_drawn_even_where_the_count_is_none():
     page = c.get("/room/publishing").get_data(as_text=True)
     for name in ("Written", "Split agreed", "Registered", "Claimed", "Collecting"):
         assert ">%s<" % name in page, name
+
+
+def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
+    """rooms.build keeps a page the owner hid as a card in state "hidden"
+    for the owner alone; the drawer from zero carries that mark to its
+    tile as the populated Marketing room does, instead of dropping it."""
+    cards = {"catalog": ("/catalog", "M1", "Catalog", "x", "live"),
+             "track-passports": ("/catalog?view=passports", "M1", "Track Passports", "y", "live"),
+             "conflicts": ("/conflicts", "M1", "Rights Conflicts", "z", "live"),
+             "beats": ("/beats", "M1", "Beats", "b", "hidden")}
+    z = pb.zero_page(cards=cards)
+    tiles = {t["key"]: t for b in z["bands"] for t in b["tiles"]}
+    assert tiles["beats"]["state"] == "hidden" and tiles["catalog"]["state"] != "hidden"
