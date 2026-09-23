@@ -3306,16 +3306,26 @@ def guest_add(user, tour, viewer, tour_id, show_id):
         c = press_store.get_contact(tour["user_id"], f.get("linked_contact_id"))
         if c:
             fields.update({"name": c.get("name"), "email": c.get("email"), "company": c.get("outlet") or ""})
-    # A full list takes requests as pending, never silently over-approves
-    summary = ts.guest_summary(tour_id, show_id, show.get("guest_allocation"))
-    if summary["allocation"] is not None and summary["remaining"] is not None:
-        if fields.get("status") == "approved" and int(fields["count"]) > summary["remaining"]:
-            fields["status"] = "pending"
+    # A full list takes an approval as pending, and says so: approving past
+    # the allocation is refused, never silently allowed.
+    held = False
+    if fields.get("status") in ts.GUEST_HOLDING and ts.guest_over_allocation(
+            tour_id, show_id, show.get("guest_allocation"), None, fields["status"], _guest_count(fields["count"])):
+        fields["status"] = "pending"
+        held = True
     gid = ts.add_guest(tour_id, tour["user_id"], show_id, fields)
     if gid:
         ts.log_change(tour_id, tour["user_id"], _actor(viewer), "guest", gid,
                       "%s · %s" % (show["venue"], fields.get("name")), "created", "", fields.get("status") or "pending", "info")
-    return redirect(_show_url(tour, show, "guests"))
+    return redirect(_show_url(tour, show, "guests") + ("&held=%s" % gid if held and gid else ""))
+
+
+def _guest_count(raw, default=1):
+    """A guest's party size as the store keeps it: a whole number, at least 1."""
+    try:
+        return max(1, int(raw or default))
+    except (TypeError, ValueError):
+        return max(1, int(default or 1))
 
 
 @bp.route("/tours/<tour_id>/shows/<show_id>/guests/<guest_id>", methods=["POST"])
@@ -3334,6 +3344,13 @@ def guest_update(user, tour, viewer, tour_id, show_id, guest_id):
     for flag in ("backstage", "meet_greet", "aftershow"):
         if request.form.get("_flags"):
             fields[flag] = bool(request.form.get(flag))
+    # Approving past the allocation is refused here, on the server, not
+    # only lit as "Over allocation" afterwards (overclaim audit, 2026-09-11):
+    # nothing is saved, and the page says who did not fit and why.
+    status = fields.get("status") if fields.get("status") in ts.GUEST_STATUSES else g["status"]
+    count = _guest_count(fields.get("count"), g["count"]) if "count" in fields else g["count"]
+    if ts.guest_over_allocation(tour_id, show_id, show.get("guest_allocation"), guest_id, status, count):
+        return redirect(_show_url(tour, show, "guests") + "&full=%s" % guest_id)
     if fields.get("status") == "approved":
         fields["approved_by"] = viewer["name"]
     changed = ts.update_guest(tour_id, guest_id, fields)

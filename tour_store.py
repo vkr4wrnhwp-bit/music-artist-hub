@@ -2098,6 +2098,30 @@ def guest_summary(tour_id, show_id, allocation=""):
             "over": (allocation_n is not None and used > allocation_n)}
 
 
+GUEST_HOLDING = ("approved", "checked_in")   # the statuses that take a spot
+
+
+def guest_over_allocation(tour_id, show_id, allocation, guest_id, status, count):
+    """How many spots past the show's allocation a guest would take it if
+    set to `status` with `count` people (guest_id None for a new guest),
+    or 0 when it fits or no allocation is set.
+
+    Only a change that takes MORE spots can be over. Checking in an
+    approved guest, a denial or a no-show never is, even on a list that is
+    already over because the allocation was lowered after approvals: the
+    refusal is for approving past the allocation, not for working the
+    door of a list that already stands."""
+    s = guest_summary(tour_id, show_id, allocation)
+    if s["allocation"] is None:
+        return 0
+    cur = get_guest(tour_id, guest_id) if guest_id else None
+    before = cur["count"] if cur and cur["status"] in GUEST_HOLDING else 0
+    after = count if status in GUEST_HOLDING else 0
+    if after <= before:
+        return 0
+    return max(0, s["used"] - before + after - s["allocation"])
+
+
 def delete_guest(tour_id, guest_id):
     with get_db() as db:
         db.execute("DELETE FROM tour_guests WHERE id=? AND tour_id=?", (guest_id, tour_id))

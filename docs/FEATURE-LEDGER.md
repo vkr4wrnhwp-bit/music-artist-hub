@@ -2755,7 +2755,7 @@ The run as an .ics feed, a printable itinerary, CSVs for the itinerary, personne
 
 Guest requests per date against an allocation, with approve/deny, credentials, check-in and a CSV for the door.
 
-- Because: tour_os.py:3211/3226/3252 write tour_guests and ts.guest_summary counts against the show's allocation; an approval over the remaining allocation is downgraded to pending rather than silently over-approved (tour_os.py:3244).
+- Because: tour_os.py:3211/3226/3252 write tour_guests and ts.guest_summary counts against the show's allocation; approving past the allocation is refused on the server by one rule, tour_store.guest_over_allocation (make-it-real, 2026-09-23; it used to be only the add form that held a guest back, while Approve, a party-size change and a check-in went through and the page lit Over allocation afterwards). guest_update saves nothing and returns to the guests tab with ?full=<guest>, where the page names who did not fit and the allocation; guest_add lands the guest pending with ?held=<guest> and says so. Only a change that takes more spots is refused: checking in, undoing, a no-show or a denial on a list already over (the allocation lowered after approvals) still works. Tests: tests/test_guest_allocation_refused.py.
 - Routes: GET /tours/<tour_id>/guests; POST .../shows/<show_id>/guests/add; POST .../shows/<show_id>/guests/<guest_id>; GET .../shows/<show_id>/guests.csv
 - Files: tour_os.py:3211 guests_all(), :3226 guest_add(), :3252 guest_update(), :3277 guests_csv(); templates/tour/guests.html, show/_guests.html
 - Access: require_tour("guests") throughout. The guests scope alone may set the allocation and cutoff via .../ext (tour_os.py:2064).
