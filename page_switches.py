@@ -97,8 +97,9 @@ def hidden_keys():
 
 
 def set_hidden(keys):
-    """Save the hidden set: only keys the sidebar knows, never the
-    protected two. Returns what was saved."""
+    """Save the hidden set: only keys the board knows (entries(): the
+    sidebar and the room cards unfolded from it), never the protected
+    two. Returns what was saved, so a caller can see what was dropped."""
     keep = sorted((set(keys) & known_keys()) - PROTECTED)
     store.set_kv(KV_KEY, json.dumps({"hidden": keep}) if keep else "")
     return set(keep)
