@@ -5253,9 +5253,19 @@ def create_app():
         """
         import releases_room
 
-        campaigns = _campaign_picker(user)
-        wanted = request.args.get("campaign") or (campaigns[0]["id"] if campaigns else None)
-        campaign = mls.get_campaign(wanted, user["id"]) if wanted else None
+        # Every count the page from zero is decided on, read in ONE try: a
+        # failed read is the error page, 503, and never a fresh account
+        # (owner's spec, 2026-09-23). The rollouts used to fall back to
+        # "none at all" on their own, which read as a fresh account.
+        try:
+            campaigns = _campaign_picker(user)
+            wanted = request.args.get("campaign") or (campaigns[0]["id"] if campaigns else None)
+            campaign = mls.get_campaign(wanted, user["id"]) if wanted else None
+            rollouts = ros.list_campaigns(user["id"])
+        except Exception as exc:
+            app.logger.error("releases room: state unreadable: %s", exc)
+            return render_template("room_releases_error.html", active_page="room-releases",
+                                   room=room, **build_dashboard_context()), 503
 
         checks, _score = _release_checks(user, campaign) if campaign else ([], 0)
         groups = _check_groups(checks) if checks else []
@@ -5274,7 +5284,7 @@ def create_app():
 
         # Every dated post across this account's rollouts. None at all is
         # not the same as none due, so the figure says which.
-        drops, calendar = _release_drops(user)
+        drops, calendar = _release_drops(user, rollouts)
 
         # Per Track Passport, which is a different measurement from campaign
         # readiness and is labelled as one.
@@ -5287,26 +5297,35 @@ def create_app():
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         # rooms.build gives each card as (key, href, icon, label, desc, state).
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        # Who may create the first release: the account holder, or an edit seat.
+        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         rr = releases_room.build(
             campaign, checks, groups, days_left, release_date, drops, calendar,
             passport, campaigns, cards, sample=_session_is_demo(),
             can_open=can_open,
             artist_name=artist_identity.display_name(user),
-            show=request.args.get("show") or "all")
+            show=request.args.get("show") or "all",
+            zero=releases_room.new_account(campaigns, drops), can_add=can_add)
         return render_template("room_releases.html", active_page="room-releases",
-                               room=room, rr=rr, **build_dashboard_context())
+                               room=room, rr=rr,
+                               # The sentence the builder carries back
+                               # (?from=releases-zero-state), decided by the
+                               # SAVED release.
+                               done_line=releases_room.done_line(
+                                   request.args.get("from"), len(campaigns or ())),
+                               **build_dashboard_context())
 
-    def _release_drops(user):
+    def _release_drops(user, rollouts=None):
         """(count, rows) of dated posts across the account's rollouts.
 
         None rather than 0 when the account has no rollout at all: nothing
-        scheduled anywhere is a different statement from nothing due.
+        scheduled anywhere is a different statement from nothing due. The
+        rollouts are passed in by the room, which reads them inside its
+        one try; read here only when nobody did.
         """
         import releases_room
-        try:
+        if rollouts is None:
             rollouts = ros.list_campaigns(user["id"])
-        except Exception:
-            return None, []
         if not rollouts:
             return None, []
         rows = []

@@ -216,6 +216,12 @@ def test_the_rooms_layout_drops_each_page_s_own_tab_strip(monkeypatch):
     # not a second copy of the room's.
     assert "sb-subnav-a" in c.get("/epk").get_data(as_text=True)
 
+    # A fresh account meets the Releases page from zero (owner's spec,
+    # 2026-09-23), so the calendar is asserted on an account with a
+    # release, where the screen it belongs to is drawn.
+    import links_store as mls
+    mls.create_campaign(_uid, "ld-%s" % uuid.uuid4().hex[:8],
+                        {"title": "A single", "artist_name": "Launch"})
     room = c.get("/room/releases").get_data(as_text=True)
     assert "Release calendar" in room, (
         "the calendar is this screen now, not a card pointing back at a "

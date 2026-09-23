@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}Releases{% endblock %}
+
+{% block content %}
+{#- The Releases room's state could not be read. This page exists so that a
+    failed request is NEVER shown as a fresh account (owner's Releases spec,
+    2026-09-23, Pass 1: "accurate new-account, loading, permission, and error
+    detection"). Nothing on this page is a figure. -#}
+<div class="mx-auto max-w-2xl">
+  <p class="sb-label sb-label-gold">Street Banker · Releases</p>
+  <h1 class="sb-h1 mt-1">We could not load Releases</h1>
+  <p class="mt-3 max-w-xl text-base text-gray-200">Your releases and plans are safe. Try again.</p>
+  <div class="mt-6 flex flex-wrap gap-3">
+    {{ sb.btn("Try again", href="/room/releases", variant="primary") }}
+    {{ sb.btn("Open the release desk", href="/releases/autopilot", variant="secondary") }}
+  </div>
+  <p class="mt-8 text-xs text-gray-300">If this keeps happening, tell us through <a href="/contact" class="font-semibold text-sb-gold-bright hover:underline">Contact</a> and say what you were doing.</p>
+</div>
+{% endblock %}

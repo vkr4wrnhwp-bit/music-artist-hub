@@ -153,27 +153,142 @@ def test_a_seat_that_cannot_open_a_page_is_not_shown_its_tile():
 
 # --- the page itself -----------------------------------------------------
 
-def test_an_empty_account_is_told_in_words_and_shown_no_zero_figures():
-    c, _uid = _account()
-    page = c.get("/room/releases").get_data(as_text=True)
-    assert ">Releases</h1>" in page
-    # Owner, 2026-09-22: a plate whose every window reads "Not measured"
-    # is worse than no plate, so an account that has measured nothing
-    # now meets the STANDBY - words about what will fill each window.
-    # The zero rule is unchanged and still checked below.
-    # The caption standby became the DISPLAY the same afternoon (owner:
-    # "slot machine-y" - the big window sequences the room's features,
-    # the small ones are a reel, a hint and a ticker, never a caption).
-    # The zero rule is unchanged and still checked.
+def _body(page):
+    return page.split('class="rk rl"', 1)[1] if 'class="rk rl"' in page else page.split("<main", 1)[-1]
+
+
+def test_an_empty_account_meets_the_page_from_zero_not_an_empty_plate():
+    """The page from zero (owner's Releases spec + mockup, 2026-09-23). The
+    plate waits for a release; a new account meets the Command Center's
+    three-screen plate, STATIC, with this room's words, and the spec's
+    order under it. No arc, no twelve empty checks, no empty calendar, no
+    countdown, no distribution status - and none of the plate's parts."""
     import re as _re
-    _f = _re.findall(r"rk-cine-frame[^>]*>\s*(?:<img[^>]*>\s*)?<b[^>]*>([^<]*)", page)
-    assert _f == ['Rollout Studio', 'Release Checks', 'Sync Packs', 'Distribution'], _f
-    assert page.count("rk-reel-win") == 1 and page.count("rk-tip-win") == 1 and page.count("rk-tick-win") == 1
-    assert "Create a release" in page, "the hero pill is the way in"
-    assert "rk-pl-n" not in page, "no reading is drawn while nothing is measured"
-    assert "Nothing is being checked yet." in page
-    assert "No release chosen." in page
-    assert "Nothing is scheduled." in page
+    c, _uid = _account()
+    body = _body(c.get("/room/releases").get_data(as_text=True))
+    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "releases-plate.webp" not in body, "the plate waits for a release"
+    assert "rk-cine" not in body and "rk-reel-win" not in body and "rk-tick-win" not in body, "nothing rotates"
+    assert "rk-pl-n" not in body and "rl-ribbon" not in body, "no reading, no ribbon"
+    for gone in ("Nothing is being checked yet.", "No release chosen.", "Nothing is scheduled.",
+                 "60-day", "14-day", "Days out", "rl-donut", "Release / Campaign"):
+        assert gone not in body, gone
+    # the three screens, the spec's words exactly, none of them a door
+    for k, v in rl.ZERO_RACK:
+        assert k in body and v in body, (k, v)
+    assert body.count('<li class="cz-screen"') == 3 and 'class="cz-screen-v" href' not in body
+    # the header: the spec's subtitle, the account kept, the one door - the builder ON A RELEASE
+    assert rl.ZERO_SUBTITLE in body
+    assert "Release Artist" in body, "the account field still says whose releases these are"
+    door = rl.DOOR.replace("&", "&amp;")
+    assert 'class="rk-cta" href="%s"' % door in body and "Create your first release" in body
+    assert rl.DOOR.startswith("/links/new?type=release&"), "the campaign builder opened on a release: the release record itself"
+    # the card, the first-save list in place, the four areas as doors
+    assert "Start with one release" in body and "Create your first release plan" in body
+    assert 'class="rl-z-btn" href="%s"' % door in body and "Create a release</a>" in body
+    assert "What do I need before I start?" in body
+    for item in rl.FIRST_SAVE:
+        assert item in body, item
+    assert "What Releases will organize" in body
+    for _k, name, line, _card in rl.LENSES:
+        assert name.replace("&", "&amp;") in body and line in body, name
+    for href in ("/releases/autopilot?returnTo=/room/releases",
+                 "/releases/autopilot?view=ready&amp;returnTo=/room/releases",
+                 "/releases/autopilot?view=calendar&amp;returnTo=/room/releases",
+                 "/distribution?returnTo=/room/releases"):
+        assert 'class="rl-z-lens" href="%s"' % href in body, href
+    # the five steps as education, numbered, Create lit
+    for _k, name, line in rl.WORKFLOW:
+        assert name in body and line.replace("&", "&amp;") in body, name
+    rail = body.split("How Releases works")[1].split("Your release plan will appear here")[0]
+    assert "%" not in rail and "Complete" not in rail and "In progress" not in rail
+    assert 'class="rk-step is-first"' in body and "rk-step--ahead" not in body and "rk-step--now" not in body
+    assert '<span class="rk-ring" aria-hidden="true">1</span>' in rail and ">5</span>" in rail
+    # the two empties in words, help, the drawer open under the four areas
+    assert "Your release plan will appear here" in body and "Nothing is scheduled yet" in body
+    assert "never shown as confirmed delivery." in body
+    assert 'href="#rl-z-flow-h">How release checks work' in body and 'href="#rl-z-need">Release requirements' in body
+    assert "Not sure whether your music is ready?" in body and 'href="/contact">Ask Street Banker' in body
+    assert '<details class="rl-z-fold" open>' in body and "More Release tools" in body, (
+        "the drawer starts OPEN (owner, 2026-09-23: people need to see it)")
+    drawer = body.split('<details class="rl-z-fold"')[1]
+    titles = _re.findall(r'<h3 class="rl-z-band">([^<]+)</h3>', drawer)
+    assert titles == ["Release record", "Readiness checks", "Rollout &amp; calendar", "Distribution &amp; sync packs"], titles
+    assert _re.findall(r'data-room-card="([a-z-]+)"', drawer) == [
+        "autopilot", "release-check", "release-calendar", "rollout", "distribution", "sync-packs"]
+    # no nought, no countdown, no delivery claim
+    text = _re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", body, flags=_re.S)
+    assert not _re.search(r"\b0 (checks|tasks|days|releases)", text) and not _re.search(r"(?<![\d.])0%", text)
+    for claim in ("Delivered", "delivered to", "is live in stores", "Available everywhere"):
+        assert claim not in body, claim
+    assert "Explore more tools" not in body and "The release arc" not in body
+
+
+def test_the_saved_release_says_the_line_never_the_param_alone():
+    c, uid = _account()
+    page = c.get("/room/releases?from=releases-zero-state").get_data(as_text=True)
+    assert rl.DONE_LINE not in page, "the param alone says nothing"
+    _campaign(uid, days_out=30, title="First single")
+    assert rl.DONE_LINE in c.get("/room/releases?from=releases-zero-state").get_data(as_text=True)
+    assert rl.DONE_LINE not in c.get("/room/releases").get_data(as_text=True)
+    assert rl.done_line("releases-zero-state", 0) == "" and rl.done_line(None, 2) == ""
+    assert rl.done_line("releases-zero-state", 1) == rl.DONE_LINE
+
+
+def test_new_account_is_no_release_and_no_rollout_at_all():
+    assert rl.new_account([], None) is True
+    assert rl.new_account([{"id": "c"}], None) is False
+    assert rl.new_account([], 0) is False, "a rollout with nothing dated is still a rollout"
+    assert rl.new_account([], 3) is False
+
+
+def test_one_release_brings_the_plate_back_untouched():
+    c, uid = _account()
+    _campaign(uid, days_out=30, title="First single")
+    body = _body(c.get("/room/releases").get_data(as_text=True))
+    assert "releases-plate.webp?v=" in body and "command-plate" not in body
+    assert "First single" in body and "Explore more tools" in body and "rk-step rk-step--now" in body
+    assert "Start with one release" not in body and "rl-z-fold" not in body
+
+
+def test_a_rollout_alone_brings_the_plate_back_too():
+    """A rollout with dated posts and no release chosen is activity - the
+    first standby hid its posts, and the page from zero must not either."""
+    c, uid = _account()
+    cid = ros.create_campaign(uid, {"title": "Rollout one"})
+    ros.add_post(cid, {"platform": "TikTok", "phase": "pre", "caption": "Teaser clip",
+                       "scheduled_date": (date.today() + timedelta(days=4)).isoformat()})
+    body = _body(c.get("/room/releases").get_data(as_text=True))
+    assert "Teaser clip" in body and "Start with one release" not in body
+
+
+def test_a_seat_that_may_not_write_gets_no_door_and_an_area_it_cannot_open_is_words():
+    cards = {"autopilot": ("/releases/autopilot", "M1", "Releases", "x"),
+             "release-check": ("/releases/autopilot?view=ready", "M1", "Release check", "y"),
+             "release-calendar": ("/releases/autopilot?view=calendar", "M1", "Release Calendar", "z"),
+             "distribution": ("/distribution", "M1", "Distribution", "d"),
+             "sync-packs": ("/sync/clearance-packs", "M1", "Sync Packs", "s")}
+    z = rl.zero_page(can_add="seat", can_open=lambda href: not href.startswith("/distribution"), cards=cards)
+    assert z["project"]["can"] == "seat"
+    by = {l["key"]: l for l in z["lenses"]}
+    assert by["distribution"]["href"] == "" and by["record"]["href"] == "/releases/autopilot"
+    assert [t["key"] for t in z["bands"][-1]["tiles"]] == ["sync-packs"]
+    assert rl.zero_page(cards=cards)["project"]["can"] is True
+
+
+def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
+    """Owner's spec, Pass 1: loading and error detection. Before this the
+    rollouts fell back to none-at-all on their own."""
+    def boom(*_a, **_k):
+        raise RuntimeError("releases: store down")
+    monkeypatch.setattr(ros, "list_campaigns", boom)
+    c, _uid = _account()
+    r = c.get("/room/releases")
+    assert r.status_code == 503
+    page = r.get_data(as_text=True)
+    assert "We could not load Releases" in page
+    assert 'href="/room/releases"' in page and 'href="/releases/autopilot"' in page and "Open the release desk" in page
+    assert "Start with one release" not in page and "command-plate" not in page
 
 
 def test_a_release_ten_days_out_puts_the_arc_on_the_14_day_plan():
