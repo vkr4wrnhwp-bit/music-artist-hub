@@ -212,14 +212,13 @@ def test_kept_is_not_measured_when_no_costs_were_ever_logged():
     # nothing to read, which fills with the reel and says so beneath.
     body = _room(c.get("/room/business").get_data(as_text=True))
     assert "rk-cine" not in body, "a statement on file flips the plate off the display"
-    assert "bz-fig" in body, "reported is a figure"
-    assert "rk-reel--fill" in body, "kept has nothing to read: the reel fills it"
-    assert "Not measured" in body, "and the small line still says what is missing"
-    # The two noughts on this plate are measurements - every row of the
-    # statement is titled, so nothing is unattributed - and they print.
-    # KEPT is the absence, and it prints no figure at all.
-    kept = body.split('<p class="bz-sr">Kept</p>', 1)[1].split("</div>", 1)[0]
-    assert "bz-fig" not in kept and "rk-reel--fill" in kept
+    screens = re.findall(r'<li class="cz-screen".*?</li>', body, re.S)
+    assert len(screens) == 3
+    reported, _nc, kept = screens
+    assert "cz-screen-v--fig" in reported, "reported is a figure"
+    # KEPT is the absence: words, set as words, and no figure at all.
+    assert "cz-screen-v--none" in kept and ">Not measured<" in kept
+    assert "cz-screen-v--fig" not in kept
     assert "$" not in kept, "an absence is never a nought"
     order, totals, _ = bz.periods(store.get_statement_rows(uid))
     reported, prior, _note = bz.reading(order, totals, None)
@@ -455,8 +454,11 @@ def test_one_statement_brings_the_analyser_back_untouched():
     c, uid = _account()
     _statement(uid)
     body = _room(c.get("/room/business").get_data(as_text=True))
-    assert "business-plate.webp?v=" in body and "room-plate" not in body
-    assert "bz-win" in body and "Explore more tools" in body
+    # the working room on the rooms' shared three-window plate (owner,
+    # 2026-09-23), each screen named since the plate prints no names
+    assert "room-plate.webp?v=" in body and "business-plate" not in body
+    assert re.findall(r'<span class="cz-screen-k">([^<]+)</span>', body) == ["Reported", "Not collected", "Kept"]
+    assert "Explore more tools" in body
     assert "Start with your first statement" not in body and "bz-z-fold" not in body
     titles = re.findall(r'<h3 class="bz-band">([^<]+)</h3>', body)
     assert titles == ["The money you have", "The money you&#39;re owed", "The paperwork and the people"], (
@@ -509,27 +511,21 @@ def test_the_plate_image_carries_a_cache_version():
     c, uid = _account()
     _statement(uid)
     body = _room(c.get("/room/business").get_data(as_text=True))
-    assert "business-plate.webp?v=" in body
+    assert "room-plate.webp?v=" in body
 
 
-def test_the_markup_never_prints_the_plate_s_own_silkscreen():
-    """REPORTED, NOT COLLECTED and KEPT are printed on the photograph, and
-    ACTUAL and ESTIMATE inside the two middle panes. Owner, 2026-09-22:
-    "make sure you check for duplicate buttons and text". The names are in
-    the markup for screen readers only."""
+def test_each_screen_says_its_name_once_and_the_estimate_is_named():
+    """The rooms' plate prints no names (owner, 2026-09-23), so each screen
+    carries its own - once. Not collected stays two readings, never one
+    sum: the actual figure, and the estimate NAMED as an estimate under it."""
     c, uid = _account()
     _statement(uid)
     body = _room(c.get("/room/business").get_data(as_text=True))
-    unit = body.split('class="bz-unit', 1)[1].split("</section>", 1)[0]
-    for word in ("Reported", "Not collected", "Kept",
-                 "Actual unattributed", "Estimated missing"):
-        for hit in re.finditer(re.escape(">" + word), unit):
-            before = unit[:hit.start()].rsplit("<", 1)[-1]
-            # Either screen-reader class: this room's own bz-sr on the
-            # readings, and the kit's rk-pl-sr on the standby windows.
-            # They are the same device under two prefixes.
-            assert ('class="bz-sr"' in before or 'class="rk-pl-sr"' in before), (
-                '"%s" is printed on the plate; the markup prints it again' % word)
+    rack = body.split('class="cz-rack"', 1)[1].split("</section>", 1)[0]
+    for word in ("Reported", "Not collected", "Kept"):
+        assert rack.count(">%s<" % word) == 1, word
+    nc = re.findall(r'<li class="cz-screen".*?</li>', rack, re.S)[1]
+    assert "Actual unattributed" in nc and "estimated missing" in nc
 
 
 def test_the_rail_under_the_plate_uses_none_of_the_plate_s_words():

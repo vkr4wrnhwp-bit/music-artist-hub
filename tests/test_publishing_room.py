@@ -322,8 +322,12 @@ def test_one_song_brings_the_plate_back_untouched():
     c, uid = _account()
     _song(uid)
     body = _body(c.get("/room/publishing").get_data(as_text=True))
-    assert "publishing-plate.webp?v=" in body and "room-plate" not in body
-    assert "The rest of this room" in body and "pb-pl-split" in body
+    # the working room on the rooms' shared three-window plate (owner,
+    # 2026-09-23): works on file, uncollected, share claimed, each named
+    assert "room-plate.webp?v=" in body and "publishing-plate" not in body
+    import re as _re
+    assert _re.findall(r'<span class="cz-screen-k">([^<]+)</span>', body) == ["Works on file", "Uncollected", "Share claimed"]
+    assert "The rest of this room" in body
     assert "Start with one song" not in body and "pb-z-fold" not in body
     for name in ("Written", "Split agreed", "Registered", "Claimed", "Collecting"):
         assert ">%s<" % name in body, name
