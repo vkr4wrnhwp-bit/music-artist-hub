@@ -71,7 +71,7 @@ def test_the_fans_page_from_zero_uses_the_same_rack_as_every_room():
         body = c.get(path).get_data(as_text=True)
         assert 'class="cz-plate" src="/static/img/room-plate.webp' in body, path
         assert body.count('<li class="cz-screen"') == 3, path
-        assert "command-zero.css?v=2" in body, path
+        assert "command-zero.css?v=3" in body, path
     fans = c.get("/room/fans").get_data(as_text=True)
     assert "fans-plate.webp" not in fans, "the map plate is the working room's"
     for words in ("Own the listener relationship", "Choose how to add your first fans",

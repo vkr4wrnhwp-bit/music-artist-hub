@@ -3,12 +3,10 @@
 {% block title %}Marketing{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/marketing-room.css?v=6">
-  {%- if mk.idle %}
-  {#- the page from zero draws the Command Center's three-screen plate
-      (partials/cc_rack.html); the plate's rules live with that page -#}
+  <link rel="stylesheet" href="/static/css/marketing-room.css?v=7">
+  {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
+      page from zero and the working room alike; its rules live with it -#}
   <link rel="stylesheet" href="/static/css/command-zero.css?v=3">
-  {%- endif %}
 {% endblock %}
 
 {#- THE MARKETING ROOM - the Marketing room's opening screen, built from the
@@ -272,44 +270,44 @@
   </details>
   {% endif %}
   {% else %}
-  {# ---- the plate: one photograph, five windows ------------------------
-       The hardware is a photograph (static/img/marketing-plate.webp) and
-       only the readings are drawn on it, positioned as fractions held in
-       marketing_room.PLATE. The plate silkscreens THE STORY, READY, SENT
-       HERE, VIEWS and COVERAGE, so the markup carries those names for a
-       screen reader alone.
+  {# ---- the rack: the press funnel on three screens ---------------------
+       The rooms' shared three-window plate (owner, 2026-09-23: every room
+       but Studio on it): Ready, Sent, Coverage. The plate prints no names,
+       so each screen says what it is; nothing counted is words, never a 0.
+       Views lost their window and ride on Sent's line.
 
        This is the PRESS funnel. The band above it is smart-link data and
        the two do not overlap: different tables, different questions. #}
-  <section class="rk-pl mk-pl" aria-label="Your press funnel">
-    <img class="rk-pl-img" src="/static/img/marketing-plate.webp?v=1" alt=""
-         width="1859" height="846" decoding="async">
-
-    {# the tall window: the newest announcement on file #}
-    <div class="rk-pl-win mk-pl-story" style="{{ mk.story_box }}">
-      <p class="rk-pl-sr">The story</p>
-      {% if mk.story %}
-      <p class="mk-pl-head">{{ mk.story.headline }}</p>
-      <span class="rk-lamp rk-lamp--{{ "good" if mk.story.status == "ready" else "off" }}">{{ mk.story.status }}</span>
-      {% else %}
-      <p class="mk-pl-none">No announcement yet</p>
-      <p class="mk-pl-none-s">Write one in the Press Desk and it appears here,
-        with everything below counted against it.</p>
-      {% endif %}
-    </div>
-
-    {# the 2x2 funnel #}
-    {% for w in mk.windows %}
-    <div class="rk-pl-win" style="{{ w.box }}">
-      <p class="rk-pl-sr">{{ w.name }}</p>
-      <p class="rk-pl-n">{{ w.value }}</p>
-      <p class="rk-pl-s">{{ w.sub }}</p>
-    </div>
-    {% endfor %}
-  </section>
-  <p class="rk-foot mk-pl-foot">Sent here counts pitches Street Banker sent; one
+  {% with screens=mk.screens, rack_label="Your press funnel" %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
+  <p class="rk-foot mk-rack-foot">Sent counts pitches Street Banker sent; one
     you posted from your own inbox is not in it. A view is a journalist opening
     your announcement page &mdash; not an email open, which we do not track.</p>
+
+  {# ---- the story: the old plate's big window, in its own panel --------
+       The newest announcement on file, headline falling back to title, or
+       the words that say there is none. Nothing is lost in the move. #}
+  <section class="mk-panel mk-story" aria-labelledby="mk-story-h">
+    <div class="mk-panel-head">
+      <div>
+        <h2 class="mk-kicker" id="mk-story-h">The story</h2>
+        <p class="mk-kicker mk-kicker--dim mk-kicker--sm">The newest announcement on file</p>
+      </div>
+      {% if mk.story %}<span class="rk-lamp rk-lamp--{{ "good" if mk.story.status == "ready" else "off" }}">{{ mk.story.status|capitalize }}</span>{% endif %}
+    </div>
+    <div class="mk-story-body">
+      <span class="mk-story-ico" aria-hidden="true">{{ icon("announcement") }}</span>
+      <div class="mk-story-said">
+        {% if mk.story %}
+        <p class="mk-story-head">{{ mk.story.headline }}</p>
+        {% else %}
+        <p class="mk-story-head is-none">No announcement yet</p>
+        <p class="mk-story-s">Write one in the Press Desk and it appears here.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
 
   {#- The stage rail. His design gives it no heading: the five stages name
       themselves, and a heading here would be a sentence he did not draw. -#}
