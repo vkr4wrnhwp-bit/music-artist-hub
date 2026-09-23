@@ -60,7 +60,10 @@ def rig(application):
     response = client.post("/live/new", data={
         "name": "Friday headline", "venue": "The Ritz", "tempo_bpm": "128"})
     set_id = response.headers["Location"].rstrip("/").split("/")[-1]
-    return {"client": client, "set_id": set_id}
+    import db as store
+    with application.app_context():
+        user_id = store.get_user_by_email(email)["id"]
+    return {"client": client, "set_id": set_id, "user_id": user_id}
 
 
 def _text(html):
@@ -93,11 +96,20 @@ def test_the_readiness_list_matches_the_page():
     assert "kept in this browser" in rows["offline"]
 
 
-def test_the_stem_control_names_a_bus_not_an_in_ear_feed(rig):
+def test_the_stem_control_names_a_bus_not_an_in_ear_feed(application, rig):
+    """The add-stem form (and its bus picker) only draws when the Vault
+    holds audio, so the account gets one file first."""
+    import db as store
+
     client = rig["client"]
     client.post("/live/%s/scene" % rig["set_id"], data={"name": "Intro"})
+    with application.app_context():
+        store.add_vault_file(rig["user_id"], "/uploads/vault_bus_check.wav",
+                             "Kick", "stems")
     body = client.get("/live/%s" % rig["set_id"]).get_data(as_text=True)
+    assert 'name="output_bus"' in body          # the picker is on the page
     assert "Cue / in-ear" not in body
+    assert ">Cue</option>" in body
 
 
 # --- the behaviour -----------------------------------------------------------
