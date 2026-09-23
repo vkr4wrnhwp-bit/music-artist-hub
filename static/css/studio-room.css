@@ -81,7 +81,7 @@
      that first stood in for it looked like a barcode. This is the meter's
      own baseline: one lit trace across the display, which is honest about
      being an instrument at rest rather than a picture of their music. */
-  margin-top: 4%; height: 2px; border-radius: 2px;
+  margin-top: 4%; height: 2px; border-radius: var(--sb-r-pill);
   background: linear-gradient(90deg,
     transparent 0%, color-mix(in srgb, var(--sb-gold-bright) 70%, transparent) 12%,
     var(--sb-gold-bright) 50%,
@@ -130,7 +130,7 @@
   transform-origin: 50% 100%;
   /* A VU sweeps about sixty degrees. 0 is the left stop, 1 the right. */
   transform: translate(-50%, -100%) rotate(calc(-30deg + var(--turn, 0) * 60deg));
-  border-radius: 2px 2px 0 0;
+  border-radius: 0;
 }
 .sd-needle--left { left: var(--vu-l-x); }
 .sd-needle--right { left: var(--vu-r-x); }

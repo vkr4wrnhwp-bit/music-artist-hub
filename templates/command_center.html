@@ -146,7 +146,7 @@
       {% if step.status == "locked" %}
       <span class="shrink-0 text-right">
         <span class="inline-block cursor-not-allowed rounded-lg border border-white/10 px-3 py-1.5 text-xs font-black text-gray-500" aria-disabled="true">{{ step.cta }}</span>
-        <span class="mt-1 block max-w-[14rem] text-[11px] leading-snug text-gray-300">{{ step.lock_text }}</span>
+        <span class="mt-1 block max-w-[14rem] text-xs leading-snug text-gray-300">{{ step.lock_text }}</span>
       </span>
       {% elif not step.done %}
       <a href="{{ step.href }}" class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-black

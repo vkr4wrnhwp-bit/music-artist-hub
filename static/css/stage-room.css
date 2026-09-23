@@ -48,7 +48,7 @@
 .sg-truss { stroke: var(--sb-line-strong); stroke-width: 3; }
 .sg-bar { fill: currentColor; }
 .sg-stage-foot {
-  margin: 0; padding: 8px; text-align: center; font-size: 11.5px;
+  margin: 0; padding: 8px; text-align: center; font-size: 12px;
   letter-spacing: .1em; text-transform: uppercase; color: var(--sb-ink-2);
   border-top: 1px solid var(--sb-line);
 }
@@ -58,7 +58,7 @@
 .sg-sel dt { font-size: 12.5px; color: var(--sb-ink-2); }
 .sg-sel dd { margin: 0; font-size: 13px; font-weight: 700; color: var(--sb-ink); text-align: right; font-variant-numeric: tabular-nums; }
 .sg-swatch {
-  display: inline-block; width: 26px; height: 15px; border-radius: 3px;
+  display: inline-block; width: 26px; height: 15px; border-radius: var(--sb-r-control);
   border: 1px solid var(--sb-line-strong); vertical-align: middle;
 }
 .sg-swatch.is-black { background-image: linear-gradient(45deg, transparent 46%, var(--sb-ink-2) 46%, var(--sb-ink-2) 54%, transparent 54%); }
@@ -83,7 +83,7 @@
 .sg-plot-fig { margin: 0; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-control); background: var(--sb-surface-2); overflow: hidden; }
 .sg-plot-fig img { display: block; width: 100%; height: auto; }
 .sg-plot-fig figcaption {
-  padding: 8px; text-align: center; font-size: 11.5px; letter-spacing: .1em;
+  padding: 8px; text-align: center; font-size: 12px; letter-spacing: .1em;
   text-transform: uppercase; color: var(--sb-ink-2); border-top: 1px solid var(--sb-line);
 }
 .sg-plot-none {
@@ -141,8 +141,6 @@
 .sg-layer:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: -2px; }
 
 /* The plot layer: the backline, drawn in the same space as the rig. */
-.sg-item rect { fill: var(--sb-surface-2); stroke: var(--sb-line-strong); stroke-width: 1; }
-.sg-item text { fill: var(--sb-ink-2); font-size: 11px; font-family: var(--sb-text); }
 
 /* The Light Studio's own looks, offered when nothing is programmed yet. */
 .sg-looks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
@@ -152,7 +150,7 @@
   background: var(--sb-surface-2); color: var(--sb-ink);
   font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
 }
-.sg-look i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--sb-line-strong); }
+.sg-look i { width: 14px; height: 14px; border-radius: var(--sb-r-control); border: 1px solid var(--sb-line-strong); }
 .sg-look:hover { border-color: var(--sb-gold-line); }
 .sg-look.is-on { border-color: var(--sb-gold); background: var(--sb-gold-wash); }
 .sg-look:focus-visible { outline: 2px solid var(--sb-gold); outline-offset: 2px; }

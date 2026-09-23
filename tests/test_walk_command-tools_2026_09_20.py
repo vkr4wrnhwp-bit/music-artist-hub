@@ -81,7 +81,11 @@ def test_a_goal_past_any_real_one_is_refused_and_a_real_one_is_kept():
 def test_a_refused_goal_says_so_on_the_page_it_lands_on():
     """It used to bounce to a page that said nothing at all, so the band
     still read "No goal set" and the artist could only guess why."""
-    c, _uid = _account()
+    c, uid = _account()
+    # The goal lives on the working page; a brand-new account meets the
+    # page from zero (2026-09-22), so this one holds a statement.
+    store.save_statement(uid, "q1.csv", [
+        {"title": "Higher Places", "source": "Spotify", "amount": 100.0, "period": "2026-01"}])
     body = c.get("/overview?goal=invalid").get_data(as_text=True)
     assert 'id="goal-error"' in body
     assert "Enter an amount above zero" in body

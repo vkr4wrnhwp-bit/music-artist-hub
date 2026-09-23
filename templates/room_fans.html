@@ -2,8 +2,8 @@
 
 {% block title %}Fans{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=8">
-  <link rel="stylesheet" href="/static/css/fan-room.css?v=7">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
+  <link rel="stylesheet" href="/static/css/fan-room.css?v=8">
 {% endblock %}
 
 {#- THE FAN ROOM - the Fans room's opening screen, built from the owner's
@@ -174,9 +174,9 @@
               inside its glass and a label placed as a percentage of the
               window would sit a few pixels off its dot. -#}
           {% for d in fr.pulse.dots if d.label %}
-          <text class="fr-map-name" x="{{ (d.x - 9) if d.right else (d.x + 9) }}" y="{{ d.y - 1 }}"
+          <text class="fr-map-name" x="{{ (d.x - 10) if d.right else (d.x + 10) }}" y="{{ d.y - 2 }}"
                 text-anchor="{{ "end" if d.right else "start" }}">{{ d.city }}</text>
-          <text class="fr-map-count" x="{{ (d.x - 9) if d.right else (d.x + 9) }}" y="{{ d.y + 8 }}"
+          <text class="fr-map-count" x="{{ (d.x - 10) if d.right else (d.x + 10) }}" y="{{ d.y + 12 }}"
                 text-anchor="{{ "end" if d.right else "start" }}">{{ "{:,}".format(d.count) }}</text>
           {% endfor %}
         </svg>

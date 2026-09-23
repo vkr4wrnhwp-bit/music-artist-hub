@@ -74,7 +74,7 @@
 .rl-cal-i--last .rl-cal-d { background: var(--sb-gold-bright); border-color: var(--sb-gold-bright); }
 .rl-cal-w { margin: 10px 0 0; font-size: 12px; color: var(--sb-ink-2); font-variant-numeric: tabular-nums; }
 .rl-cal-t { margin: 3px 0 0; font-size: 12.5px; font-weight: 700; color: var(--sb-ink); }
-.rl-cal-s { margin: 2px 0 0; font-size: 11.5px; color: var(--sb-ink-2); }
+.rl-cal-s { margin: 2px 0 0; font-size: 12px; color: var(--sb-ink-2); }
 
 /* ---- the passport table --------------------------------------------------- */
 

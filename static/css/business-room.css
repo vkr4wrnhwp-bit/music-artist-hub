@@ -179,7 +179,7 @@
   .bz-sr {
     position: static; width: auto; height: auto; margin: 0;
     overflow: visible; white-space: normal; clip-path: none;
-    font-size: 11.5px; font-weight: 600; letter-spacing: .12em;
+    font-size: 12px; font-weight: 600; letter-spacing: .12em;
     text-transform: uppercase; color: var(--sb-ink-2);
   }
   .bz-fig, .bz-part .bz-fig { font-size: 30px; }
@@ -196,7 +196,7 @@
    lifts them off it, the way a label plate sits on a real unit. */
 
 .bz .rk-tip-win .rk-tip {
-  padding: .35em .7em; border-radius: 8px;
+  padding: .35em .7em; border-radius: var(--sb-r-control);
   background: color-mix(in srgb, var(--sb-ground) 82%, transparent);
   -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
 }

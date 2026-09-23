@@ -366,7 +366,7 @@ def test_the_home_page_has_no_dim_text_and_the_artist_letters_are_bronze(passes)
     # The tint sits before the light layers, so the hover still lights the letters.
     assert band.index('class="sbmem-tint"') < band.index('class="sbmem-bloom"')
     # A fresh sheet and script version, so no browser keeps the old look.
-    assert "split-home.css?v=14" in page and "artist-eq.js?v=15" in page
+    assert "split-home.css?v=15" in page and "artist-eq.js?v=15" in page
 
 def _band(body):
     return body.split('class="sbmem"')[1].split("</section>")[0]

@@ -88,11 +88,11 @@
 .pb-pl-warn { color: var(--screen); }
 .pb-pl-split { flex-direction: row; align-items: center; gap: 2.5%; padding: 0 2.5%; }
 .pb-bar {
-  flex: 1 1 auto; height: 26%; min-height: 4px; border-radius: 99px; overflow: hidden;
+  flex: 1 1 auto; height: 26%; min-height: 4px; border-radius: var(--sb-r-pill); overflow: hidden;
   background: color-mix(in srgb, var(--sb-ink) 12%, transparent);
 }
 .pb-bar span {
-  display: block; height: 100%; border-radius: 99px;
+  display: block; height: 100%; border-radius: var(--sb-r-pill);
   background: linear-gradient(90deg, var(--screen-dim), var(--screen));
   box-shadow: 0 0 14px rgb(93 255 143 / .5);
 }

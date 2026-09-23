@@ -26,6 +26,7 @@ def signed_in(monkeypatch):
     c = appmod.app.test_client()
     c.post("/signup", data={"name": "A", "email": email, "password": PW})
     store.set_user_plan(store.get_user_by_email(email)["id"], "label")
+    c._email = email
     return c
 
 
@@ -40,6 +41,12 @@ def test_every_control_on_the_action_form_has_a_name(signed_in):
 
 
 def test_the_earnings_chart_says_what_it_draws(signed_in):
+    # The chart is on the working page. A brand-new account meets the page
+    # from zero (owner's spec, 2026-09-22), which draws no money at all, so
+    # the account holds one statement first, as a working account does.
+    uid = store.get_user_by_email(signed_in._email)["id"]
+    store.save_statement(uid, "q1.csv", [
+        {"title": "Higher Places", "source": "Spotify", "amount": 100.0, "period": "2026-01"}])
     body = signed_in.get("/command-center").get_data(as_text=True)
     m = re.search(r'<canvas id="earningsChart"(.*?)</canvas>', body, re.S)
     assert m, "the chart is gone"
