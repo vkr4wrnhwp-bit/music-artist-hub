@@ -130,31 +130,70 @@ def tasks(checks, release_date, limit=None):
 
 
 # --- THE PLATE --------------------------------------------------------
-# static/img/releases-plate.webp, 1859x846: a RELEASE CLOCK, a dominant
-# centre window flanked by two narrow ones, over a thin ribbon. Each
-# window is (x, y, w, h) as a PERCENTAGE of the plate, MEASURED off the
-# file with PIL. RE-MEASURE ALL OF THEM if the plate is regenerated.
-#
-# The plate silkscreens CHECKS, DAYS OUT, TASKS and THE PLAN, so the
-# markup never prints those words.
-#
-# TASKS is the OPEN count, not the total - open_count was computed and
-# rendered nowhere before this. THE PLAN is the dated calendar, which was
-# also computed and rendered nowhere. Neither is the five-stage rail: the
-# rail is under the plate and drawing the arc twice would be the screen
-# folding onto itself.
-PLATE = {
-    "checks": (5.11, 18.56, 13.13, 42.67),
-    "days":   (21.25, 19.03, 57.50, 42.67),
-    "tasks":  (81.82, 18.79, 13.02, 42.91),
-    "plan":   (5.11, 77.07, 89.78, 6.97),
-}
+# The working room is on the rooms' shared three-window plate (owner,
+# 2026-09-23: every room's rack uses static/img/room-plate.webp, drawn by
+# templates/partials/cc_rack.html). Its three screens carry this room's
+# three figures - checks passed, days to release, open tasks - and the
+# plate prints no names, so each screen says what it is. The release
+# clock this room had before (releases-plate.webp) also carried THE PLAN,
+# a ribbon of dated posts; that moved into its own panel directly under
+# the plate (ribbon() below), so nothing the old plate showed is lost.
+# Neither is the five-stage rail: that is the gold arc further down, and
+# drawing it twice would be the screen folding onto itself.
+
+# The label each screen prints. A days figure past its date is counted the
+# other way under its own name: "-5 days to release" is a sum nobody reads.
+SCREEN_CHECKS = "Checks passed"
+SCREEN_DAYS = "Days to release"
+SCREEN_DAYS_PAST = "Days past release"
+SCREEN_TASKS = "Open tasks"
+# The line under a dated countdown: the zero page's own words. A release
+# date is a plan; delivery is the distributor's to confirm.
+DATE_IS_A_PLAN = "A plan — not proof of delivery"
+# Every line on these screens is ONE line on the short glass: measured
+# with headless Chrome in Archivo at 12px, the widest (the plan line,
+# 168px) fits its screen at every rack width the plate is drawn at
+# (881px and up). A second line was clipped by the glass at 1280.
 
 
-def box(key):
-    """The inline custom properties that put a window on its glass."""
-    x, y, w, h = PLATE[key]
-    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+def rack_screens(checks, days_left, release_date):
+    """The working room's three screens on the rooms' shared plate.
+
+    Checks passed is passed over total, never a score. Days to release is
+    the campaign's own date less today, and its line says the date is a
+    PLAN - it is never proof of delivery, which is the distributor's to
+    confirm. Open tasks is the checks still open, and a release whose checks
+    all pass reads a measured 0 with the line that says why. Anything
+    nothing measured - no release chosen, no release date - is words, set
+    as an absence, never a 0 and never a countdown of 0.
+    """
+    total = len(checks or ())
+    passed = sum(1 for c in checks or () if c[1])
+    left = total - passed
+
+    def fig(k, v, sub):
+        return {"k": k, "v": v, "sub": sub, "fig": True, "none": False}
+
+    def none(k, sub):
+        return {"k": k, "v": "Not measured", "sub": sub, "fig": False, "none": True}
+
+    out = [fig(SCREEN_CHECKS, "%d / %d" % (passed, total), "Read from your own records")
+           if total else none(SCREEN_CHECKS, "No release chosen")]
+    if days_left is None or not day_label(release_date):
+        out.append(none(SCREEN_DAYS, "No release date set"))
+    elif days_left > 0:
+        out.append(fig(SCREEN_DAYS, str(days_left), DATE_IS_A_PLAN))
+    elif days_left == 0:
+        out.append(fig(SCREEN_DAYS, "Today", DATE_IS_A_PLAN))
+    else:
+        out.append(fig(SCREEN_DAYS_PAST, str(-days_left), DATE_IS_A_PLAN))
+    if total:
+        out.append(fig(SCREEN_TASKS, str(left),
+                       ("Of %d checks, listed below" % total) if left
+                       else "All %d checks passed" % total))
+    else:
+        out.append(none(SCREEN_TASKS, "No release chosen"))
+    return out
 
 
 # --- THE PAGE FROM ZERO (owner's Releases spec + mockup, 2026-09-23) ------
@@ -166,8 +205,9 @@ def box(key):
 # five-step workflow as education, the two empties in words, help, and
 # the tools in a drawer that starts open. A target date is a plan, not
 # proof of delivery, and nothing here says otherwise. The animated
-# standby that used to run on the plate is retired here; the fill reel
-# below stays for a populated plate's empty windows.
+# standby that used to run on the plate is retired here, and so is the
+# fill reel its empty windows ran: the working room's screens say an
+# absence in words (rack_screens above).
 ZERO_SUBTITLE = "Build the release record, check what is ready, and plan what happens next."
 ZERO_RACK = (
     ("Purpose", "Turn finished music into a release-ready plan."),
@@ -301,55 +341,14 @@ def zero_page(can_add=True, can_open=None, cards=None):
     }
 
 
-# The reel a READING window shows while it has nothing to read (owner,
-# 2026-09-22: no words in an empty window, icons). The one piece of the
-# old standby still read: a populated plate's empty windows.
-STANDBY_FILL = ("rollout", "tick", "sync-packs", "distribution", "pen")
-
-
-def _six(icons):
-    """Six stops, always: the roll's keyframes step through six, and a
-    five-icon reel ran its last stop into blank glass."""
-    icons = list(icons or ())
-    while icons and len(icons) < 6:
-        icons.append(icons[len(icons) % len(icons)])
-    return icons[:6]
-
-
-def standby():
-    """What a populated plate's empty windows fill with. The animated
-    standby that once ran on an empty account is retired: that account
-    meets the page from zero instead."""
-    return {"fill": _six(STANDBY_FILL)}
-
-
-def plate_windows(rows, open_count, has_checks):
-    """The three upper windows, in the order the silkscreen prints them.
-
-    TASKS reads Not measured rather than 0 when no release is chosen: with
-    nothing to check there are no open items, and "0 open" would be a
-    claim that everything is done.
-    """
-    by = {r["key"]: r for r in rows or ()}
-    out = []
-    for key in ("checks", "days"):
-        row = by.get(key)
-        if row:
-            out.append(dict(row, box=box(key)))
-    out.append({
-        "key": "tasks", "label": "Open tasks", "box": box("tasks"),
-        "value": str(open_count) if has_checks else "Not measured",
-        "sub": "" if has_checks else "No release chosen",
-    })
-    return out
-
-
 def ribbon(calendar, limit=5):
-    """THE PLAN: the next dated posts, soonest first.
+    """THE PLAN: the next dated posts, soonest first - the panel directly
+    under the plate (it was the old release clock's ribbon window).
 
     Every row is a post somebody actually scheduled. Nothing here is
     predicted, and an account with no rollout at all gets the words that
-    say so rather than an empty ribbon.
+    say so rather than an empty list. A scheduled day is a plan: nothing
+    here says a post went out.
     """
     return [{"when": r.get("when_label") or r.get("date") or "",
              "what": r.get("title") or "",
@@ -410,17 +409,17 @@ def build(campaign, checks, groups, days_left, release_date, drops, calendar,
         "campaigns": campaigns or [],
         "artist_name": artist_name or "",
         "headline": headline(checks, days_left, drops),
-        # The plate: three readings and the dated ribbon.
-        "windows": plate_windows(headline(checks, days_left, drops),
-                                 sum(1 for t in all_tasks if not t["ok"]),
-                                 bool(checks)),
+        # The plate: the rooms' three screens - checks passed, days to
+        # release, open tasks (owner, 2026-09-23).
+        "screens": rack_screens(checks, days_left, release_date),
+        # THE PLAN, the old clock's ribbon window: its own panel directly
+        # under the plate now.
         "ribbon": ribbon(calendar),
-        # The third headline figure. The plate has no window for it - its
-        # three are checks, days and open tasks - so it rides under the
-        # ribbon, which is the thing it counts. Without this it was
-        # computed by _release_drops and rendered nowhere.
+        # The third headline figure. The plate has no screen for it - its
+        # three are checks, days and open tasks - so it rides on the line
+        # under the plate, just above the plan it counts. Without this it
+        # was computed by _release_drops and rendered nowhere.
         "drops": headline(checks, days_left, drops)[2],
-        "plan_box": box("plan"),
         # Nothing AT ALL: no release chosen and no dated post anywhere.
         # The calendar has to be in this test - an account can have a
         # rollout with dated posts and no chosen release, and the first
@@ -432,7 +431,6 @@ def build(campaign, checks, groups, days_left, release_date, drops, calendar,
         # which the first standby hid - test_a_dated_rollout_post...).
         "idle": bool(zero),
         "zero": zero_page(can_add, can_open, cards) if zero else None,
-        "standby": standby(),
         "arc": arc(days_left),
         "tasks": filtered(all_tasks, show),
         "task_total": len(all_tasks),

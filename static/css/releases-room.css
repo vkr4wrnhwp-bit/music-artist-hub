@@ -7,8 +7,9 @@
    tests/test_room_kit.py fails if anything defined there is re-declared
    here.
 
-   What is genuinely this room's: the numbered arc, the donut meters, the
-   release overview, the calendar rail and the passport table. */
+   What is genuinely this room's: the plan under the plate, the numbered
+   arc, the donut meters, the release overview, the calendar rail and the
+   passport table. */
 
 .rl-field-v { font-size: 14.5px; font-weight: 700; color: var(--sb-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -90,50 +91,46 @@
 @media (max-width: 860px) {
   .rl-about { flex-direction: column; }
 }
-/* ---- the plate -------------------------------------------------------
-   Position and type come from room-kit.css (.rk-pl*). The clock's centre
-   window is the dominant one, and the ribbon runs along the foot. */
 
-.rl-pl { margin-top: 18px; }
-.rl-pl-days .rk-pl-n { font-size: clamp(26px, 5cqw, 92px); }
-/* WORDS ARE NOT SET AT THE FIGURE'S SIZE. The rule above out-specifies
-   .rk-pl-n.is-none in the kit, so "Not measured" arrived at 92px and
-   filled the clock. An absence is quiet. */
-.rl-pl-days .rk-pl-n.is-none { font-size: clamp(11px, 1.45cqw, 24px); }
-.rl-pl-plan { flex-direction: row; align-items: center; padding: 0 2%; }
-.rl-ribbon {
-  list-style: none; margin: 0; padding: 0; width: 100%;
-  display: flex; align-items: center; justify-content: space-between; gap: 2%;
+/* ---- the plate and the plan -----------------------------------------
+   The plate is the rooms' shared three-window one (partials/cc_rack.html,
+   command-zero.css), so nothing of it is declared here. What is this
+   room's own: the line under it, and THE PLAN - the old release clock's
+   ribbon window, its own panel under the plate now. Up to five dated
+   posts, soonest first, in a row that wraps to fewer columns rather than
+   shrinking the type. */
+
+/* One sentence, read as one: as a flex row the figure and its words were
+   separate items, so "(across all campaigns)" broke away from "Scheduled
+   drops: 6" onto a line of its own. The sample lamp is inline-flex and sits
+   in the line as it is. */
+.rl-pl-foot { margin-top: 10px; }
+.rl-pl-foot .rk-lamp { margin-right: 6px; vertical-align: baseline; }
+/* the heading holds its line; the caption opposite wraps instead */
+.rl-plan .rk-h { flex: none; }
+.rl-plan-list {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;
 }
-.rl-ribbon li {
-  display: flex; align-items: baseline; gap: .5em; min-width: 0;
-  /* The floor was 7px, which is what a 1024px viewport actually got -
-     unreadable. Below the width where five entries fit at a readable
-     size the ribbon shows fewer of them rather than shrinking further. */
-  font-size: clamp(10px, .8cqw, 12px);
+.rl-plan-i {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 12px 14px;
+  border: 1px solid var(--sb-line); border-radius: var(--sb-r-control);
+  background: var(--sb-surface-2); box-shadow: inset 0 2px 0 var(--sb-gold);
 }
+.rl-plan-w { font-size: 13px; font-weight: 800; color: var(--sb-gold-bright); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.rl-plan-t { font-size: 14px; font-weight: 700; line-height: 1.35; color: var(--sb-ink); overflow-wrap: anywhere; }
+.rl-plan-s { font-size: 12.5px; color: var(--sb-ink-2); }
+
 @media (max-width: 1180px) {
-  .rl-ribbon li:nth-child(n+4) { display: none; }
+  .rl-plan-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 860px) {
-  .rl-ribbon li:nth-child(n+3) { display: none; }
-}
-.rl-ribbon b { color: var(--screen); white-space: nowrap; font-variant-numeric: tabular-nums; text-shadow: var(--screen-glow-s); }
-.rl-ribbon span { color: var(--screen-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rl-ribbon-none { margin: 0; color: var(--screen-dim); font-size: clamp(10px, .8cqw, 12px); }
-.rl-pl-foot { margin-top: 10px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-
 @media (max-width: 560px) {
-  .rl-pl-days .rk-pl-n { font-size: 44px; }
-  .rl-pl-days .rk-pl-n.is-none { font-size: 15px; }
-  .rl-pl-plan { flex-direction: column; align-items: flex-start; padding: 14px 16px; }
-  .rl-ribbon { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .rl-ribbon li, .rl-ribbon-none { font-size: 13px; }
+  .rl-plan-list { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---- the page from zero (owner's Releases spec, 2026-09-23) -----------
    The plate is the Command Center's (partials/cc_rack.html) and its rules
-   are command-zero.css, linked only on this state. Everything below is
+   are command-zero.css, linked on both states. Everything below is
    this page's own: nothing kit-owned is redeclared (rk-h, rk-panel,
    rk-panel-head, rk-rail, rk-step, rk-ring, rk-tiles are used as they
    are). Sizes never below 12px; radii and colours are tokens. Green is

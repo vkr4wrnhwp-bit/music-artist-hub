@@ -169,7 +169,8 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_plate():
     assert "room-plate.webp" in body, "the rooms' photographed three-window plate"
     assert "releases-plate.webp" not in body, "the plate waits for a release"
     assert "rk-cine" not in body and "rk-reel-win" not in body and "rk-tick-win" not in body, "nothing rotates"
-    assert "rk-pl-n" not in body and "rl-ribbon" not in body, "no reading, no ribbon"
+    assert "rk-pl-n" not in body and "cz-screen-v--fig" not in body and "cz-screen-v--none" not in body, "no reading"
+    assert "rl-plan" not in body and 'id="rl-plan-h"' not in body, "no plan panel: nothing is planned yet"
     for gone in ("Nothing is being checked yet.", "No release chosen.", "Nothing is scheduled.",
                  "60-day", "14-day", "Days out", "rl-donut", "Release / Campaign"):
         assert gone not in body, gone
@@ -242,13 +243,179 @@ def test_new_account_is_no_release_and_no_rollout_at_all():
     assert rl.new_account([], 3) is False
 
 
-def test_one_release_brings_the_plate_back_untouched():
+def test_one_release_brings_the_working_room_back():
     c, uid = _account()
     _campaign(uid, days_out=30, title="First single")
     body = _body(c.get("/room/releases").get_data(as_text=True))
-    assert "releases-plate.webp?v=" in body and "room-plate" not in body
     assert "First single" in body and "Explore more tools" in body and "rk-step rk-step--now" in body
     assert "Start with one release" not in body and "rl-z-fold" not in body
+    for k, v in rl.ZERO_RACK:
+        assert v not in body, "the page from zero's words are gone: %s" % k
+
+
+# --- the plate: the rooms' three windows (owner, 2026-09-23) ---------------
+
+def _screens(body):
+    """[(label, value, value classes, line under it)] off the rack."""
+    import re
+    rack = body.split('<section class="cz-rack"', 1)[1].split("</section>", 1)[0]
+    out = []
+    for li in re.findall(r'<li class="cz-screen"[^>]*>(.*?)</li>', rack, re.S):
+        k = re.search(r'class="cz-screen-k">([^<]*)<', li).group(1)
+        vm = re.search(r'class="(cz-screen-v[^"]*)"[^>]*>([^<]*)<', li)
+        sm = re.search(r'class="cz-screen-s">([^<]*)<', li)
+        out.append((k, vm.group(2), vm.group(1), sm.group(1) if sm else ""))
+    return out
+
+
+def test_the_working_room_draws_the_rooms_three_window_plate():
+    """Every room's rack is the shorter three-window plate (owner,
+    2026-09-23). The release clock is gone from the working page; its three
+    figures sit on the three screens, each screen naming itself because the
+    plate prints no names; the plan window is its own panel under it."""
+    import re
+    c, uid = _account()
+    _campaign(uid, days_out=24, title="Plate single")
+    page = c.get("/room/releases").get_data(as_text=True)
+    body = _body(page)
+    assert 'class="cz-plate" src="/static/img/room-plate.webp?v=' in body
+    assert "releases-plate.webp" not in page, "the release clock is gone from the working page"
+    assert "rk-pl-win" not in body and "rk-pl-img" not in body and "rk-reel" not in body
+    # the plate's rules are linked on the working page, not only from zero
+    assert "/static/css/command-zero.css?v=3" in page
+    assert "/static/css/releases-room.css?v=6" in page
+    got = _screens(body)
+    assert [g[0] for g in got] == ["Checks passed", "Days to release", "Open tasks"], got
+    checks, days, tasks = got
+    assert re.fullmatch(r"\d+ / \d+", checks[1]) and "cz-screen-v--fig" in checks[2], checks
+    assert checks[3] == "Read from your own records", checks
+    when = (date.today() + timedelta(days=24)).isoformat()
+    # the room counts from the UTC day, so the expected figure does too
+    left = (date.fromisoformat(when) - datetime.now(timezone.utc).date()).days
+    assert days[1] == str(left) and "cz-screen-v--fig" in days[2], days
+    assert days[3] == rl.DATE_IS_A_PLAN == "A plan — not proof of delivery", days
+    assert re.fullmatch(r"\d+", tasks[1]) and "cz-screen-v--fig" in tasks[2], tasks
+    passed, total = (int(n) for n in checks[1].split(" / "))
+    assert int(tasks[1]) == total - passed, "open is the total less the passed"
+    # three screens, none of them a door
+    assert body.count('<li class="cz-screen"') == 3
+    assert not re.search(r'<a class="cz-screen-v', body)
+
+
+def test_the_plan_panel_sits_under_the_plate_with_the_old_ribbon_in_it():
+    """Nothing is lost: THE PLAN, the old clock's ribbon window, is its own
+    panel directly under the plate (after the plate's own line), ahead of
+    the arc and the tasks, and it carries the dated posts soonest first."""
+    import re
+    c, uid = _account()
+    _campaign(uid, days_out=24, title="Plate single")
+    cid = ros.create_campaign(uid, {"title": "Rollout one"})
+    later = (date.today() + timedelta(days=9)).isoformat()
+    sooner = (date.today() + timedelta(days=3)).isoformat()
+    ros.add_post(cid, {"platform": "Instagram", "phase": "pre", "caption": "Cover reveal",
+                       "scheduled_date": later})
+    ros.add_post(cid, {"platform": "TikTok", "phase": "pre", "caption": "Teaser clip",
+                       "scheduled_date": sooner})
+    body = _body(c.get("/room/releases").get_data(as_text=True))
+    rack = body.index('<section class="cz-rack"')
+    foot = body.index('class="rk-foot rl-pl-foot"')
+    plan = body.index('<section class="rk-panel rl-plan"')
+    assert (rack < foot < plan < body.index('aria-label="The release arc"')
+            < body.index('id="rl-tasks-h"')), "plate, its line, the plan - then the arc and the tasks"
+    panel = body[plan:].split("</section>", 1)[0]
+    assert 'id="rl-plan-h">The plan</h2>' in panel
+    items = re.findall(r'<b class="rl-plan-w">([^<]*)</b>\s*<span class="rl-plan-t">([^<]*)</span>'
+                       r'\s*<span class="rl-plan-s">([^<]*)</span>', panel)
+    assert items == [(rl.short_day(sooner), "Teaser clip", "TikTok"),
+                     (rl.short_day(later), "Cover reveal", "Instagram")], items
+    assert "a scheduled day is a plan" in panel
+    # the drops figure still rides on the plate's line, just above the plan it counts
+    assert "Scheduled drops: <b>2</b>" in body[foot:plan]
+
+
+def test_a_release_with_no_rollout_says_the_plan_is_empty_in_words():
+    c, uid = _account()
+    _campaign(uid, days_out=24, title="Plate single")
+    body = _body(c.get("/room/releases").get_data(as_text=True))
+    panel = body.split('<section class="rk-panel rl-plan"', 1)[1].split("</section>", 1)[0]
+    assert "Nothing scheduled yet &mdash; a rollout puts its dated posts here." in panel
+    assert "rl-plan-list" not in panel
+    assert "Scheduled drops: <b>Not measured</b> (nothing scheduled yet)." in body
+
+
+def test_the_screens_say_an_absence_in_words_never_a_nought():
+    """No release chosen: Checks and Tasks are words, not 0 / 0 or 0 open.
+    A release with no date: Days is words, not a countdown of 0."""
+    none = rl.rack_screens([], None, "")
+    assert [s["k"] for s in none] == ["Checks passed", "Days to release", "Open tasks"]
+    for s in none:
+        assert s["v"] == "Not measured" and s["none"] and not s["fig"], s
+        assert "0" not in s["v"] and "0" not in s["sub"], s
+    assert [s["sub"] for s in none] == ["No release chosen", "No release date set", "No release chosen"]
+    checks = [("A", True, "", "/a", "release"), ("B", False, "why", "/b", "metadata")]
+    undated = rl.rack_screens(checks, None, "")
+    assert undated[1]["v"] == "Not measured" and undated[1]["sub"] == "No release date set"
+    assert undated[0]["v"] == "1 / 2" and undated[2]["v"] == "1" and undated[2]["fig"]
+    # a date nobody can read is no date either
+    assert rl.rack_screens(checks, 5, "not a date")[1]["none"]
+
+
+def test_a_release_date_is_a_plan_never_proof_of_delivery():
+    checks = [("A", True, "", "/a", "release")] * 3
+    ahead = rl.rack_screens(checks, 12, "2026-11-01")[1]
+    assert (ahead["k"], ahead["v"]) == ("Days to release", "12")
+    assert ahead["sub"] == "A plan — not proof of delivery"
+    today = rl.rack_screens(checks, 0, "2026-11-01")[1]
+    assert (today["k"], today["v"]) == ("Days to release", "Today"), (
+        "release day is a word, not a countdown of 0")
+    past = rl.rack_screens(checks, -5, "2026-11-01")[1]
+    assert (past["k"], past["v"]) == ("Days past release", "5"), (
+        "past the date it counts the other way under its own name, never -5")
+    for s in (ahead, today, past):
+        assert s["fig"] and "delivered" not in s["sub"].lower(), s
+        assert "released" not in s["sub"].lower(), s
+
+
+def test_every_line_on_the_screens_is_one_line_on_the_short_glass():
+    """Measured with headless Chrome in Archivo at 12px (2026-09-23): a
+    screen line that wraps to two lines is clipped by the glass at a 1280
+    window, and the plan's first wording ("Planned Oct 17, 2026 · not proof
+    of delivery") was. The widest line kept, "A plan — not proof of
+    delivery", is 168px and fits its screen at every rack width the plate is
+    drawn at; 30 characters is that line's length. Labels are uppercase and
+    letterspaced: "DAYS PAST RELEASE" is 175px against a 183px screen."""
+    checks = [("A", True, "", "/a", "release")] * 11 + [("B", False, "", "/b", "metadata")]
+    cases = [rl.rack_screens(checks, d, "2026-11-01") for d in (40, 0, -12)]
+    cases += [rl.rack_screens([], None, ""), rl.rack_screens(checks[:11], None, "")]
+    for screens in cases:
+        for s in screens:
+            assert len(s["sub"]) <= 30, s["sub"]
+            assert len(s["k"]) <= 17, s["k"]
+
+
+def test_every_check_passed_is_a_measured_nought_with_its_reason():
+    checks = [("A", True, "", "/a", "release"), ("B", True, "", "/b", "metadata")]
+    tasks = rl.rack_screens(checks, 3, "2026-11-01")[2]
+    assert (tasks["v"], tasks["sub"], tasks["fig"]) == ("0", "All 2 checks passed", True)
+
+
+def test_the_old_plate_is_gone_from_the_code_and_the_sheet():
+    """The release clock's windows, boxes and the reel its empty windows ran
+    have nothing left to draw; the image file itself stays on disk."""
+    import io
+    import os
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for name in ("PLATE", "box", "plate_windows", "standby", "STANDBY_FILL"):
+        assert not hasattr(rl, name), name
+    out = rl.build({"id": "c", "title": "T"}, [], [], 3, "2026-11-01", None, [], [],
+                   [{"id": "c"}], {})
+    for key in ("windows", "plan_box", "standby"):
+        assert key not in out, key
+    assert len(out["screens"]) == 3 and out["ribbon"] == []
+    css = io.open(os.path.join(here, "static", "css", "releases-room.css"), encoding="utf-8").read()
+    for gone in (".rl-pl ", ".rl-pl-days", ".rl-pl-plan", ".rl-ribbon"):
+        assert gone not in css, gone
+    assert os.path.exists(os.path.join(here, "static", "img", "releases-plate.webp"))
 
 
 def test_a_rollout_alone_brings_the_plate_back_too():

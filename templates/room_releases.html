@@ -3,12 +3,10 @@
 {% block title %}Releases{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/releases-room.css?v=5">
-  {%- if rr.idle %}
-  {#- the page from zero draws the Command Center's three-screen plate
-      (partials/cc_rack.html); the plate's rules live with that page -#}
+  <link rel="stylesheet" href="/static/css/releases-room.css?v=6">
+  {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
+      page from zero and the working room alike; its rules live with it -#}
   <link rel="stylesheet" href="/static/css/command-zero.css?v=3">
-  {%- endif %}
 {% endblock %}
 
 {#- THE RELEASES ROOM - built from the owner's mockup image (2026-09-22),
@@ -240,44 +238,17 @@
   </details>
   {% endif %}
   {% else %}
-  {# ---- the three figures ---------------------------------------------- #}
-  {# ---- the plate: one photograph, four windows ------------------------
-       The hardware is a photograph (static/img/releases-plate.webp) and
-       only the readings are drawn on it, positioned as fractions held in
-       releases_room.PLATE. The plate silkscreens CHECKS, DAYS OUT, TASKS
-       and THE PLAN, so the markup carries those names for a screen reader
-       alone. #}
-  <section class="rk-pl rl-pl" aria-label="Where this release stands">
-    <img class="rk-pl-img" src="/static/img/releases-plate.webp?v=1" alt=""
-         width="1859" height="846" decoding="async">
-
-    {% for w in rr.windows %}
-    <div class="rk-pl-win{% if w.key == "days" %} rl-pl-days{% endif %}" style="{{ w.box }}">
-      <p class="rk-pl-sr">{{ w.label }}</p>
-      {% if w.value != "Not measured" %}<p class="rk-pl-n">{{ w.value }}</p>
-      {% else %}{#- Nothing measured here, so the window fills with a reel rather than
-          a line of words (owner, 2026-09-22); the small line beneath still
-          says what is missing. -#}
-      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in rr.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(rr.standby.fill[0], "rk-reel-ico") }}</span></span>
-      <p class="rk-pl-s">{{ w.value }}</p>{% endif %}
-      {% if w.sub %}<p class="rk-pl-s">{{ w.sub }}</p>{% endif %}
-    </div>
-    {% endfor %}
-
-    {# the ribbon: the next dated posts, soonest first #}
-    <div class="rk-pl-win rl-pl-plan" style="{{ rr.plan_box }}">
-      <p class="rk-pl-sr">The plan</p>
-      {% if rr.ribbon %}
-      <ol class="rl-ribbon">
-        {% for r in rr.ribbon %}
-        <li><b>{{ r.when }}</b><span>{{ r.what }}</span></li>
-        {% endfor %}
-      </ol>
-      {% else %}
-      <p class="rl-ribbon-none">Nothing scheduled yet &mdash; a rollout puts its dated posts here.</p>
-      {% endif %}
-    </div>
-  </section>
+  {# ---- the plate ------------------------------------------------------ #}
+  {#- The working room on the rooms' shared three-window plate (owner,
+      2026-09-23): checks passed, days to release, open tasks. The plate
+      prints no names, so each screen says what it is; an absence is words,
+      never a 0, and a release date is a plan, never proof of delivery.
+      The release clock this room had before also carried THE PLAN - its
+      ribbon of dated posts is the panel under this line now, so nothing
+      the old plate showed is lost. -#}
+  {% with screens=rr.screens, rack_label="Where this release stands" %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
   <p class="rk-foot rl-pl-foot">
     {#- Written as label-then-figure, so it does not have to agree with a
         number it cannot see: "1 scheduled drops" was the first cut. -#}
@@ -289,6 +260,31 @@
     says a release was delivered &mdash; that is the distributor's to confirm,
     and we cannot see it.{% endif %}
   </p>
+
+  {# ---- the plan: the old clock's ribbon window, its own panel ---------- #}
+  <section class="rk-panel rl-plan" aria-labelledby="rl-plan-h">
+    <div class="rk-panel-head">
+      <h2 class="rk-h" id="rl-plan-h">The plan</h2>
+      <p class="rk-cap">Dated rollout posts, soonest first.</p>
+    </div>
+    {% if rr.ribbon %}
+    <ol class="rl-plan-list">
+      {% for r in rr.ribbon %}
+      <li class="rl-plan-i">
+        <b class="rl-plan-w">{{ r.when }}</b>
+        <span class="rl-plan-t">{{ r.what }}</span>
+        {% if r.where %}<span class="rl-plan-s">{{ r.where }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {#- Scheduled is a plan: a day on a post is when somebody meant it to
+        go out, not a record that it did. -#}
+    <p class="rk-foot">Each one is a post somebody scheduled; nothing here is predicted,
+      and a scheduled day is a plan, not a record that it went out.</p>
+    {% else %}
+    <p class="rk-empty">Nothing scheduled yet &mdash; a rollout puts its dated posts here.</p>
+    {% endif %}
+  </section>
 
   {# ---- the arc ---------------------------------------------------------
        The same circle every room uses (owner, 2026-09-22: "those round
@@ -329,6 +325,10 @@
       </div>
 
       {% if rr.tasks %}
+      {#- The table scrolls inside its panel on a phone, as the passport
+          does: four columns with an unbroken date and a lamp are wider
+          than a 375px screen, and the page itself must not scroll sideways. -#}
+      <div class="rl-scroll">
       <table class="rk-table rl-tasks">
         <thead>
           <tr><th scope="col">Task</th><th scope="col">Details</th><th scope="col">Due date</th><th scope="col">Status</th></tr>
@@ -344,6 +344,7 @@
           {% endfor %}
         </tbody>
       </table>
+      </div>
       <p class="rk-foot">{{ rr.open_count }} of {{ rr.task_total }} still open. A due day is
         its own window counted back from release day, so it needs a release date; the rest
         are blank on purpose.</p>
