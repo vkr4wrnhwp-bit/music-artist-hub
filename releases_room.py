@@ -230,6 +230,9 @@ ZERO_PROJECT = {
     # than handed a door that bounces.
     "locked": ("Releases are created by the account owner or a seat with edit "
                "access. Releases opens here once one exists."),
+    # An account under the read-only demo lock is offered no write door:
+    # the builder would only bounce at the lock (audit, 2026-09-23).
+    "readonly": "This account is read only, so releases cannot be created here.",
 }
 # What the first save needs (spec section 3), shown in place when the
 # card's second action is opened.
@@ -283,6 +286,64 @@ ZERO_BANDS = (
 )
 # The sentence the room carries back from the builder.
 DONE_LINE = "Your first release was created. Its twelve checks are ready to run."
+
+
+# --- THE SHOWCASE (the demo account) ------------------------------------
+# The demo account is the showcase and never the page from zero (owner's
+# ruling; the Marketing room's pattern, app.py _marketing_room). With no
+# release and no rollout of its own it is shown this in-memory example:
+# one release, its twelve checks, a dated rollout and a passport row,
+# marked Sample data wherever they appear and never written to the
+# database. The route decides who sees it; a release or rollout the demo
+# really made is shown instead, unmarked. Nothing in it is a door into a
+# record, because there is no record behind it: its tasks and passport
+# row are words, and the header offers the real builder.
+SHOWCASE_TITLE = "Night Drive"
+SHOWCASE_DAYS_OUT = 24
+# The twelve checks app.py _release_checks derives, in its order, with the
+# example's answers: eight passed, four open. (label, passed, hint, key)
+SHOWCASE_CHECKS = (
+    ("Cover art set", False, "Upload or auto-scan cover art in the campaign builder.", "release"),
+    ("Release date set", True, "A date drives the pre-save countdown and auto-conversion.", "release"),
+    ("Spotify destination", True, "Add the Spotify link (auto-scan can find it).", "smart_link"),
+    ("Apple Music destination", True, "Add the Apple Music link.", "smart_link"),
+    ("YouTube destination", False, "Add the YouTube link.", "smart_link"),
+    ("Campaign published", True, "Publish the campaign so the public page is live.", "smart_link"),
+    ("Fan capture enabled", True, "Own the fan: enable email capture.", "fan_growth"),
+    ("Consent copy set", True, "Consent text is stored with every signup.", "rights"),
+    ("ISRC on catalog track", False, "Add the track to your catalog so identifiers auto-pull.", "metadata"),
+    ("Rollout scheduled", True, "Generate the social rollout with tracked links per post.", "rollout"),
+    ("Promo variants created", False, "Create per-channel variants so every door is measured.", "smart_link"),
+    ("Press kit ready", True, "Update your EPK: press and promoters will ask for it.", "release"),
+)
+# The example rollout's dated posts: (days from today, caption, platform).
+SHOWCASE_POSTS = (
+    (3, "Cover reveal", "Instagram"),
+    (9, "Teaser clip", "TikTok"),
+    (17, "Pre-save push", "Instagram"),
+    (24, "Out now", "TikTok"),
+)
+
+
+def showcase(today, artist=""):
+    """The example release, dated from `today` so its countdown and arc
+    stay live: a single SHOWCASE_DAYS_OUT days out, its checks, its
+    rollout's dated posts and one passport row. A fresh copy each call."""
+    release_date = (today + timedelta(days=SHOWCASE_DAYS_OUT)).isoformat()
+    campaign = {"id": "", "title": SHOWCASE_TITLE, "artist_name": artist or "",
+                "release_type": "Single", "release_date": release_date,
+                "cover_url": "", "status": "live"}
+    checks = [(label, ok, hint, "", key) for label, ok, hint, key in SHOWCASE_CHECKS]
+    calendar = []
+    for days, caption, platform in SHOWCASE_POSTS:
+        when = (today + timedelta(days=days)).isoformat()
+        calendar.append({"date": when, "when_label": short_day(when), "title": caption,
+                         "where": platform, "campaign": "%s rollout" % SHOWCASE_TITLE})
+    passport = [{"t": {"id": "", "title": SHOWCASE_TITLE,
+                       "passport": {"explicit": "No", "audio_ok": True}},
+                 "clean": {"blocked": False, "score": None}}]
+    return {"campaign": campaign, "checks": checks, "release_date": release_date,
+            "calendar": calendar, "drops": len(calendar), "passport": passport}
 
 
 def new_account(campaigns, drops):
@@ -431,6 +492,11 @@ def build(campaign, checks, groups, days_left, release_date, drops, calendar,
         # which the first standby hid - test_a_dated_rollout_post...).
         "idle": bool(zero),
         "zero": zero_page(can_add, can_open, cards) if zero else None,
+        # Who may write, for the working room's header door too: "locked"
+        # (the read-only demo lock) is offered none. The showcase's header
+        # door is the real builder, since its example has no record to edit.
+        "can_add": can_add,
+        "door": DOOR,
         "arc": arc(days_left),
         "tasks": filtered(all_tasks, show),
         "task_total": len(all_tasks),
@@ -442,8 +508,8 @@ def build(campaign, checks, groups, days_left, release_date, drops, calendar,
         "calendar": calendar or [],
         "passport": passport_rows(passport),
         "tiles": tiles,
-        # The mark is literal: it appears when this account is looking at
-        # the showcase, and never as decoration.
+        # The mark is literal: it appears when the release on the page is
+        # the showcase's example, and never as decoration.
         "sample": bool(sample),
     }
 

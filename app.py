@@ -5100,6 +5100,22 @@ def create_app():
                     version = got.get("number")
                     break
 
+        # The demo account is the showcase and never the page from zero
+        # (owner's ruling; _marketing_room's pattern). Where it has no light
+        # show or plot of its own, stage_room's in-memory example stands in,
+        # marked Sample; what it really saved is shown instead, unmarked.
+        showcase = _session_is_demo()
+        zero = (not showcase) and stage_room.new_account(shows, tours, show, plot_state, passports)
+        sample_show = showcase and not show
+        sample_plot = showcase and not plot_state
+        if sample_show:
+            show = stage_room.showcase_show()
+        if sample_plot:
+            plot_state = stage_room.showcase_plot()
+        # An account under the read-only demo lock is offered no write
+        # door: every form here would only bounce at the lock.
+        locked = bool(_demo_locked_account())
+
         seat = current_team_seat()
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
@@ -5107,8 +5123,10 @@ def create_app():
         # with the Tour desk in its rooms, on a plan that includes Tour
         # (the same rule tour_os applies to POST /tours/new).
         can_add = True
-        if seat is not None and (seat.get("access") != "edit"
-                                 or not team_areas.allows(seat["areas"], "/tours")):
+        if locked:
+            can_add = "locked"
+        elif seat is not None and (seat.get("access") != "edit"
+                                   or not team_areas.allows(seat["areas"], "/tours")):
             can_add = "seat"
         elif not plans.allowed(user.get("plan") or "artist",
                                "pro" if plans.gates_on() else "artist"):
@@ -5116,21 +5134,21 @@ def create_app():
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         sg = stage_room.build(show, plot_state, plot_image, version, cards,
                               artist_name=artist_identity.display_name(user),
-                              sample=_session_is_demo(), can_open=can_open,
-                              zero=stage_room.new_account(shows, tours, show, plot_state, passports),
-                              can_add=can_add)
+                              can_open=can_open, zero=zero, can_add=can_add,
+                              sample_show=sample_show, sample_plot=sample_plot)
 
         # The plot designer on this screen is the REAL editor, so this room
         # is now a page that writes. A seat may only edit what its areas
         # allow; read-only still shows the drawing and the input list, which
         # is the partial's own behaviour and the reason it is safe here.
-        editable = True
-        if seat is not None:
+        # A locked demo gets the same read-only drawing.
+        editable = not locked
+        if editable and seat is not None:
             editable = team_areas.allows(seat["areas"], "/stage-plot")
         return render_template("room_stage.html", active_page="room-stage",
                                room=room, sg=sg,
                                saved_plot=(json.dumps(plot_state) if plot_state else "null"),
-                               editable=editable,
+                               editable=editable, read_only_demo=locked,
                                # The show the room's own instrument plays.
                                sg_show=(json.dumps(show) if show else "null"),
                                # The sentence the show door carries back
@@ -5265,6 +5283,7 @@ def create_app():
         """
         import releases_room
 
+        showcase = _session_is_demo()
         # Every count the page from zero is decided on, read in ONE try: a
         # failed read is the error page, 503, and never a fresh account
         # (owner's spec, 2026-09-23). The rollouts used to fall back to
@@ -5279,7 +5298,18 @@ def create_app():
             return render_template("room_releases_error.html", active_page="room-releases",
                                    room=room, **build_dashboard_context()), 503
 
-        checks, _score = _release_checks(user, campaign) if campaign else ([], 0)
+        # The demo account is the showcase and never the page from zero
+        # (owner's ruling; _marketing_room's pattern). With no release and
+        # no rollout of its own it is shown releases_room.showcase(), marked
+        # Sample data; what it really made is shown instead, unmarked.
+        sample = showcase and not campaigns and not rollouts
+        example = (releases_room.showcase(datetime.now(timezone.utc).date(),
+                                          artist_identity.display_name(user))
+                   if sample else None)
+        if sample:
+            campaign, checks = example["campaign"], example["checks"]
+        else:
+            checks, _score = _release_checks(user, campaign) if campaign else ([], 0)
         groups = _check_groups(checks) if checks else []
 
         # The release date is the only thing a due day is counted from, so
@@ -5296,28 +5326,40 @@ def create_app():
 
         # Every dated post across this account's rollouts. None at all is
         # not the same as none due, so the figure says which.
-        drops, calendar = _release_drops(user, rollouts)
+        if sample:
+            drops, calendar = example["drops"], example["calendar"]
+        else:
+            drops, calendar = _release_drops(user, rollouts)
 
         # Per Track Passport, which is a different measurement from campaign
         # readiness and is labelled as one.
-        osctx = _os_ctx(user["id"])
-        passport = [{"t": t, "clean": artist_os.clean_release(t, osctx)}
-                    for t in store.list_os_tracks(user["id"])][:8]
+        if sample:
+            passport = example["passport"]
+        else:
+            osctx = _os_ctx(user["id"])
+            passport = [{"t": t, "clean": artist_os.clean_release(t, osctx)}
+                        for t in store.list_os_tracks(user["id"])][:8]
 
         seat = current_team_seat()
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         # rooms.build gives each card as (key, href, icon, label, desc, state).
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
-        # Who may create the first release: the account holder, or an edit seat.
+        # Who may create the first release: the account holder, or an edit
+        # seat. An account under the read-only demo lock is offered no write
+        # door: the builder would only bounce at the lock.
         can_add = True if seat is None or seat.get("access") == "edit" else "seat"
+        if _demo_locked_account():
+            can_add = "locked"
         rr = releases_room.build(
             campaign, checks, groups, days_left, release_date, drops, calendar,
-            passport, campaigns, cards, sample=_session_is_demo(),
+            # the example has no record to choose between
+            passport, [] if sample else campaigns, cards, sample=sample,
             can_open=can_open,
             artist_name=artist_identity.display_name(user),
             show=request.args.get("show") or "all",
-            zero=releases_room.new_account(campaigns, drops), can_add=can_add)
+            zero=(not showcase) and releases_room.new_account(campaigns, drops),
+            can_add=can_add)
         return render_template("room_releases.html", active_page="room-releases",
                                room=room, rr=rr,
                                # The sentence the builder carries back

@@ -94,6 +94,11 @@
           {#- the one door on the page from zero: the builder on a release,
               carrying the way back; absent for a seat that may not create one -#}
           {% if rr.zero.project.can == True %}<a class="rk-cta" href="{{ rr.zero.door }}">{{ icon("plus-circle", "rk-ico") }}Create your first release</a>{% endif %}
+          {% elif rr.can_add == "locked" %}
+          {#- a read-only account is offered no write door -#}
+          {% elif rr.sample %}
+          {#- the example has no record to edit: the real builder -#}
+          <a class="rk-cta" href="{{ rr.door }}">{{ icon("plus-circle", "rk-ico") }}Create a release</a>
           {% elif rr.campaign %}
           <a class="rk-cta" href="/links/{{ rr.campaign.id }}/edit">{{ icon("pen", "rk-ico") }}Edit Release Plan</a>
           {% else %}
@@ -137,6 +142,8 @@
           <ul>{% for item in z.first_save %}<li>{{ item }}</li>{% endfor %}</ul>
           <p>Masters, artwork, UPC, ISRCs, a target date, a distributor, territories and campaign details can all come later.</p>
         </details>
+        {%- elif z.project.can == "locked" %}
+        <p class="rl-z-note">{{ z.project.readonly }}</p>
         {%- else %}
         <p class="rl-z-note">{{ z.project.locked }}</p>
         {%- endif %}
@@ -336,7 +343,7 @@
         <tbody>
           {% for t in rr.tasks %}
           <tr>
-            <td><a href="{{ t.href }}">{{ t.label }}</a></td>
+            <td>{% if t.href %}<a href="{{ t.href }}">{{ t.label }}</a>{% else %}{{ t.label }}{% endif %}</td>
             <td class="rk-dim">{{ t.hint }}</td>
             <td class="rk-num">{% if t.due %}{{ t.due_label }}{% else %}&mdash;{% endif %}</td>
             <td>{% if t.ok %}<span class="rk-lamp rk-lamp--good">Passed</span>{% else %}<span class="rk-lamp rk-lamp--crit">Open</span>{% endif %}</td>
@@ -441,7 +448,7 @@
             <tbody>
               {% for r in rr.passport %}
               <tr>
-                <td><a href="/tracks/{{ r.id }}#passport">{{ r.title }}</a></td>
+                <td>{% if r.id %}<a href="/tracks/{{ r.id }}#passport">{{ r.title }}</a>{% else %}{{ r.title }}{% endif %}</td>
                 <td class="rk-num">{{ r.isrc or "Not on file" }}</td>
                 <td class="rk-dim">{{ r.explicit or "Not on file" }}</td>
                 <td class="rk-dim">{{ r.metadata or "Not on file" }}</td>
