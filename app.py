@@ -11989,6 +11989,11 @@ def create_app():
                        if campaign.get("ml_campaign_id") else None)
         variants = ({v["id"]: v for v in mls.list_variants(campaign["ml_campaign_id"])}
                     if campaign.get("ml_campaign_id") else {})
+        # The learned line reads the history of the account that owns this
+        # rollout. It read `user["id"]` with no `user` in scope until
+        # 2026-09-23, so the page was an error the moment every post left
+        # draft (tests/test_rollout_overview_reviewed.py). _ro_owned has
+        # already scoped the campaign to the signed-in account.
         return render_template("rollout_overview.html", active_page="rollout",
                                c=campaign, posts=posts, assets=assets,
                                motion=rollout_engine.MOTION,
@@ -11996,7 +12001,7 @@ def create_app():
                                direction=rollout_engine.creative_direction(campaign),
                                next_action=(
                                    rollout_learning.next_action_line(
-                                       _rollout_learning(user["id"]))
+                                       _rollout_learning(campaign["user_id"]))
                                    if posts and all(
                                        p["status"] != "draft" for p in posts)
                                    else None)
