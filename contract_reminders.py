@@ -21,10 +21,94 @@ Rules:
     alarms at once for one contract
   * nothing fires for a contract whose renewal is in the past: the
     page says the date needs updating instead
+
+Who runs it (make-it-real, 2026-09-23): nothing did. There is no
+scheduler in the repo, and an unsigned POST to /reminders/run was
+redirected to /login, which a cron log reads as success. The run now
+answers to its own secret, REMINDERS_CRON_TOKEN, presented in the
+X-Reminders-Token header, and refuses anything else with a 401 and a
+reason. Every page that promises reminders asks `scheduled()` first: the
+promise is made only while a scheduler has really run it in the last two
+days, and the words fall back to "dates on file" otherwise.
 """
-from datetime import date, timedelta
+import hmac
+import json
+import os
+from datetime import date, datetime, timedelta, timezone
 
 import db as store
+
+# The scheduler's secret, and where it presents it. Its own variable, not
+# BACKUP_TOKEN: the token that may copy the database must not also be the
+# one that emails every artist, and the other way round.
+TOKEN_ENV = "REMINDERS_CRON_TOKEN"
+TOKEN_HEADER = "X-Reminders-Token"
+
+# The run is daily at 09:00 UTC. Two days lets one late or failed run pass
+# without the pages changing their words; a second missed day is a
+# scheduler that has stopped, and the pages stop promising.
+FRESH_FOR = timedelta(hours=48)
+
+_LAST_RUN = "reminders_last_run"                 # any run, owner or scheduler
+_LAST_SCHEDULED = "reminders_last_scheduled_run"  # the scheduler's alone
+
+
+def token_configured():
+    return bool((os.environ.get(TOKEN_ENV) or "").strip())
+
+
+def token_matches(presented):
+    """Constant-time. No configured token means no scheduler may run it."""
+    token = (os.environ.get(TOKEN_ENV) or "").strip()
+    if not token:
+        return False
+    return hmac.compare_digest((presented or "").encode("utf-8"), token.encode("utf-8"))
+
+
+def record_run(result, by, now=None):
+    """Keep what a run did, when, and who asked for it. A scheduler's run is
+    also kept on its own, so an owner's manual run cannot stand in for the
+    schedule that the pages' promise depends on."""
+    rec = dict(result or {})
+    rec["at"] = (now or datetime.now(timezone.utc)).isoformat(timespec="seconds")
+    rec["by"] = by
+    store.set_kv(_LAST_RUN, json.dumps(rec))
+    if by == "scheduler":
+        store.set_kv(_LAST_SCHEDULED, json.dumps(rec))
+    return rec
+
+
+def _read(key):
+    try:
+        rec = json.loads(store.get_kv(key) or "null")
+    except (TypeError, ValueError):
+        return None
+    return rec if isinstance(rec, dict) else None
+
+
+def last_scheduled_run():
+    return _read(_LAST_SCHEDULED)
+
+
+def scheduled(now=None):
+    """Are reminders going out on their own on this deployment?
+
+    Measured, not configured: the token must be set AND a scheduler must
+    have completed a run with it inside FRESH_FOR. A token nobody presents
+    runs nothing, so it proves nothing."""
+    if not token_configured():
+        return False
+    rec = last_scheduled_run()
+    if not rec or rec.get("ok") is False:
+        return False
+    try:
+        at = datetime.fromisoformat(rec.get("at") or "")
+    except ValueError:
+        return False
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    return timedelta(0) <= now - at <= FRESH_FOR
 
 # Days before the notice deadline; 0 is the deadline itself.
 # The owner's numbers (2026-09-22): 60, 30, 7 and "24 hours out". The

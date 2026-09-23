@@ -276,6 +276,22 @@ def _groups():
                  unlocks="Every link the app SENDS - password resets, rider "
                          "links, share links, QR codes - naming your own "
                          "domain rather than the hosting one."),
+            # Make-it-real, 2026-09-23: nothing called /reminders/run, so
+            # the renewal reminders the Contracts card promised never went
+            # out. This row reads on only after a scheduler really ran it.
+            dict(name="Contract renewal reminders",
+                 on=_try(__import__("contract_reminders").scheduled),
+                 env=["REMINDERS_CRON_TOKEN"],
+                 unlocks="The daily run that sends contract renewal reminders "
+                         "at 60, 30, 7 and 1 days before a notice deadline, "
+                         "in the app and by email, and moves the "
+                         "Release-Ready queue. While it is off, the "
+                         "Contracts card and each contract's row say the "
+                         "dates are on file, not that reminders go out.",
+                 caution="Measured, not a presence check: it reads on only "
+                         "when a scheduler has POSTed to /reminders/run with "
+                         "the X-Reminders-Token header in the last two days. "
+                         "The token alone runs nothing."),
             dict(name="Session secret", on=_present("SECRET_KEY"),
                  env=["SECRET_KEY"],
                  unlocks="Sessions surviving a restart.",

@@ -5777,8 +5777,9 @@ def create_app():
         when a token is actually configured. The route re-checks; this is
         not a way in, it is a way past the redirect."""
         token = os.environ.get("BACKUP_TOKEN") or ""
-        # The same token lets the same scheduler reach the reminders run.
-        if not token or request.path not in ("/backup/run", "/reminders/run"):
+        # /reminders/run has its own token (REMINDERS_CRON_TOKEN) since
+        # 2026-09-23 and answers for itself; see plan_gate.
+        if not token or request.path != "/backup/run":
             return False
         presented = (request.headers.get("X-Backup-Token")
                      or request.form.get("token") or "")
@@ -5846,6 +5847,12 @@ def create_app():
         user = current_user()
         if user is None:
             if _is_public_path(request.path) or _valid_backup_token():
+                return None
+            if request.path == "/reminders/run":
+                # The route checks REMINDERS_CRON_TOKEN itself and refuses
+                # with a 401 and the reason (a GET gets Flask's 405). A
+                # redirect to /login here would read as success in a cron
+                # log, which is what hid that nothing ran it.
                 return None
             if request.path == "/backup/run" and request.method == "POST":
                 # A scheduler cannot follow a redirect to /login, and the
@@ -11592,10 +11599,24 @@ def create_app():
                                documents_catalog_types=documents_engine.CATALOG_TYPES,
                                doc_types=_DOC_TYPES, doc_error=doc_error,
                                doc_terms=_document_terms_view(user["id"]),
+                               # Whether a scheduler really sends the
+                               # reminders the rows would otherwise promise.
+                               reminders_on=_reminders_on(),
                                terms_saved=request.args.get("terms"),
                                doc_readings=_document_readings_view(user["id"]),
                                read_result=request.args.get("read"),
                                **build_dashboard_context())
+
+    def _reminders_on():
+        """Are contract reminders going out on their own here? Measured
+        from the scheduler's last run (contract_reminders.scheduled), so a
+        page promises reminders only while something really sends them.
+        A failure to tell is a no: the honest words are the smaller ones."""
+        try:
+            import contract_reminders
+            return contract_reminders.scheduled()
+        except Exception:                  # noqa: BLE001
+            return False
 
     def _document_terms_view(user_id):
         """{document_id: {terms, status}} for the contracts section."""
@@ -11682,20 +11703,37 @@ def create_app():
     def reminders_run():
         """Fire the contract reminders that are due today.
 
-        Meant for the same scheduler that runs the nightly backup,
-        presenting BACKUP_TOKEN; an owner can also trigger it, so it is
-        testable without waiting for a schedule.
+        For a daily scheduler presenting REMINDERS_CRON_TOKEN in the
+        X-Reminders-Token header (constant-time compare); an owner signed
+        in can also trigger it, so it is testable without waiting for a
+        schedule. plan_gate lets this path through without a session so
+        that a refusal is a refusal: 401 JSON with the reason, never the
+        302 to /login a cron log reads as success (2026-09-23). A signed-in
+        account that is not the owner still gets the 404 it always had.
         """
         import contract_reminders
-        token = os.environ.get("BACKUP_TOKEN") or ""
-        presented = (request.headers.get("X-Backup-Token")
-                     or request.form.get("token") or "")
-        by_token = bool(token) and hmac.compare_digest(presented, token)
+        by_token = contract_reminders.token_matches(
+            request.headers.get(contract_reminders.TOKEN_HEADER))
         user = current_user()
-        if not (by_token or (user and _is_owner_email(user.get("email")))):
-            abort(404)
-        result = contract_reminders.run(emailer=emailer, public_url=public_url)
-        store.set_kv("reminders_last_run", json.dumps(result))
+        by_owner = bool(user and _is_owner_email(user.get("email")))
+        if not (by_token or by_owner):
+            if user is not None:
+                abort(404)
+            why = ("%s is not configured on the server" % contract_reminders.TOKEN_ENV
+                   if not contract_reminders.token_configured()
+                   else "the %s header did not match %s"
+                   % (contract_reminders.TOKEN_HEADER, contract_reminders.TOKEN_ENV))
+            return jsonify({"ok": False, "error": why}), 401
+        by = "scheduler" if by_token else "owner"
+        try:
+            result = contract_reminders.run(emailer=emailer, public_url=public_url)
+        except Exception as exc:           # noqa: BLE001 - reported, and recorded
+            app.logger.exception("reminders: the run failed")
+            contract_reminders.record_run(
+                {"ok": False, "error": type(exc).__name__}, by)
+            return jsonify({"ok": False, "error": "the reminders run failed: %s"
+                            % type(exc).__name__}), 500
+        result = contract_reminders.record_run(dict(result, ok=True), by)
         # The same daily run moves Release-Ready's queue: reports paused on
         # the budget when it allows again, polls that came due, and an alert
         # for a paid master not stored after 30 minutes. It never starts a
@@ -13796,7 +13834,8 @@ def create_app():
             if cc.open_action_for(user["id"], "document", doc_id):
                 return
             cc.create_action(
-                user["id"], "Set the renewal reminders for %s" % filename[:80],
+                user["id"], ("Set the renewal reminders for %s" if _reminders_on()
+                             else "Set the renewal dates for %s") % filename[:80],
                 category="rights", priority="medium",
                 description=contract_reader.summary(findings, status),
                 entity_type="document", entity_id=doc_id,

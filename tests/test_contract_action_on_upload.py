@@ -33,6 +33,7 @@ CONTRACT = (b"DISTRIBUTION AGREEMENT\n\n"
 @pytest.fixture
 def world(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "t.db"))
+    monkeypatch.delenv("REMINDERS_CRON_TOKEN", raising=False)   # no scheduler here
     app_obj = appmod.create_app()
     app_obj.config.update(TESTING=True)
     email = "artist-%s@example.net" % uuid.uuid4().hex[:8]
@@ -67,7 +68,11 @@ def test_uploading_a_contract_raises_one_action_that_links_to_it(world):
     assert len(got) == 1, "one action, not one per finding"
     a = got[0]
     assert "distribution.txt" in a["title"]
-    assert "reminder" in a["title"].lower()
+    # Updated 2026-09-23: this pinned "reminder" in the title, and nothing
+    # sent reminders (no scheduler ran /reminders/run). The title names
+    # reminders only while contract_reminders.scheduled() is true, and asks
+    # for the renewal dates otherwise (tests/test_reminders_cron.py).
+    assert a["title"] == "Set the renewal dates for distribution.txt"
     assert a["category"] == "rights"
     assert a["status"] == "new"
     # It says what was found, and that it needs checking.

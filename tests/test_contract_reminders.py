@@ -4,8 +4,9 @@ Owner, 2026-09-14: "is there a reminder alarm built to notify you when
 your auto renewals are coming up?" There was not. This is the half that
 needs no document reader: dates typed on the contract's row, reminders
 at 60, 30, 7 and 1 days before the notice deadline, in the
-app and by email where one can be sent, each once, from a daily run the
-nightly job triggers with the backup token.
+app and by email where one can be sent, each once, from a daily run a
+scheduler triggers with REMINDERS_CRON_TOKEN (its own secret since
+2026-09-23; it used to share the backup token).
 """
 import io
 import json
@@ -130,14 +131,20 @@ def test_the_run_reminds_once_per_milestone_in_the_app_and_by_email(world, monke
     assert out["emailed"] == 0 and len(notes) == 2
 
 
-def test_the_daily_run_is_reachable_by_the_backup_token_or_an_owner(world, monkeypatch):
+def test_the_daily_run_is_reachable_by_its_own_token_or_an_owner(world, monkeypatch):
+    # Rewritten 2026-09-23. This used to accept a 302 for an unsigned call
+    # and run on BACKUP_TOKEN. A 302 is the false green a cron log reads
+    # as success, and nothing called the run at all; the run now has its
+    # own REMINDERS_CRON_TOKEN in the X-Reminders-Token header and refuses
+    # anything else with a 401 (tests/test_reminders_cron.py holds the rest).
     app_obj, client, email, uid, doc = world
     anon = app_obj.test_client()
-    assert anon.post("/reminders/run").status_code in (302, 404)
-    monkeypatch.setenv("BACKUP_TOKEN", "tok-123")
-    r = anon.post("/reminders/run", headers={"X-Backup-Token": "tok-123"})
+    monkeypatch.delenv("REMINDERS_CRON_TOKEN", raising=False)
+    assert anon.post("/reminders/run").status_code == 401
+    monkeypatch.setenv("REMINDERS_CRON_TOKEN", "tok-123")
+    r = anon.post("/reminders/run", headers={"X-Reminders-Token": "tok-123"})
     assert r.status_code == 200 and r.get_json()["ok"] is True and "checked" in r.get_json()["run"]
-    assert anon.post("/reminders/run", headers={"X-Backup-Token": "wrong"}).status_code in (302, 404)
+    assert anon.post("/reminders/run", headers={"X-Reminders-Token": "wrong"}).status_code == 401
     assert client.post("/reminders/run").status_code == 404, "a plain account may not trigger it"
     monkeypatch.setenv("OWNER_EMAILS", email)
     assert client.post("/reminders/run").status_code == 200

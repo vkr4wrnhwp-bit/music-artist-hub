@@ -57,10 +57,13 @@ Read-only, cached in `api_cache`.
 **Gate:** `BACKUP_S3_ENDPOINT/BUCKET/KEY/SECRET` · **Absent:** no off-box copy
 
 SigV4 implemented in pure Python — no boto3. `/backup/run` is exempt from
-the login wall via `BACKUP_TOKEN` so a cron job can reach it. So is
-`POST /reminders/run` (contract renewal reminders, `contract_reminders.py`):
-the same nightly job can call both, one after the other, with the same
-token in `X-Backup-Token`.
+the login wall via `BACKUP_TOKEN` so a cron job can reach it.
+`POST /reminders/run` (contract renewal reminders, `contract_reminders.py`)
+has its own secret since 2026-09-23: `REMINDERS_CRON_TOKEN` in the
+`X-Reminders-Token` header. Without it the route answers 401 JSON with the
+reason, never a redirect. No cron calls it yet; until one has run it in the
+last two days, the Contracts card and rows say the dates are on file rather
+than promising reminders.
 
 ### ffmpeg — `convert_engine.py`
 **Gate:** binary on `PATH` · **Absent:** WAV and AIFF only, in-browser

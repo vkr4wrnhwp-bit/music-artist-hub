@@ -125,12 +125,12 @@ Pull renewal terms out of a filed contract's own text so a person can check them
 
 **Contract renewal terms and reminders**
 
-Type a renewal date and notice period on a contract, and get told at 90/30/7 days and on the notice deadline.
+Type a renewal date and notice period on a contract, and get told at 60, 30, 7 and 1 days before the notice deadline, once a scheduler runs the daily reminders.
 
-- Because: POST validates the date format and clamps notice_days to 0-365 before store.set_document_terms; contract_reminders.status() drives the row's state and contract_reminders.run() fires the milestones, writing document_reminders and sending email where the deployment can. Each milestone fires once and nothing fires for a renewal already in the past.
+- Because: POST validates the date format and clamps notice_days to 0-365 before store.set_document_terms; contract_reminders.status() drives the row's state and contract_reminders.run() fires the milestones, writing document_reminders and sending email where the deployment can. Each milestone fires once and nothing fires for a renewal already in the past. The run only happens when something POSTs /reminders/run, and nothing in the repo does: the Render cron is the owner's to create. So the words are measured (2026-09-23): contract_reminders.scheduled() is true only when REMINDERS_CRON_TOKEN is set AND a scheduler completed a run with it in the last 48 hours. Until then the Contracts card reads "with renewal dates on file", each row says the 60, 30, 7 and 1 day reminders "are not switched on yet", the saved note drops "Reminders follow them" and the upload action asks to "Set the renewal dates"; once it is true the reminder wording comes back by itself (tests/test_reminders_cron.py).
 - Routes: POST /vault/documents/<doc_id>/terms; POST /reminders/run
-- Files: app.py:10398 (terms), app.py:10422 (reminders_run); contract_reminders.py MILESTONES/status/run; db.py document_terms, document_reminders tables, set_kv("reminders_last_run"); templates/vault.html
-- Access: The terms form is Artist tier and above, behind the contracts gate. /reminders/run is deliberately outside the session wall: _valid_backup_token (app.py:4885) lets a request through only when it presents BACKUP_TOKEN on that exact path, and the route itself re-checks the token or _is_owner_email — anyone else gets 404. Team seats never reach it: "/backup" and "/settings" are blocked and the route is owner-or-token.
+- Files: app.py document_terms, reminders_run, _reminders_on, _read_on_upload; contract_reminders.py MILESTONES/status/run/token_matches/record_run/scheduled; rooms.py catalogue (the Contracts card line); readiness.py "Contract renewal reminders" row; db.py document_terms, document_reminders tables, set_kv("reminders_last_run") and set_kv("reminders_last_scheduled_run"); templates/_vault_contracts.html
+- Access: The terms form is Artist tier and above, behind the contracts gate. /reminders/run answers for itself outside the session wall (plan_gate lets the path through): a scheduler presents REMINDERS_CRON_TOKEN in the X-Reminders-Token header (hmac.compare_digest), or a signed-in owner runs it by hand. BACKUP_TOKEN no longer runs it. Anonymous without the token gets 401 JSON with the reason, never a redirect; a GET gets 405; a signed-in non-owner gets 404. Team seats never reach it: the route is owner-or-token.
 
 **Contracts and licences (Documents)**
 
@@ -5004,7 +5004,7 @@ One per-account address that files Hypeddit download-gate signups into the Fan C
 
 A plain server-side string store used for owner settings, the last backup record and the stored Stripe webhook secret.
 
-- Because: db.py:2033 get_kv / 2041 set_kv / 2049 delete_kv / 2055 kv_incr all read and write the real app_kv table. Keys actually written (grepped set_kv literals): backup_last_run, reminders_last_run, home_layout, nav_layout, page_switches, shopify:storefront, stripe_webhook_secret, stripe_ref_coupon_50, stripe_open_checkout:*, stripe_cs_done:*, rr_* (six Release-Ready settings). Note: a live Stripe webhook signing secret is stored here in plaintext (stripe_provider.py:86) and therefore lands in every /backup zip.
+- Because: db.py:2033 get_kv / 2041 set_kv / 2049 delete_kv / 2055 kv_incr all read and write the real app_kv table. Keys actually written (grepped set_kv literals): backup_last_run, reminders_last_run, reminders_last_scheduled_run, home_layout, nav_layout, page_switches, shopify:storefront, stripe_webhook_secret, stripe_ref_coupon_50, stripe_open_checkout:*, stripe_cs_done:*, rr_* (six Release-Ready settings). Note: a live Stripe webhook signing secret is stored here in plaintext (stripe_provider.py:86) and therefore lands in every /backup zip.
 - Routes: none (library)
 - Files: db.py:960-964 (CREATE TABLE app_kv), db.py:2033-2066; stripe_provider.py:86-106; page_switches.py:20
 - Access: n/a — callers gate
@@ -5223,10 +5223,10 @@ What stops a third-party page from making a state-changing request with the user
 
 One POST fires the contract renewal reminders and moves the Release-Ready queue.
 
-- Because: The work is real — app.py:10440 contract_reminders.run(...) then app.py:10445 release_ready.run_due(), with the result stored under reminders_last_run. But the refusal is wrong in the one way that matters for a scheduler: with no token and no session, plan_gate lets /reminders/run through _valid_backup_token only on a match and otherwise falls to redirect(url_for("login")) — probed anonymous POST /reminders/run → 302, not 403. That is the exact false-green that app.py:4963-4970 was written to stop for /backup/run, and the same fix was not extended here.
+- Because: The work is real: contract_reminders.run(...) then release_ready.run_due(), with the result stored under reminders_last_run (and a scheduler's run also under reminders_last_scheduled_run, with when and by whom). Fixed 2026-09-23: it had answered an unsigned POST with a 302 to /login, the false green /backup/run was fixed for. It now has its own REMINDERS_CRON_TOKEN in the X-Reminders-Token header and answers 401 JSON with the reason when the token is missing or wrong, 200 JSON when it ran, and 500 JSON (recorded) when the run raised. Nothing calls it yet: the daily Render cron is an owner step.
 - Routes: POST /reminders/run
-- Files: app.py:10422-10447; app.py:4885-4897 _valid_backup_token; contract_reminders.py:run; release_ready.py:1171 run_due
-- Access: BACKUP_TOKEN holder, or a signed-in owner (_is_owner_email). A signed-in non-owner gets 404 (probed).
+- Files: app.py reminders_run, plan_gate; contract_reminders.py run/token_matches/record_run/scheduled; release_ready.py run_due; tests/test_reminders_cron.py, tests/test_contract_reminders.py
+- Access: REMINDERS_CRON_TOKEN holder (X-Reminders-Token header only), or a signed-in owner (_is_owner_email). Anonymous otherwise: 401 JSON. A signed-in non-owner gets 404.
 
 **Error reporting (Sentry)**
 
@@ -5567,7 +5567,7 @@ repository. This list is mechanical, so it is complete.
 
 ## Environment variables
 
-95 names, extracted mechanically. **Names only. No values appear in this
+96 names, extracted mechanically. **Names only. No values appear in this
 file and none should ever be added to it.** A value belongs in the
 service's own environment settings and nowhere else.
 
@@ -5587,7 +5587,7 @@ service's own environment settings and nowhere else.
 `PATH_INFO`, `PORT`, `PUBLIC_BASE_URL`
 `QUERY_STRING`, `R2_ACCESS_KEY_ID`, `R2_ACCOUNT_ID`
 `R2_BUCKET`, `R2_PUBLIC_BASE_URL`, `R2_SECRET_ACCESS_KEY`
-`REMIX_LAB_AUDIO_ENGINE_ENABLED`, `RENDER`, `RENDER_GIT_COMMIT`
+`REMINDERS_CRON_TOKEN`, `REMIX_LAB_AUDIO_ENGINE_ENABLED`, `RENDER`, `RENDER_GIT_COMMIT`
 `RESEND_API_KEY`, `RESEND_INBOUND_DOMAIN`, `RESEND_WEBHOOK_SECRET`
 `ROEX_API_KEY`, `SANDBOX`, `SANDBOX_NAME`
 `SB_NODE_BIN`, `SB_REQUIRE_JS_TESTS`, `SECRET_KEY`
@@ -5656,13 +5656,13 @@ in its own way, listed in its feature entry above.
 - POST /api/suites/credits (app.py:932) — server-to-server receiver for the suites; no session, a token signed under sb_suite_sso.CREDIT_SALT is the authorisation
 - POST /backup/run (app.py:13767) — meant for an external scheduler presenting BACKUP_TOKEN via the X-Backup-Token header or a token form field; _valid_backup_token (app.py:4884) lets it past the login wall for this path only. No cron entry for it exists in this repo's render.yaml.
 - POST /backup/run (app.py:13767) — the off-box backup. Intended for an external scheduler presenting BACKUP_TOKEN; app.py:4963 gives an anonymous POST an explicit 403 rather than a redirect so a cron log cannot read it as green. Records every outcome, success or failure, under app_kv 'backup_last_run', and notifies the OWNER_EMAIL account on failure.
-- POST /reminders/run (app.py:10422) — contract renewal reminders plus release_ready.run_due(). Same BACKUP_TOKEN, or a signed-in owner. Result stored under app_kv 'reminders_last_run'. Unlike /backup/run it still answers a token-less anonymous POST with a 302 to /login (probed), which is the same false-green shape the other endpoint was fixed for.
-- POST /reminders/run (app.py:10422) — scheduled job endpoint. Runs contract_reminders.run(), which fires the 90/30/7/0-day renewal milestones, writes document_reminders and emails where configured; then stores the result under app_kv key "reminders_last_run" and also calls release_ready.run_due() in a try/except. Authorised by an X-Backup-Token header or a token form field matching BACKUP_TOKEN (app.py:4885 lets that one path past the login wall), or by an owner account; anyone else gets 404.
+- POST /reminders/run — contract renewal reminders plus release_ready.run_due(). REMINDERS_CRON_TOKEN in the X-Reminders-Token header, or a signed-in owner. Result stored under app_kv 'reminders_last_run' (a scheduler's run also under 'reminders_last_scheduled_run'). Since 2026-09-23 a token-less or wrong-token POST gets 401 JSON with the reason, not the 302 to /login a cron log reads as success.
+- POST /reminders/run — scheduled job endpoint. Runs contract_reminders.run(), which fires the 60/30/7/1-day renewal milestones, writes document_reminders and emails where configured; then records the run and also calls release_ready.run_due() in a try/except. No scheduler calls it yet. The owner's Render cron, daily at 09:00 UTC, would run: code=$(curl -sS -o /dev/stderr -w '%{http_code}' -X POST -H "X-Reminders-Token: $REMINDERS_CRON_TOKEN" https://app.streetbankermusic.com/reminders/run); echo "HTTP $code"; [ "$code" = 200 ]
 - POST /webhooks/resend (app.py:1275) — webhook receiver. Resend inbound email → signature verified with RESEND_WEBHOOK_SECRET → recipient local part resolved to an account via ingest_tokens → CSV attachments run through the same _ingest_statement the upload uses, writing statements/statement_rows and a recovery or statement notification. Aborts 404 when emailer.inbound_configured() is false. Anonymous by design ("/webhooks/" prefix is public).
 - POST /webhooks/stripe (app.py:5755) — Stripe webhook receiver; 404 unless a signing secret exists, signature-verified, answers 503 'retry' when Stripe cannot be read so the event is redelivered
 - Press pitch sending is synchronous and inside the request: press_desk.pitch_send loops the recipients and calls email_provider.send once per address before redirecting (press_desk.py:498).
 - Release-Ready background steps: release_ready.advance(job_id) runs one step at a time under a database lease in a Python thread, capped at four per process by a BoundedSemaphore (release_ready.py:636 _spawn). There is no worker process — a job that cannot get a slot stays due for the next poll.
-- Release-Ready queue sweep: release_ready.run_due(limit=20) (release_ready.py:1168), called from POST /reminders/run (app.py:10423, authorised by BACKUP_TOKEN or the owner) and from POST /admin/release-ready/run. It moves reports paused on the budget, polls that came due, and raises an alert for a paid master not stored after 30 minutes. It can never start a paid RoEx retrieval that was not paid for.
+- Release-Ready queue sweep: release_ready.run_due(limit=20) (release_ready.py:1168), called from POST /reminders/run (authorised by REMINDERS_CRON_TOKEN or the owner since 2026-09-23; no scheduler calls it yet) and from POST /admin/release-ready/run. It moves reports paused on the budget, polls that came due, and raises an alert for a paid master not stored after 30 minutes. It can never start a paid RoEx retrieval that was not paid for.
 - Request-time expiry on the Stage desk and every poll — stage_bridge.expire_stale(show_id, user_id) (stage_os.py:162 and :197): the poll is the clock, so a dead command cannot sit at 'sent' forever.
 - Request-time sweep on GET /tour-board — board._sweep_renewals() (board.py:68, called at :94) notifies and emails the owner of every listing at or past expiry, then marks the notice so it is sent once.
 - Request-time sweep on GET /tours — tour_store.adopt_orphan_shows(user_id) (tour_os.py:1244) and tour_mockup.ensure_for(user) (tour_os.py:1252). Skipped entirely on a team seat's visit.
@@ -5785,7 +5785,7 @@ can close, and nothing here was guessed to fill it.
 **money**
 
 - Whether MLC_USERNAME/MLC_PASSWORD/MLC_ENABLED, SONGSTATS_API_KEY, SPOTIFY_CLIENT_ID/SECRET, RESEND_* or R2_* are actually set on any deployed service. This was a read-only local checkout, I did not read .env or .env.example values, and render.yaml declares only SECRET_KEY, DEMO_PASSWORD, ROEX_API_KEY, SENTRY_DSN and DATABASE_PATH. So the MLC sweep and the statement drop-box are Partial on the evidence here; they may be fully live in production.
-- Whether anything actually calls POST /reminders/run or POST /backup/run on a schedule. render.yaml in this repo contains no cron service, and I did not look at the Render dashboard.
+- Whether anything actually calls POST /backup/run on a schedule: render.yaml in this repo contains no cron service (the nightly backup cron lives in the Render dashboard). POST /reminders/run: nothing calls it as of 2026-09-23, and the pages say so until a scheduler run is on record (contract_reminders.scheduled).
 - advance_store.py — named in the brief for this area, but the code is not about money. It is the Stage/Tour show-advance store (show_passports, show_questions, show_conflicts), imported by passport_os.py, stage_os.py, stage_bridge.py and tour_os.py. Nothing in it touches royalties, capital or a cash advance. The brief's file list and the code disagree; the code wins.
 - statements_engine.py is the real name of what the brief called "statements_engine (find its real name)" — it exists under that exact name and is imported at app.py:141. There is also a separate statements_desk.py (page layout) and statements are surfaced through royalties_desk.py and recovery_desk.py.
 - /conflicts computes real data but is badged Sample: "conflicts" is absent from hubs._BASE_LIVE (hubs.py:155) and from hubs.live_keys(). I verified the absence by grep; I did not open the sidebar template to confirm exactly what badge renders as a result.
