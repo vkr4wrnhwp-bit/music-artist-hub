@@ -209,14 +209,18 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_plate():
     assert "Your release plan will appear here" in body and "Nothing is scheduled yet" in body
     assert "never shown as confirmed delivery." in body
     assert 'href="#rl-z-flow-h">How release checks work' in body and 'href="#rl-z-need">Release requirements' in body
-    assert "Not sure whether your music is ready?" in body and 'href="/contact">Ask Street Banker' in body
+    # the button opens the corner Ask box now; Contact is its no-script fallback
+    assert "Not sure whether your music is ready?" in body and 'href="/contact" id="rl-z-ask">Ask Street Banker' in body
     assert '<details class="rl-z-fold" open>' in body and "More Release tools" in body, (
         "the drawer starts OPEN (owner, 2026-09-23: people need to see it)")
     drawer = body.split('<details class="rl-z-fold"')[1]
     titles = _re.findall(r'<h3 class="rl-z-band">([^<]+)</h3>', drawer)
     assert titles == ["Release record", "Readiness checks", "Rollout &amp; calendar", "Distribution &amp; sync packs"], titles
+    # Track Passports, the Publishing room's card, sits under Release
+    # record as spec section 4 names it (audit releases-11)
     assert _re.findall(r'data-room-card="([a-z-]+)"', drawer) == [
-        "autopilot", "release-check", "release-calendar", "rollout", "distribution", "sync-packs"]
+        "autopilot", "track-passports", "release-check", "release-calendar", "rollout",
+        "distribution", "sync-packs"]
     # no nought, no countdown, no delivery claim
     text = _re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", body, flags=_re.S)
     assert not _re.search(r"\b0 (checks|tasks|days|releases)", text) and not _re.search(r"(?<![\d.])0%", text)
@@ -283,7 +287,8 @@ def test_the_working_room_draws_the_rooms_three_window_plate():
     assert "rk-pl-win" not in body and "rk-pl-img" not in body and "rk-reel" not in body
     # the plate's rules are linked on the working page, not only from zero
     assert "/static/css/command-zero.css?v=4" in page
-    assert "/static/css/releases-room.css?v=6" in page
+    # v=7 since the audit fixes of 2026-09-23 changed the sheet
+    assert "/static/css/releases-room.css?v=7" in page
     got = _screens(body)
     assert [g[0] for g in got] == ["Checks passed", "Days to release", "Open tasks"], got
     checks, days, tasks = got
@@ -610,3 +615,189 @@ def test_a_locked_demo_is_offered_no_write_door():
     body = _body(c.get("/room/releases").get_data(as_text=True))
     assert "Start with one release" in body and 'class="rl-z-btn"' not in body
     assert 'class="rk-cta"' not in body and rl.ZERO_PROJECT["readonly"] in body
+
+
+# --- the audit of 2026-09-23 (releases-1 .. releases-20) ---------------------
+
+import io as _io
+import os as _os
+
+_HERE = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+
+
+def _css(name):
+    return _io.open(_os.path.join(_HERE, "static", "css", name), encoding="utf-8").read()
+
+
+def _signed_in(name, plan):
+    """A signed-in account carrying what the team helpers need."""
+    c, uid = _account(name)
+    store.set_user_plan(uid, plan)
+    c._id = uid
+    c._email = store.get_user(uid)["email"]
+    return c
+
+
+def _seat(owner, member, access="read", areas=None):
+    """A real team seat, joined and opened (tests/test_team_rooms.py)."""
+    import team_areas
+    data = {"email": member._email, "role": "manager", "access": access, "areas_sent": "1",
+            "areas": list(areas if areas is not None else team_areas.keys())}
+    r = owner.post("/team/invite", data=data)
+    assert r.get_json().get("ok"), r.get_json()
+    row = [m for m in store.list_team(owner._id) if m["email"] == member._email][0]
+    member.post("/team/join/" + row["invite_token"], data={})
+    member.post("/portal/%s/open" % owner._id)
+
+
+def _doors(body):
+    """Every link on the page into the campaign builder."""
+    import re
+    return re.findall(r'href="(/links/new[^"]*)"', body)
+
+
+def test_the_release_door_comes_back_to_the_room_with_the_done_line():
+    """Audit releases-2 and releases-17: the builder's save ignored returnTo
+    and from and ended on the edit page, whose only way back led to
+    Marketing, so no real path reached the done line. Through the real
+    form it comes back to the room, and the saved release says the line."""
+    c, uid = _account()
+    r = c.post(rl.DOOR, data={"title": "First single", "campaign_type": "release"})
+    assert r.status_code == 302
+    assert r.headers["Location"] == "/room/releases?from=releases-zero-state", r.headers["Location"]
+    page = c.get(r.headers["Location"]).get_data(as_text=True)
+    assert rl.DONE_LINE in page and "First single" in page
+    assert [x["title"] for x in mls.list_campaigns(uid)] == ["First single"]
+    # a way back that is not this site's is ignored: the edit page, as before
+    r = c.post("/links/new?returnTo=//evil.example/&from=x", data={"title": "Second"})
+    assert r.headers["Location"].startswith("/links/") and r.headers["Location"].endswith("/edit")
+    # and with no way back at all the builder keeps its own next page
+    r = c.post("/links/new", data={"title": "Third"})
+    assert r.headers["Location"].endswith("/edit")
+
+
+@pytest.mark.parametrize("kind", ["bio", "presave"])
+def test_a_campaign_that_is_not_a_release_neither_ends_zero_nor_says_the_line(kind):
+    """Audit releases-3 and releases-17: a release IS a campaign row of type
+    "release". A Fan Hub or a Pre-save alone used to end the page from
+    zero and, with ?from=, say a release was created."""
+    c, uid = _account()
+    mls.create_campaign(uid, "rl-%s" % uuid.uuid4().hex[:8],
+                        {"title": "My %s" % kind, "campaign_type": kind})
+    page = c.get("/room/releases?from=releases-zero-state").get_data(as_text=True)
+    assert "Start with one release" in page and rl.DONE_LINE not in page
+    _campaign(uid, days_out=30, title="Real single")
+    page = c.get("/room/releases?from=releases-zero-state").get_data(as_text=True)
+    assert rl.DONE_LINE in page and "Start with one release" not in page
+    head = page.split('<select name="campaign"', 1)[1].split("</select>", 1)[0]
+    assert "selected>Real single" in head, "the chooser opens on the release"
+    assert "My %s" % kind in head, "and still lists every campaign"
+
+
+def test_an_edit_seat_without_the_builder_gets_no_door_and_the_line():
+    """Audit releases-1 and releases-19: the builder is the Marketing room's
+    page. An edit seat whose only room is Releases was shown both doors
+    and bounced at each."""
+    owner = _signed_in("Owner", "pro")
+    member = _signed_in("Member", "artist")
+    _seat(owner, member, access="edit", areas=["releases"])
+    body = _body(member.get("/room/releases").get_data(as_text=True))
+    assert "Start with one release" in body
+    assert _doors(body) == [] and 'class="rl-z-btn"' not in body
+    assert "Releases and Marketing rooms" in body and rl.ZERO_PROJECT["locked"] in body
+    # the working room's header is no door either
+    _campaign(owner._id, days_out=30, title="Owner single")
+    body = _body(member.get("/room/releases").get_data(as_text=True))
+    assert "Owner single" in body and 'class="rk-cta"' not in body
+    # with the Marketing room as well, the door is real and opens
+    other = _signed_in("Editor", "artist")
+    _seat(owner, other, access="edit", areas=["releases", "marketing"])
+    body = _body(other.get("/room/releases").get_data(as_text=True))
+    assert 'class="rk-cta" href="/links/' in body
+    assert other.get("/links/new?type=release").status_code == 200
+
+
+def test_a_read_seat_s_requirements_link_has_its_target():
+    """Audit releases-7 and releases-19: the first-save list rendered only
+    for a viewer who could create, so a read seat's "Release requirements"
+    link pointed at nothing. The list is information: everyone gets it."""
+    owner = _signed_in("Owner", "pro")
+    member = _signed_in("Member", "artist")
+    _seat(owner, member, access="read", areas=["releases"])
+    body = _body(member.get("/room/releases").get_data(as_text=True))
+    assert 'href="#rl-z-need">Release requirements' in body
+    assert 'id="rl-z-need"' in body and _doors(body) == []
+    for item in rl.FIRST_SAVE:
+        assert item in body, item
+
+
+def test_release_requirements_opens_the_list_it_points_at():
+    """Audit releases-8: the link's target was the closed details itself,
+    which a browser scrolls to but never opens. The target is the list
+    inside the fold (a fragment inside a closed details opens it), and a
+    script opens it where that is not supported."""
+    c, _uid = _account()
+    page = c.get("/room/releases").get_data(as_text=True)
+    fold = page.split('<details class="rl-z-need"', 1)[1].split("</details>", 1)[0]
+    assert '<ul id="rl-z-need">' in fold
+    assert page.count('id="rl-z-need"') == 1
+    assert 'location.hash !== "#rl-z-need"' in page and "fold.open = true" in page
+
+
+def test_the_need_arrow_is_sized_like_the_other_link_arrows():
+    """Audit releases-6: the arrow had no size rule and drew at ~199px,
+    squeezing the label to one word per line."""
+    css = _css("releases-room.css")
+    rule = css.split(".rl-z-need summary svg {", 1)[1].split("}", 1)[0]
+    assert "width: 16px" in rule and "height: 16px" in rule
+
+
+def test_the_zero_page_rules_are_declared_once():
+    """Audit releases-16: a block of the sheet was pasted twice."""
+    css = _css("releases-room.css")
+    assert css.count(".rl-z-tools .rl-z-band { margin-top: 14px; }") == 1
+    assert css.count(".rl-z-btn, .rl-z-note, .rl-z-card .rl-z-links { grid-column: auto; }") == 1
+
+
+def test_track_passports_is_in_more_release_tools_for_those_who_can_open_it():
+    """Audit releases-11, spec section 4. A Releases-only seat cannot open
+    /catalog, so its drawer does not offer the tile."""
+    import re
+    c, _uid = _account()
+    drawer = _body(c.get("/room/releases").get_data(as_text=True)).split('<details class="rl-z-fold"')[1]
+    record = drawer.split('<h3 class="rl-z-band">Release record</h3>', 1)[1].split("<h3", 1)[0]
+    assert re.findall(r'data-room-card="([a-z-]+)"', record) == ["autopilot", "track-passports"]
+    assert 'href="/catalog?view=passports"' in record
+    owner = _signed_in("Owner", "pro")
+    member = _signed_in("Member", "artist")
+    _seat(owner, member, access="read", areas=["releases"])
+    body = _body(member.get("/room/releases").get_data(as_text=True))
+    assert 'data-room-card="track-passports"' not in body
+
+
+def test_ask_street_banker_opens_the_corner_ask_box():
+    """Audit releases-13: the button kept only the no-script fallback and
+    left the app for the public Contact page."""
+    c, _uid = _account()
+    page = c.get("/room/releases").get_data(as_text=True)
+    assert 'href="/contact" id="rl-z-ask">Ask Street Banker' in page
+    script = page.split('getElementById("rl-z-ask")', 1)[1].split("</script>", 1)[0]
+    assert 'getElementById("sbq-open")' in script and "preventDefault" in script
+
+
+def test_the_release_check_card_says_what_its_checks_are():
+    """Audit releases-14, spec 7: passing means the internal record is
+    ready, not that a store accepted it."""
+    import rooms
+    line = rooms.EXTRA["release-check"][3]
+    assert "store checks" not in line and "your own release record" in line
+
+
+def test_a_fan_plan_is_told_what_a_release_needs_not_handed_a_402():
+    """Audit releases-20: the builder is an Artist page. A Fan plan got the
+    door and a 402 behind it; it gets the line and the memberships link."""
+    c, uid = _account()
+    store.set_user_plan(uid, "fan")
+    assert c.get("/links/new").status_code == 402, "the door a Fan plan must not be shown"
+    body = _body(c.get("/room/releases").get_data(as_text=True))
+    assert _doors(body) == [] and rl.ZERO_PROJECT["tier"] in body and 'href="/billing"' in body

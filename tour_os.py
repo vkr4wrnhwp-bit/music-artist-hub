@@ -1323,6 +1323,22 @@ def _is_demo(user):
     return demo_accounts.is_demo_email((user or {}).get("email"))
 
 
+# The session key a refused one-off show's typed fields ride back in.
+ONE_OFF_DRAFT = "one_off_draft"
+
+
+def _real_day(value):
+    """True for a YYYY-MM-DD string that is a real calendar day."""
+    value = (value or "").strip()
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+        return False
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
 def _safe_back(value):
     """A same-site path a door handed us to return to, or ''."""
     value = (value or "").strip()
@@ -1356,7 +1372,19 @@ def create():
     own_act = artist_identity.display_name(user)
     if one_off:
         # A one-off show is a tour of one date, its single show made now.
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", f.get("date") or ""):
+        # The date must be a real calendar day: the pattern alone let
+        # 2026-02-30 and 2026-13-45 through as shows (audit stage-12).
+        if not _real_day(f.get("date")):
+            back = _safe_back(f.get("returnTo"))
+            if back:
+                # A door that said where it came from gets the person back
+                # there with what they typed kept, and the reason (audit
+                # stage-11): the draft rides in the session, never the URL.
+                session[ONE_OFF_DRAFT] = {k: (f.get(k) or "").strip()[:120]
+                                          for k in ("name", "date", "venue", "city")}
+                path, _, frag = back.partition("#")
+                return redirect(path + ("&" if "?" in path else "?") + "show_error=date"
+                                + "#" + (frag or "sg-z-show"))
             return redirect("/tours?one_off=date")
         venue = (f.get("venue") or "").strip() or "TBA"
         # The Stage room's first-show form (2026-09-23) offers an event

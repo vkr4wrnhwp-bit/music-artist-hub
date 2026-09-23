@@ -174,7 +174,7 @@ EXTRA = {
     "tax": ("/statements?view=tax", "M6 3h8a1 1 0 011 1v13l-2-1.5L11 17l-2-1.5L7 17l-2-1.5V4a1 1 0 011-1z|M8 7h4M8 10h4", "Tax", "Your statement income filed by tax year.", "statements"),
     "track-passports": ("/catalog?view=passports", "M4 3h12v14H4z|M7 7h6|M7 10h6|M7 13h3|M13 13h.01", "Track Passports", "One page per recording: codes, splits, credits.", "catalog"),
     "release-calendar": ("/releases/autopilot?view=calendar", "M3 5h14v12H3z|M3 9h14|M7 3v4M13 3v4|M7 12h2M11 12h2", "Release Calendar", "Every scheduled drop on one calendar.", "autopilot"),
-    "release-check": ("/releases/autopilot?view=ready", "M4 10l4 4 8-8", "Release check", "The store checks before a release goes out.", "autopilot"),
+    "release-check": ("/releases/autopilot?view=ready", "M4 10l4 4 8-8", "Release check", "Twelve checks on your own release record before it goes out.", "autopilot"),
     "distribution": ("/distribution", "M3 10h14|M10 3v14|M5 5l10 10|M15 5L5 15", "Distribution", "How your releases reach the stores today.", None),
     # The three folded press pages. They are in NO room from 2026-09-21:
     # the Marketing room's screen closes with one Press Desk tile, and the

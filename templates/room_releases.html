@@ -2,8 +2,8 @@
 
 {% block title %}Releases{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/releases-room.css?v=6">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=10">
+  <link rel="stylesheet" href="/static/css/releases-room.css?v=7">
   {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
       page from zero and the working room alike; its rules live with it -#}
   <link rel="stylesheet" href="/static/css/command-zero.css?v=4">
@@ -94,8 +94,9 @@
           {#- the one door on the page from zero: the builder on a release,
               carrying the way back; absent for a seat that may not create one -#}
           {% if rr.zero.project.can == True %}<a class="rk-cta" href="{{ rr.zero.door }}">{{ icon("plus-circle", "rk-ico") }}Create your first release</a>{% endif %}
-          {% elif rr.can_add == "locked" %}
-          {#- a read-only account is offered no write door -#}
+          {% elif rr.can_add != True %}
+          {#- a read-only account, a seat that cannot open the builder and a
+              plan without it are offered no write door (audit releases-1) -#}
           {% elif rr.sample %}
           {#- the example has no record to edit: the real builder -#}
           <a class="rk-cta" href="{{ rr.door }}">{{ icon("plus-circle", "rk-ico") }}Create a release</a>
@@ -136,17 +137,25 @@
         </div>
         {%- if z.project.can == True %}
         <a class="rl-z-btn" href="{{ z.door }}">{{ icon("plus-circle") }}{{ z.project.cta }}</a>
-        {#- the spec's second action opens the first-save list in place -#}
-        <details class="rl-z-need" id="rl-z-need">
-          <summary>{{ z.project.need }}{{ icon("arrow") }}</summary>
-          <ul>{% for item in z.first_save %}<li>{{ item }}</li>{% endfor %}</ul>
-          <p>Masters, artwork, UPC, ISRCs, a target date, a distributor, territories and campaign details can all come later.</p>
-        </details>
         {%- elif z.project.can == "locked" %}
         <p class="rl-z-note">{{ z.project.readonly }}</p>
+        {%- elif z.project.can == "tier" %}
+        <p class="rl-z-note">{{ z.project.tier }} <a href="/billing">See memberships</a></p>
         {%- else %}
         <p class="rl-z-note">{{ z.project.locked }}</p>
         {%- endif %}
+        {#- The spec's second action opens the first-save list in place. It
+            is information, so every viewer gets it and the "Release
+            requirements" link always has its target (audit releases-7).
+            The target is the list INSIDE the fold, so following the link
+            opens it (a browser reveals a closed details for a fragment
+            within it, never for the details itself; audit releases-8), and
+            the script below opens it where that is not supported. -#}
+        <details class="rl-z-need">
+          <summary>{{ z.project.need }}{{ icon("arrow") }}</summary>
+          <ul id="rl-z-need">{% for item in z.first_save %}<li>{{ item }}</li>{% endfor %}</ul>
+          <p>Masters, artwork, UPC, ISRCs, a target date, a distributor, territories and campaign details can all come later.</p>
+        </details>
       </div>
       {# ---- what Releases will organize: four areas, each a door --------- #}
       <section class="rk-panel rl-z-lens-panel" aria-labelledby="rl-z-lenses-h">
@@ -209,7 +218,10 @@
       <p class="rl-z-p">{{ z.help[1] }}</p>
     </div>
     <div class="rl-z-help-acts">
-      <a class="rl-z-more" href="/contact">Ask Street Banker{{ icon("arrow") }}</a>
+      {#- The corner Ask box is on every page; this opens it (audit
+          releases-13, the Command Center's button). With scripts off the
+          link goes to Contact, which is a person. -#}
+      <a class="rl-z-more" href="/contact" id="rl-z-ask">Ask Street Banker{{ icon("arrow") }}</a>
     </div>
   </section>
 
@@ -498,4 +510,34 @@
   {% endif %}
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+{%- if rr.idle %}
+<script>
+(function () {
+  // The corner Ask box (partials/support_ask.html) keeps its panel hidden
+  // behind #sbq-open; open it first, then put the caret in the question.
+  var a = document.getElementById("rl-z-ask");
+  var open = document.getElementById("sbq-open");
+  var q = document.getElementById("sbq-q");
+  if (a && open && q) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (open.getAttribute("aria-expanded") !== "true") open.click();
+      q.focus();
+    });
+  }
+  // "Release requirements" lands on the list inside the fold: open it.
+  function reveal() {
+    if (location.hash !== "#rl-z-need") return;
+    var list = document.getElementById("rl-z-need");
+    var fold = list && list.closest("details");
+    if (fold && !fold.open) { fold.open = true; list.scrollIntoView({block: "center"}); }
+  }
+  window.addEventListener("hashchange", reveal);
+  reveal();
+})();
+</script>
+{%- endif %}
 {% endblock %}

@@ -4445,6 +4445,20 @@ def create_app():
                                        **build_dashboard_context())
             cid = mls.create_campaign(user["id"], _ml_slug(fields["title"]), fields)
             mls.set_destinations(cid, _ml_form_destinations())
+            # A door that said where it came from (?returnTo=, same-site
+            # only) gets the person back there, carrying ?from= so that
+            # room can say what was made - the line is still decided by the
+            # saved record. The builder form posts to its own address, so
+            # both arrive here. Without it the release door ended on the
+            # edit page, whose only way back led to Marketing (audit
+            # releases-2).
+            back = _safe_next(request.args.get("returnTo"), "")
+            if back:
+                head, _, frag = back.partition("#")
+                came = (request.args.get("from") or "").strip()
+                if came:
+                    head += ("&" if "?" in head else "?") + "from=" + urllib.parse.quote(came[:60])
+                return redirect(head + (("#" + frag) if frag else ""))
             return redirect("/links/%s/edit" % cid)
         return render_template("links_builder.html", active_page="links",
                                c=None, destinations=[], engine=links_engine,
@@ -5084,21 +5098,28 @@ def create_app():
             tours = [t for t in ts.list_tours(user["id"]) if t["id"] not in mock]
             shows = [s for s in store.list_tour_shows(user["id"])
                      if (s.get("tour_id") or "") not in mock]
+            # The version a show could be advanced against. NULL until a
+            # first publish, and that absence is drawn as "Never published"
+            # rather than as a version 0 nobody issued. Read inside the
+            # same try: a failure here was a bare 500 (audit stage-4).
+            version = None
+            for head in passports:
+                if head.get("current_version_id"):
+                    got = passport_store.current_version(head["id"], user["id"])
+                    if got:
+                        version = got.get("number")
+                        break
         except Exception as exc:
             app.logger.error("stage room: state unreadable: %s", exc)
+            # The Command Center door only for a reader who can open it: a
+            # seat without the whole account is sent from there straight
+            # back into this failing room (audit stage-9).
+            seat = current_team_seat()
             return render_template("room_stage_error.html", active_page="room-stage",
-                                   room=room, **build_dashboard_context()), 503
-
-        # The version a show could be advanced against. NULL until a first
-        # publish, and that absence is drawn as "Never published" rather
-        # than as a version 0 nobody issued.
-        version = None
-        for head in passports:
-            if head.get("current_version_id"):
-                got = passport_store.current_version(head["id"], user["id"])
-                if got:
-                    version = got.get("number")
-                    break
+                                   room=room,
+                                   back_home=(seat is None or team_areas.allows(
+                                       seat["areas"], "/command-center")),
+                                   **build_dashboard_context()), 503
 
         # The demo account is the showcase and never the page from zero
         # (owner's ruling; _marketing_room's pattern). Where it has no light
@@ -5144,7 +5165,11 @@ def create_app():
         # A locked demo gets the same read-only drawing.
         editable = not locked
         if editable and seat is not None:
-            editable = team_areas.allows(seat["areas"], "/stage-plot")
+            # A read seat's save is refused by the team gate (403), so it is
+            # drawn the plot without the controls, never handed a Save that
+            # fails (found writing the seat tests for audit stage-18).
+            editable = (seat.get("access") == "edit"
+                        and team_areas.allows(seat["areas"], "/stage-plot"))
         return render_template("room_stage.html", active_page="room-stage",
                                room=room, sg=sg,
                                saved_plot=(json.dumps(plot_state) if plot_state else "null"),
@@ -5153,7 +5178,14 @@ def create_app():
                                sg_show=(json.dumps(show) if show else "null"),
                                # The sentence the show door carries back
                                # (?from=show), decided by the SAVED show.
-                               done_line=stage_room.done_line(request.args.get("from"), len(shows)),
+                               done_line=stage_room.done_line(request.args.get("from"), shows),
+                               # A first show the Tour desk refused (a date
+                               # that is not a real day) comes back here with
+                               # what was typed, from the session, and the
+                               # reason (audit stage-11).
+                               show_error=(request.args.get("show_error") == "date"),
+                               show_draft=(session.pop(tour_os.ONE_OFF_DRAFT, None)
+                                           if request.args.get("show_error") else None) or {},
                                **build_dashboard_context())
 
     def _analytics_room(user, room):
@@ -5290,7 +5322,13 @@ def create_app():
         # "none at all" on their own, which read as a fresh account.
         try:
             campaigns = _campaign_picker(user)
-            wanted = request.args.get("campaign") or (campaigns[0]["id"] if campaigns else None)
+            # A release IS a campaign row of type "release": a Fan Hub or a
+            # Pre-save alone neither ends the page from zero nor says a
+            # release was created (audit releases-3). The chooser still
+            # lists every campaign, and opens on a release when there is one.
+            releases = releases_room.releases_of(campaigns)
+            first = (releases or campaigns or [None])[0]
+            wanted = request.args.get("campaign") or (first["id"] if first else None)
             campaign = mls.get_campaign(wanted, user["id"]) if wanted else None
             rollouts = ros.list_campaigns(user["id"])
         except Exception as exc:
@@ -5302,7 +5340,7 @@ def create_app():
         # (owner's ruling; _marketing_room's pattern). With no release and
         # no rollout of its own it is shown releases_room.showcase(), marked
         # Sample data; what it really made is shown instead, unmarked.
-        sample = showcase and not campaigns and not rollouts
+        sample = showcase and not releases and not rollouts
         example = (releases_room.showcase(datetime.now(timezone.utc).date(),
                                           artist_identity.display_name(user))
                    if sample else None)
@@ -5345,12 +5383,31 @@ def create_app():
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         # rooms.build gives each card as (key, href, icon, label, desc, state).
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        # Track Passports is the Publishing room's card, lent to this
+        # room's drawer from zero (spec section 4; audit releases-11) with
+        # the same owner, hidden and demo rules rooms.build applies.
+        lent = rooms.get_room("publishing", user.get("plan") or "artist",
+                              bool(_is_owner_email(user.get("email"))),
+                              bool(_demo_locked_account()))
+        for c in (lent or {}).get("cards") or ():
+            if c[0] == "track-passports":
+                cards.setdefault(c[0], c[1:])
         # Who may create the first release: the account holder, or an edit
-        # seat. An account under the read-only demo lock is offered no write
-        # door: the builder would only bounce at the lock.
-        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
+        # seat that can open the builder - /links is the Marketing room's
+        # page, so a Releases-only seat was handed a door that bounced
+        # (audit releases-1) - on a plan that includes it (a Fan plan was
+        # handed a door that answers 402, releases-20). An account under
+        # the read-only demo lock is offered no write door: the builder
+        # would only bounce at the lock.
+        can_add = True
         if _demo_locked_account():
             can_add = "locked"
+        elif seat is not None and (seat.get("access") != "edit"
+                                   or not team_areas.allows(seat["areas"], "/links/new")):
+            can_add = "seat"
+        elif not plans.allowed(user.get("plan") or "artist",
+                               plans.required_tier("/links/new") or "artist"):
+            can_add = "tier"
         rr = releases_room.build(
             campaign, checks, groups, days_left, release_date, drops, calendar,
             # the example has no record to choose between
@@ -5358,7 +5415,7 @@ def create_app():
             can_open=can_open,
             artist_name=artist_identity.display_name(user),
             show=request.args.get("show") or "all",
-            zero=(not showcase) and releases_room.new_account(campaigns, drops),
+            zero=(not showcase) and releases_room.new_account(releases, drops),
             can_add=can_add)
         return render_template("room_releases.html", active_page="room-releases",
                                room=room, rr=rr,
@@ -5366,7 +5423,7 @@ def create_app():
                                # (?from=releases-zero-state), decided by the
                                # SAVED release.
                                done_line=releases_room.done_line(
-                                   request.args.get("from"), len(campaigns or ())),
+                                   request.args.get("from"), len(releases)),
                                **build_dashboard_context())
 
     def _release_drops(user, rollouts=None):
