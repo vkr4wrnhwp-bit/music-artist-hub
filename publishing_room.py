@@ -343,6 +343,23 @@ def plate_windows(rows):
     return [dict(by[k], box=box(k)) for k in ("works", "uncollected") if k in by]
 
 
+def rack_screens(rows):
+    """The working room's three screens on the rooms' shared plate (owner,
+    2026-09-23: every room on the shorter three-window plate): works on
+    file, uncollected, share claimed - the three headline figures, each
+    named, an absence in words, never a nought."""
+    by = {r["key"]: r for r in rows or ()}
+    out = []
+    for key in ("works", "uncollected", "share"):
+        r = by.get(key)
+        if not r:
+            continue
+        measured = r["value"] != "Not measured"
+        out.append({"k": r["label"], "v": r["value"], "sub": r.get("sub") or "",
+                    "fig": measured, "none": not measured})
+    return out
+
+
 def claimed_bar(rows):
     """The share-claimed strip: the figure, and how full the bar is.
 
@@ -471,6 +488,7 @@ def build(tracks, statement_rows, conflicts, selected, cards,
         # The plate: the two big readings, and the claimed-share strip.
         "windows": plate_windows(headline(tracks, rows)),
         "claimed": claimed_bar(headline(tracks, rows)),
+        "screens": rack_screens(headline(tracks, rows)),
         # No song on file: the page from zero. One song and the plate
         # takes over untouched.
         "idle": bool(zero),

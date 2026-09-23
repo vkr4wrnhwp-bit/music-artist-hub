@@ -4,11 +4,9 @@
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
   <link rel="stylesheet" href="/static/css/publishing-room.css?v=6">
-  {%- if pb.idle %}
-  {#- the page from zero draws the Command Center's three-screen plate
-      (partials/cc_rack.html); the plate's rules live with that page -#}
-  <link rel="stylesheet" href="/static/css/command-zero.css?v=2">
-  {%- endif %}
+  {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
+      page from zero and the working room alike; its rules live with it -#}
+  <link rel="stylesheet" href="/static/css/command-zero.css?v=3">
 {% endblock %}
 
 {#- THE PUBLISHING ROOM - the room's opening screen, built from the owner's
@@ -219,47 +217,13 @@
   </details>
   {% endif %}
   {% else %}
-  {# ---- the plate: one photograph, three windows -----------------------
-       The hardware is a photograph (static/img/publishing-plate.webp) and
-       only the readings are drawn on it, positioned as fractions held in
-       publishing_room.PLATE. The plate silkscreens WORKS ON FILE,
-       UNCOLLECTED and THE SPLIT, so the markup carries those names for a
-       screen reader alone. #}
-  <section class="rk-pl pb-pl" aria-label="Where your publishing stands">
-    <img class="rk-pl-img" src="/static/img/publishing-plate.webp?v=1" alt=""
-         width="1859" height="846" decoding="async">
-
-    {% for w in pb.windows %}
-    <div class="rk-pl-win" style="{{ w.box }}">
-      <p class="rk-pl-sr">{{ w.label }}</p>
-      {% if w.value != "Not measured" %}<p class="rk-pl-n{% if w.key == "uncollected" and w.value != "0" %} pb-pl-warn{% endif %}">{{ w.value }}</p>
-      {% else %}{#- Nothing measured here, so the window fills with a reel rather than
-          a line of words (owner, 2026-09-22); the small line beneath still
-          says what is missing. -#}
-      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in pb.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(pb.standby.fill[0], "rk-reel-ico") }}</span></span>
-      <p class="rk-pl-s">{{ w.value }}</p>{% endif %}
-      {% if w.sub %}<p class="rk-pl-s">{{ w.sub }}</p>{% endif %}
-    </div>
-    {% endfor %}
-
-    {# the ledger strip: how much of the collection share is claimed #}
-    <div class="rk-pl-win pb-pl-split" style="{{ pb.claimed.box }}">
-      <p class="rk-pl-sr">The split</p>
-      {% if pb.claimed.measured %}
-      {#- The bar is drawn ONLY when a registry has answered. An empty bar
-          would read as "you have claimed nothing" when the truth is that
-          nobody has asked one yet. -#}
-      <div class="pb-bar" role="img"
-           aria-label="{{ pb.claimed.value }} of the collection share claimed">
-        <span style="width: {{ pb.claimed.fill }}%"></span>
-      </div>
-      {% endif %}
-      <p class="pb-bar-line">
-        <b class="{% if not pb.claimed.measured %}is-none{% endif %}">{{ pb.claimed.value }}</b>
-        <span>{{ pb.claimed.sub }}</span>
-      </p>
-    </div>
-  </section>
+  {# ---- the plate ------------------------------------------------------ #}
+  {#- The working room on the rooms' shared three-window plate (owner,
+      2026-09-23): works on file, uncollected, share claimed. The plate
+      prints no names, so each screen says what it is. -#}
+  {% with screens=pb.screens, rack_label="Where your publishing stands" %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
   <p class="rk-foot pb-pl-foot">A figure a registry has not answered about reads
     Not measured, never 0. Nothing here says a registration was accepted or a
     society paid &mdash; only what a registry answered, and when.</p>

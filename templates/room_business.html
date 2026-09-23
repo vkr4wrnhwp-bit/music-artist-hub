@@ -4,11 +4,9 @@
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
   <link rel="stylesheet" href="/static/css/business-room.css?v=4">
-  {%- if bz.idle %}
-  {#- the page from zero draws the Command Center's three-screen plate
-      (partials/cc_rack.html); the plate's rules live with that page -#}
-  <link rel="stylesheet" href="/static/css/command-zero.css?v=2">
-  {%- endif %}
+  {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
+      page from zero and the working room alike -#}
+  <link rel="stylesheet" href="/static/css/command-zero.css?v=3">
 {% endblock %}
 
 {#- THE BUSINESS ROOM - the owner's mockup, 2026-09-22. Eighteen cards
@@ -219,63 +217,12 @@
   </details>
   {% endif %}
   {% else %}
-  {# ---- the analyser: one photograph, three windows, never summed ------- #}
-  <section class="bz-unit{% if not bz.measured %} is-idle{% endif %}"
-           aria-label="{% if bz.measured %}What was reported, what is not collected, and what was kept{% else %}The business analyser, with no statements yet{% endif %}">
-    {#- The ?v is not decoration: an image replaced in place is kept by every
-        browser that already has it, while the stylesheet beside it refetches.
-        Studio lost an afternoon to exactly that. -#}
-    <img class="bz-plate" src="/static/img/business-plate.webp?v=1" alt=""
-         width="1672" height="757" decoding="async">
-
-    {% for w in bz.windows %}
-    <div class="bz-win bz-win--{{ w.key }}">
-      {#- The plate prints this name under the window. It is here for a
-          screen reader, and for the narrow layout where the photograph
-          steps aside and the readings stand on their own. -#}
-      <p class="bz-sr">{{ w.label }}</p>
-      {% if w.split %}
-      {#- TWO readings, side by side, each named. They are never added: one
-          is a measurement and one is an estimate, and a figure that merged
-          them would be the thing this room exists to refuse. -#}
-      <div class="bz-split">
-        {% for part in w.split %}
-        <div class="bz-part">
-          {#- ACTUAL and ESTIMATE are printed on the plate inside these two
-              panes, so printing them again here would say it twice. -#}
-          {#- No "(estimate)" appended: the label IS "Estimated missing",
-              and on a phone - where this label is visible because the
-              plate is not - the parenthetical read "ESTIMATED MISSING
-              (ESTIMATE)". -#}
-          <p class="bz-sr">{{ part.label }}</p>
-          {% if part.figure.measured %}<p class="bz-fig">{{ part.figure.value }}</p>
-          {% else %}{#- Nothing measured here, so the window fills with a reel rather than
-          a line of words (owner, 2026-09-22); the small line beneath still
-          says what is missing. -#}
-      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in bz.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(bz.standby.fill[0], "rk-reel-ico") }}</span></span>
-          <p class="bz-move bz-move--quiet">{{ part.figure.value }}</p>{% endif %}
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      {% if w.figure.measured %}<p class="bz-fig">{{ w.figure.value }}</p>
-      {% else %}{#- Nothing measured here, so the window fills with a reel rather than
-          a line of words (owner, 2026-09-22); the small line beneath still
-          says what is missing. -#}
-      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in bz.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(bz.standby.fill[0], "rk-reel-ico") }}</span></span>
-      <p class="bz-move bz-move--quiet">{{ w.figure.value }}</p>{% endif %}
-      {% if w.change %}
-      <p class="bz-move {{ "is-up" if w.change.up else "is-down" }}">
-        <span aria-hidden="true">{{ "▲" if w.change.up else "▼" }}</span>{{ w.change.pct }}
-        <span class="bz-move-n">{{ w.note }}</span>
-      </p>
-      {% elif w.note %}
-      <p class="bz-move bz-move--quiet">{{ w.note }}</p>
-      {% endif %}
-      {% endif %}
-    </div>
-    {% endfor %}
-  </section>
+  {#- The working room on the rooms' shared three-window plate (owner,
+      2026-09-23): Reported, Not collected, Kept. Not collected stays two
+      readings and never one: the actual figure, the estimate named under it. -#}
+  {% with screens=bz.screens, rack_label="What was reported, what is not collected, and what was kept" %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
 
   {#- The rule under the plate explains the readings. In standby the
       middle window is already saying it, so this would be the same

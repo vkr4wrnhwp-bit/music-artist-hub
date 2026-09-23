@@ -6,7 +6,11 @@
     on the home page keeps the taller command-plate.webp. Both the page from zero
     (WELCOME / START HERE / PROGRESS) and the operational page (RESUME /
     NEXT ACTION / BLOCKER) render it; only `screens` differs. STATIC - no
-    rotation (owner, 2026-09-22). A screen with an href is a door. -#}
+    rotation (owner, 2026-09-22). A screen with an href is a door.
+    The working rooms put a FIGURE on a screen (owner, 2026-09-23: every
+    room on this plate): sc.fig sets the value as a reading, sc.none sets
+    an absence as words ("Not measured" is never a 0), sc.sub is the one
+    line under it. The plate prints no names, so sc.k says what each is. -#}
 {%- set boxes = [("5.30","22.09","26.83","51.07"), ("35.34","22.09","28.75","51.07"), ("67.31","22.09","27.34","51.07")] %}
 <section class="cz-rack" aria-labelledby="cz-rack-h">
   <h2 id="cz-rack-h" class="sr-only">{{ rack_label or "Where you are" }}</h2>
@@ -15,11 +19,13 @@
     {%- for sc in screens %}{% set b = boxes[loop.index0] %}
     <li class="cz-screen" style="--x:{{ b[0] }}%;--y:{{ b[1] }}%;--w:{{ b[2] }}%;--h:{{ b[3] }}%">
       <span class="cz-screen-k">{{ sc.k }}</span>
+      {%- set vcls = "cz-screen-v" ~ (" cz-screen-v--n" if sc.n else "") ~ (" cz-screen-v--fig" if sc.fig else "") ~ (" cz-screen-v--none" if sc.none else "") %}
       {%- if sc.href %}
-      <a class="cz-screen-v{% if sc.n %} cz-screen-v--n{% endif %}" href="{{ sc.href }}" title="{{ sc.v }}">{{ sc.v }}</a>
+      <a class="{{ vcls }}" href="{{ sc.href }}" title="{{ sc.v }}">{{ sc.v }}</a>
       {%- else %}
-      <span class="cz-screen-v{% if sc.n %} cz-screen-v--n{% endif %}">{{ sc.v }}</span>
+      <span class="{{ vcls }}">{{ sc.v }}</span>
       {%- endif %}
+      {%- if sc.sub %}<span class="cz-screen-s">{{ sc.sub }}</span>{% endif %}
     </li>
     {%- endfor %}
   </ul>

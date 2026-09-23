@@ -318,6 +318,32 @@ def change(now, before):
     return {"pct": "%+.0f%%" % pct, "up": pct >= 0}
 
 
+def rack_screens(wins):
+    """The working room's three screens on the rooms' shared plate (owner,
+    2026-09-23): Reported, Not collected, Kept. Not collected stays TWO
+    readings and never one sum: the actual unattributed figure is the
+    screen's reading and the estimate is named as an estimate on the line
+    under it. An absence is words, never a nought."""
+    out = []
+    for w in wins or ():
+        if w.get("split"):
+            actual, est = w["split"][0]["figure"], w["split"][1]["figure"]
+            out.append({"k": w["label"], "v": actual["value"],
+                        "fig": actual["measured"], "none": not actual["measured"],
+                        "sub": "Actual unattributed · estimated missing %s" % est["value"]
+                               if est["measured"] else "Actual unattributed · no estimate yet"})
+            continue
+        fig = w["figure"]
+        if w.get("change"):
+            sub = "%s %s%s" % ("▲" if w["change"]["up"] else "▼", w["change"]["pct"],
+                               (" · " + w["note"]) if w.get("note") else "")
+        else:
+            sub = w.get("note") or ""
+        out.append({"k": w["label"], "v": fig["value"], "fig": fig["measured"],
+                    "none": not fig["measured"], "sub": sub})
+    return out
+
+
 def windows(reported, prior, actual, estimated, kept, kept_prior,
             note="", kept_note=""):
     """The three, and the middle one is two readings rather than one.
@@ -548,6 +574,8 @@ def build(reported, prior, actual, estimated, kept, kept_prior,
         "bands": bands,
         "windows": windows(reported, prior, actual, estimated, kept,
                            kept_prior, note, kept_note),
+        "screens": rack_screens(windows(reported, prior, actual, estimated, kept,
+                                        kept_prior, note, kept_note)),
         "measured": reported is not None,
         # Nothing on file on any count: the page from zero. One
         # statement, cost, claim or dispute and the analyser takes over
