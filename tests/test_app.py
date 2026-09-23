@@ -6339,3 +6339,54 @@ def test_firstrun_never_shows_for_fan_accounts():
                               "password": "secret1", "account_type": "fan"})
     assert "Start here" not in fan.get("/discover").get_data(as_text=True)
 
+
+def test_the_builder_is_named_after_the_type():
+    """Owner, 2026-09-22. /links/new was titled "New Campaign - Links"
+    while the doors into it said "Create a release" and "Launch fan
+    campaign" - three words for one page. His first call was "Release
+    everywhere"; shown that the page builds TEN kinds of thing and only
+    one is a release, he ruled the title follows the type you pick.
+    """
+    import links_engine as le
+
+    # every type carries a short name, and release is the fallback
+    for key, _name, _avail, short in le.CAMPAIGN_TYPES:
+        assert short and short == le.short_name(key), key
+    assert le.short_name("") == "Release"
+    assert le.short_name("nope") == "Release"
+    assert le.short_name("presave") == "Pre-Save"
+    assert le.short_name("bio") == "Fan Hub"
+
+    body = _demo().get("/links/new").get_data(as_text=True)
+    assert "New Release" in body, "release is the chooser's default"
+    assert "New Campaign" not in body, "the page's own third word is gone"
+    assert "Campaign Type" not in body, "step 1 used the third word too"
+    # the noun the script swaps, and the data it swaps it from
+    assert 'id="sb-kind-h"' in body
+    assert 'data-short="Pre-Save"' in body and 'data-short="Fan Hub"' in body
+
+
+def test_the_fans_room_keeps_its_own_words_and_opens_the_fan_hub():
+    """Owner, same afternoon: "keep the fans button as launch fan
+    campaign", then "add the ?type=bio to the fans link". That room
+    captures fans; it does not ship a record. So the button keeps its
+    own words AND its door opens the builder on the Fan Hub - the page
+    agrees with the door without either changing what it says.
+    """
+    import links_engine as le
+    c = _demo()
+    body = c.get("/room/fans").get_data(as_text=True)
+    assert "Launch fan campaign" in body
+    assert "/links/new?type=bio" in body
+
+    page = c.get("/links/new?type=bio").get_data(as_text=True)
+    assert "New Fan Hub" in page, "the door said which type it was opening"
+    assert "New Release" not in page
+
+    # a door may not open the page on an engine that has not landed, and
+    # nonsense falls back to the chooser's own default
+    assert le.opening_type("merch") == "release", "merch is not buildable yet"
+    assert le.opening_type("nope") == "release"
+    assert le.opening_type("") == "release"
+    assert le.opening_type("presave") == "presave"
+    assert "New Release" in c.get("/links/new?type=merch").get_data(as_text=True)

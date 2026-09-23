@@ -207,3 +207,13 @@
     -webkit-backdrop-filter: none;
   }
 }
+
+
+/* The band headings over the tile grids. Quieter than the section's own
+   h2 - they sort the board, they do not introduce a new section. */
+.bz-band {
+  margin: 22px 0 10px; font-family: var(--sb-display);
+  font-size: 13px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--sb-gold);
+}
+.bz-band:first-of-type { margin-top: 4px; }

@@ -4408,7 +4408,9 @@ def create_app():
             if not fields["title"]:
                 return render_template("links_builder.html", active_page="links",
                                        c=None, destinations=[], engine=links_engine,
-                                       error="A campaign title is required.",
+                                       error="A title is required.",
+                                       opening_type=links_engine.opening_type(
+                                           request.form.get("campaign_type")),
                                        vault_files=store.list_vault_files(user["id"]),
                                        **build_dashboard_context())
             cid = mls.create_campaign(user["id"], _ml_slug(fields["title"]), fields)
@@ -4418,6 +4420,12 @@ def create_app():
                                c=None, destinations=[], engine=links_engine,
                                error=None,
                                vault_files=store.list_vault_files(user["id"]),
+                               # The door may say which of the ten things it
+                               # is opening: /links/new?type=bio from the Fans
+                               # room. Unknown or not-yet-buildable falls back
+                               # to release (links_engine.opening_type).
+                               opening_type=links_engine.opening_type(
+                                   request.args.get("type")),
                                prefill_title=(request.args.get("title") or "")[:80],
                                rack_facts=(request.args.get("rack") or "")[:160],
                                **build_dashboard_context())
@@ -4448,7 +4456,7 @@ def create_app():
                     "links_builder.html", active_page="links",
                     c=campaign, destinations=dests, engine=links_engine,
                     score=links_engine.calculate_street_banker_score(campaign, dests),
-                    error="A campaign title is required.",
+                    error="A title is required.",
                     vault_files=store.list_vault_files(campaign["user_id"]),
                     eff_status=links_engine.effective_status(campaign),
                     **build_dashboard_context())

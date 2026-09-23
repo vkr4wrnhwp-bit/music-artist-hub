@@ -72,7 +72,12 @@
             turned away from this room's own gold pill. It is offered the
             fan list instead (audit, 2026-09-22). -#}
         {% if fr.can_capture %}
-        <a class="fr-cta" href="/links/new">{{ icon("rocket", "fr-ico") }}Launch fan campaign</a>
+        {#- ?type=bio: this room captures fans, so its door opens the
+            builder on the Fan Hub rather than on a release (owner,
+            2026-09-22). The button keeps its own words - "keep the fans
+            button as launch fan campaign" - and the page now agrees with
+            it, because the page is named after what you are building. -#}
+        <a class="fr-cta" href="/links/new?type=bio">{{ icon("rocket", "fr-ico") }}Launch fan campaign</a>
         {% else %}
         <a class="fr-cta" href="/links/fans">{{ icon("rocket", "fr-ico") }}Open the fan list</a>
         {% endif %}

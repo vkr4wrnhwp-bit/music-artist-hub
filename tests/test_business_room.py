@@ -485,3 +485,35 @@ def test_the_plate_fractions_agree_between_the_module_and_the_sheet():
         assert (x, y, w, h) == (var(x_var), top, var(w_var), height), (
             "%s: module says %s, the sheet says %s"
             % (key, (x, y, w, h), (var(x_var), top, var(w_var), height)))
+
+
+def test_the_board_is_three_bands():
+    """Owner, 2026-09-22: "group, do not delete." Sixteen tiles against
+    three to six in every other room, and four of them - Recovery,
+    Claims, Missing money, Disputes - are one job. Nothing moved and
+    nothing went; the board just says which job each door belongs to.
+    """
+    out = bz.build(None, None, None, None, None, None, {}, [], [], [],
+                   _CARDS)
+    titles = [b["title"] for b in out["bands"]]
+    assert titles == ["The money you have", "The money you're owed",
+                      "The paperwork and the people"], titles
+
+    # the four that are one job are in one band, and it is theirs alone
+    owed = [t["key"] for t in out["bands"][1]["tiles"]]
+    assert owed == ["recovery", "cases", "money-queue", "disputes"], owed
+
+    # every tile still drawn, exactly once, and `tiles` still flat
+    banded = [t["key"] for b in out["bands"] for t in b["tiles"]]
+    assert banded == [t["key"] for t in out["tiles"]]
+    assert len(banded) == len(set(banded)), "a tile drawn twice"
+
+
+def test_an_empty_band_is_not_drawn():
+    """A Label-only card or a seat's gate can empty a band, and a heading
+    over nothing is worse than no heading."""
+    only_money = {k: v for k, v in _CARDS.items()
+                  if k in ("royalties", "statements")}
+    out = bz.build(None, None, None, None, None, None, {}, [], [], [],
+                   only_money)
+    assert [b["title"] for b in out["bands"]] == ["The money you have"]

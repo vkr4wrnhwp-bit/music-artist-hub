@@ -242,3 +242,17 @@ def test_the_room_reads_nothing_live_from_a_provider(monkeypatch):
     c, _uid = _account()
     assert c.get("/room/analytics").status_code == 200
     assert called == [], "the room screen called a provider"
+
+
+def test_uncollected_insight_opens_the_publishing_room():
+    """Owner, 2026-09-22. "See what's missing" pointed at /publishing,
+    which redirects to /royalties#streams - the very page the "Income
+    breakdown" insight beside it already opens. Two promises, one page.
+    It opens the Publishing ROOM now, whose plate reads MONEY GOING
+    UNCOLLECTED."""
+    import io as _io
+    src = _io.open("insights_engine.py", encoding="utf-8").read()
+    i = src.index("See what's missing")
+    near = src[max(0, i - 400):i]
+    assert '"/room/publishing"' in near, near[-160:]
+    assert '"/publishing"' not in near, "still the redirect, not the room"

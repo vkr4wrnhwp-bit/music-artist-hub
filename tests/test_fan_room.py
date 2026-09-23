@@ -55,7 +55,12 @@ def test_an_empty_account_is_told_how_to_start_not_shown_a_crowd():
     # behind the words (owner, 2026-09-22) - the way in is the hero's own
     # pill, which is back on the empty account now nothing duplicates it.
     assert "rk-cine-door" not in body and "rk-cine-art" not in body
-    assert 'class="fr-cta" href="/links/new"' in body
+    # ?type=bio since 2026-09-22 (owner: "add the ?type=bio to the fans
+    # link"). The button keeps its own words - "keep the fans button as
+    # launch fan campaign" - and its door opens the builder on the Fan
+    # Hub rather than on a release, so page and door finally agree.
+    assert 'class="fr-cta" href="/links/new?type=bio"' in body
+    assert "Launch fan campaign" in body
     assert body.count("rk-reel-ico") >= 5, "the reel rolls through icons"
     assert body.count('class="rk-tip"') >= 3, "the hint changes"
     assert body.count("rk-tick-i") >= 5, "the ticker names the features"

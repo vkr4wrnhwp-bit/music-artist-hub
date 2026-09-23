@@ -76,10 +76,22 @@ STEPS = (
 # halves on one page - and that is a change to those pages, not to this
 # list. Roster, Portal and Services stay for the same reason: a grep for
 # their hrefs finds no other door in the rooms layout.
-TILES = ("royalties", "statements", "tax", "recovery", "cases", "disputes",
-         "money-queue", "revenue-os", "valuation", "hours", "deals",
-         "deal-simulator", "vault", "contracts", "team", "roster", "portal",
-         "services")
+# THREE BANDS, not one wall (owner, 2026-09-22: "group, do not delete").
+# Sixteen tiles on a pro account, against three to six in every other
+# room, and four of them - Recovery, Claims, Missing money, Disputes -
+# are the same job. Nothing moved and nothing was deleted; the board
+# just says which of this room's three jobs each door belongs to.
+BANDS = (
+    ("The money you have",
+     ("royalties", "statements", "tax", "revenue-os", "valuation")),
+    ("The money you're owed",
+     ("recovery", "cases", "money-queue", "disputes")),
+    ("The paperwork and the people",
+     ("vault", "contracts", "deals", "deal-simulator", "hours", "team",
+      "portal", "roster", "services")),
+)
+# The flat order, still, for everything that reads the board as a list.
+TILES = tuple(k for _title, keys in BANDS for k in keys)
 
 # What the tile is called when its card's own label is about the archive
 # rather than the paperwork this room exists for.
@@ -427,22 +439,31 @@ def build(reported, prior, actual, estimated, kept, kept_prior,
           artist_name="", sample=False, can_open=None, note="",
           kept_note=""):
     """Everything the screen renders. No page logic beyond this."""
-    tiles = []
-    for key in TILES:
+    def _tile(key):
         card = (cards or {}).get(key)
         if not card:
-            continue
+            return None
         href = card[0]
         if can_open and not can_open(href):
-            continue
+            return None
         name, line = card[2], card[3]
         if key in RENAMED:
             name, line = RENAMED[key]
-        tiles.append({"key": key, "href": href, "icon": card[1],
-                      "name": name, "line": line})
+        return {"key": key, "href": href, "icon": card[1],
+                "name": name, "line": line}
+
+    # A band with nothing in it is not drawn - a Label-only card or a
+    # seat's gate can empty one.
+    bands, tiles = [], []
+    for title, keys in BANDS:
+        got = [t for t in (_tile(k) for k in keys) if t]
+        if got:
+            bands.append({"title": title, "tiles": got})
+            tiles.extend(got)
 
     return {
         "artist_name": artist_name or "",
+        "bands": bands,
         "windows": windows(reported, prior, actual, estimated, kept,
                            kept_prior, note, kept_note),
         "measured": reported is not None,

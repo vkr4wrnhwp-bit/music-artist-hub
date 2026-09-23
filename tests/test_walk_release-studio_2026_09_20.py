@@ -186,7 +186,9 @@ def test_editing_refuses_an_empty_title_the_way_creating_does():
     r = client.post("/links/%s/edit" % cid,
                     data={"title": "", "artist_name": "Walk Artist"})
     assert r.status_code == 200
-    assert "A campaign title is required." in r.get_data(as_text=True)
+    # "A title is required." since 2026-09-22: the page is named after
+    # the type you picked, so it no longer has a word of its own.
+    assert "A title is required." in r.get_data(as_text=True)
     assert mls.get_campaign(cid)["title"] == "Walk Track One"
 
 

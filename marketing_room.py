@@ -95,7 +95,10 @@ ACTIONS = [
     ("no_link", "link", "Rollout with no smart link connected",
      "Post attribution needs a Street Banker link. Connect ours to see which"
      " post did the work, or keep the service you already use.",
-     "rollout", "rollouts", "Add link", "/rollout-studio"),
+     # "Connect a link", not "Add link": the finding is a rollout with
+     # no link CONNECTED, and "Add" read as "make me a new smart link"
+     # (owner, 2026-09-22).
+     "rollout", "rollouts", "Connect a link", "/rollout-studio"),
     ("no_quote", "quote", "Coverage with no quote",
      "These coverage items do not have a quote pulled out yet.",
      "item", "items", "Add quote", "/press-desk/coverage"),

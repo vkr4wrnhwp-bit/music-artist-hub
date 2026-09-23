@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}{{ 'Edit Campaign' if c else 'New Campaign' }} - Links{% endblock %}
+{#- sb_type/sb_kind are set INSIDE each block that needs them. A
+    top-level {% set %} in a child template does not reliably reach into
+    a block, and a silently-empty heading is exactly the kind of bug this
+    change exists to remove. -#}
+{% block title %}{%- set sb_kind = engine.short_name(c.campaign_type if c else (opening_type|default("release"))) -%}{{ ('Edit ' if c else 'New ') ~ sb_kind }} - Links{% endblock %}
 
 {% set s = (c.settings if c else {}) or {} %}
 {% set dest_map = {} %}
@@ -12,7 +16,13 @@
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
       <div class="sb-label text-sb-gold">Street Banker Links</div>
-      <h1 class="sb-h1 mt-1">{{ 'Edit Campaign' if c else 'New Campaign' }}</h1>
+      {#- The page is named after the TYPE you picked, not after a word of
+          its own: ten kinds of thing are built here and only one is a
+          release (owner, 2026-09-22). data-verb keeps the Edit/New half
+          while the script swaps the noun. -#}
+      {%- set sb_type = c.campaign_type if c else (opening_type|default("release")) -%}
+      {%- set sb_kind = engine.short_name(sb_type) -%}
+      <h1 class="sb-h1 mt-1" id="sb-kind-h" data-verb="{{ 'Edit' if c else 'New' }}">{{ ('Edit ' if c else 'New ') ~ sb_kind }}</h1>
       {% if c %}<p class="mt-1 text-sm text-gray-300">Public URL: <a href="/l/{{ c.slug }}" target="_blank" class="font-semibold text-sb-gold-bright hover:underline">/l/{{ c.slug }}</a> · Status: <span class="font-semibold text-gray-200">{{ eff_status }}</span></p>{% endif %}
     </div>
     <a href="/links" class="sb-btn sb-btn-secondary">← All campaigns</a>
@@ -52,11 +62,11 @@
   <form method="post" enctype="multipart/form-data" class="space-y-5">
     <!-- Step 1: campaign type -->
     <section class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
-      <h2 class="sb-label text-gray-300">1 · Campaign Type</h2>
+      <h2 class="sb-label text-gray-300">1 · Type</h2>
       <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {% for key, name, available in engine.CAMPAIGN_TYPES %}
+        {% for key, name, available, short in engine.CAMPAIGN_TYPES %}
         <label class="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold {{ 'border-white/10 bg-white/5 text-gray-200' if available else 'border-white/5 text-gray-300' }}">
-          <input type="radio" name="campaign_type" value="{{ key }}" class="accent-sb-gold" {{ 'checked' if (c and c.campaign_type == key) or (not c and key == 'release') }} {{ '' if available else 'disabled' }}>
+          <input type="radio" name="campaign_type" value="{{ key }}" data-short="{{ short }}" class="accent-sb-gold" {{ 'checked' if key == sb_type }} {{ '' if available else 'disabled' }}>
           {{ name }}{% if not available %}<span class="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-xs uppercase text-gray-300 font-medium">Soon</span>{% endif %}
         </label>
         {% endfor %}
@@ -68,7 +78,7 @@
       <h2 class="sb-label text-gray-300">2 · Release Details</h2>
       {% set field = 'mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none' %}
       <div class="mt-3 grid gap-3 sm:grid-cols-2">
-        <div><label class="sb-label text-gray-300">Campaign / release title *</label>
+        <div><label class="sb-label text-gray-300">Title *</label>
           {% if rack_facts %}<div class="mb-2 rounded-lg border border-sb-gold/40 bg-sb-surface-2 px-3 py-2 text-xs text-sb-gold-bright font-medium">From The Rack: {{ rack_facts }}</div>{% endif %}
           <input aria-label="Midnight Drive" name="title" required value="{{ c.title if c else (prefill_title or '') }}" placeholder="Midnight Drive" class="{{ field }}"></div>
         <div><label class="sb-label text-gray-300">Artist name</label>
@@ -155,7 +165,7 @@
     </section>
 
     <div class="flex flex-wrap items-center gap-2">
-      <button type="submit" class="rounded-lg bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep px-6 py-2.5 text-sm font-bold text-sb-on-gold shadow-[0_4px_18px_rgba(216,178,90,0.3)] hover:scale-[1.02]">{{ 'Save Changes' if c else 'Create Campaign' }}</button>
+      <button type="submit" class="rounded-lg bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep px-6 py-2.5 text-sm font-bold text-sb-on-gold shadow-[0_4px_18px_rgba(216,178,90,0.3)] hover:scale-[1.02]">{{ 'Save Changes' if c else 'Create ' ~ sb_kind }}</button>
       {% if c %}
       <a href="/l/{{ c.slug }}" target="_blank" class="sb-btn sb-btn-secondary">Preview</a>
       {% endif %}
@@ -260,5 +270,24 @@
     const f = document.getElementById("pv-frame");
     f.src = f.src.split("#")[0];
   });
+
+/* The heading follows the type (owner, 2026-09-22). Nine of the ten
+   things this page builds are not releases, so it names itself after
+   whichever one is selected rather than picking a word of its own. */
+(function () {
+  var h = document.getElementById('sb-kind-h');
+  if (!h) return;
+  var verb = h.getAttribute('data-verb') || 'New';
+  var submit = document.querySelector('button[type="submit"]');
+  var submitIsNew = submit && /^Create /.test((submit.textContent || '').trim());
+  function name(r) { return (r && r.getAttribute('data-short')) || 'Release'; }
+  document.querySelectorAll('input[name="campaign_type"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      if (!r.checked) return;
+      h.textContent = verb + ' ' + name(r);
+      if (submitIsNew) submit.textContent = 'Create ' + name(r);
+    });
+  });
+})();
 </script>
 {% endblock %}

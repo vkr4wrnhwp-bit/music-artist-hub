@@ -268,14 +268,19 @@
   </div>
 
   {# ---- closing tiles --------------------------------------------------- #}
-  {% if bz.tiles %}
+  {#- Three bands, not one wall of sixteen (owner, 2026-09-22). This room
+      holds more pages than any other; the bands say which of its three
+      jobs each door belongs to. Nothing moved and nothing was deleted. -#}
+  {% if bz.bands %}
   <section aria-labelledby="bz-tiles-h">
     <div class="rk-panel-head">
       <h2 class="rk-h" id="bz-tiles-h">Explore more tools</h2>
       <p class="rk-cap">{{ bz.tiles|length }} tool{{ "" if bz.tiles|length == 1 else "s" }} for the money and the paperwork.</p>
     </div>
+    {% for band in bz.bands %}
+    <h3 class="bz-band">{{ band.title }}</h3>
     <div class="rk-tiles">
-      {% for t in bz.tiles %}
+      {% for t in band.tiles %}
       <a class="rk-tile" href="{{ t.href }}" data-room-card="{{ t.key }}">
         <span class="rk-tile-top">
           <span class="rk-tile-disc">
@@ -290,6 +295,7 @@
       </a>
       {% endfor %}
     </div>
+    {% endfor %}
   </section>
   {% endif %}
 

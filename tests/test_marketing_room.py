@@ -535,3 +535,12 @@ def test_9_the_room_reaches_smart_links_in_both_layouts():
             assert [h for h in re.findall(r'href="([^"]*)"', body)
                     if h.startswith("/links")], "NAV_ROOMS=%s" % rooms_on
             assert c.get("/links").status_code == 200
+
+
+def test_the_rollout_finding_says_connect():
+    """Owner, 2026-09-22: "Add link" read as "make me a new smart link".
+    The finding is a rollout with no link CONNECTED."""
+    import marketing_room as mk
+    labels = [row[6] for row in mk.ACTIONS]
+    assert "Connect a link" in labels
+    assert "Add link" not in labels

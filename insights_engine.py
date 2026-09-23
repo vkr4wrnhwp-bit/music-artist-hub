@@ -45,7 +45,15 @@ def build_insights(user_id):
                                 "streams exist for most released artists — absence "
                                 "usually means unregistered, not unearned."
                                 % ", ".join(missing),
-                                "/publishing", "See what's missing"))
+                                # The Publishing ROOM, not /publishing -
+                                # that address redirects to
+                                # /royalties#streams, which is the page the
+                                # "Income breakdown" insight directly above
+                                # already opens. The room's plate reads
+                                # MONEY GOING UNCOLLECTED, which is the
+                                # question this insight is asking (owner,
+                                # 2026-09-22).
+                                "/room/publishing", "See what's missing"))
     else:
         out.append(_insight("start", "No income data yet",
                             "Every money insight starts with a statement upload — "

@@ -48,19 +48,42 @@ ODESLI_TO_SERVICE = {
 
 # Campaign types: MVP types are buildable now; the rest are registered in
 # the architecture and appear as "coming soon" until their engines land.
+# (key, the name on the chooser, buildable now, THE SHORT NAME)
+# The short name is what the page calls itself once this type is picked -
+# "New Release", "New Pre-Save" - so the builder never has to fall back
+# on a word of its own (owner, 2026-09-22).
 CAMPAIGN_TYPES = [
-    ("release", "Released Music Smart Link", True),
-    ("presave", "Pre-Save Campaign", True),
-    ("bio", "Artist Bio / Fan Hub", True),
-    ("download_gate", "Download Gate", False),
-    ("reward", "Reward Link", False),
-    ("tour", "Tour / Ticket Page", False),
-    ("merch", "Merch Drop", False),
-    ("contest", "Contest / Giveaway", False),
-    ("epk", "EPK / Press Link", False),
-    ("label_roster", "Label Roster Link", False),
+    ("release", "Released Music Smart Link", True, "Release"),
+    ("presave", "Pre-Save Campaign", True, "Pre-Save"),
+    ("bio", "Artist Bio / Fan Hub", True, "Fan Hub"),
+    ("download_gate", "Download Gate", False, "Download Gate"),
+    ("reward", "Reward Link", False, "Reward Link"),
+    ("tour", "Tour / Ticket Page", False, "Tour Page"),
+    ("merch", "Merch Drop", False, "Merch Drop"),
+    ("contest", "Contest / Giveaway", False, "Contest"),
+    ("epk", "EPK / Press Link", False, "EPK"),
+    ("label_roster", "Label Roster Link", False, "Roster Link"),
 ]
-CAMPAIGN_TYPE_NAMES = dict((k, n) for k, n, _ in CAMPAIGN_TYPES)
+CAMPAIGN_TYPE_NAMES = dict((k, n) for k, n, _a, _s in CAMPAIGN_TYPES)
+CAMPAIGN_TYPE_SHORT = dict((k, s) for k, _n, _a, s in CAMPAIGN_TYPES)
+
+
+def short_name(key):
+    """What the builder calls itself for this type. Release when the key
+    is unknown, because release is the chooser's default."""
+    return CAMPAIGN_TYPE_SHORT.get(key or "", "Release")
+
+
+def opening_type(value):
+    """The type a door asked the builder to open on (?type=). Only a key
+    that is BUILDABLE today is honoured - a door must not open the page
+    on something whose engine has not landed - and anything else falls
+    back to release, the chooser's own default."""
+    key = (value or "").strip()
+    for k, _name, available, _short in CAMPAIGN_TYPES:
+        if k == key and available:
+            return k
+    return "release"
 
 RELEASE_TYPES = ["Single", "EP", "Album", "Playlist", "Video", "Podcast", "Other"]
 
