@@ -340,6 +340,14 @@ def open_actions(user_id, limit=5, today=None):
 _NOT_LEGAL = "Workflow support only — not legal advice. Have an attorney review agreements."
 _NOT_FINANCIAL = "Estimates only — not financial advice."
 
+# The Fan Club's line says paid joins only while a fan can pay. Joins need
+# the owner's online-sales switch (sales_switch, off unless he turns it
+# on) and Stripe; until both hold the club can be set up and nobody can
+# join, and the line says that instead (directory() below).
+FAN_CLUB_OPEN = ("Paid monthly memberships through Stripe with a members-only drops "
+                 "area, wired into the Fan CRM.")
+FAN_CLUB_SETUP = "Set up your club now; paid joins open when online sales are switched on."
+
 MODULES = [
     ("/links", "Smart Links 2.0", "Campaigns, pre-saves, fan capture, variants, QR, attribution.", "live", None),
     ("/rollout-studio", "Rollout Engine", "Generated social rollouts with per-post tracked links.", "live", None),
@@ -362,7 +370,7 @@ MODULES = [
     ("/opportunities", "Opportunity Feed", "Matched sync briefs, playlists, grants, and collaborations.", "preview", None),
     ("/voice-of-fan", "Voice of Fan", "Fan comments and behavior turned into campaign intelligence.", "preview", None),
     ("/spend-optimizer", "Spend Optimizer", "Where to put a limited release budget — and what to avoid.", "live", _NOT_FINANCIAL),
-    ("/fan-club", "Fan Club", "Paid monthly memberships through Stripe with a members-only drops area, wired into the Fan CRM.", "live", None),
+    ("/fan-club", "Fan Club", FAN_CLUB_OPEN, "live", None),
     ("/portal", "Partner Portal", "Team members see role-scoped, read-only views of your business.", "live", None),
     ("/tours", "TOUR", "The whole run, every show from hold to settled: dates, advance, travel, rooms, guests, money.", "live", None),
     ("/stage-plot", "Stage Plot", "Design your stage plot and auto-build the input list venues ask for.", "live", None),
@@ -378,6 +386,27 @@ MODULES = [
 
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)
                    for route, name, blurb, status, disc in MODULES}
+
+
+def fan_club_joins_open():
+    """Whether a fan can pay to join a club right now: the owner's switch
+    and Stripe, the same two checks club_join makes."""
+    import sales_switch
+    import stripe_provider
+    return sales_switch.is_on() and stripe_provider.configured()
+
+
+def directory(modules=None):
+    """MODULES as the tool directory shows them today: each line says what
+    the tool does now. The Fan Club line promises paid memberships only
+    while joins are open."""
+    joins = fan_club_joins_open()
+    out = []
+    for route, name, blurb, status, disc in modules or MODULES:
+        if route == "/fan-club" and not joins:
+            blurb = FAN_CLUB_SETUP
+        out.append((route, name, blurb, status, disc))
+    return out
 
 # Windows whose route the sidebar folds under a front, so they group with it.
 FOLD_FRONTS = {

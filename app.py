@@ -6923,7 +6923,7 @@ def create_app():
         if user is None:
             return login_required_redirect()
         return render_template("all_tools.html", active_page="all-tools",
-                               modules=cc.MODULES, module_groups=cc.module_groups(),
+                               modules=cc.directory(), module_groups=cc.module_groups(cc.directory()),
                                **build_dashboard_context())
 
     @app.route("/command-center")
@@ -7023,7 +7023,7 @@ def create_app():
             cc_alerts=alerts[:3],
             cc_action_prios=_action_prios,
             cc_actions=[_acx.brief(a, _today) for a in _open],
-            modules=cc.MODULES, module_groups=cc.module_groups(),
+            modules=cc.directory(), module_groups=cc.module_groups(cc.directory()),
             signal=signal_ctx,
             tutor=tutor_panel,
             # The tutor's first stage IS the firstrun checklist, so when
