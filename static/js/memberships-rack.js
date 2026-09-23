@@ -25,6 +25,10 @@
     doors[i].addEventListener("touchend", function (ev) {
       var door = ev.currentTarget;
       if (door.classList.contains("is-on")) { return; }   /* second tap: the door opens */
+      /* a phone's screens are already rendered (the sheet hides the
+         static under 760px), so there is nothing to reveal: the tap opens */
+      var snow = door.querySelector(".sbrk-static");
+      if (!snow || getComputedStyle(snow).display === "none") { return; }
       ev.preventDefault();                                 /* first tap: the screen renders */
       clear(door);
       door.classList.add("is-on");

@@ -18,9 +18,15 @@
    cannot drift from Billing. The static needs the glass empty anyway.
 
    The static is one noise tile in the screen's green
-   (static/img/crt-static.png) jittered by a CSS steps() animation; the
+   (static/img/crt-static.png) jittered by a CSS steps() animation. The
    reveal is :hover / :focus-visible, and on touch the first tap renders
    the screen and the second opens it (static/js/memberships-rack.js).
+   It is a RENDER, not a snap (owner, 2026-09-23: "more like the room
+   renders where it comes together"): about a second and a half in the
+   room plates' own grammar - the static thins in steps, a sync bar
+   sweeps once, the name cuts in through the colour-split glitch (the
+   data-t copy, as the kit's cine frames carry), the price strikes, and
+   the lines settle last.
    No media query decides who gets the static: a touchscreen laptop
    reports no hover at all in Chrome - the owner's own machine did - and
    a (hover) gate would have shown him resolved screens and no static.
@@ -45,7 +51,7 @@
          aria-label="{{ t.name }}, {{ t.price_words }}. {{ t.blurb }}{% if t.soon %} {{ t.soon }}{% endif %} Choose {{ t.name }}.">
         <span class="sbrk-static" aria-hidden="true"></span>
         <span class="sbrk-read" aria-hidden="true">
-          <span class="sbrk-k">{{ t.name }}</span>
+          <span class="sbrk-k" data-t="{{ t.name }}">{{ t.name }}</span>
           <span class="sbrk-price"><span class="sbrk-cur">$</span>{{ t.amount }}</span>
           <span class="sbrk-per">/month</span>
           <span class="sbrk-line">{{ t.blurb }}</span>

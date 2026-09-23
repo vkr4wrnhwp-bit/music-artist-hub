@@ -565,7 +565,7 @@ def test_each_screen_reads_its_price_from_plans(page):
             continue
         amount = price.split("/")[0].lstrip("$")
         assert '<span class="sbrk-cur">$</span>%s</span>' % amount in band, (key, amount)
-        assert '<span class="sbrk-k">%s</span>' % name in band, name
+        assert '<span class="sbrk-k" data-t="%s">%s</span>' % (name, name) in band, name
         assert blurb in band, blurb
         assert 'aria-label="%s, %s a month. ' % (name, price.split("/")[0]) in band, name
         assert "Choose %s." % name in band, name
@@ -601,9 +601,23 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     assert "crt-static.png" in static and "steps(1, end)" in static
     assert os.path.exists(os.path.join(HERE, "static", "img", "crt-static.png"))
     hover = body.split(".sbrk-door:hover .sbrk-static,", 1)[1].split("}", 1)[0]
-    assert "opacity: 0" in hover
+    assert "sbrk-clear" in hover, "the static thins away under the pointer"
+    assert "@keyframes sbrk-clear { from { opacity: .72; } to { opacity: 0; } }" in body
     assert ".sbrk-door:focus-visible .sbrk-static" in body, "the keyboard clears it too"
     assert ".sbrk-door.is-on .sbrk-static" in body, "a first tap clears it too"
+    # A RENDER, not a snap (owner, 2026-09-23: "more like the room renders
+    # where it comes together, not so much static to an image in 1 second"):
+    # the reading assembles over more than a second in the kit's own
+    # grammar - stepped cuts, the colour-split copies on the name, the
+    # price striking in, the lines arriving last.
+    m = re.search(r"animation: sbrk-assemble ([\d.]+)s steps\(1, end\) both", body)
+    assert m and float(m.group(1)) >= 1.2, "the picture comes together, it does not snap"
+    for kf in ("sbrk-assemble", "sbrk-split-a", "sbrk-split-b", "sbrk-strike", "sbrk-sync", "sbrk-in"):
+        assert "@keyframes %s" % kf in body, kf
+    assert 'content: attr(data-t)' in body.split(".sbrk-k::before, .sbrk-k::after {", 1)[1].split("}", 1)[0]
+    delays = re.findall(r"\.sbrk-door\.is-on \.sbrk-(k|per|line|soon) \{ animation-delay: ([\d.]+)s; \}", body)
+    order = {k: float(v) for k, v in delays}
+    assert order["k"] < order["per"] < order["line"] < order["soon"], order
     for q in ("@media (prefers-reduced-motion: reduce)", "@media (max-width: 759px)"):
         assert q in body, q
     for gate in ("(hover: none)", "(any-hover: none)", "(pointer: coarse)"):
@@ -612,6 +626,7 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     assert os.path.exists(js_path)
     js = io.open(js_path, encoding="utf-8").read()
     assert '"touchend"' in js and 'classList.add("is-on")' in js and "preventDefault" in js
+    assert 'getComputedStyle(snow).display === "none"' in js, "a resolved screen opens on the first tap"
     page_t = io.open(os.path.join(HERE, "templates", "landing_split.html"), encoding="utf-8").read()
     assert "memberships-rack.js?v=1" in page_t
     phone = body.split("@media (max-width: 759px)", 1)[1]
