@@ -424,7 +424,9 @@ def test_in_progress_names_the_next_missing_thing_per_song():
     tracks = [{"id": "t1", "title": "Cell 5"}, {"id": "t2", "title": "Dust"}]
     rows = acs.in_progress(tracks, {}, [], [])
     assert [r["state"] for r in rows] == ["No working audio yet."] * 2
-    assert rows[0]["href"].startswith("/rack?returnTo=/command-center&from=asset")
+    # the Rack door names the song it is for (audit, 2026-09-23, cc-1): it
+    # used to be the bare /rack, which could not file the measurement
+    assert rows[0]["href"].startswith("/rack?track=t1&returnTo=/command-center&from=asset")
     rows = acs.in_progress(tracks, {"t1": {"job": 1}}, [{"track_id": "t2"}], [])
     assert [r["state"] for r in rows] == ["No smart link yet."] * 2
     rows = acs.in_progress(tracks, {"t1": {}}, [{"track_id": "t2"}], [{"id": "c", "status": "draft", "settings": {}}])
@@ -478,3 +480,105 @@ def test_the_operational_page_carries_the_compass_and_three_priorities():
     assert body.count('class="cz-screen"') == 3
     # at most three priorities, however many alerts there are
     assert body.count("Fix now") <= 3
+
+
+# ---- audit 2026-09-23: the blockers ----------------------------------------
+
+# What rackdsp.js reportAnalysis posts after a loudness measurement: every
+# key it builds, with the song from the Rack's "Measuring for" select.
+def _rack_report(track_id, filename="cell5.wav"):
+    return {"track_id": track_id, "filename": filename,
+            "integrated": -9.8, "lra": 6.1, "true_peak": -0.4, "sample_peak": -0.9,
+            "short_term_max": -7.2, "momentary_max": -5.0,
+            "bpm": 94.0, "bpm_confidence": 0.8, "key": "A minor", "key_fit": 0.7,
+            "duration": 187.2, "sample_rate": 44100, "channels": 2,
+            "hook_15s": 42.0, "hook_30s": 38.5,
+            "first_beat": 0.12, "bar_seconds": 2.55, "grid_confidence": 0.6,
+            "engine": "rack/loudness.js BS.1770-4"}
+
+
+def test_the_rack_completes_its_own_step():
+    """cc-1, the blocker: "Open the Rack" counts a measurement only when it
+    names a song, and the Rack never named one - so an account with the
+    other four essentials was stranded at 4 of 5 on the page from zero,
+    and every door kept sending it to a Rack that could not close the
+    step. The Rack now arrives attached to the song, says which song it is
+    measuring for, and its report carries that song."""
+    import links_store as mls
+    import release_ready_store
+    c, uid = _account()
+    store.save_epk(uid, {"artist_name": "Rello"})
+    tid = store.add_os_track(uid, "Cell 5")
+    # the Command Center's in-progress door arrives attached to the song
+    body = c.get("/command-center").get_data(as_text=True)
+    assert "/rack?track=%s" % tid in body, "the Rack door names the song"
+    # the Rack says which song, preselected from the door
+    page = c.get("/rack?track=%s&returnTo=/command-center&from=asset" % tid).get_data(as_text=True)
+    assert 'id="rk-track"' in page, "the Rack has a song select"
+    assert '<option value="%s" selected>Cell 5</option>' % tid in page
+    # rackdsp.js sends the select's song with every report
+    js = io.open("static/js/rackdsp.js", encoding="utf-8").read()
+    report = js.split("function reportAnalysis(res)", 1)[1].split("fetch(\"/rack/analysis\"", 1)[0]
+    assert 'getElementById("rk-track")' in report and "track_id:" in report
+    # the report, the way the Rack sends it, completes the step
+    assert acs.read(uid, store, mls, release_ready_store)["asset"] is False
+    r = c.post("/rack/analysis", json=_rack_report(tid))
+    assert r.status_code == 200
+    assert acs.read(uid, store, mls, release_ready_store)["asset"] is True
+    body = c.get("/command-center?from=asset").get_data(as_text=True)
+    assert ("Your first working asset is in the Rack. Setup is now 3 of 5 complete."
+            in body), "the step is complete and the way back says so"
+
+
+def test_a_measurement_filed_against_a_song_that_is_not_yours_counts_for_nothing():
+    """/rack/analysis keeps only one of THIS account's songs: an invented
+    id, or another account's song, would complete the step against
+    nothing."""
+    import links_store as mls
+    import release_ready_store
+    other_c, other_uid = _account()
+    theirs = store.add_os_track(other_uid, "Not Yours")
+    c, uid = _account()
+    store.add_os_track(uid, "Mine")
+    for bad in ("made-up-id", theirs):
+        assert c.post("/rack/analysis", json=_rack_report(bad, bad + ".wav")).status_code == 200
+        assert acs.read(uid, store, mls, release_ready_store)["asset"] is False, bad
+    kept = store.get_track_analyses(uid, 10)
+    assert kept and all(not (a.get("track_id") or "") for a in kept)
+
+
+def test_the_rack_picks_the_only_song_and_guesses_nothing_between_several():
+    c, uid = _account()
+    page = c.get("/rack").get_data(as_text=True)
+    assert 'id="rk-track"' not in page, "no song, nothing to choose"
+    only = store.add_os_track(uid, "Only One")
+    page = c.get("/rack").get_data(as_text=True)
+    assert '<option value="%s" selected>' % only in page, "the only song is the one"
+    store.add_os_track(uid, "Second")
+    page = c.get("/rack").get_data(as_text=True)
+    assert " selected>" not in page.split('id="rk-track"', 1)[1].split("</select>", 1)[0], \
+        "two songs and no ?track=: nothing is guessed"
+    assert '<option value="">No song, just measuring</option>' in page
+
+
+def test_the_demo_is_the_showcase_even_after_start_over():
+    """cc-10: the demo account is the SHOWCASE, never the page from zero.
+    Start over empties its seeded statements until the next boot, and the
+    Command Center used to fall to "0 of 5 essentials complete" while
+    every room still showed its showcase."""
+    import demo_seed
+    email = "demo-artist@streetbanker.io"
+    demo = appmod.app.test_client()
+    demo.post("/login", data={"email": email, "password": "sweep"})
+    uid = store.get_user_by_email(email)["id"]
+    try:
+        r = demo.post("/account/reset", data={"confirm": email})
+        assert r.status_code == 302 and "reset=1" in r.headers["Location"], r.headers.get("Location")
+        assert not store.get_statements(uid), "Start over emptied the account"
+        body = demo.get("/command-center").get_data(as_text=True)
+        assert 'class="cz"' not in body, "the demo got the page from zero"
+        assert "essentials complete." not in body
+        assert "Command Center" in body
+    finally:
+        # put the showcase statement back, as the next boot would
+        demo_seed.seed_statements(uid)
