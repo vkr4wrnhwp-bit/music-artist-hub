@@ -66,7 +66,7 @@ HUBS = [
         # under stage suite"). TOUR keeps its own framed copy per tour.
         ("stage-plot", "/stage-plot", "M3 4h14v10H3z|M6 7h3v3H6z|M11 7h3v3h-3z|M7 17h6",
          "Stage Plot", "One drawing per act, attached to every advance you send. Draw it here before there is a tour."),
-        ("lights", "/lights", "M10 2v4|M4 6l2 2|M16 6l-2 2|M6 12a4 4 0 118 0v4H6z", "Light Designer", "Cue programming with real DMX output."),
+        ("lights", "/lights", "M10 2v4|M4 6l2 2|M16 6l-2 2|M6 12a4 4 0 118 0v4H6z", "Light Designer", "Cue programming, with DMX out to your own ENTTEC USB interface."),
         ("tour-board", "/tour-board", "M7 8a3 3 0 116 0 3 3 0 01-6 0z|M2 17c1-3 4-4 8-4s7 1 8 4", "Team-Up Board", "Artists and venues finding each other."),
         # Tour used to be listed twice: this hub's "Tour" and a "Tour Suite"
         # that opened the separate service. An audit on 2026-09-17 found that

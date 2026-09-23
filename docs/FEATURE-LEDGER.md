@@ -939,7 +939,7 @@ Looks a song up on Discogs and attaches the chosen pressing, filling only passpo
 
 Explains who delivers releases, what a package needs and which parts are the partner's.
 
-- Because: Renders entirely fixed copy from distro_config (GUIDE, WORKFLOW, CHECKLIST, INTEGRATIONS, PARTNER). There is no delivery code anywhere behind it: INTEGRATIONS lists every store row as 'Delivered through partner' and 'Direct platform connections from Street Banker' as 'Coming soon'. Verified 200 signed out.
+- Because: Renders entirely fixed copy from distro_config (GUIDE, WORKFLOW, CHECKLIST, INTEGRATIONS, PARTNER). There is no delivery code anywhere behind it: INTEGRATIONS lists every store row as 'Delivered through partner' and 'Direct platform connections from Street Banker' as 'Not offered' (it said 'Coming soon' until 2026-09-23, a plan nothing in the code carries; whether direct delivery is ever planned is the owner's decision). Verified 200 signed out.
 - Routes: /distribution
 - Files: app.py:14168 distribution_guide(); distro_config.py; templates/distribution_public.html; rooms.py:120 (the Releases room card)
 - Access: Anonymous - _PUBLIC_EXACT. Also carried as a Releases room card for signed-in accounts; Releases room for team seats.
@@ -5503,7 +5503,7 @@ of them invents a figure to fill the gap.
 - Stripe webhooks (fan club member add / cancel) — app.py:5755 stripe_webhook, branches at :5766 and :5859; KEY REQUIRED: STRIPE_WEBHOOK_SECRET (or a secret stored in app_kv); the receiver 404s without one.
 - Suite services (SSO hand-off) — sb_suite_sso.py issues a 120-second signed token to street-banker-v2-workflows.onrender.com, street-banker-tour-open-preview-3.onrender.com and masterclip.onrender.com (overridable by SUITE_URL_*); shared secret required (SUITE_SSO_SECRET).
 - Suite services — The Room, REACH, Noise Lab (street-banker-v2-workflows.onrender.com), Tour (street-banker-tour-open-preview-3.onrender.com) and Motion (masterclip.onrender.com) — sb_suite_sso.py. Shared secret SUITE_SSO_SECRET required for the signed hand-off; without it app.py:917 falls back to a plain unauthenticated link. The same secret, under a separate salt, authenticates the suites' inbound credit calls to /api/suites/credits.
-- Symphonic Distribution via SummitArts - named on /distribution as the delivery partner. NO code integration exists: distro_config.INTEGRATIONS lists every store row as 'Delivered through partner' and direct platform connections as 'Coming soon'.
+- Symphonic Distribution via SummitArts - named on /distribution as the delivery partner. NO code integration exists: distro_config.INTEGRATIONS lists every store row as 'Delivered through partner' and direct platform connections as 'Not offered'.
 - The built-in mock universe — signal_providers.py:3180 MockMusicIntelligenceAdapter. NO KEY; it is always configured() and answers only while no real adapter is.
 - The MLC - signal_providers.py:2884 MLCAdapter, called from app.py:7035 /tracks/<id>/mlc and from app.py _mlc_credits() on /catalog/add. Key REQUIRED (MLC_ENABLED + MLC_USERNAME + MLC_PASSWORD); unconfigured it refuses honestly and writes nothing.
 - The MLC Public Search API — signal_providers.MLCAdapter (signal_providers.py:2884), called by recovery_mlc.sweep from POST /recovery/mlc. KEY REQUIRED: env_keys MLC_USERNAME + MLC_PASSWORD, env_flag MLC_ENABLED; unconfigured it refuses and the route redirects to /recovery?mlc=off (verified on this checkout).
