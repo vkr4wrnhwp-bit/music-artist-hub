@@ -40,11 +40,11 @@
 
 .sg-stage {
   border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-control);
-  background: radial-gradient(120% 90% at 50% 0%, #14120e, var(--sb-ground) 70%);
+  background: radial-gradient(120% 90% at 50% 0%, var(--sb-surface-1), var(--sb-ground) 70%);
   overflow: hidden;
 }
 .sg-stage svg { display: block; width: 100%; height: auto; }
-.sg-floor { fill: #1a1712; }
+.sg-floor { fill: var(--sb-surface-2); }
 .sg-truss { stroke: var(--sb-line-strong); stroke-width: 3; }
 .sg-bar { fill: currentColor; }
 .sg-stage-foot {

@@ -6587,6 +6587,27 @@ def create_app():
             return render_template("command_center_error.html",
                                    active_page="command-center",
                                    **build_dashboard_context()), 503
+        if acs["state"] in ("new", "setup"):
+            # The page from the owner's mockup: header, static rack, the
+            # first steps with lock-and-reveal, how it fits together,
+            # nothing-needs-attention, explore, help. Nothing here is a
+            # figure but the one that is - "N of 5 essentials complete".
+            ess = acs["essentials"]
+            nxt = ess.get("next") if ess else None
+            return render_template(
+                "command_center_zero.html", active_page="command-center",
+                account_state=acs["state"], essentials=ess,
+                cz={
+                    "account_name": artist_identity.display_name(user, default="") or "New label",
+                    # START HERE names the next actual step; on a fresh
+                    # account that is the profile (spec's exact words).
+                    "start_here": ("Complete your artist or label profile."
+                                   if nxt and nxt["key"] == "identity"
+                                   else (nxt["title"] + "." if nxt else "")),
+                    "icons": {"identity": "people", "song": "wave", "asset": "rack",
+                              "link": "globe", "capture": "megaphone"},
+                },
+                **build_dashboard_context())
         tutor_panel = _tutor_panel(user)
         return render_template(
             "command_center.html", active_page="command-center",
@@ -6601,7 +6622,12 @@ def create_app():
             # The tutor's first stage IS the firstrun checklist, so when
             # it is on the smaller panel steps aside rather than showing
             # the same five steps twice.
-            firstrun=None if tutor_panel else acs["essentials"] if acs["state"] != "operational" else None,
+            # The essentials ride along on the operational page until they
+            # are done - an account with statements is working, and gets
+            # its money AND its remaining setup (the spec's "gradual
+            # transition"). Gone for good once all five are real.
+            firstrun=(None if tutor_panel
+                      else (acs["essentials"] if acs["essentials"] and not acs["essentials"]["complete"] else None)),
             # The Overview's figures, on the same page (2026-09-15).
             **_front_money_context())
 

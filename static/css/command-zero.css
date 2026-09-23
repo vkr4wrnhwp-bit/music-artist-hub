@@ -1,0 +1,200 @@
+/* The Command Center from zero (owner's spec + mockup, 2026-09-22).
+
+   Scoped to .cz. Every colour is a token; every radius is one of the
+   three the design system allows (6px control, 10px panel, 999px pill);
+   nothing is set below 12px. The rack is drawn here in CSS until the
+   owner's photographed plate lands - same proportions as the room plates
+   (a 1860-ish unit with three inset screens), so the photograph drops in
+   under the same markup. */
+
+.cz { display: flex; flex-direction: column; gap: 22px; max-width: 1300px; margin: 0 auto; }
+
+/* ---- header ------------------------------------------------------------ */
+.cz-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid var(--sb-line-strong); }
+.cz-head-said { min-width: 0; }
+.cz-sub { margin: 8px 0 0; max-width: 52ch; font-size: 16px; line-height: 1.5; color: var(--sb-ink-2); }
+.cz-head-aside { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cz-chip {
+  display: inline-flex; align-items: center; gap: 10px; height: 42px; padding: 0 14px 0 8px;
+  border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: color-mix(in srgb, var(--sb-ground) 72%, transparent);
+  font-size: 14px; font-weight: 700; color: var(--sb-ink);
+}
+.cz-chip-name { min-width: 0; max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cz-avatar {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 999px;
+  background: var(--sb-gold-wash); border: 1px solid var(--sb-gold-line);
+  color: var(--sb-gold-bright); font-size: 12px; font-weight: 800;
+}
+.cz-cta {
+  display: inline-flex; align-items: center; gap: 10px; height: 42px; padding: 0 22px;
+  border: 0; border-radius: var(--sb-r-panel); text-decoration: none; white-space: nowrap;
+  background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold));
+  color: var(--sb-on-gold); font-size: 15px; font-weight: 800;
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--sb-gold) 30%, transparent);
+}
+.cz-cta:hover { filter: brightness(1.05); }
+/* Icons come from the page sprite (<use href="#sb-i-…">): they need a
+   box, or a <use> with no size draws as a dot. */
+.cz svg.cz-ico { width: 18px; height: 18px; flex: 0 0 auto; }
+.cz svg.cz-ico--lg { width: 30px; height: 30px; }
+.cz .cz-card-ring svg.cz-ico { width: 24px; height: 24px; }
+
+/* ---- the rack ---------------------------------------------------------- */
+.cz-rack { position: relative; container-type: inline-size; }
+.cz-rack-plate {
+  position: relative; height: clamp(150px, 22cqw, 240px);
+  border-radius: var(--sb-r-panel);
+  background:
+    repeating-linear-gradient(90deg, rgb(255 255 255 / .022) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, var(--sb-surface-2), var(--sb-surface-1) 55%, var(--sb-ground));
+  border: 1px solid var(--sb-gold-deep);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .06), inset 0 -12px 30px rgb(0 0 0 / .55), 0 18px 40px rgb(0 0 0 / .5);
+}
+.cz-rack-silk {
+  position: absolute; top: 9%; letter-spacing: .22em; text-transform: uppercase;
+  font-size: 12px; font-weight: 700; color: var(--sb-gold);
+}
+.cz-rack-silk--l { left: 6%; }
+.cz-rack-silk--c { left: 50%; transform: translateX(-50%); }
+.cz-rack-silk--r { right: 6%; }
+.cz-screw {
+  position: absolute; width: 14px; height: 14px; border-radius: 999px;
+  background: radial-gradient(circle at 35% 35%, var(--sb-gold-bright), var(--sb-gold-deep) 60%, color-mix(in srgb, var(--sb-gold-deep) 55%, #000));
+  box-shadow: 0 1px 2px rgb(0 0 0 / .7);
+}
+.cz-screw::after { content: ""; position: absolute; left: 3px; right: 3px; top: 6px; height: 2px; background: color-mix(in srgb, var(--sb-gold-deep) 60%, #000); transform: rotate(-30deg); }
+.cz-screw--tl { left: 2.2%; top: 12px; } .cz-screw--tr { right: 2.2%; top: 12px; }
+.cz-screw--bl { left: 2.2%; bottom: 12px; } .cz-screw--br { right: 2.2%; bottom: 12px; }
+.cz-ear {
+  position: absolute; top: 28%; bottom: 28%; width: 18px; border-radius: var(--sb-r-control);
+  background: linear-gradient(180deg, var(--sb-line-strong), var(--sb-surface-1)); border: 1px solid var(--sb-gold-deep);
+}
+.cz-ear--l { left: 0.6%; } .cz-ear--r { right: 0.6%; }
+
+/* The screens sit INSIDE the plate. top/bottom insets, not padding: a
+   percentage padding resolves against the WIDTH, so 22% of an 800px
+   rack was 176px and pushed all three screens out of the bottom of a
+   262px plate and over the heading below (the same trap the Analytics
+   plate taught this morning). top/bottom offsets resolve against the
+   containing block's height, which is what a screen inside a plate
+   needs. */
+.cz-screens {
+  position: absolute; left: 4.5%; right: 4.5%; top: 30%; bottom: 11%;
+  margin: 0; padding: 0; list-style: none;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3cqw;
+}
+.cz-screen {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; padding: 6% 5%; text-align: center; min-width: 0;
+  border-radius: var(--sb-r-control);
+  border: 2px solid var(--sb-gold-deep);
+  background: radial-gradient(120% 90% at 50% 20%, color-mix(in srgb, var(--sb-crt) 9%, #000), color-mix(in srgb, var(--sb-crt) 3%, #000) 70%);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .8), inset 0 0 26px rgb(0 0 0 / .8), 0 0 0 3px var(--sb-surface-1), 0 0 0 4px var(--sb-gold-deep);
+}
+/* scanlines: the screen is a CRT, not a panel */
+.cz-screen::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: repeating-linear-gradient(180deg, rgb(0 0 0 / .18) 0 1px, transparent 1px 3px);
+  opacity: .8;
+}
+.cz-screen-k {
+  font-size: 12px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--sb-crt); text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 70%, transparent);
+}
+.cz-screen-v {
+  font-family: var(--sb-display); font-weight: 800; line-height: 1.15;
+  font-size: clamp(14px, 1.7cqw, 22px); color: var(--sb-crt);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 70%, transparent), 0 0 28px color-mix(in srgb, var(--sb-crt) 35%, transparent);
+  max-width: 24ch;
+}
+.cz-screen-v--n { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* ---- headings and panels ---------------------------------------------- */
+.cz-h { margin: 0; font-family: var(--sb-display); font-size: 22px; font-weight: 800; color: var(--sb-ink); line-height: 1.2; }
+.cz-p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--sb-ink-2); max-width: 48ch; }
+.cz-panel {
+  display: flex; align-items: center; gap: 18px; padding: 20px 22px;
+  border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1);
+}
+.cz-panel-ico { display: inline-grid; place-items: center; width: 52px; height: 52px; flex: 0 0 auto; color: var(--sb-gold-bright); }
+.cz-two { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; }
+.cz-explore, .cz-help { justify-content: space-between; }
+.cz-explore > div, .cz-help > div { flex: 1 1 auto; min-width: 0; }
+
+/* ---- the cards ---------------------------------------------------------- */
+.cz-steps .cz-h { margin-bottom: 12px; }
+.cz-cards { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.cz-card {
+  display: grid; grid-template-columns: 56px minmax(0, 1fr); grid-template-rows: auto auto; gap: 10px 14px;
+  padding: 20px; border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1); min-height: 176px;
+}
+.cz-card.is-locked { border-style: dashed; }
+.cz-card-ring {
+  grid-row: 1 / span 2; display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 999px;
+  border: 1.5px solid var(--sb-gold-line); color: var(--sb-gold-bright);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--sb-gold) 22%, transparent);
+}
+.cz-card.is-locked .cz-card-ring { color: var(--sb-ink-3); border-color: var(--sb-line); box-shadow: none; }
+.cz-card-body { min-width: 0; }
+.cz-card-t { margin: 0; font-size: 18px; font-weight: 800; color: var(--sb-ink); line-height: 1.2; }
+.cz-card-p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: var(--sb-ink-2); }
+.cz-pill {
+  display: inline-block; margin-top: 10px; padding: 3px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; letter-spacing: .02em;
+  background: color-mix(in srgb, var(--sb-ink-3) 18%, transparent); color: var(--sb-ink-2);
+}
+.cz-pill--complete { background: var(--sb-good-wash); color: var(--sb-good); }
+.cz-pill--locked { color: var(--sb-ink-3); }
+.cz-lock { margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: var(--sb-ink-2); }
+.cz-btn {
+  grid-column: 2; justify-self: stretch; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 18px; border-radius: var(--sb-r-control); text-decoration: none;
+  font-size: 15px; font-weight: 800; white-space: nowrap;
+}
+.cz-btn--primary { background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold)); color: var(--sb-on-gold); box-shadow: 0 6px 18px color-mix(in srgb, var(--sb-gold) 28%, transparent); }
+.cz-btn--primary:hover { filter: brightness(1.05); }
+.cz-btn--outline { border: 1.5px solid var(--sb-gold-line); color: var(--sb-gold-bright); background: transparent; }
+.cz-btn--outline:hover { border-color: var(--sb-gold-bright); }
+.cz-btn--locked { border: 1.5px solid var(--sb-line); color: var(--sb-ink-3); background: transparent; cursor: not-allowed; }
+.cz-btn--done { color: var(--sb-good); background: var(--sb-good-wash); }
+.cz-explore .cz-btn, .cz-help .cz-btn { grid-column: auto; justify-self: auto; flex: 0 0 auto; }
+
+/* ---- the four stages ---------------------------------------------------- */
+.cz-fits { display: block; }
+.cz-fits .cz-h { margin-bottom: 14px; }
+.cz-stages { position: relative; margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.cz-stages::before {
+  content: ""; position: absolute; left: 12.5%; right: 12.5%; top: 12px; height: 0;
+  border-top: 2px dashed var(--sb-line-strong);
+}
+.cz-stage { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; }
+.cz-stage-dot { width: 26px; height: 26px; border-radius: 999px; border: 2px solid var(--sb-ink-3); background: var(--sb-surface-1); }
+.cz-stage b { font-size: 16px; font-weight: 800; color: var(--sb-ink); }
+.cz-stage span:last-child { font-size: 13px; color: var(--sb-ink-2); }
+
+/* ---- phone ----------------------------------------------------------------- */
+@media (max-width: 860px) {
+  .cz-cards { grid-template-columns: 1fr; }
+  .cz-two { grid-template-columns: 1fr; }
+  .cz-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cz-stages::before { display: none; }
+}
+@media (max-width: 560px) {
+  /* The drawn rack collapses to a stacked list of three screens - the
+     same rule as the room plates (nothing readable at 375px on a
+     photograph). */
+  .cz-rack-plate { display: none; }
+  .cz-screens { position: static; display: flex; flex-direction: column; gap: 10px; padding: 0; }
+  .cz-screen { min-height: 84px; padding: 14px 16px; }
+  .cz-screen-v { font-size: 16px; max-width: none; }
+  .cz-head-aside { width: 100%; }
+  .cz-cta { width: 100%; justify-content: center; }
+  .cz-panel { flex-wrap: wrap; }
+  .cz-btn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cz-cta, .cz-btn--primary { transition: none; }
+}

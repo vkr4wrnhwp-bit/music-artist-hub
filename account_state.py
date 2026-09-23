@@ -212,7 +212,14 @@ def state_of(essentials, has_records):
         return "operational"
     if essentials["complete"]:
         return "operational"
-    if essentials["done"] == 0 and not has_records:
+    if has_records:
+        # Statements or fans on file: this account is WORKING, whatever
+        # the checklist says, and its money and people must not sit
+        # behind an onboarding page. The operational page keeps the
+        # essentials panel until they are done (the spec's "gradual
+        # transition into operations").
+        return "operational"
+    if essentials["done"] == 0:
         return "new"
     return "setup"
 

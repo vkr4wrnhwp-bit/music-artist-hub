@@ -5,6 +5,8 @@ Four states, one rule: a failed read is "error", never "new". Five
 essentials with lock-and-reveal, three competing at once, every lock
 explained. Pure functions first, then the route.
 """
+import io
+import re
 import uuid
 
 import pytest
@@ -74,7 +76,10 @@ def test_never_more_than_three_compete():
 
 def test_state_of_is_new_only_with_nothing_done_and_nothing_saved():
     assert acs.state_of(acs.build({}), has_records=False) == "new"
-    assert acs.state_of(acs.build({}), has_records=True) == "setup"
+    # real records mean a WORKING account: operational, with the
+    # essentials still shown until done - never an onboarding page over
+    # someone's money
+    assert acs.state_of(acs.build({}), has_records=True) == "operational"
     assert acs.state_of(acs.build({"identity": True}), False) == "setup"
     assert acs.state_of(acs.build({k: True for k in acs.KEYS}), False) == "operational"
     # nothing on offer for this plan: nothing to set up
@@ -179,7 +184,8 @@ def test_a_fresh_account_is_not_lied_to():
     assert 'id="date-range"' not in body
     assert "every live campaign is capturing fans" not in body
     assert "What Changed Since Your Last Visit" not in body
-    assert "0<span" in body and "1<span" not in body.split("done")[0]
+    assert "0 of 5 essentials complete." in body
+    assert "1 of 5" not in body, "a name typed at signup is not a milestone"
     # the three cards, the lock explained, the rest waiting
     assert "Tell us who you are" in body and "Add your first song" in body
     assert "Create your first smart link" in body
@@ -194,3 +200,103 @@ def test_all_tools_is_the_directory_moved_out():
     assert r.status_code == 200
     assert body.count('class="tools-card"') >= 30, "the whole directory"
     assert 'id="tools-q"' in body, "searchable"
+
+
+# ---- Pass 2: the zero page ----------------------------------------------
+
+def _zero_page(c):
+    r = c.get("/command-center")
+    return r.status_code, r.get_data(as_text=True)
+
+
+def test_a_new_account_gets_the_zero_page():
+    """The page from the owner's mockup, in the spec's order, with nothing
+    the spec forbids: no royalties, recovery, release metrics, empty
+    tables, charts or since-your-last-visit."""
+    c, _uid = _account(name="Typed At Signup")
+    code, body = _zero_page(c)
+    assert code == 200
+    assert 'class="cz"' in body, "the zero page, not the operational one"
+    # the header, exact words
+    assert "Start with the essentials. Street Banker will guide the next move." in body
+    assert "Continue setup" in body
+    # the three static screens, exact words, and nothing rotating
+    assert "Build your foundation one step at a time." in body
+    assert "Complete your artist or label profile." in body
+    assert "0 of 5 essentials complete." in body
+    assert "rk-cine" not in body and "animation" not in body.split('class="cz-rack"')[1].split("</section>")[0]
+    # order: rack, first steps, fits together, quiet + explore, help
+    i = body.index
+    assert i("Where you are") < i("Your first steps") < i("How Street Banker fits together") \
+        < i("Nothing needs attention yet") < i("You can explore at your own pace") \
+        < i("Need help choosing your first step?")
+    # the four neutral stages, unmarked
+    for stage in ("Plan &amp; Own", "Create", "Launch &amp; Grow", "Live &amp; Learn"):
+        assert stage in body
+    assert "%" not in body.split("How Street Banker fits together")[1].split("Nothing needs attention")[0]
+    # the forbidden list
+    for bad in ("Total Royalties Collected", "Earnings Trend", "Money Left on the Table",
+                "Open Actions", "Upcoming Releases", "What Changed Since Your Last Visit",
+                "The Operating System", 'id="date-range"', "Today's Priorities"):
+        assert bad not in body, bad
+    # the directory is behind one door
+    assert 'href="/all-tools"' in body
+
+
+def test_the_zero_page_offers_three_cards_with_the_lock_explained():
+    c, _uid = _account()
+    _code, body = _zero_page(c)
+    cards = re.split(r'<li class="cz-card[" ]', body)[1:]
+    assert len(cards) == 3, len(cards)
+    assert "Tell us who you are" in cards[0] and "cz-btn--primary" in cards[0]
+    assert "Add your first song" in cards[1] and "cz-btn--outline" in cards[1]
+    assert "Create your first smart link" in cards[2] and "cz-btn--locked" in cards[2]
+    assert "Add a song first so Street Banker knows what the link supports." in cards[2]
+    assert "Open the Rack" not in body and "Turn on fan capture" not in body
+
+
+def test_continue_setup_opens_the_first_incomplete_milestone():
+    """Not a generic settings page (spec)."""
+    import links_store as mls
+    c, uid = _account()
+    def cta(body):
+        m = re.search(r'<a class="cz-cta" href="([^"]+)"', body)
+        return m.group(1) if m else None
+    _code, body = _zero_page(c)
+    assert cta(body) == "/epk", "fresh: the profile"
+    store.save_epk(uid, {"artist_name": "Rello"})
+    _code, body = _zero_page(c)
+    assert cta(body) == "/tracks", "then: the song"
+    assert "1 of 5 essentials complete." in body
+    assert "Add your first song." in body, "START HERE names the next step"
+
+
+def test_real_records_mean_the_operational_page_even_mid_setup():
+    """An account with a statement is working. Its money is never hidden
+    behind an onboarding page; the essentials ride along until done."""
+    c, uid = _account()
+    store.save_statement(uid, "q1.csv", [
+        {"title": "Higher Places", "source": "Spotify", "amount": 100.0, "period": "2026-01"}])
+    code, body = _zero_page(c)
+    assert code == 200
+    assert 'class="cz"' not in body
+    assert "Total Royalties Collected" in body
+    assert "Start here" in body, "the essentials panel rides along"
+
+
+def test_all_tools_is_in_the_sidebar():
+    c, _uid = _account()
+    _code, body = _zero_page(c)
+    assert 'href="/all-tools"' in body.split('id="sb-main"')[0], "in the sidebar, not only on the page"
+
+
+def test_the_crt_green_is_a_token():
+    """One of the twelve red design-system tests: #5DFF8F was a raw
+    literal in the plates. It is --sb-crt now, and the plates read it."""
+    import re as _re
+    tokens = io.open("tools/tailwind-input.css", encoding="utf-8").read()
+    assert "--sb-crt: #5DFF8F" in tokens and "--sb-crt-dim: #34C96A" in tokens
+    for sheet in ("static/css/room-kit.css", "static/css/business-room.css",
+                  "static/css/studio-room.css", "static/css/command-zero.css"):
+        css = io.open(sheet, encoding="utf-8").read().lower()
+        assert not _re.search(r"#5dff8f|#34c96a", css), "%s still carries the literal" % sheet

@@ -28,6 +28,9 @@
 
   function show(row) {
     paint({
+      // sb-keep: the fallback GEL colour for a cue with none saved - data
+      // the light designer chose, not chrome (the design-system sweep
+      // exempts a marked line).
       colour: row.getAttribute("data-colour") || "#d8b25a",
       intensity: parseInt(row.getAttribute("data-intensity"), 10),
       name: row.getAttribute("data-name") || "",
@@ -39,6 +42,7 @@
   }
 
   function paint(look) {
+    // sb-keep: same fallback gel, same reason
     var colour = look.colour || "#d8b25a";
     var level = look.intensity;
     if (isNaN(level) || level === null || level === undefined) level = 100;

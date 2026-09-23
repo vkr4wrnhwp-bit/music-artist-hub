@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/command-zero.css?v=1">{% endblock %}
+{% block title %}Command Center{% endblock %}
+
+{% block content %}
+{#- THE COMMAND CENTER FROM ZERO (owner's spec + mockup, 2026-09-22).
+
+    Rendered for an account whose state is `new` or `setup` - decided
+    once, server-side, by account_state.py. An operational account gets
+    command_center.html; an unreadable one gets command_center_error.html.
+    Nothing on this page is a figure except the one measurement that IS
+    a figure: "N of 5 essentials complete", which comes from saved
+    records and nothing else.
+
+    Page order is the spec's: header, rack, first steps, how it fits
+    together, nothing-needs-attention + explore, help. No royalties, no
+    recovery, no release metrics, no empty tables, no charts, no "since
+    your last visit".
+
+    THE RACK IS STATIC. Three screens, no rotation (owner, same day:
+    "static on zero-state pages"). Until the owner's photographed plate
+    for this room lands, the hardware is drawn in CSS to the same
+    proportions - blackened brushed metal, brass frames, inset CRTs -
+    and swaps for the photograph without the markup changing. -#}
+{#- data-no-collapse: the shell folds sections under their h2 and draws a
+    chevron on each; a setup page is read top to bottom and its headings
+    are not controls (the rooms opt out the same way). -#}
+<div class="cz" data-no-collapse>
+
+  <header class="cz-head">
+    <div class="cz-head-said">
+      <p class="sb-label sb-label-gold">Street Banker · Command Center</p>
+      <h1 class="sb-h1 mt-1">Command Center</h1>
+      <p class="cz-sub">Start with the essentials. Street Banker will guide the next move.</p>
+    </div>
+    <div class="cz-head-aside">
+      <span class="cz-chip" title="The account this setup is for">
+        <span class="cz-avatar" aria-hidden="true">{{ (cz.account_name[:1] or "N")|upper }}</span><span class="cz-chip-name">{{ cz.account_name }}</span>
+      </span>
+      {%- if essentials.next %}
+      {#- "Continue setup" opens the FIRST INCOMPLETE MILESTONE, never a
+          generic settings page (spec). -#}
+      <a class="cz-cta" href="{{ essentials.next.href }}"><svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-bolt"/></svg>Continue setup</a>
+      {%- endif %}
+    </div>
+  </header>
+
+  {#- ---- the rack ------------------------------------------------ -#}
+  <section class="cz-rack" aria-labelledby="cz-rack-h">
+    <h2 id="cz-rack-h" class="sr-only">Where you are</h2>
+    <div class="cz-rack-plate" aria-hidden="true">
+      <span class="cz-rack-silk cz-rack-silk--l">Street Banker</span>
+      <span class="cz-rack-silk cz-rack-silk--c">Command Center</span>
+      <span class="cz-rack-silk cz-rack-silk--r">The people who show up</span>
+      <span class="cz-screw cz-screw--tl"></span><span class="cz-screw cz-screw--tr"></span>
+      <span class="cz-screw cz-screw--bl"></span><span class="cz-screw cz-screw--br"></span>
+      <span class="cz-ear cz-ear--l"></span><span class="cz-ear cz-ear--r"></span>
+    </div>
+    <ul class="cz-screens">
+      <li class="cz-screen">
+        <span class="cz-screen-k">Welcome</span>
+        <span class="cz-screen-v">Build your foundation one step at a time.</span>
+      </li>
+      <li class="cz-screen">
+        <span class="cz-screen-k">Start here</span>
+        {#- The next actual step. On a fresh account that is the profile;
+            after the first milestone it is whatever is next. -#}
+        <span class="cz-screen-v">{% if essentials.next %}{{ cz.start_here }}{% else %}Every essential is in place.{% endif %}</span>
+      </li>
+      <li class="cz-screen">
+        <span class="cz-screen-k">Progress</span>
+        <span class="cz-screen-v cz-screen-v--n">{{ essentials.progress }}</span>
+      </li>
+    </ul>
+  </section>
+
+  {#- ---- your first steps ------------------------------------------ -#}
+  <section class="cz-steps" aria-labelledby="cz-steps-h">
+    <h2 id="cz-steps-h" class="cz-h">Your first steps</h2>
+    <ol class="cz-cards">
+      {% for s in essentials.shown %}
+      <li class="cz-card{% if s.status == 'locked' %} is-locked{% elif s.status == 'complete' %} is-done{% endif %}">
+        <span class="cz-card-ring" aria-hidden="true"><svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-{{ cz.icons.get(s.key, "list-check") }}"/></svg></span>
+        <div class="cz-card-body">
+          <h3 class="cz-card-t">{{ s.title }}</h3>
+          <p class="cz-card-p">{{ s.why }}</p>
+          <span class="cz-pill cz-pill--{{ s.status }}">
+            {%- if s.status == "complete" %}Complete{% elif s.status == "locked" %}Locked until a song is added{% else %}Not started{% endif -%}
+          </span>
+          {%- if s.status == "locked" %}
+          <p class="cz-lock">{{ s.lock_text }}</p>
+          {%- endif %}
+        </div>
+        {%- if s.status == "complete" %}
+        <span class="cz-btn cz-btn--done" aria-disabled="true"><svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-tick"/></svg>Done</span>
+        {%- elif s.status == "locked" %}
+        <span class="cz-btn cz-btn--locked" aria-disabled="true">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></span>
+        {%- elif essentials.next and s.key == essentials.next.key %}
+        <a class="cz-btn cz-btn--primary" href="{{ s.href }}">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></a>
+        {%- else %}
+        <a class="cz-btn cz-btn--outline" href="{{ s.href }}">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></a>
+        {%- endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {#- ---- how it fits together -------------------------------------- -#}
+  <section class="cz-panel cz-fits" aria-labelledby="cz-fits-h">
+    <h2 id="cz-fits-h" class="cz-h">How Street Banker fits together</h2>
+    {#- Educational, not progress: no stage is marked, no percentage
+        (spec). It becomes a lifecycle tracker only once a real project
+        exists. -#}
+    <ol class="cz-stages">
+      <li class="cz-stage"><span class="cz-stage-dot" aria-hidden="true"></span><b>Plan &amp; Own</b><span>Business and Publishing</span></li>
+      <li class="cz-stage"><span class="cz-stage-dot" aria-hidden="true"></span><b>Create</b><span>Studio</span></li>
+      <li class="cz-stage"><span class="cz-stage-dot" aria-hidden="true"></span><b>Launch &amp; Grow</b><span>Releases · Marketing · Fans</span></li>
+      <li class="cz-stage"><span class="cz-stage-dot" aria-hidden="true"></span><b>Live &amp; Learn</b><span>Stage and Analytics</span></li>
+    </ol>
+  </section>
+
+  {#- ---- nothing needs attention + explore ------------------------ -#}
+  <div class="cz-two">
+    <section class="cz-panel cz-quiet" aria-labelledby="cz-quiet-h">
+      <span class="cz-panel-ico" aria-hidden="true"><svg class="cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-folder"/></svg></span>
+      <div>
+        <h2 id="cz-quiet-h" class="cz-h">Nothing needs attention yet</h2>
+        <p class="cz-p">Priorities will appear here after you add music, connect data, or start a project.</p>
+      </div>
+    </section>
+    <section class="cz-panel cz-explore" aria-labelledby="cz-explore-h">
+      <span class="cz-panel-ico" aria-hidden="true"><svg class="cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-compass"/></svg></span>
+      <div>
+        <h2 id="cz-explore-h" class="cz-h">You can explore at your own pace</h2>
+        <p class="cz-p">Every tool remains available, but setup only asks for the essentials.</p>
+      </div>
+      <a class="cz-btn cz-btn--outline" href="/all-tools">Browse all tools</a>
+    </section>
+  </div>
+
+  {#- ---- help ------------------------------------------------------ -#}
+  <section class="cz-panel cz-help" aria-labelledby="cz-help-h">
+    <span class="cz-panel-ico" aria-hidden="true"><svg class="cz-ico cz-ico--lg" aria-hidden="true" focusable="false"><use href="#sb-i-speech"/></svg></span>
+    <div>
+      <h2 id="cz-help-h" class="cz-h">Need help choosing your first step?</h2>
+      <p class="cz-p">Ask Street Banker to explain any room or workflow.</p>
+    </div>
+    {#- The corner Ask box is on every page; this focuses it. With
+        scripts off the link goes to Contact, which is a person. -#}
+    <a class="cz-btn cz-btn--outline" href="/contact" id="cz-ask"><svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-speech"/></svg>Ask Street Banker</a>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // The corner Ask box (partials/support_ask.html) keeps its panel hidden
+  // behind #sbq-open; open it first, then put the caret in the question.
+  var a = document.getElementById("cz-ask");
+  var open = document.getElementById("sbq-open");
+  var q = document.getElementById("sbq-q");
+  if (!a || !open || !q) return;
+  a.addEventListener("click", function (e) {
+    e.preventDefault();
+    if (open.getAttribute("aria-expanded") !== "true") open.click();
+    q.focus();
+  });
+})();
+</script>
+{% endblock %}

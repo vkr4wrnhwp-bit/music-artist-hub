@@ -375,8 +375,8 @@
      from uploads, I would like it to show up in that same green computer
      text"). One look across the plate whether it is explaining itself
      or showing the artist's own numbers. */
-  --screen: #5dff8f;
-  --screen-dim: #34c96a;
+  --screen: var(--sb-crt);
+  --screen-dim: var(--sb-crt-dim);
   --screen-glow: 0 0 10px rgb(93 255 143 / .7), 0 0 28px rgb(93 255 143 / .35);
   --screen-glow-s: 0 0 8px rgb(93 255 143 / .6);
 }
@@ -511,7 +511,7 @@
   pointer-events: none;
 }
 .rk-cine-frame b::before {
-  color: #b8ffd0;
+  color: color-mix(in srgb, var(--sb-crt) 55%, #fff);
   animation: rk-split-a calc(var(--count) * 4.5s) steps(1, end) infinite;
   animation-delay: calc(var(--n) * 4.5s);
 }
@@ -603,7 +603,7 @@
    in, so it reads as the unit's own lettering. */
 .rk-tip, .rk-tick-i {
   font-family: var(--sb-display); font-weight: 700; letter-spacing: .01em;
-  color: #5dff8f;
+  color: var(--sb-crt);
   text-shadow: 0 0 8px rgb(93 255 143 / .7), 0 0 20px rgb(93 255 143 / .3);
 }
 
@@ -629,7 +629,7 @@
 .rk-reel-i { flex: 0 0 100%; height: 100%; display: grid; place-items: center; padding-bottom: 7%; }
 .rk-reel-ico {
   width: 32%; height: auto; max-height: 50%;
-  color: #5dff8f; stroke-width: 1.3;
+  color: var(--sb-crt); stroke-width: 1.3;
   filter: drop-shadow(0 0 10px rgb(93 255 143 / .55));
 }
 @keyframes rk-roll {

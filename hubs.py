@@ -110,7 +110,7 @@ LABEL_GROUP = ("Label Services", [
     ("apparel", "/apparel", "M6 6l4-2 2 2 2-2 4 2-2 4h-1v6H9v-6H8L6 6z", "Apparel & Merch", "The store's own checkout, on the page you are on."),
     # Submit Music moved to the footer row (owner, 2026-09-22): it is a door
     # to the label desk, not a service on this list. FOOTER_LINKS holds it,
-    # still label-only.
+    # still label-only.
     # /admin/review is NOT here. It lists every account on the deployment
     # by email address, so it is an owner tool rather than a label-plan
     # feature, and it is offered from _internal_tools() in app.py beside
@@ -127,6 +127,10 @@ COMMUNITY_GROUP = ("Community", [
     ("fans", "/fans", "M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4", "Fans", "Your fans, your CRM, your club."),
 ])
 ACCOUNT_GROUP = ("Account", [
+    # The complete tool directory, out of the Command Center (owner's
+    # zero-state spec, 2026-09-22). Listed here so the hub sidebar carries
+    # it too; the rooms sidebar reads rooms.ACCOUNT_KEYS.
+    ("all-tools", "/all-tools", "M3 3h6v6H3z|M11 3h6v6h-6z|M3 11h6v6H3z|M11 11h6v6h-6z", "All Tools", "Every window in the app, grouped like the sidebar, searchable."),
     ("inbox", "/inbox", "M3 12l3-8h8l3 8v4a1 1 0 01-1 1H4a1 1 0 01-1-1z|M3 12h4l1.5 2h3L13 12h4", "Inbox", "Messages and submissions."),
     ("notifications", "/notifications", "M10 3a4 4 0 00-4 4c0 4-2 5-2 5h12s-2-1-2-5a4 4 0 00-4-4z|M8.5 16a1.5 1.5 0 003 0", "Notifications", "Everything that happened while you were away."),
     ("team", "/team", "M7 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM13 8a2.5 2.5 0 100-5 2.5 2.5 0 000 5z|M3 16c0-2.2 1.8-4 4-4M13 12c2.2 0 4 1.8 4 4", "Team", "Invite your manager, accountant, attorney."),
@@ -483,8 +487,8 @@ def _with_live(hubs):
             items = [_LIVE_ITEM] + list(items)
         out.append((hkey, name, tagline, items))
     return out
-
-
+
+
 # --- the quiet row under the suites -----------------------------------------
 # Pages that are a door to somewhere rather than a step in the work. They
 # had cards in rooms, where they read as part of the job on that screen;

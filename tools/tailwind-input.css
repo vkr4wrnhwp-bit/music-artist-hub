@@ -67,6 +67,13 @@
     --sb-gold-line: rgba(201, 162, 74, .34);
     --sb-on-gold: #14100A;
 
+    /* --- the screen: phosphor green for CRT readouts on the plates and the
+       Command Center rack, and for a confirmed-success state; never text
+       on the page (owner, 2026-09-22: "reserve bright green primarily for
+       the rack screens and confirmed success states") --- */
+    --sb-crt: #5DFF8F;
+    --sb-crt-dim: #34C96A;
+
     /* --- semantic: state only, never decoration, never the accent --- */
     --sb-good: #79B473;
     --sb-good-wash: rgba(121, 180, 115, .13);

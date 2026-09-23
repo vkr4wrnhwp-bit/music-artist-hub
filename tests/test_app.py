@@ -2835,9 +2835,14 @@ def test_money_pages_use_real_statement_data():
     client.post("/signup", data={"name": "M", "email": email, "password": "secret1",
                                  "account_type": "artist"})
     client.post("/plan/switch", data={"plan": "pro"})
-    # Before any upload: honest sample-data nudge.
+    # Before any upload a brand-new account gets the page from zero
+    # (owner's spec, 2026-09-22), whose honest empty copy is "Nothing
+    # needs attention yet" - the money band, and its "Nothing to read
+    # yet" nudge, is the operational page's and appears once a statement
+    # makes the account operational (asserted below).
     body = client.get("/overview").get_data(as_text=True)
-    assert "Nothing to read yet" in body and "Upload a statement" in body
+    assert "Nothing needs attention yet" in body and 'class="cz"' in body
+    assert "Total Royalties Collected" not in body
     csv_data = (b"Track Title,Store,Net Revenue,Sales Period\n"
                 b"Midnight Drive,Spotify,120.50,2026-04\n"
                 b"Midnight Drive,Apple Music,80.25,2026-05\n"
@@ -6314,9 +6319,12 @@ def test_firstrun_panel_shows_for_a_new_artist_then_disappears():
     client.post("/signup", data={"name": "Rello", "email": email,
                                  "password": "secret1"})
     page = client.get("/command-center").get_data(as_text=True)
-    assert "Start here" in page
-    # It points at the Ctrl-K palette rather than repeating the whole nav.
-    assert "K</kbd>" in page
+    # A brand-new account gets the page from zero (owner's spec,
+    # 2026-09-22): the rack's START HERE screen and the three first-step
+    # cards, not the operational page with a checklist bolted on. The old
+    # Ctrl-K hint lived on that checklist and is not on this page.
+    assert "Start here" in page and 'class="cz"' in page
+    assert "Your first steps" in page
 
     uid = store_mod.get_user_by_email(email)["id"]
     # The five ESSENTIALS (owner's spec, 2026-09-22), not firstrun's old

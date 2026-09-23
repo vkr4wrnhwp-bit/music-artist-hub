@@ -25,7 +25,7 @@
      NOT, which is why nothing here is sized off the height. */
   container-type: inline-size;
   /* the screen's voice - the same tokens room-kit.css sets on .rk-pl */
-  --screen: #5dff8f; --screen-dim: #34c96a;
+  --screen: var(--sb-crt); --screen-dim: var(--sb-crt-dim);
   --screen-glow: 0 0 10px rgb(93 255 143 / .7), 0 0 28px rgb(93 255 143 / .35);
   --screen-glow-s: 0 0 8px rgb(93 255 143 / .6);
   /* --- plate regions, MEASURED off static/img/studio-bus-plate.webp
@@ -126,7 +126,7 @@
 
 .sd-needle {
   position: absolute; top: var(--vu-pivot-y); width: 0.28%; height: var(--vu-len);
-  background: linear-gradient(180deg, #2a1c08 0%, #14100a 70%, #14100a 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sb-gold-deep) 35%, #000) 0%, var(--sb-on-gold) 70%, var(--sb-on-gold) 100%);
   transform-origin: 50% 100%;
   /* A VU sweeps about sixty degrees. 0 is the left stop, 1 the right. */
   transform: translate(-50%, -100%) rotate(calc(-30deg + var(--turn, 0) * 60deg));

@@ -125,7 +125,9 @@ ROOMS = [
 
 # Rows above the rooms, and the group under them.
 TOP_KEYS = ("command-center", "actions")
-ACCOUNT_KEYS = ("settings", "connections", "billing")
+# "All tools" first (owner's mockup, 2026-09-22): the complete directory
+# left the Command Center and this is its door.
+ACCOUNT_KEYS = ("all-tools", "connections", "settings", "billing")
 
 # Cards a Label plan sees; everybody else does not.
 LABEL_ONLY = frozenset({"services", "roster", "submit", "apparel"})
@@ -156,6 +158,7 @@ _LIST = "M4 5h12M4 10h12M4 15h8"
 _CAL = "M3 5h14v12H3z|M3 9h14|M7 3v4M13 3v4"
 _CHART = "M3 16h14|M5 13l3-4 3 2 4-6"
 EXTRA = {
+    "all-tools": ("/all-tools", "M3 3h6v6H3z|M11 3h6v6h-6z|M3 11h6v6H3z|M11 11h6v6h-6z", "All Tools", "Every window in the app, grouped like the sidebar, searchable.", "settings"),
     "fan-crm": ("/links/fans", "M4 5h12v10H4z|M4 8h12|M7 11h3|M7 13h5", "Fan CRM", "Everyone who left a name or a number, in one list.", "fans"),
     "fan-club": ("/fan-club", "M10 3l2 4 4 .6-3 3 .7 4.4L10 13l-3.7 2 .7-4.4-3-3L8 7z", "Fan Club", "Paid membership, run by you.", "fans"),
     "contracts": ("/vault?view=contracts", "M5 3h8l3 3v11H5z|M13 3v3h3|M8 12l2 2 3-4|M8 8h4", "Contracts and licences", "The paperwork that proves who gets paid, with renewal reminders.", "vault"),

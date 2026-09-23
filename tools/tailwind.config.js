@@ -119,6 +119,8 @@ module.exports = {
           "gold-deep": "#8A6E30",
           "gold-wash": "rgba(201,162,74,.12)",
           "gold-line": "rgba(201,162,74,.34)",
+          crt: "#5DFF8F",
+          "crt-dim": "#34C96A",
           good: "#79B473",
           "good-wash": "rgba(121,180,115,.13)",
           warn: "#E8843F",

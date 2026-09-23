@@ -29,7 +29,7 @@
 .bz-unit {
   position: relative; width: 100%; margin: 0 auto; line-height: 0;
   /* the screen's voice - the same tokens room-kit.css sets on .rk-pl */
-  --screen: #5dff8f; --screen-dim: #34c96a;
+  --screen: var(--sb-crt); --screen-dim: var(--sb-crt-dim);
   --screen-glow: 0 0 10px rgb(93 255 143 / .7), 0 0 28px rgb(93 255 143 / .35);
   --screen-glow-s: 0 0 8px rgb(93 255 143 / .6);
   /* Studio lost an afternoon to this being missing: cqw resolves against an
