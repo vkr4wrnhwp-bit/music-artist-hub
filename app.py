@@ -8010,6 +8010,11 @@ def create_app():
         return {
             "statement_rows": len(rows),
             "statement_total": round(sum(r["amount"] for r in rows), 2),
+            # What each passport's OWN rows earned, a row counted for one
+            # track at most. Lane estimates are sized from this, never
+            # from statement_total (make-it-real, 2026-09-23).
+            "earned_by_track": artist_os.earnings_by_track(
+                store.list_os_tracks(user_id), rows),
             "lanes_with_data": artist_os.lanes_from_sources(
                 r.get("source") for r in rows),
             "live_links": len(campaigns),
@@ -8287,7 +8292,11 @@ def create_app():
         tracks = store.list_os_tracks(user["id"])
         ctx = _os_ctx(user["id"])
         queue = artist_os.action_queue([(t, ctx) for t in tracks])
-        est_total = round(sum(a["impact"] or 0 for a in queue), 2)
+        # How many gaps carry a figure, never what they add up to. The
+        # headline used to be the sum, and each figure was the account's
+        # whole total times a lane share, once per track, so it could pass
+        # everything the catalogue ever earned (make-it-real, 2026-09-23).
+        priced = len([a for a in queue if a["impact"]])
         criticals = len([a for a in queue if a["critical"]])
         # Settled tour income: money already collected, shown beside the money
         # still missing. TOUR's settlements (tour_show_ext, marked settled with
@@ -8309,7 +8318,7 @@ def create_app():
                     tour_income + touring.settlement_totals(st)["walk"], 2)
                 tour_settled += 1
         return render_template("money_queue.html", active_page="royalties",
-                               queue=queue, est_total=est_total,
+                               queue=queue, priced=priced,
                                criticals=criticals, ctx=ctx,
                                tour_income=tour_income,
                                tour_settled=tour_settled,

@@ -4403,13 +4403,21 @@ def test_artist_os_engines():
     # Lanes: estimates only exist when statements exist.
     lanes_dry = artist_os.lane_grid(track, ctx)
     assert all(l["estimate"] is None for l in lanes_dry)
+    # An estimate is sized from THIS track's own rows (earned_by_track),
+    # never the account total: this used to pass statement_total alone and
+    # expect 6% of it on every track, the figure that summed past the
+    # whole catalogue (make-it-real, 2026-09-23).
+    assert all(l["estimate"] is None for l in artist_os.lane_grid(
+        track, dict(ctx, statement_rows=10, statement_total=1000.0)))
     lanes_paid = artist_os.lane_grid(track, dict(ctx, statement_rows=10,
-                                                 statement_total=1000.0))
+                                                 statement_total=1000.0,
+                                                 earned_by_track={"t1": 1000.0}))
     mech = [l for l in lanes_paid if l["key"] == "mechanicals"][0]
-    assert mech["estimate"] == 60.0 and "your own statement" in mech["estimate_basis"]
+    assert mech["estimate"] == 60.0 and "this track's own" in mech["estimate_basis"]
     # Action queue: critical rights first.
     q = artist_os.action_queue([(track, dict(ctx, statement_total=1000.0,
-                                             statement_rows=10))])
+                                             statement_rows=10,
+                                             earned_by_track={"t1": 1000.0}))])
     assert q and q[0]["critical"] and q[0]["urgency"] == "release-blocking"
     assert any(a["impact"] for a in q)
     # Certification climbs only on real signals.
@@ -4538,7 +4546,10 @@ def test_os_p3_lanes_and_queue():
     assert artist_os.lanes_from_sources([]) == set()
     # A lane with real income reads "claimed".
     track = {"id": "x", "title": "Lane Song", "passport": {}, "lockbox": {}}
+    # earned_by_track: the estimate is this track's own $500, not the
+    # account total (make-it-real, 2026-09-23).
     ctx = {"statement_rows": 5, "statement_total": 500.0,
+           "earned_by_track": {"x": 500.0},
            "lanes_with_data": {"master", "pro"}, "live_links": 0, "fans": 0,
            "club_members": 0, "sync_active": False,
            "release_scheduled": False, "rollout_assets": False}

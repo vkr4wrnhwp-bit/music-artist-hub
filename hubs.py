@@ -91,7 +91,7 @@ HUBS = [
         # only what they may miss"). Beside Recovery because they answer
         # the same question from different rows: this one reads the track
         # passports, Recovery reads the statements.
-        ("money-queue", "/money-queue", "M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3M10 13v.01|M7 7l6 6", "Missing money", "Rights gaps on your passports, priced by what each is costing you."),
+        ("money-queue", "/money-queue", "M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3M10 13v.01|M7 7l6 6", "Missing money", "Rights gaps on your passports, most urgent first; collection gaps priced from that track's own earnings."),
         ("cases", "/royalty-recovery/cases", "M4 5h12v10H4z|M4 8h12M8 5V3h4v2M10 11v2", "Recovery Cases", "Tracked claims from open to paid."),
         ("disputes", "/disputes", "M10 3l7 4v5c0 3-3 5-7 5s-7-2-7-5V7z|M10 8v3M10 13v0", "Disputes", "Log and track conflicts on your catalog."),
         ("valuation", "/valuation", "M10 3l6 4v6l-6 4-6-4V7z|M10 8v4", "Valuation", "Catalog value from your real history."),

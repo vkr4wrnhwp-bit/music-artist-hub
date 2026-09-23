@@ -283,9 +283,62 @@ LANES = [
 ]
 
 # Rough lane shares of a typical indie catalog's collected total — used
-# ONLY to size an estimate from the artist's OWN statement revenue.
+# ONLY to size an estimate from ONE track's own statement earnings
+# (earnings_by_track). They were applied to the whole account's total on
+# every track, so a five-track catalogue was told five times over that
+# 36% of everything it earned was missing (make-it-real, 2026-09-23).
 _LANE_SHARE = {"mechanicals": 0.06, "pro": 0.12, "soundexchange": 0.05,
                "neighboring": 0.04, "content_id": 0.05, "ugc": 0.04}
+
+
+def _isrc_key(value):
+    """An ISRC compared the way stores print it: no hyphens, no spaces,
+    upper case. US-AB1-26-00001 and usab12600001 are one recording."""
+    return "".join(ch for ch in (value or "").upper() if ch.isalnum())
+
+
+def earnings_by_track(tracks, rows):
+    """{track id: what that passport's own statement rows earned}.
+
+    A row is one track's money or nobody's, so the figures can be set side
+    by side without any of them borrowing another track's income:
+
+      * a row that carries an ISRC belongs to the passport with that ISRC;
+        if no passport has it, it may still go to a passport of the same
+        title that has no ISRC of its own - but never to one whose ISRC is
+        different, which is another recording (a remix, a live cut);
+      * a row with no ISRC belongs to the passport with its title;
+      * a title two passports share belongs to neither, and an ISRC two
+        passports share likewise: nobody can say whose money it is.
+
+    Tracks with no row of their own are simply absent. Pure, so it is
+    testable without a database.
+    """
+    by_isrc, by_title, has_isrc = {}, {}, {}
+    for t in tracks or []:
+        tid = t.get("id")
+        key = _isrc_key((t.get("passport") or {}).get("isrc"))
+        has_isrc[tid] = bool(key)
+        if key:
+            by_isrc[key] = None if key in by_isrc else tid
+        title = (t.get("title") or "").strip().lower()
+        if title:
+            by_title[title] = None if title in by_title else tid
+    out = {}
+    for r in rows or []:
+        key = _isrc_key(r.get("isrc"))
+        title = (r.get("title") or "").strip().lower()
+        tid = None
+        if key and key in by_isrc:
+            tid = by_isrc[key]
+        elif title:
+            tid = by_title.get(title)
+            if key and tid is not None and has_isrc.get(tid):
+                tid = None      # the row names a different recording
+        if tid is None:
+            continue
+        out[tid] = out.get(tid, 0.0) + float(r.get("amount") or 0)
+    return {tid: round(amount, 2) for tid, amount in out.items()}
 
 
 def lanes_from_sources(sources):
@@ -350,17 +403,30 @@ def _lane_state(lane, track, ctx):
 
 
 def lane_grid(track, ctx):
-    total = float(ctx.get("statement_total") or 0)
+    """The nine lanes for one track. A missing lane's estimate is a typical
+    lane share of what THIS track earned on the account's own statements
+    (ctx["earned_by_track"], from earnings_by_track), or None when the
+    track has no rows of its own. Never the account total: that put the
+    same whole-catalogue figure on every track (make-it-real, 2026-09-23)."""
+    earned = (ctx.get("earned_by_track") or {}).get(track.get("id"))
+    own = float(earned or 0)
     lanes = []
     for key, label in LANES:
         state = _lane_state(key, track, ctx)
         est = None
-        if state in ("missing", "needs action") and key in _LANE_SHARE and total > 0:
-            est = round(total * _LANE_SHARE[key], 2)
-        lanes.append({"key": key, "label": label, "state": state,
-                      "estimate": est,
-                      "estimate_basis": ("share of your own statement earnings"
-                                         if est is not None else None)})
+        if state in ("missing", "needs action") and key in _LANE_SHARE and own > 0:
+            est = round(own * _LANE_SHARE[key], 2)
+        lanes.append({
+            "key": key, "label": label, "state": state,
+            "estimate": est,
+            "share": _LANE_SHARE[key] if est is not None else None,
+            "track_earned": round(own, 2) if est is not None else None,
+            "estimate_basis": (
+                "a typical %d%% lane share of the $%s this track's own "
+                "statement rows have earned"
+                % (round(_LANE_SHARE[key] * 100), "{:,.2f}".format(own))
+                if est is not None else None),
+        })
     return lanes
 
 
@@ -394,7 +460,8 @@ def action_queue(tracks_with_ctx):
                     item["label"],
                     "missing" if not item["value"] else "unresolved",
                     track["title"]),
-                "impact": None, "difficulty": _DIFFICULTY.get(item["key"], "easy"),
+                "impact": None, "basis": None,
+                "difficulty": _DIFFICULTY.get(item["key"], "easy"),
                 "urgency": urgency, "fix": item["fix"] or ("/tracks/" + track["id"]),
                 "docs": _DOCS_FOR.get(item["key"], ""),
                 "status": "open", "critical": item["critical"],
@@ -407,6 +474,9 @@ def action_queue(tracks_with_ctx):
                     "problem": "“%s” has no %s collection set up." % (
                         track["title"], lane["label"].lower()),
                     "impact": lane["estimate"], "difficulty": "medium",
+                    # What the figure is, said beside it: one track's
+                    # own earnings at a typical lane share.
+                    "basis": lane["estimate_basis"],
                     "urgency": "money on the table",
                     "fix": "/tracks/" + track["id"], "docs": "",
                     "status": "open", "critical": False,
