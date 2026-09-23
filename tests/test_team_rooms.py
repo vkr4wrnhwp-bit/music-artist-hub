@@ -334,4 +334,6 @@ def test_the_owner_still_gets_the_capture_pill():
     owner = _account()
     body = owner.get("/room/fans").get_data(as_text=True)
     assert "Launch fan campaign" in body
-    assert 'href="/links/new"' in body
+    # ?type=bio since the same afternoon (owner: "add the ?type=bio to the
+    # fans link") - the door opens the builder on the Fan Hub
+    assert 'href="/links/new?type=bio"' in body

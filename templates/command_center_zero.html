@@ -41,7 +41,7 @@
       {%- if essentials.next %}
       {#- "Continue setup" opens the FIRST INCOMPLETE MILESTONE, never a
           generic settings page (spec). -#}
-      <a class="cz-cta" href="{{ essentials.next.href }}"><svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-bolt"/></svg>Continue setup</a>
+      <a class="cz-cta" href="{{ essentials.next.href }}?returnTo=/command-center&amp;from={{ essentials.next.key }}"><svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-bolt"/></svg>Continue setup</a>
       {%- endif %}
     </div>
   </header>
@@ -49,26 +49,26 @@
   {#- ---- the rack ------------------------------------------------ -#}
   <section class="cz-rack" aria-labelledby="cz-rack-h">
     <h2 id="cz-rack-h" class="sr-only">Where you are</h2>
-    <div class="cz-rack-plate" aria-hidden="true">
-      <span class="cz-rack-silk cz-rack-silk--l">Street Banker</span>
-      <span class="cz-rack-silk cz-rack-silk--c">Command Center</span>
-      <span class="cz-rack-silk cz-rack-silk--r">The people who show up</span>
-      <span class="cz-screw cz-screw--tl"></span><span class="cz-screw cz-screw--tr"></span>
-      <span class="cz-screw cz-screw--bl"></span><span class="cz-screw cz-screw--br"></span>
-      <span class="cz-ear cz-ear--l"></span><span class="cz-ear cz-ear--r"></span>
-    </div>
+    {#- THE PHOTOGRAPH (owner, 2026-09-22, static/img/command-plate.webp,
+        1916x821). Three brass-framed screens on blackened brushed metal;
+        only the readouts are drawn on it. Each screen's box below is a
+        FRACTION MEASURED off the file with PIL (the glass, inset 3.5%/5%
+        so type never kisses the brass) - a round number here would be
+        an unmeasured placeholder, the Studio LCD lesson. Regenerate the
+        plate and these must be re-measured. -#}
+    <img class="cz-plate" src="/static/img/command-plate.webp?v=1" alt="" width="1916" height="821">
     <ul class="cz-screens">
-      <li class="cz-screen">
+      <li class="cz-screen" style="--x:6.22%;--y:16.82%;--w:25.14%;--h:61.61%">
         <span class="cz-screen-k">Welcome</span>
         <span class="cz-screen-v">Build your foundation one step at a time.</span>
       </li>
-      <li class="cz-screen">
+      <li class="cz-screen" style="--x:36.5%;--y:16.82%;--w:26.84%;--h:61.61%">
         <span class="cz-screen-k">Start here</span>
         {#- The next actual step. On a fresh account that is the profile;
             after the first milestone it is whatever is next. -#}
         <span class="cz-screen-v">{% if essentials.next %}{{ cz.start_here }}{% else %}Every essential is in place.{% endif %}</span>
       </li>
-      <li class="cz-screen">
+      <li class="cz-screen" style="--x:68.49%;--y:16.82%;--w:25.24%;--h:61.61%">
         <span class="cz-screen-k">Progress</span>
         <span class="cz-screen-v cz-screen-v--n">{{ essentials.progress }}</span>
       </li>
@@ -97,9 +97,9 @@
         {%- elif s.status == "locked" %}
         <span class="cz-btn cz-btn--locked" aria-disabled="true">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></span>
         {%- elif essentials.next and s.key == essentials.next.key %}
-        <a class="cz-btn cz-btn--primary" href="{{ s.href }}">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></a>
+        <a class="cz-btn cz-btn--primary" href="{{ s.href }}?returnTo=/command-center&amp;from={{ s.key }}">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></a>
         {%- else %}
-        <a class="cz-btn cz-btn--outline" href="{{ s.href }}">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></a>
+        <a class="cz-btn cz-btn--outline" href="{{ s.href }}?returnTo=/command-center&amp;from={{ s.key }}">{{ s.cta }}<svg class="cz-ico" aria-hidden="true" focusable="false"><use href="#sb-i-arrow-right"/></svg></a>
         {%- endif %}
       </li>
       {% endfor %}

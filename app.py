@@ -3091,6 +3091,12 @@ def create_app():
               and not any(c in v for c in ("\n", "\r")))
         return v if ok else default
 
+    # The shell's back-link honours ?returnTo= on any page through this
+    # (owner's spec, 2026-09-22: "every setup route should preserve
+    # returnTo=/command-center"). Same-site paths only; anything else is
+    # ignored and the rooms rule applies.
+    app.jinja_env.globals["safe_return"] = lambda v: _safe_next(v, "")
+
     def _strip_case(user_id, case_id):
         """The case the strip edits, with its rail, or None."""
         import recovery_desk
@@ -6587,6 +6593,9 @@ def create_app():
             return render_template("command_center_error.html",
                                    active_page="command-center",
                                    **build_dashboard_context()), 503
+        # ?from=<key>: the door you came back through. The sentence is
+        # decided by the SAVED state, not the param (account_state.done_line).
+        done_line = account_state.done_line(acs["essentials"], request.args.get("from"))
         if acs["state"] in ("new", "setup"):
             # The page from the owner's mockup: header, static rack, the
             # first steps with lock-and-reveal, how it fits together,
@@ -6596,7 +6605,7 @@ def create_app():
             nxt = ess.get("next") if ess else None
             return render_template(
                 "command_center_zero.html", active_page="command-center",
-                account_state=acs["state"], essentials=ess,
+                account_state=acs["state"], essentials=ess, done_line=done_line,
                 cz={
                     "account_name": artist_identity.display_name(user, default="") or "New label",
                     # START HERE names the next actual step; on a fresh
@@ -6611,7 +6620,7 @@ def create_app():
         tutor_panel = _tutor_panel(user)
         return render_template(
             "command_center.html", active_page="command-center",
-            account_state=acs["state"],
+            account_state=acs["state"], done_line=done_line,
             essentials=acs["essentials"],
             summary=cc.get_summary(user["id"]),
             cc_alerts=cc.build_alerts(user["id"]),
@@ -7596,7 +7605,13 @@ def create_app():
             # Keep the one query the passports section reads, so an old
             # /tracks?discogs=<id> link still opens that song's lookup.
             looked_up = request.args.get("discogs")
-            return redirect("/catalog?view=passports" + ("&discogs=%s" % urllib.parse.quote(looked_up) if looked_up else ""))
+            # A door's ?returnTo=…&from=… rides through this redirect, or
+            # the way back the Command Center gave the "song" card would
+            # be lost on a pro plan (Pass 4, 2026-09-22).
+            carry = "".join("&%s=%s" % (k, urllib.parse.quote(v, safe="/"))
+                            for k in ("returnTo", "from")
+                            for v in [request.args.get(k) or ""] if v)
+            return redirect("/catalog?view=passports" + ("&discogs=%s" % urllib.parse.quote(looked_up) if looked_up else "") + carry)
         ctx = build_dashboard_context()
         ctx["my_tracks"] = store.get_catalog_tracks(user["id"])
         ctx.update(_passport_section(user, ctx["my_tracks"]))

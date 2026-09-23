@@ -260,7 +260,8 @@ def test_continue_setup_opens_the_first_incomplete_milestone():
     import links_store as mls
     c, uid = _account()
     def cta(body):
-        m = re.search(r'<a class="cz-cta" href="([^"]+)"', body)
+        # the door, before the ?returnTo=…&from=… it carries since Pass 4
+        m = re.search(r'<a class="cz-cta" href="([^"?]+)', body)
         return m.group(1) if m else None
     _code, body = _zero_page(c)
     assert cta(body) == "/epk", "fresh: the profile"
@@ -300,3 +301,94 @@ def test_the_crt_green_is_a_token():
                   "static/css/studio-room.css", "static/css/command-zero.css"):
         css = io.open(sheet, encoding="utf-8").read().lower()
         assert not _re.search(r"#5dff8f|#34c96a", css), "%s still carries the literal" % sheet
+
+
+# ---- Pass 4: the way back, and what you are told --------------------------
+
+def test_done_line_is_decided_by_saved_state_not_the_param():
+    """?from=song names the door. Whether anything is SAID is decided by
+    whether the song exists."""
+    nothing = acs.build({})
+    assert acs.done_line(nothing, "song") == ""
+    assert acs.done_line(nothing, "nope") == ""
+    assert acs.done_line(nothing, "") == ""
+    after_song = acs.build({"identity": True, "song": True})
+    line = acs.done_line(after_song, "song")
+    assert line == ("Your first song was added. Setup is now 2 of 5 complete. "
+                    "Next, add the working audio in the Rack."), line
+    done = acs.build({k: True for k in acs.KEYS})
+    assert acs.done_line(done, "capture").endswith("Every essential is in place.")
+
+
+def test_every_setup_door_carries_a_way_back():
+    c, _uid = _account()
+    body = c.get("/command-center").get_data(as_text=True)
+    for key, href in (("identity", "/epk"), ("song", "/tracks")):
+        assert '%s?returnTo=/command-center&amp;from=%s' % (href, key) in body, key
+    # the locked card has no door, so no returnTo
+    assert "/links/new?returnTo" not in body
+
+
+def test_the_shell_honours_a_same_site_return_and_ignores_the_rest():
+    c, _uid = _account()
+    # /epk renders in place; /tracks redirects a pro plan to the catalog
+    # (and now carries the query with it - asserted separately below)
+    body = c.get("/epk?returnTo=/command-center&from=identity").get_data(as_text=True)
+    assert 'id="sb-room-back"' in body
+    assert 'href="/command-center"' in body.split('id="sb-room-back"')[0][-120:] \
+        or 'href="/command-center" id="sb-room-back"' in body
+    assert "Back to Command Center" in body
+    # a hostile returnTo is dropped, not followed
+    for bad in ("//evil.example", "https://evil.example/x", "/\\\\evil"):
+        body = c.get("/epk?returnTo=" + bad).get_data(as_text=True)
+        assert "evil" not in body.split('id="sb-main"')[1].split("</main>")[0][:4000], bad
+
+
+def test_coming_back_through_a_door_reports_what_is_now_real():
+    c, uid = _account()
+    # back from the profile door with NOTHING saved: no claim
+    body = c.get("/command-center?from=identity").get_data(as_text=True)
+    assert "Your profile was saved" not in body
+    # save it, come back through the same door: the sentence, the count,
+    # the next step
+    store.save_epk(uid, {"artist_name": "Rello"})
+    body = c.get("/command-center?from=identity").get_data(as_text=True)
+    assert "Your profile was saved. Setup is now 1 of 5 complete. Next, add your first song." in body
+    assert 'role="status"' in body
+    # and not on a plain visit
+    body = c.get("/command-center").get_data(as_text=True)
+    assert "Your profile was saved" not in body
+
+
+def test_the_song_door_survives_the_catalog_redirect():
+    """/tracks sends a pro plan to /catalog?view=passports. The way back
+    the Command Center gave that door has to ride through."""
+    c, _uid = _account()
+    r = c.get("/tracks?returnTo=/command-center&from=song", follow_redirects=False)
+    assert r.status_code == 302
+    assert "returnTo=/command-center" in r.headers["Location"] and "from=song" in r.headers["Location"]
+    body = c.get(r.headers["Location"]).get_data(as_text=True)
+    assert "Back to Command Center" in body
+
+
+def test_the_rack_is_the_owners_plate_with_measured_screens():
+    """The photograph is the hardware (owner-generated, 2026-09-22) and
+    only the readouts are drawn on it. Each screen's box is a fraction
+    MEASURED off the file - a round number would be an unmeasured
+    placeholder, the Studio LCD lesson - and the drawn CSS rack that
+    stood in until the plate arrived is gone for good."""
+    import os
+    assert os.path.exists("static/img/command-plate.webp")
+    c, _uid = _account()
+    body = c.get("/command-center").get_data(as_text=True)
+    assert 'class="cz-plate" src="/static/img/command-plate.webp' in body
+    boxes = re.findall(r'class="cz-screen" style="--x:([\d.]+)%;--y:([\d.]+)%;--w:([\d.]+)%;--h:([\d.]+)%"', body)
+    assert len(boxes) == 3, boxes
+    for x, y, w, h in boxes:
+        for v in (x, y, w, h):
+            assert "." in v and not v.endswith(".0"), "a round fraction is an unmeasured one: %s" % v
+    # all three share one glass row
+    assert len({(y, h) for _x, y, _w, h in boxes}) == 1
+    css = io.open("static/css/command-zero.css", encoding="utf-8").read()
+    for drawn in ("cz-rack-plate", "cz-screw", "cz-ear", "cz-rack-silk"):
+        assert drawn not in css, "the drawn rack is still in the sheet: %s" % drawn

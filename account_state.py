@@ -199,6 +199,45 @@ def build(flags, reachable=None):
     }
 
 
+# What the Command Center says when you come back through a door and the
+# thing behind it is now real. Past tense, the count, the next step - the
+# spec's own example is "Your first song was added. Setup is now 2 of 5
+# complete. Next, add the working audio in Studio."
+DONE_LINES = {
+    "identity": "Your profile was saved.",
+    "song": "Your first song was added.",
+    "asset": "Your first working asset is in the Rack.",
+    "link": "Your first smart link is ready.",
+    "capture": "Fan capture is on, with consent recorded.",
+}
+NEXT_LINES = {
+    "identity": "tell us who you are.",
+    "song": "add your first song.",
+    "asset": "add the working audio in the Rack.",
+    "link": "create your first smart link.",
+    "capture": "turn on fan capture.",
+}
+
+
+def done_line(essentials, came_from):
+    """The completion sentence for the door named by ?from=, or "" when
+    that milestone is not real yet - the param says which door, the saved
+    record decides whether anything is said."""
+    if not essentials or not came_from:
+        return ""
+    step = next((s for s in essentials["steps"] if s["key"] == came_from), None)
+    if step is None or not step["done"]:
+        return ""
+    parts = [DONE_LINES.get(came_from, "Done."),
+             "Setup is now %d of %d complete." % (essentials["done"], essentials["total"])]
+    nxt = essentials.get("next")
+    if nxt:
+        parts.append("Next, " + NEXT_LINES.get(nxt["key"], nxt["title"].lower() + "."))
+    else:
+        parts.append("Every essential is in place.")
+    return " ".join(parts)
+
+
 def state_of(essentials, has_records):
     """Which of the four states this account is in.
 

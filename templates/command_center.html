@@ -77,7 +77,7 @@
             {% if not step.done %}<div class="mt-0.5 text-xs leading-relaxed text-gray-300 font-medium">{{ step.why }}</div>{% endif %}
           </div>
           {% if not step.done %}
-          <a href="{{ step.href }}" class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-black
+          <a href="{{ step.href }}?returnTo=/command-center&amp;from={{ step.key }}" class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-black
              {{ 'bg-sb-gold text-black hover:brightness-110' if tutor.next and step.key == tutor.next.key
                 else 'border border-white/15 text-gray-300 hover:text-white' }}">{{ step.cta }}</a>
           {% endif %}

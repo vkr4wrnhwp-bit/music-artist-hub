@@ -568,11 +568,26 @@
           2026-09-15: "we do need back buttons in the pages when you open
           the icon cards in the room"). Only in the rooms layout, only on
           a page a room holds; a room screen and the top rows have none. -#}
-      {%- if rooms_nav and active_page is defined and active_page in rooms_nav.back %}
+      {#- ?returnTo= wins over the rooms rule: a door that says where it
+          came from gets a way back there (owner's spec, 2026-09-22). Same-
+          site paths only - safe_return() drops anything else. The Fans
+          audit's "Back to Marketing" from a fan-capture trip is this bug. -#}
+      {%- set sb_return = safe_return(request.args.get('returnTo')) %}
+      {%- if sb_return %}
+      <a href="{{ sb_return }}" id="sb-room-back" class="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-300 transition-colors hover:border-sb-gold/40 hover:text-white">
+        <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg>
+        Back to {{ "Command Center" if sb_return.startswith("/command-center") else ("the " ~ sb_return.split("/room/")[1].split("?")[0].split("/")[0] ~ " room" if sb_return.startswith("/room/") else "where you were") }}
+      </a>
+      {%- elif rooms_nav and active_page is defined and active_page in rooms_nav.back %}
       <a href="/room/{{ rooms_nav.back[active_page][0] }}" id="sb-room-back" class="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-300 transition-colors hover:border-sb-gold/40 hover:text-white">
         <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5l-5 5 5 5"/></svg>
         Back to {{ rooms_nav.back[active_page][1] }}
       </a>
+      {%- endif %}
+      {#- The sentence a page carries back (the Command Center's done_line):
+          past tense, the count, the next step. Only when the thing is real. -#}
+      {%- if done_line is defined and done_line %}
+      <div class="mb-4 rounded-xl border border-sb-gold/40 bg-sb-gold/10 px-4 py-3 text-sm text-gray-100" role="status" aria-live="polite">{{ done_line }}</div>
       {%- endif %}
       {%- if request.args.get('off') %}
       <div class="mb-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-100" role="status">
