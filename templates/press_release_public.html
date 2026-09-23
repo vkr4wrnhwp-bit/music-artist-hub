@@ -71,7 +71,9 @@
     <a class="pd-btn" href="{{ release.listen_url }}" target="_blank" rel="noopener noreferrer">Listen</a>
     {% endif %}
     {% if release.epk_url %}
-    <a class="pd-btn pd-btn--ghost" href="{{ release.epk_url }}" target="_blank" rel="noopener noreferrer">Press kit, photos and audio</a>
+    {#- Named for the link, not for what it might hold: it is whatever
+        address the artist typed, and nothing here checks its contents. -#}
+    <a class="pd-btn pd-btn--ghost" href="{{ release.epk_url }}" target="_blank" rel="noopener noreferrer">Press kit</a>
     {% endif %}
   </div>
   {% endif %}

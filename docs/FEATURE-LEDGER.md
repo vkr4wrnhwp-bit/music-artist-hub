@@ -4784,7 +4784,7 @@ File a dated, self-contained HTML copy of the kit in the artist's Vault.
 
 **The page a journalist opens (per-recipient announcement)**
 
-One announcement at one recipient's own token URL, with the embargo shown and the first open notified to the artist.
+One announcement at one recipient's own token URL, with the embargo shown and the first open notified to the artist. It shows the words, the dates, the contact and two links (Listen, Press kit); it draws no artwork and no audio player, because an announcement has no audio or artwork attached (the owner's announcement desk has no field for either). Since 2026-09-23 nothing promises otherwise: the Announcements intro says "with the details and your links", DEFAULT_BODY says "The announcement, the details and the links are here", and the kit button says "Press kit" rather than "Press kit, photos and audio" (tests/test_real_press_promise.py couples the intro to what the template draws). Attaching cover art and a playable master is waiting on the owner: it needs two pickers on his desk.
 
 - Because: press_desk.press_page resolves the token to a recipient, reads the pitch and the release owner-blind (get_release_any — the token is the authorisation), renders press_release_public.html and calls mark_opened, which increments open_count and returns the row only on the FIRST open so store.notify fires once. A team seat or an acting partner viewing it is excluded from counting as an open (session team_as / acting_as check). Probe: anonymous GET returned 200 and moved the recipient from prepared to opened with open_count 1.
 - Routes: GET /press/<token>
