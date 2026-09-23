@@ -218,6 +218,7 @@ a.pb-z-lens:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-of
 .pb-z-need { grid-column: 2; margin-top: 4px; }
 .pb-z-need summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); }
 .pb-z-need summary::-webkit-details-marker { display: none; }
+.pb-z-need summary svg { width: 16px; height: 16px; flex: 0 0 auto; }
 .pb-z-need summary:hover { text-decoration: underline; }
 .pb-z-need ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--sb-ink-2); }
 .pb-z-need p { margin: 6px 0 0; font-size: 13px; color: var(--sb-ink-2); }
