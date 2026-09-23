@@ -41,17 +41,17 @@
 .cz .cz-card-ring svg.cz-ico { width: 24px; height: 24px; }
 
 /* ---- the rack ----------------------------------------------------------
-   One photograph (static/img/command-plate.webp), and only the readouts
-   drawn on it. Same method as the room plates: the unit is a container,
+   One photograph (static/img/room-plate.webp, the owner's shorter
+   three-window plate of 2026-09-23), and only the readouts drawn on it. Same method as the room plates: the unit is a container,
    every size on a screen is a cqw clamp, each screen's box comes in as
    --x/--y/--w/--h measured off the file. Nothing is sized in cqh. */
-.cz-rack { position: relative; container-type: inline-size; }
+.cz-rack { position: relative; container: czrack / inline-size; }
 .cz-plate { display: block; width: 100%; height: auto; border-radius: var(--sb-r-panel); }
 .cz-screens { margin: 0; padding: 0; list-style: none; }
 .cz-screen {
   position: absolute; left: var(--x); top: var(--y); width: var(--w); height: var(--h);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3%; padding: 3% 4%; text-align: center; box-sizing: border-box; overflow: hidden;
+  gap: 2%; padding: 2.5% 4%; text-align: center; box-sizing: border-box; overflow: hidden;
 }
 /* scanlines: it is a CRT behind glass, so the readout rides on them */
 .cz-screen::after {
@@ -146,16 +146,6 @@
   /* The drawn rack collapses to a stacked list of three screens - the
      same rule as the room plates (nothing readable at 375px on a
      photograph). */
-  .cz-plate { display: none; }
-  .cz-rack { container-type: normal; }
-  .cz-screens { display: flex; flex-direction: column; gap: 10px; }
-  .cz-screen {
-    position: static; left: auto; top: auto; width: auto; height: auto; min-height: 84px;
-    padding: 14px 16px; border: 1px solid var(--sb-gold-deep); border-radius: var(--sb-r-control);
-    background: color-mix(in srgb, var(--sb-crt) 6%, #000);
-  }
-  .cz-screen-k { font-size: 12px; }
-  .cz-screen-v { font-size: 16px; max-width: none; }
   .cz-head-aside { width: 100%; }
   .cz-cta { width: 100%; justify-content: center; }
   .cz-panel { flex-wrap: wrap; }
@@ -187,4 +177,23 @@ a.cz-screen-v { text-decoration: none; }
 a.cz-screen-v:hover { filter: brightness(1.12); }
 @media (max-width: 860px) {
   .cz-inprog-row { grid-template-columns: 1fr; gap: 6px; }
+}
+
+/* The plate is short (its screens are an eighth of its width tall), so
+   below the width where every sentence still fits its glass, the rack
+   steps aside for the same three screens stacked as boxes - by the rack's
+   own width, not the window's, since the column beside the sidebar is
+   narrower than the window. The width was measured with headless Chrome
+   on 2026-09-23: every room's words, at rack widths from 881px up, sit
+   inside their glass; tests/test_room_plate.py pins the numbers. */
+@container czrack (max-width: 880px) {
+  .cz-plate { display: none; }
+  .cz-screens { display: flex; flex-direction: column; gap: 10px; }
+  .cz-screen {
+    position: static; left: auto; top: auto; width: auto; height: auto; min-height: 84px;
+    padding: 14px 16px; border: 1px solid var(--sb-gold-deep); border-radius: var(--sb-r-control);
+    background: color-mix(in srgb, var(--sb-crt) 6%, #000);
+  }
+  .cz-screen-k { font-size: 12px; }
+  .cz-screen-v { font-size: 16px; max-width: none; }
 }

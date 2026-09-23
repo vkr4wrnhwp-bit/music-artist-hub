@@ -166,7 +166,7 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_plate():
     import re as _re
     c, _uid = _account()
     body = _body(c.get("/room/releases").get_data(as_text=True))
-    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "room-plate.webp" in body, "the rooms' photographed three-window plate"
     assert "releases-plate.webp" not in body, "the plate waits for a release"
     assert "rk-cine" not in body and "rk-reel-win" not in body and "rk-tick-win" not in body, "nothing rotates"
     assert "rk-pl-n" not in body and "rl-ribbon" not in body, "no reading, no ribbon"
@@ -246,7 +246,7 @@ def test_one_release_brings_the_plate_back_untouched():
     c, uid = _account()
     _campaign(uid, days_out=30, title="First single")
     body = _body(c.get("/room/releases").get_data(as_text=True))
-    assert "releases-plate.webp?v=" in body and "command-plate" not in body
+    assert "releases-plate.webp?v=" in body and "room-plate" not in body
     assert "First single" in body and "Explore more tools" in body and "rk-step rk-step--now" in body
     assert "Start with one release" not in body and "rl-z-fold" not in body
 
@@ -288,7 +288,7 @@ def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
     page = r.get_data(as_text=True)
     assert "We could not load Releases" in page
     assert 'href="/room/releases"' in page and 'href="/releases/autopilot"' in page and "Open the release desk" in page
-    assert "Start with one release" not in page and "command-plate" not in page
+    assert "Start with one release" not in page and "room-plate" not in page
 
 
 def test_a_release_ten_days_out_puts_the_arc_on_the_14_day_plan():

@@ -4,6 +4,9 @@
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
   <link rel="stylesheet" href="/static/css/fan-room.css?v=8">
+  {%- if fr.idle %}
+  <link rel="stylesheet" href="/static/css/command-zero.css?v=2">
+  {%- endif %}
 {% endblock %}
 
 {#- THE FAN ROOM - the Fans room's opening screen, built from the owner's
@@ -105,51 +108,22 @@
        every browser that already has it while the stylesheet beside it
        refetches, so the overlays land on the wrong picture. Studio lost
        an afternoon to exactly that. #}
+  {% if fr.idle %}
+  {#- THE PAGE FROM ZERO: the rooms' three-window rack (owner, 2026-09-23:
+      "one room has a different plate on it... swap it out to this
+      three-window one like the rest"). PURPOSE / START HERE / GOOD TO
+      KNOW on the shared plate, STATIC, as every other room. The Fans
+      room's own plate - the map and its three readings - is the working
+      room's, once there is an audience to draw. -#}
+  {% with screens=fr.zero.screens, rack_label="What Fans is for" %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
+  {% else %}
   <section class="rk-pl fr-pl"
            aria-label="{% if fr.total %}Your audience: {{ fr.total_label }} on file{% else %}The audience monitor, with nobody on file yet{% endif %}">
     <img class="rk-pl-img" src="/static/img/fans-plate.webp?v=1" alt=""
          width="1860" height="846" decoding="async">
 
-    {% if fr.idle %}
-    {#- THE PAGE FROM ZERO (owner's Fans spec, 2026-09-22): the rack is a
-        STABLE information centre - three modules, no rotation, no dots -
-        on the same photographed plate. PURPOSE takes the big window;
-        START HERE and GOOD TO KNOW the first two small ones; the third
-        small window is left unlit (it becomes STATUS once an import or
-        campaign has a result). List semantics inside the named region;
-        the silkscreen is on the photograph and hidden from AT. The
-        animated standby is retired on this room only. -#}
-    {#- The owner's mockup: ONE wide screen carrying the three modules side
-        by side with a rule between them - the big window. The three small
-        windows were photographed for a figure and a word, and the spec's
-        sentences do not fit them at any width the audit tried (62px tall
-        at 1300px); they stay unlit until there is data to read. -#}
-    <div class="rk-pl-win fr-z-win fr-z-win--big" style="{{ fr.room_box }}">
-      <ul class="fr-z-mods">
-        <li class="fr-z-mod">
-          <span class="fr-z-mod-ico" aria-hidden="true">{{ icon("belong", "fr-z-mod-svg") }}</span>
-          <span class="fr-z-k">{{ fr.zero.rack.purpose[0] }}</span>
-          <span class="fr-z-v">{{ fr.zero.rack.purpose[1] }}</span>
-          <span class="sr-only">{{ fr.zero.rack.purpose[2] }}</span>
-        </li>
-        <li class="fr-z-mod">
-          <span class="fr-z-mod-ico" aria-hidden="true">{{ icon("discover", "fr-z-mod-svg") }}</span>
-          <span class="fr-z-k">{{ fr.zero.rack.start[0] }}</span>
-          <span class="fr-z-v">{{ fr.zero.rack.start[1] }}</span>
-        </li>
-        <li class="fr-z-mod">
-          <span class="fr-z-mod-ico" aria-hidden="true">{{ icon("tick", "fr-z-mod-svg") }}</span>
-          <span class="fr-z-k">{{ fr.zero.rack.know[0] }}</span>
-          <span class="fr-z-v">{{ fr.zero.rack.know[1] }}</span>
-        </li>
-      </ul>
-    </div>
-    <ul class="fr-z-list" aria-hidden="true">
-      <li class="rk-pl-win fr-z-win fr-z-win--unlit" style="{{ fr.standby.reel.box }}"></li>
-      <li class="rk-pl-win fr-z-win fr-z-win--unlit" style="{{ fr.standby.tips.box }}"></li>
-      <li class="rk-pl-win fr-z-win fr-z-win--unlit" style="{{ fr.standby.ticker.box }}"></li>
-    </ul>
-    {% else %}
     {# the big window: the constellation this account's own fans make #}
     <div class="rk-pl-win fr-pl-room" style="{{ fr.room_box }}">
       <p class="rk-pl-sr">The room</p>
@@ -200,8 +174,8 @@
       <p class="rk-pl-s{% if w.tone %} {{ w.tone }}{% endif %}">{{ w.sub }}</p>
     </div>
     {% endfor %}
-    {% endif %}
   </section>
+  {% endif %}
   {#- The glossary belongs to the readings. In standby the windows are
       already saying what each one means, so printing it again underneath
       says everything twice. -#}

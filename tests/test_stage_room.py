@@ -195,7 +195,7 @@ def test_an_empty_account_meets_the_page_from_zero_not_the_desk():
     import re as _re
     c, _uid = _account()
     body = _room(c.get("/room/stage").get_data(as_text=True))
-    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "room-plate.webp" in body, "the rooms' photographed three-window plate"
     assert "stage-plate.webp" not in body, "the desk waits for a record"
     assert "rk-cine" not in body and "rk-reel-win" not in body, "nothing rotates"
     assert "No show saved yet" not in body and "Nothing patched" not in body
@@ -336,7 +336,7 @@ def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
     assert "We could not load your Stage workspace" in page
     assert "Your shows and plans are safe. Try loading the Room again." in page
     assert 'href="/room/stage"' in page and 'href="/command-center"' in page
-    assert "Start with a show" not in page and "command-plate" not in page
+    assert "Start with a show" not in page and "room-plate" not in page
     assert 'action="/tours/new"' not in page, "no form on the error page"
 
 

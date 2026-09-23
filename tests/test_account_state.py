@@ -378,10 +378,10 @@ def test_the_rack_is_the_owners_plate_with_measured_screens():
     placeholder, the Studio LCD lesson - and the drawn CSS rack that
     stood in until the plate arrived is gone for good."""
     import os
-    assert os.path.exists("static/img/command-plate.webp")
+    assert os.path.exists("static/img/room-plate.webp")
     c, _uid = _account()
     body = c.get("/command-center").get_data(as_text=True)
-    assert 'class="cz-plate" src="/static/img/command-plate.webp' in body
+    assert 'class="cz-plate" src="/static/img/room-plate.webp' in body
     boxes = re.findall(r'class="cz-screen" style="--x:([\d.]+)%;--y:([\d.]+)%;--w:([\d.]+)%;--h:([\d.]+)%"', body)
     assert len(boxes) == 3, boxes
     for x, y, w, h in boxes:

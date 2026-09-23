@@ -234,7 +234,7 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_plate():
     import re as _re
     c, _uid = _account()
     body = _body(c.get("/room/publishing").get_data(as_text=True))
-    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "room-plate.webp" in body, "the rooms' photographed three-window plate"
     assert "publishing-plate.webp" not in body, "the plate waits for a song"
     assert "rk-cine" not in body and "rk-reel-win" not in body and "rk-tick-win" not in body, "nothing rotates"
     assert "rk-pl-n" not in body and "pb-pl-split" not in body, "no reading, no claimed bar"
@@ -322,7 +322,7 @@ def test_one_song_brings_the_plate_back_untouched():
     c, uid = _account()
     _song(uid)
     body = _body(c.get("/room/publishing").get_data(as_text=True))
-    assert "publishing-plate.webp?v=" in body and "command-plate" not in body
+    assert "publishing-plate.webp?v=" in body and "room-plate" not in body
     assert "The rest of this room" in body and "pb-pl-split" in body
     assert "Start with one song" not in body and "pb-z-fold" not in body
     for name in ("Written", "Split agreed", "Registered", "Claimed", "Collecting"):
@@ -356,7 +356,7 @@ def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
     page = r.get_data(as_text=True)
     assert "We could not load Publishing" in page
     assert 'href="/room/publishing"' in page and 'href="/catalog"' in page and "Open catalog" in page
-    assert "Start with one song" not in page and "command-plate" not in page
+    assert "Start with one song" not in page and "room-plate" not in page
 
 
 def test_the_page_never_says_a_registration_was_accepted_or_a_society_paid():

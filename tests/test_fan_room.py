@@ -54,10 +54,13 @@ def test_an_empty_account_is_told_how_to_start_not_shown_a_crowd():
     assert "Nothing is added until you review and confirm" in body
     assert "rk-cine" not in body and "rk-reel-ico" not in body
     assert 'class="rk-tip"' not in body and "rk-tick-i" not in body
-    # the owner's mockup: ONE wide screen carrying the three modules side by
-    # side; the three small windows stay unlit until there is data
-    assert body.count('class="fr-z-mod"') == 3, "three modules in the big window"
-    assert body.count("fr-z-win--unlit") == 3, "the small screens unlit"
+    # the rooms' three-window rack, like every other room (owner,
+    # 2026-09-23: "one room has a different plate on it... swap it out to
+    # this three-window one like the rest"); the Fans map plate is the
+    # working room's
+    assert "room-plate.webp" in body and "fans-plate.webp" not in body
+    assert body.count('<li class="cz-screen"') == 3
+    assert "fr-z-mod" not in body and "fr-z-win" not in body
     # the hero's own pill, its door on the Fan Hub
     assert 'class="fr-cta" href="/links/new?type=bio"' in body
     assert "Launch fan campaign" in body
@@ -239,9 +242,11 @@ def test_reachable_says_words_when_nobody_is_on_file_and_a_figure_otherwise():
 
 def test_the_markup_never_prints_what_the_plate_silkscreens():
     """ON FILE, REACHABLE, NEW and THE ROOM are printed on the photograph.
-    Owner, 2026-09-22: "check for duplicate buttons and text"."""
+    Owner, 2026-09-22: "check for duplicate buttons and text". The Fans
+    plate is the working room's, so the account holds a fan."""
     import re
-    c, _uid = _account()
+    c, uid = _account()
+    mls.upsert_fan(uid, "one@example.net", "", name="One")
     body = c.get("/room/fans").get_data(as_text=True)
     unit = body.split('class="rk-pl fr-pl"', 1)[1].split("</section>", 1)[0]
     for word in ("On file", "Reachable", "New", "The room"):
@@ -252,7 +257,8 @@ def test_the_markup_never_prints_what_the_plate_silkscreens():
 
 
 def test_the_plate_image_carries_a_cache_version():
-    c, _uid = _account()
+    c, uid = _account()
+    mls.upsert_fan(uid, "one@example.net", "", name="One")
     body = c.get("/room/fans").get_data(as_text=True)
     assert "fans-plate.webp?v=" in body, (
         "an image replaced in place is kept by every browser that has it")

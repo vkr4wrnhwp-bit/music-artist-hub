@@ -194,7 +194,7 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_analyser():
     import re as _re
     c, _uid = _account()
     body = c.get("/room/analytics").get_data(as_text=True).split('class="rk an"', 1)[1]
-    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "room-plate.webp" in body, "the rooms' photographed three-window plate"
     assert "analytics-plate.webp" not in body, "the analyser waits for a source"
     assert "rk-cine" not in body and "rk-reel-win" not in body, "nothing rotates"
     assert "an-plot" not in body and "rk-pl-n" not in body, "no chart frame, no reading"
@@ -276,7 +276,7 @@ def test_one_pinned_artist_brings_the_analyser_back_untouched():
     c, uid = _account()
     _pin(uid)
     body = c.get("/room/analytics").get_data(as_text=True).split('class="rk an"', 1)[1]
-    assert "analytics-plate.webp?v=" in body and "command-plate" not in body
+    assert "analytics-plate.webp?v=" in body and "room-plate" not in body
     assert "Pinned Artist" in body and "Change artist" in body
     assert "Not measured" in body, "the analyser's own words for what nobody measured"
     assert "Start with a trusted source" not in body and "an-z-fold" not in body
@@ -304,7 +304,7 @@ def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
     page = r.get_data(as_text=True)
     assert "We could not load Analytics" in page
     assert 'href="/room/analytics"' in page and 'href="/connections"' in page and "Review connections" in page
-    assert "Connect your first data source" not in page and "command-plate" not in page
+    assert "Connect your first data source" not in page and "room-plate" not in page
 
 
 def test_the_reason_a_line_cannot_be_drawn_is_shown_once_there_are_readings():

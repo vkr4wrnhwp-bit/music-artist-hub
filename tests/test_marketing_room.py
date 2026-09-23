@@ -85,7 +85,7 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_funnel():
     page = c.get("/room/marketing").get_data(as_text=True)
     body = _body(page)
     assert ">Marketing</h1>" in page
-    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "room-plate.webp" in body, "the rooms' photographed three-window plate"
     assert "marketing-plate.webp" not in body, "the funnel waits for something sent"
     assert "rk-cine" not in body and "rk-reel-win" not in body and "rk-tick-win" not in body, "nothing rotates"
     for gone in ("mk-range", "mk-band", "No visits in this window", "None yet", "No announcements ready",
@@ -170,7 +170,7 @@ def test_one_campaign_brings_the_room_back_untouched():
     c, uid = _account()
     mls.create_campaign(uid, "mkt-%s" % uuid.uuid4().hex[:8], {"title": "First campaign"})
     body = _body(c.get("/room/marketing").get_data(as_text=True))
-    assert "marketing-plate.webp?v=" in body and "command-plate" not in body
+    assert "marketing-plate.webp?v=" in body and "room-plate" not in body
     assert "mk-range" in body and "No visits in this window" in body and "Explore more tools" in body
     assert "Start with one goal" not in body and "mk-z-fold" not in body
 
@@ -215,7 +215,7 @@ def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
     page = r.get_data(as_text=True)
     assert "We could not load Marketing" in page
     assert 'href="/room/marketing"' in page and 'href="/links"' in page and "Open Smart Links" in page
-    assert "Start with one goal" not in page and "command-plate" not in page
+    assert "Start with one goal" not in page and "room-plate" not in page
 
 
 def test_every_figure_traces_to_a_record_this_account_holds():

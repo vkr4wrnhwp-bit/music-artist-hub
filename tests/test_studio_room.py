@@ -156,7 +156,7 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_unit():
     import re as _re
     c, _uid = _account()
     body = _room(c.get("/room/studio").get_data(as_text=True))
-    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "room-plate.webp" in body, "the rooms' photographed three-window plate"
     assert "studio-bus-plate" not in body, "the analyser waits for a record"
     assert "rk-cine" not in body and "rk-reel-win" not in body, "nothing rotates"
     assert "Not measured yet" not in body and "No master measured yet" not in body

@@ -576,14 +576,22 @@ def test_each_screen_reads_its_price_from_plans(page):
     assert "sbrk-go" not in band, "the screens are the doors; no second button"
 
 
-def test_the_screens_sit_where_the_command_center_s_do():
-    """One plate, one set of fractions. cc_rack.html carries them inline
-    for the Command Center; split_home.RACK_SCREENS carries them for the
-    rack. If the plate is re-measured, both move or this fails."""
-    t = io.open(os.path.join(HERE, "templates", "partials", "cc_rack.html"),
+def test_the_membership_rack_keeps_its_own_plate_and_its_measured_screens():
+    """The rooms moved to the owner's shorter three-window plate
+    (room-plate.webp, 2026-09-23: "they are too tall"); the membership
+    rack on the home page keeps the taller command-plate.webp, so the two
+    no longer share fractions. RACK_SCREENS are the ones measured off
+    command-plate.webp; if that plate is ever re-measured, this moves."""
+    assert split_home.RACK_SCREENS == (("6.22", "16.82", "25.14", "61.61"),
+                                       ("36.5", "16.82", "26.84", "61.61"),
+                                       ("68.49", "16.82", "25.24", "61.61"))
+    t = io.open(os.path.join(HERE, "templates", "partials", "memberships_rack.html"),
                 encoding="utf-8").read()
-    boxes = re.findall(r'\("([\d.]+)","([\d.]+)","([\d.]+)","([\d.]+)"\)', t)
-    assert tuple(boxes) == split_home.RACK_SCREENS
+    assert "command-plate.webp" in t
+    rooms = io.open(os.path.join(HERE, "templates", "partials", "cc_rack.html"),
+                    encoding="utf-8").read()
+    assert 'src="/static/img/room-plate.webp' in rooms
+    assert 'src="/static/img/command-plate' not in rooms
 
 
 def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():

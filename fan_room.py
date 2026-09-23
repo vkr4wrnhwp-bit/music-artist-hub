@@ -101,7 +101,10 @@ HELP_QUESTIONS = ("How do I collect my first fans?",
 
 def zero_page():
     return {"rack": ZERO_RACK, "starts": STARTS, "workflow": WORKFLOW,
-            "control": CONTROL, "help": HELP_QUESTIONS}
+            "control": CONTROL, "help": HELP_QUESTIONS,
+            # the three screens of the rooms' shared rack (partials/cc_rack.html)
+            "screens": [{"k": ZERO_RACK[key][0], "v": ZERO_RACK[key][1]}
+                        for key in ("purpose", "start", "know")]}
 
 
 # --- THE PLATE --------------------------------------------------------

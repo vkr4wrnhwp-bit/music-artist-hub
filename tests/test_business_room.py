@@ -368,7 +368,7 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_analyser():
     import re as _re
     c, _uid = _account()
     body = _room(c.get("/room/business").get_data(as_text=True))
-    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "room-plate.webp" in body, "the rooms' photographed three-window plate"
     assert "business-plate.webp" not in body, "the analyser waits for paperwork"
     assert "rk-cine" not in body and "rk-tip-win" not in body and "rk-tick-win" not in body, "nothing rotates"
     assert "bz-fig" not in body and "bz-win" not in body, "no reading, measured or not"
@@ -455,7 +455,7 @@ def test_one_statement_brings_the_analyser_back_untouched():
     c, uid = _account()
     _statement(uid)
     body = _room(c.get("/room/business").get_data(as_text=True))
-    assert "business-plate.webp?v=" in body and "command-plate" not in body
+    assert "business-plate.webp?v=" in body and "room-plate" not in body
     assert "bz-win" in body and "Explore more tools" in body
     assert "Start with your first statement" not in body and "bz-z-fold" not in body
     titles = re.findall(r'<h3 class="bz-band">([^<]+)</h3>', body)
@@ -486,7 +486,7 @@ def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
     page = r.get_data(as_text=True)
     assert "We could not load Business" in page
     assert 'href="/room/business"' in page and 'href="/statements"' in page and "Open statements" in page
-    assert "Start with your first statement" not in page and "command-plate" not in page
+    assert "Start with your first statement" not in page and "room-plate" not in page
 
 
 def test_the_title_is_the_room_s_name_with_no_room_behind_it():
