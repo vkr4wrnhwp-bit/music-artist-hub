@@ -717,13 +717,16 @@
 
 /* --- the membership rack (owner, 2026-09-23) ------------------------- */
 /* The three memberships on the Command Center's photographed three-screen
- * plate. CRT static on every screen at rest; point at one and the static
- * clears and the tier renders. The words are drawn in the screen type the
+ * plate. Dark glass at rest, nothing laid over it (owner, 2026-09-23: "no
+ * static, nothing"); point at one, tab to it or tap it once and the tier
+ * cuts in. The words are drawn in the screen type the
  * Command Center's screens use, never photographed, so the price is read
  * from plans.PLANS. Same photo-plate method as every other plate: the
  * unit is a container, each screen's box comes in as --x/--y/--w/--h
  * measured off the file, every size on the glass is a cqw clamp, nothing
- * is sized in cqh. No JavaScript anywhere in this band. */
+ * is sized in cqh. One small script, static/js/memberships-rack.js,
+ * gives touch its first-tap reveal and runs the leave; the band is doors
+ * without it. */
 
 .sbrk-unit { position: relative; container-type: inline-size; max-width: 1240px; margin: 26px auto 0; }
 .sbrk-plate { display: block; width: 100%; height: auto; border-radius: var(--sb-r-panel); }
@@ -734,11 +737,6 @@
   position: absolute; inset: 0; box-sizing: border-box; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 5% 6%; text-align: center; text-decoration: none; border-radius: var(--sb-r-control);
-}
-/* scanlines: it is a CRT behind glass, so everything rides on them */
-.sbrk-door::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 3;
-  background: repeating-linear-gradient(180deg, rgb(0 0 0 / .16) 0 1px, transparent 1px 3px);
 }
 
 /* the reading, dark until the pointer arrives */
@@ -845,13 +843,13 @@
 }
 .sbrk-door:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 4px; }
 
-/* No media query decides who gets the static. A touchscreen laptop reports
+/* No media query decides who gets the reveal. A touchscreen laptop reports
  * no hover at all in Chrome (the owner's own machine, 2026-09-23: hover
  * none, any-hover none, no fine pointer), so a (hover) or (any-hover) gate
- * would have shown him resolved screens and no static. Touch gets the
+ * would have shown him resolved screens and no dark glass. Touch gets the
  * reveal from memberships-rack.js instead: first tap renders, second
  * opens. Only the phone layout below renders resolved from the start. */
-/* less motion: no snow, and the reveal arrives instead of settling */
+/* less motion: no cut-in jitter, and the reveal arrives instead of settling */
 @media (prefers-reduced-motion: reduce) {
   .sbrk-read { transition: none; }
   .sbrk-door:hover .sbrk-read, .sbrk-door:hover .sbrk-read > *, .sbrk-door:hover .sbrk-k::before, .sbrk-door:hover .sbrk-k::after,
@@ -884,6 +882,13 @@
   .sbrk-door.is-on .sbrk-read, .sbrk-door.is-on .sbrk-read > *,
   .sbrk-door.is-on .sbrk-k::before, .sbrk-door.is-on .sbrk-k::after,
   .sbrk-door.is-out .sbrk-read, .sbrk-door.is-out .sbrk-k::before, .sbrk-door.is-out .sbrk-k::after { animation: none; }
+  /* Stacked, the screens are already resolved: pointing at one, or tabbing
+   * to it, must not blank it and run the 1.5s cut-in again (audit,
+   * 2026-09-23). Same selectors as the reveal rules above, later, so they win. */
+  .sbrk-door:hover .sbrk-read, .sbrk-door:hover .sbrk-read > *,
+  .sbrk-door:hover .sbrk-k::before, .sbrk-door:hover .sbrk-k::after,
+  .sbrk-door:focus-visible .sbrk-read, .sbrk-door:focus-visible .sbrk-read > *,
+  .sbrk-door:focus-visible .sbrk-k::before, .sbrk-door:focus-visible .sbrk-k::after { animation: none; }
   .sbrk-door.is-out .sbrk-read { opacity: 1; }
   .sbrk-k { font-size: 12px; }
   .sbrk-price { font-size: 46px; margin-top: 4px; }

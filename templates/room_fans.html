@@ -100,7 +100,9 @@
             It carries the way back, as the two cards below do, or the
             builder offered "Back to Marketing" (audit, 2026-09-23). -#}
         <a class="fr-cta" href="/links/new?type=bio&amp;returnTo=/room/fans">{{ icon("rocket", "fr-ico") }}Launch fan campaign</a>
-        {% else %}
+        {% elif fr.get("can_list", True) %}
+        {#- and not even that when the fan list's page is switched off
+            (audit, 2026-09-23, x-2: /links/fans goes with Smart Links) -#}
         <a class="fr-cta" href="/links/fans">{{ icon("rocket", "fr-ico") }}Open the fan list</a>
         {% endif %}
       </div>

@@ -42,7 +42,7 @@
              "check"    if ("/certified" in route or "/metadata" in route or "/ai-rights" in route) else
              "studio" %}
         <div class="tools-card" data-q="{{ (name ~ ' ' ~ (blurb or '') ~ ' ' ~ group)|lower }}">
-        {{ sb.module_card(name, note=blurb, href=route, icon=sb.icons(ikey), state=status, disc=disc, compact=true) }}
+        {{ sb.module_card(name, note=blurb, href=route, icon=sb.icons(ikey), state=status, disc=disc, compact=true, level=3) }}
         </div>
       {% endfor %}
     </div>

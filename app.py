@@ -2493,11 +2493,17 @@ def create_app():
         uid = user["id"]
         try:
             has_records = bool(mls.list_fans(uid) or store.get_statements(uid))
+            # The exact door for the Rack and capture steps: the song with
+            # no audio yet, the campaign not capturing yet (audit,
+            # 2026-09-23 - account_state.account_doors).
+            doors = account_state.account_doors(
+                store.list_os_tracks(uid), release_ready_store.masters_by_track(uid),
+                store.get_track_analyses(uid, 50), mls.list_campaigns(uid))
         except Exception as exc:                          # noqa: BLE001
             return {"state": "error", "essentials": None, "error": repr(exc)}
         return account_state.decide(uid, store, mls, release_ready_store,
                                     reachable=_reachable_essentials(user),
-                                    has_records=has_records)
+                                    has_records=has_records, doors=doors)
 
     def _firstrun_panel(user):
         """The Start-here panel: the five essentials, or None once they
@@ -4920,7 +4926,11 @@ def create_app():
                 "hubs_community": community,
                 "hubs_account": account,
                 "rooms_nav": rooms_nav,
-                "tool_suites": hub_defs.tool_suites(),
+                # A seat is shown no suite it would be bounced from: the
+                # sign-in hand-off (/suites/go/) is the account holder's
+                # alone (audit, 2026-09-23, x-1).
+                "tool_suites": [s for s in hub_defs.tool_suites()
+                                if seat is None or _door_refusal(s[1], me, seat) != "seat"],
                 "footer_links": hub_defs.footer_links(me.get("plan") if me else ""),
                 "suite_marks": hub_defs.SUITE_MARKS,
                 "suites_pending": hub_defs.suites_pending(),
@@ -5109,8 +5119,10 @@ def create_app():
             open_claims, recovered if analysis else None, len(expenses or ()))
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         # Who may upload the first statement: the account holder, or an
         # edit seat.
@@ -5121,6 +5133,7 @@ def create_app():
             cards, artist_name=artist_identity.display_name(user),
             sample=_session_is_demo(), can_open=can_open, note=note,
             kept_note=kept_note, zero=zero, can_add=can_add)
+        rooms.gate_zero(bz.get("zero"), can_open)
         return render_template("room_business.html", active_page="room-business",
                                room=room, bz=bz,
                                # The sentence the statements desk carries
@@ -5204,8 +5217,10 @@ def create_app():
         cover = shown[0]["url"] if shown else ""
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         # Who may add the first song: the account holder, or an edit seat.
         # A read-only seat is told who does (audit studio-6).
         can_add = True if seat is None or seat.get("access") == "edit" else "seat"
@@ -5222,6 +5237,7 @@ def create_app():
         # The sentence the song door carries back (?from=song), decided by
         # the SAVED track, not the param (studio_room.done_line). The
         # showcase saved nothing, so it never says it.
+        rooms.gate_zero(sd.get("zero"), can_open)
         return render_template("room_studio.html", active_page="room-studio",
                                room=room, sd=sd,
                                done_line=("" if showcase else studio_room.done_line(
@@ -5296,8 +5312,10 @@ def create_app():
         locked = bool(_demo_locked_account())
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         # Who may add the first show: the account holder or an edit seat
         # with the Tour desk in its rooms, on a plan that includes Tour
         # (the same rule tour_os applies to POST /tours/new).
@@ -5414,8 +5432,10 @@ def create_app():
             observations, observations_failed = [], True
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         # Who may connect a source: the account holder, or an edit seat.
         can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
@@ -5442,6 +5462,7 @@ def create_app():
                                   metrics_label=getattr(prov, "label", "") if prov else "",
                                   observations_failed=observations_failed,
                                   account_name=artist_identity.display_name(user))
+        rooms.gate_zero(an.get("zero"), can_open)
         return render_template("room_analytics.html",
                                active_page="room-analytics",
                                room=room, an=an,
@@ -5489,8 +5510,10 @@ def create_app():
         found = rights_conflicts.for_account(tracks)
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         # Who may add a song: the account holder, or an edit seat. A shared
         # read-only demo is offered no write door either (its saves are
@@ -5504,6 +5527,7 @@ def create_app():
                                    sample=showcase, can_open=can_open,
                                    zero=(not showcase) and publishing_room.new_account(tracks),
                                    can_add=can_add)
+        rooms.gate_zero(pb.get("zero"), can_open)
         return render_template("room_publishing.html",
                                active_page="room-publishing",
                                room=room, pb=pb,
@@ -5589,8 +5613,10 @@ def create_app():
                         for t in store.list_os_tracks(user["id"])][:8]
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         # rooms.build gives each card as (key, href, icon, label, desc, state).
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         # Track Passports is the Publishing room's card, lent to this
@@ -5627,6 +5653,7 @@ def create_app():
             show=request.args.get("show") or "all",
             zero=(not showcase) and releases_room.new_account(releases, drops),
             can_add=can_add)
+        rooms.gate_zero(rr.get("zero"), can_open)
         return render_template("room_releases.html", active_page="room-releases",
                                room=room, rr=rr,
                                # The sentence the builder carries back
@@ -5708,8 +5735,10 @@ def create_app():
         # The same two lines the other seven rooms use: a seat opens
         # only the pages its areas allow, so the room draws only those.
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         # Who may add fans: the account holder, or an edit seat. A read seat
         # is offered no door its save would bounce at, and is told who can.
         can_add = True if seat is None or seat.get("access") == "edit" else "seat"
@@ -5722,6 +5751,8 @@ def create_app():
                             # exists for this account (walk, 2026-09-20).
                             shopify=_shopify_import_allowed(user),
                             can_open=can_open, can_add=can_add)
+        rooms.gate_zero(fr.get("zero"), can_open)
+        fr["can_list"] = can_open is None or can_open("/links/fans")
         return render_template("room_fans.html", active_page="room-fans", room=room, fr=fr,
                                **build_dashboard_context())
 
@@ -5777,6 +5808,7 @@ def create_app():
                                   can_open=can_open,
                                   zero=(not showcase) and marketing_room.new_account(figures, campaigns),
                                   can_add=can_add)
+        rooms.gate_zero(mk.get("zero"), can_open)
         return render_template("room_marketing.html", active_page="room-marketing",
                                room=room, mk=mk,
                                # The sentence the builder carries back
@@ -6230,6 +6262,64 @@ def create_app():
     def _under(path, prefix):
         return path == prefix or path.startswith(prefix + "/")
 
+    def _door_refusal(href, user=None, seat=None):
+        """Why following this on-site href would bounce THIS reader, asked
+        before the door is drawn - the same two gates the request would meet:
+
+          "seat"  a team seat would be turned away: a page every seat is
+                  refused (_TEAM_BLOCKED, _team_blocked_inside - team_seat_gate's
+                  first rule) or a room the artist did not tick for it
+          "off"   the owner switched the page off and this reader is not an
+                  owner (page_switch_gate). /tracks is judged where it lands
+                  too: a plan with the Catalog is sent on to its passports view.
+          ""      it lands where it says. Off-site links and in-page anchors
+                  always do.
+
+        Audit, 2026-09-23: the rooms judged a seat by its rooms alone, so every
+        seat was offered Team, Partner Portal, Referrals and the Tool suites,
+        which all bounce with ?team=blocked (x-1); and nothing judged the pages
+        the owner switched off, so every other account was handed doors to
+        /command-center?off= (x-2)."""
+        if not href or href.startswith(("#", "http://", "https://", "mailto:")):
+            return ""
+        parts = urllib.parse.urlsplit(href)
+        path = parts.path or "/"
+        if seat is not None and path not in _TEAM_ALLOWED:
+            if any(_under(path, p) for p in _TEAM_BLOCKED) or _team_blocked_inside(path):
+                return "seat"
+            if not team_areas.allows(seat["areas"], path):
+                return "seat"
+        hidden = _page_hidden()
+        if hidden and not (user and _is_owner_email(user.get("email"))):
+            where = [(path, dict(urllib.parse.parse_qsl(parts.query)))]
+            if path == "/tracks" and user is not None:
+                home = urllib.parse.urlsplit(_passports_home(user))
+                where.append((home.path, dict(urllib.parse.parse_qsl(home.query))))
+            if any(page_switches.hidden_for_path(p, hidden, a) for p, a in where):
+                return "off"
+        return ""
+
+    class _CanOpen:
+        """The rooms' can_open: called with an href it answers whether this
+        reader can follow it (every room module's contract); .why(href) says
+        why not ("seat", "off"), for rooms.gate_zero."""
+        def __init__(self, user, seat):
+            self.user, self.seat = user, seat
+
+        def __call__(self, href):
+            return not _door_refusal(href, self.user, self.seat)
+
+        def why(self, href):
+            return _door_refusal(href, self.user, self.seat)
+
+    def _room_can_open(user, seat):
+        """can_open for a room, or None when nothing can refuse a door - no
+        seat, and no page switched off for this reader - so the rooms keep
+        their plain every-door-opens path."""
+        if seat is None and (not _page_hidden() or (user and _is_owner_email(user.get("email")))):
+            return None
+        return _CanOpen(user, seat)
+
     @app.before_request
     def team_seat_gate():
         """A team seat inside the artist's account: blocked areas stay shut,
@@ -6348,24 +6438,12 @@ def create_app():
         """can_open(href) for a room's doors, or None when every door opens.
         The same three gates the request will meet: a team seat's
         blocked pages and rooms (team_seat_gate), and a page the owner
-        switched off (page_switch_gate, which lets an owner through)."""
-        seat = current_team_seat()
-        hidden = set() if (user and _is_owner_email(user.get("email"))) else _page_hidden()
-        if seat is None and not hidden:
-            return None
+        switched off (page_switch_gate, which lets an owner through).
 
-        def can_open(href):
-            path, _q, query = (href or "").split("#", 1)[0].partition("?")
-            if seat is not None:
-                if any(_under(path, p) for p in _TEAM_BLOCKED) or _team_blocked_inside(path):
-                    return False
-                if not team_areas.allows(seat["areas"], path):
-                    return False
-            if hidden and page_switches.hidden_for_path(
-                    path, hidden, dict(urllib.parse.parse_qsl(query))):
-                return False
-            return True
-        return can_open
+        One predicate since the 2026-09-23 audit merge: it is
+        _room_can_open, so Marketing's doors and every other room's are
+        judged by the same rules."""
+        return _room_can_open(user, current_team_seat())
 
     @app.route("/admin/pages", methods=["POST"])
     def admin_pages():
@@ -7054,8 +7132,17 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # Only doors this reader can follow: a seat is not listed Partner
+        # Portal or Referrals, which bounce every seat, nor a room it was
+        # not given (audit, 2026-09-23, x-1).
+        seat = current_team_seat()
+        groups = cc.module_groups()
+        if seat is not None:
+            groups = [(g, [m for m in items if not _door_refusal(m[0], user, seat)])
+                      for g, items in groups]
+            groups = [(g, items) for g, items in groups if items]
         return render_template("all_tools.html", active_page="all-tools",
-                               modules=cc.MODULES, module_groups=cc.module_groups(),
+                               modules=cc.MODULES, module_groups=groups,
                                **build_dashboard_context())
 
     def _command_center_error(exc):
@@ -7071,35 +7158,90 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        signal = store.get_artist_signal_profile(user["id"])
-        signal_ctx = None
-        if signal and isinstance(signal.get("priorities"), dict):
-            from artist_eq_config import get_artist_eq_config
-            channel_keys = [c["key"] for c in get_artist_eq_config()["channels"]]
-            vals = [signal["priorities"].get(k, 5) for k in channel_keys]
-            # simplified curve: one point per channel on a 300x60 canvas
-            span = max(len(vals) - 1, 1)
-            pts = " ".join("%d,%d" % (i * 300 // span, 60 - v * 6)
-                           for i, v in enumerate(vals))
-            updated = (signal.get("_updated") or "")[:10]
-            stale = False
-            try:
-                stale = (datetime.now() -
-                         datetime.fromisoformat(signal["_updated"])).days >= 60
-            except Exception:
-                pass
-            signal_ctx = {"profile": signal, "points": pts,
-                          "updated": updated, "stale": stale}
+
+        def unreadable(why):
+            # One answer for every failed read on this page (owner's rule:
+            # a failed read is the room's error page at 503, never a bare
+            # 500 and never a fresh account). Audit, 2026-09-23: only the
+            # reads inside the account state were caught; the signal
+            # profile, the open actions, the alerts and the summary raised
+            # Flask's "Internal Server Error".
+            app.logger.error("command center: unreadable: %s", why)
+            return render_template("command_center_error.html",
+                                   active_page="command-center",
+                                   **build_dashboard_context()), 503
+
         # The state, decided once. An error is a page that says so -
         # NEVER a page that looks like a fresh account (owner's spec,
         # 2026-09-22: "never translate a failed request into zero
         # values").
         acs = _account_state(user)
         if acs["state"] == "error":
-            return _command_center_error(acs["error"])
+            return unreadable(acs["error"])
         # ?from=<key>: the door you came back through. The sentence is
         # decided by the SAVED state, not the param (account_state.done_line).
         done_line = account_state.done_line(acs["essentials"], request.args.get("from"))
+        # Who may take a setup step: the account holder or an edit seat. A
+        # read seat is told who does it instead of being handed doors that
+        # answer 403 (audit, 2026-09-23 - the rooms' can_add "seat" rule).
+        seat = current_team_seat()
+        can_edit = seat is None or seat.get("access") == "edit"
+        seat_line = "The account owner or a seat with edit access does this step."
+        # A step whose page this reader would be bounced from - switched off
+        # by the owner, or refused to a seat - is words, not a door.
+        refusal_words = {"off": rooms.OFF_WORDS,
+                         "seat": "The account owner opens this one."}
+        shut = {}
+        for step in ((acs["essentials"] or {}).get("steps") or ()):
+            why = _door_refusal(step["door"], user, seat)
+            if why:
+                shut[step["key"]] = refusal_words[why]
+        try:
+            signal = store.get_artist_signal_profile(user["id"])
+            signal_ctx = None
+            if signal and isinstance(signal.get("priorities"), dict):
+                from artist_eq_config import get_artist_eq_config
+                channel_keys = [c["key"] for c in get_artist_eq_config()["channels"]]
+                vals = [signal["priorities"].get(k, 5) for k in channel_keys]
+                # simplified curve: one point per channel on a 300x60 canvas
+                span = max(len(vals) - 1, 1)
+                pts = " ".join("%d,%d" % (i * 300 // span, 60 - v * 6)
+                               for i, v in enumerate(vals))
+                updated = (signal.get("_updated") or "")[:10]
+                stale = False
+                try:
+                    stale = (datetime.now() -
+                             datetime.fromisoformat(signal["_updated"])).days >= 60
+                except Exception:
+                    pass
+                signal_ctx = {"profile": signal, "points": pts,
+                              "updated": updated, "stale": stale}
+            if acs["state"] in ("new", "setup"):
+                # Every count the page from zero shows, read in this ONE try.
+                _campaigns = mls.list_campaigns(user["id"])
+                _tracks = store.list_os_tracks(user["id"])
+                # Open actions reach the page from zero (crawl, 2026-09-23:
+                # an open action sat on /actions while this page said
+                # "Nothing needs attention yet").
+                _open = cc.open_actions(user["id"], limit=3)
+                _inprog = account_state.in_progress(
+                    _tracks, release_ready_store.masters_by_track(user["id"]),
+                    store.get_track_analyses(user["id"], 50), _campaigns) if _tracks else []
+            else:
+                tutor_panel = _tutor_panel(user)
+                alerts = cc.build_alerts(user["id"])
+                _today = datetime.now(timezone.utc).date()
+                # Every open action, read once: the panel lists five and the
+                # sentence over it counts them all (audit actions-4).
+                _open_all = cc.open_actions(user["id"], limit=None, today=_today)
+                _open = _open_all[:5]
+                _campaigns = mls.list_campaigns(user["id"])
+                _has_statements = bool(store.get_statements(user["id"]))
+                summary = cc.get_summary(user["id"])
+                money = _front_money_context()
+        except Exception as exc:                          # noqa: BLE001
+            return unreadable(repr(exc))
+
         if acs["state"] in ("new", "setup"):
             # The page from the owner's mockup: header, static rack, the
             # first steps with lock-and-reveal, how it fits together,
@@ -7109,26 +7251,21 @@ def create_app():
             nxt = ess.get("next") if ess else None
             # Pass 5: after the first song an IN PROGRESS panel; after the
             # first link a real priority in place of "nothing yet". Both
-            # derived, both from this account's own rows.
-            # Open actions reach the page from zero (crawl, 2026-09-23: an
-            # open action sat on /actions while this page said "Nothing
-            # needs attention yet"). Read in one try with the rest: a
-            # failed read is the error page, never "Nothing needs
-            # attention yet" and never a bare 500 (audit, 2026-09-23).
-            try:
-                _campaigns = mls.list_campaigns(user["id"])
-                _tracks = store.list_os_tracks(user["id"])
-                _open = cc.open_actions(user["id"], limit=3)
-            except Exception as exc:
-                return _command_center_error(exc)
+            # derived, both from this account's own rows. A row's door is
+            # judged like a step's.
+            for row in _inprog:
+                row["shut"] = bool(_door_refusal(row["href"], user, seat))
+            attention = account_state.attention(_campaigns, _open)
+            if attention and (_door_refusal(attention["href"], user, seat)
+                              or (not can_edit and not attention.get("action_id"))):
+                # a read seat is not handed "Publish it" / "Set up capture"
+                attention = dict(attention, href=None)
             return render_template(
                 "command_center_zero.html", active_page="command-center",
                 account_state=acs["state"], essentials=ess, done_line=done_line,
                 cz={
-                    "in_progress": account_state.in_progress(
-                        _tracks, release_ready_store.masters_by_track(user["id"]),
-                        store.get_track_analyses(user["id"], 50), _campaigns) if _tracks else [],
-                    "attention": account_state.attention(_campaigns, _open),
+                    "in_progress": _inprog,
+                    "attention": attention,
                     "account_name": artist_identity.display_name(user, default="") or "New label",
                     # START HERE names the next actual step; on a fresh
                     # account that is the profile (spec's exact words).
@@ -7137,21 +7274,11 @@ def create_app():
                                    else (nxt["title"] + "." if nxt else "")),
                     "icons": {"identity": "people", "song": "wave", "asset": "rack",
                               "link": "globe", "capture": "megaphone"},
+                    "can_edit": can_edit, "seat_line": seat_line, "shut": shut,
+                    "explore": not _door_refusal("/all-tools", user, seat),
                 },
                 **build_dashboard_context())
-        tutor_panel = _tutor_panel(user)
-        alerts = cc.build_alerts(user["id"])
         import actions_center as _acx
-        _today = datetime.now(timezone.utc).date()
-        # Every open action, ranked, read once: the panel lists five, and
-        # the sentence over it counts them all ("5 open actions" was said
-        # of a board holding 8, audit 2026-09-23). A failed read is the
-        # error page, never a bare 500.
-        try:
-            _open_all = cc.open_actions(user["id"], limit=None, today=_today)
-        except Exception as exc:
-            return _command_center_error(exc)
-        _open = _open_all[:5]
         # Today's Priorities: the ranked alerts, then the open actions that
         # need attention, three at most between them (spec). An action is
         # opened, never "fixed now": that button belongs to an alert.
@@ -7164,10 +7291,8 @@ def create_app():
             # RESUME / NEXT ACTION / BLOCKER from the ranked alerts, the
             # last campaign touched and the essentials (Pass 5).
             compass=account_state.compass(acs["essentials"], alerts,
-                                          mls.list_campaigns(user["id"]),
-                                          bool(store.get_statements(user["id"])),
-                                          _open),
-            summary=cc.get_summary(user["id"]),
+                                          _campaigns, _has_statements, _open),
+            summary=summary,
             # No more than three real priorities (spec). They are ranked,
             # so the three that matter most are the three that show.
             cc_alerts=alerts[:3],
@@ -7186,8 +7311,9 @@ def create_app():
             # transition"). Gone for good once all five are real.
             firstrun=(None if tutor_panel
                       else (acs["essentials"] if acs["essentials"] and not acs["essentials"]["complete"] else None)),
+            firstrun_can_edit=can_edit, firstrun_seat_line=seat_line, firstrun_shut=shut,
             # The Overview's figures, on the same page (2026-09-15).
-            **_front_money_context())
+            **money)
 
     # ---- the Action Center (owner's mockup + crawl, 2026-09-23) -----------
     # An action was a persistent title with state buttons. It is now work
@@ -8504,6 +8630,17 @@ def create_app():
                     passport["songwriters"] = writers
                     store.update_os_track_passport(user["id"], tid, passport)
         return redirect(_songs_saved_home(user, bool(tid), tid))
+
+    def _return_after_save():
+        """Where a save goes when its form carried a way back: the
+        same-site returnTo (_safe_next), with the form's from= added when
+        the returnTo does not already carry one. "" when there is none."""
+        import re as _re
+        back = _safe_next(request.form.get("returnTo") or request.args.get("returnTo"), "")
+        came = (request.form.get("from") or request.args.get("from") or "").strip()
+        if back and came and _re.fullmatch(r"[a-z0-9-]{1,60}", came) and "from=" not in back:
+            back += ("&" if "?" in back else "?") + "from=" + came
+        return back
 
     @app.route("/tracks/<track_id>")
     def os_track_detail(track_id):
