@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}Command Center{% endblock %}
+
+{% block content %}
+{#- The account's state could not be read. This page exists so that a
+    failed request is NEVER shown as a fresh account (owner's spec,
+    2026-09-22: "never translate a failed request into zero values").
+    Before it, one failing store read silently deleted the setup panel
+    and the account looked finished. Nothing on this page is a figure. -#}
+<div class="mx-auto max-w-2xl">
+  <p class="sb-label sb-label-gold">Street Banker · Command Center</p>
+  <h1 class="sb-h1 mt-1">We could not load your Command Center</h1>
+  <p class="mt-3 max-w-xl text-base text-gray-200">Your account and setup progress are safe. Try again.</p>
+  <div class="mt-6 flex flex-wrap gap-3">
+    {{ sb.btn("Try again", href="/command-center", variant="primary") }}
+    {{ sb.btn("Browse all tools", href="/all-tools", variant="secondary") }}
+  </div>
+  <p class="mt-8 text-xs text-gray-300">If this keeps happening, tell us through <a href="/contact" class="font-semibold text-sb-gold-bright hover:underline">Contact</a> and say what you were doing.</p>
+</div>
+{% endblock %}

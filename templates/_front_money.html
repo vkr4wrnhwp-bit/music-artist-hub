@@ -225,6 +225,10 @@
         {# The range control sits with the chart it changes. At the top of
            the page it read as a filter over everything, which it never
            was. #}
+        {#- Only over data. This select sat OUTSIDE the months guard, so
+            a brand-new account was offered 1m/3m/6m over a chart with
+            nothing in it (audit, 2026-09-22). -#}
+        {% if months %}
         <div class="flex items-center gap-2">
           <span class="text-xs font-medium text-gray-300" id="trend-range-label">Last 6 months</span>
           <select id="date-range" aria-label="Chart range" class="rounded-md border border-white/10 bg-white/5 px-1.5 py-1 text-xs font-medium text-gray-200 focus:outline-none [color-scheme:dark]">
@@ -233,6 +237,7 @@
             <option value="6" selected>6m</option>
           </select>
         </div>
+        {% endif %}
       </div>
       {% if months %}
       <div class="mt-2 text-2xl font-bold tracking-tight tabular-nums">${{ "{:,.2f}".format(tracked) }}</div>

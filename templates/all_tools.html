@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+{% block title %}All tools{% endblock %}
+
+{% block content %}
+{#- The complete tool directory, moved out of the Command Center (owner's
+    zero-state spec, 2026-09-22: "Move the complete tool directory into a
+    separate searchable All Tools destination. Do not place the full
+    directory back inside Command Center."). Same windows, same grouping
+    as the sidebar, same module_card - only the address changed. The
+    search box filters the cards in place; with scripts off every card is
+    still on the page. -#}
+<div class="mx-auto max-w-[1300px]">
+  <p class="sb-label sb-label-gold">Street Banker · All tools</p>
+  <h1 class="sb-h1 mt-1">All tools</h1>
+  <p class="mt-2 max-w-2xl text-sm text-gray-300">Every window in the app, grouped like the sidebar. A dashed window with a preview lamp is not wired up yet.</p>
+
+  <form class="mt-5" role="search" onsubmit="return false">
+    <label for="tools-q" class="sb-label text-gray-300">Find a tool</label>
+    <input id="tools-q" type="search" autocomplete="off" placeholder="Type a name - royalties, rack, press kit…"
+           class="mt-1 w-full max-w-md rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-400 focus:border-sb-gold/50 focus:outline-none">
+    <p id="tools-count" class="mt-1 text-xs text-gray-300" aria-live="polite"></p>
+  </form>
+
+  {% for group, items in module_groups %}
+  <section class="tools-group mt-6" aria-labelledby="tools-{{ loop.index }}">
+    <h2 class="sb-label text-gray-300" id="tools-{{ loop.index }}">{{ group }}</h2>
+    <div class="md-os mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {% for route, name, blurb, status, disc in items %}
+        {% set ikey =
+             "money"    if ("/royalty" in route or "/revenue" in route or "/deal" in route
+                            or "/money" in route or "/capital" in route or "/spend" in route) else
+             "lights"   if ("/lights" in route or "/rack" in route) else
+             "stage"    if "/stage" in route else
+             "calendar" if "/tour" in route and "board" not in route else
+             "board"    if "board" in route else
+             "link"     if "/links" in route and "fans" not in route else
+             "users"    if ("fans" in route or "/fan-club" in route or "/roster" in route
+                            or "/portal" in route or "/referrals" in route) else
+             "chart"    if ("/pulse" in route or "/trust" in route or "/opportunities" in route) else
+             "star"     if "/releases" in route else
+             "check"    if ("/certified" in route or "/metadata" in route or "/ai-rights" in route) else
+             "studio" %}
+        <div class="tools-card" data-q="{{ (name ~ ' ' ~ (blurb or '') ~ ' ' ~ group)|lower }}">
+        {{ sb.module_card(name, note=blurb, href=route, icon=sb.icons(ikey), state=status, disc=disc, compact=true) }}
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var q = document.getElementById("tools-q"), out = document.getElementById("tools-count");
+  if (!q) return;
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".tools-card"));
+  var groups = Array.prototype.slice.call(document.querySelectorAll(".tools-group"));
+  function run() {
+    var t = (q.value || "").trim().toLowerCase(), shown = 0;
+    cards.forEach(function (c) {
+      var hit = !t || (c.getAttribute("data-q") || "").indexOf(t) !== -1;
+      c.hidden = !hit; if (hit) shown++;
+    });
+    groups.forEach(function (g) {
+      g.hidden = !g.querySelector(".tools-card:not([hidden])");
+    });
+    out.textContent = t ? (shown + " tool" + (shown === 1 ? "" : "s") + " match") : "";
+  }
+  q.addEventListener("input", run);
+})();
+</script>
+{% endblock %}

@@ -125,7 +125,7 @@
   </div>
 
   <ol class="mt-4 space-y-1.5">
-    {% for step in firstrun.steps %}
+    {% for step in firstrun.shown %}
     <li class="md-step flex items-start gap-3 rounded-lg border px-3 py-2.5
                {{ 'border-white/5 bg-black/20' if step.done
                   else ('border-sb-gold/30 bg-black/30' if step.key == firstrun.next.key
@@ -138,9 +138,18 @@
         <div class="text-sm font-semibold {{ 'text-gray-300 line-through' if step.done else 'text-gray-100' }}">{{ step.title }}</div>
         {% if not step.done %}<div class="mt-0.5 text-xs leading-relaxed text-gray-300 font-medium">{{ step.why }}</div>{% endif %}
       </div>
-      {% if not step.done %}
+      {#- Three treatments (owner, 2026-09-22): filled gold for the
+          first available task, an outline for another available one,
+          and a MUTED DISABLED control for a locked one - with the
+          reason beside it, so a disabled button is never a mystery. -#}
+      {% if step.status == "locked" %}
+      <span class="shrink-0 text-right">
+        <span class="inline-block cursor-not-allowed rounded-lg border border-white/10 px-3 py-1.5 text-xs font-black text-gray-500" aria-disabled="true">{{ step.cta }}</span>
+        <span class="mt-1 block max-w-[14rem] text-[11px] leading-snug text-gray-300">{{ step.lock_text }}</span>
+      </span>
+      {% elif not step.done %}
       <a href="{{ step.href }}" class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-black
-         {{ 'bg-sb-gold text-black hover:brightness-110' if step.key == firstrun.next.key
+         {{ 'bg-sb-gold text-black hover:brightness-110' if firstrun.next and step.key == firstrun.next.key
             else 'border border-white/15 text-gray-300 hover:text-white' }}">{{ step.cta }}</a>
       {% endif %}
     </li>
@@ -287,7 +296,14 @@
         {% endfor %}
       </div>
       {% else %}
+      {#- The old line claimed "every live campaign is capturing fans"
+          on an account with no campaigns (audit, 2026-09-22). Say what
+          is true for the account in front of us. -#}
+      {% if summary and summary.campaign_count %}
       <p class="mt-3 text-sm text-sb-good">Nothing on fire — every live campaign is capturing fans and fully set up.</p>
+      {% else %}
+      <p class="mt-3 text-sm text-gray-300">Nothing needs attention yet. Priorities appear here after you add music, connect data, or start a project.</p>
+      {% endif %}
       {% endif %}
     </section>
 

@@ -6,7 +6,10 @@
      since_engine counts rows created after the previous one. The
      showcase keeps the seeded version below, whose five figures are
      constants in royalty_data. #}
-  {% if since_visit is not none %}
+  {#- A first visit has nothing to compare against: since_engine says
+      so (first_visit), and the strip stays off rather than opening with
+      an empty comparison (audit, 2026-09-22). -#}
+  {% if since_visit is not none and not since_visit.first_visit %}
   <section class="rounded-2xl border border-sb-gold/15 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
       <h2 class="sb-label text-sb-ink-2">What Changed Since Your Last Visit</h2>

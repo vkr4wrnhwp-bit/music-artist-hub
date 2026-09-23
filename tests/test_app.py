@@ -6319,10 +6319,17 @@ def test_firstrun_panel_shows_for_a_new_artist_then_disappears():
     assert "K</kbd>" in page
 
     uid = store_mod.get_user_by_email(email)["id"]
-    store_mod.set_hours_rate(uid, "Mixing", 75)
-    store_mod.save_rack_preset(uid, {"out": 0})
-    store_mod.create_db_link("fr%s" % _uuid.uuid4().hex[:5], uid, "T",
-                             "http://example.com", [])
+    # The five ESSENTIALS (owner's spec, 2026-09-22), not firstrun's old
+    # five: a rate card and a rack preset no longer count for anything,
+    # and the panel retires only when all five are real.
+    import links_store as mls
+    store_mod.save_epk(uid, {"artist_name": "Rello", "bio": "Two lines."})
+    tid = store_mod.add_os_track(uid, "First Song")
+    store_mod.save_track_analysis(uid, {"track_id": tid, "filename": "first.wav",
+                                        "integrated": -14.0})
+    mls.create_campaign(uid, "fr%s" % _uuid.uuid4().hex[:5], {
+        "title": "First Link",
+        "settings": {"email_capture": True, "consent_text": "You agree to hear from us."}})
     page = client.get("/command-center").get_data(as_text=True)
     assert "Start here" not in page          # earned its way off the screen
 

@@ -186,6 +186,7 @@ import audio_readiness
 import epk_config
 import rollout_learning
 import score_history
+import account_state
 import firstrun
 
 def _hours_float(value, default=0.0):
@@ -2439,50 +2440,46 @@ def create_app():
                             secure=bool(os.environ.get("RENDER")))
         return response
 
-    def _firstrun_panel(user):
-        """The start-here checklist, or None once the account outgrows it.
-
-        Every flag is a real query. Nothing here reads a "dismissed
-        onboarding" bit: a step is done when the thing exists, so deleting
-        the thing brings the step back. It is describing the account, not
-        remembering a click.
-        """
-        if user is None or (user.get("plan") or "") == "fan":
-            return None
-        uid = user["id"]
-        try:
-            epk = store.get_epk(uid) or {}
-            profile_data = epk.get("data") if isinstance(epk, dict) else None
-            has_profile = bool(
-                (user.get("name") or "").strip()
-                or (profile_data and profile_data not in ("{}", {})))
-            # Both halves of each answer, so this list and the tutor and
-            # the scores cannot disagree about the same account (Codex
-            # audit, 2026-09-17). A smart link lives in one of two tables
-            # depending on which door made it, and an account's songs are
-            # known from its passports OR from the statements it uploaded.
-            state = {
-                "profile": has_profile,
-                "track": bool(store.list_os_tracks(uid)) or bool(store.statement_titles(uid, 1)),
-                "link": bool(store.get_db_links(uid)) or bool(mls.list_campaigns(uid)),
-                "rack": bool(store.get_rack_preset(uid)),
-                "rate": bool(store.list_hours_rates(uid)),
-            }
-        except Exception:
-            # A checklist is never worth breaking a page over.
-            return None
-        # Same rule as the walkthrough: never point at a locked door. The
-        # tier gate and the suite gate both have to open (walk, 2026-09-20:
-        # an Artist was told to open the Rack, which answers 402).
+    def _reachable_essentials(user):
+        """Which of the five essentials this plan can actually open. The
+        tier gate and the suite gate both have to open (walk, 2026-09-20:
+        an Artist was told to open the Rack, which answers 402). A step
+        nobody can reach is dropped, not counted."""
         plan = user.get("plan") or "artist"
         try:
             credits = _wallet(user)["total"]
         except Exception:
             credits = 0
-        reachable = {key for key, _t, _w, href, _c in firstrun.STEPS
-                     if plans.allowed(plan, plans.required_tier(href))
-                     and plans.suite_open(plan, plans.path_suite(href), credits)}
-        return firstrun.build(state, reachable)
+        return {key for key, _t, _w, href, _c, _l, _r, _x in account_state.ESSENTIALS
+                if plans.allowed(plan, plans.required_tier(href))
+                and plans.suite_open(plan, plans.path_suite(href), credits)}
+
+    def _account_state(user):
+        """The account's state, decided once (account_state.py). This is
+        what the Command Center branches on - and what replaced the
+        _firstrun_panel that wrapped every query in `except Exception:
+        return None`, so a bad read deleted the setup panel and the
+        account looked finished (audit, 2026-09-22). Now a bad read is
+        "error", and the page says so."""
+        if user is None or (user.get("plan") or "") == "fan":
+            return {"state": "operational", "essentials": None, "error": None}
+        uid = user["id"]
+        try:
+            has_records = bool(mls.list_fans(uid) or store.get_statements(uid))
+        except Exception as exc:                          # noqa: BLE001
+            return {"state": "error", "essentials": None, "error": repr(exc)}
+        return account_state.decide(uid, store, mls, release_ready_store,
+                                    reachable=_reachable_essentials(user),
+                                    has_records=has_records)
+
+    def _firstrun_panel(user):
+        """The Start-here panel: the five essentials, or None once they
+        are done. Kept under its old name for the tutor and the tests
+        that call it; the truth now lives in _account_state."""
+        acs = _account_state(user)
+        if acs["state"] in ("operational", "error") or not acs["essentials"]:
+            return None
+        return acs["essentials"]
 
     @app.route("/overview")
     def overview():
@@ -6544,6 +6541,18 @@ def create_app():
 
     # --- Artist OS: Command Center, Actions, Autopilot, Clean Release ----------
 
+    @app.route("/all-tools")
+    def all_tools_page():
+        """The complete tool directory, out of the Command Center (owner's
+        zero-state spec, 2026-09-22). Same windows, same grouping as the
+        sidebar; the Command Center's board sends people here."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        return render_template("all_tools.html", active_page="all-tools",
+                               modules=cc.MODULES, module_groups=cc.module_groups(),
+                               **build_dashboard_context())
+
     @app.route("/command-center")
     def command_center_page():
         user = current_user()
@@ -6568,9 +6577,21 @@ def create_app():
                 pass
             signal_ctx = {"profile": signal, "points": pts,
                           "updated": updated, "stale": stale}
+        # The state, decided once. An error is a page that says so -
+        # NEVER a page that looks like a fresh account (owner's spec,
+        # 2026-09-22: "never translate a failed request into zero
+        # values").
+        acs = _account_state(user)
+        if acs["state"] == "error":
+            app.logger.error("command center: account state unreadable: %s", acs["error"])
+            return render_template("command_center_error.html",
+                                   active_page="command-center",
+                                   **build_dashboard_context()), 503
         tutor_panel = _tutor_panel(user)
         return render_template(
             "command_center.html", active_page="command-center",
+            account_state=acs["state"],
+            essentials=acs["essentials"],
             summary=cc.get_summary(user["id"]),
             cc_alerts=cc.build_alerts(user["id"]),
             cc_actions=cc.open_actions(user["id"]),
@@ -6580,7 +6601,7 @@ def create_app():
             # The tutor's first stage IS the firstrun checklist, so when
             # it is on the smaller panel steps aside rather than showing
             # the same five steps twice.
-            firstrun=None if tutor_panel else _firstrun_panel(user),
+            firstrun=None if tutor_panel else acs["essentials"] if acs["state"] != "operational" else None,
             # The Overview's figures, on the same page (2026-09-15).
             **_front_money_context())
 

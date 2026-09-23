@@ -60,7 +60,11 @@
     },
   });
 
-  document.getElementById("date-range").addEventListener("change", (e) => {
+  // The range select is only drawn over data (see _front_money.html);
+  // with nothing charted there is nothing to listen to, and a null here
+  // would stop every script after it, the payout drawer included.
+  const dateRange = document.getElementById("date-range");
+  if (dateRange) dateRange.addEventListener("change", (e) => {
     const months = Number(e.target.value);
     const sliced = trend.slice(-months);
     chart.data.labels = sliced.map((p) => p[0]);
@@ -69,7 +73,7 @@
     const labels = { 1: "This month", 3: "Last 3 months", 6: "Last 6 months" };
     document.getElementById("trend-range-label").textContent = labels[months] || "Last 6 months";
   });
-  document.getElementById("date-range").addEventListener("click", (e) => e.stopPropagation());
+  if (dateRange) dateRange.addEventListener("click", (e) => e.stopPropagation());
 
   const payoutDrawer = document.getElementById("payout-drawer");
   const payoutBackdrop = document.getElementById("payout-drawer-backdrop");
