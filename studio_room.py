@@ -31,6 +31,17 @@ WHAT IT REFUSES TO DO
     store bit depth, so the unit does not print one.
   * The room edits nothing. Every control on the plate is photographed
     hardware; the knobs do not turn because nothing here would turn them.
+
+THE PAGE FROM ZERO (owner's Studio spec, 2026-09-22)
+----------------------------------------------------
+An account with nothing tracked, measured or on file does not meet an
+empty instrument. It meets an onboarding page: the Command Center's
+three-screen plate drawn STATIC with this room's words, one card that
+adds the first song, what Studio keeps together, the five-stage workflow
+as education, the two empties in words, help, and the tools folded away.
+The analyser above waits for a record - one track, cover or reading and
+the populated room returns untouched. zero_page() holds it all; the
+animated standby that used to run on the analyser is retired here.
 """
 import artwork_config
 
@@ -195,60 +206,104 @@ def path(tracks, measured, masters, covers_n, ready):
     return out
 
 
-# --- THE PLATE, as data ------------------------------------------------
-# These fractions have always lived in static/css/studio-room.css (.sd-unit),
-# which predates the shared kit. They are repeated here ONLY so the standby
-# display can position itself the way every other room's does, and must
-# stay in step with that sheet - tests/test_studio_room.py holds them
-# together.
-PLATE = {
-    "bay":     (8.08, 12.34, 17.51, 70.47),
-    "display": (29.00, 12.66, 47.22, 38.75),
-    "lcd-top": (79.43, 12.66, 12.24, 16.88),
-    "lcd-bot": (79.43, 36.88, 12.24, 16.41),
-}
-
-
-def box(key):
-    """The inline custom properties that put a window on its glass."""
-    x, y, w, h = PLATE[key]
-    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
-
-
-# --- THE STANDBY DISPLAY, the owner's way (2026-09-22) -------------------
-# The display sequences the room's features and glitches between them;
-# the bay is a reel of icons, the top LCD ticks the feature names, the
-# bottom LCD carries a hint of three words - that window is about 150px
-# square at a desktop plate. Words only, never a figure. The owner
-# supplies the final text per room at the audit.
-STANDBY_FRAMES = (
-    ("The Rack", "Measure a master to the broadcast standard, in your browser"),
-    ("Release-Ready", "One master, checked and mastered, per track"),
-    ("Remix Lab", "Stems in, a remix out, and a record of what was done"),
-    ("Cover Art", "Artwork at release size, yours to keep"),
+# --- THE PAGE FROM ZERO (owner's Studio spec, 2026-09-22) ----------------
+# The rack is the Command Center's photographed three-screen plate
+# (partials/cc_rack.html, static/img/command-plate.webp), STATIC: three
+# stable screens, no rotation, no reel, no ticker. Words only, and the
+# spec's words exactly.
+ZERO_SUBTITLE = "Turn a song into a release-ready package."
+ZERO_RACK = (
+    ("Purpose", "Move music from working track to release-ready."),
+    ("Start here", "Add your first song to open its Rack."),
+    ("Good to know", "One approved version feeds Publishing and Releases."),
 )
-STANDBY_REELS = [("bay", "The bay", ("rack", "mastered", "measured", "tracked", "art", "ready"))]
-# The LCDs are about 150px square at a desktop plate - the smallest
-# windows on any plate - so the words are two apiece and the sizes go
-# in with them (the first cut bled off the glass by half).
-STANDBY_TIPS = ("lcd-bot", "Headroom", ["Measure a master", "Make a cover", "Remix a stem", "Check a release"])
-STANDBY_TIP_SIZE = "clamp(8px, .78cqw, 12px)"
-STANDBY_TICK_SIZE = "clamp(8px, .82cqw, 12.5px)"
-STANDBY_TICKER = ("lcd-top", "Loudness", ["The Rack", "Release-Ready", "Mix Check", "Remix Lab", "Cover Art"])
-STANDBY_CINE = ("display", "The display")
-STANDBY_SIZE = ("clamp(22px, 4cqw, 64px)", "clamp(11px, 1.3cqw, 19px)")
-STANDBY_IMAGES = tuple("static/img/standby/studio-%d.webp" % n for n in (1, 2, 3, 4))
-STANDBY_IMAGE_V = 1
+# The one door: the catalog's own add-a-song workflow, carrying the way
+# back. /tracks forwards to /catalog?view=passports on a Pro plan and keeps
+# both params (app.py os_tracks), so the return works on every plan.
+SONG_DOOR = "/tracks?returnTo=/room/studio&from=song"
+ZERO_PROJECT = {
+    "title": "Create your first Studio project",
+    "desc": ("Add a song and Street Banker opens its Studio workspace: the Rack "
+             "for the working audio, Mix Check for the measurement, "
+             "Release-Ready for the master."),
+    "cta": "Add your first song",
+    "href": SONG_DOOR,
+    "note": "One catalog record, shared with Publishing and Releases.",
+    # /tracks is the Publishing room's (team_areas), so a Studio-only seat
+    # is told who adds songs rather than handed a button that bounces.
+    "locked": ("Songs are added by the account owner or a seat with the "
+               "Publishing room. The Studio opens here once one exists."),
+}
+# What one song record carries through this room. GOLD icons - the spec's
+# ruling over the mockup's green ticks. These are not steps and not
+# progress; they are the parts.
+KEEPS = (
+    ("song", "The song record", "The catalog entry every room shares."),
+    ("tracked", "Working audio", "The takes and bounces in its Rack."),
+    ("measured", "Measurements", "Loudness and headroom to the broadcast standard."),
+    ("mastered", "Masters", "The versions you own, and the one you approve."),
+    ("art", "Cover art", "Artwork at release size, on the same record."),
+)
+# The five stages, EDUCATIONAL on a new account: nothing is complete, in
+# progress or blocked, and there is no percentage. The song record is
+# highlighted as the first step. STEPS (Tracked .. Ready) stays the
+# populated room's rail; this is the onboarding one.
+WORKFLOW = (
+    ("song", "Song record", "Create the catalog record everything else attaches to."),
+    ("tracked", "Working audio", "Add the take or bounce to its Rack."),
+    ("measured", "Mix Check", "Measure it to the broadcast standard, in your browser."),
+    ("mastered", "Master", "Approve one version you own."),
+    ("ready", "Release-ready package", "Art, master and checks, together for Releases."),
+)
+ZERO_TRACKS = ("Your tracks will appear here",
+               "Once you add a song, its Studio workspace opens here with the "
+               "Rack, Mix Check and Release-Ready on one record.")
+ZERO_REVIEW = ("Nothing to review yet",
+               "Masters waiting for your approval and checks that need "
+               "attention will appear here.")
+ZERO_HELP = ("Not sure where to begin?",
+             "Start with the song record. Everything in Studio hangs off it.")
+HELP_QUESTIONS = ("What is the difference between a track and a master?",
+                  "How does Mix Check measure loudness?",
+                  "What does Release-Ready need before it approves a version?")
+# The two doors under "Your tracks will appear here", each with the way
+# back; a seat sees only the ones it can open.
+ZERO_LINKS = (("How the Rack measures", "/rack?returnTo=/room/studio"),
+              ("What a song record holds", "/tracks?returnTo=/room/studio"))
+# The sentence the room carries back from the song door.
+DONE_LINE = "Your first song was added. Its Studio workspace is ready."
 
 
-def _standby_image(n):
-    import os
-    path = STANDBY_IMAGES[n] if n < len(STANDBY_IMAGES) else ""
-    return "/%s?v=%d" % (path, STANDBY_IMAGE_V) if path and os.path.exists(path) else ""
+def done_line(came_from, tracks):
+    """Said by the SAVED record, never by the param alone: ?from=song with
+    no track on file says nothing."""
+    return DONE_LINE if came_from == "song" and tracks > 0 else ""
 
-# The reel a READING window shows while it has nothing to read
-# (owner, 2026-09-22: no words in an empty window, icons).
-STANDBY_FILL = STANDBY_REELS[0][2]
+
+def zero_page(can_open=None):
+    """The page from zero. A seat sees only the doors it can open."""
+    def may(href):
+        return can_open is None or bool(can_open(href))
+    song = may(SONG_DOOR)
+    return {
+        "subtitle": ZERO_SUBTITLE,
+        "screens": [{"k": k, "v": v} for k, v in ZERO_RACK],
+        "cta": ({"label": ZERO_PROJECT["cta"], "href": SONG_DOOR} if song else None),
+        "project": dict(ZERO_PROJECT, can=song),
+        "keeps": KEEPS,
+        "workflow": WORKFLOW,
+        "tracks": ZERO_TRACKS,
+        "review": ZERO_REVIEW,
+        "help": ZERO_HELP,
+        "questions": HELP_QUESTIONS,
+        "links": [(label, href) for label, href in ZERO_LINKS if may(href)],
+    }
+
+
+# The reel a READING window shows while it has nothing to read (owner,
+# 2026-09-22: no words in an empty window, icons). This is the one piece
+# of the old standby that is still read: a populated unit's empty LCDs.
+STANDBY_FILL = ("rack", "mastered", "measured", "tracked", "art", "ready")
 
 
 def _six(icons):
@@ -261,25 +316,10 @@ def _six(icons):
 
 
 def standby():
-    """The unit with nothing measured: a sequence, a reel, a hint, a ticker."""
-    key, name = STANDBY_CINE
-    size, line = STANDBY_SIZE
-    out = {
-        "cine": {"box": box(key), "name": name, "size": size, "line": line},
-        "frames": [{"n": i, "title": t, "line": l, "image": _standby_image(i)}
-                   for i, (t, l) in enumerate(STANDBY_FRAMES)],
-        "count": len(STANDBY_FRAMES),
-        "reels": [{"box": box(k), "name": n, "icons": _six(icons), "n": i}
-                  for i, (k, n, icons) in enumerate(STANDBY_REELS, start=1)],
-        "tips": None, "ticker": None,
-    }
-    k, n, lines = STANDBY_TIPS
-    out["tips"] = {"box": box(k), "name": n, "lines": lines, "count": len(lines),
-                   "size": STANDBY_TIP_SIZE}
-    k, n, lines = STANDBY_TICKER
-    out["ticker"] = {"box": box(k), "name": n, "lines": lines, "size": STANDBY_TICK_SIZE}
-    out["fill"] = _six(STANDBY_FILL)
-    return out
+    """What a populated unit's empty windows fill with. The animated
+    standby that once ran on an empty account is retired: that account
+    meets the page from zero instead."""
+    return {"fill": _six(STANDBY_FILL)}
 
 
 def build(analysis, cover, art_files, tracks, masters, ready, cards,
@@ -302,12 +342,14 @@ def build(analysis, cover, art_files, tracks, masters, ready, cards,
         tiles.append({"key": key, "href": href, "icon": card[1],
                       "name": card[2], "line": card[3]})
 
+    # Nothing measured, nothing tracked, no art: the page from zero. One
+    # track, one cover or one reading and the unit takes over untouched.
+    idle = not analysis and not tracks and not art["total"]
     return {
         "artist_name": artist_name or "",
         "analyser": analyser(analysis, cover),
-        # Nothing measured, nothing tracked, no art: the unit explains
-        # itself. One track, one cover or one reading and this is gone.
-        "idle": not analysis and not tracks and not art["total"],
+        "idle": idle,
+        "zero": zero_page(can_open) if idle else None,
         "standby": standby(),
         "covers": art,
         "path": path(tracks, measured_label, masters, art["total"], ready),

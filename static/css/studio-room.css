@@ -242,3 +242,82 @@
   .sd-lcd .rk-reel--fill { flex: 0 0 auto; align-self: center; height: 26px; width: 26px; }
   .sd-lcd .rk-reel--fill .rk-reel-ico { height: 100%; }
 }
+
+/* ---- the page from zero (owner's Studio spec, 2026-09-22) -------------
+   The plate is the Command Center's (partials/cc_rack.html) and its rules
+   are command-zero.css, linked only on this state. Everything below is
+   this page's own: nothing kit-owned is redeclared (rk-h, rk-cap,
+   rk-panel, rk-rail, rk-step, rk-ring, rk-tiles are used as they are).
+   Sizes never below 12px; radii and colours are tokens. */
+.sz-p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--sb-ink-2); max-width: 52ch; }
+.sz-project {
+  display: grid; grid-template-columns: 56px minmax(0, 1fr); grid-template-rows: auto auto auto;
+  gap: 8px 16px; align-items: start; padding: 20px 22px;
+  border: 1px solid var(--sb-gold-line); border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1); box-shadow: inset 3px 0 0 var(--sb-gold);
+}
+.sz-project-said { min-width: 0; }
+.sz-ring {
+  grid-row: 1 / span 3; display: inline-grid; place-items: center; width: 56px; height: 56px;
+  border-radius: 999px; border: 1.5px solid var(--sb-gold-line); color: var(--sb-gold-bright);
+}
+.sz-ring svg { width: 24px; height: 24px; }
+.sz-btn {
+  grid-column: 2; justify-self: start; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 18px; border-radius: var(--sb-r-control); text-decoration: none;
+  font-size: 15px; font-weight: 800; white-space: nowrap;
+  background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold)); color: var(--sb-on-gold);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--sb-gold) 28%, transparent);
+}
+.sz-btn:hover { filter: brightness(1.05); }
+.sz-btn svg, .sz-links svg, .sz-more svg, .sz-fold-sum svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.sz-note { grid-column: 2; margin: 0; font-size: 13px; color: var(--sb-ink-2); }
+.sz-keeps-list { margin: 4px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+.sz-keep { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sz-keep-ico {
+  display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 999px;
+  border: 1px solid var(--sb-gold-line); color: var(--sb-gold-bright);
+}
+.sz-keep-ico svg { width: 20px; height: 20px; }
+.sz-keep b { font-size: 15px; color: var(--sb-ink); line-height: 1.2; }
+.sz-keep span { font-size: 13px; line-height: 1.45; color: var(--sb-ink-2); }
+/* the first stage is where a new account starts: lit, not complete */
+.sz-flow .rk-step.is-first .rk-ring { border-color: var(--sb-gold-bright); color: var(--sb-gold-bright); box-shadow: 0 0 18px color-mix(in srgb, var(--sb-gold) 30%, transparent); }
+.sz-flow .rk-step.is-first b { color: var(--sb-gold-bright); }
+.sz-two { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; }
+.sz-empty, .sz-help { display: flex; align-items: center; gap: 18px; }
+.sz-empty > div, .sz-help > div { flex: 1 1 auto; min-width: 0; }
+.sz-ico { display: inline-grid; place-items: center; width: 52px; height: 52px; flex: 0 0 auto; color: var(--sb-gold-bright); }
+.sz-ico svg { width: 30px; height: 30px; }
+.sz-links { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.sz-links a { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
+.sz-links a:hover { text-decoration: underline; }
+.sz-qs { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--sb-ink-2); }
+.sz-help-acts { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; flex: 0 0 auto; }
+.sz-help .sz-btn { grid-column: auto; justify-self: auto; }
+.sz-more { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
+.sz-more:hover { text-decoration: underline; }
+.sz-fold { border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel); background: var(--sb-surface-1); }
+.sz-fold-sum {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; min-height: 44px;
+  cursor: pointer; list-style: none; font-size: 15px; font-weight: 800; color: var(--sb-ink);
+}
+.sz-fold-sum::-webkit-details-marker { display: none; }
+.sz-fold-sum svg { transition: transform .2s; }
+.sz-fold[open] .sz-fold-sum svg { transform: rotate(180deg); }
+.sz-tools { padding: 0 16px 16px; }
+@media (max-width: 860px) {
+  .sz-keeps-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sz-two { grid-template-columns: 1fr; }
+  .sz-empty, .sz-help { flex-wrap: wrap; }
+}
+@media (max-width: 560px) {
+  .sz-keeps-list { grid-template-columns: 1fr; }
+  .sz-project { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .sz-ring { grid-row: auto; }
+  .sz-btn, .sz-note { grid-column: auto; }
+  .sz-btn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sz-fold-sum svg { transition: none; }
+}

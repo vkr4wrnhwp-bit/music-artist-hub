@@ -5012,8 +5012,13 @@ def create_app():
                                artist_name=artist_identity.display_name(user),
                                measured_label=measured_label,
                                sample=_session_is_demo(), can_open=can_open)
+        # The sentence the song door carries back (?from=song), decided by
+        # the SAVED track, not the param (studio_room.done_line).
         return render_template("room_studio.html", active_page="room-studio",
-                               room=room, sd=sd, **build_dashboard_context())
+                               room=room, sd=sd,
+                               done_line=studio_room.done_line(
+                                   request.args.get("from"), len(tracks)),
+                               **build_dashboard_context())
 
     def _stage_room(user, room):
         """The Stage room as one screen (owner's mockup, 2026-09-22).

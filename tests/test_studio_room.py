@@ -8,6 +8,7 @@ measured master. What these lock:
   the figures live on the unit, not in a strip of stat cards above it
   Release-Ready and Mix Check are two tiles, because they are two pages
   the hardware is a photograph; only the moving parts are drawn
+  an empty account meets the page from zero; the unit waits for a record
 """
 import uuid
 
@@ -36,6 +37,10 @@ def _account(name="Studio Artist"):
     uid = store.get_user_by_email(email)["id"]
     c.post("/login", data={"email": email, "password": PW})
     return c, uid
+
+
+def _track(uid, title="Cell 5"):
+    store.add_os_track(uid, title)
 
 
 # --- a null is never a zero, and here it matters more than usual ----------
@@ -142,35 +147,112 @@ def test_a_seat_that_cannot_open_a_page_is_not_shown_its_tile():
 
 # --- the page itself ------------------------------------------------------
 
-def test_an_empty_account_opens_on_the_unit_not_on_an_empty_state():
-    """The room opens on the instrument whatever the account holds - the
-    same mistake as Stage, made once and not again. The plate is always
-    drawn; only its windows are empty."""
+def test_an_empty_account_meets_the_page_from_zero_not_an_empty_unit():
+    """The page from zero (owner's Studio spec, 2026-09-22). The analyser
+    waits for a record; a new account meets the Command Center's
+    three-screen plate, STATIC, with this room's words, and the spec's
+    order under it. No nought, no progress, no reading that nobody took,
+    and none of the populated room's parts."""
+    import re as _re
     c, _uid = _account()
     body = _room(c.get("/room/studio").get_data(as_text=True))
-    assert "studio-bus-plate" in body, "the photographed unit is always there"
-    # The unit's own empty words ("No master measured yet", both readouts
-    # as "Not measured yet") belong to the state with SOMETHING on file
-    # and nothing measured. An account with nothing at all meets the
-    # display instead (owner, 2026-09-22) - asserted in its own test below.
-    assert "rk-cine" in body, "the display, on the same photographed unit"
-    assert "Not measured yet" not in body, "no absence is printed while the display runs"
+    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "studio-bus-plate" not in body, "the analyser waits for a record"
+    assert "rk-cine" not in body and "rk-reel-win" not in body, "nothing rotates"
+    assert "Not measured yet" not in body and "No master measured yet" not in body
     assert "rk-calm" not in body, "no collapsed empty state stood in for it"
+    # the three screens, the spec's words exactly, none of them a door
+    for k, v in sd.ZERO_RACK:
+        assert k in body and v in body, (k, v)
+    assert body.count('<li class="cz-screen"') == 3
+    assert 'class="cz-screen-v" href' not in body
+    # the header: the spec's subtitle and its one door, carrying the way back
+    assert "Turn a song into a release-ready package." in body
+    assert 'class="rk-cta" href="/tracks?returnTo=/room/studio&amp;from=song"' in body
+    assert "Open The Rack" not in body
+    # the card, the parts, the five stages as education
+    assert "Create your first Studio project" in body
+    assert "What Studio keeps together" in body
+    for _k, name, _l in sd.WORKFLOW:
+        assert name in body, name
+    rail = body.split("How the Studio workflow works")[1].split("Your tracks will appear here")[0]
+    assert "%" not in rail and "Complete" not in rail and "In progress" not in rail
+    assert 'class="rk-step is-first"' in body and "rk-step--ahead" not in body
+    # the two empties in words, help, and the tools folded
+    assert "Your tracks will appear here" in body and "Nothing to review yet" in body
+    assert "Not sure where to begin?" in body
+    assert '<details class="sz-fold">' in body and "More Studio tools" in body
+    text = _re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", body, flags=_re.S)
+    assert "0 tracks" not in text and not _re.search(r"(?<![\d.])0%", text), "an absence is words, not a nought"
+    # the populated room's parts are not on this page
+    assert "sd-needle" not in body and "Explore more tools" not in body
+    assert "From the take to the master." not in body
+
+
+def test_the_song_door_carries_the_way_back_and_the_record_says_the_line():
+    """?from=song alone says nothing; the saved track says the sentence."""
+    c, uid = _account()
+    page = c.get("/room/studio?from=song").get_data(as_text=True)
+    assert sd.DONE_LINE not in page, "the param alone says nothing"
+    _track(uid)
+    assert sd.DONE_LINE in c.get("/room/studio?from=song").get_data(as_text=True)
+    assert sd.DONE_LINE not in c.get("/room/studio").get_data(as_text=True)
+
+
+def test_the_done_line_is_said_by_the_record_not_the_param():
+    assert sd.done_line("song", 0) == ""
+    assert sd.done_line(None, 3) == ""
+    assert sd.done_line("asset", 3) == ""
+    assert sd.done_line("song", 1) == sd.DONE_LINE
+
+
+def test_a_seat_without_the_publishing_room_gets_no_song_door():
+    """/tracks is the Publishing room's (team_areas). A Studio-only seat
+    is not offered a button that bounces: the card stays and says who
+    adds songs, the hero has no pill, and the links skip /tracks."""
+    z = sd.zero_page(can_open=lambda href: not href.startswith("/tracks"))
+    assert z["cta"] is None and z["project"]["can"] is False
+    assert z["links"] and all(not href.startswith("/tracks") for _l, href in z["links"])
+    z = sd.zero_page()
+    assert z["cta"]["href"] == sd.SONG_DOOR and z["project"]["can"] is True
+    assert len(z["links"]) == 2
+
+
+def test_one_track_brings_the_unit_back_untouched():
+    """One record and the room is the room: the photographed analyser with
+    its own empty words, the needles at rest, the tiles in the open - and
+    none of the onboarding page."""
+    c, uid = _account()
+    _track(uid)
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    assert "studio-bus-plate.webp?v=" in body
+    assert "No master measured yet" in body
+    # Counted on the element, not the substring: each needle carries
+    # "sd-needle sd-needle--left", which is two hits for one needle.
+    assert body.count('<span class="sd-needle ') == 2, "the needles are hardware and stay"
+    assert "From the take to the master." in body and "Open The Rack" in body
+    assert "Explore more tools" in body
+    assert "cz-screen" not in body and "sz-fold" not in body
+    assert "Create your first Studio project" not in body
 
 
 def test_the_standard_is_named_because_a_loudness_figure_needs_one():
-    c, _uid = _account()
+    c, uid = _account()
+    _track(uid)
     body = _room(c.get("/room/studio").get_data(as_text=True))
     assert "ITU-R BS.1770" in body and "EBU R128" in body
     assert "encoder has the last word" in body
 
 
 def test_the_room_never_claims_a_track_is_released_or_approved():
-    c, _uid = _account()
-    body = _room(c.get("/room/studio").get_data(as_text=True))
-    for claim in ("Approved", "Released", "Will pass", "Guaranteed",
-                  "Ready for Spotify"):
-        assert claim not in body, claim
+    c, uid = _account()
+    pages = [_room(c.get("/room/studio").get_data(as_text=True))]
+    _track(uid)
+    pages.append(_room(c.get("/room/studio").get_data(as_text=True)))
+    for body in pages:
+        for claim in ("Approved", "Released", "Will pass", "Guaranteed",
+                      "Ready for Spotify"):
+            assert claim not in body, claim
 
 
 def test_the_plate_has_a_container_context_for_its_own_text():
@@ -226,47 +308,9 @@ def test_the_plate_image_carries_a_cache_version():
     Every other asset on this page is versioned. This one has to be too,
     and the version has to move whenever the plate does.
     """
-    c, _uid = _account()
+    c, uid = _account()
+    _track(uid)
     body = _room(c.get("/room/studio").get_data(as_text=True))
     assert "studio-bus-plate.webp?v=" in body, (
         "an image replaced in place needs a cache version or browsers keep "
         "the old one")
-
-
-def test_an_empty_account_meets_the_display_not_the_empty_unit():
-    """Owner, 2026-09-22: the plate explains itself when nothing is
-    measured - the display sequences the room's features, the bay is a
-    reel, the LCDs a ticker and a hint. The needles stay drawn, at rest.
-    One track, one cover or one reading and the unit's own windows return."""
-    import re as _re
-    c, _uid = _account()
-    body = _room(c.get("/room/studio").get_data(as_text=True))
-    got = _re.findall(r"rk-cine-frame[^>]*>\s*(?:<img[^>]*>\s*)?<b[^>]*>([^<]*)", body)
-    assert got == ["The Rack", "Release-Ready", "Remix Lab", "Cover Art"], got
-    assert body.count("rk-reel-win") == 1 and body.count("rk-tip-win") == 1 and body.count("rk-tick-win") == 1
-    # Counted on the element, not the substring: each needle carries
-    # "sd-needle sd-needle--left", which is two hits for one needle.
-    assert body.count('<span class="sd-needle ') == 2, "the needles are hardware and stay"
-    assert "No master measured yet" not in body, "the display replaces the absences"
-
-
-def test_the_plate_fractions_agree_between_the_module_and_the_sheet():
-    """The standby positions itself from studio_room.PLATE; the readings
-    position themselves from the --bay/--disp/--lcd variables in
-    studio-room.css. Two copies with nothing between them drift the first
-    time the plate is re-cropped, silently."""
-    import io as _io
-    import os as _os
-    import re as _re
-    here = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-    css = _io.open(_os.path.join(here, "static", "css", "studio-room.css"),
-                   encoding="utf-8").read()
-    unit = css.split(".sd-unit {", 1)[1].split("}", 1)[0]
-
-    def var(name):
-        return float(_re.search(r"--%s:\s*([\d.]+)%%" % name, unit).group(1))
-
-    assert sd.PLATE["bay"] == (var("bay-x"), var("bay-y"), var("bay-w"), var("bay-h"))
-    assert sd.PLATE["display"] == (var("disp-x"), var("disp-y"), var("disp-w"), var("disp-h"))
-    assert sd.PLATE["lcd-top"] == (var("lcd-x"), var("lcd-top-y"), var("lcd-w"), var("lcd-top-h"))
-    assert sd.PLATE["lcd-bot"] == (var("lcd-x"), var("lcd-bot-y"), var("lcd-w"), var("lcd-bot-h"))
