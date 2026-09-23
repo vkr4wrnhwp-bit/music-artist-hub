@@ -12,6 +12,19 @@ from datetime import datetime, timedelta, timezone
 
 from db import get_db, _now
 
+
+# The Stage room's showcase light show (the demo account's example, never
+# stored) takes its cue colours from here: cue colours are light data, and
+# this module is where the light data's colours live (the design-system
+# test exempts it for that reason). Named so the showcase reads as a show.
+SHOWCASE_CUE_COLOURS = {
+    "amber": "#e0a340",
+    "blue": "#3b6fd8",
+    "white": "#ffffff",
+    "rose": "#c03a5a",
+    "violet": "#6a3bd8",
+}
+
 MAX_VERSIONS = 20
 
 
