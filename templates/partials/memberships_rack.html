@@ -4,8 +4,8 @@
    The three memberships on the photographed three-screen plate the
    Command Center uses (static/img/command-plate.webp), at the same
    measured screen fractions (split_home.RACK_SCREENS - a test holds them
-   equal to partials/cc_rack.html). At rest each screen shows CRT static;
-   point at one, or tab to it, and the static clears and the tier renders:
+   equal to partials/cc_rack.html). At rest each screen is dark glass with particles adrift;
+   point at one, or tab to it, and the particles come together and the tier renders:
    name, price, /month, the plan's own line, and the line naming what on
    it is not open yet (hubs.suites_pending, via split_home.coming_soon).
 
@@ -17,16 +17,17 @@
    use (Archivo, CRT green), so it scales, reads to a screen reader, and
    cannot drift from Billing. The static needs the glass empty anyway.
 
-   The static is one noise tile in the screen's green
-   (static/img/crt-static.png) jittered by a CSS steps() animation. The
-   reveal is :hover / :focus-visible, and on touch the first tap renders
-   the screen and the second opens it (static/js/memberships-rack.js).
-   It is a RENDER, not a snap (owner, 2026-09-23: "more like the room
-   renders where it comes together"): about a second and a half in the
-   room plates' own grammar - the static thins in steps, a sync bar
-   sweeps once, the name cuts in through the colour-split glitch (the
-   data-t copy, as the kit's cine frames carry), the price strikes, and
-   the lines settle last.
+   At rest the glass is dark with a sparse drift of phosphor particles
+   (static/img/crt-particles.png - owner, 2026-09-23: "that blackish
+   color ... not like full-blown TV static"). The reveal is :hover /
+   :focus-visible, and on touch the first tap renders the screen and the
+   second opens it (static/js/memberships-rack.js). It is a RENDER, not
+   a snap ("the particles came together, created the number, and then it
+   static it out"): the particles pull into the middle and go out as the
+   name cuts in through the colour-split glitch (the data-t copy, as the
+   kit's cine frames carry) and the price strikes; the lines settle last;
+   and when the pointer leaves, the number breaks into slices and goes
+   while the particles burst back across the glass.
    No media query decides who gets the static: a touchscreen laptop
    reports no hover at all in Chrome - the owner's own machine did - and
    a (hover) gate would have shown him resolved screens and no static.

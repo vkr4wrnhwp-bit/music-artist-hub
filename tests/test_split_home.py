@@ -597,12 +597,18 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     css = io.open(os.path.join(HERE, "static", "css", "split-home.css"),
                   encoding="utf-8").read()
     body = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    # Dark glass with particles adrift, not snow (owner, 2026-09-23: "that
+    # blackish color ... not like full-blown TV static").
     static = body.split(".sbrk-static {", 1)[1].split("}", 1)[0]
-    assert "crt-static.png" in static and "steps(1, end)" in static
-    assert os.path.exists(os.path.join(HERE, "static", "img", "crt-static.png"))
+    assert "crt-particles.png" in static and "sbrk-drift" in static
+    assert "crt-static.png" not in body, "the dense snow tile is retired"
+    assert os.path.exists(os.path.join(HERE, "static", "img", "crt-particles.png"))
     hover = body.split(".sbrk-door:hover .sbrk-static,", 1)[1].split("}", 1)[0]
-    assert "sbrk-clear" in hover, "the static thins away under the pointer"
-    assert "@keyframes sbrk-clear { from { opacity: .72; } to { opacity: 0; } }" in body
+    assert "sbrk-gather" in hover, "the particles come together under the pointer"
+    # and it statics OUT on the way back (.is-out, from the script)
+    for kf in ("sbrk-gather", "sbrk-burst", "sbrk-out"):
+        assert "@keyframes %s" % kf in body, kf
+    assert ".sbrk-door.is-out .sbrk-read" in body and ".sbrk-door.is-out .sbrk-static" in body
     assert ".sbrk-door:focus-visible .sbrk-static" in body, "the keyboard clears it too"
     assert ".sbrk-door.is-on .sbrk-static" in body, "a first tap clears it too"
     # A RENDER, not a snap (owner, 2026-09-23: "more like the room renders
@@ -618,7 +624,7 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     delays = re.findall(r"\.sbrk-door\.is-on \.sbrk-(k|per|line|soon) \{ animation-delay: ([\d.]+)s; \}", body)
     order = {k: float(v) for k, v in delays}
     assert order["k"] < order["per"] < order["line"] < order["soon"], order
-    for q in ("@media (prefers-reduced-motion: reduce)", "@media (max-width: 759px)"):
+    for q in ("@media (prefers-reduced-motion: reduce)", "@media (max-width: 959px)"):
         assert q in body, q
     for gate in ("(hover: none)", "(any-hover: none)", "(pointer: coarse)"):
         assert gate not in body, gate + " would hide the static from a touchscreen laptop"
@@ -627,9 +633,13 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     js = io.open(js_path, encoding="utf-8").read()
     assert '"touchend"' in js and 'classList.add("is-on")' in js and "preventDefault" in js
     assert 'getComputedStyle(snow).display === "none"' in js, "a resolved screen opens on the first tap"
+    assert '"mouseleave"' in js and 'classList.add("is-out")' in js, "the leave statics out"
     page_t = io.open(os.path.join(HERE, "templates", "landing_split.html"), encoding="utf-8").read()
     assert "memberships-rack.js?v=1" in page_t
-    phone = body.split("@media (max-width: 759px)", 1)[1]
+    # every word renders on the glass: no ch cap on the lines, and the plate
+    # steps aside below 960px where the glass is too short for five lines
+    assert "max-width: 26ch" not in body and "max-width: 28ch" not in body
+    phone = body.split("@media (max-width: 959px)", 1)[1]
     assert ".sbrk-plate { display: none; }" in phone and ".sbrk-static { display: none; }" in phone
     calm = body.split("@media (prefers-reduced-motion: reduce)")
     assert any("animation: none" in part and ".sbrk-static" in part for part in calm[1:])
