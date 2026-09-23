@@ -284,7 +284,7 @@ def decide(uid, store, mls, release_ready_store, reachable=None,
 
 # ---- the gradual transition (Pass 5) --------------------------------------
 
-def compass(essentials, alerts, campaigns, has_statements):
+def compass(essentials, alerts, campaigns, has_statements, actions=None):
     """The three screens of the rack on the OPERATIONAL page: where you
     were, what to do, what is in the way. Every value is a saved record
     or a derived alert; none is a figure.
@@ -312,8 +312,17 @@ def compass(essentials, alerts, campaigns, has_statements):
             resume = {"k": "Resume", "v": "Your statements.", "href": "/statements"}
         else:
             resume = {"k": "Resume", "v": "Nothing in progress.", "href": "/command-center"}
-        action = ({"k": "Next action", "v": top[1], "href": top[3]} if top
-                  else {"k": "Next action", "v": "Nothing on fire.", "href": "/actions"})
+        # With no alert, the next action is the open action that most
+        # needs doing (`actions` ranked by command_center.rank_open), so
+        # work someone put on the board is not hidden behind "Nothing on
+        # fire" (crawl, 2026-09-23).
+        first = (list(actions or ()) or [None])[0]
+        if top:
+            action = {"k": "Next action", "v": top[1], "href": top[3]}
+        elif first:
+            action = {"k": "Next action", "v": first["title"], "href": "/actions/%s" % first["id"]}
+        else:
+            action = {"k": "Next action", "v": "Nothing on fire.", "href": "/actions"}
     blocker = ({"k": "Blocker", "v": block[1], "href": block[3]} if block
                else {"k": "Blocker", "v": "Nothing blocking.", "href": None})
     return [resume, action, blocker]
@@ -342,10 +351,41 @@ def in_progress(tracks, masters_by_track, analyses, campaigns):
     return rows
 
 
-def attention(campaigns):
-    """After the first smart link, the page from zero has a real priority
-    to show in place of "Nothing needs attention yet": publish the link,
-    or turn capture on. None when there is nothing real to say."""
+def _action_attention(action, today=None):
+    """The panel for one open action on the Action Center board."""
+    import actions_center
+    b = actions_center.brief(action, _today_date(today))
+    return {"title": "\u201c%s\u201d is on your Actions board." % b["title"],
+            "body": (b["line"] + ".") if b["line"] else "An open action with no due date.",
+            "cta": "Open action", "href": b["href"], "action_id": b["id"]}
+
+
+def _today_date(today=None):
+    from datetime import date, datetime, timezone
+    if isinstance(today, date):
+        return today
+    return datetime.now(timezone.utc).date()
+
+
+def attention(campaigns, actions=None, today=None):
+    """The page from zero's one real priority in place of "Nothing needs
+    attention yet": an open action that needs attention (high priority,
+    overdue or due soon), else the first smart link's next step (publish
+    it, or turn capture on), else any open action at all - work someone put
+    on the Actions board is never hidden behind "nothing needs attention"
+    (crawl, 2026-09-23). `actions` is the open actions ranked by
+    command_center.rank_open. None when there is nothing real to say."""
+    import command_center
+    acts = list(actions or ())
+    if acts and command_center.needs_attention(acts[0], today):
+        return _action_attention(acts[0], today)
+    said = _link_attention(campaigns)
+    if said:
+        return said
+    return _action_attention(acts[0], today) if acts else None
+
+
+def _link_attention(campaigns):
     live = [x for x in (campaigns or ()) if not x.get("archived_at")]
     if not live:
         return None

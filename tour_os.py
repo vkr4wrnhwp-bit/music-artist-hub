@@ -4008,7 +4008,12 @@ def task_add(user, tour, viewer, tour_id):
         tour["user_id"], title, category="general", priority=f.get("priority") or "medium",
         description=(f.get("description") or "")[:1000],
         entity_type="tour_show" if show else "tour", entity_id=show["id"] if show else tour_id,
-        due_date=f.get("due_date") or "")
+        due_date=f.get("due_date") or "",
+        # The Action Center shows where it came from and the room it
+        # belongs to (owner's mockup, 2026-09-23); typed in by hand, so it
+        # can be deleted there.
+        room="stage", source="tour_task",
+        source_href=_show_url(tour, show, "tasks") if show else "/tours/%s/tasks" % tour_id)
     return _back(_show_url(tour, show, "tasks") if show else "/tours/%s/tasks" % tour_id)
 
 

@@ -123,6 +123,8 @@
         <input type="hidden" name="title" value="Resolve {{ ids_missing_isrc }} missing ISRC(s) in catalog">
         <input type="hidden" name="description" value="Tracks without ISRCs cannot be matched to royalties. Check with the distributor or re-run metadata lookup.">
         <input type="hidden" name="category" value="metadata">
+        <input type="hidden" name="source" value="catalog_check">
+        <input type="hidden" name="room" value="publishing">
         <button class="sb-btn sb-btn-secondary sb-btn-sm">Create action</button>
       </form>
       {% endif %}

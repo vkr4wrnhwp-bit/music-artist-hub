@@ -285,7 +285,7 @@
     <!-- Today's priorities: derived alerts -->
     <section>
       <h2 class="sb-label sb-label-gold">Today's Priorities</h2>
-      {% if cc_alerts %}
+      {% if cc_alerts or cc_action_prios %}
       {# The priority card is what this page exists to show, so it gets
          the strongest treatment in the system: gradient surface, a
          severity stripe encoding urgency structurally, and a real
@@ -301,8 +301,19 @@
             <input type="hidden" name="title" value="{{ title }}">
             <input type="hidden" name="description" value="{{ rec }}">
             <input type="hidden" name="category" value="{{ category }}">
+            <input type="hidden" name="source" value="alert">
             {{ sb.btn("Create action", variant="ghost", size="sm", type="submit") }}
           </form>
+        {% endcall %}
+        {% endfor %}
+        {#- Then the open actions that need attention: work someone put on
+            the Actions board (crawl, 2026-09-23). Opened, not fixed. -#}
+        {% for a in cc_action_prios %}
+        {% call sb.priority(a.title, a.line or "An open action on your board.",
+                            severity="crit" if (a.overdue or a.priority == "high") else "warn",
+                            tag=a.room_label or "Action",
+                            tag_tone="crit" if (a.overdue or a.priority == "high") else "warn") %}
+          {{ sb.btn("Open action", href=a.href, variant="secondary", size="sm") }}
         {% endcall %}
         {% endfor %}
       </div>
@@ -310,7 +321,11 @@
       {#- The old line claimed "every live campaign is capturing fans"
           on an account with no campaigns (audit, 2026-09-22). Say what
           is true for the account in front of us. -#}
-      {% if summary and summary.campaign_count %}
+      {% if cc_actions %}
+      {#- Open work on the board is something that needs attention; never
+          say "nothing" over it (crawl, 2026-09-23). -#}
+      <p class="mt-3 text-sm text-gray-100">No alerts right now. {{ cc_actions|length }} open action{{ "s" if cc_actions|length != 1 }} on your board, listed under Open Actions.</p>
+      {% elif summary and summary.campaign_count %}
       <p class="mt-3 text-sm text-sb-good">Nothing on fire — every live campaign is capturing fans and fully set up.</p>
       {% else %}
       <p class="mt-3 text-sm text-gray-300">Nothing needs attention yet. Priorities appear here after you add music, connect data, or start a project.</p>
@@ -330,11 +345,13 @@
           {% for a in cc_actions %}
           {# Priority was a bare coloured dot; a badge carries the same
              state through greyscale and through colour-blindness. #}
-          <div class="flex items-center gap-3 rounded border border-white/5 bg-white/5 px-3 py-2.5 text-sm">
-            {{ sb.badge(a.priority, "crit" if a.priority == "high" else ("warn" if a.priority == "medium" else "idle")) }}
+          {#- Each row opens its action; room and due date say where it
+              belongs and when (crawl, 2026-09-23). -#}
+          <a href="{{ a.href }}" class="flex items-center gap-3 rounded border border-white/5 bg-white/5 px-3 py-2.5 text-sm">
+            {{ sb.badge(a.priority_label, "crit" if (a.priority == "high" or a.overdue) else ("warn" if a.priority == "medium" else "idle")) }}
             <span class="min-w-0 flex-1 truncate font-medium text-gray-200">{{ a.title }}</span>
-            <span class="sb-label shrink-0">{{ a.category }}</span>
-          </div>
+            {%- if a.line %}<span class="shrink-0 text-xs font-medium {{ 'text-sb-crit' if a.due_hot else 'text-gray-300' }}">{{ a.line }}</span>{% endif %}
+          </a>
           {% endfor %}
         </div>
         {% else %}

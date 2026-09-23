@@ -9,7 +9,7 @@ no stale numbers, no fake data.
 """
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from db import get_db, _now
 import links_engine
@@ -19,9 +19,63 @@ import rollout_store as ros
 # --- Actions -------------------------------------------------------------------
 
 ACTION_CATEGORIES = ["release", "metadata", "smart_link", "rollout", "fan_growth",
-                     "royalty_recovery", "sync", "rights", "report", "general"]
+                     "royalty_recovery", "sync", "rights", "press", "show", "report",
+                     "general"]
 ACTION_PRIORITIES = ["high", "medium", "low"]
 ACTION_STATUSES = ["new", "in_progress", "complete", "dismissed"]
+ACTIVE_STATUSES = ("new", "in_progress")
+
+# The words a person reads for each action type (the owner's mockup reads
+# "Metadata", "Rights", "Press").
+ACTION_TYPE_LABELS = {
+    "release": "Release", "metadata": "Metadata", "smart_link": "Smart link",
+    "rollout": "Rollout", "fan_growth": "Fan growth", "royalty_recovery": "Royalty recovery",
+    "sync": "Sync", "rights": "Rights", "press": "Press", "show": "Show",
+    "report": "Report", "general": "General",
+}
+
+# One name for each state, everywhere: the list, the filters, the board,
+# the Command Center (crawl, 2026-09-23: the list said New and Complete,
+# the board said To Do and Done).
+STATUS_LABELS = {"new": "Not started", "in_progress": "In progress",
+                 "complete": "Complete", "dismissed": "Dismissed"}
+
+# Where an action came from, recorded when it is made and never guessed
+# afterwards. A row made before sources were kept has none and says none.
+ACTION_SOURCES = {
+    "manual": "Created manually",
+    "alert": "From a Command Center alert",
+    "release_check": "From Release Check",
+    "catalog_check": "From the Catalog check",
+    "rights_conflict": "From Rights Conflict",
+    "royalty_check": "From the Royalty check",
+    "growth_score": "From the Growth score",
+    "trust_score": "From the Trust score",
+    "module": "From a preview module",
+    "document": "From a contract reading",
+    "tour_task": "From Tour tasks",
+}
+
+# Only work a person typed in can be deleted. An action a check, an alert
+# or a contract reading raised stays on record as what was asked, and is
+# dismissed instead (owner-approved, 2026-09-23). A row from before sources
+# were kept counts as typed in when it points at nothing.
+DELETABLE_SOURCES = ("manual", "tour_task")
+
+# The room an action type belongs to when nobody chose one.
+TYPE_ROOM = {"release": "releases", "smart_link": "releases", "rollout": "releases",
+             "metadata": "publishing", "rights": "publishing", "sync": "publishing",
+             "royalty_recovery": "business", "report": "business",
+             "fan_growth": "fans", "press": "marketing", "show": "stage"}
+
+# "Needs attention": still open, and high priority, overdue, or due within
+# this many days. The page says so in words under the heading.
+ATTENTION_DAYS = 3
+
+
+def _room_keys():
+    import rooms                      # rooms imports hubs; keep it lazy
+    return [r[0] for r in rooms.ROOMS]
 
 
 def _cut(text, limit):
@@ -40,21 +94,170 @@ def _cut(text, limit):
     return head.rstrip(" ,;:") + " …"
 
 
+def _clean_date(value):
+    """A YYYY-MM-DD date or ''. A due date that is not a date would sort
+    and compare as text and make "overdue" lie."""
+    value = (value or "").strip()[:10]
+    try:
+        return date.fromisoformat(value).isoformat() if value else ""
+    except ValueError:
+        return ""
+
+
+def _safe_href(href):
+    """A same-site path or ''. The way back to a source is followed by a
+    click, so it may never be another site."""
+    href = (href or "").strip()[:300]
+    if not href.startswith("/") or href.startswith("//") or "\\" in href:
+        return ""
+    return href
+
+
 def create_action(user_id, title, category="general", priority="medium",
-                  description="", entity_type="", entity_id="", due_date=""):
+                  description="", entity_type="", entity_id="", due_date="",
+                  room="", assignee_id="", source="", source_href="", created_by=""):
     aid = uuid.uuid4().hex
     now = _now()
+    category = category if category in ACTION_CATEGORIES else "general"
+    room = room if room in _room_keys() else ""
     with get_db() as db:
         db.execute(
             "INSERT INTO street_actions (id, user_id, title, category, priority,"
-            " description, entity_type, entity_id, due_date, status, created, updated)"
-            " VALUES (?,?,?,?,?,?,?,?,?,'new',?,?)",
-            (aid, user_id, title[:200],
-             category if category in ACTION_CATEGORIES else "general",
+            " description, entity_type, entity_id, due_date, status, created, updated,"
+            " room, assignee_id, source, source_href, created_by)"
+            " VALUES (?,?,?,?,?,?,?,?,?,'new',?,?,?,?,?,?,?)",
+            (aid, user_id, title[:200], category,
              priority if priority in ACTION_PRIORITIES else "medium",
              _cut(description, 600), entity_type[:40], entity_id[:64],
-             due_date[:10], now, now))
+             _clean_date(due_date), now, now,
+             room, (assignee_id or "")[:64],
+             source if source in ACTION_SOURCES else "",
+             _safe_href(source_href), (created_by or "")[:64]))
     return aid
+
+
+def get_action(action_id, user_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM street_actions WHERE id = ? AND user_id = ?",
+                         (action_id, user_id)).fetchone()
+    return dict(row) if row else None
+
+
+# What an edit may change. Status has its own door (set_action_status), and
+# where an action came from is history, not a setting.
+_EDITABLE = ("title", "category", "priority", "description", "due_date", "room",
+             "assignee_id", "entity_type", "entity_id")
+
+
+def update_action(action_id, user_id, **fields):
+    """Save an edit. Unknown fields are ignored; each known one is cleaned
+    the way create_action cleans it. True when a row changed."""
+    clean = {}
+    for key, value in fields.items():
+        if key not in _EDITABLE or value is None:
+            continue
+        value = (value or "").strip() if isinstance(value, str) else value
+        if key == "title":
+            if not value:
+                continue                  # an action always has a name
+            value = value[:200]
+        elif key == "category":
+            value = value if value in ACTION_CATEGORIES else "general"
+        elif key == "priority":
+            value = value if value in ACTION_PRIORITIES else "medium"
+        elif key == "description":
+            value = _cut(value, 600)
+        elif key == "due_date":
+            value = _clean_date(value)
+        elif key == "room":
+            value = value if value in _room_keys() else ""
+        elif key == "entity_type":
+            value = value[:40]
+        else:
+            value = value[:64]
+        clean[key] = value
+    if not clean:
+        return False
+    sets = ", ".join("%s = ?" % k for k in clean)
+    with get_db() as db:
+        cur = db.execute("UPDATE street_actions SET %s, updated = ? WHERE id = ? AND user_id = ?" % sets,
+                         list(clean.values()) + [_now(), action_id, user_id])
+    return cur.rowcount > 0
+
+
+def deletable(action):
+    """May this action be deleted, rather than dismissed?"""
+    src = (action or {}).get("source") or ""
+    if src:
+        return src in DELETABLE_SOURCES
+    return not (action or {}).get("entity_type")
+
+
+def delete_action(action_id, user_id):
+    """Delete an action typed in by hand. False, and nothing touched, for
+    one a check, an alert or a reading raised."""
+    action = get_action(action_id, user_id)
+    if not action or not deletable(action):
+        return False
+    with get_db() as db:
+        cur = db.execute("DELETE FROM street_actions WHERE id = ? AND user_id = ?",
+                         (action_id, user_id))
+    return cur.rowcount > 0
+
+
+def _as_date(today=None):
+    if isinstance(today, date):
+        return today
+    if today:
+        return date.fromisoformat(str(today)[:10])
+    return datetime.now(timezone.utc).date()
+
+
+def is_overdue(action, today=None):
+    due = (action or {}).get("due_date") or ""
+    return bool(due) and action.get("status") in ACTIVE_STATUSES and due < _as_date(today).isoformat()
+
+
+def needs_attention(action, today=None):
+    """Open, and high priority, overdue, or due within ATTENTION_DAYS."""
+    if (action or {}).get("status") not in ACTIVE_STATUSES:
+        return False
+    if action.get("priority") == "high":
+        return True
+    due = action.get("due_date") or ""
+    return bool(due) and due <= (_as_date(today) + timedelta(days=ATTENTION_DAYS)).isoformat()
+
+
+def board_summary(actions, today=None):
+    """The figures over the board. Dismissed work is set aside, not
+    counted as unfinished (crawl, 2026-09-23: one dismissed action read
+    "0 of 1 complete, 0%"), and reported on its own."""
+    live = [a for a in actions or () if a.get("status") != "dismissed"]
+    done = sum(1 for a in live if a["status"] == "complete")
+    return {
+        "total": len(live),
+        "complete": done,
+        "in_progress": sum(1 for a in live if a["status"] == "in_progress"),
+        "not_started": sum(1 for a in live if a["status"] == "new"),
+        "open": sum(1 for a in live if a["status"] in ACTIVE_STATUSES),
+        "overdue": sum(1 for a in live if is_overdue(a, today)),
+        "attention": sum(1 for a in live if needs_attention(a, today)),
+        "dismissed": sum(1 for a in actions or () if a.get("status") == "dismissed"),
+        "pct": round(100 * done / len(live)) if live else 0,
+    }
+
+
+def rank_open(actions, today=None):
+    """Open actions, the one that most needs doing first: needing
+    attention, overdue, due soonest, then by priority, oldest first."""
+    pr = {"high": 0, "medium": 1, "low": 2}
+    live = [a for a in actions or () if a.get("status") in ACTIVE_STATUSES]
+    return sorted(live, key=lambda a: (
+        0 if needs_attention(a, today) else 1,
+        0 if is_overdue(a, today) else 1,
+        a.get("due_date") or "9999-99-99",
+        pr.get(a.get("priority"), 1),
+        a.get("created") or ""))
 
 
 # Where an action points, by what it is about. An action that says "click
@@ -79,11 +282,14 @@ def complete_actions_for(user_id, entity_type, entity_id):
     The action that asks for a contract's dates is finished the moment
     those dates are saved; leaving it open would make the list lie."""
     with get_db() as db:
+        # completed_at too: the details page says when it was finished, and
+        # a row closed by its record was finished then (map, 2026-09-23).
+        now = _now()
         cur = db.execute(
-            "UPDATE street_actions SET status = 'complete', updated = ?"
+            "UPDATE street_actions SET status = 'complete', updated = ?, completed_at = ?"
             " WHERE user_id = ? AND entity_type = ? AND entity_id = ?"
             " AND status IN ('new', 'in_progress')",
-            (_now(), user_id, entity_type[:40], entity_id[:64]))
+            (now, now, user_id, entity_type[:40], entity_id[:64]))
         return cur.rowcount
 
 
@@ -123,9 +329,9 @@ def list_actions(user_id, status=None):
     return [dict(r) for r in rows]
 
 
-def open_actions(user_id, limit=5):
-    return [a for a in list_actions(user_id)
-            if a["status"] in ("new", "in_progress")][:limit]
+def open_actions(user_id, limit=5, today=None):
+    """The open actions, the one that most needs doing first."""
+    return rank_open(list_actions(user_id), today)[:limit]
 
 
 # --- Module registry: honest Live / Preview states ------------------------------

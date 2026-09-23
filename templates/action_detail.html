@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% import "_sb.html" as sb %}
+
+{% block title %}{{ r.title }} · Actions{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/actions.css?v=2">{% endblock %}
+
+{#- One action (crawl, 2026-09-23: after creation nothing could be
+    changed, there was no details view, and nothing took you back to where
+    the work is done). Everything the row carries, the doors, the edit
+    form, and delete for an action typed in by hand. -#}
+
+{% block content %}
+{%- set back = "/actions/" ~ r.id -%}
+<div class="ac" data-no-collapse>
+  {% call sb.plate(none, [], "Street Banker · Action Center", r.title,
+                   r.status_label ~ " · " ~ r.type_label ~ " · " ~ r.priority_label ~ " priority") %}
+    <a href="/actions" class="sb-btn sb-btn-secondary">All actions</a>
+  {% endcall %}
+
+  {% if saved %}
+  <div class="ac-toast" role="status"><span class="ac-toast-said"><b>Changes saved.</b></span>
+    <span class="ac-toast-acts"><a href="/actions">Back to all actions</a></span></div>
+  {% endif %}
+
+  {#- ---- what it is, where it belongs, and the one next step --------- -#}
+  <section class="ac-panel ac-detail" aria-labelledby="ac-detail-h">
+    <h2 class="ac-h" id="ac-detail-h">This action</h2>
+    <dl class="ac-facts">
+      <div><dt>Status</dt><dd>{{ r.status_label }}</dd></div>
+      <div><dt>Owning room</dt><dd>{% if r.room %}<a href="/room/{{ r.room }}">{{ r.room_label }}</a>{% else %}No room{% endif %}</dd></div>
+      <div><dt>Action type</dt><dd>{{ r.type_label }}</dd></div>
+      <div><dt>Priority</dt><dd><span class="ac-tag is-{{ r.priority }}">{{ r.priority_label }}</span></dd></div>
+      <div><dt>Due</dt><dd class="{{ 'is-hot' if r.due_hot }}">{{ r.due or "No due date" }}</dd></div>
+      <div><dt>Assignee</dt><dd>{{ r.assignee }}</dd></div>
+      <div><dt>Related to</dt><dd>
+        {%- if r.related and r.related.href %}<a href="{{ r.related.href }}">{{ r.related.label }}</a>
+        {%- elif r.related %}{{ r.related.label }}
+        {%- else %}No linked record{% endif %}</dd></div>
+      <div><dt>Came from</dt><dd>
+        {%- if r.source and r.source_href %}<a href="{{ r.source_href }}">{{ r.source }}</a>
+        {%- elif r.source %}{{ r.source }}
+        {%- else %}Not recorded{% endif %}</dd></div>
+      <div><dt>Created</dt><dd>{{ (action.created or "")[:10] }}</dd></div>
+      {%- if action.status == "complete" and action.completed_at %}
+      <div><dt>Completed</dt><dd>{{ action.completed_at[:10] }}</dd></div>
+      {%- endif %}
+    </dl>
+    {%- if r.description %}<p class="ac-desc">{{ r.description }}</p>{% endif %}
+    <div class="ac-detail-acts">
+      {%- if can_write %}
+      <form method="post" action="/actions" class="ac-inline">
+        <input type="hidden" name="action_id" value="{{ r.id }}">
+        <input type="hidden" name="back" value="{{ back }}">
+        <button type="submit" name="status" value="{{ r.step[0] }}" class="ac-btn {{ 'ac-btn--gold' if r.active else 'ac-btn--line' }}">{{ r.step[1] }}</button>
+      </form>
+      {%- if r.active %}
+      <form method="post" action="/actions" class="ac-inline">
+        <input type="hidden" name="action_id" value="{{ r.id }}">
+        <input type="hidden" name="back" value="{{ back }}">
+        <button type="submit" name="status" value="dismissed" class="ac-btn ac-btn--line">Dismiss</button>
+      </form>
+      {%- endif %}
+      {%- endif %}
+      {%- if r.door %}<a class="ac-btn ac-btn--line" href="{{ r.door.href }}">{{ r.door.label }}</a>{% endif %}
+      {%- if r.source_href and (not r.door or r.door.href != r.source_href) %}<a class="ac-btn ac-btn--line" href="{{ r.source_href }}">Return to source</a>{% endif %}
+    </div>
+  </section>
+
+  {#- ---- edit ------------------------------------------------------- -#}
+  {% if can_write %}
+  <section class="ac-panel" aria-labelledby="ac-edit-h">
+    <h2 class="ac-h" id="ac-edit-h">Edit</h2>
+    <form method="post" action="/actions/{{ r.id }}" class="ac-form ac-form--edit">
+      <label class="ac-field ac-f-title"><span class="ac-lbl">Action</span>
+        <input id="ac-e-title" name="title" required maxlength="200" value="{{ action.title }}" autocomplete="off"></label>
+      <label class="ac-field"><span class="ac-lbl">Owning room</span>
+        <select id="ac-e-room" name="room">
+          <option value="">No room</option>
+          {%- for key, label in rooms %}<option value="{{ key }}"{% if action.room == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select></label>
+      <label class="ac-field"><span class="ac-lbl">Action type</span>
+        <select id="ac-e-type" name="category">
+          {%- for cat in categories %}<option value="{{ cat }}"{% if action.category == cat %} selected{% endif %}>{{ type_labels[cat] }}</option>{% endfor %}
+        </select></label>
+      <label class="ac-field"><span class="ac-lbl">Assignee</span>
+        <select id="ac-e-assignee" name="assignee">
+          {%- set held = action.assignee_id in (people|map("first")|list) %}
+          {%- for uid, name in people %}<option value="{{ uid }}"{% if action.assignee_id == uid %} selected{% endif %}>{{ name }}</option>{% endfor %}
+          {%- if action.assignee_id and not held %}<option value="{{ action.assignee_id }}" selected>{{ r.assignee|replace("Assigned to ", "")|capitalize }}</option>{% endif %}
+          <option value=""{% if not action.assignee_id %} selected{% endif %}>Unassigned</option>
+        </select></label>
+      <label class="ac-field"><span class="ac-lbl">Priority</span>
+        <select id="ac-e-priority" name="priority">
+          {%- for p in priorities %}<option value="{{ p }}"{% if action.priority == p %} selected{% endif %}>{{ p|title }}</option>{% endfor %}
+        </select></label>
+      <label class="ac-field"><span class="ac-lbl">Due date</span>
+        <input id="ac-e-due" type="date" name="due_date" value="{{ action.due_date }}"></label>
+      <label class="ac-field ac-f-rel"><span class="ac-lbl">Related to</span>
+        <select id="ac-e-related" name="related">
+          <option value="">Nothing specific</option>
+          {%- if r.related and r.related.gone %}<option value="__keep__" selected>{{ r.related.label }}</option>{% endif %}
+          {%- for group, opts in related_groups %}
+          <optgroup label="{{ group }}">{% for value, label in opts %}<option value="{{ value }}"{% if related_value == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</optgroup>
+          {%- endfor %}
+        </select></label>
+      <label class="ac-field ac-f-desc"><span class="ac-lbl">Description</span>
+        <textarea id="ac-e-desc" name="description" rows="3" maxlength="600">{{ action.description }}</textarea></label>
+      <button type="submit" class="ac-btn ac-btn--gold ac-create">Save changes</button>
+    </form>
+  </section>
+
+  {#- ---- delete, or why it stays ----------------------------------- -#}
+  <section class="ac-panel ac-danger" id="ac-delete" aria-labelledby="ac-delete-h">
+    <h2 class="ac-h" id="ac-delete-h">{{ "Delete" if r.deletable else "Why this cannot be deleted" }}</h2>
+    {% if r.deletable %}
+    <p class="ac-p">Deleting removes this action for good. It cannot be undone. To keep a record, dismiss it instead.</p>
+    <details class="ac-confirm"{% if confirm_delete %} open{% endif %}>
+      <summary class="ac-btn ac-btn--danger">Delete&hellip;</summary>
+      <form method="post" action="/actions/{{ r.id }}/delete" class="ac-confirm-form">
+        <p class="ac-p">Delete &ldquo;{{ r.title }}&rdquo;?</p>
+        <button type="submit" class="ac-btn ac-btn--danger">Delete for good</button>
+      </form>
+    </details>
+    {% else %}
+    <p class="ac-p">{{ r.source or "A check or an alert" }} raised this action, so it stays on record as what was asked. Dismiss it to take it off your list; it will not count as unfinished.</p>
+    {% endif %}
+  </section>
+  {% else %}
+  <p class="ac-panel ac-readonly" id="ac-delete">You can see this action. Actions are changed by the account holder or a team seat with edit access.</p>
+  {% endif %}
+</div>
+{% endblock %}

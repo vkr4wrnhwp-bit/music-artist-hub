@@ -2,142 +2,261 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}Actions{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/money-desks.css?v=5">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/actions.css?v=2">{% endblock %}
+
+{#- The Action Center (owner's mockup + crawl, 2026-09-23). An action is
+    work that belongs somewhere: the room it belongs to, the record it is
+    about, where it came from, who has it, when it is due, and one next
+    step. Every value on this page is this account's own row; nothing is
+    a sample. The board counts dismissed work apart from unfinished work.
+    The state names are the same everywhere: Not started, In progress,
+    Complete, Dismissed. -#}
+
+{% macro ico(name) -%}
+<svg class="ac-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == "alert" -%}<circle cx="12" cy="12" r="9.5"/><path d="M12 7v6.2"/><path d="M12 16.6v.1"/>
+{%- elif name == "calendar" -%}<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>
+{%- elif name == "person" -%}<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5"/>
+{%- elif name == "link" -%}<path d="M10 14a4.5 4.5 0 006.4 0l3-3a4.5 4.5 0 00-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 00-6.4 0l-3 3a4.5 4.5 0 006.4 6.4l1.2-1.2"/>
+{%- elif name == "list" -%}<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.1M4.5 12h.1M4.5 18h.1"/>
+{%- elif name == "grid" -%}<rect x="4" y="4" width="6.5" height="6.5" rx="1"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1"/>
+{%- elif name == "dots" -%}<path d="M5.5 12h.1M12 12h.1M18.5 12h.1" stroke-width="3"/>
+{%- elif name == "tick" -%}<circle cx="12" cy="12" r="9.5"/><path d="M8 12.4l2.7 2.7L16.2 9.5"/>
+{%- elif name == "ring" -%}<circle cx="12" cy="12" r="9.5"/>
+{%- elif name == "chevron" -%}<path d="M6 9.5l6 6 6-6"/>
+{%- elif name == "back" -%}<path d="M19 12H5M11 6l-6 6 6 6"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% macro mark(r) -%}
+<span class="ac-mark is-{{ r.tone }}{% if r.status == 'complete' %} is-done{% endif %}" aria-hidden="true">
+  {%- if r.status == "complete" %}{{ ico("tick") }}{% elif r.tone in ("crit", "warn") %}{{ ico("alert") }}{% else %}{{ ico("ring") }}{% endif -%}
+</span>
+{%- endmacro %}
+
+{% macro tags(r) -%}
+<p class="ac-tags">
+  {%- if r.room_label %}<span class="ac-tag">{{ r.room_label }}</span>{% endif -%}
+  <span class="ac-tag">{{ r.type_label }}</span>
+  <span class="ac-tag is-{{ r.priority }}">{{ r.priority_label }}</span>
+  {%- if r.status != "new" %}<span class="ac-tag is-status is-{{ r.status }}">{{ r.status_label }}</span>{% endif -%}
+</p>
+{%- endmacro %}
+
+{% macro step_form(r, back) -%}
+<form method="post" action="/actions" class="ac-inline">
+  <input type="hidden" name="action_id" value="{{ r.id }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  <button type="submit" name="status" value="{{ r.step[0] }}" class="ac-btn {{ 'ac-btn--gold' if r.active else 'ac-btn--line' }}">{{ r.step[1] }}</button>
+</form>
+{%- endmacro %}
+
+{% macro menu(r, back) -%}
+<details class="ac-menu">
+  <summary class="ac-menu-btn" aria-label="More for {{ r.title }}">{{ ico("dots") }}</summary>
+  <div class="ac-menu-list">
+    <a href="/actions/{{ r.id }}">{{ "Edit" if can_write else "View details" }}</a>
+    {%- if can_write and r.active %}
+    <form method="post" action="/actions" class="ac-inline">
+      <input type="hidden" name="action_id" value="{{ r.id }}">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button type="submit" name="status" value="dismissed">Dismiss</button>
+    </form>
+    {%- endif %}
+    {%- if can_write %}
+    {%- if r.deletable %}
+    <a class="is-crit" href="/actions/{{ r.id }}?confirm=delete#ac-delete">Delete&hellip;</a>
+    {%- else %}
+    <p class="ac-menu-note">Raised by a check or an alert, so it stays on record. Dismiss it to take it off your list.</p>
+    {%- endif %}
+    {%- endif %}
+  </div>
+</details>
+{%- endmacro %}
 
 {% block content %}
-{#- Every internal page opens with the shared plate band, never a
-    hand-written heading (owner, 2026-09-02). The band sits in the same
-    column as the body under it. -#}
-<div class="mx-auto max-w-[1000px] space-y-5">
+{%- set back = "/actions?status=" ~ filt ~ ("&view=board" if view == "board" else "") -%}
+<div class="ac" data-no-collapse>
   {% call sb.plate(none, [], "Street Banker · Action Center", "Actions",
                    "Every insight becomes work you can assign, track, and finish. Alerts and release checklists feed this board.") %}
-    <a href="/command-center" class="sb-btn sb-btn-secondary">← Command Center</a>
+    <a href="/command-center" class="sb-btn sb-btn-secondary">{{ ico("back") }}Command Center</a>
+    {%- if account_name %}
+    <span class="ac-acct" title="The account these actions belong to">{{ account_name }} &middot; {{ plan_label }}</span>
+    {%- endif %}
   {% endcall %}
 
-  <!-- New action -->
-  <section class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">
-    <h2 class="sb-label text-sb-gold-bright">New Action</h2>
-    <form method="post" class="mt-3 grid gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-      <input name="title" required aria-label="What needs to happen?" placeholder="What needs to happen?" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder-gray-300 focus:border-amber-500/50 focus:outline-none">
-      <select name="category" aria-label="Category" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
-        {% for cat in categories %}<option value="{{ cat }}">{{ cat.replace('_', ' ') | title }}</option>{% endfor %}
-      </select>
-      <select name="priority" aria-label="Priority" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
-        {% for p in priorities %}<option value="{{ p }}" {{ 'selected' if p == 'medium' }}>{{ p | title }}</option>{% endfor %}
-      </select>
-      <input name="due_date" type="date" aria-label="Due date" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-100 [color-scheme:dark]">
-      <button class="sb-btn sb-btn-secondary">Add</button>
+  {#- ---- the confirmation: what was made, and the three ways on -------- -#}
+  {% if created_row %}
+  <div class="ac-toast" role="status">
+    <span class="ac-toast-said"><b>Action created.</b> &ldquo;{{ created_row.title }}&rdquo;{% if created_row.room_label %} is on the board in {{ created_row.room_label }}{% else %} is on the board{% endif %}.</span>
+    <span class="ac-toast-acts">
+      <a href="/actions/{{ created_row.id }}">View action</a>
+      {%- if created_row.source_href %}<a href="{{ created_row.source_href }}">Return to source</a>{% endif %}
+      {%- if can_write %}<a href="#ac-title">Add another</a>{% endif %}
+    </span>
+  </div>
+  {% elif deleted %}
+  <div class="ac-toast" role="status"><span class="ac-toast-said"><b>Action deleted.</b> &ldquo;{{ deleted }}&rdquo; is gone for good.</span></div>
+  {% endif %}
+
+  {#- ---- new action ------------------------------------------------- -#}
+  {% if can_write %}
+  <section class="ac-panel ac-new" id="ac-new" aria-labelledby="ac-new-h">
+    <h2 class="ac-h" id="ac-new-h">New Action</h2>
+    <form method="post" action="/actions" class="ac-form">
+      <input type="hidden" name="back" value="{{ back }}">
+      {%- if form.source %}<input type="hidden" name="source" value="{{ form.source }}">{% endif %}
+      {%- if form.returnTo %}<input type="hidden" name="returnTo" value="{{ form.returnTo }}">{% endif %}
+      <label class="ac-field ac-f-title"><span class="ac-lbl">Action</span>
+        <input id="ac-title" name="title" required maxlength="200" placeholder="What needs to happen?" value="{{ form.title }}" autocomplete="off"></label>
+      <label class="ac-field"><span class="ac-lbl">Owning room</span>
+        <select id="ac-f-room" name="room">
+          <option value="">No room</option>
+          {%- for key, label in rooms %}<option value="{{ key }}"{% if form.room == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select></label>
+      <label class="ac-field"><span class="ac-lbl">Action type</span>
+        <select id="ac-f-type" name="category">
+          {%- for cat in categories %}<option value="{{ cat }}"{% if form.category == cat %} selected{% endif %}>{{ type_labels[cat] }}</option>{% endfor %}
+        </select></label>
+      <label class="ac-field"><span class="ac-lbl">Assignee</span>
+        <select id="ac-f-assignee" name="assignee">
+          {%- for uid, name in people %}<option value="{{ uid }}"{% if form.assignee == uid %} selected{% endif %}>{{ name }}</option>{% endfor %}
+          <option value=""{% if form.assignee == "" %} selected{% endif %}>Unassigned</option>
+        </select></label>
+      <label class="ac-field"><span class="ac-lbl">Priority</span>
+        <select id="ac-f-priority" name="priority">
+          {%- for p in priorities %}<option value="{{ p }}"{% if form.priority == p %} selected{% endif %}>{{ p|title }}</option>{% endfor %}
+        </select></label>
+      <label class="ac-field"><span class="ac-lbl">Due date</span>
+        <input id="ac-f-due" type="date" name="due_date"></label>
+      <label class="ac-field ac-f-rel"><span class="ac-lbl">Related to</span>
+        <select id="ac-f-related" name="related">
+          <option value="">Nothing specific</option>
+          {%- for group, opts in related_groups %}
+          <optgroup label="{{ group }}">{% for value, label in opts %}<option value="{{ value }}"{% if form.related == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</optgroup>
+          {%- endfor %}
+        </select></label>
+      <div class="ac-f-side">
+        {%- if form.source %}<p class="ac-src">{{ source_labels[form.source] }}</p>{% endif %}
+        <details class="ac-more">
+          <summary>More details{{ ico("chevron") }}</summary>
+          <label class="ac-field"><span class="ac-lbl">Description</span>
+            <textarea id="ac-f-desc" name="description" rows="3" maxlength="600" placeholder="What done looks like, and anything the next person needs."></textarea></label>
+        </details>
+      </div>
+      <button type="submit" class="ac-btn ac-btn--gold ac-create">Create action</button>
     </form>
   </section>
+  {% else %}
+  <p class="ac-panel ac-readonly">You can see this board. Actions are created and changed by the account holder or a team seat with edit access.</p>
+  {% endif %}
 
-  <!-- Live board stats: every number is your real action list -->
-  {% if stats.total %}
-  <section class="flex flex-wrap items-center gap-5 rounded-2xl border border-sb-gold/20 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 px-5 py-4">
-    <div class="relative h-16 w-16 shrink-0">
-      <svg viewBox="0 0 64 64" class="h-full w-full -rotate-90">
-        <circle cx="32" cy="32" r="26" fill="none" stroke="#221D18" stroke-width="7"/>
-        <circle cx="32" cy="32" r="26" fill="none" stroke="#E8B950" stroke-width="7" stroke-linecap="round"
-                stroke-dasharray="{{ (stats.pct / 100 * 163.4) | round(1) }} 200"/>
-      </svg>
-      <div class="absolute inset-0 grid place-items-center text-sm font-black sb-num text-sb-ink">{{ stats.pct }}%</div>
-    </div>
-    <div class="text-xs text-gray-300"><span class="font-bold text-gray-100">{{ stats.complete }}</span> of {{ stats.total }} complete</div>
-    <div class="text-xs text-gray-300"><span class="font-bold text-sb-gold-bright">{{ stats.in_progress }}</span> in progress</div>
-    <div class="text-xs text-gray-300"><span class="font-bold text-gray-100">{{ stats.open }}</span> open</div>
-    <div class="ml-auto flex gap-1.5 text-xs font-semibold">
-      <a href="/actions" class="rounded-lg border px-3 py-1.5 {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if view == 'list' else 'border-white/10 text-gray-300 hover:text-white' }}">List</a>
-      <a href="/actions?view=board" class="rounded-lg border px-3 py-1.5 {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if view == 'board' else 'border-white/10 text-gray-300 hover:text-white' }}">Board</a>
-    </div>
+  {#- ---- the summary: dismissed work is set aside, not unfinished ------ -#}
+  <section class="ac-panel ac-sum" aria-label="Board summary">
+    {% if stats.total %}
+    <span class="ac-ring" role="img" aria-label="{{ stats.pct }}% complete">
+      <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle cx="32" cy="32" r="26" class="ac-ring-bg"/>{% if stats.pct %}<circle cx="32" cy="32" r="26" class="ac-ring-fg" stroke-dasharray="{{ (stats.pct / 100 * 163.4)|round(1) }} 200"/>{% endif %}</svg>
+      <b>{{ stats.pct }}%</b>
+    </span>
+    <p class="ac-fig"><b>{{ stats.complete }} of {{ stats.total }}</b> complete</p>
+    <p class="ac-fig"><b>{{ stats.in_progress }}</b> in progress</p>
+    <p class="ac-fig"><b>{{ stats.not_started }}</b> not started</p>
+    {%- if stats.overdue %}<p class="ac-fig is-crit"><b>{{ stats.overdue }}</b> overdue</p>{% endif %}
+    {%- if stats.dismissed %}<p class="ac-fig is-soft"><b>{{ stats.dismissed }}</b> dismissed, not counted</p>{% endif %}
+    {% else %}
+    <p class="ac-fig is-empty">
+      {%- if stats.dismissed %}Nothing open. {{ stats.dismissed }} dismissed action{{ "s" if stats.dismissed != 1 }} set aside, not counted.
+      {%- else %}No actions yet. Create one above, or press &ldquo;Create action&rdquo; on a Command Center alert or a release check.{% endif -%}
+    </p>
+    {% endif %}
+    <nav class="ac-views" aria-label="View">
+      <a href="/actions?status={{ filt }}" class="ac-view{% if view == 'list' %} is-on{% endif %}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ ico("list") }}List</a>
+      <a href="/actions?status={{ filt }}&amp;view=board" class="ac-view{% if view == 'board' %} is-on{% endif %}"{% if view == 'board' %} aria-current="page"{% endif %}>{{ ico("grid") }}Board</a>
+    </nav>
   </section>
-  {% endif %}
 
-  {% macro due_chip(a) -%}
-    {%- if a.due_date -%}
-    {%- set overdue = a.due_date < today and a.status in ('new', 'in_progress') -%}
-    <span class="rounded px-1.5 py-0.5 text-xs font-bold tabular-nums {{ 'bg-red-500/15 text-red-400' if overdue else 'bg-white/10 text-gray-300' }}">{{ 'overdue · ' if overdue }}due {{ a.due_date }}</span>
-    {%- endif -%}
-  {%- endmacro %}
-
-  {% if view == 'board' %}
-  <!-- Kanban board: your real actions by status -->
-  <div class="grid gap-3 md:grid-cols-3">
-    {% for col_status, col_label in [('new', 'To do'), ('in_progress', 'In progress'), ('complete', 'Done')] %}
-    <div class="rounded-2xl border border-white/10 bg-sb-ground p-3">
-      <div class="px-1 text-xs font-bold uppercase tracking-[0.25em] text-gray-300">{{ col_label }} · {{ all_actions | selectattr('status', 'equalto', col_status) | list | length }}</div>
-      <div class="mt-2 space-y-2">
-        {% for a in all_actions if a.status == col_status %}
-        <div class="rounded-xl border border-white/10 bg-sb-surface-2 p-3">
-          <div class="flex items-start gap-2">
-            <span class="mt-1 h-2 w-2 shrink-0 rounded-full {{ 'bg-red-500' if a.priority == 'high' else ('bg-amber-500' if a.priority == 'medium' else 'bg-gray-500') }}"></span>
-            <div class="min-w-0 flex-1 text-sm font-semibold {{ 'text-gray-300 line-through' if a.status == 'complete' else 'text-gray-100' }}">{{ a.title }}</div>
-          </div>
-          <div class="mt-2 flex flex-wrap items-center gap-1.5">
-            <span class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-bold uppercase text-gray-300">{{ a.category.replace('_', ' ') }}</span>
-            {{ due_chip(a) }}
-            <form method="post" class="ml-auto flex gap-1">
-              <input type="hidden" name="action_id" value="{{ a.id }}">
-              {% if a.status == 'new' %}<button name="status" value="in_progress" class="sb-btn sb-btn-secondary sb-btn-sm">Start</button>{% endif %}
-              {% if a.status in ('new', 'in_progress') %}<button name="status" value="complete" class="rounded border border-green-500/40 bg-green-500/10 px-2 py-0.5 text-xs font-bold text-green-400 hover:bg-green-500/20">Done</button>
-              {% else %}<button name="status" value="new" class="sb-btn sb-btn-secondary sb-btn-sm">Reopen</button>{% endif %}
-            </form>
-          </div>
+  {% if view == "board" %}
+  {#- ---- the board: the same four states, by the same names ----------- -#}
+  <div class="ac-board">
+    {% for key in acx.BOARD %}
+    <section class="ac-col" aria-labelledby="ac-col-{{ key }}">
+      <h2 class="ac-col-h" id="ac-col-{{ key }}">{{ status_labels[key] }} <span class="ac-count">{{ board[key]|length }}</span></h2>
+      {% for r in board[key] %}
+      <article class="ac-card is-{{ r.tone }}">
+        <a class="ac-title" href="/actions/{{ r.id }}">{{ r.title }}</a>
+        {{ tags(r) }}
+        <p class="ac-line{% if r.due_hot %} is-hot{% endif %}">{{ ico("calendar") }}{{ r.due or "No due date" }}</p>
+        <p class="ac-line">{{ ico("person") }}{{ r.assignee }}</p>
+        {%- if r.related %}<p class="ac-line">{{ ico("link") }}{% if r.related.href %}<a href="{{ r.related.href }}">{{ r.related.label }}</a>{% else %}{{ r.related.label }}{% endif %}</p>{% endif %}
+        <div class="ac-card-acts">
+          {%- if can_write %}{{ step_form(r, back) }}{% endif %}
+          {%- if r.door %}<a class="ac-btn ac-btn--line" href="{{ r.door.href }}">{{ r.door.label }}</a>{% endif %}
+          {{ menu(r, back) }}
         </div>
-        {% else %}
-        <div class="rounded-xl border border-dashed border-white/10 py-5 text-center text-xs text-gray-300 font-medium">Empty</div>
-        {% endfor %}
-      </div>
-    </div>
+      </article>
+      {% else %}
+      <p class="ac-empty">Nothing {{ status_labels[key]|lower }}.</p>
+      {% endfor %}
+    </section>
     {% endfor %}
   </div>
   {% else %}
 
-  <!-- Filters -->
-  <div class="md-filter flex flex-wrap gap-1.5 text-xs font-semibold">
-    {% for s, label in [('', 'All'), ('new', 'New'), ('in_progress', 'In Progress'), ('complete', 'Complete'), ('dismissed', 'Dismissed')] %}
-    <a href="/actions{% if s %}?status={{ s }}{% endif %}" class="rounded-full border px-3 py-1 {{ 'border-amber-500/40 bg-amber-500/15 text-amber-400' if status_filter == s else 'border-white/10 text-gray-300 hover:text-white' }}">{{ label }}</a>
+  {#- ---- filters ---------------------------------------------------- -#}
+  <nav class="ac-filters" aria-label="Filter actions">
+    {% for key, label in acx.FILTERS %}
+    <a href="/actions?status={{ key }}" class="ac-pill{% if filt == key %} is-on{% endif %}"{% if filt == key %} aria-current="page"{% endif %}>{{ label }} <span class="ac-count">{{ counts[key] }}</span></a>
     {% endfor %}
-  </div>
+  </nav>
 
-  {% if actions %}
-  <div class="space-y-2">
-    {% for a in actions %}
-    <div class="rounded-xl border {{ 'border-white/5 opacity-60' if a.status in ('complete', 'dismissed') else 'border-white/10' }} bg-sb-surface-1 p-4">
-      <div class="flex flex-wrap items-center gap-3">
-        <span class="h-2 w-2 shrink-0 rounded-full {{ 'bg-red-500' if a.priority == 'high' else ('bg-amber-500' if a.priority == 'medium' else 'bg-gray-500') }}"></span>
-        <div class="min-w-0 flex-1">
-          {#- An action about a thing links to that thing. "Click this to
-              set your reminders" has to be clickable; a title alone is a
-              chore with no door. -#}
-          {%- set go = action_link(a) if action_link else none %}
-          <div class="text-sm font-semibold {{ 'text-gray-300 line-through' if a.status == 'complete' else 'text-gray-100' }}">
-            {%- if go and a.status in ('new', 'in_progress') -%}
-              <a href="{{ go }}" class="text-sb-gold-bright underline decoration-sb-gold/40 underline-offset-2 hover:decoration-sb-gold-bright">{{ a.title }}</a>
-            {%- else -%}{{ a.title }}{%- endif -%}
-          </div>
-          {% if a.description %}<div class="text-xs text-gray-300 font-medium">{{ a.description }}</div>{% endif %}
+  <section class="ac-list" aria-labelledby="ac-list-h">
+    <h2 class="ac-h" id="ac-list-h">{% for key, label in acx.FILTERS if key == filt %}{{ label }}{% endfor %}</h2>
+    {%- if filt == "attention" %}
+    <p class="ac-rule">High priority, overdue, or due within {{ attention_days }} days.</p>
+    {%- elif filt == "all" and stats.dismissed %}
+    <p class="ac-rule">Dismissed actions are under Dismissed.</p>
+    {%- endif %}
+    {% if rows %}
+    <ul class="ac-rows">
+      {% for r in rows %}
+      <li class="ac-row is-{{ r.tone }}{% if not r.active %} is-closed{% endif %}">
+        {{ mark(r) }}
+        <div class="ac-main">
+          <a class="ac-title" href="/actions/{{ r.id }}">{{ r.title }}</a>
+          {{ tags(r) }}
         </div>
-        <span class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-bold uppercase text-gray-300">{{ a.category.replace('_', ' ') }}</span>
-        {{ due_chip(a) }}
-        <span class="rounded px-1.5 py-0.5 text-xs font-bold uppercase {{ 'bg-green-500/15 text-green-400' if a.status == 'complete' else ('bg-sb-gold/15 text-sb-gold-bright' if a.status == 'in_progress' else 'bg-white/10 text-gray-300') }}">{{ a.status.replace('_', ' ') }}</span>
-        <form method="post" class="flex shrink-0 gap-1.5">
-          <input type="hidden" name="action_id" value="{{ a.id }}">
-          {% if a.status == 'new' %}
-          <button name="status" value="in_progress" class="sb-btn sb-btn-secondary sb-btn-sm">Start</button>
-          {% endif %}
-          {% if a.status in ('new', 'in_progress') %}
-          <button name="status" value="complete" class="rounded-md border border-green-500/40 bg-green-500/10 px-2.5 py-1 text-xs font-bold text-green-400 hover:bg-green-500/20">Complete</button>
-          <button name="status" value="dismissed" class="sb-btn sb-btn-secondary sb-btn-sm">Dismiss</button>
-          {% else %}
-          <button name="status" value="new" class="sb-btn sb-btn-secondary sb-btn-sm">Reopen</button>
-          {% endif %}
-        </form>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="rounded-2xl border border-dashed border-white/10 py-10 text-center text-xs text-gray-300">No actions here. Create one above, or use “Create action” on any Command Center alert or release check.</div>
-  {% endif %}
+        <div class="ac-meta">
+          <p class="ac-line{% if r.due_hot %} is-hot{% endif %}">{{ ico("calendar") }}{{ r.due or "No due date" }}</p>
+          <p class="ac-line">{{ ico("person") }}{{ r.assignee }}</p>
+        </div>
+        <div class="ac-meta ac-rel">
+          {%- if r.related %}
+          <p class="ac-line">{{ ico("link") }}{% if r.related.href %}<a href="{{ r.related.href }}">{{ r.related.label }}</a>{% else %}{{ r.related.label }}{% endif %}</p>
+          {%- else %}
+          <p class="ac-line is-soft">{{ ico("link") }}No linked record</p>
+          {%- endif %}
+          {%- if r.source %}
+          <p class="ac-line ac-from">{% if r.source_href %}<a href="{{ r.source_href }}">{{ r.source }}</a>{% else %}{{ r.source }}{% endif %}</p>
+          {%- endif %}
+        </div>
+        <div class="ac-acts">
+          {%- if can_write %}{{ step_form(r, back) }}{% endif %}
+          {%- if r.door %}<a class="ac-btn ac-btn--line" href="{{ r.door.href }}">{{ r.door.label }}</a>{% endif %}
+          {{ menu(r, back) }}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="ac-empty">
+      {%- if filt == "attention" %}Nothing needs attention. Nothing open is high priority, overdue, or due within {{ attention_days }} days.
+      {%- elif filt == "dismissed" %}Nothing dismissed.
+      {%- elif stats.total or stats.dismissed %}No actions here.
+      {%- else %}No actions yet. Create one above, or press &ldquo;Create action&rdquo; on a Command Center alert or a release check.{% endif -%}
+    </p>
+    {% endif %}
+  </section>
   {% endif %}
 </div>
 {% endblock %}

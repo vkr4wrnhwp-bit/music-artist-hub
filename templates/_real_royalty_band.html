@@ -85,6 +85,8 @@
           <input type="hidden" name="title" value="Claim ${{ '{:,.2f}'.format(rr.unmatched_revenue) }} unmatched statement revenue">
           <input type="hidden" name="description" value="Statement rows without track titles — request corrected metadata from the distributor.">
           <input type="hidden" name="category" value="royalty_recovery">
+          <input type="hidden" name="source" value="royalty_check">
+          <input type="hidden" name="room" value="business">
           <button class="sb-btn sb-btn-secondary sb-btn-sm">Create recovery action</button>
         </form>
       </div>
@@ -117,6 +119,8 @@
           <input type="hidden" name="title" value="Check {{ g.title }} on {{ n_missing }} missing source{{ 's' if n_missing != 1 }}">
           <input type="hidden" name="description" value="Track earns elsewhere but shows nothing from these sources. Verify delivery and registration. Est. ${{ '{:,.2f}'.format(g.estimated_value) }}. Missing from: {{ g.missing_sources | join(', ') }}.">
           <input type="hidden" name="category" value="royalty_recovery">
+          <input type="hidden" name="source" value="royalty_check">
+          <input type="hidden" name="room" value="business">
           <button class="sb-btn sb-btn-secondary sb-btn-sm">Create recovery action</button>
         </form>
       </div>

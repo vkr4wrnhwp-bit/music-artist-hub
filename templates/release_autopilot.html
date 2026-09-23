@@ -134,6 +134,11 @@
                 <input type="hidden" name="title" value="{{ c.title }}: {{ label }}">
                 <input type="hidden" name="description" value="{{ rec }}">
                 <input type="hidden" name="category" value="{{ category }}">
+                {#- where it came from and what it is about, kept on the action -#}
+                <input type="hidden" name="source" value="release_check">
+                <input type="hidden" name="room" value="releases">
+                <input type="hidden" name="entity_type" value="release">
+                <input type="hidden" name="entity_id" value="{{ c.id }}">
                 {{ sb.btn("Create action", type="submit", size="sm") }}
               </form>
             </div>

@@ -3112,6 +3112,18 @@ def create_app():
     # ignored and the rooms rule applies.
     app.jinja_env.globals["safe_return"] = lambda v: _safe_next(v, "")
 
+    def _created_action(action_id):
+        """The action a "Create action" button just made, when it is this
+        account's; None otherwise (partials/action_created.html)."""
+        user = current_user()
+        if not user or not action_id:
+            return None
+        try:
+            return cc.get_action(str(action_id)[:64], user["id"])
+        except Exception:
+            return None
+    app.jinja_env.globals["created_action"] = _created_action
+
     def _strip_case(user_id, case_id):
         """The case the strip edits, with its rail, or None."""
         import recovery_desk
@@ -6740,6 +6752,10 @@ def create_app():
             # derived, both from this account's own rows.
             _campaigns = mls.list_campaigns(user["id"])
             _tracks = store.list_os_tracks(user["id"])
+            # Open actions reach the page from zero (crawl, 2026-09-23: an
+            # open action sat on /actions while this page said "Nothing
+            # needs attention yet").
+            _open = cc.open_actions(user["id"], limit=3)
             return render_template(
                 "command_center_zero.html", active_page="command-center",
                 account_state=acs["state"], essentials=ess, done_line=done_line,
@@ -6747,7 +6763,7 @@ def create_app():
                     "in_progress": account_state.in_progress(
                         _tracks, release_ready_store.masters_by_track(user["id"]),
                         store.get_track_analyses(user["id"], 50), _campaigns) if _tracks else [],
-                    "attention": account_state.attention(_campaigns),
+                    "attention": account_state.attention(_campaigns, _open),
                     "account_name": artist_identity.display_name(user, default="") or "New label",
                     # START HERE names the next actual step; on a fresh
                     # account that is the profile (spec's exact words).
@@ -6760,6 +6776,14 @@ def create_app():
                 **build_dashboard_context())
         tutor_panel = _tutor_panel(user)
         alerts = cc.build_alerts(user["id"])
+        import actions_center as _acx
+        _today = datetime.now(timezone.utc).date()
+        _open = cc.open_actions(user["id"], limit=5, today=_today)
+        # Today's Priorities: the ranked alerts, then the open actions that
+        # need attention, three at most between them (spec). An action is
+        # opened, never "fixed now": that button belongs to an alert.
+        _action_prios = [_acx.brief(a, _today) for a in _open
+                         if cc.needs_attention(a, _today)][:max(0, 3 - len(alerts[:3]))]
         return render_template(
             "command_center.html", active_page="command-center",
             account_state=acs["state"], done_line=done_line,
@@ -6768,12 +6792,14 @@ def create_app():
             # last campaign touched and the essentials (Pass 5).
             compass=account_state.compass(acs["essentials"], alerts,
                                           mls.list_campaigns(user["id"]),
-                                          bool(store.get_statements(user["id"]))),
+                                          bool(store.get_statements(user["id"])),
+                                          _open),
             summary=cc.get_summary(user["id"]),
             # No more than three real priorities (spec). They are ranked,
             # so the three that matter most are the three that show.
             cc_alerts=alerts[:3],
-            cc_actions=cc.open_actions(user["id"]),
+            cc_action_prios=_action_prios,
+            cc_actions=[_acx.brief(a, _today) for a in _open],
             modules=cc.MODULES, module_groups=cc.module_groups(),
             signal=signal_ctx,
             tutor=tutor_panel,
@@ -6789,48 +6815,198 @@ def create_app():
             # The Overview's figures, on the same page (2026-09-15).
             **_front_money_context())
 
+    # ---- the Action Center (owner's mockup + crawl, 2026-09-23) -----------
+    # An action was a persistent title with state buttons. It is now work
+    # that belongs somewhere: an owning room, a record it is about, where it
+    # came from and the way back, who has it, when it is due - and the board
+    # counts dismissed work apart from unfinished work. actions_center.py
+    # says what a row reads; command_center.py keeps the rows.
+
+    def _actions_context(user):
+        """What every Action Center page reads once: the records an action
+        can be about, the people it can be assigned to, and who "me" is.
+        A partner staff member acting for the artist is not on the team,
+        so "Me" is the account holder's row only when it is them."""
+        import actions_center as acx
+        import tour_mockup
+        me_id = session.get("user_id") or user["id"]
+        seat = current_team_seat()
+        can_write = seat is None or seat.get("access") == "edit"
+        if seat is not None:
+            # A seat is not shown the rest of the team (the Studio withholds
+            # list_team from seats too): it can assign to itself or to the
+            # account holder, and anyone else reads "a teammate".
+            people = [(me_id, "Me"), (user["id"], user.get("name") or "Account holder")]
+            return acx, me_id, people, _action_records(acx, user, tour_mockup), can_write, "Assigned to a teammate"
+        # The people who can hold an action: confirmed members inside the
+        # plan's seat count - not an invite nobody accepted, not a seat a
+        # downgrade switched off.
+        try:
+            limit = plans.team_seats(user.get("plan") or "artist")
+            team = [m for m in store.list_team(user["id"])
+                    if m.get("status") == "active" and m.get("member_user_id")
+                    and m.get("access") in ("read", "edit")
+                    and (limit is None or (store.team_seat_position(user["id"], m["member_user_id"]) or 0) < limit)]
+        except Exception:
+            team = []
+        people = acx.assignees(user, team, me_id)
+        return acx, me_id, people, _action_records(acx, user, tour_mockup), can_write, "Assigned to a former team member"
+
+    def _action_records(acx, user, tour_mockup):
+        return acx.records(user["id"], store, mls, tour_store, tour_mockup.is_mock)
+
+    def _action_fields(form, recs, people):
+        """The create/edit form, cleaned against this account: a related
+        record must be one of its own, an assignee one of its people."""
+        rel = (form.get("related") or "").strip()
+        rec = recs.get(rel) if rel else None
+        assignee = (form.get("assignee") or "").strip()
+        if assignee not in [p[0] for p in people]:
+            assignee = ""
+        return {
+            "title": (form.get("title") or "").strip(),
+            "category": form.get("category") or "general",
+            "priority": form.get("priority") or "medium",
+            "description": (form.get("description") or "").strip(),
+            "due_date": (form.get("due_date") or "").strip(),
+            "room": (form.get("room") or "").strip(),
+            "assignee_id": assignee,
+            "entity_type": rec["kind"] if rec else "",
+            "entity_id": rec["id"] if rec else "",
+        }
+
     @app.route("/actions", methods=["GET", "POST"])
     def actions_page():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        acx, me_id, people, recs, can_write, others = _actions_context(user)
         if request.method == "POST":
             f = request.form
+            back = _safe_next(f.get("back"), "/actions")
+            if not back.startswith("/actions"):
+                back = "/actions"
             if f.get("action_id"):
                 cc.set_action_status(f["action_id"], user["id"], f.get("status") or "new")
-            elif (f.get("title") or "").strip():
-                cc.create_action(user["id"], f["title"].strip(),
-                                 category=f.get("category") or "general",
-                                 priority=f.get("priority") or "medium",
-                                 description=(f.get("description") or "").strip(),
-                                 due_date=(f.get("due_date") or "").strip())
-            return redirect("/actions")
-        status_filter = request.args.get("status") or None
+                return redirect(back)
+            fields = _action_fields(f, recs, people)
+            if not fields["title"]:
+                return redirect(back)
+            # Where it came from: a form that arrived from a check or a
+            # conflict carries its source and the page to go back to; one
+            # typed in here was created manually.
+            source = f.get("source") if f.get("source") in cc.ACTION_SOURCES else "manual"
+            aid = cc.create_action(
+                user["id"], fields["title"], category=fields["category"],
+                priority=fields["priority"], description=fields["description"],
+                due_date=fields["due_date"], room=fields["room"],
+                assignee_id=fields["assignee_id"], entity_type=fields["entity_type"],
+                entity_id=fields["entity_id"], source=source,
+                source_href=_safe_next(f.get("returnTo"), ""), created_by=me_id)
+            # Back to the board with the confirmation, the form keeping the
+            # choices just made (crawl, 2026-09-23: they reset to Release
+            # and Medium after every action).
+            keep = {"created": aid, "room": fields["room"], "category": fields["category"],
+                    "priority": fields["priority"], "assignee": fields["assignee_id"]}
+            return redirect("/actions?" + urllib.parse.urlencode({k: v for k, v in keep.items() if v}))
+
+        today = datetime.now(timezone.utc).date()
         all_actions = cc.list_actions(user["id"])
-        done = len([a for a in all_actions if a["status"] == "complete"])
-        active_n = len([a for a in all_actions
-                        if a["status"] in ("new", "in_progress")])
-        stats = {"total": len(all_actions), "complete": done,
-                 "in_progress": len([a for a in all_actions
-                                     if a["status"] == "in_progress"]),
-                 "open": active_n,
-                 "pct": round(100 * done / len(all_actions)) if all_actions else 0}
+        filt = request.args.get("status") or ""
+        if filt not in acx.FILTER_KEYS:
+            filt = acx.default_filter(all_actions, today)
+        view = "board" if request.args.get("view") == "board" else "list"
+        shown = acx.pick(all_actions, filt, today)
+        created = cc.get_action(request.args.get("created") or "", user["id"]) if request.args.get("created") else None
+        # The form's choices: what the last action used, else the safe
+        # defaults - no room, General, Medium, me.
+        form = {
+            "room": request.args.get("room") if request.args.get("room") in dict(acx.rooms()) else "",
+            "category": request.args.get("category") if request.args.get("category") in cc.ACTION_CATEGORIES else "general",
+            "priority": request.args.get("priority") if request.args.get("priority") in cc.ACTION_PRIORITIES else "medium",
+            "assignee": (request.args.get("assignee") if request.args.get("assignee") in [p[0] for p in people]
+                         else (me_id if me_id in [p[0] for p in people] else user["id"])),
+            "title": (request.args.get("title") or "")[:200],
+            "related": request.args.get("related") if request.args.get("related") in recs else "",
+            "source": request.args.get("source") if request.args.get("source") in cc.ACTION_SOURCES else "",
+            "returnTo": _safe_next(request.args.get("returnTo"), ""),
+        }
         return render_template(
-            "actions.html", active_page="actions",
-            action_link=cc.action_link,
-            actions=cc.list_actions(user["id"], status_filter),
-            all_actions=all_actions, stats=stats,
-            view=request.args.get("view") or "list",
-            today=datetime.now(timezone.utc).date().isoformat(),
-            status_filter=status_filter or "",
-            categories=cc.ACTION_CATEGORIES, priorities=cc.ACTION_PRIORITIES,
+            "actions.html", active_page="actions", acx=acx,
+            rows=[acx.row(a, recs, people, me_id, today, others) for a in shown],
+            board={k: [acx.row(a, recs, people, me_id, today, others) for a in all_actions if a["status"] == k]
+                   for k in acx.BOARD} if view == "board" else None,
+            stats=cc.board_summary(all_actions, today), counts=acx.counts(all_actions, today),
+            filt=filt, view=view, form=form, created=created,
+            created_row=acx.row(created, recs, people, me_id, today, others) if created else None,
+            deleted=(request.args.get("deleted") or "")[:200],
+            rooms=acx.rooms(), categories=cc.ACTION_CATEGORIES, type_labels=cc.ACTION_TYPE_LABELS,
+            priorities=cc.ACTION_PRIORITIES, people=people, related_groups=acx.related_options(recs),
+            status_labels=cc.STATUS_LABELS, source_labels=cc.ACTION_SOURCES,
+            can_write=can_write, attention_days=cc.ATTENTION_DAYS,
+            plan_label=next((pl[1] for pl in plans.PLANS if pl[0] == (user.get("plan") or "artist")),
+                            (user.get("plan") or "artist").title()),
+            account_name=artist_identity.display_name(user, default="") or user.get("name") or "",
             **build_dashboard_context())
+
+    @app.route("/actions/<action_id>", methods=["GET", "POST"])
+    def action_detail(action_id):
+        """One action: everything it carries, an edit form, and the doors
+        (crawl, 2026-09-23: after creation nothing could be changed and
+        there was no details view)."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        action = cc.get_action(action_id, user["id"])
+        if action is None:
+            abort(404)
+        acx, me_id, people, recs, can_write, others = _actions_context(user)
+        if request.method == "POST":
+            fields = _action_fields(request.form, recs, people)
+            if not fields["title"]:
+                fields.pop("title")
+            # What the form could not offer stays as it was: a member who
+            # has left the team, or a record that is no longer on file.
+            if action.get("assignee_id") and request.form.get("assignee") == action["assignee_id"]:
+                fields["assignee_id"] = action["assignee_id"]
+            if request.form.get("related") == "__keep__":
+                fields["entity_type"], fields["entity_id"] = action["entity_type"], action["entity_id"]
+            cc.update_action(action_id, user["id"], **fields)
+            return redirect("/actions/%s?saved=1" % action_id)
+        today = datetime.now(timezone.utc).date()
+        rel = acx.related(action, recs)
+        return render_template(
+            "action_detail.html", active_page="actions", acx=acx, action=action,
+            r=acx.row(action, recs, people, me_id, today, others),
+            related_value=("%s:%s" % (action["entity_type"], action["entity_id"]))
+            if rel and not rel.get("gone") else "",
+            saved=bool(request.args.get("saved")),
+            confirm_delete=request.args.get("confirm") == "delete",
+            rooms=acx.rooms(), categories=cc.ACTION_CATEGORIES, type_labels=cc.ACTION_TYPE_LABELS,
+            priorities=cc.ACTION_PRIORITIES, people=people, related_groups=acx.related_options(recs),
+            status_labels=cc.STATUS_LABELS, can_write=can_write,
+            **build_dashboard_context())
+
+    @app.route("/actions/<action_id>/delete", methods=["POST"])
+    def action_delete(action_id):
+        """Delete an action typed in by hand. One a check or an alert
+        raised is kept on record and dismissed instead; the page says so."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        action = cc.get_action(action_id, user["id"])
+        if action is None:
+            abort(404)
+        if not cc.delete_action(action_id, user["id"]):
+            return redirect("/actions/%s" % action_id)
+        return redirect("/actions?" + urllib.parse.urlencode({"deleted": action["title"][:120]}))
 
     @app.route("/actions/from-alert", methods=["POST"])
     def action_from_alert():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        import actions_center as acx
         f = request.form
         title = (f.get("title") or "").strip()[:200]
         back = request.referrer or "/command-center"
@@ -6840,9 +7016,31 @@ def create_app():
         # already refuses an empty title; this matches it.
         if not title:
             return redirect(back if back.startswith("/") else "/command-center")
-        cc.create_action(user["id"], title,
-                         category=f.get("category") or "general", priority="high",
-                         description=(f.get("description") or "").strip())
+        back_path = urllib.parse.urlsplit(back)
+        here = back_path.path + (("?" + back_path.query) if back_path.query else "")
+        # Where it came from, kept on the row (crawl, 2026-09-23): the form
+        # names its source when it knows it, else the page it sits on does.
+        source = f.get("source") if f.get("source") in cc.ACTION_SOURCES else acx.source_for_path(back_path.path)
+        category = f.get("category") or "general"
+        room = f.get("room") or team_areas.room_for_path(back_path.path) or cc.TYPE_ROOM.get(category, "")
+        # A record the form names is kept only when it is this account's,
+        # and filed under what it really is: a campaign that is not a
+        # release is a campaign.
+        kind, ident = (f.get("entity_type") or "").strip(), (f.get("entity_id") or "").strip()
+        camp = mls.get_campaign(ident, user["id"]) if kind in ("release", "campaign") and ident else None
+        if camp:
+            kind = "release" if (camp.get("campaign_type") or "release") == "release" else "campaign"
+        else:
+            kind, ident = "", ""
+        if room not in [r[0] for r in acx.rooms()]:
+            room = ""
+        aid = cc.create_action(user["id"], title,
+                               category=category, priority="high",
+                               description=(f.get("description") or "").strip(),
+                               room=room, source=source, source_href=_safe_next(here, ""),
+                               entity_type=kind, entity_id=ident,
+                               assignee_id=session.get("user_id") or user["id"],
+                               created_by=session.get("user_id") or user["id"])
         # It used to redirect to the referrer and say nothing, so pressing
         # "Create recovery action" put you back on the page you were
         # already on with no sign anything had happened - the action was
@@ -6851,7 +7049,7 @@ def create_app():
         # confirmation and a way to the thing that was made.
         mark = "&" if "?" in back.split("#")[0] else "?"
         head, _, frag = back.partition("#")
-        target = "%s%saction=%s" % (head, mark, urllib.parse.quote(title[:60]))
+        target = "%s%saction=%s&action_id=%s" % (head, mark, urllib.parse.quote(title[:60]), aid)
         return redirect(target + (("#" + frag) if frag else ""))
 
     def _release_checks(user, campaign):
@@ -13443,7 +13641,9 @@ def create_app():
                 user["id"], "Set the renewal reminders for %s" % filename[:80],
                 category="rights", priority="medium",
                 description=contract_reader.summary(findings, status),
-                entity_type="document", entity_id=doc_id)
+                entity_type="document", entity_id=doc_id,
+                room="business", source="document",
+                source_href="/vault?view=contracts#doc-%s" % doc_id)
         except Exception:
             app.logger.info("vault: could not read %s on upload", doc_id)
 
