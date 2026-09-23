@@ -69,9 +69,12 @@ def test_a_rendered_room_carries_the_centred_row(monkeypatch):
     email = "centred-%s@example.net" % uuid.uuid4().hex[:8]
     c.post("/signup", data={"name": "Centred", "email": email, "password": PW})
     c.post("/plan/switch", data={"plan": "pro"})
-    page = c.get("/room/stage").get_data(as_text=True)
-    cards = re.findall(r'<a class="sb-room-icon [^"]*"[^>]*data-room-card="([a-z-]+)"', page)
-    assert cards and cards[0] == "tours"
+    # Every one of the eight rooms has its own screen now (the last, Stage,
+    # since 2026-09-22), so the icon-grid room.html is only the fallback no
+    # room reaches through /room/<key>. It keeps the centred row.
+    assert c.get("/room/stage").status_code == 200
+    page = io.open(os.path.join(HERE, "templates", "room.html"), encoding="utf-8").read()
+    assert 'class="sb-room-icon ' in page and 'data-room-card="{{ key }}"' in page
     assert 'class="flex flex-wrap justify-center gap-4"' in page
 
 

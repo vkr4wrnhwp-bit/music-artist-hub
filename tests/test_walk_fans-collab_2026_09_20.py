@@ -108,16 +108,15 @@ def test_the_two_moves_land_on_the_fans_they_name():
 # --- 2. Shopify is promised only where it can run ----------------------------
 
 def test_shopify_is_promised_only_to_an_account_that_can_import_it(monkeypatch):
+    # An account with no fans meets the Fans page from zero (2026-09-22),
+    # where importing is the "Bring an audience you already have" card; the
+    # "Bring in the fans you already have" move, and its Shopify wording for
+    # the owner, are pinned at the builder by the test below.
     c, _uid, email = _account()
     body = c.get("/room/fans").get_data(as_text=True)
-    assert "Bring in the fans you already have" in body
-    assert "Import a list. You preview it first." in body
-    assert "or Shopify customers" not in body
+    assert "Bring an audience you already have" in body
+    assert "Shopify" not in body, "a non-owner is never promised a Shopify import"
     assert c.post("/links/fans/import/shopify").status_code == 404
-    # The owner's account is the one the connected store belongs to.
-    monkeypatch.setenv("OWNER_EMAILS", email)
-    body = c.get("/room/fans").get_data(as_text=True)
-    assert "Import a list or Shopify customers. You preview it first." in body
 
 
 def test_the_move_copy_follows_the_flag():
