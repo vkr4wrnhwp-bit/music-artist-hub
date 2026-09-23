@@ -5157,6 +5157,10 @@ def create_app():
         import analytics_room
         import insights_engine
 
+        # The demo account is the showcase, never the page from zero
+        # (owner's ruling; _marketing_room is the pattern). The route is the
+        # only thing that decides who is shown the example.
+        showcase = _session_is_demo()
         try:
             profile = store.get_pulse_profile(user["id"])
             snaps = store.list_pulse_snapshots(user["id"], limit=30)
@@ -5191,18 +5195,26 @@ def create_app():
         # Who may connect a source: the account holder, or an edit seat.
         can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        # Said by the account's OWN saved source, never by the example.
+        connected = bool(profile or snaps)
+        zero = (not showcase) and analytics_room.new_account(profile, snaps, visits, peers)
+        metrics = None
+        if showcase:
+            sc = analytics_room.showcase(artist_name=artist_identity.display_name(user)
+                                         or user.get("name") or "")
+            profile, snaps, peers, visits, metrics = (
+                sc["profile"], sc["snaps"], sc["peers"], sc["visits"], sc["metrics"])
         an = analytics_room.build(profile, snaps, peers, visits, listeners,
                                   observations, cards,
-                                  sample=_session_is_demo(), can_open=can_open,
-                                  zero=analytics_room.new_account(profile, snaps, visits, peers),
-                                  can_add=can_add)
+                                  sample=showcase, can_open=can_open,
+                                  zero=zero, can_add=can_add, metrics=metrics)
         return render_template("room_analytics.html",
                                active_page="room-analytics",
                                room=room, an=an,
                                # The sentence Connections carries back
                                # (?from=connect), decided by the SAVED source.
                                done_line=analytics_room.done_line(
-                                   request.args.get("from"), bool(profile or snaps)),
+                                   request.args.get("from"), connected),
                                **build_dashboard_context())
 
     def _publishing_room(user, room):

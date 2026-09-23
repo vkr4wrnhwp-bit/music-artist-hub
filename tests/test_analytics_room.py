@@ -473,3 +473,57 @@ def test_the_owners_hidden_mark_stays_on_a_populated_room_tile():
              for k in ("scores", "artist-twin", "reports")}
     tiles = {t["key"]: t for t in ar.build(None, [], [], None, None, [], cards, today=TODAY, zero=False)["tiles"]}
     assert tiles["reports"]["state"] == "hidden" and tiles["scores"]["state"] != "hidden"
+
+
+# --- the demo account is the showcase, never the page from zero -----------
+
+DEMO_LOGINS = ("demo@streetbanker.io", "demo-pro@streetbanker.io",
+               "demo-artist@streetbanker.io")
+
+
+@pytest.mark.parametrize("email", DEMO_LOGINS)
+def test_every_demo_login_sees_the_showcase_never_the_page_from_zero(email):
+    """Owner's ruling: the demo account is the showcase, never the page
+    from zero (audit analytics-2, 2026-09-23). No demo login had a pinned
+    artist, a reading or a peer, so every one of them got "Start with a
+    trusted source" under a "Sample data" lamp with no sample anywhere on
+    the page. The example is labelled, names its sample source on every
+    reading, and offers the demo no write door."""
+    demo = appmod.app.test_client()
+    demo.post("/login", data={"email": email, "password": "sweep"})
+    r = demo.get("/room/analytics")
+    assert r.status_code == 200, email
+    body = r.get_data(as_text=True).split('class="rk an"', 1)[1]
+    assert "Start with a trusted source" not in body and "an-z-" not in body, "the page from zero"
+    assert ar.CONNECT_DOOR not in body
+    assert "Sample data" in body and "generated for the example" in body
+    got = {g[0]: g for g in _screens(body)}
+    for label in ("Link visits", "Followers", "Monthly listeners"):
+        assert "cz-screen-v--fig" in got[label][1], "%s carries a sample reading" % label
+    assert got["Monthly listeners"][3] == "From %s" % ar.SHOWCASE_SOURCE
+    assert "Read by %s" % ar.SHOWCASE_SOURCE in body and '<polyline class="an-plot-line"' in body
+    # a shared demo is never offered a write door
+    assert "Change artist" not in body and "Pin your artist" not in body
+
+
+def test_the_showcase_is_labelled_dated_and_never_a_nought():
+    sc = ar.showcase(today=TODAY, artist_name="Synthwave Surfer")
+    out = ar.build(sc["profile"], sc["snaps"], sc["peers"], sc["visits"], None, [],
+                   {}, today=TODAY, sample=True, zero=False, metrics=sc["metrics"])
+    assert out["sample"] is True and out["idle"] is False and out["artist"] == "Synthwave Surfer"
+    rows = {r["label"]: r for r in out["readings"]}
+    for label in ("Followers", "Monthly listeners"):
+        assert rows[label]["provider"] == ar.SHOWCASE_SOURCE and rows[label]["read"] == TODAY.isoformat(), label
+        assert rows[label]["state"] == "fresh", label
+    assert all(f["measured"] and f["value"] != "0" for f in out["figures"])
+    assert out["chart"]["can_draw"] and out["chart"]["provider"] == ar.SHOWCASE_SOURCE
+    assert ar.days_measured(sc["metrics"]["snapshots"]) == len(sc["metrics"]["snapshots"]) > 1
+    assert all(s["reached"] for s in out["path"][:4])
+
+
+def test_a_real_account_never_sees_the_sample_lamp():
+    c, _uid = _account()
+    assert "Sample data" not in c.get("/room/analytics").get_data(as_text=True), "the page from zero"
+    c, uid = _account()
+    _pin(uid)
+    assert "Sample data" not in c.get("/room/analytics").get_data(as_text=True), "the working room"

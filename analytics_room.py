@@ -36,7 +36,7 @@ WHAT IT REFUSES TO DO
     The Pulse page itself is where a fresh reading is taken.
 """
 import urllib.parse
-from datetime import date
+from datetime import date, timedelta
 
 # The path from nothing measured to something read. Each rung is a stored
 # fact, not a stage somebody ticks.
@@ -255,8 +255,12 @@ def rack_screens(rows):
     return out
 
 
-def figures(visits, followers, listeners):
-    """The three across the top. Each may be unmeasured, and says why."""
+def figures(visits, followers, listeners, sources=None):
+    """The three across the top. Each may be unmeasured, and says why.
+
+    `sources` names who took a reading when it is not the default - a
+    metrics provider's followers or listeners say "From <its name>"."""
+    sources = sources or {}
     out = []
     for key, label, source, value, why in (
         ("visits", "Link visits", "From your smart links", visits,
@@ -266,6 +270,7 @@ def figures(visits, followers, listeners):
         ("listeners", "Monthly listeners", "From the connected provider", listeners,
          "Needs a metrics provider"),
     ):
+        source = sources.get(key) or source
         out.append({"key": key, "label": label, "source": source,
                     "value": _n(value) if value is not None else "Not measured",
                     "measured": value is not None,
@@ -332,24 +337,85 @@ def chart(snaps, key, label, provider):
     }
 
 
+# --- THE SHOWCASE (owner's ruling: the demo account is the showcase, never
+# the page from zero) ----------------------------------------------------
+# An in-memory example in the shapes build() reads, exactly as
+# marketing_room.showcase() is: nothing is written to the database, and
+# the route is the only thing that decides who is shown it. Every reading
+# names SHOWCASE_SOURCE, not a real vendor, so no real provider's name
+# stands beside an invented figure; the page carries the Sample data lamp.
+SHOWCASE_SOURCE = "Sample provider"
+# Link visits match the Marketing room's example (its 30-day Heard).
+SHOWCASE_VISITS = 12480
+# (followers, monthly listeners), one reading a day, oldest first.
+SHOWCASE_SERIES = ((1184, 7640), (1190, 7702), (1203, 7755), (1211, 7810),
+                   (1219, 7868), (1236, 7931), (1248, 7990), (1259, 8046),
+                   (1271, 8103), (1286, 8177), (1298, 8236), (1311, 8290),
+                   (1327, 8358), (1342, 8420))
+SHOWCASE_PEERS = 3
+
+
+def showcase(today=None, artist_name=""):
+    """The example Analytics room: what an account with a pinned artist,
+    a metrics provider, smart links and peers sees. Spotify's own
+    snapshots stay empty, as they are for every real account since
+    Spotify stopped sending counts to apps like this one."""
+    today = today or date.today()
+    n = len(SHOWCASE_SERIES)
+    snapshots = [{"day": (today - timedelta(days=n - 1 - i)).isoformat(),
+                  "followers": f, "popularity": None, "monthly_listeners": m}
+                 for i, (f, m) in enumerate(SHOWCASE_SERIES)]
+    return {
+        "profile": {"artist_name": artist_name or "Synthwave Surfer"},
+        "snaps": [],
+        "peers": [{"artist_id": "sample-peer-%d" % i} for i in range(SHOWCASE_PEERS)],
+        "visits": SHOWCASE_VISITS,
+        "metrics": {"label": SHOWCASE_SOURCE,
+                    "followers": SHOWCASE_SERIES[-1][0],
+                    "monthly_listeners": SHOWCASE_SERIES[-1][1],
+                    "as_of": today.isoformat(), "snapshots": snapshots},
+    }
+
+
 def build(profile, snaps, peers, visits, listeners, observations, cards,
-          today=None, sample=False, can_open=None, zero=None, can_add=True):
+          today=None, sample=False, can_open=None, zero=None, can_add=True,
+          metrics=None):
     """Everything the screen renders. No page logic beyond this.
 
     `zero` is new_account() decided by the route from every count the
     spec names (None here means: decide from the same counts); `can_add`
-    is who may connect a source (see zero_page)."""
+    is who may connect a source (see zero_page). `metrics` is a metrics
+    provider's readings on file - {"label", "followers",
+    "monthly_listeners", "as_of", "snapshots"} - or None; each reading it
+    supplies is credited to its label with its own day."""
     today = today or date.today()
     snaps = list(snaps or ())
+    msnaps = list((metrics or {}).get("snapshots") or ())
 
     followers, followers_day = latest(snaps, "followers")
+    followers_by, sources = "Spotify for Artists", {}
+    if followers is None and metrics:
+        followers, followers_day = latest(msnaps, "followers")
+        if followers is None and metrics.get("followers") is not None:
+            followers, followers_day = metrics["followers"], metrics.get("as_of") or ""
+        if followers is not None:
+            followers_by = metrics["label"]
+            sources["followers"] = "From %s" % metrics["label"]
     provider_name = (profile or {}).get("provider") or ""
+    listeners_by, listeners_day = provider_name or "Metrics provider", ""
+    if listeners is None and metrics:
+        listeners, listeners_day = latest(msnaps, "monthly_listeners")
+        if listeners is None and metrics.get("monthly_listeners") is not None:
+            listeners, listeners_day = metrics["monthly_listeners"], metrics.get("as_of") or ""
+        listeners_by = metrics["label"]
+        if listeners is not None:
+            sources["listeners"] = "From %s" % metrics["label"]
 
     rows = [
-        reading("Followers", followers, "Spotify for Artists", followers_day, today,
+        reading("Followers", followers, followers_by, followers_day, today,
                 why="Spotify no longer sends this to apps like this one"),
-        reading("Monthly listeners", listeners, provider_name or "Metrics provider",
-                "", today, why="Needs a metrics provider key"),
+        reading("Monthly listeners", listeners, listeners_by,
+                listeners_day, today, why="Needs a metrics provider key"),
         reading("Audience geography", None, provider_name or "Metrics provider",
                 "", today, why="Needs a metrics provider key"),
         reading("Link visits", visits, "Street Banker Smart Links",
@@ -388,24 +454,30 @@ def build(profile, snaps, peers, visits, listeners, observations, cards,
     if zero is None:
         zero = new_account(profile, snaps, visits, peers)
 
+    # The line over time: Spotify's own followers while it sent them, and
+    # the metrics provider's when Spotify's snapshots carry none.
+    trend = chart(snaps, "followers", "Followers over time", "Spotify")
+    if not trend["points"] and metrics and msnaps:
+        trend = chart(msnaps, "followers", "Followers over time", metrics["label"])
+
     return {
         # The profile row carries artist_name (db.save_pulse_profile); "name"
         # was never there, so a pinned artist read "Nobody pinned" in the
         # head band until the page-from-zero tests caught it (2026-09-23).
         "artist": (profile or {}).get("artist_name") or (profile or {}).get("name") or "",
         "pinned": bool(profile),
-        "figures": figures(visits, followers, listeners),
+        "figures": figures(visits, followers, listeners, sources),
         # The rooms' shared plate: the same readings, one per screen. The
         # trend is the panel under it (chart below).
-        "screens": rack_screens(figures(visits, followers, listeners)),
+        "screens": rack_screens(figures(visits, followers, listeners, sources)),
         # Nothing connected, synced or counted: the page from zero. One
         # source, reading or visit and the analyser takes over untouched.
         "idle": bool(zero),
         "zero": zero_page(can_add, can_open) if zero else None,
         "zero_tiles": zero_tiles,
-        "path": path(bool(profile), snaps, len(peers or ()), len(observations or ())),
+        "path": path(bool(profile), snaps + msnaps, len(peers or ()), len(observations or ())),
         "readings": rows,
-        "chart": chart(snaps, "followers", "Followers over time", "Spotify"),
+        "chart": trend,
         "observations": list(observations or ()),
         "tiles": tiles,
         # The mark is literal: it appears when this account is looking at
