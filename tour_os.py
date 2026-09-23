@@ -1323,6 +1323,14 @@ def _is_demo(user):
     return demo_accounts.is_demo_email((user or {}).get("email"))
 
 
+def _safe_back(value):
+    """A same-site path a door handed us to return to, or ''."""
+    value = (value or "").strip()
+    if not value.startswith("/") or value.startswith("//") or "\\" in value or "\n" in value:
+        return ""
+    return value
+
+
 @bp.route("/tours/new", methods=["POST"])
 def create():
     user = _me()
@@ -1351,7 +1359,11 @@ def create():
         if not re.match(r"^\d{4}-\d{2}-\d{2}$", f.get("date") or ""):
             return redirect("/tours?one_off=date")
         venue = (f.get("venue") or "").strip() or "TBA"
-        fields = {"name": "%s · %s" % (venue, f.get("date")), "artist_name": f.get("artist_name") or own_act,
+        # The Stage room's first-show form (2026-09-23) offers an event
+        # name; the tour of one date takes it, else it is named by the
+        # venue and the date as before.
+        name = (f.get("name") or "").strip()
+        fields = {"name": name or "%s · %s" % (venue, f.get("date")), "artist_name": f.get("artist_name") or own_act,
                   "start_date": f.get("date"), "end_date": f.get("date"),
                   "home_tz": tz, "currency": f.get("currency") or "USD"}
     else:
@@ -1375,6 +1387,12 @@ def create():
     ts.log_change(tour_id, user["id"], actor, "tour",
                   tour_id, tour["name"], "created", "", tour["name"], "info")
     if one_off:
+        # A door that said where it came from gets the person back there,
+        # with ?from=show so the room can say what was made (the Stage
+        # room from zero, 2026-09-23). Same-site paths only.
+        back = _safe_back(f.get("returnTo"))
+        if back:
+            return redirect(back + ("&" if "?" in back else "?") + "from=show")
         return redirect("/tours/%s/shows/%s" % (tour_id, show_id))
     if f.get("first") == "import":
         return redirect("/tours/%s/import" % tour_id)

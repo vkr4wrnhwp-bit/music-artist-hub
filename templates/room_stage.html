@@ -4,7 +4,12 @@
 {% block title %}Stage{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=8">
-  <link rel="stylesheet" href="/static/css/stage-room.css?v=7">
+  <link rel="stylesheet" href="/static/css/stage-room.css?v=8">
+  {%- if sg.idle %}
+  {#- the page from zero draws the Command Center's three-screen plate
+      (partials/cc_rack.html); the plate's rules live with that page -#}
+  <link rel="stylesheet" href="/static/css/command-zero.css?v=1">
+  {%- endif %}
 {% endblock %}
 
 {#- THE STAGE ROOM - built from the owner's mockup image (2026-09-22).
@@ -43,6 +48,13 @@
 {%- elif name == "passported" -%}<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="2.6"/><path d="M8 17c.7-2 2.2-3 4-3s3.3 1 4 3"/>
 {%- elif name == "bulb" -%}<path d="M12 2v3M5 7l2 1.5M19 7l-2 1.5"/><path d="M8 13a4 4 0 118 0v4H8z"/><path d="M10 21h4"/>
 {%- elif name == "note" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 8h.01"/>
+{%- elif name == "show" -%}<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M12 13v5M9.5 15.5h5"/>
+{%- elif name == "team" -%}<circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="9" r="2.5"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M15 13.5c2.5 0 4.5 1.8 4.5 4.5"/>
+{%- elif name == "advance" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 15l2.5 2.5 4.5-5"/>
+{%- elif name == "showday" -%}<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>
+{%- elif name == "pin" -%}<path d="M12 21s-6-5.6-6-10.5a6 6 0 0112 0C18 15.4 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.2"/>
+{%- elif name == "doc" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
+{%- elif name == "chevron" -%}<path d="M6 9l6 6 6-6"/>
 {%- elif name == "arrow" -%}<path d="M5 12h14M13 6l6 6-6 6"/>
 {%- elif name == "expand" -%}<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>
 {%- elif name == "passports" -%}<path d="M5 3.5h9l5 5V20.5H5z"/><path d="M14 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>
@@ -63,7 +75,7 @@
       <div class="rk-hero-said">
         <p class="rk-eyebrow">Street Banker &middot; Stage</p>
         <h1 class="rk-title" id="sg-title">Stage</h1>
-        <p class="rk-sub">What the stage needs to know before you get there.</p>
+        <p class="rk-sub">{% if sg.idle %}{{ sg.zero.subtitle }}{% else %}What the stage needs to know before you get there.{% endif %}</p>
       </div>
       <div class="rk-aside">
         <div class="rk-controls">
@@ -73,12 +85,154 @@
             <span class="rk-avatar" aria-hidden="true">{{ (sg.artist_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ sg.artist_name }}">{{ sg.artist_name }}</span>
           </span>
           {% endif %}
+          {%- if sg.idle %}
+          {#- the one door on the page from zero: the first-show form in
+              the card below; absent when this account may not add one -#}
+          {% if sg.zero.project.can == True %}<a class="rk-cta" href="#sg-z-show">{{ icon("show", "rk-ico") }}{{ sg.zero.project.cta }}</a>{% endif %}
+          {%- else %}
           <a class="rk-cta" href="/stage-plot">{{ icon("plotted", "rk-ico") }}Open the plot editor</a>
+          {%- endif %}
         </div>
       </div>
     </div>
   </section>
 
+  {% if sg.idle %}
+  {#- THE PAGE FROM ZERO (owner's Stage spec + mockup, 2026-09-23). The
+      desk waits for a record; a new account meets the Command Center's
+      photographed three-screen plate, STATIC - PURPOSE / START HERE /
+      GOOD TO KNOW - and the spec's order under it: one card that adds
+      the first show (the form is IN the card: four fields, nothing else),
+      what Stage keeps together, the workflow as education, the two
+      empties in words, help, and the tools in a drawer that starts open.
+      No plot editor before a show exists, no date filter, no nought. -#}
+  {% with screens=sg.zero.screens, rack_label="What Stage is for" %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
+
+  {# ---- create your first Stage project --------------------------------- #}
+  {% set z = sg.zero %}
+  <section class="sg-z-project" aria-labelledby="sg-z-project-h">
+    <h2 class="rk-h sg-z-h1" id="sg-z-project-h">{{ z.project.heading }}</h2>
+    <div class="sg-z-two">
+      <div class="sg-z-card" id="sg-z-show">
+        <span class="sg-z-ring" aria-hidden="true">{{ icon("show") }}</span>
+        <div class="sg-z-said">
+          <h3 class="sg-z-t">{{ z.project.title }}</h3>
+          <p class="sg-z-p">{{ z.project.desc }}</p>
+        </div>
+        {%- if z.project.can == True %}
+        {#- One Show record for every Stage tool (spec): this posts to the
+            Tour desk's own one-off route and comes back with ?from=show.
+            Only what the first save needs - a name (optional; the venue
+            and date name it otherwise), the date, the venue or a stand-in
+            label, the city. -#}
+        <form class="sg-z-form" method="post" action="{{ z.form.action }}">
+          <input type="hidden" name="one_off" value="1">
+          <input type="hidden" name="returnTo" value="{{ z.form.return_to }}">
+          <label class="sg-z-field sg-z-field--wide"><span>Show or event name</span><input name="name" maxlength="120" autocomplete="off" placeholder="Optional - the venue and date name it otherwise"></label>
+          <label class="sg-z-field"><span>Date</span><input type="date" name="date" required></label>
+          <label class="sg-z-field"><span>City or location</span><input name="city" maxlength="80" required autocomplete="off"></label>
+          <label class="sg-z-field sg-z-field--wide"><span>Venue</span><input name="venue" maxlength="120" required autocomplete="off" placeholder="The venue, or a stand-in label until it is confirmed"></label>
+          <button class="sg-z-btn" type="submit">{{ z.project.cta }}{{ icon("arrow") }}</button>
+        </form>
+        <p class="sg-z-note">{{ z.project.note }}</p>
+        {%- elif z.project.can == "tier" %}
+        <p class="sg-z-note">{{ z.project.tier }} <a href="/billing">See memberships{{ icon("arrow") }}</a></p>
+        {%- else %}
+        <p class="sg-z-note">{{ z.project.locked }}</p>
+        {%- endif %}
+      </div>
+      {# ---- what Stage keeps together: capabilities, in gold ------------- #}
+      <section class="rk-panel sg-z-keeps" aria-labelledby="sg-z-keeps-h">
+        <h2 class="rk-h" id="sg-z-keeps-h">What Stage keeps together</h2>
+        <ul class="sg-z-keeps-list">
+          {% for key, name, line in z.keeps %}
+          <li class="sg-z-keep">
+            <span class="sg-z-keep-ico" aria-hidden="true">{{ icon(key) }}</span>
+            <span><b>{{ name }}</b><span>{{ line }}</span></span>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+    </div>
+  </section>
+
+  {# ---- how the Stage workflow works: education, not progress ----------- #}
+  <section class="rk-panel sg-z-flow" aria-labelledby="sg-z-flow-h">
+    <div class="rk-panel-head">
+      <h2 class="rk-h" id="sg-z-flow-h">How the Stage workflow works</h2>
+    </div>
+    <ol class="rk-rail">
+      {% for key, name, line in z.workflow %}
+      <li class="rk-step{% if loop.first %} is-first{% endif %}">
+        <span class="rk-ring">{{ icon(key, "rk-ring-ico") }}</span>
+        <b>{{ name }}</b>
+        <span>{{ line }}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {# ---- your shows will appear here + nothing to advance yet ------------ #}
+  <div class="sg-z-pair">
+    <section class="rk-panel sg-z-empty" aria-labelledby="sg-z-shows-h">
+      <span class="sg-z-ico" aria-hidden="true">{{ icon("pin") }}</span>
+      <div>
+        <h2 class="rk-h" id="sg-z-shows-h">{{ z.shows[0] }}</h2>
+        <p class="sg-z-p">{{ z.shows[1] }}</p>
+        <p class="sg-z-links">{% for label, href in z.links %}<a href="{{ href }}">{{ label }}{{ icon("arrow") }}</a>{% endfor %}</p>
+      </div>
+    </section>
+    <section class="rk-panel sg-z-empty" aria-labelledby="sg-z-advance-h">
+      <span class="sg-z-ico" aria-hidden="true">{{ icon("doc") }}</span>
+      <div>
+        <h2 class="rk-h" id="sg-z-advance-h">{{ z.advance[0] }}</h2>
+        <p class="sg-z-p">{{ z.advance[1] }}</p>
+      </div>
+    </section>
+  </div>
+
+  {# ---- contextual help -------------------------------------------------- #}
+  <section class="rk-panel sg-z-help" aria-labelledby="sg-z-help-h">
+    <span class="sg-z-ico" aria-hidden="true">{{ icon("bulb") }}</span>
+    <div>
+      <h2 class="rk-h" id="sg-z-help-h">{{ z.help[0] }}</h2>
+      <p class="sg-z-p">{{ z.help[1] }}</p>
+      <ul class="sg-z-qs">{% for q in z.questions %}<li>{{ q }}</li>{% endfor %}</ul>
+    </div>
+    <div class="sg-z-help-acts">
+      <a class="sg-z-more" href="/contact">Ask Street Banker{{ icon("arrow") }}</a>
+    </div>
+  </section>
+
+  {# ---- more Stage tools: a drawer that starts open ---------------------- #}
+  {#- OPEN by default (owner, 2026-09-23): "a lot of people won't read,
+      they need to see it". The spec said collapsed; the ruling came later
+      the same day. The fold stays so it can be closed. -#}
+  {% if sg.zero_tiles %}
+  <details class="sg-z-fold" open>
+    <summary class="sg-z-fold-sum">More Stage tools{{ icon("chevron") }}</summary>
+    <section class="sg-z-tools" aria-labelledby="sg-z-tools-h">
+      <h2 class="rk-h sr-only" id="sg-z-tools-h">More Stage tools</h2>
+      <div class="rk-tiles">
+        {% for t in sg.zero_tiles %}
+        <a class="rk-tile" href="{{ t.href }}" data-room-card="{{ t.key }}">
+          <span class="rk-tile-top">
+            <span class="rk-tile-disc">{{ icon(t.key, "rk-tile-ico") }}</span>
+            <span class="rk-tile-text"><b>{{ t.name }}</b><span>{{ t.line }}</span></span>
+          </span>
+          <span class="rk-tile-foot">
+            <span></span>
+            <span class="rk-tile-go">{{ icon("arrow", "rk-ico rk-ico--sm") }}</span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+  </details>
+  {% endif %}
+  {% else %}
   {# ---- the three figures ---------------------------------------------- #}
   {# ---- the plate: one photograph, four windows ------------------------
        The hardware is a photograph (static/img/stage-plate.webp) and only
@@ -98,53 +252,6 @@
     <img class="rk-pl-img" src="/static/img/stage-plate.webp?v=1" alt=""
          width="1859" height="846" decoding="async">
 
-    {% if sg.idle %}
-    {#- THE STANDBY DISPLAY (owner, 2026-09-22): the big window sequences
-        the room's features and glitches between them; the small windows
-        are a reel, a hint and a ticker, never a caption. Words only - no
-        figure appears here, not even an example one. The plate prints
-        every window's name in metal; the names here are for a screen
-        reader and for the phone. -#}
-    <div class="rk-pl-win rk-cine" style="{{ sg.standby.cine.box }}; --cine-size: {{ sg.standby.cine.size }}; --cine-line: {{ sg.standby.cine.line }}"
-         aria-label="What this room does: {% for f in sg.standby.frames %}{{ f.title }}{{ ", " if not loop.last }}{% endfor %}.">
-      <p class="rk-pl-sr">{{ sg.standby.cine.name }}</p>
-      <span class="rk-cine-reel" style="--count: {{ sg.standby.count }}">
-        {% for f in sg.standby.frames %}
-        <span class="rk-cine-frame{% if f.image %} has-image{% endif %}" style="--n: {{ f.n }}">
-          {% if f.image %}<img class="rk-cine-img" src="{{ f.image }}" alt="" decoding="async" loading="lazy">{% endif %}
-          <b data-t="{{ f.title }}">{{ f.title }}</b>
-          <i>{{ f.line }}</i>
-        </span>
-        {% endfor %}
-      </span>
-    </div>
-    {% for q in sg.standby.reels %}
-    <div class="rk-pl-win rk-reel-win" style="{{ q.box }}; --n: {{ q.n }}">
-      <p class="rk-pl-sr">{{ q.name }}</p>
-      <span class="rk-reel" aria-hidden="true">
-        {% for name in q.icons %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}
-        <span class="rk-reel-i">{{ icon(q.icons[0], "rk-reel-ico") }}</span>
-      </span>
-    </div>
-    {% endfor %}
-    {% if sg.standby.tips %}
-    <div class="rk-pl-win rk-tip-win" style="{{ sg.standby.tips.box }}">
-      <p class="rk-pl-sr">{{ sg.standby.tips.name }}</p>
-      <span class="rk-tips" style="--count: {{ sg.standby.tips.count }}">
-        {% for t in sg.standby.tips.lines %}<span class="rk-tip" style="--n: {{ loop.index0 }}">{{ t }}</span>{% endfor %}
-      </span>
-    </div>
-    {% endif %}
-    {% if sg.standby.ticker %}
-    <div class="rk-pl-win rk-tick-win" style="{{ sg.standby.ticker.box }}">
-      <p class="rk-pl-sr">{{ sg.standby.ticker.name }}</p>
-      <span class="rk-tick" aria-hidden="true">
-        {% for t in sg.standby.ticker.lines %}<span class="rk-tick-i">{{ t }}</span>{% endfor %}
-        <span class="rk-tick-i">{{ sg.standby.ticker.lines[0] }}</span>
-      </span>
-    </div>
-    {% endif %}
-    {% else %}
     {% for w in sg.windows %}
     <div class="rk-pl-win" style="{{ w.box }}">
       <p class="rk-pl-sr">{{ w.label }}</p>
@@ -202,7 +309,6 @@
         </span>
       </a>
       {% endif %}
-    {% endif %}
     </div>
   </section>
   <p class="rk-foot sg-pl-foot">
@@ -265,6 +371,7 @@
       {% endfor %}
     </div>
   </section>
+  {% endif %}
   {% endif %}
 
 <!--/room:stage--></div>

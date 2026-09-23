@@ -47,6 +47,11 @@ def _account(name="Stage Artist"):
     return c, uid
 
 
+def _light(uid):
+    """One saved light show: the populated desk, not the page from zero."""
+    store.save_light_show(uid, _show())
+
+
 def _show(bars=4, chans=4, start=1, cues=None, pos=None):
     return {"name": "Main Show", "bars": bars, "chans": chans,
             "dmxStart": start, "dmxUniverse": 1,
@@ -181,36 +186,168 @@ def test_no_phantom_power_column_is_invented():
 
 # --- the page itself --------------------------------------------------------
 
-def test_an_empty_account_is_told_in_words():
-    c, _uid = _account()
-    page = c.get("/room/stage").get_data(as_text=True)
-    assert ">Stage</h1>" in page
-    assert "What the stage needs to know before you get there." in page
-    # Owner, 2026-09-22: a plate whose every window reads "Not measured"
-    # is worse than no plate, so an account that has measured nothing
-    # now meets the STANDBY - words about what will fill each window.
-    # The zero rule is unchanged and still checked below.
-    # The caption standby became the DISPLAY the same afternoon (owner:
-    # "slot machine-y" - the big window sequences the room's features,
-    # the small ones are a reel, a hint and a ticker, never a caption).
-    # The zero rule is unchanged and still checked.
+def test_an_empty_account_meets_the_page_from_zero_not_the_desk():
+    """The page from zero (owner's Stage spec + mockup, 2026-09-23). The
+    desk waits for a record; a new account meets the Command Center's
+    three-screen plate, STATIC, with this room's words, and the spec's
+    order under it - with the first-show form IN the card and the plot
+    editor nowhere. No nought, no progress, none of the desk's parts."""
     import re as _re
-    _f = _re.findall(r"rk-cine-frame[^>]*>\s*(?:<img[^>]*>\s*)?<b[^>]*>([^<]*)", page)
-    assert _f == ['Light Designer', 'Stage Plot', 'Tour Board', 'Passports'], _f
-    assert page.count("rk-reel-win") == 1 and page.count("rk-tip-win") == 1 and page.count("rk-tick-win") == 1
-    assert "No show saved yet" not in page, "the display replaces the absences"
-    assert "rk-pl-n" not in page, "no reading is drawn while nothing is measured"
-    # The plot no longer has a "nothing saved" sentence of its own: the real
-    # designer is on the screen, and its empty state is an empty stage with
-    # the controls to fill it, which is better than a sentence.
-    assert "sp-canvas" in page
-
-
-
-def test_tour_appears_nowhere_on_the_stage_screen():
-    """Owner, 2026-09-22: Tour comes out and becomes its own suite. The
-    suite strip at the foot of every page is its door, not this room."""
     c, _uid = _account()
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "stage-plate.webp" not in body, "the desk waits for a record"
+    assert "rk-cine" not in body and "rk-reel-win" not in body, "nothing rotates"
+    assert "No show saved yet" not in body and "Nothing patched" not in body
+    assert "sp-canvas" not in body and "stageplot.js" not in body, "no plot editor before a show exists"
+    # the three screens, the spec's words exactly
+    for k, v in sr.ZERO_RACK:
+        assert k in body and v in body, (k, v)
+    assert body.count('<li class="cz-screen"') == 3
+    # the header: the spec's subtitle and its one door, into the card
+    assert "Turn show details into a plan everyone can use." in body
+    assert 'class="rk-cta" href="#sg-z-show"' in body and "Add your first show" in body
+    assert "Open the plot editor" not in body
+    # the card holds the form: the Tour desk's own one-off route, the way
+    # back, and only what the first save needs
+    assert "Create your first Stage project" in body and "Start with a show" in body
+    form = body.split('<form class="sg-z-form"')[1].split("</form>")[0]
+    assert 'action="/tours/new"' in form
+    assert 'name="one_off" value="1"' in form and 'name="returnTo" value="/room/stage"' in form
+    for field in ('name="date" required', 'name="venue"', 'name="city"', 'name="name"'):
+        assert field in form, field
+    assert 'name="venue" maxlength="120" required' in form and 'name="city" maxlength="80" required' in form
+    assert form.count("<input") == 6, "four fields and two hidden - nothing else"
+    assert "You can complete technical details after the show is saved." in body
+    # the parts, the five stages as education
+    assert "What Stage keeps together" in body
+    for _k, name, _l in sr.KEEPS:
+        assert name in body, name
+    for _k, name, line in sr.WORKFLOW:
+        # "Team & tech" is escaped on the page
+        assert name.replace("&", "&amp;") in body and line in body, name
+    rail = body.split("How the Stage workflow works")[1].split("Your shows will appear here")[0]
+    assert "%" not in rail and "Complete" not in rail and "In progress" not in rail
+    assert 'class="rk-step is-first"' in body and "rk-step--ahead" not in body
+    # the two empties in words, help with its five questions, the drawer open
+    assert "Your shows will appear here" in body and "Nothing to advance yet" in body
+    assert "Need help planning your first show?" in body
+    for q in sr.HELP_QUESTIONS:
+        assert q in body, q
+    assert '<details class="sg-z-fold" open>' in body and "More Stage tools" in body, (
+        "the drawer starts OPEN (owner, 2026-09-23: people need to see it)")
+    assert _re.findall(r'data-room-card="([a-z-]+)"', body) == list(sr.ZERO_TILES)
+    text = _re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", body, flags=_re.S)
+    assert "0 shows" not in text and not _re.search(r"(?<![\d.])0%", text), "an absence is words, not a nought"
+    assert "sd-needle" not in body and "Explore more tools" not in body
+
+
+def test_the_first_show_is_the_tour_desk_s_record_and_comes_back_with_the_line():
+    """One Show record for every Stage tool (spec): the card's form posts
+    to the Tour desk's own one-off route, which names the tour after the
+    event, comes back to /room/stage?from=show, and the room says what
+    was made - once, from the saved show, never from the param alone."""
+    import tour_store as ts
+    c, uid = _account()
+    store.set_user_plan(uid, "pro")
+    page = c.get("/room/stage?from=show").get_data(as_text=True)
+    assert sr.DONE_LINE not in page, "the param alone says nothing"
+    r = c.post("/tours/new", data={"one_off": "1", "name": "Release show", "date": "2031-04-18",
+                                   "venue": "The Basement East", "city": "Nashville, TN",
+                                   "returnTo": "/room/stage"})
+    assert r.status_code == 302 and r.headers["Location"] == "/room/stage?from=show", r.headers.get("Location")
+    tours = [t for t in ts.list_tours(uid)]
+    assert len(tours) == 1 and tours[0]["name"] == "Release show"
+    shows = store.list_tour_shows(uid)
+    assert len(shows) == 1 and shows[0]["venue"] == "The Basement East" and shows[0]["tour_id"] == tours[0]["id"]
+    page = c.get("/room/stage?from=show").get_data(as_text=True)
+    assert sr.DONE_LINE in page
+    body = _room(page)
+    assert "Start with a show" not in body and "sp-canvas" in body, "the desk is back, with the editor"
+    assert sr.DONE_LINE not in c.get("/room/stage").get_data(as_text=True)
+
+
+def test_a_way_back_is_a_same_site_path_or_nothing():
+    import tour_os
+    assert tour_os._safe_back("/room/stage") == "/room/stage"
+    assert tour_os._safe_back("/room/stage?x=1") == "/room/stage?x=1"
+    for bad in ("", "https://evil.example/", "//evil.example", "room/stage", "/a\nb", None):
+        assert tour_os._safe_back(bad) == "", bad
+
+
+def test_the_done_line_is_said_by_the_record_not_the_param():
+    assert sr.done_line("show", 0) == ""
+    assert sr.done_line(None, 2) == ""
+    assert sr.done_line("plot", 2) == ""
+    assert sr.done_line("show", 1) == sr.DONE_LINE
+
+
+def test_new_account_is_empty_on_every_count_the_spec_names():
+    assert sr.new_account([], [], None, None, []) is True
+    assert sr.new_account([{"id": "s"}], [], None, None, []) is False
+    assert sr.new_account([], [{"id": "t"}], None, None, []) is False
+    assert sr.new_account([], [], {"name": "Main Show"}, None, []) is False
+    assert sr.new_account([], [], None, {"items": []}, []) is False
+    assert sr.new_account([], [], None, None, [{"id": "p"}]) is False
+
+
+def test_the_mock_up_tour_does_not_end_the_page_from_zero(monkeypatch):
+    """The Tour desk seeds an example tour with invented shows for a new
+    account. Those are not the artist's records: with only a mock tour on
+    file the Stage room is still from zero."""
+    import tour_mockup
+    c, uid = _account()
+    store.set_user_plan(uid, "pro")
+    c.post("/tours/new", data={"one_off": "1", "date": "2031-05-02", "venue": "Room One",
+                               "city": "Austin, TX"})
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert "Start with a show" not in body, "a real show: the desk"
+    monkeypatch.setattr(tour_mockup, "is_mock", lambda tour_id: True)
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert "Start with a show" in body, "the same tour marked as the example: from zero"
+
+
+def test_who_may_add_a_show_is_told_on_the_card():
+    """A seat that may not write here, or a plan without Tour, gets the
+    card without the form and a line saying who adds shows - not a form
+    that bounces at the Tour desk."""
+    z = sr.zero_page(can_add="seat")
+    assert z["project"]["can"] == "seat"
+    z = sr.zero_page(can_add="tier")
+    assert z["project"]["can"] == "tier"
+    assert sr.zero_page()["project"]["can"] is True
+    # a Fan plan has no Tour: the tier line, no form
+    c, uid = _account()
+    store.set_user_plan(uid, "fan")
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert 'class="sg-z-form"' not in body and "membership that includes Tour" in body
+    assert 'href="#sg-z-show"' not in body, "and no hero pill pointing at a form that is not there"
+
+
+def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
+    """Owner's spec: a failed request must never look like a new account."""
+    def boom(_uid):
+        raise RuntimeError("stage: store down")
+    monkeypatch.setattr(store, "list_tour_shows", boom)
+    c, _uid = _account()
+    r = c.get("/room/stage")
+    assert r.status_code == 503
+    page = r.get_data(as_text=True)
+    assert "We could not load your Stage workspace" in page
+    assert "Your shows and plans are safe. Try loading the Room again." in page
+    assert 'href="/room/stage"' in page and 'href="/command-center"' in page
+    assert "Start with a show" not in page and "command-plate" not in page
+    assert 'action="/tours/new"' not in page, "no form on the error page"
+
+
+def test_tour_appears_nowhere_on_the_populated_stage_screen():
+    """Owner, 2026-09-22: Tour comes out and becomes its own suite. The
+    suite strip at the foot of every page is its door, not this room.
+    The page from zero is the one exception (owner's spec, 2026-09-23):
+    its first-show form posts to the Tour desk, because a show IS the
+    Tour desk's record and Stage must not invent a second kind."""
+    c, uid = _account()
+    _light(uid)
     page = c.get("/room/stage").get_data(as_text=True)
     body = _room(page)
     for claim in ("/tours", "Advance", "Settlement", "Routing", "Tour dates"):
@@ -227,7 +364,8 @@ def test_the_plot_on_this_screen_is_the_real_editor():
     here puts it on the stage and rewrites the input list. One editor, one
     catalogue, nothing mirrored.
     """
-    c, _uid = _account()
+    c, uid = _account()
+    _light(uid)
     body = _room(c.get("/room/stage").get_data(as_text=True))
     assert "sp-canvas" in body, "the designer's own canvas"
     assert "sp-items" in body, "and its controls"
@@ -250,7 +388,8 @@ def test_a_seat_without_the_plot_area_sees_it_but_cannot_change_it():
     controls, so a seat is never shown a control it may not use."""
     import team_areas
     assert team_areas.allows("stage", "/stage-plot") in (True, False)
-    c, _uid = _account()
+    c, uid = _account()
+    _light(uid)
     body = _room(c.get("/room/stage").get_data(as_text=True))
     # the artist's own account edits
     assert "sp-items" in body
@@ -266,7 +405,8 @@ def test_the_room_is_the_plot_and_the_light_designer_is_a_card():
     itself draws onto a photographed stage with a photographed LED bar. The
     working rig, cue and look code is in the history at 87fcbcc9.
     """
-    c, _uid = _account()
+    c, uid = _account()
+    _light(uid)
     body = _room(c.get("/room/stage").get_data(as_text=True))
 
     # the plot is the room
@@ -282,7 +422,8 @@ def test_the_room_is_the_plot_and_the_light_designer_is_a_card():
 
 
 def test_the_stage_room_closes_with_four_cards():
-    c, _uid = _account()
+    c, uid = _account()
+    _light(uid)
     body = _room(c.get("/room/stage").get_data(as_text=True))
     import re as _re
     assert _re.findall(r'data-room-card="([a-z-]+)"', body) == [

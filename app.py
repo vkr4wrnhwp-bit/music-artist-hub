@@ -5021,42 +5021,68 @@ def create_app():
                                **build_dashboard_context())
 
     def _stage_room(user, room):
-        """The Stage room as one screen (owner's mockup, 2026-09-22).
+        """The Stage room as one screen (owner's mockup, 2026-09-22), or
+        the page from zero (owner's spec, 2026-09-23).
 
-        The Light Studio open as the centrepiece, the Stage Plot under it,
-        and no Tour anywhere: Tour is its own suite now. Everything here is
-        a read of the two saved JSON blobs the editors write - this screen
-        edits nothing, and every control on it links into the editor that
-        owns it.
+        Populated: the Light Studio's readings on the photographed desk,
+        the Stage Plot under it (the real editor), and no Tour anywhere.
+        From zero: an onboarding page with the first-show form in its
+        card. Which one is decided from every count the spec names -
+        shows, tours, the light show, the plot, passports - read in ONE
+        try, because a failed read must never look like a new account:
+        it is the error page, 503.
         """
         import passport_store
         import stage_room
+        import tour_mockup
+        import tour_store as ts
 
-        show = store.get_light_show(user["id"])
-        plot_state = store.get_stage_plot(user["id"])
-        plot_image = store.get_stage_plot_image(user["id"])
+        try:
+            show = store.get_light_show(user["id"])
+            plot_state = store.get_stage_plot(user["id"])
+            plot_image = store.get_stage_plot_image(user["id"])
+            passports = passport_store.list_passports(user["id"])
+            # The Mock Up Tour is an example the Tour desk seeds; it and
+            # its invented shows are not the artist's records.
+            mock = {t["id"] for t in ts.list_tours(user["id"]) if tour_mockup.is_mock(t["id"])}
+            tours = [t for t in ts.list_tours(user["id"]) if t["id"] not in mock]
+            shows = [s for s in store.list_tour_shows(user["id"])
+                     if (s.get("tour_id") or "") not in mock]
+        except Exception as exc:
+            app.logger.error("stage room: state unreadable: %s", exc)
+            return render_template("room_stage_error.html", active_page="room-stage",
+                                   room=room, **build_dashboard_context()), 503
 
         # The version a show could be advanced against. NULL until a first
         # publish, and that absence is drawn as "Never published" rather
         # than as a version 0 nobody issued.
         version = None
-        try:
-            for head in passport_store.list_passports(user["id"]):
-                if head.get("current_version_id"):
-                    got = passport_store.current_version(head["id"], user["id"])
-                    if got:
-                        version = got.get("number")
-                        break
-        except Exception:
-            version = None
+        for head in passports:
+            if head.get("current_version_id"):
+                got = passport_store.current_version(head["id"], user["id"])
+                if got:
+                    version = got.get("number")
+                    break
 
         seat = current_team_seat()
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # Who may add the first show: the account holder or an edit seat
+        # with the Tour desk in its rooms, on a plan that includes Tour
+        # (the same rule tour_os applies to POST /tours/new).
+        can_add = True
+        if seat is not None and (seat.get("access") != "edit"
+                                 or not team_areas.allows(seat["areas"], "/tours")):
+            can_add = "seat"
+        elif not plans.allowed(user.get("plan") or "artist",
+                               "pro" if plans.gates_on() else "artist"):
+            can_add = "tier"
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         sg = stage_room.build(show, plot_state, plot_image, version, cards,
                               artist_name=artist_identity.display_name(user),
-                              sample=_session_is_demo(), can_open=can_open)
+                              sample=_session_is_demo(), can_open=can_open,
+                              zero=stage_room.new_account(shows, tours, show, plot_state, passports),
+                              can_add=can_add)
 
         # The plot designer on this screen is the REAL editor, so this room
         # is now a page that writes. A seat may only edit what its areas
@@ -5071,6 +5097,9 @@ def create_app():
                                editable=editable,
                                # The show the room's own instrument plays.
                                sg_show=(json.dumps(show) if show else "null"),
+                               # The sentence the show door carries back
+                               # (?from=show), decided by the SAVED show.
+                               done_line=stage_room.done_line(request.args.get("from"), len(shows)),
                                **build_dashboard_context())
 
     def _analytics_room(user, room):
