@@ -114,13 +114,16 @@ def test_every_page_with_a_create_action_button_confirms_it():
                headers={"Referer": "http://localhost/trust-score"})
     assert r.status_code == 302 and "action=TS%20action" in r.headers["Location"]
     assert any(a["title"] == "TS action" for a in cc.list_actions(uid))
+    # The line is said by the saved action the redirect names (audit,
+    # 2026-09-23), so the address carries its id as the redirect does.
+    made = r.headers["Location"].split("action_id=", 1)[1].split("&", 1)[0].split("#", 1)[0]
     for path in ("/trust-score", "/qualification", "/command-center", "/recovery"):
-        body = c.get(path + "?action=TS%20action").get_data(as_text=True)
+        body = c.get(path + "?action=TS%20action&action_id=" + made).get_data(as_text=True)
         assert "TS action" in body, path
         assert 'role="status"' in body, path
         assert 'href="/actions"' in body, path
     # One line, not two, on the page that used to carry its own.
-    assert c.get("/recovery?action=TS%20action").get_data(as_text=True).count(
+    assert c.get("/recovery?action=TS%20action&action_id=" + made).get_data(as_text=True).count(
         "is on your") == 1
 
 

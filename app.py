@@ -762,6 +762,9 @@ def create_app():
         # never touches an account that already has rows.
         if _plan != "fan":
             demo_seed.seed_statements(_acct["id"])
+            # The Action Center's showcase board (audit, 2026-09-23: the
+            # demo opened on "No actions yet"). Written once, keyed.
+            demo_seed.seed_actions(_acct["id"])
 
     # Owner accounts get the top plan at boot as well as at login, so an
     # existing long-lived session does not have to sign out and back in
@@ -3101,9 +3104,12 @@ def create_app():
         case desk stays there. Never an absolute URL."""
         v = (value or "").strip()
         # "/\host" is read by browsers as "//host", another site, and a
-        # line break could smuggle a header.
+        # line break could smuggle a header. Browsers also STRIP a tab or
+        # a line break inside a URL before reading it, so "/<TAB>/host"
+        # is "//host" too (audit, 2026-09-23): any control character at
+        # all refuses the value.
         ok = (v.startswith("/") and not v.startswith(("//", "/\\"))
-              and not any(c in v for c in ("\n", "\r")))
+              and not any(ord(c) < 0x20 or ord(c) == 0x7f for c in v))
         return v if ok else default
 
     # The shell's back-link honours ?returnTo= on any page through this
@@ -6738,6 +6744,14 @@ def create_app():
                                modules=cc.MODULES, module_groups=cc.module_groups(),
                                **build_dashboard_context())
 
+    def _command_center_error(exc):
+        """The Command Center's own error page, 503: a failed read is never
+        a fresh account and never a bare server error."""
+        app.logger.error("command center: account state unreadable: %s", exc)
+        return render_template("command_center_error.html",
+                               active_page="command-center",
+                               **build_dashboard_context()), 503
+
     @app.route("/command-center")
     def command_center_page():
         user = current_user()
@@ -6768,10 +6782,7 @@ def create_app():
         # values").
         acs = _account_state(user)
         if acs["state"] == "error":
-            app.logger.error("command center: account state unreadable: %s", acs["error"])
-            return render_template("command_center_error.html",
-                                   active_page="command-center",
-                                   **build_dashboard_context()), 503
+            return _command_center_error(acs["error"])
         # ?from=<key>: the door you came back through. The sentence is
         # decided by the SAVED state, not the param (account_state.done_line).
         done_line = account_state.done_line(acs["essentials"], request.args.get("from"))
@@ -6785,12 +6796,17 @@ def create_app():
             # Pass 5: after the first song an IN PROGRESS panel; after the
             # first link a real priority in place of "nothing yet". Both
             # derived, both from this account's own rows.
-            _campaigns = mls.list_campaigns(user["id"])
-            _tracks = store.list_os_tracks(user["id"])
             # Open actions reach the page from zero (crawl, 2026-09-23: an
             # open action sat on /actions while this page said "Nothing
-            # needs attention yet").
-            _open = cc.open_actions(user["id"], limit=3)
+            # needs attention yet"). Read in one try with the rest: a
+            # failed read is the error page, never "Nothing needs
+            # attention yet" and never a bare 500 (audit, 2026-09-23).
+            try:
+                _campaigns = mls.list_campaigns(user["id"])
+                _tracks = store.list_os_tracks(user["id"])
+                _open = cc.open_actions(user["id"], limit=3)
+            except Exception as exc:
+                return _command_center_error(exc)
             return render_template(
                 "command_center_zero.html", active_page="command-center",
                 account_state=acs["state"], essentials=ess, done_line=done_line,
@@ -6813,7 +6829,15 @@ def create_app():
         alerts = cc.build_alerts(user["id"])
         import actions_center as _acx
         _today = datetime.now(timezone.utc).date()
-        _open = cc.open_actions(user["id"], limit=5, today=_today)
+        # Every open action, ranked, read once: the panel lists five, and
+        # the sentence over it counts them all ("5 open actions" was said
+        # of a board holding 8, audit 2026-09-23). A failed read is the
+        # error page, never a bare 500.
+        try:
+            _open_all = cc.open_actions(user["id"], limit=None, today=_today)
+        except Exception as exc:
+            return _command_center_error(exc)
+        _open = _open_all[:5]
         # Today's Priorities: the ranked alerts, then the open actions that
         # need attention, three at most between them (spec). An action is
         # opened, never "fixed now": that button belongs to an alert.
@@ -6835,6 +6859,7 @@ def create_app():
             cc_alerts=alerts[:3],
             cc_action_prios=_action_prios,
             cc_actions=[_acx.brief(a, _today) for a in _open],
+            cc_open_total=len(_open_all),
             modules=cc.MODULES, module_groups=cc.module_groups(),
             signal=signal_ctx,
             tutor=tutor_panel,
@@ -6887,6 +6912,13 @@ def create_app():
         people = acx.assignees(user, team, me_id)
         return acx, me_id, people, _action_records(acx, user, tour_mockup), can_write, "Assigned to a former team member"
 
+    def _actions_error(exc, retry="/actions"):
+        """The Action Center's own error page, 503: a failed read is never
+        an empty board and never a bare server error (audit, 2026-09-23)."""
+        app.logger.error("action center: actions unreadable: %s", exc)
+        return render_template("actions_error.html", active_page="actions", retry=retry,
+                               **build_dashboard_context()), 503
+
     def _action_records(acx, user, tour_mockup):
         return acx.records(user["id"], store, mls, tour_store, tour_mockup.is_mock)
 
@@ -6915,7 +6947,16 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        acx, me_id, people, recs, can_write, others = _actions_context(user)
+        # Everything the page reads, in one try: a failed read is the
+        # Action Center's error page at 503, never "No actions yet" and
+        # never a bare 500 (audit, 2026-09-23).
+        try:
+            acx, me_id, people, recs, can_write, others = _actions_context(user)
+            all_actions = cc.list_actions(user["id"]) if request.method != "POST" else None
+            created = (cc.get_action(request.args.get("created"), user["id"])
+                       if request.method != "POST" and request.args.get("created") else None)
+        except Exception as exc:
+            return _actions_error(exc)
         if request.method == "POST":
             f = request.form
             back = _safe_next(f.get("back"), "/actions")
@@ -6943,16 +6984,26 @@ def create_app():
             # and Medium after every action).
             keep = {"created": aid, "room": fields["room"], "category": fields["category"],
                     "priority": fields["priority"], "assignee": fields["assignee_id"]}
+            # ...and in the view it was made from: the form posts
+            # back=/actions?status=...&view=board, and a person on the
+            # Board landed in the List (audit, 2026-09-23).
+            was = urllib.parse.parse_qs(urllib.parse.urlsplit(back).query)
+            if (was.get("status") or [""])[0] in acx.FILTER_KEYS:
+                keep["status"] = was["status"][0]
+            if (was.get("view") or [""])[0] == "board":
+                keep["view"] = "board"
             return redirect("/actions?" + urllib.parse.urlencode({k: v for k, v in keep.items() if v}))
 
         today = datetime.now(timezone.utc).date()
-        all_actions = cc.list_actions(user["id"])
         filt = request.args.get("status") or ""
         if filt not in acx.FILTER_KEYS:
             filt = acx.default_filter(all_actions, today)
         view = "board" if request.args.get("view") == "board" else "list"
         shown = acx.pick(all_actions, filt, today)
-        created = cc.get_action(request.args.get("created") or "", user["id"]) if request.args.get("created") else None
+        # "Action deleted" is said by the delete that happened: the title
+        # rides in the session, once, never in the address (audit,
+        # 2026-09-23: /actions?deleted=<anything> said it was gone).
+        deleted = session.pop("ac_deleted", "") if request.args.get("deleted") else ""
         # The form's choices: what the last action used, else the safe
         # defaults - no room, General, Medium, me.
         form = {
@@ -6974,7 +7025,7 @@ def create_app():
             stats=cc.board_summary(all_actions, today), counts=acx.counts(all_actions, today),
             filt=filt, view=view, form=form, created=created,
             created_row=acx.row(created, recs, people, me_id, today, others) if created else None,
-            deleted=(request.args.get("deleted") or "")[:200],
+            deleted=(deleted or "")[:200],
             rooms=acx.rooms(), categories=cc.ACTION_CATEGORIES, type_labels=cc.ACTION_TYPE_LABELS,
             priorities=cc.ACTION_PRIORITIES, people=people, related_groups=acx.related_options(recs),
             status_labels=cc.STATUS_LABELS, source_labels=cc.ACTION_SOURCES,
@@ -6992,10 +7043,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        action = cc.get_action(action_id, user["id"])
+        try:
+            action = cc.get_action(action_id, user["id"])
+            if action is not None:
+                acx, me_id, people, recs, can_write, others = _actions_context(user)
+        except Exception as exc:
+            return _actions_error(exc, retry="/actions/%s" % action_id)
         if action is None:
             abort(404)
-        acx, me_id, people, recs, can_write, others = _actions_context(user)
         if request.method == "POST":
             fields = _action_fields(request.form, recs, people)
             if not fields["title"]:
@@ -7014,7 +7069,7 @@ def create_app():
             "action_detail.html", active_page="actions", acx=acx, action=action,
             r=acx.row(action, recs, people, me_id, today, others),
             related_value=("%s:%s" % (action["entity_type"], action["entity_id"]))
-            if rel and not rel.get("gone") else "",
+            if rel and not rel.get("keep") else "",
             saved=bool(request.args.get("saved")),
             confirm_delete=request.args.get("confirm") == "delete",
             rooms=acx.rooms(), categories=cc.ACTION_CATEGORIES, type_labels=cc.ACTION_TYPE_LABELS,
@@ -7034,7 +7089,11 @@ def create_app():
             abort(404)
         if not cc.delete_action(action_id, user["id"]):
             return redirect("/actions/%s" % action_id)
-        return redirect("/actions?" + urllib.parse.urlencode({"deleted": action["title"][:120]}))
+        # The board says "Action deleted" only because this delete
+        # happened: the title goes in the session, once, and the address
+        # carries a bare flag (audit, 2026-09-23).
+        session["ac_deleted"] = action["title"][:120]
+        return redirect("/actions?deleted=1")
 
     @app.route("/actions/from-alert", methods=["POST"])
     def action_from_alert():
@@ -7057,22 +7116,36 @@ def create_app():
         # names its source when it knows it, else the page it sits on does.
         source = f.get("source") if f.get("source") in cc.ACTION_SOURCES else acx.source_for_path(back_path.path)
         category = f.get("category") or "general"
-        room = f.get("room") or team_areas.room_for_path(back_path.path) or cc.TYPE_ROOM.get(category, "")
+        # The page the work is done on, when the form names one: a Command
+        # Center alert's own Fix now link. It decides the room before the
+        # page the button sat on or the action type does, and it is the
+        # way back - the Command Center itself is not where a campaign's
+        # consent copy is fixed (audit, 2026-09-23). Same-site only.
+        fix = _safe_next(f.get("fix"), "")
+        fix_path = urllib.parse.urlsplit(fix).path if fix else ""
+        room = (f.get("room") or (team_areas.room_for_path(fix_path) if fix_path else None)
+                or team_areas.room_for_path(back_path.path) or cc.TYPE_ROOM.get(category, ""))
         # A record the form names is kept only when it is this account's,
         # and filed under what it really is: a campaign that is not a
-        # release is a campaign.
+        # release is a campaign; a song is one of this account's track
+        # passports (the Rights Conflict Center's rows).
         kind, ident = (f.get("entity_type") or "").strip(), (f.get("entity_id") or "").strip()
+        if not kind and fix_path:
+            parts = fix_path.strip("/").split("/")
+            if len(parts) == 3 and parts[0] == "links" and parts[2] == "edit":
+                kind, ident = "campaign", parts[1]
         camp = mls.get_campaign(ident, user["id"]) if kind in ("release", "campaign") and ident else None
+        song = store.get_os_track(user["id"], ident) if kind == "song" and ident else None
         if camp:
             kind = "release" if (camp.get("campaign_type") or "release") == "release" else "campaign"
-        else:
+        elif not song:
             kind, ident = "", ""
         if room not in [r[0] for r in acx.rooms()]:
             room = ""
         aid = cc.create_action(user["id"], title,
                                category=category, priority="high",
                                description=(f.get("description") or "").strip(),
-                               room=room, source=source, source_href=_safe_next(here, ""),
+                               room=room, source=source, source_href=_safe_next(fix or here, ""),
                                entity_type=kind, entity_id=ident,
                                assignee_id=session.get("user_id") or user["id"],
                                created_by=session.get("user_id") or user["id"])
@@ -13719,6 +13792,15 @@ def create_app():
         # so this page's real figures are laid over it, not beside it.
         context = build_dashboard_context()
         context.update(found)
+        # "From Rights Conflict" (owner's mockup, 2026-09-23): each row can
+        # become an action about its song. Offered only to whoever can
+        # file one - /actions is a whole-account page and a write, so a
+        # seat with some rooms, or a read seat, would be bounced; it is
+        # told who can instead (audit, 2026-09-23).
+        seat = current_team_seat()
+        context["action_door"] = (True if seat is None else
+                                  ("seat" if seat.get("access") != "edit"
+                                   or not team_areas.allows(seat["areas"], "/actions") else True))
         return render_template("conflicts.html", active_page="conflicts", **context)
 
     # Milestone presets are parameterized date math over each campaign's

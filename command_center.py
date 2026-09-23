@@ -48,12 +48,27 @@ ACTION_SOURCES = {
     "release_check": "From Release Check",
     "catalog_check": "From the Catalog check",
     "rights_conflict": "From Rights Conflict",
-    "royalty_check": "From the Royalty check",
     "growth_score": "From the Growth score",
     "trust_score": "From the Trust score",
     "module": "From a preview module",
     "document": "From a contract reading",
     "tour_task": "From Tour tasks",
+}
+
+# The same sources as the subject of a sentence: "<noun> raised this
+# action". "From the Trust score raised this action" was the label pasted
+# into the sentence (audit, 2026-09-23).
+SOURCE_NOUNS = {
+    "manual": "You",
+    "alert": "A Command Center alert",
+    "release_check": "Release Check",
+    "catalog_check": "The Catalog check",
+    "rights_conflict": "The Rights Conflict Center",
+    "growth_score": "The Growth score",
+    "trust_score": "The Trust score",
+    "module": "A preview module",
+    "document": "A contract reading",
+    "tour_task": "Tour tasks",
 }
 
 # Only work a person typed in can be deleted. An action a check, an alert
@@ -110,12 +125,17 @@ def _safe_href(href):
     href = (href or "").strip()[:300]
     if not href.startswith("/") or href.startswith("//") or "\\" in href:
         return ""
+    # A browser strips a tab or a line break inside a URL before reading
+    # it, so "/<TAB>/host" is "//host": no control character is kept.
+    if any(ord(c) < 0x20 or ord(c) == 0x7f for c in href):
+        return ""
     return href
 
 
 def create_action(user_id, title, category="general", priority="medium",
                   description="", entity_type="", entity_id="", due_date="",
-                  room="", assignee_id="", source="", source_href="", created_by=""):
+                  room="", assignee_id="", source="", source_href="", created_by="",
+                  assignee_name=""):
     aid = uuid.uuid4().hex
     now = _now()
     category = category if category in ACTION_CATEGORIES else "general"
@@ -124,15 +144,17 @@ def create_action(user_id, title, category="general", priority="medium",
         db.execute(
             "INSERT INTO street_actions (id, user_id, title, category, priority,"
             " description, entity_type, entity_id, due_date, status, created, updated,"
-            " room, assignee_id, source, source_href, created_by)"
-            " VALUES (?,?,?,?,?,?,?,?,?,'new',?,?,?,?,?,?,?)",
+            " room, assignee_id, source, source_href, created_by, assignee_name)"
+            " VALUES (?,?,?,?,?,?,?,?,?,'new',?,?,?,?,?,?,?,?)",
             (aid, user_id, title[:200], category,
              priority if priority in ACTION_PRIORITIES else "medium",
              _cut(description, 600), entity_type[:40], entity_id[:64],
              _clean_date(due_date), now, now,
              room, (assignee_id or "")[:64],
              source if source in ACTION_SOURCES else "",
-             _safe_href(source_href), (created_by or "")[:64]))
+             _safe_href(source_href), (created_by or "")[:64],
+             # someone with no Street Banker account: a tour's crew
+             (assignee_name or "").strip()[:80]))
     return aid
 
 

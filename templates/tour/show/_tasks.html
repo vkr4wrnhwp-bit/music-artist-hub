@@ -2,8 +2,8 @@
 {% if tasks %}
 <div class="to-table-wrap"><table class="to-table is-stack">
   <thead><tr><th>Task</th><th>Priority</th><th>Due</th><th>Status</th><th></th></tr></thead>
-  <tbody>{% for t in tasks %}<tr><td data-k="Task"><b>{{ t['title'] }}</b>{% if t['description'] %}<div class="to-muted">{{ t['description'] }}</div>{% endif %}</td><td data-k="Priority">{{ t['priority'] }}</td><td data-k="Due">{{ t['due_date'] or '—' }}</td><td data-k="Status">{{ m.chip(t['status']) }}</td>
-    <td>{% if t['status'] in ('new','in_progress') and (can('edit') or can('schedule') or can('advance') or can('production')) %}<form method="post" action="/tours/{{ tour['id'] }}/tasks/{{ t['id'] }}/status"><input type="hidden" name="status" value="complete"><button class="to-btn to-btn--small" type="submit">Done</button></form>{% endif %}</td></tr>{% endfor %}</tbody>
+  <tbody>{% for t in tasks %}<tr><td data-k="Task"><b>{{ t['title'] }}</b>{% if t['assignee_name'] %}<div class="to-muted">Tour crew: {{ t['assignee_name'] }}</div>{% endif %}{% if t['description'] %}<div class="to-muted">{{ t['description'] }}</div>{% endif %}</td><td data-k="Priority">{{ t['priority'] }}</td><td data-k="Due">{{ t['due_date'] or '—' }}</td><td data-k="Status">{{ m.chip(t['status'], status_labels.get(t['status'])) }}</td>
+    <td>{% if t['status'] in ('new','in_progress') and (can('edit') or can('schedule') or can('advance') or can('production')) %}<form method="post" action="/tours/{{ tour['id'] }}/tasks/{{ t['id'] }}/status"><input type="hidden" name="status" value="complete"><button class="to-btn to-btn--small" type="submit">Complete</button></form>{% endif %}</td></tr>{% endfor %}</tbody>
 </table></div>
 {% else %}
   {{ m.empty("No tasks on this show", "Tasks here are the same Street Banker actions you see in Command Center, tagged to this date.") }}

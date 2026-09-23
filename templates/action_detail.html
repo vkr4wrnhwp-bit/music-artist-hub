@@ -2,7 +2,7 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}{{ r.title }} · Actions{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/actions.css?v=2">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/actions.css?v=3">{% endblock %}
 
 {#- One action (crawl, 2026-09-23: after creation nothing could be
     changed, there was no details view, and nothing took you back to where
@@ -98,7 +98,7 @@
       <label class="ac-field ac-f-rel"><span class="ac-lbl">Related to</span>
         <select id="ac-e-related" name="related">
           <option value="">Nothing specific</option>
-          {%- if r.related and r.related.gone %}<option value="__keep__" selected>{{ r.related.label }}</option>{% endif %}
+          {%- if r.related and r.related.keep %}<option value="__keep__" selected>{{ r.related.label }}</option>{% endif %}
           {%- for group, opts in related_groups %}
           <optgroup label="{{ group }}">{% for value, label in opts %}<option value="{{ value }}"{% if related_value == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</optgroup>
           {%- endfor %}
@@ -122,7 +122,7 @@
       </form>
     </details>
     {% else %}
-    <p class="ac-p">{{ r.source or "A check or an alert" }} raised this action, so it stays on record as what was asked. Dismiss it to take it off your list; it will not count as unfinished.</p>
+    <p class="ac-p">{{ r.source_noun or "A check or an alert" }} raised this action, so it stays on record as what was asked. Dismiss it to take it off your list; it will not count as unfinished.</p>
     {% endif %}
   </section>
   {% else %}

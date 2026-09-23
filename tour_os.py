@@ -973,10 +973,27 @@ def _ctx(user, tour, viewer, nav, **extra):
             "tour_statuses": ts.TOUR_STATUSES, "show_statuses": ts.SHOW_STATUSES,
         },
         "fmt_time": eng.fmt_time, "fmt_day": eng.fmt_day_long,
+        # A task is a Street Banker action: its states have one set of
+        # names everywhere (Not started / In progress / Complete /
+        # Dismissed), and the Actions list is offered only to someone who
+        # can open THIS account's list (audit, 2026-09-23).
+        "status_labels": command_center.STATUS_LABELS,
+        "actions_open": _actions_open(viewer),
     }
     base["thumbs"], base["thumb_credits"] = _venue_art(tour, shows)
     base.update(extra)
     return base
+
+
+def _actions_open(viewer):
+    """Whether /actions shows this viewer the account these tasks are on:
+    the account holder, or a team seat with every room (/actions is a
+    whole-account page, and a seat with some rooms is bounced from it). A
+    tour crew member's own /actions is their account, not this one."""
+    if not viewer.get("is_owner"):
+        return False
+    seat = viewer.get("seat")
+    return seat is None or team_areas.allows(seat["areas"], "/actions")
 
 
 def _tour_tabs(viewer):
@@ -4002,8 +4019,11 @@ def task_add(user, tour, viewer, tour_id):
         return _back("/tours/%s/tasks" % tour_id)
     show_id = f.get("show_id") or ""
     show = ts.get_show(tour_id, show_id) if show_id else None
-    if f.get("assignee"):
-        title = "%s — %s" % (title, f.get("assignee"))
+    # Who has it. The name used to be glued onto the title while the
+    # Action Center said "Unassigned" (audit, 2026-09-23). A name that is a
+    # confirmed member of the account's team is that person; anyone else
+    # is tour crew, kept by name and shown as "Tour crew: <name>".
+    assignee_id, crew = _task_assignee(tour["user_id"], (f.get("assignee") or "").strip())
     command_center.create_action(
         tour["user_id"], title, category="general", priority=f.get("priority") or "medium",
         description=(f.get("description") or "")[:1000],
@@ -4012,9 +4032,28 @@ def task_add(user, tour, viewer, tour_id):
         # The Action Center shows where it came from and the room it
         # belongs to (owner's mockup, 2026-09-23); typed in by hand, so it
         # can be deleted there.
-        room="stage", source="tour_task",
+        room="stage", source="tour_task", assignee_id=assignee_id, assignee_name=crew,
         source_href=_show_url(tour, show, "tasks") if show else "/tours/%s/tasks" % tour_id)
     return _back(_show_url(tour, show, "tasks") if show else "/tours/%s/tasks" % tour_id)
+
+
+def _task_assignee(owner_id, name):
+    """(assignee_id, crew name) for the name typed into a task's Assignee
+    field: a confirmed team member of the account by name or email is that
+    person; any other name is tour crew."""
+    if not name:
+        return "", ""
+    key = name.lower()
+    try:
+        team = store.list_team(owner_id)
+    except Exception:
+        team = []
+    for m in team:
+        if m.get("status") != "active" or not m.get("member_user_id"):
+            continue
+        if key in ((m.get("member_name") or "").strip().lower(), (m.get("email") or "").strip().lower()):
+            return m["member_user_id"], ""
+    return "", name[:80]
 
 
 @bp.route("/tours/<tour_id>/tasks/<action_id>/status", methods=["POST"])
