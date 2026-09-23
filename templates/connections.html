@@ -23,11 +23,24 @@
             <span class="sb-label text-gray-300">{{ i.kind }}</span>
           </div>
           <div class="text-xs text-gray-300">{{ i.detail }}</div>
+          {%- if i.about %}
+          {#- What the source gives, before anything is connected (Analytics
+              spec 3): what it does not, the access it asks, how it arrives
+              and when, and what disconnecting does. -#}
+          <details class="mt-2">
+            <summary class="cursor-pointer text-xs font-semibold text-sb-gold-bright">What this source gives</summary>
+            <dl class="mt-2 space-y-1 text-xs">
+              {% for k, v in i.about %}<div><dt class="inline font-semibold text-gray-200">{{ k }}:</dt> <dd class="inline text-gray-300">{{ v }}</dd></div>{% endfor %}
+            </dl>
+          </details>
+          {%- endif %}
         </div>
         {#- One lamp instead of a pulsing dot AND a pill saying the same
-            thing. The word carries the state; the dot only colours it. -#}
-        {{ sb.lamp("Connected" if i.on else "Not connected", "on" if i.on else "") }}
-        <a href="{{ i.action[0] }}" class="sb-btn sb-btn-secondary sb-btn-sm">{{ i.action[1] }} →</a>
+            thing. The word carries the state; the dot only colours it. A
+            state the store did not answer for is said as that, never as
+            "Not connected". -#}
+        {{ sb.lamp("Could not be read" if i.on is none else ("Connected" if i.on else "Not connected"), "on" if i.on else "") }}
+        <a href="{{ i.href }}" class="sb-btn sb-btn-secondary sb-btn-sm">{{ i.action[1] }} →</a>
       </div>
       {% endfor %}
     </div>
@@ -35,7 +48,7 @@
 
   <!-- Honestly unavailable -->
   <section class="rounded-2xl border border-white/10 bg-sb-ground p-5">
-    <h2 class="sb-label text-gray-300">Not connectable yet — and we won't fake them</h2>
+    <h2 class="sb-label text-gray-300">Not connectable yet, and we won't fake them</h2>
     <div class="mt-3 space-y-2">
       {% for name, why in unavailable %}
       <div class="rounded-lg border border-white/10 bg-black/30 px-4 py-3">
