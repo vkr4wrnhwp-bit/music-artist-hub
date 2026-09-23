@@ -2588,7 +2588,7 @@ Artists seeking tour partners and venues seeking acts, filtered by who, region, 
 
 Facts drawn from the poster's own TOUR records (shows played, home market, confirmed dates ahead) shown beside their name.
 
-- Because: bs.verified_chips reads tour_shows and epk_profiles for that user and labels each chip with its source; a poster with no shows gets an empty list (probe returned {'chips': [], 'slug': ''}) rather than an invented badge, and self-reported draw is rendered separately and marked as such
+- Because: bs.verified_chips reads tour_shows and epk_profiles for that user and labels each chip with its source; a poster with no shows gets an empty list (probe returned {'chips': [], 'slug': ''}) rather than an invented badge, and self-reported draw is rendered separately and marked as such Shows on the Mock Up Tour are not counted (tour_mockup.real_shows, 2026-09-23), so its invented CONFIRMED dates never become a "confirmed dates ahead" chip.
 - Routes: shown on GET /tour-board and GET /tour-board/<id>
 - Files: board_store.py:731 verified_chips; templates/board/_macros.html:30 chips(), :47 (slug -> /@<slug>)
 - Access: Displayed to anyone who can open the board.
@@ -2965,7 +2965,7 @@ The pages a share token opens: day sheet, photographer brief, guest check-in, ve
 - Because: tour_os.py:4712 shared() resolves the link, enforces password and expiry, counts the access, and renders the scope's own template from real rows; the band scope is built field by field so a column added later cannot start travelling (:4743); guest and VIP check-in POST real status changes back.
 - Routes: GET and POST /tour-share/<token>; GET /tour-share/<token>/file/<file_id>
 - Files: tour_os.py:4712 shared(), :4840 shared_file(), :4699 _share_link_or_404(); templates/tour/share_*.html, print_day_sheet.html; stage_os.py:583 guest_page() for scope "stage"
-- Access: Anonymous — app.py:4848 lists /tour-share/ public; the token plus any password is the authorisation. A production file download re-checks visibility=all, category and that the file belongs to the linked show (tour_os.py:4846).
+- Access: Anonymous — app.py:4848 lists /tour-share/ public; the token plus any password is the authorisation. A production file download re-checks visibility=all, category and that the file belongs to the linked show (tour_os.py:4846). A link on the Mock Up Tour answers 404 (_share_link_or_404) and share_new makes none there (2026-09-23).
 
 **Public show day page**
 
@@ -3001,7 +3001,7 @@ Composes one email per show from its own rows, attaches the plot, input list, ri
 - Because: tour_os.py:2616 _deliver_advance composes through tour_advance_mail, attaches real bytes and calls email_provider.send, then writes tour_advance_sends with sent/failed; :2648 refuses to report "sent" when the mailer is unconfigured or on Resend's shared test sender.
 - Routes: POST /tours/<tour_id>/shows/<show_id>/advance/send; POST /tours/<tour_id>/advance/send-all
 - Files: tour_os.py:2641 advance_send(), :2669 advance_send_all(), _send_context :2498, _build_attachments :2553; tour_advance_mail.py; email_provider.py; tour_store.py:533 tour_advance_sends
-- Access: require_tour("advance", "edit"). A team seat composes and sends but is given no public rider or production link — tour_os.py:2513 links_held blanks both.
+- Access: require_tour("advance", "edit"). A team seat composes and sends but is given no public rider or production link — tour_os.py:2513 links_held blanks both. Refused on the Mock Up Tour (fail=sample, advance_fail=sample): an invented show is never advanced to a real inbox (2026-09-23).
 
 **Set lists**
 
@@ -3345,7 +3345,7 @@ One public purchase link per date: a fan picks a package, pays Stripe, and the s
 - Because: the whole path is real — stripe_provider.create_vip_checkout posts to /v1/checkout/sessions, claim_vip_session (tour_os.py:3443) records only a session Stripe says is paid and is idempotent across the webhook and the redirect — but sales_switch.is_on() defaults to off (sales_switch.py:22) so /vip/<token>/buy redirects with err=closed, and payouts are not automatic: the pages say Street Banker settles outside the app (templates/tour/vip.html:28).
 - Routes: GET /vip/<token>; POST /vip/<token>/buy; POST .../shows/<show_id>/vip/offers/add; POST .../shows/<show_id>/vip/offers/<offer_id>; POST .../shows/<show_id>/vip/dayof; POST /webhooks/stripe
 - Files: tour_os.py:3484 vip_public(), :3508 vip_buy(), :3537 vip_offer_add(), :3552 vip_offer_update(), :3562 vip_dayof(), :3443 claim_vip_session(); app.py:5781 webhook branch; stripe_provider.py:579; sales_switch.py; tour_store.py:474 tour_vip_offers / :492 tour_vip_sales / :512 tour_vip_links; templates/tour/vip_public.html
-- Access: /vip/<token> and /vip/<token>/buy are anonymous (app.py:4816 lists /vip/ public). Offers, day-of mail and the ledger need require_tour("vip"); a team seat is shown no purchase link and mints none (tour_os.py:3387). Fee from VIP_PLATFORM_FEE_PCT, clamped 0-50, default 15 (tour_os.py:3348).
+- Access: /vip/<token> and /vip/<token>/buy are anonymous (app.py:4816 lists /vip/ public). Offers, day-of mail and the ledger need require_tour("vip"); a team seat is shown no purchase link and mints none (tour_os.py:3387). Fee from VIP_PLATFORM_FEE_PCT, clamped 0-50, default 15 (tour_os.py:3348). The Mock Up Tour gets no purchase link and no offer (_vip_context, vip_offer_add), and /vip/<token> answers 404 for a date on it, so nothing is ever sold for an invented show (2026-09-23).
 
 ### Stubbed
 
@@ -3362,7 +3362,7 @@ Loads a fictional four-show tour into the demo showcase account.
 
 Seeds each empty Tour account with a 44-day invented routing so the product opens on something clickable.
 
-- Because: tour_mockup.py holds a hard-coded tab-separated SHEET of invented venues on 2027 dates; it is run for any account with no tours (tour_os.py:1249) and only when enabled() is true, which is RENDER or MOCK_UP_TOUR=on.
+- Because: tour_mockup.py holds a hard-coded tab-separated SHEET of invented venues on 2027 dates; it is run for any account with no tours (tour_os.py:1249) and only when enabled() is true, which is RENDER or MOCK_UP_TOUR=on. It is a sample and labelled as one (make-it-real, 2026-09-23): its card on /tours carries a Sample chip, every page of it says it is a sample whose venues, dates and deals are invented and that none of it reaches the press kit, the Artist Hub or the Team-Up Board (templates/tour/_shell.html, tour_is_sample from tour_os._ctx), and its printed sheets say Sample tour (templates/tour/_public.html, the sample_tour template global). It never reaches a public page: tour_mockup.real_shows / mock_tour_ids is the one filter the press kit's dates, /connections and Signal (all via tour_dates), the Artist Hub, the Team-Up Board's chips, a label's roster and the Fans screen read through. Nothing public is made from it: share_new, vip_offer_add, _vip_context (no purchase link), advance_send and advance_send_all refuse it and say why, and a /tour-share, /vip, /rider or /showday token minted on it before that answers 404. A loose show is never adopted onto it (tour_store.adopt_orphan_shows makes the adopted tour instead), so a real show cannot vanish into the sample. The whole tour is excluded, not only the sheet's rows, so an invented show renamed while clicking through cannot slip out; the note on its pages tells the member to put real dates on a tour of their own. Tests: tests/test_mock_tour_off_public_pages.py.
 - Routes: no route of its own; runs inside GET /tours
 - Files: tour_mockup.py:24 enabled(), SHEET at :39, ensure_for(); called tour_os.py:1249; parsed through tour_engine.parse_csv_rows
 - Access: Any signed-in account at the artist/Pro tier reaching /tours with no tours; never on a team seat's visit (tour_os.py:1244).
@@ -4524,7 +4524,7 @@ Write a press release (headline, subhead, dateline, body, quote, boilerplate, em
 
 A public hub page at /@<slug> keyed on the same press-kit slug, showing the fan club, live links and upcoming shows.
 
-- Because: app.py artist_hub resolves store.get_epk_by_slug and renders artist_hub.html from real rows (fan club, live non-archived ml_campaigns, confirmed/advanced upcoming tour_shows) and links back to /epk/<slug>. Included here because it depends on epk_profiles.slug; its body belongs to the links/fan area.
+- Because: app.py artist_hub resolves store.get_epk_by_slug and renders artist_hub.html from real rows (fan club, live non-archived ml_campaigns, confirmed/advanced upcoming tour_shows) and links back to /epk/<slug>. Included here because it depends on epk_profiles.slug; its body belongs to the links/fan area. A show on the Mock Up Tour is never listed (tour_mockup.real_shows, 2026-09-23).
 - Routes: GET /@<slug>
 - Files: app.py:6816 (artist_hub), db.py get_epk_by_slug, templates/artist_hub.html:109,113
 - Access: Anonymous.
@@ -4852,7 +4852,7 @@ Choose the public kit's link or a Vault-saved copy to fill {kit}, and attach the
 
 Upcoming shows on the kit, from the artist's own TOUR first and Bandsintown only as a fallback.
 
-- Because: app.py _epk_tour_dates returns tour_dates_feed.epk_rows(user_id) whenever TOUR holds confirmed/advanced upcoming dates, and the page is told the source. The Bandsintown fallback is dormant: bandsintown_provider.configured() requires BANDSINTOWN_APP_ID, which is unset here, so upcoming_events()/artist_info() return nothing.
+- Because: app.py _epk_tour_dates returns tour_dates_feed.epk_rows(user_id) whenever TOUR holds confirmed/advanced upcoming dates, and the page is told the source. The Bandsintown fallback is dormant: bandsintown_provider.configured() requires BANDSINTOWN_APP_ID, which is unset here, so upcoming_events()/artist_info() return nothing. A show on the Mock Up Tour is never read (tour_dates._rows skips tour_mockup.mock_tour_ids): the sample's invented CONFIRMED dates stay off the kit, /connections and Signal (2026-09-23).
 - Routes: GET /epk; GET /epk/<slug>; GET /pitch/<token>
 - Files: app.py:3272 (_epk_tour_dates), bandsintown_provider.py:27,59,83, epk_config.py get_epk_data tour_dates/tour_source
 - Access: Follows the page it is on: /epk artist-tier, the public pages anonymous.

@@ -13,7 +13,7 @@
   <div class="to-head">
     <div>
       <p class="to-eyebrow"><a href="/tours" style="text-decoration:none">‹ Home</a>{% if tour['artist_name'] %} · {{ tour['artist_name'] }}{% endif %}</p>
-      <h1 class="to-h1">{% if bare %}{{ tour['name'] }}{% else %}<a href="/tours/{{ tour['id'] }}" style="color:inherit;text-decoration:none">{{ tour['name'] }}</a>{% endif %}</h1>
+      <h1 class="to-h1">{% if bare %}{{ tour['name'] }}{% else %}<a href="/tours/{{ tour['id'] }}" style="color:inherit;text-decoration:none">{{ tour['name'] }}</a>{% endif %}{% if tour_is_sample %} <span class="to-chip to-chip--info">Sample</span>{% endif %}</h1>
     </div>
     <div class="to-inline">
       <span class="to-status">{{ status_line }}</span>
@@ -28,6 +28,12 @@
       </form>
     </div>
   </div>
+
+  {% if tour_is_sample %}
+  {#- The Mock Up Tour is a sample (owner's rule: sample data is always
+      labelled, and never reaches a public page). Said on every page of it. -#}
+  <div class="to-note" id="sample-tour-note"><strong>This is a sample tour.</strong> Every venue, date and deal on it is invented, for clicking through. None of it appears on your press kit, your Artist Hub or the Team-Up Board, and it cannot be shared or sold from. Start a tour of your own on the <a href="/tours">Tour home</a> for your real dates.</div>
+  {% endif %}
 
   {# Seven entries for the daily work; the rest under More. The active page
      lights its entry, or the More button with its own label. #}

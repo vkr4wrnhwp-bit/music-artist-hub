@@ -1097,7 +1097,13 @@ def adopt_orphan_shows(user_id):
     orphans = orphan_shows(user_id)
     if not orphans:
         return None, 0
-    tours = list_tours(user_id)
+    # Never onto the Mock Up Tour: it is a sample, kept off every public
+    # page, and a real show adopted onto it would vanish from the press
+    # kit with it. An account whose only tour is the sample gets the
+    # adopted tour made for it, as an account with none does.
+    import tour_mockup
+    mock = tour_mockup.mock_tour_ids(user_id)
+    tours = [t for t in list_tours(user_id) if t["id"] not in mock]
     if not tours:
         dates = sorted(s["date"] for s in orphans if s.get("date"))
         create_tour(user_id, {
@@ -1106,7 +1112,7 @@ def adopt_orphan_shows(user_id):
             "home_tz": "America/New_York", "currency": "USD",
             "notes": "Made when the old hub folded into TOUR: every show entered there is on "
                      "this tour. Rename it in Settings."})
-        tours = list_tours(user_id)
+        tours = [t for t in list_tours(user_id) if t["id"] not in mock]
 
     def home_for(show):
         date = show.get("date") or ""

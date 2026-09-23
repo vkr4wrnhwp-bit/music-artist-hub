@@ -139,6 +139,37 @@ def is_mock(tour_id):
     return row is not None
 
 
+def mock_tour_ids(user_id):
+    """The ids of every Mock Up Tour this account owns, recognised the way
+    is_mock() recognises one (its import record), in one query."""
+    if not user_id:
+        return set()
+    with store.get_db() as db:
+        rows = db.execute("SELECT DISTINCT i.tour_id FROM tour_imports i "
+                          "JOIN tours t ON t.id = i.tour_id "
+                          "WHERE t.user_id = ? AND i.filename = ?",
+                          (user_id, IMPORT_FILENAME)).fetchall()
+    return {r["tour_id"] for r in rows}
+
+
+def real_shows(user_id, shows):
+    """`shows` (tour_shows rows, or anything carrying their tour_id) less
+    every show on this account's Mock Up Tour.
+
+    The one filter every reader outside Tour passes through: the press
+    kit's dates, the Artist Hub, the Team-Up Board's chips, /connections,
+    a label's roster, the Fans screen. The Mock Up Tour is a sample; its
+    CONFIRMED rows are invented, and a sample never reaches a public page
+    (owner's standing rule). The whole tour is excluded, not just the
+    sheet's own rows, so an invented show the member renamed while
+    clicking through cannot slip out either; the tour's own pages say
+    that nothing on it is shown publicly."""
+    mock = mock_tour_ids(user_id)
+    if not mock:
+        return list(shows)
+    return [s for s in shows if (s.get("tour_id") or "") not in mock]
+
+
 def discard_invented_shows(tour_id):
     """Delete the shows this tour's sheet invented, before the tour goes.
 

@@ -13,6 +13,8 @@
 <div class="to-note to-note--warn"><strong>Not sent.</strong> The To address is not an email address.</div>
 {% elif fail == 'send' %}
 <div class="to-note to-note--warn"><strong>Not sent.</strong> The mail service did not accept the message. It is recorded as failed below; try again in a minute.</div>
+{% elif fail == 'sample' %}
+<div class="to-note to-note--warn"><strong>Not sent.</strong> This is the sample tour. Its shows are invented, so no advance goes to a real inbox from it.</div>
 {% endif %}
 
 {% if not mail_ready %}

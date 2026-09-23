@@ -17,6 +17,7 @@
 <body class="to-body">
   <div class="to-public to">
     <div class="to-brand no-print">Street Banker · TOUR</div>
+    {% if tour is defined and tour and sample_tour(tour) %}<p class="to-note" id="sample-tour-note"><strong>Sample tour.</strong> Every venue, date and deal on this sheet is invented, for clicking through.</p>{% endif %}
     {% block body %}{% endblock %}
     <div class="to-public-foot no-print">{% block foot %}Shared from Street Banker. This page shows only what was shared with you.{% endblock %}</div>
   </div>

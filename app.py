@@ -7737,6 +7737,7 @@ def create_app():
     # --- Label Mode: real roster seats for the Label tier -------------------------
 
     def _artist_snapshot(aid, today):
+        import tour_mockup
         rows = store.get_statement_rows(aid)
         return {
             "revenue": round(sum(r["amount"] for r in rows), 2),
@@ -7744,7 +7745,8 @@ def create_app():
             "fans": len(mls.list_fans(aid)),
             "links": [c for c in mls.list_campaigns(aid)
                       if c["status"] == "live" and not c.get("archived_at")],
-            "shows": [s for s in store.list_tour_shows(aid)
+            # A roster artist's Mock Up Tour is a sample, not their dates.
+            "shows": [s for s in tour_mockup.real_shows(aid, store.list_tour_shows(aid))
                       if s["date"] >= today and s["status"] in ("confirmed", "advanced")],
         }
 
@@ -7979,7 +7981,10 @@ def create_app():
         campaigns = [c for c in mls.list_campaigns(uid)
                      if c["status"] == "live" and not c.get("archived_at")]
         today = datetime.now(timezone.utc).date().isoformat()
-        shows = [s for s in store.list_tour_shows(uid)
+        # The Mock Up Tour is a sample; its invented dates never reach
+        # this public page.
+        import tour_mockup
+        shows = [s for s in tour_mockup.real_shows(uid, store.list_tour_shows(uid))
                  if s["date"] >= today and s["status"] in ("confirmed", "advanced")]
         return render_template("artist_hub.html", prof=prof, data=data,
                                artist_name=prof["user_name"], slug=slug,
@@ -8749,12 +8754,20 @@ def create_app():
                           % _html.escape(mail["body"]), reply_to=user["email"])
         return redirect("/tour/" + show_id + ("?sent=1" if ok else "?email_fail=1"))
 
+    def _public_show_or_404(token):
+        """The show a public /showday or /rider token names. A date on the
+        Mock Up Tour is a sample: its token opens nothing, even one minted
+        before the sample was kept off public pages."""
+        import tour_mockup
+        show = store.get_show_by_share_token(token)
+        if show is None or not tour_mockup.real_shows(show["user_id"], [show]):
+            abort(404)
+        return show
+
     @app.route("/showday/<token>")
     def showday(token):
         import json as _json
-        show = store.get_show_by_share_token(token)
-        if show is None:
-            abort(404)
+        show = _public_show_or_404(token)
         adv = show["advance"]
         schedule = [(label, adv.get(key)) for key, label in (
             ("load_in", "Load-in"), ("soundcheck", "Soundcheck"), ("doors", "Doors"),
@@ -8769,9 +8782,7 @@ def create_app():
         # Public tech rider for venue staff: stage plot + input list, schedule,
         # backline, and the lighting rig — everything real, nothing invented.
         import json as _json
-        show = store.get_show_by_share_token(token)
-        if show is None:
-            abort(404)
+        show = _public_show_or_404(token)
         adv = show["advance"]
         schedule = [(label, adv.get(key)) for key, label in (
             ("load_in", "Load-in"), ("soundcheck", "Soundcheck"), ("doors", "Doors"),

@@ -26,7 +26,7 @@
         <span class="to-tile-v">{{ t['name'] }}</span>
         <span class="to-tile-s">{% if t['artist_name'] %}{{ t['artist_name'] }} · {% endif %}{{ t['start_date'] or '—' }} → {{ t['end_date'] or '—' }}</span>
       </a>
-      <div class="to-date-state"><span class="to-chip to-chip--gold">{{ t['show_count'] }} date{{ '' if t['show_count'] == 1 else 's' }}</span></div>
+      <div class="to-date-state">{% if t['is_sample'] %}<span class="to-chip to-chip--info">Sample</span> {% endif %}<span class="to-chip to-chip--gold">{{ t['show_count'] }} date{{ '' if t['show_count'] == 1 else 's' }}</span></div>
       <div><a class="to-btn to-btn--small" href="/tours/{{ t['id'] }}">Open</a></div>
     </div>
     {% endfor %}

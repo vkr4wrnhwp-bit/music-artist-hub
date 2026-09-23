@@ -58,6 +58,17 @@ import venue_photos
 
 bp = Blueprint("tours", __name__)
 
+
+@bp.app_template_global("sample_tour")
+def sample_tour(tour):
+    """True for the Mock Up Tour. The print and share frame asks, so a
+    printed sheet of the sample says it is one."""
+    if not tour or not tour.get("id"):
+        return False
+    import tour_mockup
+    return tour_mockup.is_mock(tour["id"])
+
+
 _base_url = lambda: ""
 # The account this request works in, the team seat it works through, and
 # the partner staff member acting on the artist's behalf (all set by init
@@ -975,6 +986,10 @@ def _ctx(user, tour, viewer, nav, **extra):
         "fmt_time": eng.fmt_time, "fmt_day": eng.fmt_day_long,
     }
     base["thumbs"], base["thumb_credits"] = _venue_art(tour, shows)
+    # The Mock Up Tour is a sample: every page of it says so, and says
+    # that nothing on it reaches a public page.
+    import tour_mockup
+    base["tour_is_sample"] = tour_mockup.is_mock(tour["id"])
     base.update(extra)
     return base
 
@@ -1252,6 +1267,10 @@ def index():
         except Exception:                       # a demo must never break the page
             current_app.logger.exception("mock up tour")
     mine = ts.list_tours(user["id"])
+    import tour_mockup
+    sample_ids = tour_mockup.mock_tour_ids(user["id"])
+    for t in mine:
+        t["is_sample"] = t["id"] in sample_ids
     # Tours the artist was invited onto are another account's; a seat
     # does not open them (see _seat_viewer).
     shared = [] if seat is not None else ts.tours_shared_with(user["id"])
@@ -2688,6 +2707,9 @@ def _deliver_advance(tour, show, viewer, user, to, cc, subject, body, picks):
 def advance_send(user, tour, viewer, tour_id, show_id):
     show = _show_or_404(tour, show_id)
     back = _show_url(tour, show, "send")
+    if sample_tour(tour):
+        # An invented show is never advanced to a real inbox.
+        return redirect(back + "&fail=sample")
     to = (request.form.get("to") or "").strip()
     if not _EMAIL_RE.match(to):
         return redirect(back + "&fail=to")
@@ -2718,6 +2740,8 @@ def advance_send_all(user, tour, viewer, tour_id):
     each, composed per show. A show with no address is skipped and said so;
     a failure is recorded on that show like a single send would be."""
     back = "/tours/%s/shows" % tour_id
+    if sample_tour(tour):
+        return redirect(back + "?advance_fail=sample")
     if not emailer.configured() or emailer.using_shared_test_sender():
         return redirect(back + "?advance_fail=sender")
     picks = set(request.form.getlist("show"))
@@ -3403,8 +3427,11 @@ def vip_includes(offer):
 def _vip_context(tour, show):
     # The purchase link is the account holder's to share, like the tour's
     # other public links: a team seat neither sees it nor makes it.
-    token = "" if _seat() is not None else ts.ensure_vip_link(tour["id"], show["id"])
-    return {"vip_offers": ts.list_vip_offers(tour["id"], show["id"]),
+    # The Mock Up Tour's dates are invented: no purchase link is made for
+    # one, and /vip/<token> refuses any made before this rule.
+    sample = sample_tour(tour)
+    token = "" if (_seat() is not None or sample) else ts.ensure_vip_link(tour["id"], show["id"])
+    return {"vip_offers": ts.list_vip_offers(tour["id"], show["id"]), "vip_sample": sample,
             "vip_link": (_vip_base_url() + "/vip/" + token) if token else "",
             "vip_ledger": ts.vip_sales_ledger(tour["id"], show["id"]),
             "vip_sales": ts.list_vip_sales(tour["id"], show["id"]),
@@ -3513,7 +3540,9 @@ def _vip_link_or_404(token):
     found = ts.vip_link(token)
     tour = ts.get_tour(found[0]) if found else None
     show = ts.get_show(found[0], found[1]) if tour else None
-    if not (tour and show):
+    # Nothing is sold for a date on the Mock Up Tour: its shows are
+    # invented, and a fan must never pay for one.
+    if not (tour and show) or sample_tour(tour):
         abort(404)
     return tour, show
 
@@ -3583,6 +3612,8 @@ def vip_buy(token):
 @require_tour("vip")
 def vip_offer_add(user, tour, viewer, tour_id, show_id):
     show = _show_or_404(tour, show_id)
+    if sample_tour(tour):
+        return redirect(_show_url(tour, show, "vip") + "&offer=sample")
     f = request.form
     fields = {k: f.get(k) for k in ("name", "blurb", "price", "capacity", "schedule_time")}
     for flag in ts.VIP_OFFER_FLAGS:
@@ -4704,6 +4735,9 @@ SHARE_SCOPE_LABELS = {
 @bp.route("/tours/<tour_id>/share/new", methods=["POST"])
 @require_tour("admin")
 def share_new(user, tour, viewer, tour_id):
+    if sample_tour(tour):
+        # The sample's invented dates never reach a public page.
+        return redirect("/tours/%s/share" % tour_id)
     scope = request.form.get("scope") or ""
     show_id = request.form.get("show_id") or None
     if scope in ("day_sheet", "photographer", "guest_checkin", "venue_guest_list", "driver", "setlist",
@@ -4753,7 +4787,9 @@ def _share_link_or_404(token):
     if link is None or link["revoked"]:
         abort(404)
     tour = ts.get_tour(link["tour_id"])
-    if tour is None:
+    # A link minted on the Mock Up Tour before links were refused there
+    # opens nothing: the sample never reaches a public page.
+    if tour is None or sample_tour(tour):
         abort(404)
     if link["expires"] and link["expires"] < eng.today_in(tour["home_tz"]):
         abort(410)
