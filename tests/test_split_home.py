@@ -366,7 +366,7 @@ def test_the_home_page_has_no_dim_text_and_the_artist_letters_are_bronze(passes)
     # The tint sits before the light layers, so the hover still lights the letters.
     assert band.index('class="sbmem-tint"') < band.index('class="sbmem-bloom"')
     # A fresh sheet and script version, so no browser keeps the old look.
-    assert "split-home.css?v=15" in page and "artist-eq.js?v=15" in page
+    assert "split-home.css?v=16" in page and "artist-eq.js?v=15" in page
 
 def _band(body):
     return body.split('class="sbmem"')[1].split("</section>")[0]
@@ -610,7 +610,10 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     # Nothing on the glass: no snow, no drift, no particle layer, no sweep
     # (owner, 2026-09-23: "no static, nothing").
     for gone in ("sbrk-static", "crt-static.png", "crt-particles.png", "sbrk-drift",
-                 "sbrk-gather", "sbrk-burst", "sbrk-sync", "sbrk-strike", ".sbrk-door::before"):
+                 "sbrk-gather", "sbrk-burst", "sbrk-sync", "sbrk-strike", ".sbrk-door::before",
+                 # the scanlines: a pseudo-element over the whole glass, at
+                 # rest and always (audit, 2026-09-23 - rack-1)
+                 ".sbrk-door::after", "repeating-linear-gradient"):
         assert gone not in body, gone + " is an overlay"
     assert ".sbrk-k::before" in body, "the name's colour-split copies are the kit's grammar and stay"
     t = io.open(os.path.join(HERE, "templates", "partials", "memberships_rack.html"),
@@ -644,12 +647,23 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     assert 'getComputedStyle(read).opacity === "1"' in js, "a resolved screen opens on the first tap"
     assert '"mouseleave"' in js and 'classList.add("is-out")' in js, "the leave statics out"
     page_t = io.open(os.path.join(HERE, "templates", "landing_split.html"), encoding="utf-8").read()
-    assert "memberships-rack.js?v=1" in page_t
+    assert "memberships-rack.js?v=2" in page_t
     # every word renders on the glass: no ch cap on the lines, and the plate
     # steps aside below 960px where the glass is too short for five lines
     assert "max-width: 26ch" not in body and "max-width: 28ch" not in body
     phone = body.split("@media (max-width: 959px)", 1)[1]
     assert ".sbrk-plate { display: none; }" in phone
+    # ...and the stacked screens STAY resolved: pointing at one or tabbing
+    # to it must not blank it and replay the cut-in (audit, 2026-09-23 -
+    # rack-2). Every reveal state is switched off inside the phone block.
+    rules = re.findall(r"([^{}]+)\{([^}]*)\}", phone)
+    calmed = {sel.strip() for sels, decl in rules if "animation: none" in decl
+              for sel in sels.split(",")}
+    for state in (".sbrk-door:hover", ".sbrk-door:focus-visible", ".sbrk-door.is-on", ".sbrk-door.is-out"):
+        for part in (" .sbrk-read", " .sbrk-k::before", " .sbrk-k::after"):
+            assert state + part in calmed, state + part + " still animates on the stacked screens"
+    for state in (".sbrk-door:hover", ".sbrk-door:focus-visible", ".sbrk-door.is-on"):
+        assert state + " .sbrk-read > *" in calmed, state + " .sbrk-read > * still animates"
     calm = body.split("@media (prefers-reduced-motion: reduce)")
     assert any("animation: none" in part and ".sbrk-read" in part for part in calm[1:])
     t = io.open(os.path.join(HERE, "templates", "partials", "memberships_rack.html"),
@@ -687,3 +701,72 @@ def test_only_an_owner_flips_the_band(monkeypatch):
     finally:
         with app_obj.app_context():
             store.set_kv("membership_band", "")
+
+
+# ---- audit, 2026-09-23 -----------------------------------------------------
+
+def test_every_screen_s_name_reads_the_whole_tier_and_its_focus_ring_is_pinned(page):
+    """rack-10. The link's name carries the whole reading (the reading
+    itself is aria-hidden): name, price, the plan's line and, where one
+    exists, what on it is not open yet. Checked on the LABEL, not anywhere
+    in the band - the blurb is also in the hidden reading. And the keyboard
+    ring the rack draws is pinned."""
+    band = _rack(page)
+    labels = re.findall(r'class="sbrk-door[^"]*" href="/billing"\s+aria-label="([^"]*)"', band)
+    assert len(labels) == 3, labels
+    soon = split_home.coming_soon([k for k, *_r in plans.PLANS if k != "fan"])
+    paid = [p for p in plans.PLANS if p[0] != "fan"]
+    for label, (key, name, price, blurb, _inc) in zip(labels, paid):
+        assert label.startswith("%s, %s a month. " % (name, price.split("/")[0])), label
+        assert blurb.replace("'", "&#39;") in label or blurb in label, (key, label)
+        if soon.get(key):
+            assert soon[key].replace("'", "&#39;") in label or soon[key] in label, (key, label)
+        assert label.endswith("Choose %s." % name), label
+    css = io.open(os.path.join(HERE, "static", "css", "split-home.css"), encoding="utf-8").read()
+    assert ".sbrk-door:focus-visible { outline: 2px solid var(--sb-gold-bright)" in css
+
+
+def test_a_screen_the_pointer_only_crossed_stays_dark():
+    """rack-3. The leave glitches OUT only a screen that showed something.
+    sbrk-out starts at full opacity, so leaving a screen inside the cut-in's
+    first step (opacity 0 for the first tenth of sbrk-assemble) used to
+    flash the whole tier. The script's threshold is that first step,
+    read off the sheet so the two cannot drift apart."""
+    css = re.sub(r"/\*.*?\*/", "", io.open(os.path.join(HERE, "static", "css", "split-home.css"),
+                                            encoding="utf-8").read(), flags=re.S)
+    dur = float(re.search(r"animation: sbrk-assemble ([\d.]+)s", css).group(1))
+    frames = css.split("@keyframes sbrk-assemble", 1)[1].split("@keyframes", 1)[0]
+    assert re.search(r"0%\s*\{ opacity: 0;", frames)
+    first = float(re.search(r"\n\s*(\d+)%\s*\{ opacity: \.", frames).group(1))
+    js = io.open(os.path.join(HERE, "static", "js", "memberships-rack.js"), encoding="utf-8").read()
+    ms = int(re.search(r"var LIT_AFTER_MS = (\d+);", js).group(1))
+    assert ms == round(dur * 1000 * first / 100), (ms, dur, first)
+    # the leave and the blur go through the check; only a lit screen goes out
+    assert '"mouseleave", function (ev) { leave(ev.currentTarget); }' in js
+    assert '"blur", function (ev) { leave(ev.currentTarget); }' in js
+    body = js.split("function leave(door)", 1)[1].split("\n  }", 1)[0]
+    assert 'classList.contains("is-on")' in body and "LIT_AFTER_MS" in body
+    assert "out(door)" in body and 'classList.remove("is-on", "is-out")' in body
+
+
+def test_the_owner_s_copy_describes_the_rack_that_ships():
+    """rack-4 and rack-5. The Settings radio, the page and partial comments
+    and the module docstring still described CRT static at rest (retired
+    for dark glass, owner, 2026-09-23) and a stages rail the app home no
+    longer has."""
+    t = io.open(os.path.join(HERE, "templates", "settings.html"), encoding="utf-8").read()
+    box = t.split('id="home-layout"')[1].split("</section>")[0]
+    assert "static until" not in box
+    assert "Rack: three dark screens, each shows its plan when you point at it" in box
+    assert "stages rail" not in box, "the rail left the app home on 2026-09-18"
+    for rel in (("templates", "landing_split.html"), ("templates", "partials", "memberships_band.html"),
+                ("templates", "partials", "memberships_rack.html"), ("split_home.py",),
+                ("static", "css", "split-home.css")):
+        text = io.open(os.path.join(HERE, *rel), encoding="utf-8").read()
+        for stale in ("CRT static", "static until", "The static needs the glass empty",
+                      "No JavaScript anywhere in this band"):
+            assert stale not in text, (rel, stale)
+    assert "the stages rail" not in io.open(os.path.join(HERE, "split_home.py"), encoding="utf-8").read()
+    ledger = io.open(os.path.join(HERE, "docs", "FEATURE-LEDGER.md"), encoding="utf-8").read()
+    assert "CRT static on each screen at rest" not in ledger
+    assert "Under 760px the plate steps aside" not in ledger
