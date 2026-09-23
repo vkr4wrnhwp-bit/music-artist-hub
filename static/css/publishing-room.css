@@ -118,3 +118,107 @@
   .pb-bar-line { white-space: normal; font-size: 13px; }
   .pb-bar-line b { font-size: 22px; }
 }
+
+/* ---- the page from zero (owner's Publishing spec, 2026-09-23) -----------
+   The plate is the Command Center's (partials/cc_rack.html) and its rules
+   are command-zero.css, linked only on this state. Everything below is
+   this page's own: nothing kit-owned is redeclared (rk-h, rk-panel,
+   rk-panel-head, rk-rail, rk-step, rk-ring, rk-tiles are used as they
+   are). Sizes never below 12px; radii and colours are tokens. Green is
+   information on the glass; gold is the customer's action. */
+.pb-z-h1 { font-size: 24px; margin: 0 0 12px; }
+.pb-z-t { margin: 0; font-size: 18px; font-weight: 800; color: var(--sb-ink); line-height: 1.2; }
+.pb-z-p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--sb-ink-2); max-width: 52ch; }
+.pb-z-two { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.pb-z-card {
+  display: grid; grid-template-columns: 56px minmax(0, 1fr); grid-template-rows: auto auto auto; gap: 8px 16px; align-items: start; padding: 20px 22px;
+  border: 1px solid var(--sb-gold-line); border-radius: var(--sb-r-panel);
+  background: var(--sb-surface-1); box-shadow: inset 3px 0 0 var(--sb-gold);
+}
+.pb-z-said { min-width: 0; }
+.pb-z-ring {
+  grid-row: 1 / span 3; display: inline-grid; place-items: center; width: 56px; height: 56px;
+  border-radius: 999px; border: 1.5px solid var(--sb-gold-line); color: var(--sb-gold-bright);
+}
+.pb-z-ring svg { width: 24px; height: 24px; }
+.pb-z-btn {
+  grid-column: 2; justify-self: start; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 18px; border-radius: var(--sb-r-control); text-decoration: none;
+  font-size: 15px; font-weight: 800; white-space: nowrap;
+  background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold)); color: var(--sb-on-gold);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--sb-gold) 28%, transparent);
+}
+.pb-z-btn:hover { filter: brightness(1.05); }
+.pb-z-btn:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 3px; }
+.pb-z-btn svg, .pb-z-links svg, .pb-z-more svg, .pb-z-fold-sum svg, .pb-z-lens-go svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.pb-z-note { grid-column: 2; margin: 0; font-size: 13px; color: var(--sb-ink-2); }
+.pb-z-links { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.pb-z-links a { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
+.pb-z-links a:hover { text-decoration: underline; }
+.pb-z-card .pb-z-links { grid-column: 2; margin-top: 4px; }
+/* the four categories: each a door to the page that owns the work */
+.pb-z-lenses { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.pb-z-lens {
+  display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 12px 10px 14px;
+  border: 1px solid var(--sb-gold-line); border-radius: var(--sb-r-control); background: var(--sb-surface-2);
+  color: var(--sb-ink); text-decoration: none;
+}
+a.pb-z-lens:hover, a.pb-z-lens:focus-visible { border-color: var(--sb-gold-bright); }
+a.pb-z-lens:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; }
+.pb-z-lens-ico { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: 0 0 auto; color: var(--sb-gold-bright); }
+.pb-z-lens-ico svg { width: 20px; height: 20px; }
+.pb-z-lens-said { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.pb-z-lens-said b { font-size: 15px; line-height: 1.2; }
+.pb-z-lens-said span { font-size: 12.5px; line-height: 1.4; color: var(--sb-ink-2); }
+.pb-z-lens-go { display: inline-grid; place-items: center; width: 24px; height: 24px; flex: 0 0 auto; color: var(--sb-gold-bright); }
+/* the numbered rail: the first step is where a new account starts, lit,
+   not complete; the number sits in the ring where the other rooms put an
+   icon (the owner's mockup numbers them) */
+.pb-z-flow .rk-ring { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pb-z-flow .rk-step.is-first .rk-ring { border-color: var(--sb-gold-bright); color: var(--sb-on-gold); background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold)); box-shadow: 0 0 18px color-mix(in srgb, var(--sb-gold) 30%, transparent); }
+.pb-z-flow .rk-step.is-first b { color: var(--sb-gold-bright); }
+.pb-z-pair { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; }
+.pb-z-empty, .pb-z-help { display: flex; align-items: center; gap: 18px; }
+.pb-z-empty > div, .pb-z-help > div { flex: 1 1 auto; min-width: 0; }
+.pb-z-ico { display: inline-grid; place-items: center; width: 52px; height: 52px; flex: 0 0 auto; color: var(--sb-gold-bright); }
+.pb-z-ico svg { width: 30px; height: 30px; }
+.pb-z-help-acts { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; flex: 0 0 auto; }
+.pb-z-more {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 18px;
+  border: 1.5px solid var(--sb-gold-line); border-radius: var(--sb-r-control); text-decoration: none;
+  font-size: 15px; font-weight: 800; color: var(--sb-gold-bright); white-space: nowrap;
+}
+.pb-z-more:hover { border-color: var(--sb-gold-bright); }
+.pb-z-fold { border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel); background: var(--sb-surface-1); }
+.pb-z-fold-sum {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; min-height: 44px;
+  cursor: pointer; list-style: none; font-size: 15px; font-weight: 800; color: var(--sb-ink);
+}
+.pb-z-fold-sum::-webkit-details-marker { display: none; }
+.pb-z-fold-sum svg { transition: transform .2s; }
+.pb-z-fold[open] .pb-z-fold-sum svg { transform: rotate(180deg); }
+.pb-z-tools { padding: 0 16px 16px; }
+.pb-z-tools .pb-z-band { margin-top: 14px; }
+@media (max-width: 860px) {
+  .pb-z-two, .pb-z-pair { grid-template-columns: 1fr; }
+  .pb-z-empty, .pb-z-help { flex-wrap: wrap; }
+}
+@media (max-width: 560px) {
+  .pb-z-card { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .pb-z-ring { grid-row: auto; }
+  .pb-z-btn, .pb-z-note, .pb-z-card .pb-z-links { grid-column: auto; }
+  .pb-z-btn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pb-z-fold-sum svg { transition: none; }
+}
+/* the drawer's category headings (this room had no band heading of its own) */
+.pb-z-band { margin: 14px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--sb-gold); }
+/* "What information do I need?" opens the first-draft list in place */
+.pb-z-need { grid-column: 2; margin-top: 4px; }
+.pb-z-need summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); }
+.pb-z-need summary::-webkit-details-marker { display: none; }
+.pb-z-need summary:hover { text-decoration: underline; }
+.pb-z-need ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--sb-ink-2); }
+.pb-z-need p { margin: 6px 0 0; font-size: 13px; color: var(--sb-ink-2); }
+@media (max-width: 560px) { .pb-z-need { grid-column: auto; } }

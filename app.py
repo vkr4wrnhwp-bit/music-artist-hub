@@ -2984,6 +2984,21 @@ def create_app():
             return None
         return {"writers": writers, "publishers": publishers, "credits_source": "The MLC"}
 
+    @app.route("/catalog/new")
+    def catalog_new():
+        """The ONE shared add-song form, by the address the Publishing
+        spec suggests (2026-09-23: "do not build three different
+        song-creation forms"). It is the catalog's passports view, the same
+        form Studio and the Command Center send people to; a door's
+        ?returnTo=...&from=... rides through so the way back survives."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        carry = "".join("&%s=%s" % (k, urllib.parse.quote(v, safe="/"))
+                        for k in ("returnTo", "from")
+                        for v in [request.args.get(k) or ""] if v)
+        return redirect("/catalog?view=passports" + carry)
+
     @app.route("/catalog/add", methods=["POST"])
     def catalog_add():
         user = current_user()
@@ -5189,31 +5204,43 @@ def create_app():
         import publishing_room
         import rights_conflicts
 
-        tracks = store.list_os_tracks(user["id"])
+        # Every count the page from zero is decided on, read in ONE try: a
+        # failed read is the error page, 503, and never a fresh account
+        # (owner's spec, 2026-09-23). The statement rows used to fall
+        # back to nothing on their own, which read as a catalogue with
+        # nothing collecting.
+        try:
+            tracks = store.list_os_tracks(user["id"])
+            rows = store.get_statement_rows(user["id"])
+        except Exception as exc:
+            app.logger.error("publishing room: state unreadable: %s", exc)
+            return render_template("room_publishing_error.html", active_page="room-publishing",
+                                   room=room, **build_dashboard_context()), 503
         wanted = request.args.get("song") or ""
         selected = next((t for t in tracks if t.get("id") == wanted), None)
         if selected is None and tracks:
             selected = tracks[0]
-
-        try:
-            rows = store.get_statement_rows(user["id"])
-        except Exception:
-            # A statement store that cannot be read is not a catalogue with
-            # nothing collecting, so nothing is counted as collecting and
-            # the rail says what it counted.
-            rows = []
         found = rights_conflicts.for_account(tracks)
 
         seat = current_team_seat()
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        # Who may add the first song: the account holder, or an edit seat.
+        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         pb = publishing_room.build(tracks, rows, found, selected, cards,
                                    artist_name=artist_identity.display_name(user),
-                                   sample=_session_is_demo(), can_open=can_open)
+                                   sample=_session_is_demo(), can_open=can_open,
+                                   zero=publishing_room.new_account(tracks), can_add=can_add)
         return render_template("room_publishing.html",
                                active_page="room-publishing",
-                               room=room, pb=pb, **build_dashboard_context())
+                               room=room, pb=pb,
+                               # The sentence the add-song form carries back
+                               # (?from=publishing-zero-state), decided by
+                               # the SAVED song.
+                               done_line=publishing_room.done_line(
+                                   request.args.get("from"), len(tracks)),
+                               **build_dashboard_context())
 
     def _releases_room(user, room):
         """The Releases room as one screen (owner's mockup, 2026-09-22).

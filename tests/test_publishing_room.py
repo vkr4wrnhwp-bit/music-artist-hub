@@ -36,6 +36,15 @@ def _account(name="Publishing Artist"):
     return c, uid
 
 
+def _song(uid, title="Cell 5"):
+    """One song on file: the populated plate, not the page from zero."""
+    store.add_os_track(uid, title)
+
+
+def _body(page):
+    return page.split('class="rk pb"', 1)[1]
+
+
 def _track(title="A song", passport=None, lockbox=None):
     return {"id": uuid.uuid4().hex, "title": title, "release_title": "",
             "passport": passport or {}, "lockbox": lockbox or {}}
@@ -215,44 +224,155 @@ def test_a_seat_that_cannot_open_a_page_is_not_shown_its_tile():
 
 # --- the page itself ------------------------------------------------------
 
-def test_an_empty_account_is_told_in_words_and_shown_no_zero_figures():
-    c, _uid = _account()
-    page = c.get("/room/publishing").get_data(as_text=True)
-    assert ">Publishing</h1>" in page
-    assert "Your songs, who owns them, and who is collecting." in page
-    # Counted on the figure's own class, not on the words: the note panel
-    # explains the rule and says "Not measured" in passing, which is prose
-    # rather than a fourth unmeasured figure.
-    # The strip became a plate on 2026-09-22. Two of the three unmeasured
-    # readings are windows; the third is the claimed-share strip, whose
-    # figure sits in the bar line. The zero rule is unchanged.
-    # Owner, 2026-09-22: a plate whose every window reads "Not measured"
-    # is worse than no plate, so an account that has measured nothing
-    # now meets the STANDBY - words about what will fill each window.
-    # The zero rule is unchanged and still checked below.
-    # The caption standby became the DISPLAY the same afternoon (owner:
-    # "slot machine-y" - the big window sequences the room's features,
-    # the small ones are a reel, a hint and a ticker, never a caption).
-    # The zero rule is unchanged and still checked.
+def test_an_empty_account_meets_the_page_from_zero_not_an_empty_plate():
+    """The page from zero (owner's Publishing spec + mockup, 2026-09-23). The
+    plate waits for a song; a new account meets the Command Center's
+    three-screen plate, STATIC, with this room's words, and the spec's
+    order under it. No catalog total, registry count, collection number,
+    chart or percentage; no five zero-count states; no blank conflict
+    table - and none of the plate's parts."""
     import re as _re
-    _f = _re.findall(r"rk-cine-frame[^>]*>\s*(?:<img[^>]*>\s*)?<b[^>]*>([^<]*)", page)
-    assert _f == ['Catalog', 'Track Passports', 'Rights Conflicts', 'Fingerprints'], _f
-    assert page.count("rk-reel-win") == 1 and page.count("rk-tick-win") == 1
-    assert "rk-pl-n" not in page, "no reading is drawn while nothing is measured"
-    assert "No recordings on file yet." in page
-    assert "Nothing on file disagrees with itself." in page
+    c, _uid = _account()
+    body = _body(c.get("/room/publishing").get_data(as_text=True))
+    assert "command-plate.webp" in body, "the photographed three-screen plate"
+    assert "publishing-plate.webp" not in body, "the plate waits for a song"
+    assert "rk-cine" not in body and "rk-reel-win" not in body and "rk-tick-win" not in body, "nothing rotates"
+    assert "rk-pl-n" not in body and "pb-pl-split" not in body, "no reading, no claimed bar"
+    assert "No recordings on file yet." not in body and "Nothing on file disagrees with itself." not in body, (
+        "no zero-count ladder, no empty conflicts panel")
+    for name in ("Written", "Split agreed", "Registered", "Claimed", "Collecting"):
+        assert ">%s<" % name not in body, name + ": the five states wait for a song"
+    # the three screens, the spec's words exactly, none of them a door
+    for k, v in pb.ZERO_RACK:
+        assert k in body and v in body, (k, v)
+    assert body.count('<li class="cz-screen"') == 3 and 'class="cz-screen-v" href' not in body
+    # the header: the spec's subtitle, the account chip kept, the one door
+    assert pb.ZERO_SUBTITLE.replace("'", "&#39;") in body, "the subtitle, apostrophe escaped as the page prints it"
+    assert "Publishing Artist" in body, "the account selector still says whose songs these are"
+    door = pb.DOOR.replace("&", "&amp;")
+    assert 'class="rk-cta" href="%s"' % door in body and "Add your first song" in body
+    assert pb.DOOR == "/catalog/new?returnTo=/room/publishing&from=publishing-zero-state", "the spec's suggested route"
+    # the card: one door, and the first-draft list in place
+    assert "Start with one song" in body and "Create your first song record" in body
+    assert 'class="pb-z-btn" href="%s"' % door in body and "Add a song</a>" in body
+    assert "What information do I need?" in body
+    for item in pb.FIRST_DRAFT:
+        assert item.replace("\u201c", "&#8220;").replace("\u201d", "&#8221;") in body or item in body, item
+    # the four categories, each a door by its own room card
+    assert "What Publishing will organize" in body
+    for _k, name, line, _card in pb.LENSES:
+        assert name.replace("&", "&amp;") in body and line in body, name
+    for href in ("/catalog?returnTo=/room/publishing", "/catalog?view=passports&amp;returnTo=/room/publishing",
+                 "/conflicts?returnTo=/room/publishing"):
+        assert 'class="pb-z-lens" href="%s"' % href in body, href
+    # the five steps as education, numbered, Add song lit
+    for _k, name, line in pb.WORKFLOW:
+        assert name in body and line in body, name
+    rail = body.split("How Publishing works")[1].split("Your publishing catalog will appear here")[0]
+    assert "%" not in rail and "Complete" not in rail and "In progress" not in rail
+    assert 'class="rk-step is-first"' in body and "rk-step--ahead" not in body
+    assert '<span class="rk-ring" aria-hidden="true">1</span>' in rail and ">5</span>" in rail
+    # the two empties in words, help, the drawer open with Beats and Fingerprints inside
+    assert "Your publishing catalog will appear here" in body and "Nothing has been verified yet" in body
+    assert "never zero, registered, or collecting." in body
+    assert 'href="#pb-z-flow-h">How song records work' in body
+    assert "Import catalog" not in body, "no catalog import exists to link to"
+    assert "Not sure what belongs in Publishing?" in body and 'href="/contact">Ask Street Banker' in body
+    assert '<details class="pb-z-fold" open>' in body and "More Publishing tools" in body, (
+        "the drawer starts OPEN (owner, 2026-09-23: people need to see it)")
+    drawer = body.split('<details class="pb-z-fold"')[1]
+    drawn = _re.findall(r'data-room-card="([a-z-]+)"', drawer)
+    for key in ("catalog", "track-passports", "conflicts", "beats", "fingerprints"):
+        assert key in drawn, key
+    assert "Writers &amp; splits" not in drawer, "a category with no page of its own is not a heading over nothing"
+    # no total, no count, no nought, no chart, no percentage
+    text = _re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", body, flags=_re.S)
+    assert not _re.search(r"\b0 (songs|works|records|conflicts)", text) and not _re.search(r"(?<![\d.])0%", text)
+    assert "pb-bar" not in body and "The rest of this room" not in body
+
+
+def test_the_shared_add_song_door_carries_the_way_back():
+    """/catalog/new is the spec's suggested route, and it is the ONE
+    shared add-song form (the catalog's passports view) rather than a
+    second one - with the door's returnTo and from riding through."""
+    c, _uid = _account()
+    r = c.get(pb.DOOR)
+    assert r.status_code == 302
+    assert r.headers["Location"] == "/catalog?view=passports&returnTo=/room/publishing&from=publishing-zero-state"
+    assert c.get("/catalog/new").headers["Location"] == "/catalog?view=passports"
+
+
+def test_the_saved_song_says_the_line_never_the_param_alone():
+    c, uid = _account()
+    page = c.get("/room/publishing?from=publishing-zero-state").get_data(as_text=True)
+    assert pb.DONE_LINE not in page, "the param alone says nothing"
+    _song(uid)
+    assert pb.DONE_LINE in c.get("/room/publishing?from=publishing-zero-state").get_data(as_text=True)
+    assert pb.DONE_LINE not in c.get("/room/publishing").get_data(as_text=True)
+    assert pb.done_line("publishing-zero-state", 0) == "" and pb.done_line(None, 2) == ""
+    assert pb.done_line("publishing-zero-state", 1) == pb.DONE_LINE
+
+
+def test_new_account_is_no_song_on_file():
+    assert pb.new_account([]) is True and pb.new_account(None) is True
+    assert pb.new_account([_track()]) is False
+
+
+def test_one_song_brings_the_plate_back_untouched():
+    c, uid = _account()
+    _song(uid)
+    body = _body(c.get("/room/publishing").get_data(as_text=True))
+    assert "publishing-plate.webp?v=" in body and "command-plate" not in body
+    assert "The rest of this room" in body and "pb-pl-split" in body
+    assert "Start with one song" not in body and "pb-z-fold" not in body
+    for name in ("Written", "Split agreed", "Registered", "Claimed", "Collecting"):
+        assert ">%s<" % name in body, name
+
+
+def test_a_seat_that_may_not_write_gets_no_door_and_a_category_it_cannot_open_is_words():
+    cards = {"catalog": ("/catalog", "M1", "Catalog", "x"),
+             "track-passports": ("/catalog?view=passports", "M1", "Track Passports", "y"),
+             "conflicts": ("/conflicts", "M1", "Rights Conflicts", "z"),
+             "beats": ("/beats", "M1", "Beats", "b")}
+    z = pb.zero_page(can_add="seat", can_open=lambda href: not href.startswith("/conflicts"), cards=cards)
+    assert z["project"]["can"] == "seat"
+    by = {l["key"]: l for l in z["lenses"]}
+    assert by["conflicts"]["href"] == "" and by["catalog"]["href"] == "/catalog"
+    assert by["registrations"]["href"] == "", "no Certified card for this account: words, not a door"
+    assert [b["title"] for b in z["bands"]] == ["Catalog & passports", "Conflicts & clearances"]
+    assert [t["key"] for t in z["bands"][1]["tiles"]] == ["beats"]
+    assert pb.zero_page(cards=cards)["project"]["can"] is True
+
+
+def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
+    """Owner's spec, Pass 1: loading and error detection. Before this the
+    statement rows fell back to nothing on their own."""
+    def boom(*_a, **_k):
+        raise RuntimeError("publishing: store down")
+    monkeypatch.setattr(store, "get_statement_rows", boom)
+    c, _uid = _account()
+    r = c.get("/room/publishing")
+    assert r.status_code == 503
+    page = r.get_data(as_text=True)
+    assert "We could not load Publishing" in page
+    assert 'href="/room/publishing"' in page and 'href="/catalog"' in page and "Open catalog" in page
+    assert "Start with one song" not in page and "command-plate" not in page
 
 
 def test_the_page_never_says_a_registration_was_accepted_or_a_society_paid():
-    c, _uid = _account()
-    page = c.get("/room/publishing").get_data(as_text=True)
-    for claim in ("Registration accepted", "successfully registered",
-                  "money recovered", "We collected", "Royalties recovered"):
-        assert claim not in page, claim
+    c, uid = _account()
+    pages = [c.get("/room/publishing").get_data(as_text=True)]
+    _song(uid)
+    pages.append(c.get("/room/publishing").get_data(as_text=True))
+    for page in pages:
+        for claim in ("Registration accepted", "successfully registered",
+                      "money recovered", "We collected", "Royalties recovered"):
+            assert claim not in page, claim
 
 
 def test_the_page_says_percentages_are_not_recorded():
-    c, _uid = _account()
+    c, uid = _account()
+    _song(uid)
     page = c.get("/room/publishing").get_data(as_text=True)
     assert "Writer percentages are not recorded anywhere yet." in page
 
@@ -260,7 +380,8 @@ def test_the_page_says_percentages_are_not_recorded():
 def test_the_five_states_are_all_drawn_even_where_the_count_is_none():
     """A rung with nothing in it is still a rung. Hiding the empty ones
     would make a catalogue with one written song look finished."""
-    c, _uid = _account()
+    c, uid = _account()
+    _song(uid)
     page = c.get("/room/publishing").get_data(as_text=True)
     for name in ("Written", "Split agreed", "Registered", "Claimed", "Collecting"):
         assert ">%s<" % name in page, name
