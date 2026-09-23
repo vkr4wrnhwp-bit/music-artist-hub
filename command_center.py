@@ -347,7 +347,10 @@ MODULES = [
     ("/epk", "Press Office / EPK", "Editable press kit with public share link and media assets.", "live", None),
     ("/releases/autopilot", "Release Autopilot", "One release in: readiness, the arc, the plan, the kit, and the rights checks before it ships.", "live", None),
     ("/royalty-recovery/cases", "Royalty Recovery Cases", "Turn recovery insights into tracked cases with evidence and deadlines.", "live", None),
-    ("/royalty-recovery/mlc", "MLC / Unmatched Recovery", "Find and claim unmatched mechanical royalties with claim packets.", "preview", None),
+    # The real MLC sweep on Recovery. This row was a "preview" whose page
+    # said the engine was being built while the sweep already ran there;
+    # the address now opens it (make-it-real, 2026-09-23).
+    ("/royalty-recovery/mlc", "MLC / Unmatched Recovery", "Check every Track Passport ISRC against The MLC's public registry and open a recovery case on any gap.", "live", None),
     ("/sync/clearance-packs", "Sync Clearance Packs", "One-click supervisor-safe pitch packages with clearance status.", "live", None),
     ("/sync/deal-simulator", "Sync Deal Simulator", "Evaluate sync terms, flag buyouts, draft counteroffers.", "live", _NOT_LEGAL),
     ("/deal-room", "Deal Room", "Splits, producer and feature agreements, document vault, deal board.", "live", _NOT_LEGAL),
@@ -431,7 +434,6 @@ def module_groups(modules=None):
 # Planned-feature bullets shown on preview pages, keyed by route.
 PREVIEW_FEATURES = {
     "/royalty-recovery/cases": ["Case board with status, evidence, and deadlines", "Estimated amounts and confidence scores", "Recovery packet generator", "Results and payout tracking"],
-    "/royalty-recovery/mlc": ["Unmatched recording search", "Claim checklist and packet generator", "Registration correction queue", "Deadline and status tracking"],
     "/sync/clearance-packs": ["Instrumental, clean, and stem uploads", "Master + publishing clearance status", "Private supervisor listening links", "Exportable PDF one-sheet"],
     "/sync/deal-simulator": ["Fee, term, territory, and exclusivity inputs", "Buyout and MFN risk flags", "Quote recommendations", "Counteroffer drafts"],
     "/deal-room": ["Split, producer, and feature agreement generators", "Document vault with revision history", "Advance offer comparison", "Recoupment simulator"],

@@ -504,7 +504,8 @@ A per-account email address that turns CSVs emailed by a distributor into statem
 Check every Track Passport ISRC against The MLC's public database and keep the sweep, so unregistered or partly claimed works show as mechanical money nobody is collecting.
 
 - Because: The sweep, its bounded batch (PER_SWEEP=25), the summary and the storage are real code that writes recovery_mlc_sweeps, and the Royalties streams ledger reads the result back. The provider half is inert without credentials: MLCAdapter declares env_keys ("MLC_USERNAME","MLC_PASSWORD") and env_flag MLC_ENABLED, and on this checkout POST /recovery/mlc returned 302 to /recovery?mlc=off#mlc and wrote nothing. A passport with no ISRC is listed as uncheckable rather than looked up by title.
-- Routes: POST /recovery/mlc (redirects to /recovery#mlc, or ?mlc=off / ?mlc=none)
+- The All Tools row "MLC / Unmatched Recovery" is this sweep (make-it-real, 2026-09-23). Its address /royalty-recovery/mlc used to render the generic preview page ("the engine is being built") while this sweep already ran; command_center.MODULES now marks it live and the address is a 302 to /recovery#mlc that carries a door's returnTo/from. tests/test_real_money.py holds both.
+- Routes: POST /recovery/mlc (redirects to /recovery#mlc, or ?mlc=off / ?mlc=none); GET /royalty-recovery/mlc (302 to /recovery#mlc)
 - Files: app.py:3082; recovery_mlc.py:35 candidates / :50 sweep / earnings_by_title; signal_providers.py:2884 MLCAdapter, :3497 mlc_adapter; db.py add_recovery_mlc_sweep (table recovery_mlc_sweeps); templates/recovery.html
 - Access: Artist tier and above. Team seats with the Business room and edit access.
 
@@ -3818,12 +3819,12 @@ Register the account's masters into an ACRCloud bucket and scan a long recording
 
 **Preview module pages**
 
-Five addresses that answer with a generic "this module is in preview" page listing what it will do.
+Four addresses that answer with a generic "this module is in preview" page listing what it will do. (/royalty-recovery/mlc was the fifth until 2026-09-23; it now opens the real MLC sweep, see "The MLC registry sweep".)
 
-- Because: app.py:8641 _module_preview builds one view per MODULES row whose status is "preview" and renders module_preview.html with a hard-coded bullet list from command_center.PREVIEW_FEATURES; probed all five at 200 and the body is the stub, with no account data read
-- Routes: /royalty-recovery/mlc, /fraud-sentinel, /ai-rights, /opportunities, /voice-of-fan (all GET)
+- Because: app.py:8641 _module_preview builds one view per MODULES row whose status is "preview" and renders module_preview.html with a hard-coded bullet list from command_center.PREVIEW_FEATURES; probed all four at 200 and the body is the stub, with no account data read
+- Routes: /fraud-sentinel, /ai-rights, /opportunities, /voice-of-fan (all GET)
 - Files: app.py:8641 _module_preview and the add_url_rule loop at app.py:8651; command_center.py:185 PREVIEW_FEATURES; templates/module_preview.html
-- Access: Any signed-in account (no tier gate on these paths; required_tier returns None for all five). /opportunities is in team_areas.WHOLE_ACCOUNT so it is shut to a partial-room seat; the other four are not.
+- Access: Any signed-in account (no tier gate on these paths; required_tier returns None for all four). /opportunities is in team_areas.WHOLE_ACCOUNT so it is shut to a partial-room seat; the other three are not.
 
 **Pulse YouTube panel**
 

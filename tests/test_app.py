@@ -2673,8 +2673,11 @@ def test_shopify_merch_stitch():
 
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
+    # /royalty-recovery/mlc left this list on 2026-09-23: it called the
+    # MLC sweep "in preview" while the sweep already ran on Recovery, and
+    # it now opens that sweep (tests/test_real_money.py).
     routes = ["/fraud-sentinel", "/ai-rights",
-              "/opportunities", "/voice-of-fan", "/royalty-recovery/mlc"]
+              "/opportunities", "/voice-of-fan"]
     for route in routes:
         r = client.get(route)
         assert r.status_code == 200, route

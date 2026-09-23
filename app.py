@@ -3195,6 +3195,18 @@ def create_app():
         recovery_mlc.sweep(user["id"])
         return redirect(back + "#mlc")
 
+    @app.route("/royalty-recovery/mlc")
+    def royalty_recovery_mlc():
+        """The All Tools row "MLC / Unmatched Recovery". It rendered the
+        generic preview page ("the engine is being built") while the real
+        sweep above already ran on Recovery; it opens that sweep now
+        (make-it-real, 2026-09-23). A door's ?returnTo=&from= rides
+        through, ahead of the fragment."""
+        carry = "&".join("%s=%s" % (k, urllib.parse.quote(v, safe="/"))
+                         for k in ("returnTo", "from")
+                         for v in [request.args.get(k) or ""] if v)
+        return redirect("/recovery" + ("?" + carry if carry else "") + "#mlc")
+
     @app.route("/valuation")
     def valuation():
         user = current_user()
