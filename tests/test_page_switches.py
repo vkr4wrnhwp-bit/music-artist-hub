@@ -129,3 +129,62 @@ def test_the_longest_address_wins():
     assert ps.hidden_for_path("/fingerprints/", {"fingerprints"})
     assert ps.hidden_for_path("/", {"links"}) is None
     assert ps.hidden_for_path("/links/fans", {"links"})["key"] == "links"
+
+
+def test_a_room_card_that_is_not_a_sidebar_entry_has_a_switch_of_its_own():
+    """Fan Club and Tax are room cards, not sidebar entries, so
+    set_hidden dropped them on the floor (2026-09-23: hiding "fan-club"
+    hid nothing and said nothing). Each unfolded page in a room is a row
+    of its own now, after the entry it unfolded from, under that hub."""
+    rows = ps.entries()
+    keys = [key for _n, key, _h, _l in rows]
+    hub = {key: name for name, key, _h, _l in rows}
+    for key in ("fan-club", "fan-crm", "tax", "contracts", "trust-score", "insights",
+                "deal-simulator", "track-passports", "release-calendar", "release-check",
+                "distribution"):
+        assert key in ps.known_keys(), key
+    assert keys.index("tax") == keys.index("statements") + 1 and hub["tax"] == hub["statements"]
+    assert keys.index("fan-club") > keys.index("fans") and hub["fan-club"] == hub["fans"]
+    assert hub["distribution"] == hub["autopilot"], "no parent: the hub its room's entries are under"
+    for key in ("signal", "connections", "press-contacts"):
+        assert key not in ps.known_keys(), "%s is in no room: it follows its parent, no switch" % key
+    assert len(keys) == len(set(keys))
+
+
+def test_a_hidden_view_bounces_only_that_view(world):
+    """Tax is /statements?view=tax. Hiding Tax leaves /statements open;
+    hiding Statements still takes the tax view with it."""
+    assert ps.hidden_for_path("/statements", {"tax"}) is None
+    assert ps.hidden_for_path("/statements", {"tax"}, {"view": "tax"})["key"] == "tax"
+    assert ps.hidden_for_path("/statements", {"tax"}, {"view": "income"}) is None
+    assert ps.hidden_for_path("/statements", {"statements"}, {"view": "tax"})["key"] == "statements"
+    assert ps.hidden_for_path("/fan-club", {"fan-club"})["key"] == "fan-club"
+    assert ps.hidden_for_path("/fans", {"fan-club"}) is None
+    app_obj, owner, artist = world
+    with app_obj.app_context():
+        assert ps.set_hidden(["tax", "fan-club"]) == {"fan-club", "tax"}
+    r = artist.get("/statements?view=tax")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/command-center?off=Tax")
+    r = artist.get("/statements")
+    assert "off=" not in r.headers.get("Location", ""), "Statements itself stays open"
+    r = artist.get("/fan-club")
+    assert r.status_code == 302 and "off=Fan%20Club" in r.headers["Location"]
+    assert owner.get("/statements?view=tax").status_code == 200
+
+
+def test_the_owner_hides_fan_club_alone_and_the_room_shows_the_mark(world, monkeypatch):
+    """The point of the switch: the owner hides Fan Club, keeps Fans, and
+    the Fans room marks the one tile for the owner and drops it for
+    everybody else."""
+    monkeypatch.setenv("NAV_ROOMS", "1")
+    app_obj, owner, artist = world
+    with app_obj.app_context():
+        store.set_kv("nav_layout", "")
+        ps.set_hidden(["fan-club"])
+    page = owner.get("/room/fans").get_data(as_text=True)
+    tile = page.split('data-room-card="fan-club"', 1)[1].split("</a>", 1)[0]
+    assert ">Hidden<" in tile
+    fans = page.split('data-room-card="fans"', 1)[1].split("</a>", 1)[0]
+    assert ">Hidden<" not in fans
+    page = artist.get("/room/fans").get_data(as_text=True)
+    assert 'data-room-card="fan-club"' not in page and 'data-room-card="fans"' in page

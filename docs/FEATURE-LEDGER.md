@@ -4169,7 +4169,7 @@ The owner turns paid fan-club joins and online VIP packages on or off platform-w
 
 **Settings > page switchboard**
 
-The owner switches any sidebar page off for everybody but themselves.
+The owner switches any sidebar page off for everybody but themselves, and since 2026-09-23 any room card that is not a sidebar entry too (Fan Club, Fan CRM, Tax, Contracts, Trust score, Insights, Deal Simulator, Track Passports, Release Calendar, Release check, Distribution): page_switches.entries() lists each unfolded page (rooms.EXTRA) after the entry it unfolded from, under that hub, so the board shows it, known_keys() accepts it and set_hidden() keeps it. Before that day set_hidden dropped those keys silently and hiding "fan-club" hid nothing.
 
 - Because: app.py:5223 is behind _owner_or_404 and writes page_switches.set_hidden; the page_switch_gate before_request (app.py:5210) bounces non-owners to /command-center?off=<label>.
 - Routes: POST /admin/pages; enforced by page_switch_gate
@@ -5037,9 +5037,9 @@ Shown after a navigation fails twice, and it words itself from navigator.onLine 
 
 **Page switchboard**
 
-The owner turns any sidebar page live or hidden from Settings, without a deploy.
+The owner turns any sidebar page live or hidden from Settings, without a deploy - and, from 2026-09-23, any room card that is not a sidebar entry (rooms.EXTRA: Fan Club, Tax, Contracts, Track Passports, the two release views, Distribution...), each a switch of its own after its parent's row. A VIEW page (/statements?view=tax is Tax) bounces only when the request asks for that view: hidden_for_path() takes request.args, matches a querystring entry first, and falls back to the longest plain prefix, so hiding Tax leaves /statements open and hiding Statements still takes the tax view with it. A page in no room (Signal, the three folded press pages, Connections) is not a switch and follows its parent through rooms.hidden_keys(). 8 tests in tests/test_page_switches.py.
 
-- Because: page_switches.py reads one app_kv override on top of the shipped sidebar (hubs.py) — hidden_keys() returns an empty set on a missing or corrupt value, PROTECTED pins command-center and settings. app.py:5206 page_switch_gate redirects a non-owner off a hidden page to /command-center?off=<label> using the longest-prefix match (page_switches.py:74 hidden_for_path). Saved by POST /admin/pages (app.py:5224), owner-only. 5 tests in tests/test_page_switches.py.
+- Because: page_switches.py reads one app_kv override on top of the shipped sidebar (hubs.py) — hidden_keys() returns an empty set on a missing or corrupt value, PROTECTED pins command-center and settings. app.py:5206 page_switch_gate redirects a non-owner off a hidden page to /command-center?off=<label> using the longest-prefix match (page_switches.py:74 hidden_for_path). Saved by POST /admin/pages (app.py:5224), owner-only. (see above)
 - Routes: every request; POST /admin/pages
 - Files: page_switches.py (3.5 KB, whole file); app.py:5199-5232
 - Access: Owners see hidden pages badged and are the only ones who can save; everyone else is bounced

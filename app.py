@@ -5992,7 +5992,7 @@ def create_app():
         hidden = _page_hidden()
         if not hidden:
             return None
-        hit = page_switches.hidden_for_path(request.path, hidden)
+        hit = page_switches.hidden_for_path(request.path, hidden, request.args)
         if not hit:
             return None
         user = current_user()
