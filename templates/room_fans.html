@@ -307,11 +307,13 @@
       <p class="fr-kicker fr-kicker--dim">From discovery to a lifetime of support</p>
     </div>
     <ol class="fr-life-rail">
-      {% for key, name, line in fr.lifecycle %}
-      <li class="fr-step">
-        <span class="fr-ring">{{ icon(key, "fr-ring-ico") }}</span>
-        <b>{{ name }}</b>
-        <span>{{ line }}</span>
+      {#- Each stage's line is its count from the account's own records, or
+          the words for nothing counted (fan_room.lifecycle). -#}
+      {% for st in fr.lifecycle %}
+      <li class="fr-step" data-stage="{{ st.key }}">
+        <span class="fr-ring">{{ icon(st.key, "fr-ring-ico") }}</span>
+        <b>{{ st.name }}</b>
+        <span>{{ st.line }}</span>
       </li>
       {% endfor %}
     </ol>
