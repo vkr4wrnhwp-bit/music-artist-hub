@@ -61,8 +61,10 @@ def test_an_empty_account_is_told_how_to_start_not_shown_a_crowd():
     assert "room-plate.webp" in body and "fans-plate.webp" not in body
     assert body.count('<li class="cz-screen"') == 3
     assert "fr-z-mod" not in body and "fr-z-win" not in body
-    # the hero's own pill, its door on the Fan Hub
-    assert 'class="fr-cta" href="/links/new?type=bio"' in body
+    # the hero's own pill, its door on the Fan Hub, carrying the way back
+    # like the two cards (audit, 2026-09-23: the bare href's builder
+    # offered "Back to Marketing")
+    assert 'class="fr-cta" href="/links/new?type=bio&amp;returnTo=/room/fans"' in body
     assert "Launch fan campaign" in body
     # two EQUAL starting cards, each with a way back
     assert "Choose your starting point" in body
@@ -110,9 +112,39 @@ def test_the_figures_are_the_accounts_own():
 
 
 def test_the_window_is_one_of_three():
-    c, _uid = _account()
+    """The chooser governs the readings, so it is tested where there are
+    some: one fan on file. (This test used a fresh account until the Fans
+    audit of 2026-09-23, which pinned the chooser onto the page from zero,
+    where it governed nothing - see the test below.)"""
+    c, uid = _account()
+    mls.upsert_fan(uid, "window-%s@example.net" % uid[:6], None)
     assert "Last 7 days" in c.get("/room/fans?days=7").get_data(as_text=True).split("fr-range-menu")[0]
     assert "Last 30 days" in c.get("/room/fans?days=5000").get_data(as_text=True).split("fr-range-menu")[0]
+
+
+def test_the_page_from_zero_has_no_date_chooser_over_nothing():
+    """Audit, 2026-09-23 (fans-7): a fresh account got the "Last 30 days"
+    chooser, and ?days=7 changed nothing but the chooser. The sibling
+    zero pages dropped theirs by spec. The chip's title said "The account
+    these figures are for" on a page with no figures."""
+    c, _uid = _account()
+    body = c.get("/room/fans").get_data(as_text=True)
+    assert "fr-range" not in body and "Last 30 days" not in body
+    assert "The account these figures are for" not in body
+    assert "Last 7 days" not in c.get("/room/fans?days=7").get_data(as_text=True), (
+        "?days= renders the same page: there is nothing for it to govern")
+
+
+def test_the_range_choices_keep_their_link_role():
+    """Audit, 2026-09-23 (fans-16): role="listitem" on each <a href>
+    replaced its link role, so a screen reader heard list items."""
+    c, uid = _account()
+    mls.upsert_fan(uid, "role-%s@example.net" % uid[:6], None)
+    body = c.get("/room/fans").get_data(as_text=True)
+    menu = body.split('class="fr-range-menu"', 1)[1].split("</ul>", 1)[0]
+    assert 'role="listitem"' not in body
+    for n in (7, 30, 90):
+        assert '<li><a href="/room/fans?days=%d"' % n in menu, n
 
 
 def test_the_demo_is_labelled_sample():
@@ -121,6 +153,10 @@ def test_the_demo_is_labelled_sample():
     body = demo.get("/room/fans").get_data(as_text=True)
     assert "Sample data." in body and "fr-mark--sample" in body
     assert "Read from your own records" not in body, "the example is never called Live"
+    # the demo is the showcase, never the page from zero (owner's ruling)
+    for part in ("Choose your starting point", "fr-start", "How the fan workflow works",
+                 "Your fans will appear here"):
+        assert part not in body, part
 
 
 def test_the_other_rooms_keep_their_card_grid():
@@ -531,3 +567,162 @@ def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
     tiles = {t["key"]: t for t in fan_room.build([], {"total": 0}, cards)["tiles"]}
     assert tiles["fan-club"]["state"] == "hidden" and tiles["fan-club"]["status"] == "Hidden"
     assert tiles["fans"]["state"] != "hidden"
+
+
+# --- the Fans audit of 2026-09-23 --------------------------------------------
+
+def _boom(*_a, **_k):
+    raise RuntimeError("fans: store down")
+
+
+@pytest.mark.parametrize("target", ["list_fans", "for_account", "get_fan_club"])
+def test_a_failed_read_is_the_rooms_error_page_at_503(monkeypatch, target):
+    """fans-1: the one room of eight whose reads sat outside any try. A
+    failed read was Werkzeug's bare 500 - no shell, no way out - where the
+    six sibling rooms give their own error page at 503."""
+    import fan_audience
+    c, _uid = _account()
+    where = {"list_fans": mls, "for_account": fan_audience, "get_fan_club": store}[target]
+    monkeypatch.setattr(where, target, _boom)
+    r = c.get("/room/fans")
+    assert r.status_code == 503, target
+    page = r.get_data(as_text=True)
+    assert "We could not load Fans" in page and 'id="sb-main"' in page
+    assert 'href="/room/fans"' in page and 'href="/links/fans"' in page
+    assert "Choose your starting point" not in page and "room-plate" not in page, (
+        "a failed read is never a fresh account")
+
+
+def test_the_club_member_read_is_inside_the_same_try(monkeypatch):
+    c, _uid = _account()
+    monkeypatch.setattr(store, "get_fan_club", lambda _uid: {"id": "club"})
+    monkeypatch.setattr(store, "list_club_members", _boom)
+    assert c.get("/room/fans").status_code == 503
+
+
+def test_the_new_fans_csv_fails_as_the_rooms_error_page_too(monkeypatch):
+    c, _uid = _account()
+    monkeypatch.setattr(mls, "list_fans", _boom)
+    r = c.get("/room/fans/new.csv?days=30")
+    assert r.status_code == 503 and "We could not load Fans" in r.get_data(as_text=True), (
+        "never an empty file that reads as nobody new")
+
+
+def test_the_spec_help_questions_are_on_the_page_from_zero():
+    """fans-6: zero_page() handed the template HELP_QUESTIONS and nothing
+    read them. Stage and Studio render theirs."""
+    c, _uid = _account()
+    body = c.get("/room/fans").get_data(as_text=True)
+    help_panel = body.split('id="fr-help-h"', 1)[1].split("</section>", 1)[0]
+    for q in fan_room.HELP_QUESTIONS:
+        assert "<li>%s</li>" % q in help_panel, q
+
+
+def test_the_ask_button_opens_the_ask_box_on_this_page():
+    """fans-12: id="fr-ask" was set for the corner Ask box and nothing wired
+    it, so a signed-in artist left the app for the public Contact page.
+    /contact stays the fallback with scripts off, as on the Command
+    Center."""
+    c, _uid = _account()
+    body = c.get("/room/fans").get_data(as_text=True)
+    assert 'href="/contact" id="fr-ask"' in body
+    script = body.split('getElementById("fr-ask")', 1)
+    assert len(script) == 2, "the button is wired"
+    assert 'getElementById("sbq-open")' in script[1] and "q.focus()" in script[1]
+    assert 'id="sbq-open"' in body, "the box it opens is on the page"
+
+
+def test_each_link_lands_on_the_explanation_it_names():
+    """fans-13: "How fan capture works" opened the campaign list (for a new
+    account, "No links yet"), and "Import requirements" was the import
+    card's own door under a second name. Both now open the section of
+    /fans that explains them - and those sections are there."""
+    c, _uid = _account()
+    body = c.get("/room/fans").get_data(as_text=True)
+    links = body.split('class="fr-z-links"', 1)[1].split("</p>", 1)[0]
+    assert 'href="/fans?returnTo=/room/fans#fr-alt-h">How fan capture works' in links
+    assert 'href="/fans?returnTo=/room/fans#fr-needs-h">Import requirements' in links
+    assert 'href="/links?returnTo=/room/fans"' not in body
+    landing = c.get("/fans?returnTo=/room/fans").get_data(as_text=True)
+    assert 'id="fr-alt-h"' in landing and "asks for an email on the way through" in landing
+    assert 'id="fr-needs-h"' in landing and "What the file needs" in landing
+    assert "Back to the fans room" in landing
+
+
+def test_the_drawer_is_named_once():
+    """The summary and an sr-only heading carried the same words, so the
+    drawer's name was read twice (publishing-12's pattern, on this room's
+    drawer too). The heading is the summary's text now."""
+    c, _uid = _account()
+    body = c.get("/room/fans").get_data(as_text=True)
+    assert body.count(">More fan tools<") == 1
+    assert '<summary class="fr-fold-sum"><h2 class="fr-fold-h" id="fr-tools-h">More fan tools</h2>' in body
+    assert 'aria-labelledby="fr-tools-h"' in body
+
+
+def test_the_discover_tile_says_what_the_page_does_and_is_not_sample():
+    """fans-10 and fans-17: the tile promised "Find listeners and scenes"
+    for a catalogue search, and once a fan was on file it wore the Sample
+    pill, although a real account's /discover shows real records only."""
+    assert fan_room.TILE_COPY["discover"] == ("Discover", "Search the catalogue and play a preview")
+    c, uid = _account()
+    zero = c.get("/room/fans").get_data(as_text=True)
+    mls.upsert_fan(uid, "tile-%s@example.net" % uid[:6], None)
+    body = c.get("/room/fans").get_data(as_text=True)
+    for page in (zero, body):
+        assert "Find listeners and scenes" not in page
+    tile = body.split('data-room-card="discover"', 1)[1].split("</a>", 1)[0]
+    assert "Search the catalogue and play a preview" in tile
+    assert "Sample" not in tile, "a real account's search is not example data"
+
+
+def test_the_capture_path_keeps_its_way_back_after_the_save():
+    """fans-4: POST /links/new?type=bio&returnTo=/room/fans redirected to
+    /links/<cid>/edit with the way back dropped, and the landing offered
+    "Back to Marketing" - the very bug returnTo exists to fix."""
+    c, uid = _account()
+    r = c.post("/links/new?type=bio&returnTo=/room/fans",
+               data={"title": "Fan Hub %s" % uid[:6], "campaign_type": "bio"})
+    assert r.status_code == 302
+    loc = r.headers["Location"]
+    assert "/edit?returnTo=/room/fans" in loc, loc
+    landing = c.get(loc).get_data(as_text=True)
+    assert 'href="/room/fans" id="sb-room-back"' in landing and "Back to the fans room" in landing
+    # and a door with no way back is not given one, nor a foreign one
+    bare = c.post("/links/new", data={"title": "Bare %s" % uid[:6]})
+    assert bare.headers["Location"].endswith("/edit")
+    evil = c.post("/links/new?returnTo=//evil.example/x", data={"title": "Evil %s" % uid[:6]})
+    assert "evil" not in evil.headers["Location"]
+
+
+def test_the_rooms_start_copy_matches_the_doors_it_offers():
+    """fans-15: a seat without the Marketing room is offered the import
+    alone, and was still told "Start with a fan campaign", under "Choose
+    your starting point" and a rack saying "Choose how to add your first
+    fans" above one card."""
+    both = fan_room.zero_page(True, True)
+    assert both["help_line"] == "Start with a fan campaign if you do not already have a contact list."
+    assert both["starts_heading"] == "Choose your starting point"
+    assert both["screens"][1]["v"] == "Choose how to add your first fans", "the spec's words"
+    one = fan_room.zero_page(False, True, ("import",))
+    assert "fan campaign" not in one["help_line"] and "importing" in one["help_line"]
+    assert one["starts_heading"] == "Your starting point"
+    assert one["screens"][1]["v"] != "Choose how to add your first fans"
+    assert [s[0] for s in one["starts"]] == ["import"] and not one["locked"]
+    none = fan_room.zero_page(False, False, ("capture", "import"))
+    assert none["locked"] == fan_room.LOCKED and none["help_line"] == fan_room.LOCKED
+    assert none["starts_heading"] == "How fans are added"
+
+
+def test_a_read_seat_is_offered_no_door_and_told_who_can():
+    """fans-2, in the builder: a seat without edit access gets no capture
+    or import door and no move whose point is a save."""
+    cards = [("fans", "/fans", "i", "Fans", "d", "live")]
+    fr = fan_room.build([], {"total": 0}, cards, can_add="seat")
+    assert fr["can_capture"] is False and fr["can_import"] is False
+    assert fr["zero"]["locked"] == fan_room.LOCKED
+    rows = [{"email": "a@x.net", "tags": "[]", "created": "2026-01-01"}]
+    moves = fan_room.moves(rows, {"total": 5, "segments": []}, 30, TODAY,
+                           link_visits=50, can_write=False)
+    assert all(m["cta"] not in ("Import your list", "Add a capture") for m in moves)
+    assert fan_room.build([], {"total": 0}, cards)["can_capture"] is True, "the owner keeps it"

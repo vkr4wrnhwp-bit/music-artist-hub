@@ -4445,7 +4445,16 @@ def create_app():
                                        **build_dashboard_context())
             cid = mls.create_campaign(user["id"], _ml_slug(fields["title"]), fields)
             mls.set_destinations(cid, _ml_form_destinations())
-            return redirect("/links/%s/edit" % cid)
+            # A door's way back rides through the save, or the Fans room's
+            # capture door landed on a builder offering "Back to Marketing"
+            # (audit, 2026-09-23). The form posts to its own address, so
+            # the door's ?returnTo=...&from=... is on this request; the
+            # edit form posts to its own address too, and keeps it.
+            carry = "&".join("%s=%s" % (k, urllib.parse.quote(v, safe="/"))
+                             for k, v in (("returnTo", _safe_next(request.args.get("returnTo"), "")),
+                                          ("from", request.args.get("from") or ""))
+                             if v)
+            return redirect("/links/%s/edit" % cid + ("?" + carry if carry else ""))
         return render_template("links_builder.html", active_page="links",
                                c=None, destinations=[], engine=links_engine,
                                error=None,
@@ -5374,32 +5383,45 @@ def create_app():
         fan_room.py says where each figure comes from."""
         import fan_audience
         import fan_room
-        rows, audience, showcase = _fan_room_rows(user)
-        club_row = None if showcase else store.get_fan_club(user["id"])
-        members = 0
-        if club_row:
-            members = sum(1 for m in store.list_club_members(user["id"])
-                          if (m.get("status") or "active") == "active")
-        today = datetime.now(timezone.utc).date().isoformat()
-        with store.get_db() as db:
-            open_briefs = db.execute(
-                "SELECT COUNT(*) FROM collab_requests c JOIN users u ON u.id = c.user_id"
-                " WHERE c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
-                " OR substr(c.closes, 1, 10) >= ?)", (today,)).fetchone()[0]
+        # Every read the page is decided on, in ONE try: a failed read is
+        # the room's error page, 503, and never a fresh account or a bare
+        # 500 with no way out (owner's spec, 2026-09-23; the Fans audit
+        # found this the one room of eight without it).
+        try:
+            rows, audience, showcase = _fan_room_rows(user)
+            club_row = None if showcase else store.get_fan_club(user["id"])
+            members = 0
+            if club_row:
+                members = sum(1 for m in store.list_club_members(user["id"])
+                              if (m.get("status") or "active") == "active")
+            today = datetime.now(timezone.utc).date().isoformat()
+            with store.get_db() as db:
+                open_briefs = db.execute(
+                    "SELECT COUNT(*) FROM collab_requests c JOIN users u ON u.id = c.user_id"
+                    " WHERE c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
+                    " OR substr(c.closes, 1, 10) >= ?)", (today,)).fetchone()[0]
+            link_visits = 0 if showcase else fan_audience._visits(user["id"])
+        except Exception as exc:
+            app.logger.error("fans room: state unreadable: %s", exc)
+            return render_template("room_fans_error.html", active_page="room-fans",
+                                   room=room, **build_dashboard_context()), 503
         # The same two lines the other seven rooms use: a seat opens
         # only the pages its areas allow, so the room draws only those.
         seat = current_team_seat()
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # Who may add fans: the account holder, or an edit seat. A read seat
+        # is offered no door its save would bounce at, and is told who can.
+        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         fr = fan_room.build(rows, audience, room["cards"], days=request.args.get("days"),
                             club={"on": bool(club_row), "members": members},
                             open_briefs=open_briefs,
-                            link_visits=0 if showcase else fan_audience._visits(user["id"]),
+                            link_visits=link_visits,
                             showcase=showcase, artist_name=user.get("name") or "",
                             # "or Shopify customers" only where the import
                             # exists for this account (walk, 2026-09-20).
                             shopify=_shopify_import_allowed(user),
-                            can_open=can_open)
+                            can_open=can_open, can_add=can_add)
         return render_template("room_fans.html", active_page="room-fans", room=room, fr=fr,
                                **build_dashboard_context())
 
@@ -5469,7 +5491,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        rows, _audience, _showcase = _fan_room_rows(user)
+        try:
+            rows, _audience, _showcase = _fan_room_rows(user)
+        except Exception as exc:
+            # The room's own error page, never an empty file that reads as
+            # "nobody new" (the same guard as the room itself).
+            app.logger.error("fans room csv: state unreadable: %s", exc)
+            return render_template("room_fans_error.html", active_page="room-fans",
+                                   **build_dashboard_context()), 503
         days = fan_room.days_from(request.args.get("days"))
         body = fan_room.new_fans_csv(rows, days, datetime.now(timezone.utc).date())
         return Response(body, mimetype="text/csv", headers={

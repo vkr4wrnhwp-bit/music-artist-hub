@@ -176,9 +176,14 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "inbox", "settings", "catalog", "command-center",
              # F-5 (audit 2026-09-18): the badges were backwards. The Collab
              # Marketplace is a real db-backed board (nothing seeded), so it
-             # is live; Discover shows example artists, so it is NOT here and
-             # wears the Sample badge.
+             # is live.
              "marketplace",
+             # Discover joined it on 2026-09-23: since 2026-09-21 a real
+             # account's /discover is real catalogue search ("Real records
+             # only"); the example feed goes to a showcase session alone and
+             # is labelled on the page itself. The Sample badge had been
+             # telling a real account its own search was example data.
+             "discover",
              "actions", "autopilot", "scores",
              "vault", "pulse", "team",
              # Real packs from the artist's own uploads (it was live through

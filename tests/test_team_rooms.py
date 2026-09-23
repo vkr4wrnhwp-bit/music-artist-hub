@@ -335,5 +335,51 @@ def test_the_owner_still_gets_the_capture_pill():
     body = owner.get("/room/fans").get_data(as_text=True)
     assert "Launch fan campaign" in body
     # ?type=bio since the same afternoon (owner: "add the ?type=bio to the
-    # fans link") - the door opens the builder on the Fan Hub
-    assert 'href="/links/new?type=bio"' in body
+    # fans link") - the door opens the builder on the Fan Hub - and the
+    # way back since the Fans audit of 2026-09-23: the bare href's builder
+    # offered "Back to Marketing"
+    assert 'href="/links/new?type=bio&amp;returnTo=/room/fans"' in body
+
+
+def _fans_main(member):
+    import re
+    body = member.get("/room/fans").get_data(as_text=True)
+    main = re.search(r'<main id="sb-main"[^>]*>(.*?)</main>', body, re.S)
+    assert main, "no main on the fans room"
+    return main.group(1)
+
+
+def test_a_read_seat_in_the_fans_room_gets_no_door_and_is_told_who_can():
+    """Fans audit, 2026-09-23 (fans-2, fans-18). A READ seat with Fans and
+    Marketing was offered "Launch fan campaign" three times and "Import
+    your list", and each save bounced to ?team=readonly. It now gets the
+    cards without their buttons, the fan list as the hero's pill, and one
+    line saying who adds fans - the rooms' can_add = "seat" rule."""
+    import fan_room
+    owner, member = _account(), _account(name="Reader")
+    _seat(owner, member, access="read", areas=["fans", "marketing"])
+    _open_account(member, owner)
+    main = _fans_main(member)
+    assert "Launch fan campaign" not in main and "Import your list" not in main
+    assert "/links/new" not in main, "no builder door for a seat whose save bounces"
+    assert 'class="fr-start-btn' not in main
+    assert 'class="fr-cta" href="/links/fans"' in main, "the pill is the fan list"
+    assert fan_room.LOCKED in main
+    assert main.count('class="fr-start"') == 2, "the two ways are still explained"
+    # and what it would have been refused at is still refused
+    r = member.post("/fans/import/preview", data={})
+    assert "team=readonly" in (r.headers.get("Location") or "")
+
+
+def test_a_fans_only_edit_seat_keeps_the_import_door_and_its_own_words():
+    """fans-15: the seat without Marketing is offered the import alone, so
+    the copy around it speaks of the import alone."""
+    owner, member = _account(), _account(name="Importer")
+    _seat(owner, member, access="edit", areas=["fans"])
+    _open_account(member, owner)
+    main = _fans_main(member)
+    assert "Import your list" in main and "Launch fan campaign" not in main
+    assert "Start with a fan campaign" not in main
+    assert "Your starting point" in main and "Choose your starting point" not in main
+    assert "Choose how to add your first fans" not in main
+    assert "Fans are added by the account holder" not in main, "an edit seat can add them"
