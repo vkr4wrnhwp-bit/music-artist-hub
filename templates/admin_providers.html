@@ -2,7 +2,7 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}Providers{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/providers.css?v=2">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/providers.css?v=3">{% endblock %}
 
 {#- Providers (owner only, 2026-09-23). Two questions per outside service,
     answered separately: are its keys set (by NAME; a value never reaches
@@ -23,10 +23,20 @@
   {% endcall %}
 
   {% if checked %}
-  <p class="pv-toast" role="status">
-    {%- if checked == "all" %}<b>Checked.</b> Every configured service with a free check was asked just now. The checks that cost money, spend a scarce quota or write anything were left for their own buttons.
+  <p class="pv-toast{{ ' is-wait' if (wait or skipped or checked == 'busy') }}" role="status">
+    {%- if checked == "busy" %}<b>Already running.</b> A Check all started a moment ago is still going, so nothing more was asked. The rows below show the last results; reload in a few seconds.
+    {%- elif checked == "all" %}<b>Checked.</b> Every configured service with a free check was asked just now{% if skipped %}, except the ones named below{% endif %}. The checks that cost money, spend a scarce quota or write anything were left for their own buttons.
+    {%- elif wait %}<b>Already running.</b> A check of {{ checked_name }} started a moment ago is still going, so it was not asked twice. Its row shows the last result.
+    {%- elif skipped %}<b>Not asked again.</b> {{ checked_name }} was asked less than {{ skipped[0].gap }} seconds ago{% if skipped[0].at %} ({{ skipped[0].at }} UTC){% endif %}, and it is asked at most once in that time. The result below is from then.
     {%- else %}<b>Checked.</b> The result is on its row below.{% endif -%}
   </p>
+  {% if checked == "all" and skipped %}
+  <ul class="pv-skips">
+    {%- for s in skipped %}
+    <li><b>{{ s.name }}</b> was not asked again: {% if s.running %}a check of it was already running{% else %}it is asked at most once every {{ s.gap }} seconds{% if s.at %}, and was last asked at {{ s.at }} UTC{% endif %}{% endif %}. Its row shows the last answer.</li>
+    {%- endfor %}
+  </ul>
+  {% endif %}
   {% endif %}
 
   <section class="pv-panel pv-intro" aria-label="How to read this page">
@@ -35,8 +45,8 @@
       <p class="pv-fig is-{{ key }}"><b>{{ counts[key] }}</b> {{ label }}</p>
       {%- endfor %}
     </div>
-    <p class="pv-copy"><b>Working</b> means the service answered a real, read-only question when you last checked. <b>Failing</b> means it was asked and refused or did not answer, in its own words. <b>Not asked</b> means nothing was sent: no safe check exists, an owner ruling keeps it off, or it has not been checked yet. That is not a failure.</p>
-    <p class="pv-copy"><b>Check all free services</b> skips the {{ costed }} checks that cost money, spend a scarce quota or write a test file; each has its own button, with its cost beside it. Every setting the app reads, including switches that are not outside services, is on <a href="/admin/readiness">Readiness</a>.</p>
+    <p class="pv-copy"><b>Working</b> means the service answered a real, read-only question when you last checked. <b>Failing</b> means it was asked and refused or did not answer, in its own words. <b>Not asked</b> means nothing was sent: no safe check exists, an owner ruling keeps it off, or it has not been checked yet. That is not a failure. A known state a service reported when asked, such as Google Routes not being switched on for the project, is named on its row and is not a failure either.</p>
+    <p class="pv-copy"><b>Check all free services</b> skips the {{ costed }} checks that cost money, spend a scarce quota or write a test file; each has its own button, with its cost beside it, and is asked at most once a minute, so a second press shows the last answer instead of spending again. Every setting the app reads, including switches that are not outside services, is on <a href="/admin/readiness">Readiness</a>.</p>
   </section>
 
   {% for fam in fams %}
@@ -50,9 +60,9 @@
           <p class="pv-powers">{{ p.powers }}{% if p.where %} <a href="{{ p.where }}">Open the page</a>{% endif %}</p>
           {%- if p.env or p.flags or p.any_of or p.optional %}
           <p class="pv-keys" aria-label="Keys, by name">
-            {%- for e in p.env %}<span class="pv-key {{ 'is-set' if (e.set or e.app) else 'is-missing' }}">{{ e.name }} &middot; {{ "held by the app" if e.app else ("set" if e.set else "missing") }}</span>{% endfor -%}
+            {%- for e in p.env %}<span class="pv-key {{ 'is-set' if (e.set or e.app) else ('is-optional' if e.pending else 'is-missing') }}">{{ e.name }} &middot; {{ ("held by the app (legacy)" if e.legacy else "held by the app") if e.app else ("set" if e.set else ("made by the app on first use" if e.pending else "missing")) }}</span>{% endfor -%}
             {%- for f in p.flags %}<span class="pv-key {{ 'is-set' if f.on else 'is-missing' }}">{{ f.name }} &middot; {{ "on" if f.on else "off" }}</span>{% endfor -%}
-            {%- for e in p.optional %}<span class="pv-key is-optional">{{ e.name }} &middot; {{ "held by the app" if e.app else ("set" if e.set else "not set") }} (optional)</span>{% endfor -%}
+            {%- for e in p.optional %}<span class="pv-key is-optional">{{ e.name }} &middot; {{ ("held by the app (legacy)" if e.legacy else "held by the app") if e.app else ("set" if e.set else "not set") }} (optional)</span>{% endfor -%}
           </p>
           {%- if p.any_of %}
           <p class="pv-keys" aria-label="Any one of these">

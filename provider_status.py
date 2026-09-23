@@ -39,10 +39,13 @@ import json
 import os
 import re
 import socket
+import sys
 import threading
 import time
 import urllib.error
 import urllib.parse
+import urllib.request
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
@@ -121,20 +124,23 @@ def _from_doc(doc):
     return ""
 
 
-def _words(raw, limit=240):
-    """What a vendor said in an error body, in its own words, shortened."""
+def _words(raw):
+    """What a vendor said in an error body, in its own words - whole. The
+    only cut is scrub()'s, made after the secrets are out: a cut made first
+    can split a key the vendor quoted, and the whole-value match then no
+    longer finds what is left of it (providers review, 2026-09-23)."""
     if isinstance(raw, bytes):
         raw = raw.decode("utf-8", "replace")
     if isinstance(raw, (dict, list)):
-        return _from_doc(raw)[:limit]
+        return _from_doc(raw)
     text = str(raw or "").strip()
     if text[:1] in ("{", "["):
         try:
-            return _from_doc(json.loads(text))[:limit]
+            return _from_doc(json.loads(text))
         except ValueError:
             pass
     text = re.sub(r"<[^>]+>", " ", text)            # an HTML error page
-    return " ".join(text.split())[:limit]
+    return " ".join(text.split())
 
 
 def _is_timeout(exc):
@@ -200,22 +206,49 @@ def _json_doc(body, service):
     return doc, None
 
 
+def _from_provider_error(service, exc, fallback=None):
+    """An adapter's ProviderError, read by what caused it: a body that was
+    not JSON is unreadable, a timeout is no answer, an HTTP refusal whose
+    status the adapter's words dropped is read from the response itself.
+    Otherwise the adapter's own words stand."""
+    cause = exc.__cause__ or exc.__context__
+    text = fallback(str(exc)) if fallback else str(exc)
+    if isinstance(cause, urllib.error.HTTPError) and str(cause.code) not in text:
+        return _from_exception(service, cause)
+    if isinstance(cause, ValueError):
+        return _malformed(service)
+    if cause is not None and _is_timeout(cause):
+        return _fail("%s did not answer in time." % service)
+    return _fail(text)
+
+
 # ---- the checks: music data and rights ------------------------------------------
 
 def _check_mlc():
     """Sign-in alone is not proof (2026-09-08: sign-in worked while search
     answered 401), so this searches by a known ISRC through the process's
-    own adapter. A 200 list and a 204 both mean it works."""
+    own adapter. Only a 204, or a 200 that is a list, means it works: the
+    product reads any other 200 as "no recording", which here would turn
+    an unreadable answer green (providers review, 2026-09-23)."""
     import signal_providers as sp
+    adapter = sp.mlc_adapter()
     try:
-        found = sp.mlc_adapter().find_recordings(isrc=KNOWN_ISRC)
+        status, answer = adapter._call_raw("/search/recordings", {"isrc": KNOWN_ISRC})
     except sp.ProviderError as e:
-        return _fail(str(e))
-    n = len(found or [])
-    if n:
-        return _ok("Signed in and searched by ISRC: The MLC answered with %s." % _plural(n, "recording"))
-    return _ok("Signed in and searched by ISRC: The MLC answered that it holds no recording "
-               "for the test ISRC, which is still an answer.")
+        return _from_provider_error("The MLC", e)
+    if status == 204:
+        return _ok("Signed in and searched by ISRC: The MLC answered 204, its word for holding no "
+                   "recording for the test ISRC, which is still an answer.")
+    if status == 200 and isinstance(answer, list):
+        if answer:
+            return _ok("Signed in and searched by ISRC: The MLC answered with %s."
+                       % _plural(len(answer), "recording"))
+        return _ok("Signed in and searched by ISRC: The MLC answered, with an empty list for a "
+                   "recording it has registered. The search works; if it keeps matching nothing, "
+                   "ask The MLC.")
+    if status == 200:
+        return _malformed("The MLC")
+    return _fail(adapter.refusal(status, answer))
 
 
 def _registry_adapter(key):
@@ -240,36 +273,61 @@ def _check_soundcharts():
     except sp.SoundchartsPaused as e:
         return _not_asked("%s. Nothing was asked." % e)
     except sp.ProviderError as e:
-        return _fail(str(e))
-    if not isinstance(body, dict):
+        return _from_provider_error("Soundcharts", e)
+    if not isinstance(body, dict) or not (isinstance(body.get("items"), list)
+                                          or isinstance(body.get("page"), dict)):
         return _malformed("Soundcharts")
     month = soundcharts_budget.summary()
     return _ok("Answered an artist search. That was 1 paid call: {:,} of this month's {:,} are used."
                .format(month["total"], month["budget"]))
 
 
+def _soundcharts_late():
+    try:
+        import soundcharts_budget
+        month = soundcharts_budget.summary()
+        return ("The call had already left and is counted as 1 paid call: this month's count "
+                "stands at {:,} of {:,}. Check that count before pressing again."
+                .format(month["total"], month["budget"]))
+    except Exception:
+        return "The call had already left and may still be counted as 1 paid call."
+
+
 def _check_songstats():
+    """The adapter's own artist search, below its cache, with the answer's
+    shape read: probe() calls an unreadable list "no match"."""
     import signal_providers as sp
-    result = sp.SongstatsAdapter().probe()
-    if result.get("ok"):
-        result = dict(result, detail="%s That spent 1 of Songstats' 1,000 calls this month."
-                      % result.get("detail", "Answered."))
-    return result
+    try:
+        payload = sp.SongstatsAdapter()._get("/artists/search", q="radiohead", limit=1)
+    except sp.ProviderError as e:
+        return _from_provider_error("Songstats", e)
+    found = payload.get("artists", payload.get("results")) if isinstance(payload, dict) else None
+    if not isinstance(found, list):
+        return _malformed("Songstats")
+    return _ok("Answered an artist search (%s). That spent 1 of Songstats' 1,000 calls this month."
+               % _plural(len(found), "result"))
 
 
 def _check_discogs():
     """Discogs' own who-am-I, below the adapter's six-hour cache, through
-    the process's one adapter so its rate window stays in one place."""
+    the process's one adapter and its pacing, so the check neither spends
+    the last call of a nearly-spent window nor lands unspaced beside a
+    catalog lookup."""
     import signal_providers as sp
     adapter = sp.discogs_adapter()
+    left = adapter._remaining
+    if left is not None and left <= adapter.low_water:
+        return _not_asked("Discogs' 60-a-minute window is nearly spent (%d left), so nothing was "
+                          "asked: the catalog lookups keep it. Try again in a minute." % left)
+    adapter._pace()
     try:
         status, headers, body = adapter._send("/oauth/identity", {})
     except sp.ProviderError as e:
-        return _fail(str(e))
+        return _from_provider_error("Discogs", e)
     adapter._read_limits(headers)
     if status != 200:
         return _refused("Discogs", status, adapter._message(status, body))
-    if not isinstance(body, dict):
+    if not isinstance(body, dict) or not (body.get("username") or body.get("id")):
         return _malformed("Discogs")
     left = (adapter.rate_limit() or {}).get("remaining")
     return _ok("The token works: Discogs knows who it belongs to.%s"
@@ -298,8 +356,10 @@ def _check_youtube():
     try:
         body = sp.YouTubeAdapter()._fetch_json("/channels", part="id", id=KNOWN_CHANNEL)
     except sp.ProviderError as e:
-        return _fail(sp.YouTubeAdapter.redact(str(e)))
-    if not isinstance(body, dict):
+        return _from_provider_error("YouTube", e, fallback=sp.YouTubeAdapter.redact)
+    if not isinstance(body, dict) or not (str(body.get("kind") or "").startswith("youtube#")
+                                          or isinstance(body.get("pageInfo"), dict)
+                                          or isinstance(body.get("items"), list)):
         return _malformed("YouTube")
     return _ok("Answered a one-unit channel lookup.")
 
@@ -316,14 +376,27 @@ def _check_acr_console():
         if _is_timeout(e):
             return _fail("The ACRCloud console did not answer in time.")
         return _fail("The ACRCloud console could not be reached: %s" % e.msg)
-    if "_raw" in answer or not isinstance(answer.get("data", []), list):
+    if not isinstance(answer, dict) or "_raw" in answer or not isinstance(answer.get("data"), list):
         return _malformed("The ACRCloud console")
     return _ok("The console token works: it can read the account's buckets.")
 
 
 def _check_musicbrainz():
+    """Through the registry's own adapter, so the check waits its turn on
+    the one-a-second pacing Signal's lookups keep, and with the answer's
+    shape read rather than probe()'s "no match"."""
     import signal_providers as sp
-    return sp.MusicBrainzAdapter().probe()
+    adapter = _registry_adapter("musicbrainz")
+    if not isinstance(adapter, sp.MusicBrainzAdapter):
+        adapter = sp.MusicBrainzAdapter()
+    try:
+        data = adapter._get("artist/", query="radiohead", limit=1)
+    except sp.ProviderError as e:
+        return _from_provider_error("MusicBrainz", e)
+    if not isinstance(data, dict) or not isinstance(data.get("artists"), list):
+        return _malformed("MusicBrainz")
+    return _ok("Answered an artist search (%s), inside their one-a-second rule."
+               % _plural(len(data["artists"]), "result"))
 
 
 # ---- touring and places -----------------------------------------------------------
@@ -390,10 +463,14 @@ def _check_places():
     doc, bad = _json_doc(body, "Google Places")
     if bad:
         return bad
-    if not isinstance(doc, dict):
+    if not isinstance(doc, dict) or doc.get("error"):
         return _malformed("Google Places")
-    n = len(doc.get("places") or [])
-    return _ok("Places (New) answered a text search (%s)." % _plural(n, "place"))
+    places = doc.get("places")
+    if not isinstance(places, list) or not places:
+        # The Ryman is always there: an answer without it is not one to trust.
+        return _fail("Google Places answered, but found no place for the test venue (%s), which "
+                     "it always has, so the answer cannot be trusted." % KNOWN_ROOM)
+    return _ok("Places (New) answered a text search (%s)." % _plural(len(places), "place"))
 
 
 def _classic_google(service, url, params):
@@ -448,22 +525,35 @@ def _check_routes():
                                       "X-Goog-FieldMask": vg.ROUTES_FIELD_MASK})
     except urllib.error.HTTPError as e:
         code, words, raw = _google_http_error("Google Routes", e)
-        status_word = ""
+        err = {}
         try:
-            status_word = str((json.loads(raw.decode("utf-8", "replace")).get("error") or {}).get("status") or "")
+            err = json.loads(raw.decode("utf-8", "replace")).get("error") or {}
         except Exception:
             pass
-        if code == 403 and status_word == "PERMISSION_DENIED":
-            return _not_asked("Not enabled on this Google project: Google refused the Routes API "
-                              "with PERMISSION_DENIED (%s). The route page draws straight lines "
-                              "until Routes is switched on in the Cloud console." % (words or "no message"))
+        err = err if isinstance(err, dict) else {}
+        reasons = {str(d.get("reason") or "") for d in (err.get("details") or []) if isinstance(d, dict)}
+        said = words or "no message"
+        # Asked, and Google named a known state of the project or the key.
+        # It gets its own label: "not asked" would be untrue after a call.
+        if code == 403 and "API_KEY_SERVICE_BLOCKED" in reasons:
+            return {"ok": None, "label": "Blocked by the key",
+                    "detail": "Google refused Routes because the API key's restrictions do not "
+                              "allow the Routes API (API_KEY_SERVICE_BLOCKED: %s). Add Routes to "
+                              "the key's allowed APIs in the Cloud console; until then the route "
+                              "page draws straight lines." % said}
+        if code == 403 and ("SERVICE_DISABLED" in reasons or "has not been used in project" in said
+                            or "is disabled" in said.lower()):
+            return {"ok": None, "label": "Not enabled",
+                    "detail": "Not enabled on this Google project: Google refused the Routes API "
+                              "(%s). The route page draws straight lines until Routes is switched "
+                              "on in the Cloud console." % said}
         return _refused("Google Routes", code, words)
     except Exception as e:
         return _from_exception("Google Routes", e)
     doc, bad = _json_doc(body, "Google Routes")
     if bad:
         return bad
-    if not isinstance(doc, dict):
+    if not isinstance(doc, dict) or not isinstance(doc.get("routes"), list) or not doc["routes"]:
         return _malformed("Google Routes")
     return _ok("Routes answered: drives between dates are measured, not drawn as straight lines.")
 
@@ -471,20 +561,48 @@ def _check_routes():
 # ---- money, shop and mail ------------------------------------------------------------
 
 def _stripe_secret_state():
-    """The webhook signing secret: an env value, or the per-mode one the
-    in-app setup stored. Either verifies a delivery."""
+    """How the app verifies a Stripe delivery: True (STRIPE_WEBHOOK_SECRET
+    is set), "app" (the per-mode secret the in-app setup keeps), "legacy"
+    (only the secret kept from before per-mode setup), or False. The route
+    accepts a delivery with any of them (stripe_provider.webhook_accepts)."""
     try:
         import stripe_provider
         if _env("STRIPE_WEBHOOK_SECRET"):
             return True
-        return "app" if stripe_provider.webhook_configured() else False
+        if stripe_provider.webhook_configured():
+            return "app"
+        return "legacy" if stripe_provider.webhook_accepts() else False
     except Exception:
         return bool(_env("STRIPE_WEBHOOK_SECRET"))
 
 
-def _check_stripe():
+def _this_base(given=None):
+    """This deployment's own address: the one the owner pressed the button
+    on (what Billing's one-click setup registers), else PUBLIC_BASE_URL."""
+    if given:
+        return given.rstrip("/")
+    if _env("PUBLIC_BASE_URL"):
+        return _env("PUBLIC_BASE_URL").rstrip("/")
+    app_module = sys.modules.get("app")
+    return str(getattr(app_module, "PUBLIC_BASE_URL", "") or "").rstrip("/")
+
+
+def _host_of(url):
+    try:
+        return (urllib.parse.urlsplit(str(url or "")).netloc or "").lower()
+    except ValueError:
+        return ""
+
+
+def _check_stripe(base_url=None):
     """A read of the webhook endpoints, through the GET seam only. Never
-    setup_webhook_endpoint(): after the same read it POSTs changes."""
+    setup_webhook_endpoint(): after the same read it POSTs changes.
+
+    Only an endpoint on THIS deployment's host counts - live and staging
+    can share one test-mode key, and the other's endpoint delivers nothing
+    here. Every state in which no delivery lands (no endpoint for this
+    host, one Stripe has disabled, or one whose secret the app does not
+    hold) is failing, alike (providers review, 2026-09-23)."""
     import stripe_provider as stripe
     mode = stripe.mode()
     try:
@@ -505,27 +623,38 @@ def _check_stripe():
     endpoints = doc.get("data") if isinstance(doc, dict) else None
     if not isinstance(endpoints, list):
         return _malformed("Stripe")
-    ours = [ep for ep in endpoints if isinstance(ep, dict)
-            and str(ep.get("url") or "").rstrip("/").endswith("/webhooks/stripe")]
-    base = _env("PUBLIC_BASE_URL").rstrip("/")
-    if base:
-        ours = [ep for ep in ours if ep.get("url") == base + "/webhooks/stripe"] or ours
-    held = bool(_stripe_secret_state())
+    base = _this_base(base_url)
+    host = _host_of(base)
+    hooks = [ep for ep in endpoints if isinstance(ep, dict)
+             and urllib.parse.urlsplit(str(ep.get("url") or "")).path.rstrip("/") == "/webhooks/stripe"]
+    ours = [ep for ep in hooks if host and _host_of(ep.get("url")) == host]
+    others = sorted({_host_of(ep.get("url")) for ep in hooks} - {host, ""})
+    where = "%s/webhooks/stripe" % (base or "this app")
     head = "The %s-mode key works." % mode
+    lost = "plan changes, renewals and refunds do not reach the app"
     if not ours:
-        return _ok("%s No webhook endpoint in this mode points at /webhooks/stripe (%s on the "
-                   "account); a checkout is still claimed when the buyer comes back to the app."
-                   % (head, _plural(len(endpoints), "endpoint")))
-    ep = ours[0]
+        return _fail("%s But no webhook endpoint in this mode points at %s, so %s; a checkout is "
+                     "still claimed when the buyer comes back to the app.%s Billing's one-click "
+                     "webhook setup makes one."
+                     % (head, where, lost, (" Other endpoints on the account point at %s."
+                                            % ", ".join(others)) if others else ""))
+    ep = next((e for e in ours if e.get("status") == "enabled"), ours[0])
     if ep.get("status") != "enabled":
-        return _fail("%s But Stripe has the webhook endpoint %s, so plan changes, renewals and "
-                     "refunds do not reach the app. Billing's one-click webhook setup switches it "
-                     "back on." % (head, ep.get("status") or "switched off"))
+        return _fail("%s But Stripe has the webhook endpoint for %s %s, so %s. Billing's one-click "
+                     "webhook setup switches it back on."
+                     % (head, where, ep.get("status") or "switched off", lost))
+    secret = _stripe_secret_state()
+    if not secret:
+        return _fail("%s The webhook endpoint for %s is enabled, but the app holds no signing "
+                     "secret for it, so every delivery is refused and %s. Billing's one-click "
+                     "webhook setup makes a new endpoint and keeps its secret." % (head, where, lost))
     events = set(ep.get("enabled_events") or [])
     current = "*" in events or set(stripe.WEBHOOK_EVENTS) <= events
-    return _ok("%s The webhook endpoint is enabled%s%s." % (
-        head, "" if current else ", but it is missing events the app listens for",
-        "" if held else ", and the app holds no signing secret for it, so deliveries are refused"))
+    legacy = (" The app holds only the signing secret kept from before per-mode setup, which "
+              "verifies a delivery only if it belongs to this endpoint; Billing's one-click "
+              "setup replaces it." if secret == "legacy" else "")
+    return _ok("%s The webhook endpoint for %s is enabled%s.%s" % (
+        head, where, "" if current else ", but it is missing events the app listens for", legacy))
 
 
 def _storefront_token_state():
@@ -542,6 +671,31 @@ def _storefront_token_state():
         return bool(_env("SHOPIFY_STOREFRONT_TOKEN"))
 
 
+def _storefront_pending(miss):
+    """(label, detail) when all that is missing is a Storefront token the
+    app makes for itself on the first Apparel visit (shopify_buy.
+    minted_token) - not something the owner has to set. Read, never
+    minted: a mint writes to the store."""
+    if list(miss) != ["SHOPIFY_STOREFRONT_TOKEN"]:
+        return None
+    try:
+        import shopify_buy
+        import shopify_customers
+        if not shopify_customers.uses_grant():
+            return None
+        err = shopify_buy.mint_error()
+    except Exception:
+        return None
+    detail = ("No Storefront token yet: the app mints one with its Admin credentials on the "
+              "first Apparel visit (or set SHOPIFY_STOREFRONT_TOKEN). Nothing was asked; a mint "
+              "from here would write to the store.")
+    if err:
+        detail += (" The last mint was refused (%s%s): the app's version needs the "
+                   "unauthenticated_* scopes." % (err.get("status") or "no answer",
+                                                   (": " + err["why"]) if err.get("why") else ""))
+    return ("Not minted yet", detail)
+
+
 def _check_shopify_buy():
     """The embed's own query, with the saved token, past the ten-minute cache."""
     import shopify_buy
@@ -556,6 +710,28 @@ def _check_shopify_buy():
     return _ok(detail)
 
 
+def _grant_failure(err):
+    """Why the client credentials grant gave no token, by what it answered:
+    only a refusal is about the credentials (providers review, 2026-09-23:
+    an outage read as "refused" invites rotating a working secret)."""
+    status = err.get("status")
+    why = str(err.get("why") or "").strip()
+    said = (": " + why) if why else ""
+    if status in (401, 403) or "invalid_client" in why.lower():
+        return _fail("Shopify refused the app's credentials: the client credentials grant "
+                     "answered %s%s." % (status or "a refusal", said))
+    if status == 429:
+        return _fail("Shopify is rate-limiting the token grant (HTTP 429)%s. The credentials were "
+                     "not judged; try again in a minute." % said)
+    if isinstance(status, int) and status >= 500:
+        return _fail("Shopify's token grant had a server error (HTTP %d)%s. That is Shopify's "
+                     "side, not the credentials." % (status, said))
+    if not status:
+        return _fail("Shopify's token grant could not be reached or did not answer in time%s. The "
+                     "credentials were not judged." % said)
+    return _fail("Shopify's token grant answered HTTP %s%s." % (status, said))
+
+
 def _check_shopify_admin():
     """{ shop { name } } with the Admin token: about one point of Shopify's
     cost bucket. The grant is asked only when the kept 24-hour token has
@@ -564,9 +740,7 @@ def _check_shopify_admin():
     import shopify_customers as sc
     admin = sc.token()
     if not admin:
-        err = sc.grant_error() or {}
-        return _fail("Shopify refused the app's credentials: the client credentials grant answered %s%s."
-                     % (err.get("status") or "nothing", (": " + err["why"]) if err.get("why") else ""))
+        return _grant_failure(sc.grant_error() or {})
     url = "https://%s/admin/api/%s/graphql.json" % (sc.domain(), sc.API_VERSION)
     headers = {"Content-Type": "application/json", "X-Shopify-Access-Token": admin,
                "User-Agent": "StreetBanker/1.0"}
@@ -635,12 +809,39 @@ def _check_r2():
         ttls = (3600, 7 * 24 * 3600)
     report = blob_store.round_trip(ttls=ttls)
     verdict = report.get("verdict") or "no verdict"
-    tidy = "" if report.get("cleaned_up", True) else " The test object could not be deleted."
+    tidy = _r2_tidy(report)
     if report.get("ok"):
         return _ok("Wrote a test object, read it back through a signed link and deleted it: %s.%s"
                    % (verdict, tidy))
     return _fail("The R2 round trip failed at the %s step: %s.%s"
                  % (report.get("step") or "read", verdict, tidy))
+
+
+R2_TEST_PREFIX = "diagnostics/round-trip-"
+
+
+def _r2_tidy(report):
+    """Whether the test object is gone, said only as far as it is known:
+    a missing answer after a write was attempted is "not confirmed", not
+    "tidy" (providers review, 2026-09-23: a lost reply left one behind)."""
+    key = report.get("key") or (R2_TEST_PREFIX + "...")
+    cleaned = report.get("cleaned_up")
+    if cleaned is True:
+        return ""
+    if cleaned is False:
+        return (" The test object (%s) could not be deleted; it is a few bytes and safe to remove "
+                "by hand." % key)
+    if report.get("step") == "configured" or (report.get("step") == "put"
+                                               and isinstance(report.get("status"), int)
+                                               and report["status"] < 500):
+        return ""                                     # nothing was stored
+    return (" Whether the test object (%s) was deleted is not confirmed; look for keys starting "
+            "%s in the bucket." % (key, R2_TEST_PREFIX))
+
+
+def _r2_late():
+    return ("The test write may still be in flight. The round trip deletes its object when it "
+            "finishes; if it never does, look for keys starting %s in the bucket." % R2_TEST_PREFIX)
 
 
 def _local_backup(store):
@@ -685,7 +886,9 @@ def _local_sentry(store):
 def _local_webhooks(store):
     state = _stripe_secret_state()
     parts = [
-        "Stripe: %s" % ({True: "secret set", "app": "secret held by the app (set up in-app)"}
+        "Stripe: %s" % ({True: "secret set", "app": "secret held by the app (set up in-app)",
+                         "legacy": "legacy secret held by the app (from before per-mode setup); "
+                                   "Billing's one-click setup replaces it"}
                         .get(state, "no signing secret, so deliveries are refused")),
         "Resend: %s" % ("secret set" if _env("RESEND_WEBHOOK_SECRET") else "no secret"),
         "ElevenLabs: %s" % ("secret set" if _env("ELEVENLABS_WEBHOOK_SECRET") else "no secret"),
@@ -715,7 +918,7 @@ def _check_elevenlabs():
             return _fail("ElevenLabs did not answer in time.")
         if isinstance(e, ValueError):
             return _malformed("ElevenLabs")
-        return _fail("%s: %s" % (type(e).__name__, str(e)[:200]))
+        return _fail("%s: %s" % (type(e).__name__, e))      # scrub() makes the only cut
     try:
         n = len(list(models or []))
     except Exception:
@@ -749,27 +952,45 @@ def _check_roex():
     return _fail("RoEx answered %s.%s" % (out.status, said))
 
 
+_CLOUDFLARE_1010 = re.compile(r"(?i)\berror\s*(?:code\s*:?\s*)?1010\b")
+_BALANCE_WORDS = ("balance", "credit", "remaining", "minutes", "seconds")
+
+
+def _balance_like(doc):
+    keys = set(doc)
+    if isinstance(doc.get("data"), dict):
+        keys |= set(doc["data"])
+    return any(w in str(k).lower() for k in keys for w in _BALANCE_WORDS)
+
+
 def _check_stemsplit():
-    """The free balance read - one path, not the five probe() walks."""
+    """The free balance read - one path, not the five probe() walks - with
+    the app's own host and headers, but read raw: stemsplit_provider._call
+    keeps an error body only when it is JSON, and Cloudflare's 1010 is
+    plain text ("error code: 1010"), so through _call the firewall read as
+    a refused key (providers review, 2026-09-23)."""
     import stemsplit_provider as ss
-    data, err = ss._call("GET", "/balance")
-    if err:
-        text = str(err)
-        found = re.search(r"\(HTTP (\d{3})\)\s*$", text)
-        status = int(found.group(1)) if found else None
-        if status == 403 and "1010" in text:
+    req = urllib.request.Request(ss.BASE + "/balance", headers=ss._headers(), method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw = resp.read()
+    except urllib.error.HTTPError as e:
+        try:
+            text = (e.read() or b"").decode("utf-8", "replace")
+        except Exception:
+            text = ""
+        if e.code == 403 and _CLOUDFLARE_1010.search(text):
             return _fail("Cloudflare's firewall in front of StemSplit refused the request (error "
                          "1010) before StemSplit read the key.")
-        if status == 404:
+        if e.code == 404:
             return _fail("StemSplit answered 404 for /balance: the path is wrong, not the key.")
-        if status:
-            return _refused("StemSplit", status, text[:found.start()].strip())
-        if re.search(r"Expecting value|JSON|Unterminated|Extra data", text):
-            return _malformed("StemSplit")
-        if "timed out" in text.lower():
-            return _fail("StemSplit did not answer in time.")
-        return _fail("StemSplit could not be reached: %s" % text)
-    if not isinstance(data, dict):
+        return _refused("StemSplit", e.code, _words(text) or str(e.reason or ""))
+    except Exception as e:
+        return _from_exception("StemSplit", e)
+    doc, bad = _json_doc(raw, "StemSplit")
+    if bad:
+        return bad
+    if not isinstance(doc, dict) or not _balance_like(doc):
         return _malformed("StemSplit")
     return _ok("StemSplit answered the balance read. Reading it spends no credit.")
 
@@ -879,16 +1100,27 @@ def _local_symphonic(store):
 #   flags      *_ENABLED switches that must be on
 #   any_of     alternative credential sets; one complete set is enough
 #   present    {name: callable} for a key the app may hold outside the
-#              environment (True, "app" = held by the app, or False)
+#              environment (True, "app"/"legacy" = held by the app, or False)
+#   pending    callable(missing) -> None, or (label, detail): what is missing
+#              is something the app makes for itself, not a thing to set
 #   sandboxed  the app's own configured() is False on a SANDBOX deployment
 #   gate       callable -> None, or (label, detail): not asked, by ruling
-#   check      callable -> {"ok", "detail"}; None when no safe check exists
+#   check      callable -> {"ok", "detail"[, "label"]}; None when no safe
+#              check exists. needs_base: it is called with this
+#              deployment's base URL (the Stripe webhook is per host)
 #   no_check   what the row says when there is no check
 #   local      callable(store) -> a result read from what the app already
 #              keeps (no network), shown on a page view
 #   fixed      (label, detail) for a row whose state is a known fact
 #   auto       part of "Check all": free, read-only, writes nothing
 #   cost, cost_kind ("billed", "quota", "writes"), timeout, min_interval_s
+#   late       callable -> what a costed check that ran past its limit has
+#              already spent; its call is not recalled by the time limit
+#
+# Every costed row has a min_interval_s, so a second press inside it shows
+# the stored answer instead of spending again, and its time limit sits
+# above its adapter's own worst case, so a call that is still going to be
+# counted is not reported as a plain failure.
 
 FAMILIES = (
     ("music", "Music data and rights"),
@@ -918,12 +1150,13 @@ PROVIDERS = [
                  ("SOUNDCHARTS_APP_ID", "SOUNDCHARTS_API_KEY")),
          optional=("SOUNDCHARTS_TEAM_ID",),
          check=_check_soundcharts, auto=False, cost_kind="billed",
+         timeout=35, min_interval_s=60, late=_soundcharts_late,
          cost="Spends 1 paid call from the plan's monthly quota, counted in the Soundcharts "
               "budget. Refused unasked when the month's allowance is spent."),
     dict(key="songstats", name="Songstats", family="music", where="/royalties",
          powers="Which stores carry an ISRC, for the store coverage check on Royalties and Statements.",
          env=("SONGSTATS_API_KEY",), flags=("SONGSTATS_ENABLED",),
-         check=_check_songstats, auto=False, cost_kind="quota",
+         check=_check_songstats, auto=False, cost_kind="quota", timeout=15, min_interval_s=60,
          cost="Spends 1 of the 1,000 calls Songstats allows a month for artist search."),
     dict(key="discogs", name="Discogs", family="music", where="/catalog",
          powers="Finding a pressing and filling its label, catalogue number and credits on a track.",
@@ -990,21 +1223,24 @@ PROVIDERS = [
     dict(key="google_places", name="Google Places (venue photos)", family="touring", where="/tours",
          powers="The venue photo beside each tour date, with Google's credit.",
          env=("GOOGLE_MAPS_API_KEY",), sandboxed=True,
-         check=_check_places, auto=False, cost_kind="billed", cost=_GOOGLE_BILLED),
+         check=_check_places, auto=False, cost_kind="billed", min_interval_s=60,
+         cost=_GOOGLE_BILLED),
     dict(key="google_geocoding", name="Google Geocoding", family="touring", where="/tours",
          powers="Fetch coordinates on the tour home: a venue's map pin and its matched address.",
          env=("GOOGLE_MAPS_API_KEY",), sandboxed=True,
-         check=_check_geocoding, auto=False, cost_kind="billed", cost=_GOOGLE_BILLED),
+         check=_check_geocoding, auto=False, cost_kind="billed", min_interval_s=60,
+         cost=_GOOGLE_BILLED),
     dict(key="google_timezone", name="Google Time Zone", family="touring", where="/tours",
          powers="Each venue's time zone, which the day sheet, My Day and the calendar file print.",
          env=("GOOGLE_MAPS_API_KEY",), sandboxed=True,
-         check=_check_timezone, auto=False, cost_kind="billed", cost=_GOOGLE_BILLED),
+         check=_check_timezone, auto=False, cost_kind="billed", min_interval_s=60,
+         cost=_GOOGLE_BILLED),
     dict(key="google_routes", name="Google Routes", family="touring", where="/tours",
          powers="Measured drives between dates on the route map, and the late-for-load-in flag.",
          env=("GOOGLE_MAPS_API_KEY",), sandboxed=True,
          note="Not enabled on the owner's Google project (2026-09-09), so the route page draws "
               "straight lines. Nothing is asked until you press the button.",
-         check=_check_routes, auto=False, cost_kind="billed",
+         check=_check_routes, auto=False, cost_kind="billed", min_interval_s=60,
          cost="Billed by Google above the free monthly cap once enabled; a refused call is not billed."),
 
     # -- money, shop and mail --
@@ -1012,12 +1248,13 @@ PROVIDERS = [
          powers="Memberships, fan-club subscriptions, VIP tickets and Release-Ready masters.",
          env=("STRIPE_SECRET_KEY",), optional=("STRIPE_WEBHOOK_SECRET",),
          present={"STRIPE_WEBHOOK_SECRET": _stripe_secret_state}, sandboxed=True,
-         check=_check_stripe, auto=True,
+         check=_check_stripe, needs_base=True, auto=True,
          cost="Free: a read of the webhook endpoints. Nothing is changed."),
     dict(key="shopify_buy", name="Shopify Buy Buttons", family="money", where="/apparel",
          powers="The store embed on Apparel and the merch shelf on the owner's EPK.",
          env=("SHOPIFY_DOMAIN", "SHOPIFY_COLLECTION_ID", "SHOPIFY_STOREFRONT_TOKEN"),
          present={"SHOPIFY_STOREFRONT_TOKEN": _storefront_token_state},
+         pending=_storefront_pending,
          note="The embed loads Shopify's script in the visitor's browser; a pass here proves the "
               "token and collection it uses, not the script.",
          check=_check_shopify_buy, auto=True,
@@ -1054,7 +1291,8 @@ PROVIDERS = [
                 "links RoEx downloads from.",
          env=("R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"),
          optional=("R2_PUBLIC_BASE_URL",), sandboxed=True,
-         check=_check_r2, auto=False, cost_kind="writes", timeout=45,
+         check=_check_r2, auto=False, cost_kind="writes", timeout=45, min_interval_s=60,
+         late=_r2_late,
          cost="Writes and deletes one tiny test object in the bucket (a few R2 operations, "
               "inside the free tier)."),
     dict(key="backup", name="Off-box backup", family="storage", where="/settings",
@@ -1096,7 +1334,7 @@ PROVIDERS = [
     dict(key="itunes", name="Apple iTunes lookup", family="lookups", where="/discover",
          powers="Song results on Discover and the Apple lane of the store check.",
          check=_check_itunes, auto=True, cost="Free, no key."),
-    dict(key="deezer", name="Deezer", family="lookups", where="/catalog/add",
+    dict(key="deezer", name="Deezer", family="lookups", where="/catalog",
          powers="ISRC, UPC and label autofill on Add to catalog, and the Deezer lane of the store check.",
          check=_check_deezer, auto=True, cost="Free, no key."),
     dict(key="odesli", name="Odesli (song.link)", family="lookups", where="/links",
@@ -1166,6 +1404,14 @@ def gate(p):
 
 # ---- never show a secret -------------------------------------------------------------------
 
+# Names whose values are credentials. Their values are blanked even when a
+# vendor quoted only the first part of one; a bucket name, a domain or a
+# sender address is blanked whole but not by its first characters, which
+# would eat ordinary words ("Street B...").
+_SECRET_NAME = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|DSN|CLIENT_ID|APP_ID)")
+_RUN = 8                      # this many characters of a secret in a row is a leak
+
+
 def _all_names():
     names = set()
     for q in PROVIDERS:
@@ -1176,30 +1422,138 @@ def _all_names():
     return names
 
 
+def _kv_many(store, keys):
+    """{key: value} for the app_kv rows that exist among `keys`, in one
+    read. Every connection is a file open and, for a write, a sync; a page
+    view or a Check all that opened one per row spent seconds on them
+    (fixer, 2026-09-23)."""
+    keys = [k for k in dict.fromkeys(keys) if k]
+    if not keys:
+        return {}
+    try:
+        with store.get_db() as conn:
+            found = conn.execute("SELECT key, value FROM app_kv WHERE key IN (%s)"
+                                 % ",".join("?" * len(keys)), keys).fetchall()
+    except Exception:
+        return {}
+    return {row["key"]: row["value"] for row in found}
+
+
+def _kept_token(raw):
+    """A secret the app keeps in app_kv: plain, or {"token": ...}."""
+    raw = str(raw or "")
+    if raw[:1] == "{":
+        try:
+            return str((json.loads(raw) or {}).get("token") or "")
+        except ValueError:
+            return ""
+    return raw
+
+
+def _held_secrets():
+    """Credentials the app holds outside the environment, read as kept -
+    never minted, never asked for: the Shopify Admin token from the client
+    credentials grant, the Storefront token the app minted, the Stripe
+    signing secrets the in-app setup saved (each mode's, and the legacy
+    one), Soundcharts' kept bearer, and The MLC's bearers in this process.
+    scrub() knew only the environment, so an echo of these came back whole
+    (providers review, 2026-09-23)."""
+    out = []
+    try:
+        import db
+    except Exception:
+        return out
+    kv_keys = []
+    for module, attr in (("shopify_customers", "GRANT_KEY"), ("shopify_buy", "STOREFRONT_KEY"),
+                         ("stripe_provider", "_LEGACY_SECRET_KEY")):
+        try:
+            kv_keys.append(getattr(__import__(module), attr))
+        except Exception:
+            pass
+    kv_keys += ["stripe_live_webhook_secret", "stripe_test_webhook_secret"]
+    sp = sys.modules.get("signal_providers")
+    if sp is not None:
+        kv_keys.append(getattr(getattr(sp, "SoundchartsAdapter", None), "token_kv_key", ""))
+    kept = _kv_many(db, [k for k in kv_keys if k])  # one read, not one per secret
+    out.extend(_kept_token(v) for v in kept.values())
+    mlc = getattr(sp, "_mlc", None) if sp is not None else None
+    for attr in ("_access", "_id", "_refresh"):
+        out.append(str(getattr(mlc, attr, "") or ""))
+    return [v.strip() for v in out if v and len(v.strip()) >= 6]
+
+
+def _spellings(value):
+    """A value as typed, URL-encoded and JSON-escaped: the ways it leaves."""
+    return {value, urllib.parse.quote(value, safe=""), urllib.parse.quote_plus(value),
+            json.dumps(value)[1:-1]}
+
+
 def _secret_forms():
-    """Every configured value (not the on/off switches), in the spellings a
-    value can take on its way out: as typed, URL-encoded, JSON-escaped."""
-    out = set()
+    """(whole, runs): every configured value (not the on/off switches) and
+    every held secret, in its spellings; and the credential spellings whose
+    first characters alone are enough to blank (a URL-shaped one from past
+    its scheme, where the key starts)."""
+    whole, runs = set(), set()
     for n in _all_names():
         v = _env(n)
         if len(v) < 6:
             continue
-        out.add(v)
-        out.add(urllib.parse.quote(v, safe=""))
-        out.add(urllib.parse.quote_plus(v))
-        out.add(json.dumps(v)[1:-1])
-    return out
+        whole |= _spellings(v)
+        if _SECRET_NAME.search(n):
+            runs |= _spellings(v.split("://", 1)[1] if "://" in v else v)
+    for v in _held_secrets():
+        whole |= _spellings(v)
+        runs |= _spellings(v)
+    return whole, runs
 
 
-def scrub(text, p=None, limit=400):
-    """The words of a result with every configured value blanked - every
-    provider's, whichever row the words belong to, since one vendor may
-    quote a header another's key rode in - and anything shaped like a bearer
-    token or a key parameter cut out. Shortened for the page."""
+def _blank_runs(text, value):
+    """Blank every place `value` begins in `text`, however soon it stops:
+    an adapter that cut a vendor's words at 200 characters may have cut a
+    quoted key in two, and the part before the cut is still the key."""
+    if len(value) < _RUN:
+        return text
+    head = value[:_RUN]
+    if head not in text:
+        return text
+    out, i = [], 0
+    while True:
+        j = text.find(head, i)
+        if j < 0:
+            out.append(text[i:])
+            return "".join(out)
+        k = _RUN
+        while j + k < len(text) and k < len(value) and text[j + k] == value[k]:
+            k += 1
+        out.append(text[i:j])
+        out.append("[hidden]")
+        i = j + k
+
+
+# A header echoed back as a dict, a tuple or a line: the name, then the value.
+_HEADER_VALUE = re.compile(
+    r"(?i)\b(x-shopify-(?:storefront-)?access-token|x-goog-api-key|xi-api-key|x-api-key|"
+    r"x-app-id|apikey|authorization)"
+    r"(\s*['\"]?\s*[:=]\s*['\"]?\s*|['\"]\s*,\s*['\"])"
+    r"((?:bearer|basic|discogs\s+token=|token)\s*)?"
+    r"(?!\[hidden\])(?!(?:bearer|basic|token)\s)[^'\"\s,;}\]]+")
+
+
+def scrub(text, p=None, limit=400, forms=None):
+    """The words of a result with every secret blanked - every provider's
+    and every one the app holds, whichever row the words belong to, since
+    one vendor may quote a header another's key rode in - and anything
+    shaped like a bearer token, a key parameter or a credential header cut
+    out. Shortened for the page only after that: this is the only cut."""
     text = str(text or "")
-    for v in sorted(_secret_forms(), key=len, reverse=True):
+    whole, runs = forms if forms is not None else _secret_forms()
+    for v in sorted(whole, key=len, reverse=True):
         if v:
             text = text.replace(v, "[hidden]")
+    for v in sorted(runs, key=len, reverse=True):
+        text = _blank_runs(text, v)
+    text = _HEADER_VALUE.sub(lambda m: m.group(1) + m.group(2) + (m.group(3) or "") + "[hidden]",
+                             text)
     text = re.sub(r"(?i)\b(bearer)\s+[A-Za-z0-9\-._~+/=]{8,}", r"\1 [hidden]", text)
     text = re.sub(r"\bBasic\s+[A-Za-z0-9+/=]{16,}", "Basic [hidden]", text)
     # Stripe says "Invalid API Key provided: sk_test_****1234": even a
@@ -1213,34 +1567,75 @@ def scrub(text, p=None, limit=400):
 
 # ---- running a check ------------------------------------------------------------------------
 
+# Results that say only "nothing was asked, because of how it is set up".
+# They are shown live from the environment and never stored: a stored one
+# outlives the setting that caused it (providers review, 2026-09-23).
+_UNSTORED = ("unconfigured", "gated")
+
+_LATE = {
+    "billed": "The call had already left and may still be billed (1 call); check the provider's "
+              "usage before pressing again.",
+    "quota": "The call had already left and may still count against the quota (1 call); check "
+             "the provider's usage before pressing again.",
+    "writes": "The write may still complete after this.",
+}
+
+
 def _now_iso():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def run(p, timeout=None):
+def _pending(p, miss):
+    fn = p.get("pending")
+    if not fn or not miss:
+        return None
+    try:
+        return fn(miss)
+    except Exception:
+        return None
+
+
+def run(p, timeout=None, base_url=None):
     """Run one provider's check under a hard time limit. Returns
-    {ok, detail, ms, at}. Never raises, and calls nobody unless the service
-    is configured, not gated and has a safe check."""
+    {ok, detail, ms, at} (plus "reason" when nothing could be asked, and
+    "label" for a known state a service named), its words scrubbed. Never
+    raises, and calls nobody unless the service is configured, not gated
+    and has a safe check."""
+    return _scrubbed(_ask(p, timeout, base_url), p, _secret_forms())
+
+
+def _scrubbed(result, p, forms):
+    """The result with its words scrubbed. The secrets are read after the
+    check, since a check can leave a new one behind (a grant's token)."""
+    return dict(result, detail=scrub(result.get("detail") or "", p, forms=forms))
+
+
+def _ask(p, timeout=None, base_url=None):
+    """run() without the scrub: the words as the check gave them. Check all
+    scrubs every result at once, with the secrets read once."""
     timeout = timeout if timeout is not None else p.get("timeout", CHECK_TIMEOUT_S)
     started = time.monotonic()
     if p.get("fixed"):
-        return {"ok": None, "detail": p["fixed"][1], "ms": 0, "at": _now_iso()}
+        return {"ok": None, "detail": p["fixed"][1], "ms": 0, "at": _now_iso(), "reason": "fixed"}
     if p.get("check") is None:
         return {"ok": None, "detail": p.get("no_check") or
                 "No safe live check exists for this service; only its keys are read.",
-                "ms": 0, "at": _now_iso()}
+                "ms": 0, "at": _now_iso(), "reason": "no_check"}
     miss = missing(p)
     if miss:
-        return {"ok": None, "detail": "Not configured: set %s. Nothing was asked." % ", ".join(miss),
-                "ms": 0, "at": _now_iso()}
+        pend = _pending(p, miss)
+        return {"ok": None, "ms": 0, "at": _now_iso(), "reason": "unconfigured",
+                "detail": pend[1] if pend else
+                "Not configured: set %s. Nothing was asked." % ", ".join(miss)}
     ruled = gate(p)
     if ruled:
-        return {"ok": None, "detail": ruled[1], "ms": 0, "at": _now_iso()}
+        return {"ok": None, "detail": ruled[1], "ms": 0, "at": _now_iso(), "reason": "gated"}
     box = {}
 
     def work():
         try:
-            box["r"] = p["check"]() or {}
+            fn = p["check"]
+            box["r"] = (fn(base_url) if p.get("needs_base") else fn()) or {}
         except Exception as e:                      # the service's own words
             box["r"] = {"ok": False, "detail": "%s: %s" % (type(e).__name__, e)}
 
@@ -1249,34 +1644,74 @@ def run(p, timeout=None):
     t.join(timeout)
     ms = int((time.monotonic() - started) * 1000)
     if t.is_alive():
-        return {"ok": False, "detail": "No answer within %d seconds." % timeout, "ms": ms, "at": _now_iso()}
+        # The time limit stops the waiting, not the call. For a check that
+        # costs, the call has left and will be counted; saying only "no
+        # answer" would invite a second paid press.
+        detail = "No answer within %g seconds." % timeout
+        if p.get("cost_kind"):
+            note = None
+            try:
+                note = p["late"]() if p.get("late") else None
+            except Exception:
+                note = None
+            detail += " " + (note or _LATE.get(p["cost_kind"], ""))
+        return {"ok": False, "detail": detail, "ms": ms, "at": _now_iso()}
     r = box.get("r") or {}
     ok = r.get("ok")
-    return {"ok": ok if ok in (True, False) else None,
-            "detail": scrub(r.get("detail") or ("Answered." if ok else "No detail given."), p),
-            "ms": ms, "at": _now_iso()}
+    out = {"ok": ok if ok in (True, False) else None,
+           "detail": str(r.get("detail") or ("Answered." if ok else "No detail given.")),
+           "ms": ms, "at": _now_iso()}
+    if out["ok"] is None and r.get("label"):
+        out["label"] = str(r["label"])[:40]
+    return out
+
+
+_UPSERT = ("INSERT INTO app_kv (key, value, updated) VALUES (?, ?, ?) "
+           "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated = excluded.updated")
 
 
 def save(key, result, store):
     store.set_kv(KV_PREFIX + key, json.dumps(result))
 
 
-def last(key, store):
+def _save_many(results, store):
+    """Every result of one Check all, in one write."""
+    rows = [(KV_PREFIX + key, json.dumps(r), _now_iso()) for key, r in results.items()]
+    if rows:
+        with store.get_db() as conn:
+            conn.executemany(_UPSERT, rows)
+
+
+def _parse(raw):
     try:
-        raw = store.get_kv(KV_PREFIX + key)
         return json.loads(raw) if raw else None
     except Exception:
         return None
 
 
-def _too_soon(p, store):
-    """A service with a tight shared limit is asked at most once per
-    min_interval_s; inside it the last answer stands."""
+def last(key, store):
+    try:
+        return _parse(store.get_kv(KV_PREFIX + key))
+    except Exception:
+        return None
+
+
+def _lasts(keys, store):
+    """{key: the last stored result or None} for many providers, in one read."""
+    kept = _kv_many(store, [KV_PREFIX + k for k in keys])
+    return {k: _parse(kept.get(KV_PREFIX + k)) for k in keys}
+
+
+def _too_soon(p, prev):
+    """A service with a tight shared limit, or a check that costs, is asked
+    at most once per min_interval_s; inside it the last answer stands. An
+    answer counts when something was asked: working, failing, or a known
+    state the service named (a label) - Google Routes' "Not enabled" came
+    back from a real call."""
     gap = p.get("min_interval_s")
-    if not gap:
+    if not gap or not prev:
         return False
-    prev = last(p["key"], store)
-    if not prev or prev.get("ok") is None:
+    if prev.get("ok") is None and not prev.get("label"):
         return False
     try:
         at = datetime.fromisoformat(prev["at"])
@@ -1285,16 +1720,85 @@ def _too_soon(p, store):
     return (datetime.now(timezone.utc) - at).total_seconds() < gap
 
 
-def check(key, store):
-    """Run and remember one provider's check."""
+# One check per service at a time, across workers: a double-click sends two
+# POSTs, and without this both ran - a paid check spent twice, and Check all
+# asked Odesli and MusicBrainz twice inside their limits (providers review,
+# 2026-09-23). A lease is a row in app_kv claimed in one statement; it
+# lapses by itself after the check's time limit, so a crashed worker cannot
+# hold it.
+LEASE_PREFIX = KV_PREFIX + "running:"
+
+_CLAIM = (_UPSERT + " WHERE app_kv.value = '' OR CAST(app_kv.value AS REAL) < ?")
+
+
+def _claim_many(holds, store):
+    """Claim leases in one write: {name: lease} for each (name, hold_s)
+    claimed. The first name gates the rest - when it is held, nothing is
+    claimed (Check all's own lease, before any service's)."""
+    now = time.time()
+    got = {}
+    with store.get_db() as conn:
+        for i, (name, hold_s) in enumerate(holds):
+            value = "%.3f %s" % (now + hold_s, uuid.uuid4().hex)
+            cur = conn.execute(_CLAIM, (LEASE_PREFIX + name, value, _now_iso(), now))
+            if cur.rowcount == 1:
+                got[name] = value
+            elif i == 0:
+                return {}
+    return got
+
+
+def _claim(name, hold_s, store):
+    return _claim_many([(name, hold_s)], store).get(name)
+
+
+def _release_many(leases, store):
+    if not leases:
+        return
+    try:
+        with store.get_db() as conn:
+            conn.executemany("UPDATE app_kv SET value = '', updated = ? WHERE key = ? AND value = ?",
+                             [(_now_iso(), LEASE_PREFIX + name, value)
+                              for name, value in leases.items()])
+    except Exception:
+        pass                                        # each lapses by itself
+
+
+def _release(name, value, store):
+    _release_many({name: value}, store)
+
+
+def _hold(p):
+    return float(p.get("timeout", CHECK_TIMEOUT_S)) + 5.0
+
+
+def _skipped(prev, why):
+    """The last stored answer, marked as not asked again just now: "busy"
+    (a check of it is already running) or "too_soon" (inside its
+    min_interval_s). Never stored."""
+    return dict(prev or {}, skipped=why)
+
+
+def check(key, store, base_url=None):
+    """Run and remember one provider's check - unless one is already
+    running, or it was asked inside its interval: then the last answer,
+    marked "skipped"."""
     p = by_key(key)
     if p is None:
         return None
-    if _too_soon(p, store):
-        return last(key, store)
-    result = run(p)
-    save(key, result, store)
-    return result
+    lease = _claim(key, _hold(p), store)
+    if not lease:
+        return _skipped(last(key, store), "busy")
+    try:
+        prev = last(key, store)
+        if _too_soon(p, prev):
+            return _skipped(prev, "too_soon")
+        result = run(p, base_url=base_url)
+        if result.get("reason") not in _UNSTORED:
+            save(key, result, store)
+        return result
+    finally:
+        _release(key, lease, store)
 
 
 def auto_keys():
@@ -1302,26 +1806,52 @@ def auto_keys():
     return [p["key"] for p in PROVIDERS if p.get("auto")]
 
 
-def check_all(store):
+def check_all(store, base_url=None):
     """Every provider whose check is free, together, each under its own time
     limit. The ones that spend money or a scarce quota, or write anything,
-    are left for their own button; the ones not configured or gated are
-    recorded as such without calling anyone."""
-    todo = [p for p in PROVIDERS if p.get("auto") and not _too_soon(p, store)]
-    if not todo:
+    are left for their own button; the ones not configured or gated answer
+    without calling anyone. One Check all at a time; a service already
+    being checked, or asked inside its interval, is skipped (marked).
+
+    The bookkeeping - leases, last results, the secrets to scrub, the saves
+    - is one read or write each, not one per service, so the whole press
+    stays close to its slowest check's limit."""
+    auto = [p for p in PROVIDERS if p.get("auto")]
+    if not auto:
         return {}
-    with ThreadPoolExecutor(max_workers=len(todo)) as pool:
-        results = dict(zip([p["key"] for p in todo], pool.map(run, todo)))
-    for key, result in results.items():
-        save(key, result, store)
+    leases = _claim_many([("all", max(_hold(p) for p in auto))] +
+                         [(p["key"], _hold(p)) for p in auto], store)
+    prevs = _lasts([p["key"] for p in auto], store)
+    if "all" not in leases:
+        return {p["key"]: _skipped(prevs[p["key"]], "busy") for p in auto}
+    results, todo = {}, []
+    try:
+        for p in auto:
+            key = p["key"]
+            if key not in leases:
+                results[key] = _skipped(prevs[key], "busy")
+            elif _too_soon(p, prevs[key]):
+                results[key] = _skipped(prevs[key], "too_soon")
+            else:
+                todo.append(p)
+        if todo:
+            with ThreadPoolExecutor(max_workers=len(todo)) as pool:
+                ran = list(pool.map(lambda q: _ask(q, base_url=base_url), todo))
+            forms = _secret_forms()
+            ran = {p["key"]: _scrubbed(r, p, forms) for p, r in zip(todo, ran)}
+            _save_many({k: r for k, r in ran.items() if r.get("reason") not in _UNSTORED}, store)
+            results.update(ran)
+    finally:
+        _release_many(leases, store)
     return results
 
 
 # ---- what the page shows ----------------------------------------------------------------
 
-def _chip(p, name):
+def _chip(p, name, pending=False):
     state = _is_set(p, name)
-    return {"name": name, "set": state is True, "app": state == "app"}
+    return {"name": name, "set": state is True, "app": state in ("app", "legacy"),
+            "legacy": state == "legacy", "pending": bool(pending and not state)}
 
 
 def _lamp(result):
@@ -1337,6 +1867,8 @@ def _lamp(result):
 def rows(store):
     """What the page shows, grouped by family, in the page's order. Reads
     the environment and what the app already keeps; calls nobody."""
+    forms = _secret_forms()
+    kept = _lasts([p["key"] for p in PROVIDERS], store)     # one read for every row
     out = []
     for fam_key, fam_name in FAMILIES:
         group = []
@@ -1345,10 +1877,15 @@ def rows(store):
                 continue
             built = p.get("built", True)
             miss = missing(p) if built else []
-            prev = last(p["key"], store)
+            pend = _pending(p, miss)
+            prev = kept.get(p["key"])
+            if prev and prev.get("reason") in _UNSTORED:
+                prev = None                 # "not configured then" says nothing about now
             detail, shown = "", None
             if p.get("fixed"):
                 lamp, detail = ("idle", p["fixed"][0]), p["fixed"][1]
+            elif pend:
+                lamp, detail = ("idle", pend[0]), pend[1]
             elif miss:
                 lamp = ("off", "Not configured")
                 detail = "Set %s to switch it on." % ", ".join(miss)
@@ -1368,17 +1905,18 @@ def rows(store):
                 lamp = ("idle", "Not checked yet")
                 detail = "Nothing has been asked yet. Its button asks it once."
             else:
-                lamp = _lamp(prev) or ("idle", "Not asked")
+                lamp = _lamp(prev) or ("idle", prev.get("label") or "Not asked")
                 shown = prev
             group.append({
                 "key": p["key"], "name": p["name"], "powers": p["powers"],
                 "built": built,
-                "env": [_chip(p, n) for n in p.get("env", ())] if built else [],
+                "env": [_chip(p, n, pending=bool(pend) and n in miss)
+                        for n in p.get("env", ())] if built else [],
                 "flags": [{"name": f, "on": _truthy(os.environ.get(f))} for f in p.get("flags", ())],
                 "any_of": [[_chip(p, n) for n in g] for g in (p.get("any_of") or ())],
                 "optional": [_chip(p, n) for n in p.get("optional", ())],
                 "missing": miss, "last": shown, "lamp": lamp,
-                "detail": scrub(detail, p) if detail else "",
+                "detail": scrub(detail, p, forms=forms) if detail else "",
                 "cost": p.get("cost") or "", "cost_kind": p.get("cost_kind") or "",
                 "auto": bool(p.get("auto")),
                 "can_check": bool(built and p.get("check") is not None and not miss and not gate(p)),

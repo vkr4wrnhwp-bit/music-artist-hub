@@ -405,13 +405,22 @@ def round_trip(ttls=(300, DEFAULT_TTL)):
         put(key, body, "text/plain")
         report["put"] = True
     except urllib.error.HTTPError as exc:
-        return dict(report, ok=False, step="put", status=exc.code,
-                    code=_r2_error_code(exc),
-                    verdict=_put_verdict(exc))
+        out = dict(report, ok=False, step="put", status=exc.code,
+                   code=_r2_error_code(exc),
+                   verdict=_put_verdict(exc))
+        if exc.code >= 500:
+            # A server error can come after the object was stored.
+            out["cleaned_up"] = _try_delete(key)
+        return out
     except Exception as exc:
+        # No reply is not a refusal: the bytes may have landed before the
+        # connection dropped, so the object is deleted all the same
+        # (providers review, 2026-09-23: a lost reply left it behind).
         return dict(report, ok=False, step="put",
                     error="%s: %s" % (type(exc).__name__, str(exc)[:140]),
-                    verdict="the bucket refused a write before any reply came back")
+                    cleaned_up=_try_delete(key),
+                    verdict="no reply came back from the write, so whether it "
+                            "landed is unknown")
 
     # A bare opener: no proxy, no handlers, and above all no credentials.
     # This is RoEx's position exactly.
@@ -432,11 +441,7 @@ def round_trip(ttls=(300, DEFAULT_TTL)):
                 row["error"] = "%s: %s" % (type(exc).__name__, str(exc)[:140])
             report["reads"].append(row)
     finally:
-        try:
-            delete(key)
-            report["cleaned_up"] = True
-        except Exception:
-            report["cleaned_up"] = False
+        report["cleaned_up"] = _try_delete(key)
 
     good = [r for r in report["reads"] if r.get("bytes_match")]
     bad = [r for r in report["reads"] if not r.get("bytes_match")]
@@ -452,6 +457,14 @@ def round_trip(ttls=(300, DEFAULT_TTL)):
     else:
         report["verdict"] = _read_verdict(bad[0])
     return report
+
+
+def _try_delete(key):
+    """Delete the round trip's test object; True when that worked."""
+    try:
+        return bool(delete(key))
+    except Exception:
+        return False
 
 
 def _r2_error_code(exc):
