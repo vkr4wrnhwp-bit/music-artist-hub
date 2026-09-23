@@ -186,22 +186,24 @@ def studio_projects():
 
 # --- creating ----------------------------------------------------------------
 
+# Only what a session can do. A session holds ONE source file: the upload
+# stores it, project_summary picks it as THE source, and every room reads
+# that one file. "Vocal + Instrumental" (two files), "Stem Mix" (stems) and
+# "Master an EP or Album" (a sequence) were offered here and could never take
+# a second file, so they are off the form until sessions hold several files
+# (make-real brief, 2026-09-23). They stay in sstore.PROJECT_TYPES so a
+# project already stored with one keeps its label and keeps opening.
 _TYPE_LABELS = [
     ("stereo_mix_review", "Stereo Mix Review",
      "One stereo bounce. Measure it, mark what needs work, collect notes."),
-    ("vocal_instrumental", "Vocal + Instrumental",
-     "Two files. Check the vocal against the bed and how it translates."),
-    ("stem_mix", "Stem Mix",
-     "Consolidated stems, balanced and reviewed together."),
     ("master_single", "Master a Single",
      "One approved mix through premaster inspection and a master."),
-    ("master_project", "Master an EP or Album",
-     "A sequence, checked for cohesion across tracks."),
     ("remix", "Remix Project",
-     "Work from an approved master or stems into a new version."),
+     "One approved master, taken into a new version in the Rack."),
     ("imported_rack", "Import Existing Rack Project",
      "Bring a saved Rack chain in as the starting point."),
 ]
+_OFFERED_TYPES = {key for key, _label, _note in _TYPE_LABELS}
 
 
 @bp.route("/studio/new", methods=["GET", "POST"])
@@ -218,9 +220,14 @@ def studio_new():
                                types=_TYPE_LABELS,
                                error="Give the project a name so you can find "
                                      "it again."), 400
+    project_type = request.form.get("project_type") or "stereo_mix_review"
+    if project_type not in _OFFERED_TYPES:
+        # A hand-made POST naming a retired type gets the one-file default
+        # rather than a label that promises several files.
+        project_type = "stereo_mix_review"
     project_id = sstore.create_project(
         _partner(user), user["id"], title[:200],
-        project_type=request.form.get("project_type") or "stereo_mix_review",
+        project_type=project_type,
         artist_name=(request.form.get("artist_name") or "").strip()[:120],
         created_by=user["id"])
     return redirect(url_for("studio.studio_session", project_id=project_id))

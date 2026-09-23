@@ -1264,9 +1264,9 @@ The mix view of a session: measured loudness/peak/dynamics, findings, timed note
 
 **New Studio project**
 
-Creates a project row from a name, artist name and one of seven project types.
+Creates a project row from a name, artist name and one of four project types, each of which works on one audio file.
 
-- Because: studio.py:207 POSTs into sstore.create_project and redirects to the new session id; _TYPE_LABELS is a form vocabulary, not seeded data.
+- Because: studio.py studio_new POSTs into sstore.create_project and redirects to the new session id; _TYPE_LABELS is a form vocabulary, not seeded data. A session holds ONE source (project_summary picks the first original asset), so Vocal + Instrumental, Stem Mix and Master an EP or Album left the form on 2026-09-23 (make-real brief) and the form says multi-file sessions are not built yet; a POST naming one gets stereo_mix_review. Rows already stored with those types keep their label and still open. Locked by tests/test_real_studio_types.py.
 - Routes: GET+POST /studio/new
 - Files: studio.py:207 studio_new; studio.py:187 _TYPE_LABELS; templates/studio/new.html; studio_store.py:create_project
 - Access: Same as /studio.
