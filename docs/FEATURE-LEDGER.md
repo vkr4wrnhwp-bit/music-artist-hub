@@ -199,9 +199,9 @@ Rule-based observations over the account's own numbers, including income concent
 
 The page an outside approver opens from their emailed link to read the contract and sign off.
 
-- Because: GET/POST /sign/<token> reads the token row and renders the real passport slot; /sign/<token>/document serves the attached file by token and aborts 404 unless the path is under /uploads/ and matches the lockbox uploader's own name shape — so an approver who is not signed in can read exactly the one file they were asked about and nothing else.
+- Because: GET/POST /sign/<token> reads the token row and renders the real passport slot; /sign/<token>/document serves the attached file by token and aborts 404 unless the path is under /uploads/ and matches the lockbox uploader's own name shape, so an approver who is not signed in can read exactly the one file they were asked about and nothing else. Both routes answer by one rule, _sign_link (2026-09-23): the document is served only while the link is open. A used link (signed or declined), a link the artist has replaced by resending or asking the same person again, and a link whose track or slot is gone all get the same 404 as an unknown token. Until then the document route read none of this and served the contract after the link was used (tests/test_sign_link_document.py).
 - Routes: GET/POST /sign/<token>; GET /sign/<token>/document
-- Files: app.py:7401, app.py:7438, app.py:7312 (_is_lockbox_upload); db.py get_sign_token/sign_tokens; templates/sign.html
+- Files: app.py _sign_link, sign_document, sign_document_file, _is_lockbox_upload, os_lockbox_update (approver/resend mint the token the approval carries); db.py get_sign_token/sign_tokens; templates/sign.html; tests/test_sign_link_document.py
 - Access: Anonymous by design — "/sign/" is in _PUBLIC_PREFIXES (app.py:4817); the unguessable token is the authorisation and is checked on both routes.
 
 **Money queue**
@@ -655,10 +655,10 @@ Copies songwriters and publishers from a Track Passport onto the matching catalo
 
 A tokenised page where an approver with no account reads a lockbox document and signs or declines it.
 
-- Because: /sign/ is in _PUBLIC_PREFIXES so it answers without a session; a valid token renders the document, the POST writes the decision into the artist's lockbox, burns the token and files an in-app notification for the artist. An unknown token renders the invalid state.
+- Because: /sign/ is in _PUBLIC_PREFIXES so it answers without a session; a valid token renders the document, the POST writes the decision into the artist's lockbox, burns the token and files an in-app notification for the artist. An unknown token, a token whose track or slot is gone, and a token the artist has since replaced (the approval carries the newest request's token) render the invalid state, so an old link cannot flip a decision a newer one recorded. A used link shows the decision that was made (it read "Signed" for a declined link until 2026-09-23) and no document.
 - Routes: /sign/<token> (GET, POST)
-- Files: app.py:7401 sign_document(); templates/sign.html; db.py sign_tokens table (db.py:297), add_sign_token/get_sign_token/use_sign_token
-- Access: Anonymous, by single-use token only - no plan gate, no session. _is_public_path allows the '/sign/' prefix (app.py:4817).
+- Files: app.py _sign_link, sign_document(); templates/sign.html; db.py sign_tokens table (db.py:297), add_sign_token/get_sign_token/use_sign_token; tests/test_sign_link_document.py
+- Access: Anonymous, by single-use token only - no plan gate, no session. _is_public_path allows the '/sign/' prefix. Only the newest link sent to an approver is live.
 
 **Registration wizard**
 

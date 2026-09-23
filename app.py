@@ -8506,7 +8506,13 @@ def create_app():
                 if action == "resend" and existing:
                     existing[0]["state"] = "pending"
                     existing[0]["token"] = token
-                elif not existing:
+                elif existing:
+                    # Asked again: the link about to be emailed is the live
+                    # one, and the one shown on the page must be the same
+                    # link. It used to keep the old token, so the email
+                    # carried a link the page never showed (2026-09-23).
+                    existing[0]["token"] = token
+                else:
                     approvals.append({"name": name[:80], "email": email,
                                       "state": "pending", "token": token})
                 store.add_sign_token(token, user["id"], track_id, doc_key, email)
@@ -8554,21 +8560,43 @@ def create_app():
             blob_store.remove(path, uploads_dir=UPLOADS_DIR)
         return redirect("/tracks/" + track_id)
 
-    @app.route("/sign/<token>", methods=["GET", "POST"])
-    def sign_document(token):
+    def _sign_link(token):
+        """One rule for a signing link, read by the page AND by the
+        document behind it (make-it-real, 2026-09-23: the document route
+        checked none of this and served the contract after the link was
+        used).
+
+        "invalid": nobody minted this token, its track or lockbox slot is
+        gone, or the artist has since sent this person a newer link - the
+        approval carries the token of the newest request, and an older
+        link must not be able to flip the decision the newer one records.
+        "used": a decision was recorded with it. "open": the one state that
+        shows the document and takes a decision."""
         row = store.get_sign_token(token)
         if row is None:
-            return render_template("sign.html", invalid=True, row=None,
-                                   doc_label=None, track=None, done=None)
+            return {"state": "invalid"}
         track = store.get_os_track(row["user_id"], row["track_id"])
         doc_label = dict((k, l) for k, l, _r in artist_os.LOCKBOX_DOCS).get(row["doc_key"])
         if track is None or doc_label is None:
-            return render_template("sign.html", invalid=True, row=None,
-                                   doc_label=None, track=None, done=None)
+            return {"state": "invalid"}
         entry = (track["lockbox"] or {}).get(row["doc_key"]) or {}
         approval = next((a for a in entry.get("approvals", [])
                          if a.get("email") == row["email"]), None)
-        if request.method == "POST" and not row["used"] and approval:
+        if approval is None or approval.get("token") != row["token"]:
+            return {"state": "invalid"}
+        return {"state": "used" if row["used"] else "open", "row": row,
+                "track": track, "doc_label": doc_label, "entry": entry,
+                "approval": approval}
+
+    @app.route("/sign/<token>", methods=["GET", "POST"])
+    def sign_document(token):
+        link = _sign_link(token)
+        if link["state"] == "invalid":
+            return render_template("sign.html", invalid=True, row=None,
+                                   doc_label=None, track=None, done=None)
+        row, track, doc_label = link["row"], link["track"], link["doc_label"]
+        entry, approval = link["entry"], link["approval"]
+        if request.method == "POST" and link["state"] == "open":
             decision = request.form.get("decision")
             if decision in ("signed", "declined"):
                 approval["state"] = decision
@@ -8583,9 +8611,14 @@ def create_app():
                 return render_template("sign.html", invalid=False, row=row,
                                        doc_label=doc_label, track=track,
                                        done=decision)
+        if link["state"] == "used":
+            # What was decided, not "Signed" for every used link: a
+            # declined link read Signed until 2026-09-23. No document.
+            done = "declined" if approval.get("state") == "declined" else "signed"
+            return render_template("sign.html", invalid=False, row=row,
+                                   doc_label=doc_label, track=track, done=done)
         return render_template("sign.html", invalid=False, row=row,
-                               doc_label=doc_label, track=track,
-                               done=("signed" if row["used"] else None),
+                               doc_label=doc_label, track=track, done=None,
                                # The file itself is the owner's now; the
                                # approver reads it by their token.
                                file_url=(("/sign/%s/document" % token)
@@ -8595,12 +8628,16 @@ def create_app():
     def sign_document_file(token):
         """The contract an approver was asked to sign, read by their
         token. /uploads keeps lockbox files to the account that holds
-        them (walk, 2026-09-20), and an approver is not signed in."""
+        them (walk, 2026-09-20), and an approver is not signed in.
+
+        Only while the link is open, by the same rule as the page: a used,
+        replaced or orphaned link gets the same 404 as a token nobody
+        minted (tests/test_sign_link_document.py)."""
         from flask import send_from_directory
-        row = store.get_sign_token(token)
-        track = store.get_os_track(row["user_id"], row["track_id"]) if row else None
-        entry = ((track or {}).get("lockbox") or {}).get(row["doc_key"]) if row else None
-        path = (entry or {}).get("file") or ""
+        link = _sign_link(token)
+        if link["state"] != "open":
+            abort(404)
+        path = (link["entry"] or {}).get("file") or ""
         if not path.startswith("/uploads/") or not _is_lockbox_upload(path):
             abort(404)
         return send_from_directory(UPLOADS_DIR, path[len("/uploads/"):])
