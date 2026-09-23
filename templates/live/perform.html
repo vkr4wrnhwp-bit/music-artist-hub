@@ -53,6 +53,11 @@
 </div>
 
 <script src="/static/js/livelab.js?v=1"></script>
+<script src="/static/js/live-perform-cache.js?v=1"></script>
+{#- The service worker keeps this page for a reload with no network
+    (static/js/sw.js, LIVE_PERFORM). Registered here as well as in base.html,
+    because this page does not extend base.html. -#}
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
 <script>
 (function () {
   "use strict";
@@ -75,6 +80,10 @@
     return;
   }
   var SB = window.SBLive;
+  if (!window.SBLivePerformCache) {
+    fail("The set loader did not load. Nothing here will play.");
+    return;
+  }
 
   var Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) {
@@ -235,13 +244,54 @@
   document.getElementById("lv-stop").addEventListener("click", stopAll);
   document.getElementById("lv-click").addEventListener("click", toggleClick);
 
-  fetch(MANIFEST_URL, { credentials: "same-origin" })
-    .then(function (r) {
-      if (!r.ok) { throw new Error("could not load the set"); }
-      return r.json();
-    })
-    .then(function (data) {
-      manifest = data;
+  /* The set is kept in this browser (static/js/live-perform-cache.js over
+     the engine's own IndexedDbCacheStore): the manifest network-first with
+     the kept copy as the fallback, the stems from this computer first. The
+     page itself is kept by the service worker. Without IndexedDB (a private
+     window can refuse it) everything still loads from the network; it just
+     is not kept, and the status says so. */
+  var KEEP = window.SBLivePerformCache;
+  var SET_ID = {{ live_set.id|tojson }};
+
+  function openStore() {
+    try {
+      if (!SB.cache || !SB.cache.IndexedDbCacheStore || !window.indexedDB) {
+        return Promise.resolve(null);
+      }
+      if (SB.cache.requestPersistentStorage) { SB.cache.requestPersistentStorage(); }
+      return SB.cache.IndexedDbCacheStore.open(SET_ID).catch(function () { return null; });
+    } catch (err) {
+      return Promise.resolve(null);
+    }
+  }
+
+  function fetchJson() {
+    /* A venue's wifi can hang rather than fail. Eight seconds, then the
+       kept copy: the set has to open on a stage, not eventually. */
+    return new Promise(function (resolve, reject) {
+      var timer = window.setTimeout(function () {
+        reject(new Error("the network did not answer"));
+      }, 8000);
+      fetch(MANIFEST_URL, { credentials: "same-origin" })
+        .then(function (r) {
+          if (!r.ok) { throw new Error("could not load the set"); }
+          return r.json();
+        })
+        .then(function (data) { window.clearTimeout(timer); resolve(data); },
+              function (err) { window.clearTimeout(timer); reject(err); });
+    });
+  }
+
+  function fetchBytes(url) {
+    return fetch(url, { credentials: "same-origin" }).then(function (r) {
+      if (!r.ok) { throw new Error("stem fetch failed"); }
+      return r.arrayBuffer();
+    });
+  }
+
+  openStore().then(function (store) {
+    return KEEP.loadManifest(store, fetchJson).then(function (res) {
+      manifest = res.manifest;
       var backend = new SB.engine.WebAudioBackend();
       engine = new SB.engine.LiveAudioEngine(backend);
       engine.loadProject(manifest.project);
@@ -261,34 +311,42 @@
 
       /* Loaded up front, not on launch. A stem that starts downloading when
          somebody hits the pad is a stem that arrives after the bar. */
-      var done = 0, failed = 0;
-      ids.forEach(function (assetId) {
-        fetch(manifest.assets[assetId], { credentials: "same-origin" })
-          .then(function (r) {
-            if (!r.ok) { throw new Error("stem fetch failed"); }
-            return r.arrayBuffer();
-          })
-          .then(function (bytes) { return engine.loadAudio(assetId, bytes); })
-          .then(function () { done++; report(); })
-          .catch(function () { failed++; report(); });
-
-        function report() {
-          if (done + failed < ids.length) { return; }
-          if (failed) {
-            say('<p class="text-sm text-sb-crit">' + done + ' of ' + ids.length
-                + ' stems loaded. ' + failed + ' failed — those scenes will '
-                + 'be silent.</p>');
-          } else {
-            say('<p class="text-sm text-sb-good">Ready. ' + done + ' stem'
-                + (done === 1 ? "" : "s") + ' loaded and held in memory.</p>');
-          }
+      return KEEP.loadStems({
+        ids: ids, urls: manifest.assets, store: store, fetchBytes: fetchBytes,
+        load: function (id, bytes) { return engine.loadAudio(id, bytes); }
+      }).then(function (t) {
+        if (store) { KEEP.prune(store, ids); }
+        var done = t.kept + t.downloaded;
+        var line = done + ' of ' + ids.length + ' stem' + (ids.length === 1 ? "" : "s")
+          + ' loaded and held in memory';
+        var where = [];
+        if (t.kept) { where.push(t.kept + ' from this computer'); }
+        if (t.downloaded) { where.push(t.downloaded + ' downloaded'); }
+        if (where.length) { line += ' (' + where.join(', ') + ')'; }
+        line += '.';
+        if (res.from === "this computer") {
+          line += ' The network did not answer, so the set came from this computer.';
+        }
+        if (!store) {
+          line += ' This browser is not keeping the set, so opening it again needs the internet.';
+        } else if (t.notKept) {
+          line += ' ' + t.notKept + ' could not be kept on this computer (no space), so opening the set again needs the internet.';
+        } else if (!t.failed) {
+          line += ' Kept on this computer.';
+        }
+        if (t.failed) {
+          say('<p class="text-sm text-sb-crit">' + line + ' ' + t.failed
+              + ' failed. Those scenes will be silent.</p>');
+        } else {
+          say('<p class="text-sm text-sb-good">Ready. ' + line + '</p>');
         }
       });
-    })
-    .catch(function (err) {
-      fail("Could not load this set: "
-           + (err && err.message ? err.message : "unknown error"));
     });
+  }).catch(function (err) {
+    fail("Could not load this set: "
+         + (err && err.message ? err.message : "unknown error")
+         + ". Open it once with internet and it is kept on this computer.");
+  });
 })();
 </script>
 </body>

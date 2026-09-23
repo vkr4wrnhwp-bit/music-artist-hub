@@ -470,7 +470,7 @@ _LIVE_ITEM = (
     "M4 14a2 2 0 104 0 2 2 0 00-4 0z|M12 14a2 2 0 104 0 2 2 0 00-4 0z"
     "|M6 14V5l10-2v9|M6 8l10-2",
     "Live",
-    "Set, stems and triggers. Scenes launch on the bar; stems go to separate outputs.",
+    "Set, stems and triggers. Scenes launch on the bar, and a set opened once opens again offline.",
 )
 
 

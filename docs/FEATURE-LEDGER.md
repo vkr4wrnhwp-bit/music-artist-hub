@@ -1221,7 +1221,7 @@ Sets, scenes, stems and MIDI mappings for a stage rig, with the audio engine run
 
 Says before soundcheck which browser capabilities the rig needs and where they are missing.
 
-- Because: live.py:90 readiness() returns four fixed statements of fact about Web Audio, Web MIDI, offline caching and setSinkId (Chromium-only) and templates/live/home.html renders them. These are capability statements, not measurements of anything.
+- Because: live.py readiness() returns four fixed statements and templates/live/home.html renders them. Since 2026-09-23 (make-real brief) they say only what the performance page does: the offline line is true because perform.html keeps the set in IndexedDB and the service worker keeps the page (see Performance Mode below); the outputs line says master, cue and click all play through one output and a separate mix per player is NOT built (the engine's buses all connect to one AudioContext destination and the page never calls setSinkId). The /live intro and the hubs.py Live card say the same. Locked by tests/test_real_live_claims.py.
 - Routes: inside GET /live
 - Files: live.py:90 readiness; templates/live/home.html
 - Access: Same as /live.
@@ -2846,9 +2846,9 @@ A second operator drives looks and blackout from a phone by scanning a QR; the l
 
 Hands the browser the whole set in one document and opens the dark, chrome-free stage screen that plays it.
 
-- Because: live.py:363 returns live_store.set_manifest as JSON and :376 renders templates/live/perform.html outside the app shell; the scheduling, MIDI and offline cache run in static/js/livelab.js (290 KB, present in the repo) because Web Audio timing cannot be done server-side.
+- Because: live.py live_manifest returns live_store.set_manifest as JSON and live_perform renders templates/live/perform.html outside the app shell; the scheduling and MIDI run in static/js/livelab.js (290 KB, present in the repo) because Web Audio timing cannot be done server-side. Offline (made real 2026-09-23): perform.html opens the bundle's own SBLive.cache.IndexedDbCacheStore per set and static/js/live-perform-cache.js loads the manifest network-first with the kept copy as fallback (8 s timeout) and the stems from this computer first, keeping what it downloads and pruning stems that left the set; static/js/sw.js LIVE_PERFORM keeps the page network-first with a cached fallback, like the TOUR pages. Before this every open re-fetched every stem. Proved in Node by tests/js/check_live_cache.js and end to end in headless Chrome (open online, stop the server, reopen: "1 of 1 stem loaded ... from this computer").
 - Routes: GET /live/<set_id>/manifest.json; GET /live/<set_id>/perform
-- Files: live.py:363 live_manifest(), :376 live_perform(); live_store.set_manifest(); static/js/livelab.js; templates/live/perform.html
+- Files: live.py live_manifest(), live_perform(); live_store.set_manifest(); static/js/livelab.js; static/js/live-perform-cache.js; static/js/sw.js (LIVE_PERFORM); templates/live/perform.html
 - Access: Same as Live sets.
 
 **Live — MIDI mappings**
@@ -2864,7 +2864,7 @@ Maps a physical control to a scene or transport target, refusing an unknown targ
 
 Scenes with bar counts, follow actions and launch quantisation, holding stems pointed at Vault files with gain, pan, mute, solo and output bus.
 
-- Because: live.py:221/247/299 write live_scenes and live_stems; a stem is a pointer to an existing vault_files row, never a copy (live.py:246), and :270 re-checks ownership on every byte served rather than minting a durable URL.
+- Because: live.py live_add_scene / live_add_stem / live_set_stem write live_scenes and live_stems; a stem is a pointer to an existing vault_files row, never a copy, and live_stem re-checks ownership on every byte served rather than minting a durable URL. live_stem now serves the bytes itself (2026-09-23): a bucket object is streamed through the app (blob_store.fetch; 503 when unreadable) because the performance page reads stems with fetch() and the bucket sends no CORS headers, and a file on this server's disk is read from app.config["UPLOADS_DIR"] via blob_store.safe_local_path. Before this a bucket stem was a redirect the page could not follow and a disk stem was always a 404 (it called store.uploads_dir(), which does not exist), so no stem ever reached the performance page. Locked by tests/test_real_live_stems.py.
 - Routes: POST /live/<set_id>/scene; POST /live/<set_id>/scene/<scene_id>/delete; POST /live/<set_id>/scene/<scene_id>/stem; GET /live/stem/<stem_id>; POST /live/stem/<stem_id>/set; POST /live/stem/<stem_id>/delete
 - Files: live.py:221 live_add_scene(), :236 live_delete_scene(), :247 live_add_stem(), :270 live_stem(), :299 live_set_stem(), :317 live_delete_stem(); live_store.py:99 live_scenes, :120 live_stems; blob_store.py
 - Access: Same as Live sets; every store call is scoped to partner key plus user id.
