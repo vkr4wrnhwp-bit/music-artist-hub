@@ -2980,9 +2980,9 @@ The public page a show's share token opens for local crew: schedule, advance fac
 
 The public rider a venue reads: stage plot, input list, schedule, backline and the lighting rig summary.
 
-- Because: app.py:7327 renders templates/rider.html from the show's advance, the account's stage plot and db.get_light_show; tour_os mints the token on first advance send (_rider_url :2451).
+- Because: app.py tech_rider renders templates/rider.html from the show's advance, the account's stage plot and the light show saved to the library against THIS date (lights_store.show_for_tour_date, newest save; make-it-real, 2026-09-23). The Lighting section is lights_store.rider_lights: the show's bar count and channel width, each bar's DMX address by the Light Studio's own rule (a bar's own patch, else run on from the start address, clamped to 512), the universe for an Art-Net or sACN output, the output it is set to (ENTTEC, Art-Net or sACN; preview names no device) and its cue count. It used to read the working copy (db.get_light_show, whatever was last open) and always said "addressed outward-in in pairs", "over an ENTTEC DMX USB Pro" and "a power drop stage left"; no linked show now means no Lighting section. A date on the Mock Up Tour has no public rider or show day (_public_show_or_404). tour_os mints the token on first advance send (_rider_url). Tests: tests/test_rider_light_show.py.
 - Routes: GET /rider/<token>
-- Files: app.py:7327 tech_rider(); templates/rider.html; db.get_stage_plot / get_light_show
+- Files: app.py:7327 tech_rider(); templates/rider.html; db.get_stage_plot; lights_store.show_for_tour_date / rider_lights
 - Access: Anonymous — app.py:4817 lists /rider/ public.
 
 **Schedule (the day's times)**

@@ -8788,13 +8788,12 @@ def create_app():
             ("load_in", "Load-in"), ("soundcheck", "Soundcheck"), ("doors", "Doors"),
             ("set_time", "Set"), ("curfew", "Curfew")) if (adv.get(key) or "").strip()]
         plot = store.get_stage_plot(show["user_id"])
-        lightshow = store.get_light_show(show["user_id"])
-        lights = None
-        if lightshow:
-            lights = {"name": lightshow.get("name") or "",
-                      "bars": int(lightshow.get("bars") or 0),
-                      "chans": int(lightshow.get("chans") or 3),
-                      "cues": len(lightshow.get("cues") or [])}
+        # The light show saved to the library against THIS date, with its
+        # own patch and output - not the Light Studio's working copy,
+        # which is whatever the artist last had open. No show linked to
+        # the date, no Lighting section.
+        lights = lights_store.rider_lights(
+            lights_store.show_for_tour_date(show["user_id"], show["id"]))
         return render_template("rider.html", show=show, adv=adv,
                                schedule=schedule, lights=lights,
                                plot_json=(_json.dumps(plot) if plot else "null"))

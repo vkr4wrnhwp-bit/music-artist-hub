@@ -72,11 +72,15 @@
     </section>
     {% endif %}
 
-    <!-- Lighting -->
+    <!-- Lighting: the light show saved to the library against this date
+         (lights_store.rider_lights), its own patch and output. Nothing here
+         is stock wording: no linked show, no section. -->
     {% if lights and lights.bars %}
-    <section class="card mt-4 rounded-2xl border border-white/10 bg-black/40 p-5">
+    <section class="card mt-4 rounded-2xl border border-white/10 bg-black/40 p-5" id="rider-lighting">
       <h2 class="sb-label gold text-sb-gold-bright">Lighting</h2>
-      <p class="mt-2 text-sm leading-relaxed">The act carries a programmed light show{% if lights.name %} ("{{ lights.name }}"){% endif %}: <span class="font-bold">{{ lights.bars }} wash bars</span> ({{ 'RGBA' if lights.chans == 4 else 'RGB' }}, {{ lights.chans }} DMX channels each, addressed outward-in in pairs) with <span class="font-bold">{{ lights.cues }} programmed cue{{ 's' if lights.cues != 1 else '' }}</span>, run from the act's own laptop over an ENTTEC DMX USB Pro. House needs: one free DMX universe (or direct feed to the bars) and a power drop stage left.</p>
+      <p class="mt-2 text-sm leading-relaxed">The act carries a programmed light show{% if lights.name %} ("{{ lights.name }}"){% endif %}: <span class="font-bold">{{ lights.bars }} wash bar{{ 's' if lights.bars != 1 else '' }}</span> ({{ 'RGBA' if lights.chans == 4 else 'RGB' }}, {{ lights.chans }} DMX channels each){% if lights.rig %} on the "{{ lights.rig }}" rig{% endif %}, with <span class="font-bold">{{ lights.cues }} programmed cue{{ 's' if lights.cues != 1 else '' }}</span>.</p>
+      <p class="mt-2 text-sm leading-relaxed"><span class="text-gray-300">DMX patch{% if lights.output in ('artnet', 'sacn') %}, universe {{ lights.universe }}{% endif %}:</span> {% for bar, addr in lights.patch %}bar {{ bar }} at {{ addr }}{{ ', ' if not loop.last else '.' }}{% endfor %}</p>
+      {% if lights.output_words %}<p class="mt-2 text-sm leading-relaxed"><span class="text-gray-300">Output:</span> {{ lights.output_words }}.</p>{% endif %}
     </section>
     {% endif %}
 
