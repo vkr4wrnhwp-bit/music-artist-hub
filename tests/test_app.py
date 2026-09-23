@@ -5691,12 +5691,16 @@ def test_studio_split_is_env_gated_and_honest():
     assert source_path("../../app.py") is None
     assert source_path("a/b") is None
 
-    # The diagnostic reports shape, never the secret itself.
-    diag = client.get("/rack/studio-split/diag").get_json()
-    assert diag["configured"] is False and diag["present"] is False
-
-    _os.environ["STEMSPLIT_API_KEY"] = "test-key-not-real"
+    # The diagnostic reports shape, never the secret itself - and only to
+    # an owner since 2026-09-23 (audit, providers-15): ?probe=1 spent the
+    # owner's StemSplit key for any customer. A non-owner gets a 404.
+    assert client.get("/rack/studio-split/diag").status_code == 404
+    _owner_before = _os.environ.get("OWNER_EMAILS")
+    _os.environ["OWNER_EMAILS"] = "demo@streetbanker.io"
     try:
+        diag = client.get("/rack/studio-split/diag").get_json()
+        assert diag["configured"] is False and diag["present"] is False
+        _os.environ["STEMSPLIT_API_KEY"] = "test-key-not-real"
         diag = client.get("/rack/studio-split/diag").get_json()
         assert diag["configured"] is True
         assert diag["length"] == len("test-key-not-real")
@@ -5718,6 +5722,10 @@ def test_studio_split_is_env_gated_and_honest():
             "/rack/studio-split", data={}).status_code in (302, 401)
     finally:
         _os.environ.pop("STEMSPLIT_API_KEY", None)
+        if _owner_before is None:
+            _os.environ.pop("OWNER_EMAILS", None)
+        else:
+            _os.environ["OWNER_EMAILS"] = _owner_before
 
 
 def test_stemsplit_reads_both_published_response_shapes():

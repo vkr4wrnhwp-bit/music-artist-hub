@@ -503,6 +503,8 @@ A per-account email address that turns CSVs emailed by a distributor into statem
 Check every Track Passport ISRC against The MLC's public database and keep the sweep, so unregistered or partly claimed works show as mechanical money nobody is collecting.
 
 - Because: The sweep, its bounded batch (PER_SWEEP=25), the summary and the storage are real code that writes recovery_mlc_sweeps, and the Royalties streams ledger reads the result back. The provider half is inert without credentials: MLCAdapter declares env_keys ("MLC_USERNAME","MLC_PASSWORD") and env_flag MLC_ENABLED, and on this checkout POST /recovery/mlc returned 302 to /recovery?mlc=off#mlc and wrote nothing. A passport with no ISRC is listed as uncheckable rather than looked up by title.
+- Time budget (audit 2026-09-23): the sweep runs inside signal_providers.time_budget(recovery_mlc.SWEEP_BUDGET_S = 60) and MLCAdapter waits at most 12 s a call (was 20). The first slow failure (a timeout, no connection) stops the asking: the ISRCs still waiting are stored with result "not_asked" and the reason, counted in summary.not_asked, and never read as gaps. The row is written with what was actually asked; summary.checked counts only ISRCs that were asked. _mlc_sweep.html keeps errors and not-asked rows in view beside the gaps.
+- An unreadable 200 is an error (audit 2026-09-23): MLCAdapter._call raises ProviderNoAnswer("The MLC answered with a reply this app could not read") for a 200 whose body is empty or not the documented list. Only a 204 or a real empty list is "no such recording", so an off-contract reply is stored as result "error", never "none" and never offered as a case. Transport failures are worded for a person ("The MLC did not answer in time", "... sent a reply this app could not read") by signal_providers.transport_error.
 - Routes: POST /recovery/mlc (redirects to /recovery#mlc, or ?mlc=off / ?mlc=none)
 - Files: app.py:3082; recovery_mlc.py:35 candidates / :50 sweep / earnings_by_title; signal_providers.py:2884 MLCAdapter, :3497 mlc_adapter; db.py add_recovery_mlc_sweep (table recovery_mlc_sweeps); templates/recovery.html
 - Access: Artist tier and above. Team seats with the Business room and edit access.
@@ -816,6 +818,7 @@ Each song once, carrying its passport completeness, Clean Release score, lockbox
 Saves a song to the catalog and best-effort fills ISRC/UPC/label from Deezer, then songwriters and publishers from The MLC by that ISRC.
 
 - Because: The save and the Deezer lookup are real and keyless (music_apis.deezer_track_metadata, cached in api_cache); the MLC credits hop returns None on every deployment where MLC_ENABLED/MLC_USERNAME/MLC_PASSWORD are unset, so credits are absent rather than wrong. Duplicate title+artist returns 409.
+- Deezer match rule (audit 2026-09-23): music_apis.deezer_track_metadata reads up to 10 keyword hits and accepts one only when its normalised title AND artist name equal the ones asked for; no artist, no lookup. The first hit for "Hello Probe Artist" used to be Adele's, and its ISRC, UPC and label were stored as the artist's own. The result carries source "Deezer", matched_by, read_on and lookup_codes; the cache key moved to deezer3: so old first-hit answers are not reused. Deezer error objects (sent with HTTP 200) are never cached: deezer_track_metadata, deezer_artist_fans and deezer_has_isrc cache only real answers (and Deezer's 800 "no data" where absence is the question).
 - Routes: /catalog/add (POST, JSON), /catalog/remove/<track_id> (POST, JSON)
 - Files: app.py:2927 catalog_add(), app.py:2954 catalog_remove(), app.py _mlc_credits() just above; db.py:1782 add_catalog_track(), db.py:1962 remove_catalog_track(); music_apis.py:182 deezer_track_metadata()
 - Access: Artist/Pro/Label (path /catalog); Fan 402; anonymous gets 401 JSON {ok:false,error:'sign_in'}. Publishing room; a read-only team seat is refused with 403 JSON by team_seat_gate.
@@ -861,6 +864,7 @@ Compose cover art in the browser from colourways, layout templates, fonts and as
 A per-song table of ISRC, UPC, label, release date and ISWC with coverage counts, shown inside the Catalog page.
 
 - Because: ISRC/UPC/label/release date come from the account's own catalog meta, which db.get_catalog_tracks reads through the passport link. The ISWC column is only ever filled from a stored MLC check's work code (artist_os.mlc_evidence), so with MLC_ENABLED unset it is empty for every row and ids_with_iswc is always 0.
+- Source of a looked-up code (audit 2026-09-23): a row whose ISRC, UPC or label still equals what Deezer gave (meta.lookup_codes) says "ISRC, UPC, label from Deezer, matched by title and artist, not confirmed · read <day>". The intro no longer says the codes come from the artist's own records.
 - Routes: /catalog#identifiers; /identifiers (301-style 302 to /catalog#identifiers, verified)
 - Files: app.py:2584 catalog_page() (ids_rows block), app.py:12453 identifiers(); templates/catalog.html
 - Access: Artist/Pro/Label; Fan 402; anonymous to /login. Publishing room for team seats.
@@ -926,6 +930,7 @@ A windowed rollout plan with tasks, a creator brief and ad concepts, flagged for
 Looks a song up on Discogs and attaches the chosen pressing, filling only passport fields that are still empty.
 
 - Because: With DISCOGS_ENABLED/DISCOGS_TOKEN unset the adapter is not configured, /catalog runs no lookup at all, and the attach POST redirects to ...?discogs=off without writing (verified). The fill map deliberately excludes credits - a third-party database does not get to make a rights claim - and discogs_links records which fields it filled.
+- Unreadable replies (audit 2026-09-23): DiscogsAdapter._get refuses a 200 without the documented shape (search: results or pagination; versions: versions or pagination; release/master: id) with ProviderNoAnswer("Discogs sent a reply this app could not read") and caches nothing, so an empty {} is no longer shown for six hours as "Discogs has no release matching". A failed lookup reads "The Discogs lookup failed: ..." (it said "Discogs answered:" over a timeout).
 - Routes: /tracks/<track_id>/discogs (POST); lookup surfaced on /catalog?view=passports&discogs=<track_id>
 - Files: app.py:2858 os_track_discogs(), app.py _DISCOGS_OFF/_DISCOGS_FILLS/_discogs_state() above app.py:2858; signal_providers.py:1773 DiscogsAdapter; db.py:4183 set_discogs_link()
 - Access: Artist/Pro/Label; Fan 402; anonymous to /login. Publishing room; read-only team seat refused.
@@ -953,6 +958,7 @@ Sets out the seven metadata records, what a conflict looks like and what happens
 Asks The MLC about one recording by ISRC (or title+artist), stores the answer, and can fill empty songwriter/publisher fields from a stored match.
 
 - Because: The adapter refuses honestly with no key: with MLC_ENABLED/MLC_USERNAME/MLC_PASSWORD unset the POST redirects to /tracks/<id>?mlc=off#mlc and writes nothing (verified). The store side (track_mlc_checks) and the fill rule - evidence never overwrites a typed value, and no status sentence is composed any more - are real code waiting on the key.
+- A failed check (audit 2026-09-23): artist_os.mlc_evidence gives a stored result "error" its own state, source "failed", label "check failed", "The last check failed (<message>), so whether this recording is registered at The MLC is not known yet." It used to fall through to "not checked - Nobody has asked The MLC" above its own error row.
 - Routes: /tracks/<track_id>/mlc (POST)
 - Files: app.py:7035 os_track_mlc(), app.py _track_mlc_state() above; signal_providers.py:2884 MLCAdapter; artist_os.py:145 mlc_evidence(); db.py:4135 add_track_mlc_check()
 - Access: Artist/Pro/Label; Fan 402; anonymous to /login. Publishing room; read-only team seat refused.
@@ -1438,7 +1444,7 @@ Reports the shape of the StemSplit environment (name present, length, stray quot
 - Because: app.py:8151 returns JSON describing os.environ["STEMSPLIT_API_KEY"] without printing it, and optionally probes the vendor; GET /rack/studio-split/diag returned 200 signed in. readiness.py:254 links it as a probe and tests/test_app.py:5659 exercises it.
 - Routes: GET /rack/studio-split/diag
 - Files: app.py:8151 studio_split_diag; readiness.py:254; stemsplit_provider.py:probe
-- Access: Any signed-in account (401 otherwise) plus the Rack's tier/suite gates. Not owner-gated, which is worth knowing: it lists every env NAME containing STEM or SPLIT.
+- Access: Owner accounts only (_owner_or_404: anonymous to /login, everyone else and team seats 404), since 2026-09-23: ?probe=1 spent calls on the owner's StemSplit key and returned the balance to any customer. The Rack reads stemsplit.configured(), not this route.
 
 **Tempo and key detection**
 
@@ -2159,7 +2165,7 @@ A fan authorises Spotify on a pre-release link and the track is saved to their l
 - Because: The whole flow exists in code and writes real rows — app.py:1980 presave_start() mints a nonce and redirects to Spotify, app.py:1989 presave_callback() checks the nonce, exchanges the code, stores an encrypted refresh token in spotify_presaves, upserts the fan with a spotify_presave consent and scores them; delivery runs lazily in app.py:1705 _process_due_presaves() on the next page view. It is inert without SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET/SPOTIFY_REDIRECT_URI (spotify.configured() gates both the start route and delivery), and none of that could be exercised here — no keys, no network.
 - Routes: GET /presave/<slug>/start, GET /presave/callback, POST /presave/retry-reset, GET /presave/diag
 - Files: app.py:1979, :1988, :1965, :1861; spotify_provider.py:29 configured(); links_store.py:200 upsert_fan/:460 add_consent/:376 bump_fan; db.py spotify_presaves (db.py:864), pending_spotify_presaves/resolve_spotify_presave
-- Access: /presave/ is in _PUBLIC_PREFIXES, so start and callback are anonymous (the state nonce is the guard). /presave/retry-reset needs any signed-in account and only touches its own campaigns. /presave/diag is plan=="label" only, otherwise 404.
+- Access: /presave/ is in _PUBLIC_PREFIXES, so start and callback are anonymous (the state nonce is the guard). /presave/retry-reset needs any signed-in account and only touches its own campaigns. /presave/diag is owner accounts only (_owner_or_404), otherwise 404 (it was plan=="label" until 2026-09-23).
 
 ### Stubbed
 
@@ -3712,6 +3718,11 @@ The Analytics room's opening screen: three figures, the five-step measurement pa
 Live Spotify followers and popularity, Deezer fans, monthly listeners, a YouTube panel, peers and the account's own link engagement.
 
 - Because: the owned-engagement tile and the stored snapshot history are real with no key at all (counted from the account's own ml_events, summing both the page_view/service_click and the older pageview/click spellings), but the Spotify, Deezer, monthly-listener, "everything" and YouTube panels only carry numbers when SPOTIFY_CLIENT_ID/SECRET, a CAP_METRICS provider and YOUTUBE_API_KEY are set — otherwise they render "Not measured" rather than 0
+- Time budget (audit 2026-09-23): everything Pulse asks the metrics provider (the metrics call and pulse_everything.build) runs inside signal_providers.time_budget(PULSE_BUDGET_S = 25). A slow failure (timeout, no connection) stops the rest of the page's Soundcharts questions, which read "Not asked this time", and SoundchartsAdapter sends nothing for 60 s after one (down_for_s), so a reload during an outage does not wait again. It used to be up to 21 serial calls at 15 s each.
+- Failures by kind (audit 2026-09-23): get_audience_all, get_playlists_all and get_audience_reports mark a platform "refused" only for a Soundcharts 403; a timeout, 429 or 500 is "failed", the allowance stop "paused", a call the budget never sent "not_asked". Those three tiles are shown to everyone ("Did not answer just now", "Paused until next month", "Not asked this time"); "Not in the plan" stays owner-only, and pulse_page now passes is_owner, so the owner does see it (nobody did before).
+- Nothing on file still says why (audit 2026-09-23): _provider_metrics returns a metrics dict with no figures and a note when no snapshot is stored (a refusal, a search that found nothing, or no figure yet) instead of None, and with no metrics provider configured the page names "Monthly listeners" as not measured because none is connected. A 401/403 reads "refused the request", a pause "Fresh Soundcharts readings are paused until next month", a timeout "did not answer in time", never Python's own words.
+- Deezer fans say why they are missing: "Deezer was not asked" (Spotify not connected, or it did not answer), "Deezer did not answer just now", or "No Deezer match found" only when Deezer's search came back empty (music_apis.deezer_artist_known_absent). A Spotify failure is worded by kind: a refused credential ("refused this service's app credentials") is never "usually temporary".
+- The allowance is reserved in one step (soundcharts_budget.reserve: count, then compare, give back if over), so calls racing at the ceiling cannot overspend it.
 - Routes: /pulse (GET); /stats (GET, 301-style redirect to /pulse#engagement)
 - Files: app.py:9707 pulse_page; app.py:12341 stats; pulse_signals.py:1 build; pulse_everything.py:1 build; spotify_provider.py:133 pulse_configured; music_apis.py:225 deezer_artist_fans; templates/pulse.html, templates/_pulse_everything.html; db.py pulse_profiles, pulse_snapshots, pulse_peers, pulse_peer_snapshots
 - Access: artist tier (/pulse is in plans._ARTIST_PATHS); a fan plan got 402. Team seats need the "analytics" room. Changing the pinned artist once one is set additionally needs Pro/Label or an owner email (_pulse_change_allowed, app.py:9876), which answers 402 otherwise.
@@ -3757,6 +3768,7 @@ The internal A&R workspace: leads, notes, tasks, follow-ups, shows and meetings,
 Search Spotify for the artist to track, pin one, or clear the pin.
 
 - Because: /pulse/select and /pulse/clear write and delete pulse_profiles for real with no external call, but /pulse/search needs SPOTIFY_CLIENT_ID/SECRET and returns an honest refusal without them
+- /pulse/search also returns refused_kind (credentials / rate / noanswer / unconfigured); the page only says "Spotify refused this app's credentials" for a credential refusal (a timeout used to read as one).
 - Routes: /pulse/search (GET), /pulse/select (POST JSON), /pulse/clear (POST)
 - Files: app.py:9858 pulse_search, :9881 pulse_select, :9949 pulse_clear; spotify_provider.py; db.py pulse_profiles
 - Access: Signed in (401 JSON otherwise). Re-pinning a different artist needs Pro/Label or owner (402 with _PULSE_LOCKED).
@@ -3822,6 +3834,7 @@ Five addresses that answer with a generic "this module is in preview" page listi
 Subscriber and view counts for a channel the account owner names by handle or URL.
 
 - Because: every path first asks _youtube_adapter().configured(), which is the signal_providers YouTubeAdapter needing YOUTUBE_ENABLED and YOUTUBE_API_KEY; without them the search returns an error string and the save redirects with ?yt=unconfigured, and the panel renders "Not measured". It never derives a channel from the artist name
+- ?yt= is a code (audit 2026-09-23): only notfound, unconfigured and failed are printed; Google's own reason for a failed resolve travels in the session and is shown once. Free text in the link used to print in the app's error style. YouTubeAdapter._by treats only a 400 as a no-match; a timeout, 429 or 500 is raised and reported, not "No YouTube channel matched that". A 200 that is not a list response is refused and not cached (it read "YouTube no longer has a channel with that id").
 - Routes: /pulse/youtube (POST), /pulse/youtube/search (GET)
 - Files: app.py:9898 pulse_youtube_search, :9918 pulse_youtube, :3545 _youtube_adapter, :3559 _youtube_pulse; signal_providers.py:2246 YouTubeAdapter; db.py save_pulse_youtube_channel
 - Access: As /pulse.
@@ -4347,6 +4360,7 @@ The 402 page that names the tier or credits needed and lists the plans.
 A visitor leaves an email, the lead is filed in the owner's inbox and the demo password is mailed if the mailer is live.
 
 - Because: the lead is really stored (store.add_inbox, app.py:1197) and a 90-day sb_demo_lead cookie is set — a probe returned 302 /login?demo=pending with the cookie — but the email half only runs when emailer.configured(), so without RESEND_API_KEY nobody is sent a password and the page says 'pending'.
+- Sent means accepted (audit 2026-09-23): password_sent is emailer.send()'s own answer, so a Resend refusal redirects to ?demo=pending and the inbox row stores password_sent false and send_error for the owner's follow-up.
 - Routes: POST /demo-access
 - Files: app.py:1157 demo_access(); templates/partials/login_demo_tour.html:37; email_provider.py; db.py add_inbox
 - Access: anonymous; honeypot field 'company' and an in-process 30s-per-IP throttle (app.py:1154 _demo_access_seen)
@@ -4715,6 +4729,7 @@ The signed-out page naming which distribution partnership exists today.
 The artist's kit at its own slug, with public-only assets and honest stats.
 
 - Because: app.py epk_public reads store.get_epk_by_slug, passes public_only=True assets, and forces stats_override to the artist's real stats or epk_config.not_measured_stats() unless the owner is a demo email — so a real account's public page never carries the seeded catalogue's totals. The slug is minted once by _ensure_epk_slug and never re-minted. Probe: GET /epk/<slug> = 200 containing "Not measured"; an unknown slug is 404.
+- Audience dated (audit 2026-09-23): Monthly Listeners and Followers carry "Measured by <provider>, as of <day>", or "; last figure on file, from <day>" when the stored snapshot is more than 7 days old (epk_config.audience_sub). Same on the editor and the pitch link.
 - Routes: GET /epk/<slug>
 - Files: app.py:3754 (epk_public), 3250 (_ensure_epk_slug), db.py get_epk_by_slug (resolves the act's name through artist_identity), templates/epk_public.html
 - Access: Anonymous. No tier gate — required_tier("/epk/<slug>") is None by design.
@@ -5017,7 +5032,7 @@ Reports the shape of the mail setup and, on request, Resend's view of the accoun
 - Because: app.py:1744 returns configured/sender/using_shared_test_sender/email_from_set/inbound_domain/webhook_secret_set as booleans and names, never values. Same unreachable-401 note as /storage/diag: anonymous is redirected by plan_gate.
 - Routes: GET /mail/diag (and ?domains=1)
 - Files: app.py:1743-1763
-- Access: Any signed-in account — no owner gate, although it reports deployment configuration
+- Access: Owner accounts only (_owner_or_404), since 2026-09-23; everyone else 404.
 
 **Object-storage round-trip diagnostic**
 
@@ -5026,7 +5041,7 @@ Writes, signs, reads back and deletes one tiny object, and names which R2 variab
 - Because: app.py:1819 calls app.py:1765 _r2_check() (a real put/presigned get/delete) and blob_store.py:269 diagnose(), which reports lengths, hex-ness and whether two variables hold the same string — never a value — and does a TLS-SNI handshake to tell a wrong account id from a wrong credential. Probed unconfigured: 200 {"configured": false, "next": "Set R2_ACCOUNT_ID, ..."}. 3 tests in tests/test_storage_diag.py.
 - Routes: GET /storage/diag
 - Files: app.py:1765-1817 (_r2_check), app.py:1818-1859 (route); blob_store.py:269-370 diagnose()
-- Access: Any signed-in account. The handler's own 401 for user is None is unreachable — plan_gate redirects anonymous callers to /login first (probed: 302), so the docstring and the behaviour disagree.
+- Access: Owner accounts only (_owner_or_404), since 2026-09-23; everyone else 404. The report keeps S3's <Code> and <Message> but no longer the raw error body, which can carry the AWSAccessKeyId (and `re` is imported at module level now, so s3_code is actually filled in).
 
 **Offline fallback page**
 
@@ -5308,7 +5323,7 @@ A JSON dump of which credentials the running process can see, plus the R2 round 
 - Because: app.py:1861 returns presence booleans and never values, which is what its comment promises — but the comment says "Owner-only config check" and the code gates on (user.get("plan") or "artist") != "label" (app.py:1865). That is a plan, not an identity, and /plan/switch sets a plan directly whenever Stripe is unconfigured (app.py:5316 _demo_switching) — the same shape as the leak tests/test_backup_access.py exists to stop for /backup. Probed as a plain artist: 404.
 - Routes: GET /presave/diag
 - Files: app.py:1861-1900
-- Access: Any account on the label plan (the comment claims owner-only; the code does not)
+- Access: Owner accounts only (_owner_or_404), since 2026-09-23; it was any label-plan account.
 
 **Statement drop-box (inbound email)**
 
@@ -5344,7 +5359,7 @@ Sends one HTML email through api.resend.com, with the reseller's display name in
 - Because: The send path is complete and exercised through the _http seam (email_provider.py:76 _http, :86 send) — attachments, reply_to, cc, text, a User-Agent header added because Cloudflare 403s Python's default, and the vendor's own error kept in last_send_error(). With no RESEND_API_KEY, configured() returns False and send() returns False without pretending (email_provider.py:20-27); sandbox.active() forces the same. The known half-truth is using_shared_test_sender() (email_provider.py:196): with EMAIL_FROM unset every send "succeeds" to onboarding@resend.dev and reaches only the Resend account owner — callers in contract_reminders.py:128, press_desk.py:94 and tour_os.py:1179 check it, others do not.
 - Routes: none (library); diagnostics at GET /mail/diag
 - Files: email_provider.py (11.3 KB): 20 configured, 30 sender, 86 send, 140 last_send_error, 196 using_shared_test_sender, 226 domain_status; app.py:1743-1763 /mail/diag
-- Access: /mail/diag: any signed-in account (no owner gate, despite reporting the mail setup)
+- Access: /mail/diag: owner accounts only (since 2026-09-23).
 
 **Untested platform surfaces**
 

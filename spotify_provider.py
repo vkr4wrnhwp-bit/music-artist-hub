@@ -156,6 +156,11 @@ def _api(path, token):
 
 
 _REFUSAL = None
+_REFUSAL_KIND = None
+
+# Spotify's own words for a credential it will not accept.
+_CREDENTIAL_ERRORS = ("invalid_client", "invalid_grant", "unauthorized_client",
+                      "unsupported_grant_type")
 
 
 def last_refusal():
@@ -165,30 +170,69 @@ def last_refusal():
     return _REFUSAL
 
 
+def last_refusal_kind():
+    """What kind of failure `last_refusal` was, so a page can word it:
+    "credentials" (Spotify refused this app's id or secret), "rate" (429),
+    "noanswer" (a timeout, no connection, a 5xx or an unreadable reply) or
+    "unconfigured". None when nothing refused."""
+    return _REFUSAL_KIND
+
+
 def clear_refusal():
-    global _REFUSAL
+    global _REFUSAL, _REFUSAL_KIND
     _REFUSAL = None
+    _REFUSAL_KIND = None
+
+
+def _classify(exc, error_code):
+    """credentials / rate / noanswer, from the HTTP status and Spotify's
+    own error word. A timeout is never a credential refusal, and a
+    rejected client secret is never "usually temporary". Anything else (a
+    timeout, no connection, a 5xx, an unreadable reply) is "noanswer"."""
+    status = getattr(exc, "code", None)
+    try:
+        status = int(status) if status is not None else None
+    except (TypeError, ValueError):
+        status = None
+    if (error_code or "") in _CREDENTIAL_ERRORS or status in (400, 401, 403):
+        return "credentials"
+    if status == 429:
+        return "rate"
+    return "noanswer"
 
 
 def _note(exc):
     """Keep Spotify's own words. Their token endpoint answers 400 with
     {"error": "invalid_client", "error_description": "Invalid client
-    secret"}, which is the one thing worth putting in front of a person."""
-    global _REFUSAL
+    secret"}, which is the one thing worth putting in front of a person.
+    A failure that carries no words of Spotify's (a timeout, no
+    connection) is worded here rather than as Python's own message."""
+    global _REFUSAL, _REFUSAL_KIND
     body = ""
     try:
         body = (exc.read() or b"").decode("utf-8", "replace")
     except Exception:
-        body = str(exc)
-    said = ""
+        body = ""
+    said, error_code = "", ""
     try:
         doc = json.loads(body)
-        said = doc.get("error_description") or doc.get("error") or ""
+        error_code = doc.get("error") if isinstance(doc.get("error"), str) else ""
+        said = doc.get("error_description") or error_code or ""
         if isinstance(doc.get("error"), dict):
             said = doc["error"].get("message") or said
     except Exception:
-        said = (body or str(exc))[:200]
-    _REFUSAL = said or str(exc)[:200]
+        said = body[:200]
+    kind = _classify(exc, error_code)
+    if not said:
+        status = getattr(exc, "code", None)
+        if kind == "noanswer" and status is None:
+            text = str(exc).lower()
+            said = ("Spotify did not answer in time" if "timed out" in text
+                    else "Spotify could not be reached")
+        else:
+            said = ("Spotify %s" % status) if status else str(exc)[:200]
+    _REFUSAL = said
+    _REFUSAL_KIND = kind
 
 
 def _count(value):
@@ -212,15 +256,17 @@ def search_artists(q, limit=8):
     clear_refusal()
     if not q:
         return []
+    global _REFUSAL, _REFUSAL_KIND
     if not pulse_configured():
-        global _REFUSAL
         _REFUSAL = "Spotify is not connected on this deployment (SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET)."
+        _REFUSAL_KIND = "unconfigured"
         return []
     try:
         token = app_token()
         if not token:
             if _REFUSAL is None:
                 _REFUSAL = "Spotify did not issue a token for this app's credentials."
+                _REFUSAL_KIND = "credentials"
             return []
         data = _api("/search?" + urllib.parse.urlencode(
             {"q": q, "type": "artist", "limit": limit}), token)
@@ -249,12 +295,20 @@ def artist_pulse(artist_id):
     cached = store.cache_get(key, PULSE_DATA_TTL)
     if cached:
         return cached
+    global _REFUSAL, _REFUSAL_KIND
+    clear_refusal()
     try:
         token = app_token()
         if not token:
+            _REFUSAL = "Spotify did not issue a token for this app's credentials."
+            _REFUSAL_KIND = "credentials"
             return None
         artist = _api("/artists/" + urllib.parse.quote(artist_id), token)
-    except Exception:
+    except Exception as e:
+        # Kept, so the page can say whether Spotify refused this app's
+        # credentials (fix the key) or did not answer (reload). Swallowing
+        # it made a rejected client secret read "usually temporary".
+        _note(e)
         return None
     clear_refusal()
     top_note = ""

@@ -132,7 +132,7 @@
 
           {% if discogs.on and discogs.open == r.t.id %}
             {% if discogs.error %}
-            <p class="mt-2 text-xs text-red-400 font-medium">Discogs answered: {{ discogs.error }}. Nothing was saved.</p>
+            <p class="mt-2 text-xs text-red-400 font-medium">The Discogs lookup failed: {{ discogs.error }}. Nothing was saved.</p>
             {% elif discogs.candidates %}
             <p class="mt-2 text-xs text-gray-300 font-medium">Searched Discogs for {{ discogs.asked }}. Pick the pressing that is actually yours — a reissue is a different record from the original.</p>
             <div class="mt-2 space-y-2">

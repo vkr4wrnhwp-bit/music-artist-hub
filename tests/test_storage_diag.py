@@ -2,8 +2,10 @@
 
 The round-trip check existed but lived inside /presave/diag, which only a
 label-plan account could open, so the owner of the bucket could not see it.
-It answers for any signed-in account now, reports the SHAPE of each
-credential, and never prints a value.
+It answers the owner, reports the SHAPE of each credential, and never
+prints a value. Since 2026-09-23 (audit, providers-15) it answers ONLY the
+owner: any signed-in account could make the server write into the owner's
+bucket and read back the raw S3 error body.
 """
 import uuid
 
@@ -20,12 +22,21 @@ def flask_app():
     return appmod.create_app()
 
 
-def _user(flask_app):
+def _user(flask_app, monkeypatch=None):
+    """A signed-in account; the owner when `monkeypatch` is given."""
     email = "diag-%s@example.net" % uuid.uuid4().hex[:8]
     client = flask_app.test_client()
     client.post("/signup", data={"name": "Diag", "email": email, "password": PASSWORD})
     client.post("/login", data={"email": email, "password": PASSWORD})
+    if monkeypatch is not None:
+        monkeypatch.setenv("OWNER_EMAILS", email)
     return client, store.get_user_by_email(email)
+
+
+def test_a_customer_gets_nothing(flask_app):
+    client, _user_row = _user(flask_app)
+    r = client.get("/storage/diag")
+    assert r.status_code == 404 and b"R2_" not in r.data
 
 
 def test_a_visitor_gets_nothing(flask_app):
@@ -39,7 +50,7 @@ def test_a_visitor_gets_nothing(flask_app):
 def test_unset_storage_says_so_and_says_where_uploads_go(flask_app, monkeypatch):
     for name in ("R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"):
         monkeypatch.delenv(name, raising=False)
-    client, _user_row = _user(flask_app)
+    client, _user_row = _user(flask_app, monkeypatch)
     body = client.get("/storage/diag").get_json()
     assert body["configured"] is False
     assert "disk" in body["note"]
@@ -53,7 +64,7 @@ def test_a_malformed_pair_is_named_without_printing_it(flask_app, monkeypatch):
     monkeypatch.setenv("R2_BUCKET", "a" * 32)              # an id, not a name
     monkeypatch.setenv("R2_ACCESS_KEY_ID", "c" * 32)
     monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "d" * 32)   # should be 64
-    client, _user_row = _user(flask_app)
+    client, _user_row = _user(flask_app, monkeypatch)
     body = client.get("/storage/diag").get_json()
     assert body["configured"] is True and not body.get("ok")
     hints = " ".join(body["next"])
