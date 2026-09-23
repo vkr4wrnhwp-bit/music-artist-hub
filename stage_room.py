@@ -47,6 +47,7 @@ WHAT IT REFUSES TO DO
     fill is a promise the page cannot keep.
 """
 import stage_plot_catalog
+from lights_store import SHOWCASE_CUE_COLOURS as _CUE
 
 # The path from a rig to a published technical record. Each rung is a
 # stored fact.
@@ -473,13 +474,13 @@ def show_label(row):
 # instead, unmarked.
 SHOWCASE_NAME = "Sample show"
 SHOWCASE_CUES = (
-    (0, "House to half", 40, 3, "#e0a340", "all"),
-    (12, "Walk-on wash", 70, 2, "#3b6fd8", "truss"),
-    (28, "Verse one", 60, 1.5, "#e0a340", "all"),
-    (55, "Chorus hit", 100, 0, "#ffffff", "all"),
-    (84, "Floor sweep", 80, 1, "#c03a5a", "floor"),
-    (118, "Bridge", 50, 2.5, "#6a3bd8", "truss"),
-    (150, "Final chorus", 100, 0.5, "#e0a340", "all"),
+    (0, "House to half", 40, 3, _CUE["amber"], "all"),
+    (12, "Walk-on wash", 70, 2, _CUE["blue"], "truss"),
+    (28, "Verse one", 60, 1.5, _CUE["amber"], "all"),
+    (55, "Chorus hit", 100, 0, _CUE["white"], "all"),
+    (84, "Floor sweep", 80, 1, _CUE["rose"], "floor"),
+    (118, "Bridge", 50, 2.5, _CUE["violet"], "truss"),
+    (150, "Final chorus", 100, 0.5, _CUE["amber"], "all"),
     (184, "Blackout", 0, 0, "", "all"),
 )
 SHOWCASE_PLOT_ITEMS = {"drums": 1, "bass": 1, "gtr": 1, "keys": 1, "vox": 2, "wedge": 3}
