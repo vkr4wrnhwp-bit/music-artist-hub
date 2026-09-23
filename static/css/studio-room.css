@@ -280,7 +280,11 @@
 }
 .sz-keep-ico svg { width: 20px; height: 20px; }
 .sz-keep b { font-size: 15px; color: var(--sb-ink); line-height: 1.2; }
-.sz-keep span { font-size: 13px; line-height: 1.45; color: var(--sb-ink-2); }
+/* The line under the name only. `.sz-keep span` also matched the icon's
+   own holder (a span) and, at 0,1,1, beat .sz-keep-ico's gold, so the
+   five icons the spec rules GOLD rendered in the muted ink (audit
+   studio-9). */
+.sz-keep > span:not(.sz-keep-ico) { font-size: 13px; line-height: 1.45; color: var(--sb-ink-2); }
 /* the first stage is where a new account starts: lit, not complete */
 .sz-flow .rk-step.is-first .rk-ring { border-color: var(--sb-gold-bright); color: var(--sb-gold-bright); box-shadow: 0 0 18px color-mix(in srgb, var(--sb-gold) 30%, transparent); }
 .sz-flow .rk-step.is-first b { color: var(--sb-gold-bright); }
@@ -290,12 +294,14 @@
 .sz-ico { display: inline-grid; place-items: center; width: 52px; height: 52px; flex: 0 0 auto; color: var(--sb-gold-bright); }
 .sz-ico svg { width: 30px; height: 30px; }
 .sz-links { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
-.sz-links a { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
+/* These links stand alone as doors, so they take the 44px target every
+   other control on the page has; they measured 21px (audit studio-12). */
+.sz-links a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
 .sz-links a:hover { text-decoration: underline; }
 .sz-qs { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--sb-ink-2); }
 .sz-help-acts { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; flex: 0 0 auto; }
 .sz-help .sz-btn { grid-column: auto; justify-self: auto; }
-.sz-more { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
+.sz-more { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
 .sz-more:hover { text-decoration: underline; }
 .sz-fold { border: 1px solid var(--sb-line-strong); border-radius: var(--sb-r-panel); background: var(--sb-surface-1); }
 .sz-fold-sum {

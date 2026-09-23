@@ -3,7 +3,7 @@
 {% block title %}Studio{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/studio-room.css?v=8">
+  <link rel="stylesheet" href="/static/css/studio-room.css?v=9">
   {%- if sd.idle %}
   {#- the page from zero draws the Command Center's three-screen plate
       (partials/cc_rack.html); the plate's rules live with that page -#}
@@ -228,9 +228,13 @@
       {% if a.cover %}
       <img src="{{ a.cover }}" alt="Cover art for {{ a.title }}">
       {% else %}
+      {#- The unit only shows once a record exists, so what is missing
+          from the bay is a cover. "Add a track to begin." was the empty
+          account's line, and a room with a track on file kept saying it
+          (audit studio-11). The Cover art panel below is the door. -#}
       <div class="sd-bay-none">
         <span>No artwork yet</span>
-        <span>Add a track to begin.</span>
+        <span>Make a cover below.</span>
       </div>
       {% endif %}
     </div>
@@ -273,7 +277,8 @@
     <span class="sd-needle sd-needle--left" style="--turn: {{ a.left }}" aria-hidden="true"></span>
     <span class="sd-needle sd-needle--right" style="--turn: {{ a.right }}" aria-hidden="true"></span>
   </section>
-  <p class="rk-foot sd-standard">Integrated loudness and true-peak headroom, measured
+  <p class="rk-foot sd-standard">{% if sd.sample %}<b>Sample data.</b> Every figure in this
+    room is generated for the example. {% endif %}Integrated loudness and true-peak headroom, measured
     in your browser to {{ a.standard }}. A platform's own encoder has the last word on
     what it finally sounds like.</p>
 

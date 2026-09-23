@@ -43,9 +43,16 @@
     {% endif %}
 
     <!-- Add: one row in the song list, passport opened with it -->
+    {#- The way back a door sent (?returnTo=&from=, e.g. Studio's "Add your
+        first song") rides the save as hidden fields, so the song SAVED
+        goes back to the room and the room can say its done line
+        (app.py _songs_saved_home). Same-site paths only. -#}
+    {%- set pp_back = safe_return(request.args.get('returnTo')) %}
+    {%- set pp_from = (request.args.get('from') or '')[:60] %}
     <div class="mt-4 rounded-xl border border-white/10 bg-black/30 p-4">
       <h3 class="sb-label text-gray-300">Add a track</h3>
       <form method="post" action="/tracks/add" class="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_140px_auto]">
+        {% if pp_back %}<input type="hidden" name="returnTo" value="{{ pp_back }}">{% endif %}{% if pp_from %}<input type="hidden" name="from" value="{{ pp_from }}">{% endif %}
         <input id="pp-title" name="title" required placeholder="Track title"
                class="rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white placeholder-gray-300 focus:border-sb-gold focus:outline-none">
         <input name="release_title" placeholder="Release / album title (optional)"
@@ -60,6 +67,7 @@
         </label>
         <span id="id3-msg" class="text-xs text-gray-300 font-medium">Pick an MP3 — the title fills in from its real embedded tag. The file stays on your device.</span>
         <form method="post" action="/tracks/import" enctype="multipart/form-data" class="ml-auto flex items-center gap-2">
+          {% if pp_back %}<input type="hidden" name="returnTo" value="{{ pp_back }}">{% endif %}{% if pp_from %}<input type="hidden" name="from" value="{{ pp_from }}">{% endif %}
           <label class="cursor-pointer rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-gray-200 hover:bg-white/5" title="Columns: title (required), release, release_date, isrc, upc, catno, writers, producers, publishers, pro, label">
             Import CSV catalog<input type="file" name="csv" accept=".csv,text/csv" class="hidden" onchange="this.form.submit()">
           </label>

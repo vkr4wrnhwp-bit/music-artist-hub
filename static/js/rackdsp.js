@@ -3097,6 +3097,20 @@ function sbWhenRunning(c, fn) {
     explainBtn.addEventListener("click", function () { setExplain(!explainOn); });
   }
 
+  /* An address that names a unit (/rack#sb15) opens that unit's own
+     explanation. The Studio room's "How the Rack measures" lands on the
+     LDN-1 Loudness unit, and its "Measured to the standard" paragraph sits
+     in a panel that is hidden until Explain is pressed - so the link
+     arrived at a meter with no explanation in sight (audit studio-17).
+     Only the named unit's panel opens; the page-wide switch is untouched. */
+  (function openNamedUnit() {
+    var id = (location.hash || "").slice(1);
+    if (!/^[A-Za-z][\w-]*$/.test(id)) { return; }
+    var unit = document.getElementById(id);
+    var panel = unit && unit.classList.contains("ru") && unit.querySelector(".ru-explain");
+    if (panel) { panel.hidden = false; }
+  })();
+
   /* Boot: the deck and the scanner show their hardware before any file
      arrives - dormant lanes, not blank wells. */
   renderStems();
