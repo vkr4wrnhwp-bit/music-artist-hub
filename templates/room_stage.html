@@ -133,6 +133,8 @@
         <p class="sg-z-note">{{ z.project.note }}</p>
         {%- elif z.project.can == "tier" %}
         <p class="sg-z-note">{{ z.project.tier }} <a href="/billing">See memberships{{ icon("arrow") }}</a></p>
+        {%- elif z.project.can == "locked" %}
+        <p class="sg-z-note">{{ z.project.readonly }}</p>
         {%- else %}
         <p class="sg-z-note">{{ z.project.locked }}</p>
         {%- endif %}
@@ -236,12 +238,14 @@
        panel directly under the plate, and still the only place in this
        room the cue list appears. #}
   {% with screens=sg.screens,
-          rack_label=((sg.show_name or "Your show") ~ ": what is saved on this account") if sg.has_show else "What is saved on this account" %}
+          rack_label=("The example show, not this account's records" if sg.sample_show
+                      else (((sg.show_name or "Your show") ~ ": what is saved on this account") if sg.has_show else "What is saved on this account")) %}
   {% include "partials/cc_rack.html" %}
   {% endwith %}
   <p class="rk-foot sg-pl-foot">
-    {% if sg.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
-    This is what is saved on this account. A plot and a rig are what you intend
+    {% if sg.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>
+    Anything marked Sample is the example, not this account's records.
+    {% else %}This is what is saved on this account.{% endif %} A plot and a rig are what you intend
     &mdash; a venue confirms nothing here.
   </p>
 
@@ -257,6 +261,7 @@
           Light Designer and they are listed here, in time order.</p>
         {% endif %}
       </div>
+      {% if sg.sample_show %}<span class="rk-lamp rk-lamp--info">Sample</span>{% endif %}
     </div>
     {% if sg.cues %}
     <ol class="sg-cue-list">
@@ -264,7 +269,7 @@
       <li><b>{{ c.at }}</b><span>{{ c.name }}</span><i>{{ c.group }}</i><em>{{ c.intensity }}%</em></li>
       {% endfor %}
     </ol>
-    {% if sg.cues|length > 6 %}<p class="sg-cue-more">{{ sg.cues|length - 6 }} more in the Light Designer</p>{% endif %}
+    {% if sg.cues|length > 6 %}<p class="sg-cue-more">{{ sg.cues|length - 6 }} more {% if sg.sample_show %}in the example{% else %}in the Light Designer{% endif %}</p>{% endif %}
     {% else %}
     {#- Nothing programmed yet, so the panel is the invitation rather than
         an empty table (owner, 2026-09-22): a blueprint stage with the rig
@@ -308,7 +313,8 @@
         <h2 class="rk-h" id="sg-plot-h">Stage plot</h2>
         <p class="rk-said">Your saved stage plot and input list.</p>
       </div>
-      {% if sg.plot.saved %}<span class="rk-lamp rk-lamp--good">Saved</span>{% endif %}
+      {% if sg.sample_plot %}<span class="rk-lamp rk-lamp--info">Sample</span>
+      {% elif sg.plot.saved %}<span class="rk-lamp rk-lamp--good">Saved</span>{% endif %}
     </div>
 
     {#- THE REAL DESIGNER, not a rendering of it (owner, 2026-09-22: "they
@@ -327,7 +333,10 @@
             tidy-up of its own and not this change. -#}
     <div class="sg-designer">
     {% include "_stage_plot_designer.html" %}
-    {% if not editable %}
+    {% if read_only_demo %}
+    <p class="rk-foot">This account is read only, so the plot is shown and nothing
+      here can be changed or saved.</p>
+    {% elif not editable %}
     <p class="rk-foot">Your seat can see this plot but not change it. The artist's
       own account and a seat with the Stage Plot area can edit it.</p>
     {% endif %}

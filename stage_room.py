@@ -383,6 +383,9 @@ ZERO_PROJECT = {
     "locked": ("Shows are added by the account owner or a seat with edit "
                "access to the Stage room. The Stage opens here once one exists."),
     "tier": "Adding a show needs a membership that includes Tour.",
+    # An account under the read-only demo lock is offered no write door:
+    # the form would only bounce at the lock (audit, 2026-09-23).
+    "readonly": "This account is read only, so shows cannot be added here.",
 }
 # What one show record carries through this room. GOLD icons: these
 # explain capabilities and must not look completed (spec).
@@ -430,6 +433,51 @@ ZERO_TILES = ("stage-plot", "lights", "tour-board", "passports", "live", "tours"
 DONE_LINE = "Your first show was added. Its Stage workspace is ready. Next, draw the stage plot."
 
 
+# --- THE SHOWCASE (the demo account) ------------------------------------
+# The demo account is the showcase and never the page from zero (owner's
+# ruling; the Marketing room's pattern, app.py _marketing_room). What it is
+# shown is this in-memory example: a light show and a stage plot, marked
+# Sample wherever they appear and never written to the database. The
+# route decides who sees it, and only where the demo has nothing of its
+# own: a light show or plot the demo account really saved is shown
+# instead, unmarked.
+SHOWCASE_NAME = "Sample show"
+SHOWCASE_CUES = (
+    (0, "House to half", 40, 3, "#e0a340", "all"),
+    (12, "Walk-on wash", 70, 2, "#3b6fd8", "truss"),
+    (28, "Verse one", 60, 1.5, "#e0a340", "all"),
+    (55, "Chorus hit", 100, 0, "#ffffff", "all"),
+    (84, "Floor sweep", 80, 1, "#c03a5a", "floor"),
+    (118, "Bridge", 50, 2.5, "#6a3bd8", "truss"),
+    (150, "Final chorus", 100, 0.5, "#e0a340", "all"),
+    (184, "Blackout", 0, 0, "", "all"),
+)
+SHOWCASE_PLOT_ITEMS = {"drums": 1, "bass": 1, "gtr": 1, "keys": 1, "vox": 2, "wedge": 3}
+
+
+def showcase_show():
+    """The example light show: six four-channel bars, four on the truss and
+    two on the floor, and eight cues. A fresh dict each call, so nothing a
+    page does to it can leak into the next request."""
+    bars = 6
+    return {
+        "name": SHOWCASE_NAME, "rigName": "Sample rig",
+        "bars": bars, "chans": DEFAULT_CHANS, "dmxUniverse": 1, "dmxStart": 1,
+        "pos": {str(i): [round((i - 0.5) / bars, 3), 0.25 if i <= 4 else 0.75]
+                for i in range(1, bars + 1)},
+        "cues": [{"t": t, "note": note, "intensity": level, "fade": fade,
+                  "color": colour, "group": group}
+                 for t, note, level, fade, colour, group in SHOWCASE_CUES],
+    }
+
+
+def showcase_plot():
+    """The example stage plot: drums, bass, guitar, keys, two vocals and
+    three wedges, from the editor's own catalogue (stage_plot_catalog), so
+    its input list is the one the editor would draw."""
+    return {"items": dict(SHOWCASE_PLOT_ITEMS)}
+
+
 def new_account(shows, tours, light_show, plot_state, passports):
     """The spec's new_account: confirmed empty on every count it names.
     Every argument is what the store returned, so an unreadable store
@@ -444,7 +492,8 @@ def done_line(came_from, shows):
 
 def zero_page(can_add=True, can_open=None):
     """The page from zero. can_add is True, "seat" (a seat that may not
-    write here) or "tier" (a plan without Tour); the card says which."""
+    write here), "tier" (a plan without Tour) or "locked" (an account
+    under the read-only demo lock); the card says which."""
     return {
         "subtitle": ZERO_SUBTITLE,
         "screens": [{"k": k, "v": v} for k, v in ZERO_RACK],
@@ -462,11 +511,15 @@ def zero_page(can_add=True, can_open=None):
 
 def build(show, plot_state, plot_image, version, cards,
           artist_name="", sample=False, can_open=None,
-          zero=False, can_add=True):
+          zero=False, can_add=True, sample_show=False, sample_plot=False):
     """Everything the screen renders. No page logic beyond this.
 
     `zero` is new_account() decided by the route from every count the
-    spec names; `can_add` is who may add a show (see zero_page)."""
+    spec names; `can_add` is who may add a show (see zero_page).
+    `sample_show` / `sample_plot` say the light show or the plot is the
+    showcase's example (showcase_show / showcase_plot), and `sample` is
+    true only when one of them is: the lamp is drawn for what really is
+    sample, never for a demo login as such."""
     the_rig = rig(show)
     the_plot = plot(plot_state, plot_image)
     cue_rows = cues(show)
@@ -528,7 +581,9 @@ def build(show, plot_state, plot_image, version, cards,
         "zero_tiles": zero_tiles,
         "path": path(show, the_rig, the_plot, version),
         "tiles": tiles,
-        # The mark is literal: it appears when this account is looking at
-        # the showcase, and never as decoration.
-        "sample": bool(sample),
+        # The mark is literal: it appears when something on the page is
+        # the showcase's example, and never as decoration.
+        "sample": bool(sample or sample_show or sample_plot),
+        "sample_show": bool(sample_show),
+        "sample_plot": bool(sample_plot),
     }

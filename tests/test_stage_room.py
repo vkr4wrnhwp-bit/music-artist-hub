@@ -561,3 +561,89 @@ def test_with_no_cues_the_panel_is_the_invitation_and_a_door():
     assert 'class="sg-invite" href="/lights"' in box and 'class="sg-blueprint"' in box
     assert "No cues saved yet" in box and "sg-cue-list" not in box
     assert "/tours" not in body, "the 2026-09-22 rule holds on the working page"
+
+
+# --- the demo account: the showcase, never the page from zero ---------------
+
+DEMO_LOGINS = ("demo@streetbanker.io", "demo-pro@streetbanker.io", "demo-artist@streetbanker.io")
+
+
+def _demo(email="demo@streetbanker.io"):
+    c = appmod.app.test_client()
+    r = c.post("/login", data={"email": email, "password": "sweep"})
+    assert r.status_code == 302, email
+    return c, store.get_user_by_email(email)["id"]
+
+
+def _on_file(uid):
+    return (store.get_light_show(uid), store.get_stage_plot(uid), len(store.list_tour_shows(uid)))
+
+
+def test_the_demo_account_is_the_showcase_never_from_zero():
+    """Owner's ruling: the demo account shows the showcase and never the
+    page from zero - the Marketing room's zero=(not showcase) and ...
+    All three showcase logins used to meet the onboarding page and its
+    first-show form, under a Sample data lamp with nothing sample on it
+    (audit stage-1, blocker). The example is in memory: nothing is
+    written to the shared demo account by looking at it."""
+    for email in DEMO_LOGINS:
+        c, uid = _demo(email)
+        before = _on_file(uid)
+        body = _room(c.get("/room/stage").get_data(as_text=True))
+        assert "Start with a show" not in body and 'class="sg-z-form"' not in body, email
+        assert 'action="/tours/new"' not in body and 'href="#sg-z-show"' not in body, email
+        assert "room-plate.webp" in body and "sp-canvas" in body, "the working room, with its plot"
+        if before[0] is None:
+            assert "Sample data" in body and sr.SHOWCASE_NAME in body, email
+            assert _screens(body)[0][1] == str(len(sr.SHOWCASE_CUES))
+            box = body[body.index('<section class="rk-panel sg-cuebox"'):body.index('aria-labelledby="sg-plot-h"')]
+            assert "House to half" in box and '<span class="rk-lamp rk-lamp--info">Sample</span>' in box
+            assert "2 more in the example" in box and "more in the Light Designer" not in box
+        if before[1] is None:
+            plot = body[body.index('aria-labelledby="sg-plot-h"'):]
+            head = plot.split('class="sg-designer"')[0]
+            assert "rk-lamp--info\">Sample<" in head and "Saved<" not in head, "an example plot is not Saved"
+        assert _on_file(uid) == before, "looking at the showcase writes nothing"
+
+
+def test_the_lamp_is_drawn_only_for_what_really_is_sample():
+    """A real account from zero is not the showcase: no example, no lamp.
+    And a demo's own saved light show is its own: shown, unmarked."""
+    c, _uid = _account()
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert "Start with a show" in body and "Sample data" not in body and sr.SHOWCASE_NAME not in body
+    c, uid = _demo("demo-artist@streetbanker.io")
+    prior = store.get_light_show(uid)
+    store.save_light_show(uid, _show())
+    try:
+        body = _room(c.get("/room/stage").get_data(as_text=True))
+        assert "Main Show" in body and sr.SHOWCASE_NAME not in body
+        box = body[body.index('<section class="rk-panel sg-cuebox"'):body.index('aria-labelledby="sg-plot-h"')]
+        assert "rk-lamp--info" not in box, "the demo's own light show is not marked Sample"
+    finally:
+        if prior is None:
+            with store.get_db() as db:
+                db.execute("DELETE FROM light_shows WHERE user_id = ?", (uid,))
+        else:
+            store.save_light_show(uid, prior)
+
+
+def test_a_locked_demo_is_offered_no_write_door():
+    """A demo under the read-only lock was handed the first-show form,
+    whose POST only bounced at the lock. Now it gets no form, and the plot
+    on the working room is drawn read only; a locked account from zero
+    is told why it cannot add a show."""
+    c, uid = _demo("demo-pro@streetbanker.io")
+    store.set_demo_lock(uid, True)
+    try:
+        body = _room(c.get("/room/stage").get_data(as_text=True))
+        assert 'action="/tours/new"' not in body and "sg-z-form" not in body
+        assert 'id="sp-save"' not in body and 'id="sp-items"' not in body, "the plot is drawn read only"
+        assert "sp-canvas" in body and "This account is read only" in body
+    finally:
+        store.set_demo_lock(uid, False)
+    c, uid = _account()
+    store.set_demo_lock(uid, True)
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert "Start with a show" in body and 'class="sg-z-form"' not in body
+    assert sr.ZERO_PROJECT["readonly"] in body and 'href="#sg-z-show"' not in body

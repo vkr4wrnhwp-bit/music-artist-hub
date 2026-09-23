@@ -532,3 +532,81 @@ def test_the_owners_hidden_mark_stays_on_a_populated_room_tile():
              "distribution": ("/distribution", "M1", "Distribution", "d", "live")}
     tiles = {t["key"]: t for t in rl.build(None, [], [], None, None, None, [], [], [], cards)["tiles"]}
     assert tiles["rollout"]["state"] == "hidden" and tiles["sync-packs"]["state"] != "hidden"
+
+
+# --- the demo account: the showcase, never the page from zero ---------------
+
+DEMO_LOGINS = ("demo@streetbanker.io", "demo-pro@streetbanker.io", "demo-artist@streetbanker.io")
+
+
+def _demo(email="demo@streetbanker.io"):
+    c = appmod.app.test_client()
+    r = c.post("/login", data={"email": email, "password": "sweep"})
+    assert r.status_code == 302, email
+    return c, store.get_user_by_email(email)["id"]
+
+
+def _on_file(uid):
+    return (len(mls.list_campaigns(uid)), len(ros.list_campaigns(uid)))
+
+
+def test_the_demo_account_is_the_showcase_never_from_zero():
+    """Owner's ruling: the demo account shows the showcase and never the
+    page from zero - the Marketing room's zero=(not showcase) and ...
+    Every showcase login used to get "Start with one release" with no
+    plate and no Sample mark (audit releases-5). The example is in memory
+    and marked; nothing in it is a door into a record that does not
+    exist, and looking at it writes nothing."""
+    import re
+    for email in DEMO_LOGINS:
+        c, uid = _demo(email)
+        before = _on_file(uid)
+        body = _body(c.get("/room/releases").get_data(as_text=True))
+        assert "Start with one release" not in body and "Create your first release" not in body, email
+        assert "rl-z-fold" not in body and "room-plate.webp" in body, email
+        if before == (0, 0):
+            assert "Sample data" in body and rl.SHOWCASE_TITLE in body, email
+            assert "are the example, not this" in body
+            got = _screens(body)
+            passed = sum(1 for c_ in rl.SHOWCASE_CHECKS if c_[1])
+            assert got[0][1] == "%d / %d" % (passed, len(rl.SHOWCASE_CHECKS)), got
+            assert got[1][1] == str(rl.SHOWCASE_DAYS_OUT) and got[2][1] == str(len(rl.SHOWCASE_CHECKS) - passed)
+            assert "Scheduled drops: <b>%d</b>" % len(rl.SHOWCASE_POSTS) in body
+            for _d, caption, _p in rl.SHOWCASE_POSTS:
+                assert caption in body, caption
+            # the header door is the real builder, never an edit page for no record
+            assert 'class="rk-cta" href="%s"' % rl.DOOR.replace("&", "&amp;") in body
+            assert "/links//edit" not in body and 'href="/tracks/#passport"' not in body
+            assert "Release / Campaign" not in body, "the example has no record to choose between"
+            assert not re.search(r'<td><a href="">', body)
+        assert _on_file(uid) == before, "looking at the showcase writes nothing"
+
+
+def test_the_lamp_is_drawn_only_for_what_really_is_sample():
+    """A real account is never shown the example or its lamp, from zero or
+    with a release of its own."""
+    c, uid = _account()
+    body = _body(c.get("/room/releases").get_data(as_text=True))
+    assert "Start with one release" in body and "Sample data" not in body
+    _campaign(uid, days_out=30, title="Own single")
+    body = _body(c.get("/room/releases").get_data(as_text=True))
+    assert "Own single" in body and "Sample data" not in body and rl.SHOWCASE_TITLE not in body
+
+
+def test_a_locked_demo_is_offered_no_write_door():
+    """The read-only demo lock refuses every write, so a locked account is
+    handed no door into the builder: not on the showcase, and not on the
+    page from zero, which says why instead."""
+    c, uid = _demo("demo-pro@streetbanker.io")
+    store.set_demo_lock(uid, True)
+    try:
+        body = _body(c.get("/room/releases").get_data(as_text=True))
+        assert "Start with one release" not in body
+        assert 'class="rk-cta"' not in body and "/links/new" not in body.split("</section>", 1)[0]
+    finally:
+        store.set_demo_lock(uid, False)
+    c, uid = _account()
+    store.set_demo_lock(uid, True)
+    body = _body(c.get("/room/releases").get_data(as_text=True))
+    assert "Start with one release" in body and 'class="rl-z-btn"' not in body
+    assert 'class="rk-cta"' not in body and rl.ZERO_PROJECT["readonly"] in body
