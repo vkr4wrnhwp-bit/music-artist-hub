@@ -740,24 +740,6 @@
   content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 3;
   background: repeating-linear-gradient(180deg, rgb(0 0 0 / .16) 0 1px, transparent 1px 3px);
 }
-/* the sync bar: one band of light that sweeps the glass as the picture
- * locks in, parked above the screen until then */
-.sbrk-door::before {
-  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 18%; opacity: 0; z-index: 2;
-  pointer-events: none; transform: translateY(-100%);
-  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--sb-crt) 16%, transparent) 50%, transparent);
-}
-
-/* the particles: NOTHING at rest - the glass is the photograph's own dark
- * screen (owner, 2026-09-23: "that blackish color"; and of a drift of
- * dots at rest, "the TV static looks weird, it's cheesy"). The particle
- * tile exists only for the two moments that need it: gathering into the
- * number under the pointer, and bursting back as it goes. */
-.sbrk-static {
-  position: absolute; inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen;
-  background: url(/static/img/crt-particles.png) 0 0 / 192px 192px repeat; image-rendering: pixelated;
-  transform-origin: 50% 50%;
-}
 
 /* the reading, dark until the pointer arrives */
 .sbrk-read {
@@ -800,33 +782,15 @@
  * five lines of 12px type before that, and 12px is the floor. */
 
 /* under the pointer, the keyboard, or a first tap (.is-on, from
- * memberships-rack.js): the picture COMES TOGETHER over about a second
- * and a half, in the room plates' own grammar (room-kit.css rk-frame /
- * rk-split) - owner, 2026-09-23: "more like the room renders where it
- * comes together, not so much static to an image in 1 second". The
- * static thins in steps, the sync bar sweeps once, the name cuts in
- * through the colour-split glitch, the price strikes, the lines settle
- * last. Hard cuts (steps), never a crossfade. */
-/* the particles come together: they pull into the middle, brighten, and
- * are gone by the time the number has struck */
-.sbrk-door:hover .sbrk-static,
-.sbrk-door:focus-visible .sbrk-static,
-.sbrk-door.is-on .sbrk-static { animation: sbrk-gather .75s steps(7, end) forwards; }
-@keyframes sbrk-gather {
-  0%   { opacity: .95; transform: scale(1);   filter: brightness(1.4); }
-  55%  { opacity: .8;  transform: scale(.6);  filter: brightness(2); }
-  100% { opacity: 0;   transform: scale(.35); filter: brightness(2.6); }
-}
-/* and when the pointer leaves, it statics OUT (.is-out, from
+ * memberships-rack.js): the number CUTS IN the way the room racks'
+ * displays do (room-kit.css rk-frame / rk-split) - slices thrown a few
+ * pixels sideways, the colour-split copies of the name, each line
+ * arriving in turn - and nothing is laid over the glass at any point
+ * (owner, 2026-09-23: "no static, nothing"; a particle layer read as a
+ * square and went). Hard cuts (steps), never a crossfade. */
+/* and when the pointer leaves, it glitches OUT (.is-out, from
  * memberships-rack.js, for the length of the animation): the number
- * breaks into slices and goes, the particles burst back across the glass
- * and settle into their drift */
-.sbrk-door.is-out .sbrk-static { animation: sbrk-burst .7s steps(7, end) both; }
-@keyframes sbrk-burst {
-  0%   { opacity: .95; transform: scale(.45); filter: brightness(2.4); }
-  50%  { opacity: .8;  transform: scale(1.3);  filter: brightness(1.6); }
-  100% { opacity: 0;   transform: scale(1.5);  filter: none; }
-}
+ * breaks into slices and goes, and the glass is dark again */
 .sbrk-door.is-out .sbrk-read { opacity: 0; animation: sbrk-out .55s steps(1, end) both; }
 @keyframes sbrk-out {
   0%   { opacity: 1;   clip-path: inset(0);           transform: none; }
@@ -838,14 +802,6 @@
 }
 .sbrk-door.is-out .sbrk-k::before { animation: sbrk-split-a .45s steps(1, end) both; }
 .sbrk-door.is-out .sbrk-k::after { animation: sbrk-split-b .45s steps(1, end) both; }
-.sbrk-door:hover::before,
-.sbrk-door:focus-visible::before,
-.sbrk-door.is-on::before { animation: sbrk-sync 1.15s ease-out .05s both; }
-@keyframes sbrk-sync {
-  0%   { opacity: 0; transform: translateY(-100%); }
-  8%   { opacity: .9; }
-  100% { opacity: 0; transform: translateY(560%); }
-}
 .sbrk-door:hover .sbrk-read,
 .sbrk-door:focus-visible .sbrk-read,
 .sbrk-door.is-on .sbrk-read { opacity: 1; transform: none; animation: sbrk-assemble 1.5s steps(1, end) both; }
@@ -865,18 +821,11 @@
 .sbrk-door:focus-visible .sbrk-read > *,
 .sbrk-door.is-on .sbrk-read > * { animation: sbrk-in .32s ease both; }
 .sbrk-door:hover .sbrk-k, .sbrk-door:focus-visible .sbrk-k, .sbrk-door.is-on .sbrk-k { animation-delay: .12s; }
-.sbrk-door:hover .sbrk-price, .sbrk-door:focus-visible .sbrk-price, .sbrk-door.is-on .sbrk-price { animation: sbrk-strike .6s steps(5, end) .48s both; }
+.sbrk-door:hover .sbrk-price, .sbrk-door:focus-visible .sbrk-price, .sbrk-door.is-on .sbrk-price { animation-delay: .5s; }
 .sbrk-door:hover .sbrk-per, .sbrk-door:focus-visible .sbrk-per, .sbrk-door.is-on .sbrk-per { animation-delay: .92s; }
 .sbrk-door:hover .sbrk-line, .sbrk-door:focus-visible .sbrk-line, .sbrk-door.is-on .sbrk-line { animation-delay: 1.06s; }
 .sbrk-door:hover .sbrk-soon, .sbrk-door:focus-visible .sbrk-soon, .sbrk-door.is-on .sbrk-soon { animation-delay: 1.22s; }
 @keyframes sbrk-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes sbrk-strike {
-  0%   { opacity: 0;   transform: scale(1.14); filter: blur(6px) brightness(2.2); }
-  40%  { opacity: .9;  transform: scale(1.03); filter: blur(1px) brightness(1.7); }
-  60%  { opacity: .5;  transform: scale(1.01); filter: none; }
-  80%  { opacity: 1;   transform: scale(1.02); filter: brightness(1.3); }
-  100% { opacity: 1;   transform: none;        filter: none; }
-}
 /* the name's split copies flash inside its cut-in */
 .sbrk-door:hover .sbrk-k::before, .sbrk-door:focus-visible .sbrk-k::before, .sbrk-door.is-on .sbrk-k::before { animation: sbrk-split-a .55s steps(1, end) .12s both; }
 .sbrk-door:hover .sbrk-k::after, .sbrk-door:focus-visible .sbrk-k::after, .sbrk-door.is-on .sbrk-k::after { animation: sbrk-split-b .55s steps(1, end) .12s both; }
@@ -904,12 +853,7 @@
  * opens. Only the phone layout below renders resolved from the start. */
 /* less motion: no snow, and the reveal arrives instead of settling */
 @media (prefers-reduced-motion: reduce) {
-  .sbrk-static { animation: none; opacity: 0; transition: none; }
   .sbrk-read { transition: none; }
-  .sbrk-door:hover .sbrk-static,
-  .sbrk-door:focus-visible .sbrk-static,
-  .sbrk-door.is-on .sbrk-static { animation: none; opacity: 0; }
-  .sbrk-door:hover::before, .sbrk-door:focus-visible::before, .sbrk-door.is-on::before { animation: none; }
   .sbrk-door:hover .sbrk-read, .sbrk-door:hover .sbrk-read > *, .sbrk-door:hover .sbrk-k::before, .sbrk-door:hover .sbrk-k::after,
   .sbrk-door:focus-visible .sbrk-read, .sbrk-door:focus-visible .sbrk-read > *, .sbrk-door:focus-visible .sbrk-k::before, .sbrk-door:focus-visible .sbrk-k::after,
   .sbrk-door.is-on .sbrk-read, .sbrk-door.is-on .sbrk-read > *, .sbrk-door.is-on .sbrk-k::before, .sbrk-door.is-on .sbrk-k::after {
@@ -918,7 +862,7 @@
   .sbrk-door:hover .sbrk-k::before, .sbrk-door:hover .sbrk-k::after,
   .sbrk-door:focus-visible .sbrk-k::before, .sbrk-door:focus-visible .sbrk-k::after,
   .sbrk-door.is-on .sbrk-k::before, .sbrk-door.is-on .sbrk-k::after { opacity: 0; }
-  .sbrk-door.is-out .sbrk-static, .sbrk-door.is-out .sbrk-read,
+  .sbrk-door.is-out .sbrk-read,
   .sbrk-door.is-out .sbrk-k::before, .sbrk-door.is-out .sbrk-k::after { animation: none; }
 }
 /* the narrow page: the photograph steps aside and the three screens
@@ -936,9 +880,8 @@
     border: 1px solid var(--sb-gold-deep); border-radius: var(--sb-r-control);
     background: color-mix(in srgb, var(--sb-crt) 6%, #000);
   }
-  .sbrk-static { display: none; }
   .sbrk-read { opacity: 1; transform: none; gap: 6px; }
-  .sbrk-door.is-on::before, .sbrk-door.is-on .sbrk-read, .sbrk-door.is-on .sbrk-read > *,
+  .sbrk-door.is-on .sbrk-read, .sbrk-door.is-on .sbrk-read > *,
   .sbrk-door.is-on .sbrk-k::before, .sbrk-door.is-on .sbrk-k::after,
   .sbrk-door.is-out .sbrk-read, .sbrk-door.is-out .sbrk-k::before, .sbrk-door.is-out .sbrk-k::after { animation: none; }
   .sbrk-door.is-out .sbrk-read { opacity: 1; }

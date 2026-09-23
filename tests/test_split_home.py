@@ -587,8 +587,10 @@ def test_the_screens_sit_where_the_command_center_s_do():
 
 
 def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
-    """At rest the glass is snow; hover, focus or a first tap clears it
-    and the tier settles in. No media query decides who gets the static -
+    """At rest the glass is dark and NOTHING is laid over it (owner,
+    2026-09-23: "no static, nothing" - snow, a drift and a particle layer
+    were each rejected in turn). Hover, focus or a first tap cuts the
+    tier in the way the room racks do; the leave glitches it out. No media query decides who gets the static -
     a touchscreen laptop reports no hover at all in Chrome (the owner's
     own machine, 2026-09-23) and a gate would have shown him nothing. A
     phone gets the screens stacked and resolved. Less motion stops the
@@ -597,21 +599,19 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     css = io.open(os.path.join(HERE, "static", "css", "split-home.css"),
                   encoding="utf-8").read()
     body = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
-    # Dark glass with particles adrift, not snow (owner, 2026-09-23: "that
-    # blackish color ... not like full-blown TV static").
-    static = body.split(".sbrk-static {", 1)[1].split("}", 1)[0]
-    assert "crt-particles.png" in static and "opacity: 0" in static, "nothing moves at rest"
-    assert "animation" not in static and "sbrk-drift" not in body, "no resting drift (owner: cheesy)"
-    assert "crt-static.png" not in body, "the dense snow tile is retired"
-    assert os.path.exists(os.path.join(HERE, "static", "img", "crt-particles.png"))
-    hover = body.split(".sbrk-door:hover .sbrk-static,", 1)[1].split("}", 1)[0]
-    assert "sbrk-gather" in hover, "the particles come together under the pointer"
-    # and it statics OUT on the way back (.is-out, from the script)
-    for kf in ("sbrk-gather", "sbrk-burst", "sbrk-out"):
-        assert "@keyframes %s" % kf in body, kf
-    assert ".sbrk-door.is-out .sbrk-read" in body and ".sbrk-door.is-out .sbrk-static" in body
-    assert ".sbrk-door:focus-visible .sbrk-static" in body, "the keyboard clears it too"
-    assert ".sbrk-door.is-on .sbrk-static" in body, "a first tap clears it too"
+    # Nothing on the glass: no snow, no drift, no particle layer, no sweep
+    # (owner, 2026-09-23: "no static, nothing").
+    for gone in ("sbrk-static", "crt-static.png", "crt-particles.png", "sbrk-drift",
+                 "sbrk-gather", "sbrk-burst", "sbrk-sync", "sbrk-strike", ".sbrk-door::before"):
+        assert gone not in body, gone + " is an overlay"
+    assert ".sbrk-k::before" in body, "the name's colour-split copies are the kit's grammar and stay"
+    t = io.open(os.path.join(HERE, "templates", "partials", "memberships_rack.html"),
+                encoding="utf-8").read()
+    assert "sbrk-static" not in t
+    # the cut-in and the glitch-out, in the kit's grammar
+    assert "@keyframes sbrk-out" in body and ".sbrk-door.is-out .sbrk-read" in body
+    assert ".sbrk-door:focus-visible .sbrk-read" in body, "the keyboard cuts it in too"
+    assert ".sbrk-door.is-on .sbrk-read" in body, "a first tap cuts it in too"
     # A RENDER, not a snap (owner, 2026-09-23: "more like the room renders
     # where it comes together, not so much static to an image in 1 second"):
     # the reading assembles over more than a second in the kit's own
@@ -619,7 +619,7 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     # price striking in, the lines arriving last.
     m = re.search(r"animation: sbrk-assemble ([\d.]+)s steps\(1, end\) both", body)
     assert m and float(m.group(1)) >= 1.2, "the picture comes together, it does not snap"
-    for kf in ("sbrk-assemble", "sbrk-split-a", "sbrk-split-b", "sbrk-strike", "sbrk-sync", "sbrk-in"):
+    for kf in ("sbrk-assemble", "sbrk-split-a", "sbrk-split-b", "sbrk-in"):
         assert "@keyframes %s" % kf in body, kf
     assert 'content: attr(data-t)' in body.split(".sbrk-k::before, .sbrk-k::after {", 1)[1].split("}", 1)[0]
     delays = re.findall(r"\.sbrk-door\.is-on \.sbrk-(k|per|line|soon) \{ animation-delay: ([\d.]+)s; \}", body)
@@ -633,7 +633,7 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     assert os.path.exists(js_path)
     js = io.open(js_path, encoding="utf-8").read()
     assert '"touchend"' in js and 'classList.add("is-on")' in js and "preventDefault" in js
-    assert 'getComputedStyle(snow).display === "none"' in js, "a resolved screen opens on the first tap"
+    assert 'getComputedStyle(read).opacity === "1"' in js, "a resolved screen opens on the first tap"
     assert '"mouseleave"' in js and 'classList.add("is-out")' in js, "the leave statics out"
     page_t = io.open(os.path.join(HERE, "templates", "landing_split.html"), encoding="utf-8").read()
     assert "memberships-rack.js?v=1" in page_t
@@ -641,9 +641,9 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     # steps aside below 960px where the glass is too short for five lines
     assert "max-width: 26ch" not in body and "max-width: 28ch" not in body
     phone = body.split("@media (max-width: 959px)", 1)[1]
-    assert ".sbrk-plate { display: none; }" in phone and ".sbrk-static { display: none; }" in phone
+    assert ".sbrk-plate { display: none; }" in phone
     calm = body.split("@media (prefers-reduced-motion: reduce)")
-    assert any("animation: none" in part and ".sbrk-static" in part for part in calm[1:])
+    assert any("animation: none" in part and ".sbrk-read" in part for part in calm[1:])
     t = io.open(os.path.join(HERE, "templates", "partials", "memberships_rack.html"),
                 encoding="utf-8").read()
     assert "<script" not in t, "the script is the page's, loaded once with the others"
