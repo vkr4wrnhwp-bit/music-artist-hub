@@ -186,7 +186,10 @@
 
   {# ---- more Studio tools, folded -------------------------------------- #}
   {% if sd.tiles %}
-  <details class="sz-fold">
+  {#- OPEN by default (owner, 2026-09-23): "a lot of people won't read,
+      they need to see it". The fold stays so it can be closed; it never
+      starts closed. -#}
+  <details class="sz-fold" open>
     <summary class="sz-fold-sum">More Studio tools{{ icon("chevron") }}</summary>
     <section class="sz-tools" aria-labelledby="sz-tools-h">
       <h2 class="rk-h sr-only" id="sz-tools-h">More Studio tools</h2>

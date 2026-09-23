@@ -181,7 +181,8 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_unit():
     # the two empties in words, help, and the tools folded
     assert "Your tracks will appear here" in body and "Nothing to review yet" in body
     assert "Not sure where to begin?" in body
-    assert '<details class="sz-fold">' in body and "More Studio tools" in body
+    assert '<details class="sz-fold" open>' in body and "More Studio tools" in body, (
+        "the drawer starts OPEN (owner, 2026-09-23: people need to see it)")
     text = _re.sub(r"<style.*?</style>|<script.*?</script>|<[^>]+>", " ", body, flags=_re.S)
     assert "0 tracks" not in text and not _re.search(r"(?<![\d.])0%", text), "an absence is words, not a nought"
     # the populated room's parts are not on this page

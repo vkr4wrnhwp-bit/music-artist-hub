@@ -81,7 +81,8 @@ def test_an_empty_account_is_told_how_to_start_not_shown_a_crowd():
     assert "0 fans" not in text and not _re.search(r"(?<![\d.])0%", text), "an absence is words, not a nought"
     # help, and the tools folded
     assert "Not sure where to begin?" in body
-    assert '<details class="fr-fold">' in body and "More fan tools" in body
+    assert '<details class="fr-fold" open>' in body and "More fan tools" in body, (
+        "the drawer starts OPEN (owner, 2026-09-23: people need to see it)")
     # the populated room's parts are not on this page
     assert "Next best moves" not in body and "The fan lifecycle" not in body
     for gone in MOCKUP_ONLY:
