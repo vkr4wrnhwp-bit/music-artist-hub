@@ -1519,13 +1519,20 @@ def test_discover_results_have_add_button(monkeypatch):
 
 
 def _fake_deezer(url):
+    # A hit is accepted only when its title and artist match the ones asked
+    # for (audit 2026-09-23, providers-19: the first keyword hit used to be
+    # stored as the artist's own codes), so the fake search names the songs
+    # these tests add, and the track and album carry their ids.
     if "api.deezer.com/search" in url:
-        return {"data": [{"id": 42}]}
+        return {"data": [{"id": 42, "title": title, "artist": {"name": artist}}
+                         for title, artist in (("Meta Song", "Meta Artist"),
+                                               ("ID Song", "A"),
+                                               ("First Song", "Clean Artist"))]}
     if "api.deezer.com/track/" in url:
-        return {"isrc": "USTEST2500001", "duration": 200, "release_date": "2025-01-10",
+        return {"id": 42, "isrc": "USTEST2500001", "duration": 200, "release_date": "2025-01-10",
                 "album": {"id": 7, "title": "Test LP"}}
     if "api.deezer.com/album/" in url:
-        return {"upc": "123456789012", "label": "Test Label", "title": "Test LP",
+        return {"id": 7, "upc": "123456789012", "label": "Test Label", "title": "Test LP",
                 "release_date": "2025-01-10", "nb_tracks": 10,
                 "genres": {"data": [{"name": "Electro"}]}}
     if "musicbrainz.org/ws/2/isrc/" in url:
@@ -3026,7 +3033,10 @@ def test_identifiers_page_uses_real_catalog(monkeypatch):
     body = client.get("/catalog").get_data(as_text=True)
     assert "Your Identifiers" in body
     assert "USTEST2500001" in body and "123456789012" in body   # real pulled IDs
-    assert "ISRC and UPC come from your catalog records" in body
+    # The codes were looked up on Deezer, and the page says so rather than
+    # calling them the artist's own records (audit 2026-09-23, providers-19).
+    assert "ISRC and UPC come from your catalog records" not in body
+    assert "from Deezer, matched by title and artist, not confirmed" in body
     assert "the ISWC is the work code The MLC returned" in body
     # A metadata-less track is flagged with an actionable MISSING row.
     monkeypatch.setattr(music_apis, "_fetch_json",
