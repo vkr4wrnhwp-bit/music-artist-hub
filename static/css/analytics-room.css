@@ -11,12 +11,6 @@
 
 .an-field-v { font-size: 14.5px; font-weight: 700; color: var(--sb-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* The figure strip reads label-first here, unlike the other rooms: the
-   value is usually the words "Not measured", and a sentence sitting where
-   a number belongs needs its heading above it to make sense. */
-.an-fig-l { margin: 0; }
-.an-fig-n { margin: 14px 0 0; font-size: 34px; }
-
 .an-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 
 /* ---- the instrument rows ---------------------------------------------- */
@@ -40,20 +34,46 @@
 .an-read-t > span { font-size: 12.5px; color: var(--sb-ink-2); }
 .an-read-w { font-size: 12.5px; color: var(--sb-ink-2); font-variant-numeric: tabular-nums; }
 
-/* ---- the chart --------------------------------------------------------- */
+/* ---- the trend (owner, 2026-09-23) ---------------------------------------
+   The line over time had the old analyser's long upper screen. The room's
+   working page now draws the rooms' shared three-window plate
+   (partials/cc_rack.html, command-zero.css), and the trend is its own
+   panel directly under it: the kit's panel, and inside it one pane of the
+   plate's glass - the same phosphor green on the ground, an amber edge -
+   so the line still reads as the instrument's. The axis labels print the
+   MEASURED range and the first and last day on file. */
 
-.an-chart { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--sb-line); }
-.an-chart-head { margin-bottom: 8px; }
-.an-h3 { font-size: 15px; }
-.an-plot { width: 100%; height: 180px; display: block; }
-.an-plot-line { stroke: var(--screen); stroke-width: 2; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 6px rgb(93 255 143 / .6)); }
-.an-plot-none {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  min-height: 132px; padding: 16px; text-align: center;
-  border: 1px dashed var(--sb-line-strong); border-radius: var(--sb-r-control);
+.an-trend-glass {
+  padding: 14px 16px 12px; border: 1px solid var(--sb-gold-line); border-radius: var(--sb-r-control);
+  background: color-mix(in srgb, var(--sb-crt) 5%, var(--sb-ground));
 }
-.an-plot-none p { margin: 0; font-size: 13px; color: var(--sb-ink-2); max-width: 34ch; }
-.an-plot-none svg { color: var(--sb-ink-2); }
+.an-trend-plot {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 200px auto;
+  gap: 8px 12px; min-width: 0;
+}
+.an-trend-y, .an-trend-x {
+  margin: 0; font-size: 12px; font-weight: 600; line-height: 1.2; letter-spacing: .02em;
+  color: var(--sb-crt-dim); font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+}
+/* the scale: the highest reading at the top of the line, the lowest at
+   its foot, set against the plot's own padding (y 10..170 of 180) */
+.an-trend-y {
+  grid-column: 1; grid-row: 1; display: flex; flex-direction: column; justify-content: space-between;
+  align-items: flex-end; padding: 2px 0; white-space: nowrap;
+}
+.an-trend-x { grid-column: 2; grid-row: 2; display: flex; justify-content: space-between; gap: 12px; }
+.an-plot { grid-column: 2; grid-row: 1; width: 100%; height: 100%; display: block; min-width: 0; }
+.an-plot-line {
+  stroke: var(--sb-crt); stroke-width: 2; vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sb-crt) 60%, transparent));
+}
+/* no line yet: the reason, in words, on the same glass */
+.an-trend-none {
+  margin: 0; min-height: 120px; display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 8px; text-align: center; font-size: 15px; font-weight: 700; line-height: 1.4; color: var(--sb-crt);
+}
+.an-trend-none span { max-width: 60ch; }
+.an-trend-ico { width: 26px; height: 26px; flex: 0 0 auto; color: var(--sb-crt-dim); }
 
 /* ---- the observations --------------------------------------------------- */
 
@@ -82,31 +102,18 @@
   .an-read-w { grid-column: 1; }
 }
 
-/* ---- the plate -------------------------------------------------------
-   Position and type come from room-kit.css (.rk-pl*). Only the trend line
-   inside the long upper screen is particular to this analyser. */
+@media (max-width: 560px) {
+  .an-trend-glass { padding: 12px; }
+  .an-trend-plot { grid-template-rows: 160px auto; gap: 6px 8px; }
+  .an-trend-none { font-size: 14px; }
+}
 
-.an-pl { margin-top: 18px; }
-.an-pl-trend .rk-pl-art { width: 100%; height: 100%; }
-.an-pl-trend .an-plot { width: 100%; height: 100%; }
-.an-pl-none {
-  margin: 0; font-family: var(--sb-display); font-weight: 800;
-  color: var(--screen); text-shadow: var(--screen-glow); font-size: clamp(11px, 1.4cqw, 24px);
-}
-.an-pl-none-s {
-  margin: 0; max-width: 58%; line-height: 1.45; color: var(--screen-dim);
-  font-size: clamp(8px, .9cqw, 13px);
-}
+/* the line under the plate: who measured, and that an absence is words */
 .an-pl-foot { margin-top: 10px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 
-@media (max-width: 560px) {
-  .an-pl-none { font-size: 17px; }
-  .an-pl-none-s { font-size: 13px; max-width: none; }
-}
-
 /* ---- the page from zero (owner's Analytics spec, 2026-09-23) ----------
-   The plate is the Command Center's (partials/cc_rack.html) and its rules
-   are command-zero.css, linked only on this state. Everything below is
+   The plate is the rooms' shared one (partials/cc_rack.html) and its rules
+   are command-zero.css, linked on this page in both states. Everything below is
    this page's own: nothing kit-owned is redeclared (rk-h, rk-panel,
    rk-panel-head, rk-rail, rk-step, rk-ring, rk-tiles are used as they
    are). Sizes never below 12px; radii and colours are tokens. Green is

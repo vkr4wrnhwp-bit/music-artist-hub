@@ -3,12 +3,10 @@
 {% block title %}Analytics{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/analytics-room.css?v=3">
-  {%- if an.idle %}
-  {#- the page from zero draws the Command Center's three-screen plate
-      (partials/cc_rack.html); the plate's rules live with that page -#}
+  <link rel="stylesheet" href="/static/css/analytics-room.css?v=4">
+  {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
+      page from zero and the working room alike; its rules live with it -#}
   <link rel="stylesheet" href="/static/css/command-zero.css?v=4">
-  {%- endif %}
 {% endblock %}
 
 {#- THE ANALYTICS ROOM - built from the owner's mockup image (2026-09-22),
@@ -224,53 +222,14 @@
   </details>
   {% endif %}
   {% else %}
-  {# ---- the three figures ---------------------------------------------- #}
-  {# ---- the plate: one photograph, four windows ------------------------
-       The hardware is a photograph (static/img/analytics-plate.webp) and
-       only the readings are drawn on it, positioned as fractions held in
-       analytics_room.PLATE. The long upper screen is the trend line; the
-       three below are the readings. The plate silkscreens every name, so
-       the markup carries them for a screen reader alone. #}
-  <section class="rk-pl an-pl"
-           aria-label="What this account measures, and how it moved">
-    <img class="rk-pl-img" src="/static/img/analytics-plate.webp?v=1" alt=""
-         width="1859" height="846" decoding="async">
-
-    {# the oscilloscope: the line over time, or the reason there is none #}
-    <div class="rk-pl-win an-pl-trend" style="{{ an.trend_box }}">
-      <p class="rk-pl-sr">The trend</p>
-      {% if an.chart.can_draw %}
-      {#- A plain polyline over the readings on file. The axis is the
-          measured range, so the line is never flattered by a zero
-          baseline nobody measured. -#}
-      <div class="rk-pl-art">
-        <svg class="an-plot" viewBox="0 0 600 180" preserveAspectRatio="none" role="img"
-             aria-label="{{ an.chart.label }}, from {{ an.chart.provider }}">
-          <polyline class="an-plot-line" fill="none" points="
-            {%- for p in an.chart.points -%}
-              {{ (600 * loop.index0 / ((an.chart.points|length - 1) or 1))|round(1) }},{{ (170 - 160 * ((p.value - an.chart.low) / ((an.chart.high - an.chart.low) or 1)))|round(1) }}
-            {% endfor -%}"/>
-        </svg>
-      </div>
-      {% else %}
-      <p class="an-pl-none">{{ an.chart.label }}</p>
-      <p class="an-pl-none-s">{{ an.chart.why }}</p>
-      {% endif %}
-    </div>
-
-    {# the three readings #}
-    {% for w in an.windows %}
-    <div class="rk-pl-win" style="{{ w.box }}">
-      <p class="rk-pl-sr">{{ w.label }}</p>
-      {% if w.measured %}<p class="rk-pl-n">{{ w.value }}</p>
-      {% else %}{#- Nothing measured here, so the window fills with a reel rather than
-          a line of words (owner, 2026-09-22); the small line beneath still
-          says what is missing. -#}
-      <span class="rk-reel rk-reel--fill" aria-hidden="true">{% for name in an.standby.fill %}<span class="rk-reel-i">{{ icon(name, "rk-reel-ico") }}</span>{% endfor %}<span class="rk-reel-i">{{ icon(an.standby.fill[0], "rk-reel-ico") }}</span></span>{% endif %}
-      <p class="rk-pl-s">{{ w.why or w.source }}</p>
-    </div>
-    {% endfor %}
-  </section>
+  {# ---- the plate ------------------------------------------------------ #}
+  {#- The working room on the rooms' shared three-window plate (owner,
+      2026-09-23): link visits, followers, monthly listeners. The plate
+      prints no names, so each screen says what it is; an absence is the
+      words "Not measured" with what would fill it, never a nought. -#}
+  {% with screens=an.screens, rack_label="What this account measures" %}
+  {% include "partials/cc_rack.html" %}
+  {% endwith %}
   <p class="rk-foot an-pl-foot">
     {% if an.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>
     Every figure here is generated for the example, not read from this account's own records.
@@ -280,6 +239,42 @@
     so &mdash; never 0, because a zero would be a measurement somebody took.
     {% endif %}
   </p>
+
+  {# ---- the trend ------------------------------------------------------ #}
+  {#- The line over time had the old analyser's long upper screen; on the
+      rooms' shared plate it is its own panel, directly under the plate
+      (owner, 2026-09-23: nothing is lost). A plain polyline over the
+      readings on file. The axis is the MEASURED range, so the line is
+      never flattered by a zero baseline nobody measured, and the labels
+      print that range rather than leave it to be guessed. One reading, or
+      two from one afternoon, is not a line: the panel says why instead. -#}
+  <section class="rk-panel an-trend" aria-labelledby="an-trend-h">
+    <div class="rk-panel-head">
+      <div>
+        <h2 class="rk-h" id="an-trend-h">{{ an.chart.label }}</h2>
+        {#- said only over a drawn line: with nothing read, "read by" would
+            claim a reading nobody took, so the glass gives the reason alone -#}
+        {% if an.chart.can_draw %}<p class="rk-said">Read by {{ an.chart.provider }}. The scale is the measured range, never a zero nobody measured.</p>{% endif %}
+      </div>
+    </div>
+    <div class="an-trend-glass">
+      {% if an.chart.can_draw %}
+      <div class="an-trend-plot">
+        <p class="an-trend-y" aria-hidden="true"><span>{{ an.chart.axis.high }}</span><span>{{ an.chart.axis.low }}</span></p>
+        <svg class="an-plot" viewBox="0 0 600 180" preserveAspectRatio="none" role="img"
+             aria-label="{{ an.chart.label }}, from {{ an.chart.provider }}: between {{ an.chart.axis.low }} and {{ an.chart.axis.high }}, {{ an.chart.axis.first }} to {{ an.chart.axis.last }}">
+          <polyline class="an-plot-line" fill="none" points="
+            {%- for p in an.chart.points -%}
+              {{ (600 * loop.index0 / ((an.chart.points|length - 1) or 1))|round(1) }},{{ (170 - 160 * ((p.value - an.chart.low) / ((an.chart.high - an.chart.low) or 1)))|round(1) }}
+            {% endfor -%}"/>
+        </svg>
+        <p class="an-trend-x" aria-hidden="true"><span>{{ an.chart.axis.first }}</span><span>{{ an.chart.axis.last }}</span></p>
+      </div>
+      {% else %}
+      <p class="an-trend-none">{{ icon("trending", "an-trend-ico") }}<span>{{ an.chart.why }}</span></p>
+      {% endif %}
+    </div>
+  </section>
 
   {# ---- the measurement path ------------------------------------------- #}
   <section class="rk-panel" aria-labelledby="an-path-h">

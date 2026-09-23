@@ -276,11 +276,113 @@ def test_one_pinned_artist_brings_the_analyser_back_untouched():
     c, uid = _account()
     _pin(uid)
     body = c.get("/room/analytics").get_data(as_text=True).split('class="rk an"', 1)[1]
-    assert "analytics-plate.webp?v=" in body and "room-plate" not in body
+    # Since 2026-09-23 the working room draws the rooms' shared plate too;
+    # what separates it from the page from zero is the readings on it.
+    assert "room-plate.webp?v=" in body and "analytics-plate.webp" not in body
     assert "Pinned Artist" in body and "Change artist" in body
     assert "Not measured" in body, "the analyser's own words for what nobody measured"
     assert "Start with a trusted source" not in body and "an-z-fold" not in body
+    for _k, words in ar.ZERO_RACK:
+        assert words not in body, "the page from zero's screens: %s" % words
     assert "Explore more tools" in body
+
+
+# --- the working page on the rooms' shared plate (owner, 2026-09-23) -------
+
+def _working(followers_by_day=()):
+    """A pinned account with Spotify readings on the given days."""
+    c, uid = _account()
+    _pin(uid)
+    for day, followers in followers_by_day:
+        store.record_pulse_snapshot(uid, followers, 40, None, day=day)
+    page = c.get("/room/analytics").get_data(as_text=True)
+    return page, page.split('class="rk an"', 1)[1]
+
+
+def _screens(body):
+    """(label, value classes, value, line under it) for each screen."""
+    rack = body.split('<section class="cz-rack"', 1)[1].split("</section>", 1)[0]
+    return re.findall(
+        r'<li class="cz-screen"[^>]*>\s*<span class="cz-screen-k">([^<]*)</span>\s*'
+        r'<span class="(cz-screen-v[^"]*)">([^<]*)</span>\s*'
+        r'(?:<span class="cz-screen-s">([^<]*)</span>)?', rack)
+
+
+def test_the_screens_are_the_three_figures_named_and_an_absence_is_words():
+    """The shared plate prints no names, so every screen says what it is;
+    the line under it is what the old window printed there - where the
+    reading came from, or what would fill it."""
+    visits, followers, listeners = ar.rack_screens(ar.figures(None, 0, None))
+    assert [s["k"] for s in (visits, followers, listeners)] == [
+        "Link visits", "Followers", "Monthly listeners"]
+    assert visits["v"] == "Not measured" and visits["none"] and not visits["fig"]
+    assert visits["sub"] == "No smart links tracked yet"
+    assert listeners["v"] == "Not measured" and listeners["sub"] == "Needs a metrics provider"
+    assert followers["v"] == "0" and followers["fig"] and not followers["none"], (
+        "a counted zero is a measurement, and is set as one")
+    assert followers["sub"] == "From the connected provider"
+    assert not any(s.get("href") for s in (visits, followers, listeners)), "a reading is not a door"
+
+
+def test_the_working_page_draws_the_rooms_plate_with_three_named_screens():
+    page, body = _working([("2026-09-10", 1200), ("2026-09-11", 1340)])
+    assert "command-zero.css?v=3" in page and "analytics-room.css?v=4" in page
+    assert 'class="cz-plate" src="/static/img/room-plate.webp?v=' in body
+    assert "analytics-plate.webp" not in body, "the old four-window analyser is gone"
+    assert body.count('<li class="cz-screen"') == 3
+    got = _screens(body)
+    assert [g[0] for g in got] == ["Link visits", "Followers", "Monthly listeners"]
+    by = {g[0]: g for g in got}
+    assert by["Followers"][2] == "1,340" and "cz-screen-v--fig" in by["Followers"][1]
+    assert by["Followers"][3] == "From the connected provider"
+    for label, why in (("Link visits", "No smart links tracked yet"),
+                       ("Monthly listeners", "Needs a metrics provider")):
+        assert by[label][2] == "Not measured" and "cz-screen-v--none" in by[label][1], label
+        assert by[label][3] == why, label
+    # none of the old plate's parts, and no nought anywhere on the glass
+    for part in ("rk-pl-win", "rk-pl-sr", "rk-reel", "an-pl-trend"):
+        assert part not in body, part
+    assert not any(g[2] == "0" for g in got)
+    assert 'href="/signal' not in body, "Signal is internal: no door to it from a room"
+
+
+def test_the_trend_is_its_own_panel_directly_under_the_plate():
+    """Nothing lost: the line the old analyser drew in its long upper
+    screen is the panel under the plate, with its measured range and its
+    first and last day printed as the axis."""
+    _page, body = _working([("2026-09-10", 1200), ("2026-09-11", 1340)])
+    rack, trend = body.index('<section class="cz-rack"'), body.index('<section class="rk-panel an-trend"')
+    assert rack < trend < body.index('id="an-path-h"')
+    between = body[body.index("</section>", rack):trend]
+    assert 'class="rk-foot an-pl-foot"' in between and "<section" not in between.split("</section>", 1)[1], (
+        "only the plate's own foot line sits between the plate and the trend")
+    panel = body[trend:body.index("</section>", trend)]
+    assert "Followers over time" in panel and "Read by Spotify" in panel
+    assert '<polyline class="an-plot-line"' in panel
+    for label in ("1,340", "1,200", "2026-09-10", "2026-09-11"):
+        assert label in panel, label
+    assert "an-plot" not in body[rack:body.index("</section>", rack)], "no chart on the glass"
+
+
+def test_one_reading_is_no_line_and_the_trend_panel_says_why():
+    _page, body = _working([("2026-09-10", 1200)])
+    trend = body.index('<section class="rk-panel an-trend"')
+    assert body.index('<section class="cz-rack"') < trend
+    panel = body[trend:body.index("</section>", trend)]
+    assert "Needs two readings on different days before it can draw." in panel
+    assert "Read by" not in panel, "no line, so nothing claims to have been read into one"
+    assert "an-plot" not in body, "one point is not a line"
+    assert {g[0]: g[2] for g in _screens(body)}["Followers"] == "1,200"
+
+
+def test_the_trend_prints_its_measured_range_and_its_first_and_last_day():
+    got = ar.chart([_snap("2026-09-01", 1200), _snap("2026-09-02", None),
+                    _snap("2026-09-03", 1340)], "followers", "Followers", "Spotify")
+    assert got["axis"] == {"high": "1,340", "low": "1,200",
+                           "first": "2026-09-01", "last": "2026-09-03"}
+    assert ar.chart([_snap("2026-09-01", 10)], "followers", "F", "S")["axis"] is None
+    assert ar.chart([_snap("2026-09-01", 10), _snap("2026-09-01", 12)],
+                    "followers", "F", "S")["axis"] is None, "one afternoon is one day"
 
 
 def test_a_seat_that_may_not_write_gets_no_door_and_a_lens_it_cannot_open_is_words():
