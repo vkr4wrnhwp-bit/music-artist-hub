@@ -3725,6 +3725,15 @@ Live Spotify followers and popularity, Deezer fans, monthly listeners, a YouTube
 - Files: app.py:9707 pulse_page; app.py:12341 stats; pulse_signals.py:1 build; pulse_everything.py:1 build; spotify_provider.py:133 pulse_configured; music_apis.py:225 deezer_artist_fans; templates/pulse.html, templates/_pulse_everything.html; db.py pulse_profiles, pulse_snapshots, pulse_peers, pulse_peer_snapshots
 - Access: artist tier (/pulse is in plans._ARTIST_PATHS); a fan plan got 402. Team seats need the "analytics" room. Changing the pinned artist once one is set additionally needs Pro/Label or an owner email (_pulse_change_allowed, app.py:9876), which answers 402 otherwise.
 
+**Artist Twin**
+
+Drafts (bio snippet, press pitch, playlist pitch, partner summary, fan thank-you) filled from templates with only the sources the artist approves, a do-not-say list scrubbed from every draft, the sources shown under each draft, and a rules-based read of the account's own numbers.
+
+- Because: app.py artist_twin_page gathers facts with artist_twin.gather_context from the approved sources only (twin_settings) and artist_twin.generate fills one of three tone template sets; no model writes anything. Drafts are kept in twin_generations and one can be written into the EPK bio (/epk/save). The Strategist Read is artist_os.twin_report over the account's tracks, Pulse snapshots and latest Rack measurement. Since 2026-09-23 (make-real brief) the labels say so: page heading "Drafts from your own data" with "Built from templates", directory line "Drafts from the data you approve, built from templates today", sidebar line "Template-built drafts from the data you approve, and a read of your own numbers", and the public start page's eyebrow "Artist Twin" (it said "AI Artist Twin"). A model behind generate() is the owner's decision because each draft would cost money. The homepage section and the public header still say "AI Artist Twin" (owner's pages, left for him). Locked by tests/test_real_twin_label.py.
+- Routes: GET+POST /artist-twin; GET /artist-twin/start (public)
+- Files: artist_twin.py gather_context/generate; app.py artist_twin_page; artist_os.py twin_report; templates/artist_twin.html, artist_twin_start.html; db.py twin_settings, twin_generations
+- Access: /artist-twin is in plans._ARTIST_PATHS (artist tier wherever gates are on); /artist-twin/start is public. Team seats need the "analytics" room.
+
 **Ask Signal**
 
 A natural-language box that parses a query into visible filters and lists what it could not support.

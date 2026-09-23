@@ -11,7 +11,7 @@ HUBS = [
         ("command-center", "/command-center", "M4 4h5v5H4zM11 4h5v3h-5zM11 9h5v7h-5zM4 11h5v5H4z", "Command Center", "Every module's live status on one board."),
         ("actions", "/actions", "M8 4h8M8 10h8M8 16h8|M4 4l1 1 2-2M4 10l1 1 2-2M4 16l1 1 2-2", "Actions", "The prioritized to-do list your data generates."),
         ("scores", "/qualification", "M4 16V9M9 16V5M14 16v-8|M3 16h14M14 4l1.5 1.5L18 3", "Scores", "Growth, trust and insights — three reads, each from your own numbers."),
-        ("artist-twin", "/artist-twin", "M10 3a4 4 0 100 8 4 4 0 000-8z|M4 17c0-3 2.5-5 6-5s6 2 6 5M14 4l1 1 2-2", "Artist Twin", "The strategist read on your next best moves."),
+        ("artist-twin", "/artist-twin", "M10 3a4 4 0 100 8 4 4 0 000-8z|M4 17c0-3 2.5-5 6-5s6 2 6 5M14 4l1 1 2-2", "Artist Twin", "Template-built drafts from the data you approve, and a read of your own numbers."),
     ]),
     ("studio", "Studio & Assets", "Make the record and keep its paperwork straight — audio, art, files, and passports.", [
         ("rack", "/rack", "M3 4h14v4H3z|M3 12h14v4H3z|M6 6h.01|M6 14h.01|M13 6h2|M13 14h2", "The Rack", "Mix and master in the browser: EQ, tube, compressor, LUFS loudness against platform targets, WAV export."),

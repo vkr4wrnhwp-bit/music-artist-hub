@@ -358,7 +358,7 @@ MODULES = [
     ("/ai-rights", "AI Rights & Likeness", "Voice/likeness policies, do-not-train notices, takedown tracking.", "preview", _NOT_LEGAL),
     ("/pulse", "Artist Pulse", "Live Spotify followers, popularity, top tracks, and Deezer fans.", "live", None),
     ("/trust-score", "Trust Score", "One verifiable readiness score for partners, labels, and supervisors.", "live", None),
-    ("/artist-twin", "Artist Twin", "A private writing agent using only data you approve.", "live", None),
+    ("/artist-twin", "Artist Twin", "Drafts from the data you approve, built from templates today.", "live", None),
     ("/opportunities", "Opportunity Feed", "Matched sync briefs, playlists, grants, and collaborations.", "preview", None),
     ("/voice-of-fan", "Voice of Fan", "Fan comments and behavior turned into campaign intelligence.", "preview", None),
     ("/spend-optimizer", "Spend Optimizer", "Where to put a limited release budget — and what to avoid.", "live", _NOT_FINANCIAL),
