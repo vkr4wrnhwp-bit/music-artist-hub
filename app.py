@@ -5004,56 +5004,76 @@ def create_app():
         import release_ready_store
         import studio_room
 
-        analysis = store.latest_track_analysis(user["id"])
-        tracks = store.list_os_tracks(user["id"])
+        # The demo account is the showcase, never the page from zero (owner's
+        # ruling; the Marketing room's pattern). Its own rows are statements
+        # only, so they opened the onboarding page under a "Sample data"
+        # lamp (audit studio-7).
+        showcase = _session_is_demo()
+        if showcase:
+            fig = studio_room.showcase()
+            analysis, art_files = fig["analysis"], fig["art_files"]
+            n_tracks, masters, ready = fig["tracks"], fig["masters"], fig["ready"]
+        else:
+            analysis = store.latest_track_analysis(user["id"])
+            tracks = store.list_os_tracks(user["id"])
+            n_tracks = len(tracks)
 
-        try:
-            art_files = artwork_config.list_uploads(user["id"], _uploads_dir())
-        except Exception:
-            art_files = []
+            # UPLOADS_DIR is where /artwork/upload and /artwork/save write.
+            # This called _uploads_dir(), which app.py never defined, and the
+            # NameError fell into the except below: no cover ever reached
+            # this room (audit studio-1).
+            try:
+                art_files = artwork_config.list_uploads(user["id"], UPLOADS_DIR)
+            except Exception:
+                art_files = []
 
-        try:
-            masters = len(release_ready_store.stored_masters(user["id"]) or ())
-        except Exception:
-            masters = 0
+            try:
+                masters = len(release_ready_store.stored_masters(user["id"]) or ())
+            except Exception:
+                masters = 0
 
-        # "Ready" is the catalogue's own Clean Release reading, and it is
-        # None when nothing has been checked - never a zero.
-        ready = None
-        if tracks:
-            osctx = _os_ctx(user["id"])
-            clean = [artist_os.clean_release(t, osctx) for t in tracks]
-            blocked = sum(1 for c in clean if c.get("blocked"))
-            ready = ("%d blocked" % blocked) if blocked else "Clear to submit"
+            # "Ready" is the catalogue's own Clean Release reading, and it
+            # is None when nothing has been checked - never a zero.
+            ready = None
+            if tracks:
+                osctx = _os_ctx(user["id"])
+                clean = [artist_os.clean_release(t, osctx) for t in tracks]
+                blocked = sum(1 for c in clean if c.get("blocked"))
+                ready = ("%d blocked" % blocked) if blocked else "Clear to submit"
 
         measured_label = None
-        if analysis and analysis.get("measured_at"):
+        if showcase:
+            measured_label = fig["measured_label"]
+        elif analysis and analysis.get("measured_at"):
             day = str(analysis["measured_at"])[:10]
             measured_label = ("Last measured today"
                               if day == datetime.now(timezone.utc).date().isoformat()
                               else "Last measured %s" % day)
 
-        cover = ""
-        for f in art_files or ():
-            if f.get("url"):
-                cover = f["url"]
-                break
+        # The bay carries the newest cover. list_uploads hands back `path`;
+        # this read `url`, which it never carries (audit studio-1).
+        shown = studio_room.covers(art_files)["shown"]
+        cover = shown[0]["url"] if shown else ""
 
         seat = current_team_seat()
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
-        sd = studio_room.build(analysis, cover, art_files, len(tracks), masters,
+        sd = studio_room.build(analysis, cover, art_files, n_tracks, masters,
                                ready, cards,
                                artist_name=artist_identity.display_name(user),
                                measured_label=measured_label,
-                               sample=_session_is_demo(), can_open=can_open)
+                               sample=showcase, can_open=can_open,
+                               zero=(not showcase) and studio_room.new_account(
+                                   analysis, n_tracks,
+                                   studio_room.covers(art_files)["total"]))
         # The sentence the song door carries back (?from=song), decided by
-        # the SAVED track, not the param (studio_room.done_line).
+        # the SAVED track, not the param (studio_room.done_line). The
+        # showcase saved nothing, so it never says it.
         return render_template("room_studio.html", active_page="room-studio",
                                room=room, sd=sd,
-                               done_line=studio_room.done_line(
-                                   request.args.get("from"), len(tracks)),
+                               done_line=("" if showcase else studio_room.done_line(
+                                   request.args.get("from"), n_tracks)),
                                **build_dashboard_context())
 
     def _stage_room(user, room):

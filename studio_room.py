@@ -17,7 +17,8 @@ WHERE EVERY FIGURE COMES FROM
   tracks        db.list_os_tracks
   masters       release_ready_store.stored_masters - a master this account
                 actually owns, not a job that was started
-  covers        artwork_config.list_uploads, the artist's own files
+  covers        artwork_config.list_uploads, the artist's own files, each
+                one's `path`
   ready         artist_os.clean_release over the catalogue
 
 WHAT IT REFUSES TO DO
@@ -171,13 +172,26 @@ def needle(lufs):
 
 
 def covers(files, limit=COVERS_SHOWN):
-    """The artist's own artwork, newest first."""
+    """The artist's own artwork, newest first.
+
+    artwork_config.list_uploads hands each file back as `path`
+    ("/uploads/artup_<user>_<unix>.png"). This read only `url` and `href`
+    until 2026-09-23, so every file was dropped and every account with
+    covers was told "No art yet" (audit studio-1). `url` and `href` are
+    still read for a caller that uses them.
+    """
     rows = []
     for f in files or ():
-        url = f.get("url") or f.get("href") or ""
+        url = f.get("path") or f.get("url") or f.get("href") or ""
         if not url:
             continue
-        rows.append({"url": url, "name": f.get("label") or f.get("name") or ""})
+        # The file's own name is a storage key (artup_12_1727...png), not
+        # a title, so the label is what the studio calls it and when.
+        kind = (f.get("kind") or "").strip()
+        when = (f.get("when") or "").strip()
+        name = f.get("label") or (
+            ("%s cover%s" % (kind, (", " + when) if when else "")) if kind else "Cover art")
+        rows.append({"url": url, "name": name})
     return {"shown": rows[:limit], "total": len(rows),
             "more": max(0, len(rows) - limit)}
 
@@ -322,9 +336,46 @@ def standby():
     return {"fill": _six(STANDBY_FILL)}
 
 
+# --- THE SHOWCASE (the demo account) --------------------------------------
+# Owner's ruling: the demo account shows the showcase, never the page from
+# zero. The demo seed carries statements only, so the demo's own rows
+# opened the onboarding page - with an "Add your first song" door a locked
+# demo cannot use - beside the "Sample data" lamp (audit studio-7). These
+# figures are generated for the example, the page marks them Sample, and
+# only the route decides who sees them (app.py _studio_room, the way
+# _marketing_room does): a real account's figures are its own rows.
+SHOWCASE_ANALYSIS = {
+    "filename": "Midnight Drive.wav", "integrated": -9.4, "true_peak": -1.1,
+    "short_term_max": -7.2, "duration": 214, "sample_rate": 48000,
+    "channels": 2, "measured_at": "",
+}
+# The demo's five recordings (demo_seed.CSV), one master, one song blocked.
+SHOWCASE_TRACKS = 5
+SHOWCASE_MASTERS = 1
+SHOWCASE_READY = "1 blocked"
+# A sample has no date anybody measured it on, so the circle says so.
+SHOWCASE_MEASURED = "Sample reading"
+
+
+def showcase():
+    """The demo account's studio: what build() takes, generated."""
+    return {"analysis": dict(SHOWCASE_ANALYSIS), "art_files": [],
+            "tracks": SHOWCASE_TRACKS, "masters": SHOWCASE_MASTERS,
+            "ready": SHOWCASE_READY, "measured_label": SHOWCASE_MEASURED}
+
+
+def new_account(analysis, tracks, covers_total):
+    """Nothing measured, tracked or drawn: the page from zero."""
+    return not analysis and not tracks and not covers_total
+
+
 def build(analysis, cover, art_files, tracks, masters, ready, cards,
-          artist_name="", measured_label=None, sample=False, can_open=None):
-    """Everything the screen renders. No page logic beyond this."""
+          artist_name="", measured_label=None, sample=False, can_open=None,
+          zero=None):
+    """Everything the screen renders. No page logic beyond this.
+
+    `zero` is the route's decision (False for the showcase, whatever its
+    rows); None decides it here from the counts."""
     art = covers(art_files)
 
     tiles = []
@@ -347,7 +398,8 @@ def build(analysis, cover, art_files, tracks, masters, ready, cards,
 
     # Nothing measured, nothing tracked, no art: the page from zero. One
     # track, one cover or one reading and the unit takes over untouched.
-    idle = not analysis and not tracks and not art["total"]
+    idle = (new_account(analysis, tracks, art["total"])
+            if zero is None else bool(zero))
     return {
         "artist_name": artist_name or "",
         "analyser": analyser(analysis, cover),
