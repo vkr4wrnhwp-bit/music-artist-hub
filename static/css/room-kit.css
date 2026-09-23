@@ -681,6 +681,14 @@
   .rk-reel, .rk-tick { animation: none; }
   .rk-tip { animation: none; opacity: 0; }
   .rk-tip[style*="--n: 0"] { opacity: 1; transform: none; }
+  /* The BIG window was missed when this block was written: the reel, hint
+     and ticker stopped but the frame sequence and its colour-split glitch
+     kept running, which is the largest moving thing on the plate and the
+     one a viewer who asked for less motion would most want still. Audit,
+     2026-09-22. The first frame stays lit; the glitch copies never show. */
+  .rk-cine-frame { animation: none; opacity: 0; }
+  .rk-cine-frame[style*="--n: 0"] { opacity: 1; }
+  .rk-cine-frame b::before, .rk-cine-frame b::after { animation: none; opacity: 0; }
 }
 
 @media (max-width: 560px) {

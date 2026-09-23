@@ -219,3 +219,24 @@ def test_every_plate_steps_aside_on_a_phone():
             "%s must hide .%s below 560px" % (sheet, img))
         assert "container-type: normal" in joined, (
             "%s: with no plate there is nothing for a cqw to scale against" % sheet)
+
+
+def test_reduced_motion_stops_the_big_window_too():
+    """Audit, 2026-09-22. The reduced-motion block stopped the reel, the
+    hint and the ticker and MISSED the frame sequence - the largest
+    moving thing on the plate, and its colour-split glitch with it. A
+    viewer who asks for less motion gets a still plate now: the first
+    frame lit, nothing rotating, no glitch copies.
+    """
+    kit = _read(KIT)
+    # There is more than one reduced-motion block in this sheet (an early
+    # one covers tile transitions), so take them ALL - the first cut of
+    # this test read only the first and failed on a correct sheet.
+    blocks = re.findall(r"@media \(prefers-reduced-motion: reduce\) \{(.*?)\n\}", kit, re.S)
+    assert blocks, "the kit has no reduced-motion block"
+    body = "".join(blocks)
+    for sel in (".rk-reel", ".rk-tick", ".rk-tip", ".rk-cine-frame"):
+        assert sel in body, "%s keeps animating under reduced motion" % sel
+    assert "animation: none" in body
+    # and the glitch copies, which are pseudo-elements of the frame
+    assert "rk-cine-frame b::before" in body and "rk-cine-frame b::after" in body
