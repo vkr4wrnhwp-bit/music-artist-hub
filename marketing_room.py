@@ -368,43 +368,36 @@ def constellation(cities, labels=3):
 
 # --- the page --------------------------------------------------------------
 
-# --- THE PLATE --------------------------------------------------------
-# static/img/marketing-plate.webp, 1859x846: a BROADCAST unit, one tall
-# window beside a 2x2 grid. Each window is (x, y, w, h) as a PERCENTAGE
-# of the plate, MEASURED off the file with PIL. RE-MEASURE ALL OF THEM if
-# the plate is ever regenerated or re-cropped.
+# --- THE RACK (owner, 2026-09-23) ---------------------------------------
+# The working room draws the rooms' shared three-window plate
+# (partials/cc_rack.html over static/img/room-plate.webp), as every room
+# but Studio does. The owner approved three screens: Ready, Sent and
+# Coverage. The plate prints no names, so each screen says what it is,
+# and a count with nothing in it is the words "None yet", never a 0.
 #
-# The plate silkscreens THE STORY, READY, SENT HERE, VIEWS and COVERAGE,
-# so the markup never prints those words.
+# The old BROADCAST plate (marketing-plate.webp) had five windows. The
+# other two are kept, not dropped:
+#   THE STORY, its tall window - the newest announcement on file - is its
+#   own panel directly under the rack (story()).
+#   VIEWS has no screen now; its figure rides on the Sent screen's line.
 #
-# TWO LABELS THE AUDIT CHANGED BEFORE THE PLATE WAS EVER RENDERED:
-#   SENT HERE, not "pitched". press_pitches.sent_at is written in exactly
-#   one place - the platform's own send loop - so a pitch posted from the
-#   artist's own inbox never lands here. The window is scoped to what
-#   Street Banker sent, and says so.
+# TWO WORDS THE AUDIT CHOSE BEFORE THE OLD PLATE WAS EVER RENDERED, and
+# the screens keep both:
+#   Sent is what STREET BANKER sent, and its line says so.
+#   press_pitches.sent_at is written in exactly one place - the platform's
+#   own send loop - so a pitch posted from the artist's own inbox is not
+#   in it.
 #   VIEWS, not "opens". press_store.mark_opened fires when a journalist
-#   LOADS the announcement page; it is not an email open, and a window
-#   marked OPENS would be read as one every time.
-PLATE = {
-    "story":    (5.11, 19.03, 25.34, 63.24),
-    "ready":    (33.35, 19.03, 29.69, 22.46),
-    "sent":     (65.90, 19.03, 28.94, 22.46),
-    "opens":    (33.35, 58.98, 29.69, 23.29),
-    "coverage": (65.90, 59.10, 28.94, 23.17),
-}
-# The order the silkscreen prints them: left to right, top row first.
-PLATE_ORDER = (
-    ("ready", "Ready", "announcements ready to send"),
-    ("sent", "Sent here", "pitches Street Banker sent"),
-    ("opens", "Views", "reads of your announcement page"),
-    ("coverage", "Coverage", "pieces you have logged"),
+#   LOADS the announcement page; it is not an email open, and a figure
+#   called opens would be read as one every time. The foot line under the
+#   rack says what a view is.
+NONE_YET = "None yet"
+# (figure key, the screen's name, its line for one, its line for several)
+RACK = (
+    ("ready", "Ready", "Announcement ready to send", "Announcements ready to send"),
+    ("sent", "Sent", "Pitch Street Banker sent", "Pitches Street Banker sent"),
+    ("coverage", "Coverage", "Piece you have logged", "Pieces you have logged"),
 )
-
-
-def box(key):
-    """The inline custom properties that put a window on its glass."""
-    x, y, w, h = PLATE[key]
-    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
 
 
 # --- THE PAGE FROM ZERO (owner's Marketing spec + mockup, 2026-09-23) -----
@@ -598,28 +591,37 @@ def standby():
     return {"fill": []}
 
 
-def plate_windows(figures):
-    """The four small readings. A count is a count: 0 here is measured -
-    we looked at the table and found nothing - so it prints as a figure."""
+def rack_screens(figures):
+    """The working room's three screens on the rooms' shared plate: Ready,
+    Sent, Coverage, each a count over this account's own rows. Nothing
+    counted is the words None yet (owner's zero rule), never a 0. Views of
+    the announcement page, which lost their window, ride on Sent's line
+    in words of their own."""
+    figures = figures or {}
     out = []
-    for key, name, sub in PLATE_ORDER:
-        out.append({"key": key, "name": name, "sub": sub, "box": box(key),
-                    "value": _fmt(int((figures or {}).get(key) or 0))})
+    for key, name, one, several in RACK:
+        n = int(figures.get(key) or 0)
+        sub = one if n == 1 else several
+        if key == "sent":
+            views = int(figures.get("opens") or 0)
+            sub += " · " + (_count(views, "view", "views") if views else "no views yet")
+        out.append({"k": name, "v": _fmt(n) if n else NONE_YET,
+                    "fig": bool(n), "none": not n, "sub": sub})
     return out
 
 
 def story(figures):
     """THE STORY: the newest announcement on file, or the words that say
-    there is none. Never an invented headline."""
+    there is none. Never an invented headline. It was the old plate's tall
+    window; it is its own panel under the rack now."""
     row = (figures or {}).get("story")
     if not row:
         return None
     # headline is optional on the table and title is the required one,
-    # so the window falls back rather than printing an empty pane.
+    # so the panel falls back rather than printing an empty line.
     said = (row.get("headline") or "").strip() or (row.get("title") or "").strip()
     return {"headline": said or "Untitled announcement",
-            "status": (row.get("status") or "draft").strip(),
-            "box": box("story")}
+            "status": (row.get("status") or "draft").strip()}
 
 
 def stages(figures):
@@ -703,10 +705,10 @@ def build(figures, cards, days=DEFAULT_RANGE, showcase=False, artist_name="",
         "presaves": int(figures.get("presaves") or 0),
         "presaves_label": _fmt(figures.get("presaves")),
         "stages": stages(figures),
-        # The plate: the four funnel readings, and the newest announcement.
-        "windows": plate_windows(figures),
+        # The rack: the three funnel screens (views on Sent's line), and
+        # under it the newest announcement in its own panel.
+        "screens": rack_screens(figures),
         "story": story(figures),
-        "story_box": box("story"),
         # Nothing on any count: the page from zero. One campaign, event,
         # announcement or contact and the room takes over untouched.
         "idle": bool(zero) if zero is not None else (

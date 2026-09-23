@@ -73,6 +73,28 @@ def _body(page):
     return body.split("<!-- Command palette", 1)[0]
 
 
+_SCREEN = (r'<li class="cz-screen"[^>]*>\s*<span class="cz-screen-k">([^<]+)</span>\s*'
+           r'<(?:span|a) class="cz-screen-v([^"]*)"[^>]*>([^<]*)</(?:span|a)>'
+           r'(?:<span class="cz-screen-s">([^<]*)</span>)?')
+
+
+def _screen_names(body):
+    """The rack's screens by the name each prints, in the order drawn."""
+    import re
+    return [m[0] for m in re.findall(_SCREEN, body)]
+
+
+def _screens(body):
+    """{name: (value, "fig" | "none" | "", line)} for the rack's screens."""
+    import html
+    import re
+    out = {}
+    for name, cls, value, sub in re.findall(_SCREEN, body):
+        kind = "fig" if "--fig" in cls else "none" if "--none" in cls else ""
+        out[name] = (html.unescape(value), kind, html.unescape(sub))
+    return out
+
+
 def test_an_empty_account_meets_the_page_from_zero_not_an_empty_funnel():
     """The page from zero (owner's Marketing spec + mockup, 2026-09-23). The
     funnel waits for something sent or published; a new account meets the
@@ -170,7 +192,12 @@ def test_one_campaign_brings_the_room_back_untouched():
     c, uid = _account()
     mls.create_campaign(uid, "mkt-%s" % uuid.uuid4().hex[:8], {"title": "First campaign"})
     body = _body(c.get("/room/marketing").get_data(as_text=True))
-    assert "marketing-plate.webp?v=" in body and "room-plate" not in body
+    # the working room is on the rooms' shared plate too (owner, 2026-09-23),
+    # with the funnel's three screens rather than the page from zero's words
+    assert "room-plate.webp" in body and "marketing-plate.webp" not in body
+    assert _screen_names(body) == ["Ready", "Sent", "Coverage"]
+    for k, _v in mr.ZERO_RACK:
+        assert k not in body, k
     assert "mk-range" in body and "No visits in this window" in body and "Explore more tools" in body
     assert "Start with one goal" not in body and "mk-z-fold" not in body
 
@@ -242,7 +269,12 @@ def test_every_figure_traces_to_a_record_this_account_holds():
     assert "1 item" in body and "Add quote" in body
     assert "1 rollout" in body and 'href="/rollout-studio"' in body
     assert "Nashville" in body and "Berlin" in body     # its own contact cities
-    for gone in HIS_FIGURES:
+    # the rack's three screens: its own one ready, its own one coverage hit,
+    # and nothing sent is words
+    screens = _screens(body)
+    assert screens["Ready"][:2] == ("1", "fig") and screens["Coverage"][:2] == ("1", "fig")
+    assert screens["Sent"][:2] == ("None yet", "none")
+    for gone in HIS_FIGURES + ("47 views",):
         assert gone not in body, gone
 
 
@@ -687,3 +719,175 @@ def test_the_rollout_finding_says_connect():
     labels = [row[6] for row in mk.ACTIONS]
     assert "Connect a link" in labels
     assert "Add link" not in labels
+
+
+# --- the rooms' shared plate (owner, 2026-09-23) ---------------------------
+# Every room but Studio on the shorter three-window plate
+# (partials/cc_rack.html, static/img/room-plate.webp). Marketing's old
+# BROADCAST plate had five windows; the owner approved three screens -
+# Ready, Sent, Coverage - and the rest is kept, not lost: views ride on
+# Sent's line, and THE STORY is its own panel under the rack.
+
+def _press_account(name="Plate Artist", views=0):
+    """An account with a link campaign and its events, an announcement
+    marked ready, one pitch Street Banker sent to two contacts, `views`
+    loads of the announcement page through the real mark_opened, and one
+    coverage hit."""
+    c, uid = _account(name)
+    _link_events(uid, {"page_view": 5, "service_click": 2})
+    ids = [press_store.add_contact(uid, {"name": "Writer %d" % i, "outlet": "Outlet",
+                                         "email": "w%d-%s@example.net" % (i, uuid.uuid4().hex[:6]),
+                                         "city": "Nashville", "country": "US"})
+           for i in range(2)]
+    headline = "%s announces Night Signal" % name
+    rid = press_store.create_release(uid, {"title": "Night Signal", "headline": headline})
+    press_store.update_release(uid, rid, {"title": "Night Signal", "headline": headline,
+                                          "status": "ready"})
+    pid, _n, _skipped = press_store.create_pitch(uid, rid, ids, "Night Signal", "Hi {name}",
+                                                 press_store.MODE_PLATFORM, name,
+                                                 "https://example.net")
+    press_store.mark_pitch_sent(uid, pid)
+    with store.get_db() as db:
+        tokens = [r[0] for r in db.execute(
+            "SELECT token FROM press_recipients WHERE pitch_id = ?", (pid,)).fetchall()]
+    assert tokens, "the pitch has recipients to be viewed by"
+    for i in range(views):
+        press_store.mark_opened(tokens[i % len(tokens)])
+    press_store.add_coverage(uid, {"outlet": "The Pressing", "headline": "A review",
+                                   "release_id": rid})
+    return c, uid
+
+
+def _story_panel(body):
+    return body.split('<section class="mk-panel mk-story"', 1)[1].split("</section>", 1)[0]
+
+
+def test_the_working_room_draws_the_rooms_plate_with_three_screens():
+    c, _uid = _press_account(views=3)
+    page = c.get("/room/marketing").get_data(as_text=True)
+    body = _body(page)
+    assert 'class="cz-plate" src="/static/img/room-plate.webp' in body
+    assert "marketing-plate.webp" not in body, "the BROADCAST plate left the working room"
+    assert "command-zero.css?v=3" in page, "the rack's rules, on the working room as well"
+    assert body.count('<li class="cz-screen"') == 3
+    assert _screen_names(body) == ["Ready", "Sent", "Coverage"], "the owner's three, named"
+    assert '<a class="cz-screen-v' not in body, "no door on the plate"
+    # the old unit's markup and measurements are gone with it
+    for gone in ("rk-pl-win", "rk-pl-img", "mk-pl", "--x:5.11%"):
+        assert gone not in body, gone
+    for gone in ("PLATE", "PLATE_ORDER", "box", "plate_windows"):
+        assert not hasattr(mr, gone), gone
+
+
+def test_every_screen_is_a_count_on_record_and_nothing_counted_is_words():
+    c, _uid = _press_account(views=0)
+    screens = _screens(_body(c.get("/room/marketing").get_data(as_text=True)))
+    assert screens["Ready"] == ("1", "fig", "Announcement ready to send")
+    assert screens["Sent"][:2] == ("1", "fig")
+    assert screens["Sent"][2].startswith("Pitch Street Banker sent"), (
+        "Sent is what Street Banker sent, and the screen says so")
+    assert screens["Coverage"] == ("1", "fig", "Piece you have logged")
+    # an account whose only activity is a link: every screen in words
+    quiet, q = _account("Quiet Artist")
+    _link_events(q, {"page_view": 1})
+    screens = _screens(_body(quiet.get("/room/marketing").get_data(as_text=True)))
+    assert list(screens) == ["Ready", "Sent", "Coverage"]
+    for name, (value, kind, _sub) in screens.items():
+        assert (value, kind) == ("None yet", "none"), name
+    # and never a nought, at the builder either
+    for sc in mr.rack_screens({}):
+        assert sc["v"] == mr.NONE_YET and sc["none"] and not sc["fig"], sc
+        assert sc["v"] != "0" and "0 " not in sc["sub"], sc
+
+
+def test_views_lost_their_window_and_ride_on_the_sent_line():
+    """The old plate's VIEWS window has no screen on the three-window plate.
+    Its figure is still on the page: on Sent's line, in the audit's word -
+    views, not opens, because mark_opened fires on a page LOAD - with the
+    foot line under the rack saying what a view is."""
+    c, _uid = _press_account(views=3)
+    body = _body(c.get("/room/marketing").get_data(as_text=True))
+    assert _screens(body)["Sent"] == ("1", "fig", "Pitch Street Banker sent · 3 views")
+    foot = body.split('class="rk-foot mk-rack-foot"', 1)[1].split("</p>", 1)[0]
+    assert "A view is a journalist opening" in foot and "not an email open" in foot
+    assert "Sent counts pitches Street Banker sent" in foot
+    assert "3 opens logged" in body, "the rail below still counts them as it did"
+    for _v, _k, sub in _screens(body).values():
+        assert "open" not in sub.lower(), "a screen never calls a page view an open"
+    none = _press_account("No Views", views=0)[0]
+    sent = _screens(_body(none.get("/room/marketing").get_data(as_text=True)))["Sent"]
+    assert sent[2] == "Pitch Street Banker sent · no views yet"
+    assert mr.rack_screens({"sent": 2, "opens": 1})[1]["sub"] == (
+        "Pitches Street Banker sent · 1 view")
+
+
+def test_the_story_is_its_own_panel_directly_under_the_rack():
+    """THE STORY was the old plate's tall window. It moved into its own
+    panel under the rack and the rack's caption line, above the stage
+    rail: the newest announcement on file, headline falling back to title,
+    with its status; the words when there is none."""
+    c, uid = _press_account()
+    body = _body(c.get("/room/marketing").get_data(as_text=True))
+    rack = body.index('<section class="cz-rack"')
+    foot = body.index('class="rk-foot mk-rack-foot"')
+    story = body.index('<section class="mk-panel mk-story"')
+    rail = body.index('<section class="mk-rail-wrap">')
+    assert rack < foot < story < rail
+    assert "announces Night Signal" not in body[rack:foot], "the story is not on a screen"
+    panel = _story_panel(body)
+    assert ">The story</h2>" in panel and "The newest announcement on file" in panel
+    assert '<p class="mk-story-head">Plate Artist announces Night Signal</p>' in panel
+    assert '<span class="rk-lamp rk-lamp--good">Ready</span>' in panel
+    # a newer announcement with no headline: its title, and its own status
+    # (updated is kept to the second, so the first one is moved back a day
+    # rather than left to tie with the new one)
+    with store.get_db() as db:
+        db.execute("UPDATE press_releases SET updated = ? WHERE user_id = ?",
+                   ((datetime.now(timezone.utc) - timedelta(days=1)).isoformat(timespec="seconds"),
+                    uid))
+    press_store.create_release(uid, {"title": "Autumn tour"})
+    panel = _story_panel(_body(c.get("/room/marketing").get_data(as_text=True)))
+    assert '<p class="mk-story-head">Autumn tour</p>' in panel
+    assert '<span class="rk-lamp rk-lamp--off">Draft</span>' in panel
+    # none on file: the words, and no lamp
+    quiet, q = _account("Quiet Artist")
+    _link_events(q, {"page_view": 1})
+    panel = _story_panel(_body(quiet.get("/room/marketing").get_data(as_text=True)))
+    assert "No announcement yet" in panel and "Write one in the Press Desk" in panel
+    assert "rk-lamp" not in panel
+    assert mr.story({}) is None
+    assert mr.story({"story": {"title": "T", "headline": " ", "status": "sent"}}) == {
+        "headline": "T", "status": "sent"}
+
+
+def test_the_rack_builder_contract():
+    out = mr.build(mr.showcase(30), CARDS)
+    assert "windows" not in out and "story_box" not in out
+    assert [(s["k"], s["v"], s["fig"]) for s in out["screens"]] == [
+        ("Ready", "3", True), ("Sent", "2", True), ("Coverage", "6", True)]
+    assert out["screens"][1]["sub"] == "Pitches Street Banker sent · 47 views"
+    big = mr.rack_screens({"ready": 12345, "sent": 1, "coverage": 1})
+    assert [s["v"] for s in big] == ["12,345", "1", "1"]
+    assert [s["sub"] for s in big] == ["Announcements ready to send",
+                                       "Pitch Street Banker sent · no views yet",
+                                       "Piece you have logged"]
+
+
+def test_the_old_plate_s_rules_left_the_sheet_and_the_story_uses_tokens():
+    import io
+    import os
+    import re
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    css = io.open(os.path.join(base, "static", "css", "marketing-room.css"), encoding="utf-8").read()
+    page = io.open(os.path.join(base, "templates", "room_marketing.html"), encoding="utf-8").read()
+    assert ".mk-pl" not in css and "rk-cine" not in css, "nothing styles the retired plate"
+    assert "marketing-plate" not in page and "rk-pl" not in page
+    v = int(re.search(r"marketing-room\.css\?v=(\d+)", page).group(1))
+    assert v >= 7, "the sheet changed, so its ?v moved and browsers refetch it"
+    rules = "".join(re.findall(r"\.mk-story[^{]*\{([^}]*)\}", css))
+    assert rules
+    for radius in re.findall(r"border-radius:\s*([^;]+);", rules):
+        assert radius.strip() in ("var(--sb-r-control)", "var(--sb-r-panel)", "999px"), radius
+    for size in re.findall(r"font-size:\s*(\d+(?:\.\d+)?)px", rules):
+        assert float(size) >= 12, size
+    assert not re.search(r"#[0-9a-fA-F]{3,8}\b", rules), "colours are tokens"

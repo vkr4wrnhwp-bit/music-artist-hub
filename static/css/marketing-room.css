@@ -170,53 +170,45 @@
 @media (prefers-reduced-motion: reduce) {
   .mk-city-list { scroll-behavior: auto; }
 }
-/* ---- the plate -------------------------------------------------------
-   Position and type come from room-kit.css (.rk-pl*). Only the tall
-   story window is particular to this unit. */
-
-.mk-pl { margin-top: 18px; }
-.mk-pl-story { gap: 5%; }
-.mk-pl-head {
-  margin: 0; font-family: var(--sb-display); font-weight: 800;
-  color: var(--screen); text-shadow: var(--screen-glow); line-height: 1.15;
-  font-size: clamp(11px, 1.35cqw, 23px);
-  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
-  overflow: hidden;
+/* ---- the rack and the story ------------------------------------------
+   The rack is the rooms' shared three-window plate (partials/cc_rack.html,
+   its rules in command-zero.css; owner, 2026-09-23). Its foot line is its
+   caption, so it sits close under it rather than a section's gap away.
+   The old plate's tall window - THE STORY, the newest announcement on
+   file - is its own panel under the rack: the kit's panel and panel head,
+   a gold edge because it is the room's lead item, and the headline set
+   large in near-white. Radii are tokens, nothing below 12px. */
+.mk-rack-foot { margin-top: -6px; }
+.mk-story { border-color: var(--sb-gold-line); box-shadow: inset 3px 0 0 var(--sb-gold), var(--sb-e2); }
+.mk-story .mk-panel-head { margin-bottom: 14px; }
+.mk-story-body { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.mk-story-ico {
+  display: inline-grid; place-items: center; width: 52px; height: 52px; flex: 0 0 auto;
+  border-radius: 999px; border: 1.5px solid var(--sb-gold-line); color: var(--sb-gold-bright);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--sb-gold) 22%, transparent);
 }
-.mk-pl-none {
-  margin: 0; font-family: var(--sb-display); font-weight: 800;
-  color: var(--screen); text-shadow: var(--screen-glow); font-size: clamp(11px, 1.3cqw, 22px);
+.mk-story-ico svg { width: 26px; height: 26px; }
+.mk-story-said { min-width: 0; flex: 1 1 auto; }
+.mk-story-head {
+  margin: 0; font-family: var(--sb-display); font-size: 26px; font-weight: 800; line-height: 1.2;
+  color: var(--sb-ink); overflow-wrap: anywhere;
+  /* the headline is the account's own words and can be any length: three
+     lines, then an ellipsis */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
 }
-.mk-pl-none-s {
-  margin: 0; line-height: 1.45; color: var(--screen-dim);
-  font-size: clamp(8px, .88cqw, 13px);
-}
-.mk-pl-foot { margin-top: 10px; }
-
+.mk-story-head.is-none { font-size: 20px; }
+.mk-story-s { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: var(--sb-ink-2); }
 @media (max-width: 560px) {
-  .mk-pl-head { font-size: 19px; -webkit-line-clamp: 3; }
-  .mk-pl-none { font-size: 18px; }
-  .mk-pl-none-s { font-size: 13px; }
+  .mk-story-body { align-items: flex-start; gap: 12px; }
+  .mk-story-ico { width: 44px; height: 44px; }
+  .mk-story-ico svg { width: 22px; height: 22px; }
+  .mk-story-head { font-size: 20px; }
+  .mk-story-head.is-none { font-size: 18px; }
 }
-
-/* The story window's sequence sits LEFT, not centred (owner, 2026-09-22:
-   "shifted over to the left to fit inside the window"). The window is
-   narrow and tall, so a centred headline that is one long word overflows
-   both edges; set left with a break allowed, it stays on the glass. */
-/* 4% a side, not 6/7: at a desktop plate this glass is ~334px wide and
-   "Announcements" at the -15% size needs the extra ~20px, or it breaks
-   mid-word. overflow-wrap stays as the last resort for a longer word. */
-/* center / start: centred on the glass vertically, set left across. The
-   first cut said `place-items: start`, which pins BOTH axes and put the
-   frame at the top of a window taller than it is wide. */
-.mk-pl .rk-cine .rk-cine-reel { padding: 5% 3% 8% 3%; place-items: center start; }
-.mk-pl .rk-cine-frame { align-items: flex-start; text-align: left; width: 100%; }
-.mk-pl .rk-cine-frame b { overflow-wrap: anywhere; }
-.mk-pl .rk-cine-frame i { max-width: none; }
 
 /* ---- the page from zero (owner's Marketing spec, 2026-09-23) -----------
    The plate is the Command Center's (partials/cc_rack.html) and its rules
-   are command-zero.css, linked only on this state. Everything below is
+   are command-zero.css, linked on both states. Everything below is
    this page's own: nothing kit-owned is redeclared (rk-h, rk-panel,
    rk-panel-head, rk-rail, rk-step, rk-ring, rk-tiles are used as they
    are). Sizes never below 12px; radii and colours are tokens. Green is
