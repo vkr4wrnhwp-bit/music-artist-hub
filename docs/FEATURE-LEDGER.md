@@ -1267,6 +1267,7 @@ The mix view of a session: measured loudness/peak/dynamics, findings, timed note
 Creates a project row from a name, artist name and one of four project types, each of which works on one audio file.
 
 - Because: studio.py studio_new POSTs into sstore.create_project and redirects to the new session id; _TYPE_LABELS is a form vocabulary, not seeded data. A session holds ONE source (project_summary picks the first original asset), so Vocal + Instrumental, Stem Mix and Master an EP or Album left the form on 2026-09-23 (make-real brief) and the form says multi-file sessions are not built yet; a POST naming one gets stereo_mix_review. Rows already stored with those types keep their label and still open. Locked by tests/test_real_studio_types.py.
+- Import Existing Rack Project (made real 2026-09-23): the form lists the account's Rack library (db.list_rack_presets) under the option and refuses the import (400) without a chain of this account's own; the option is disabled with "Save a chain to your Rack library first" when the library is empty. create_project keeps a COPY of the chosen chain in studio_projects.rack_chain / rack_chain_name (additive migration steps project_rack_chain, project_rack_chain_name), so a later library edit cannot change what the session started from. The session's Rack chain panel shows that copy (studio.py _room, sstore.project_rack_chain) instead of the account rack. Locked by tests/test_real_studio_rack_import.py.
 - Routes: GET+POST /studio/new
 - Files: studio.py:207 studio_new; studio.py:187 _TYPE_LABELS; templates/studio/new.html; studio_store.py:create_project
 - Access: Same as /studio.
@@ -1275,7 +1276,7 @@ Creates a project row from a name, artist name and one of four project types, ea
 
 Sends the artist into /rack carrying the project and source asset on the query string.
 
-- Because: studio.py:558 redirects to /rack?project=<id>&asset=<id>; static/js/rackdsp.js:2163 fetches /studio/asset/<id> to load it.
+- Because: studio.py studio_rack redirects to /rack?project=<id>&asset=<id>; static/js/rackdsp.js loadAssetFromStudio fetches /studio/asset/<id> to load it. When the project imported a chain, app.py rack() looks the project up with the signed-in account's own keys and serves that chain as window.__savedRack, with the note "Started from <name>, the chain this Studio session imported." in #rk-status; any other project id, or none, loads the account's own saved rack.
 - Routes: GET /studio/session/<project_id>/rack
 - Files: studio.py:558 studio_rack; static/js/rackdsp.js:2163
 - Access: Project owner only; same plan/suite gates.

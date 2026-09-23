@@ -2171,7 +2171,8 @@ function sbWhenRunning(c, fn) {
                   solo: false, playGain: null}];
         stop(); renderStems(); syncDeckInfo(); renderWave();
         if (statusEl) {
-          statusEl.textContent = "Master loaded from Street Banker Studio.";
+          statusEl.textContent = "Master loaded from Street Banker Studio."
+            + (window.__rackStartNote ? " " + window.__rackStartNote : "");
         }
       })
       .catch(function () { /* the Rack works without it */ });

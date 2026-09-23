@@ -206,30 +206,57 @@ _TYPE_LABELS = [
 _OFFERED_TYPES = {key for key, _label, _note in _TYPE_LABELS}
 
 
+def _new_form(user, error=None, status_code=200):
+    """The form, with the account's Rack library for the import option.
+
+    The library is read here rather than fetched by the page, so the import
+    works without JavaScript and an empty library can be stated up front
+    instead of discovered after picking the option."""
+    import db as store
+
+    response = render_template("studio/new.html", active_page="studio",
+                               types=_TYPE_LABELS,
+                               rack_library=store.list_rack_presets(user["id"]),
+                               error=error)
+    return (response, status_code) if status_code != 200 else response
+
+
 @bp.route("/studio/new", methods=["GET", "POST"])
 def studio_new():
     _live()
     user = _user()
     if request.method != "POST":
-        return render_template("studio/new.html", active_page="studio",
-                               types=_TYPE_LABELS)
+        return _new_form(user)
 
     title = (request.form.get("title") or "").strip()
     if not title:
-        return render_template("studio/new.html", active_page="studio",
-                               types=_TYPE_LABELS,
-                               error="Give the project a name so you can find "
-                                     "it again."), 400
+        return _new_form(user, "Give the project a name so you can find it "
+                               "again.", 400)
     project_type = request.form.get("project_type") or "stereo_mix_review"
     if project_type not in _OFFERED_TYPES:
         # A hand-made POST naming a retired type gets the one-file default
         # rather than a label that promises several files.
         project_type = "stereo_mix_review"
+
+    # An import is a copy of one chain from THIS account's Rack library.
+    # get_rack_preset_by_id checks the owner, so another account's preset id
+    # reads as no chain at all.
+    chain, chain_name = None, ""
+    if project_type == "imported_rack":
+        import db as store
+
+        preset = store.get_rack_preset_by_id(
+            user["id"], (request.form.get("rack_preset_id") or "").strip())
+        if preset is None or not preset.get("data"):
+            return _new_form(user, "Choose a chain from your Rack library to "
+                                   "start from.", 400)
+        chain, chain_name = preset["data"], preset.get("name") or ""
+
     project_id = sstore.create_project(
         _partner(user), user["id"], title[:200],
         project_type=project_type,
         artist_name=(request.form.get("artist_name") or "").strip()[:120],
-        created_by=user["id"])
+        created_by=user["id"], rack_chain=chain, rack_chain_name=chain_name)
     return redirect(url_for("studio.studio_session", project_id=project_id))
 
 
@@ -500,7 +527,12 @@ def _room(project_id, room, template, error=None, status_code=200):
         delivery=studio_metrics.delivery(checklist),
         activity=studio_metrics.collapse_activity(events),
         transport_inline=(room == "session"),
-        rack_chain=store.get_rack_preset(user["id"]),
+        # The chain this session imported, when it imported one; otherwise
+        # the account's saved rack, which is the one /rack loads.
+        rack_chain=(sstore.project_rack_chain(project)
+                    or store.get_rack_preset(user["id"])),
+        rack_chain_name=(project.get("rack_chain_name") or ""
+                         if sstore.project_rack_chain(project) else ""),
         events=events,
         max_mb=studio_config.max_upload_bytes() // (1024 * 1024),
         targets=__import__("audio_readiness").PLATFORM_TARGETS,
