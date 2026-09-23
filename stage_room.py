@@ -291,37 +291,62 @@ def path(show, the_rig, the_plot, version):
     return out
 
 
-# --- THE PLATE --------------------------------------------------------
-# static/img/stage-plate.webp, 1859x846: a SHOW CONTROL desk. Each window
-# is (x, y, w, h) as a PERCENTAGE of the plate, MEASURED off the file with
-# PIL. RE-MEASURE ALL OF THEM if the plate is ever regenerated or
-# re-cropped - the overlays would otherwise land beside their glass and
-# nothing in code would say so.
-#
-# The plate silkscreens CUES, CHANNELS, PASSPORT and THE STAGE, so the
-# markup never prints those words; they ride along as screen-reader text
-# and appear only under 560px, where the photograph steps aside.
-#
-# The wide window carries the CUE LIST rather than a picture of the plot.
-# The plot has its own panel below, and that panel is the REAL designer
-# (owner, 2026-09-22: a rendering that "doesn't do anything" is not worth
-# drawing) - so a second drawing of the same plot would be the screen
-# folding on top of itself. The cue list is on no other part of this room.
-PLATE = {
-    "cues":     (5.33, 17.61, 26.52, 17.97),
-    "channels": (34.59, 17.49, 30.72, 18.09),
-    "passport": (68.05, 17.49, 26.20, 18.09),
-    "stage":    (5.38, 53.55, 88.86, 28.49),
-}
-# The reading keys figures() emits, in the order the plate prints them.
-PLATE_ORDER = ("cues", "channels", "version")
-PLATE_WINDOW = {"cues": "cues", "channels": "channels", "version": "passport"}
+# --- THE RACK ---------------------------------------------------------
+# The working room on the rooms' shared three-window plate (owner,
+# 2026-09-23: every room's rack is the shorter plate drawn by
+# templates/partials/cc_rack.html). The Show Control desk it replaces
+# (static/img/stage-plate.webp, left in place) silkscreened CUES,
+# CHANNELS, PASSPORT and THE STAGE; the new plate prints no names, so
+# each screen says what it is. Its fourth, wide window - THE STAGE, the
+# saved cue list - is not lost: it is its own panel directly under the
+# plate (templates/room_stage.html), and still the only place in this
+# room the cue list appears.
+RACK_ORDER = ("cues", "channels", "version")
 
 
-def box(key):
-    """The inline custom properties that put a window on its glass."""
-    x, y, w, h = PLATE[key]
-    return "--x:%s%%;--y:%s%%;--w:%s%%;--h:%s%%" % (x, y, w, h)
+def rack_screens(show, the_rig, version):
+    """The three screens: Cues, Channels, Passport - figures() again,
+    each worded for the glass. A reading is a figure; an absence is words
+    and never a nought, and the line under it says what the light show or
+    the passport actually holds."""
+    show = show or {}
+    by = {f["key"]: f for f in figures(show, the_rig, version)}
+    n_cues = len(cues(show))
+    name = (show.get("name") or "").strip() or "your saved show"
+    fixtures_n = the_rig["fixtures"]
+
+    if not show:
+        # The room can be open with no light show at all (a tour show or a
+        # plot is enough), so this names the light show, not "a show".
+        cue = {"v": "No light show saved", "sub": "Programme one in the Light Designer"}
+    elif not n_cues:
+        cue = {"v": "No cues yet", "sub": "Nothing programmed in %s" % name}
+    else:
+        cue = {"v": str(n_cues), "sub": "In %s" % name}
+
+    if fixtures_n:
+        chan = {"v": by["channels"]["value"],
+                "sub": "%d fixture%s · universe %d" % (
+                    fixtures_n, "" if fixtures_n == 1 else "s", the_rig["universe"])}
+    else:
+        chan = {"v": by["channels"]["value"],
+                "sub": "No fixtures on the rig" if show else "No rig saved yet"}
+
+    ver = by["version"]
+    pas = {"v": ver["value"],
+           "sub": "The technical record, published" if ver["measured"]
+                  else "The technical record has no version yet"}
+
+    read = {"cues": (cue, bool(n_cues)),
+            "channels": (chan, bool(fixtures_n)),
+            "version": (pas, bool(ver["measured"]))}
+    label = {"cues": "Cues", "channels": "Channels", "version": "Passport"}
+    out = []
+    for key in RACK_ORDER:
+        sc, measured = read[key]
+        out.append({"key": key, "k": label[key], "v": sc["v"], "sub": sc["sub"],
+                    "fig": measured, "none": not measured})
+    return out
 
 
 # --- THE PAGE FROM ZERO (owner's Stage spec + mockup, 2026-09-23) ---------
@@ -332,8 +357,9 @@ def box(key):
 # (the four fields the spec asks for and nothing else), what Stage keeps
 # together, the five-stage workflow as education, the two empties in
 # words, help, and the tools in a drawer that starts open. The animated
-# standby that used to run on the desk for an empty account is retired
-# here; the fill reel below stays for a populated desk's empty windows.
+# standby that used to run on the desk for an empty account is retired,
+# and since the working room moved onto the same plate (2026-09-23) so is
+# the fill reel its empty windows showed: an absence there is words.
 ZERO_SUBTITLE = "Turn show details into a plan everyone can use."
 ZERO_RACK = (
     ("Purpose", "Make every show operationally ready."),
@@ -434,44 +460,6 @@ def zero_page(can_add=True, can_open=None):
     }
 
 
-# The reel a READING window shows while it has nothing to read (owner,
-# 2026-09-22: no words in an empty window, icons). The one piece of the
-# old standby still read: a populated desk's empty windows.
-STANDBY_FILL = ("lights", "rigged", "patched", "cued", "plotted", "passported")
-
-
-def _six(icons):
-    """Six stops, always: the roll's keyframes step through six, and a
-    five-icon reel ran its last stop into blank glass."""
-    icons = list(icons or ())
-    while icons and len(icons) < 6:
-        icons.append(icons[len(icons) % len(icons)])
-    return icons[:6]
-
-
-def standby():
-    """What a populated desk's empty windows fill with. The animated
-    standby that once ran on an empty account is retired: that account
-    meets the page from zero instead."""
-    return {"fill": _six(STANDBY_FILL)}
-
-
-def plate_windows(rows):
-    """figures() again, each one carrying the window it is printed in.
-
-    The order is the silkscreen's, not the list's: a label etched on metal
-    cannot be reordered, so neither can these.
-    """
-    by = {r["key"]: r for r in rows or ()}
-    out = []
-    for key in PLATE_ORDER:
-        row = by.get(key)
-        if not row:
-            continue
-        out.append(dict(row, box=box(PLATE_WINDOW[key])))
-    return out
-
-
 def build(show, plot_state, plot_image, version, cards,
           artist_name="", sample=False, can_open=None,
           zero=False, can_add=True):
@@ -529,15 +517,15 @@ def build(show, plot_state, plot_image, version, cards,
         "span_label": timecode(span(cue_rows)),
         "plot": the_plot,
         "figures": figures(show, the_rig, version),
-        # The plate: the same readings, each on its own glass.
-        "windows": plate_windows(figures(show, the_rig, version)),
-        "stage_box": box("stage"),
+        # The rooms' shared plate: Cues, Channels, Passport, each on its
+        # own screen. The cue list the old desk's wide window held is its
+        # own panel under the plate, drawn from "cues" above.
+        "screens": rack_screens(show, the_rig, version),
         # Nothing saved on any count: the page from zero. One show, plot,
         # light show or passport and the desk takes over untouched.
         "idle": bool(zero),
         "zero": zero_page(can_add, can_open) if zero else None,
         "zero_tiles": zero_tiles,
-        "standby": standby(),
         "path": path(show, the_rig, the_plot, version),
         "tiles": tiles,
         # The mark is literal: it appears when this account is looking at

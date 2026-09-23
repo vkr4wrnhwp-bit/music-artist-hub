@@ -10,6 +10,9 @@ Tour anywhere. What these lock:
   the plot has three real states: drawn, list only, and empty
   no control on this screen edits anything - every action links out
   no Tour on the screen at all: it is its own suite now
+  the working room sits on the rooms' three-window plate (owner,
+    2026-09-23): Cues, Channels, Passport on the screens, each named, an
+    absence in words; the old desk's wide window is its own panel under it
 """
 import uuid
 
@@ -447,3 +450,114 @@ def test_the_owners_hidden_mark_stays_on_a_populated_room_tile():
              for k in ("lights", "passports", "tour-board", "live")}
     tiles = {t["key"]: t for t in sr.build(None, None, None, None, cards)["tiles"]}
     assert tiles["passports"]["state"] == "hidden" and tiles["lights"]["state"] != "hidden"
+
+
+# --- the working room on the rooms' plate (owner, 2026-09-23) ---------------
+
+def _working(cues=None, plot=True):
+    """An account with a show, a light show and a stage plot: the working
+    room, not the page from zero."""
+    c, uid = _account()
+    store.set_user_plan(uid, "pro")
+    r = c.post("/tours/new", data={"one_off": "1", "date": "2031-04-18",
+                                   "venue": "The Basement East", "city": "Nashville, TN"})
+    assert r.status_code == 302
+    store.save_light_show(uid, _show(cues=cues))
+    if plot:
+        store.save_stage_plot(uid, {"items": {"drums": 1, "bass": 1, "vox": 1}})
+    page = c.get("/room/stage").get_data(as_text=True)
+    return page, _room(page)
+
+
+def _screens(body):
+    """(label, value, line) for each screen of the rack, in order."""
+    import re as _re
+    rack = body.split('<section class="cz-rack"', 1)[1].split("</section>", 1)[0]
+    out = []
+    for li in _re.findall(r'<li class="cz-screen"[^>]*>(.*?)</li>', rack, _re.S):
+        k = _re.search(r'class="cz-screen-k">([^<]*)<', li).group(1)
+        v = _re.search(r'class="cz-screen-v[^"]*">([^<]*)<', li).group(1)
+        s = _re.search(r'class="cz-screen-s">([^<]*)<', li)
+        out.append((k, v, s.group(1) if s else ""))
+    return out
+
+
+def test_the_working_room_draws_the_rooms_three_window_plate():
+    """Owner, 2026-09-23: every room's rack is the shorter three-window
+    plate. The Show Control desk (stage-plate.webp) is gone from the
+    working page; its three reading windows are the plate's three screens,
+    and because the new plate prints no names each screen says what it
+    is - Cues, Channels, Passport, in the old silkscreen's order."""
+    cues = [{"t": 4, "note": "Wash", "intensity": 80, "fade": 2},
+            {"t": 20, "note": "Hit", "intensity": 100, "fade": 0}]
+    page, body = _working(cues=cues)
+    assert 'class="cz-plate" src="/static/img/room-plate.webp' in body
+    assert "stage-plate.webp" not in body, "the old desk is not on the working page"
+    assert body.count('<li class="cz-screen"') == 3
+    assert "command-zero.css?v=3" in page and "stage-room.css?v=10" in page
+    got = _screens(body)
+    assert [k for k, _v, _s in got] == ["Cues", "Channels", "Passport"]
+    assert got[0][1] == "2" and got[0][2] == "In Main Show"
+    assert got[1][1] == "16" and got[1][2] == "4 fixtures · universe 1", "four 4-channel bars"
+    assert got[2][1] == "Never published"
+    # a reading is a figure; an absence is words, set as one
+    assert 'class="cz-screen-v cz-screen-v--fig">2<' in body
+    assert 'class="cz-screen-v cz-screen-v--none">Never published<' in body
+    # the old desk's parts went with it: no fill reel, no positioned windows
+    assert "rk-reel" not in body and "rk-pl" not in body
+
+
+def test_every_screen_says_an_absence_in_words_never_a_nought():
+    """A light show with no cues has no cues - not "0" - and a room open
+    on a tour show alone has no light show at all, which is said as that
+    rather than as "no show" (it has one)."""
+    empty = {s["key"]: s for s in sr.rack_screens(_show(bars=0), sr.rig(_show(bars=0)), None)}
+    assert empty["cues"]["v"] == "No cues yet" and empty["cues"]["none"] is True
+    assert empty["cues"]["sub"] == "Nothing programmed in Main Show"
+    assert empty["channels"]["v"] == "Nothing patched" and empty["channels"]["none"] is True
+    assert empty["channels"]["sub"] == "No fixtures on the rig"
+    none = {s["key"]: s for s in sr.rack_screens(None, sr.rig(None), None)}
+    assert none["cues"]["v"] == "No light show saved"
+    assert none["channels"]["sub"] == "No rig saved yet"
+    assert none["version"]["v"] == "Never published" and none["version"]["fig"] is False
+    for s in list(empty.values()) + list(none.values()):
+        assert s["v"] != "0" and s["fig"] is not s["none"], s
+    got = {s["key"]: s for s in sr.rack_screens(_show(bars=1, chans=3), sr.rig(_show(bars=1, chans=3)), 4)}
+    assert got["version"]["v"] == "Version 4" and got["version"]["fig"] is True
+    assert got["channels"]["v"] == "3" and got["channels"]["sub"] == "1 fixture · universe 1"
+    # and on the page: a show with no cues says so on the glass
+    _page, body = _working(cues=[])
+    assert _screens(body)[0][:2] == ("Cues", "No cues yet")
+
+
+def test_the_stage_window_is_its_own_panel_right_under_the_plate():
+    """Nothing is lost: the old desk's wide window - THE STAGE, the saved
+    cue list - is its own panel directly under the plate and the line
+    that explains it, and the Stage plot panel follows it."""
+    cues = [{"t": i * 10, "note": "Look %d" % i, "intensity": 50, "group": "truss"}
+            for i in range(8)]
+    _page, body = _working(cues=cues)
+    rack = body.index('<section class="cz-rack"')
+    foot = body.index('class="rk-foot sg-pl-foot"')
+    panel = body.index('<section class="rk-panel sg-cuebox"')
+    plot = body.index('aria-labelledby="sg-plot-h"')
+    assert rack < foot < panel < plot, "plate, its line, the stage window's panel, then the plot"
+    between = body[body.index("</section>", rack):panel]
+    assert "<section" not in between, "nothing between the plate and the panel but its line"
+    box = body[panel:plot]
+    assert 'id="sg-cuebox-h">Cue list<' in box
+    assert box.count("<li>") == 6, "the six the window showed"
+    assert "<b>0:00</b><span>Look 0</span><i>truss</i><em>50%</em>" in box
+    assert "2 more in the Light Designer" in box
+    assert "sg-invite" not in box, "a real cue list replaces the illustration"
+    # and it is inside the rack no longer
+    rack_html = body[rack:body.index("</section>", rack)]
+    assert "sg-cue-list" not in rack_html and "Look 0" not in rack_html
+
+
+def test_with_no_cues_the_panel_is_the_invitation_and_a_door():
+    _page, body = _working(cues=[])
+    box = body[body.index('<section class="rk-panel sg-cuebox"'):body.index('aria-labelledby="sg-plot-h"')]
+    assert 'class="sg-invite" href="/lights"' in box and 'class="sg-blueprint"' in box
+    assert "No cues saved yet" in box and "sg-cue-list" not in box
+    assert "/tours" not in body, "the 2026-09-22 rule holds on the working page"
