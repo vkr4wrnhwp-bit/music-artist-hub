@@ -258,6 +258,62 @@ ZERO_BANDS = (
 )
 # The sentence the room carries back from the add-song form.
 DONE_LINE = "Your first song was added. Publishing is ready for its writers."
+# What a shared, read-only demo is told in place of the add-song door.
+DEMO_LOCKED = "This is a shared demo account and it is read only, so songs cannot be added here."
+
+
+# --- THE SHOWCASE (owner's ruling: the demo account is the showcase, never
+# the page from zero) ----------------------------------------------------
+# The demo logins carry seeded statements but no song records, so the room
+# met them with "Start with one song" under a "Sample data" lamp that
+# marked nothing. Like the Marketing and Fans rooms, the route hands a
+# showcase session this labelled example instead - built in memory, never
+# stored, and read by the SAME engines a real account's songs go through
+# (state_of, uncollected, headline, rights_conflicts), so the example
+# demonstrates the room rather than illustrating it. The titles are the
+# demo statement's own (demo_seed.CSV). One of each state the ladder and
+# the table can show: a full claim, a part claim, no work linked, a signed
+# split sheet with nobody asked yet, and a bare title - plus one song with
+# two writers and no split sheet, so the conflicts panel has something
+# true to say. The "MLC answers" are part of the example and are labelled
+# with it; nothing here is ever written to track_mlc_checks.
+def _show(n, title, release, passport, lockbox=None, answer=None, share=None, code=""):
+    track = {"id": "showcase-%d" % n, "title": title, "release_title": release,
+             "release_date": "", "passport": dict(passport), "lockbox": dict(lockbox or {}),
+             "mlc_check": None}
+    isrc = passport.get("isrc") or ""
+    if answer == "match":
+        track["mlc_check"] = {"result": "match", "asked": "ISRC " + isrc,
+                              "works": [{"song_code": code, "share_total": share}]}
+    elif answer == "none":
+        track["mlc_check"] = {"result": "none", "asked": "ISRC " + isrc, "works": []}
+    return track
+
+
+_SIGNED = {"file": "split-sheet.pdf", "approvals": [{"state": "signed"}]}
+
+
+def showcase():
+    """The demo's songs: the labelled example the room draws for a showcase
+    session. A fresh list each call, so nothing downstream can edit it."""
+    return [
+        _show(1, "Midnight Drive", "Neon Nights",
+              {"isrc": "QZ-SBX-26-00001", "songwriters": "Synthwave Surfer",
+               "publishers": "Synthwave Surfer Music", "pro": "BMI"},
+              {"split_sheet": _SIGNED}, answer="match", share=100, code="SX0001"),
+        _show(2, "Neon Dreams", "Neon Nights",
+              {"isrc": "QZ-SBX-26-00002", "songwriters": "Synthwave Surfer, Kai Moreno",
+               "publishers": "Synthwave Surfer Music", "pro": "BMI"},
+              answer="match", share=50, code="SX0002"),
+        _show(3, "City Lights", "Neon Nights",
+              {"isrc": "QZ-SBX-26-00003", "songwriters": "Synthwave Surfer"},
+              answer="none"),
+        _show(4, "Digital Paradise", "Digital Paradise",
+              {"isrc": "QZ-SBX-26-00004", "songwriters": "Synthwave Surfer",
+               "producers": "Kai Moreno"},
+              {"split_sheet": _SIGNED}),
+        _show(5, "Velvet Static", "", {}),
+    ]
 
 
 def new_account(tracks):
@@ -303,7 +359,8 @@ def zero_page(can_add=True, can_open=None, cards=None):
         "subtitle": ZERO_SUBTITLE,
         "screens": [{"k": k, "v": v} for k, v in ZERO_RACK],
         "door": DOOR,
-        "project": dict(ZERO_PROJECT, can=can_add),
+        "project": dict(ZERO_PROJECT, can=can_add,
+                        **({"locked": DEMO_LOCKED} if can_add == "demo" else {})),
         "first_draft": FIRST_DRAFT,
         "lenses": lenses,
         "workflow": WORKFLOW,
@@ -447,7 +504,10 @@ def build(tracks, statement_rows, conflicts, selected, cards,
     """Everything the screen renders. No page logic beyond this.
 
     `zero` is new_account() decided by the route (None here means: decide
-    from the tracks); `can_add` is who may add a song (see zero_page)."""
+    from the tracks); `can_add` is who may add a song - True for the
+    account holder or an edit seat, "seat" for a read seat and "demo" for
+    a shared, read-only demo, neither of which is offered the door on
+    either page (see zero_page)."""
     tracks = list(tracks or ())
     if zero is None:
         zero = new_account(tracks)
@@ -504,4 +564,6 @@ def build(tracks, statement_rows, conflicts, selected, cards,
         # The mark is literal: it appears when this account is looking at
         # the showcase, and never as decoration.
         "sample": bool(sample),
+        # Who may add a song, for the populated header's door too.
+        "can_add": can_add,
     }

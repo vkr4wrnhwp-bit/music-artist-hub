@@ -58,9 +58,14 @@
         <p class="rk-eyebrow">Street Banker &middot; Publishing</p>
         <h1 class="rk-title" id="pb-title">Publishing</h1>
         <p class="rk-sub">{% if pb.idle %}{{ pb.zero.subtitle }}{% else %}Your songs, who owns them, and who is collecting.{% endif %}</p>
+        {%- if not pb.idle and pb.can_add == "seat" %}
+        <p class="rk-said">Songs are added by the account owner or a seat with edit access.</p>
+        {%- endif %}
       </div>
       <div class="rk-controls">
-        {% if pb.sample %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
+        {#- Only where something shown IS the example: the showcase's songs.
+            The page from zero shows none, so it never wears the lamp. -#}
+        {% if pb.sample and not pb.idle %}<span class="rk-lamp rk-lamp--info">Sample data</span>{% endif %}
         {% if pb.artist_name %}
         <span class="rk-chip" title="The account these figures are for">
           <span class="rk-avatar" aria-hidden="true">{{ (pb.artist_name[:1] or "?")|upper }}</span><span class="rk-chip-name" title="{{ pb.artist_name }}">{{ pb.artist_name }}</span>
@@ -75,7 +80,9 @@
         {#- the one door on the page from zero: the shared add-song form,
             carrying the way back; absent for a seat that may not add one -#}
         {% if pb.zero.project.can == True %}<a class="rk-cta" href="{{ pb.zero.door }}">{{ icon("plus-circle", "rk-ico") }}Add your first song</a>{% endif %}
-        {%- else %}
+        {%- elif pb.can_add == True %}
+        {#- The same rule as the page from zero: a read seat, or a shared
+            read-only demo, is not handed a door its save would bounce at. -#}
         <a class="rk-cta" href="/catalog?view=passports">{{ icon("plus", "rk-ico") }}Add a song</a>
         {%- endif %}
       </div>
@@ -273,16 +280,22 @@
         <tbody>
           {% for r in pb.rows %}
           <tr>
-            <td class="pb-song"><a href="/tracks/{{ r.id }}#passport">{{ r.title }}</a>{% if r.release %}<span>{{ r.release }}</span>{% endif %}</td>
+            {#- The showcase's songs have no passport page to open. -#}
+            <td class="pb-song">{% if pb.sample %}{{ r.title }}{% else %}<a href="/tracks/{{ r.id }}#passport">{{ r.title }}</a>{% endif %}{% if r.release %}<span>{{ r.release }}</span>{% endif %}</td>
             <td class="pb-wrong">{{ r.wrong }}</td>
             <td><span class="rk-lamp rk-lamp--{{ r.tone }}">{{ r.label }}</span></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
+      {% if pb.sample %}
+      <p class="rk-foot">These answers are part of the sample. Nobody asked a registry about
+        these songs; a real account's table is read from the registry's own answers.</p>
+      {% else %}
       <p class="rk-foot">Read from the registry's own answers, stored with the date they
         were given. A row that says <b>typed, unverified</b> is what somebody wrote on the
         passport, which is a claim and not evidence.</p>
+      {% endif %}
       {% else %}
       <p class="rk-empty">No recordings on file yet. Add a song and this table shows what
         each registry says about it.</p>
@@ -305,11 +318,13 @@
             <p class="pb-conflict-t">{{ c.title }}</p>
             <p class="pb-conflict-d">{{ c.description }}</p>
           </div>
-          {% if c.fix %}<a class="pb-conflict-go" href="{{ c.fix }}">Open {{ icon("arrow", "rk-ico") }}</a>{% endif %}
+          {% if c.fix and not pb.sample %}<a class="pb-conflict-go" href="{{ c.fix }}">Open {{ icon("arrow", "rk-ico") }}</a>{% endif %}
         </div>
         {% endfor %}
       </div>
-      <p class="rk-foot"><a href="/conflicts">See all rights conflicts</a></p>
+      {#- The showcase's conflicts are the example's; the account's own
+          conflicts page would contradict them. -#}
+      {% if not pb.sample %}<p class="rk-foot"><a href="/conflicts">See all rights conflicts</a></p>{% endif %}
       {% else %}
       <div class="rk-calm">
         <p>Nothing on file disagrees with itself.</p>

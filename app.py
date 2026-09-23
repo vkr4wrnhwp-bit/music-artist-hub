@@ -5216,6 +5216,11 @@ def create_app():
         import publishing_room
         import rights_conflicts
 
+        # The demo account is never from zero: it is the showcase (owner's
+        # ruling; the Marketing room's pattern). The demo logins carry
+        # statements but no song records, so they met "Start with one
+        # song" under a Sample data lamp that marked nothing.
+        showcase = _session_is_demo()
         # Every count the page from zero is decided on, read in ONE try: a
         # failed read is the error page, 503, and never a fresh account
         # (owner's spec, 2026-09-23). The statement rows used to fall
@@ -5228,6 +5233,9 @@ def create_app():
             app.logger.error("publishing room: state unreadable: %s", exc)
             return render_template("room_publishing_error.html", active_page="room-publishing",
                                    room=room, **build_dashboard_context()), 503
+        if showcase:
+            # The labelled example, read by the same engines (never stored).
+            tracks = publishing_room.showcase()
         wanted = request.args.get("song") or ""
         selected = next((t for t in tracks if t.get("id") == wanted), None)
         if selected is None and tracks:
@@ -5238,20 +5246,26 @@ def create_app():
         can_open = None if seat is None else (
             lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
-        # Who may add the first song: the account holder, or an edit seat.
-        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
+        # Who may add a song: the account holder, or an edit seat. A shared
+        # read-only demo is offered no write door either (its saves are
+        # refused by demo_lock_gate).
+        if _demo_locked_account():
+            can_add = "demo"
+        else:
+            can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         pb = publishing_room.build(tracks, rows, found, selected, cards,
                                    artist_name=artist_identity.display_name(user),
-                                   sample=_session_is_demo(), can_open=can_open,
-                                   zero=publishing_room.new_account(tracks), can_add=can_add)
+                                   sample=showcase, can_open=can_open,
+                                   zero=(not showcase) and publishing_room.new_account(tracks),
+                                   can_add=can_add)
         return render_template("room_publishing.html",
                                active_page="room-publishing",
                                room=room, pb=pb,
                                # The sentence the add-song form carries back
                                # (?from=publishing-zero-state), decided by
-                               # the SAVED song.
+                               # the SAVED song - never by the showcase's.
                                done_line=publishing_room.done_line(
-                                   request.args.get("from"), len(tracks)),
+                                   request.args.get("from"), 0 if showcase else len(tracks)),
                                **build_dashboard_context())
 
     def _releases_room(user, room):

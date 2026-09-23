@@ -402,3 +402,71 @@ def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
     z = pb.zero_page(cards=cards)
     tiles = {t["key"]: t for b in z["bands"] for t in b["tiles"]}
     assert tiles["beats"]["state"] == "hidden" and tiles["catalog"]["state"] != "hidden"
+
+# --- the demo account is the showcase, never the page from zero ------------
+# Owner's ruling, the Marketing room's pattern: every non-fan demo login met
+# "Start with one song" under a "Sample data" lamp that marked nothing
+# (audit publishing-2, 2026-09-23). The room now hands a showcase session a
+# labelled example, built in memory and read by the same engines.
+
+def _demo(email):
+    c = appmod.app.test_client()
+    c.post("/login", data={"email": email, "password": "sweep"})
+    return c
+
+
+def test_the_demo_account_is_the_showcase_never_from_zero():
+    import demo_accounts
+    logins = [email for email, _name, plan in demo_accounts.ACCOUNTS if plan != "fan"]
+    assert len(logins) == 3, logins
+    for email in logins:
+        r = _demo(email).get("/room/publishing")
+        assert r.status_code == 200, email
+        body = _body(r.get_data(as_text=True))
+        assert "Start with one song" not in body and "Add your first song" not in body, email
+        assert "pb-z-" not in body, email + ": none of the page from zero's parts"
+        assert "Sample data" in body, email + ": the example is labelled as one"
+        for t in pb.showcase():
+            assert t["title"] in body, (email, t["title"])
+        for name in ("Written", "Split agreed", "Registered", "Claimed", "Collecting"):
+            assert ">%s<" % name in body, (email, name)
+        # the example's songs have no passport page, so nothing links to one
+        assert 'href="/tracks/showcase-' not in body, email
+        assert "Nobody asked a registry about" in body, email
+        assert pb.DONE_LINE not in _demo(email).get(
+            "/room/publishing?from=publishing-zero-state").get_data(as_text=True), (
+            email + ": the example's songs were not added by anybody")
+
+
+def test_the_showcase_runs_on_the_rooms_own_engines_and_is_never_stored():
+    import rights_conflicts
+    tracks = pb.showcase()
+    assert [pb.state_of(t, set()) for t in tracks] == [
+        "claimed", "registered", "written", "split_agreed", "written"]
+    assert [r["state"] for r in pb.uncollected(tracks)] == [
+        "red", "yellow", "yellow", "yellow", "green"]
+    found = rights_conflicts.for_account(tracks)
+    assert [c["conflict_type"] for c in found] == ["Splits not agreed"], found
+    assert pb.showcase() is not tracks and pb.showcase()[0] is not tracks[0], "a fresh copy each call"
+    assert all(t["id"].startswith("showcase-") for t in tracks)
+
+
+def test_a_real_account_never_wears_the_sample_lamp():
+    c, uid = _account()
+    assert "Sample data" not in c.get("/room/publishing").get_data(as_text=True)
+    _song(uid)
+    assert "Sample data" not in c.get("/room/publishing").get_data(as_text=True)
+
+
+def test_a_locked_demo_is_offered_no_write_door():
+    """A shared read-only demo's saves are refused by demo_lock_gate, so the
+    room offers it no door to one - on either page."""
+    c, uid = _account()
+    store.set_demo_lock(uid, True)
+    zero = _body(c.get("/room/publishing").get_data(as_text=True))
+    assert 'class="rk-cta"' not in zero and 'class="pb-z-btn"' not in zero
+    assert pb.DEMO_LOCKED in zero
+    _song(uid)
+    body = _body(c.get("/room/publishing").get_data(as_text=True))
+    assert "Works on file" in body
+    assert 'class="rk-cta"' not in body, "the populated header's Add a song is a write door too"
