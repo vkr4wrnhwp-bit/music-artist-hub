@@ -325,3 +325,13 @@ def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
              for k in ("rack", "release-ready", "studio", "remix-lab", "audio-studio", "artwork")}
     tiles = {t["key"]: t for t in sd.build(None, "", [], 0, 0, None, cards)["tiles"]}
     assert tiles["remix-lab"]["state"] == "hidden" and tiles["rack"]["state"] != "hidden"
+
+
+def test_the_owners_hidden_mark_stays_on_a_populated_room_tile():
+    """The populated room's tiles carry the owner's mark too: the same
+    pill the drawer from zero shows, by the same state."""
+    cards = {k: ("/" + k, "M1", k.title(), "desc", "hidden" if k == "artwork" else "live")
+             for k in ("rack", "release-ready", "studio", "remix-lab", "audio-studio", "artwork")}
+    out = sd.build(None, "", [], 1, 0, None, cards)
+    tiles = {t["key"]: t for t in out["tiles"]}
+    assert not out["idle"] and tiles["artwork"]["state"] == "hidden" and tiles["rack"]["state"] != "hidden"

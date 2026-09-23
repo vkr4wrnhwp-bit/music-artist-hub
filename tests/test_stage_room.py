@@ -438,3 +438,12 @@ def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
              for k in sr.ZERO_TILES}
     tiles = {t["key"]: t for t in sr.build(None, None, None, None, cards, zero=True)["zero_tiles"]}
     assert tiles["lights"]["state"] == "hidden" and tiles["stage-plot"]["state"] != "hidden"
+
+
+def test_the_owners_hidden_mark_stays_on_a_populated_room_tile():
+    """The populated room's tiles carry the owner's mark too: the same
+    pill the drawer from zero shows, by the same state."""
+    cards = {k: ("/" + k, "M1", k.title(), "desc", "hidden" if k == "passports" else "live")
+             for k in ("lights", "passports", "tour-board", "live")}
+    tiles = {t["key"]: t for t in sr.build(None, None, None, None, cards)["tiles"]}
+    assert tiles["passports"]["state"] == "hidden" and tiles["lights"]["state"] != "hidden"

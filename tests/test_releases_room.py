@@ -354,3 +354,14 @@ def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
     z = rl.zero_page(cards=cards)
     tiles = {t["key"]: t for b in z["bands"] for t in b["tiles"]}
     assert tiles["sync-packs"]["state"] == "hidden" and tiles["autopilot"]["state"] != "hidden"
+
+
+def test_the_owners_hidden_mark_stays_on_a_populated_room_tile():
+    """The populated room's tiles carry the owner's mark too: the same
+    pill the drawer from zero shows, by the same state."""
+    cards = {"autopilot": ("/releases/autopilot", "M1", "Releases", "x", "live"),
+             "rollout": ("/rollout", "M1", "Rollout Studio", "r", "hidden"),
+             "sync-packs": ("/sync/clearance-packs", "M1", "Sync Packs", "s", "live"),
+             "distribution": ("/distribution", "M1", "Distribution", "d", "live")}
+    tiles = {t["key"]: t for t in rl.build(None, [], [], None, None, None, [], [], [], cards)["tiles"]}
+    assert tiles["rollout"]["state"] == "hidden" and tiles["sync-packs"]["state"] != "hidden"

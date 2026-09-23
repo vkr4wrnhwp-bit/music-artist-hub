@@ -491,8 +491,10 @@ def build(show, plot_state, plot_image, version, cards,
         href = card[0]
         if can_open and not can_open(href):
             continue
+        # The owner's mark on a page they hid rides with the tile.
         tiles.append({"key": key, "href": href, "icon": card[1],
-                      "name": card[2], "line": card[3]})
+                      "name": card[2], "line": card[3],
+                      "state": card[4] if len(card) > 4 else ""})
 
     # With no show at all the stage draws the editor's own starter rig,
     # marked. With one, it draws the artist's.

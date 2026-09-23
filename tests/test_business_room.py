@@ -620,3 +620,12 @@ def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
     z = bz.zero_page(cards=cards)
     tiles = {t["key"]: t for b in z["bands"] for t in b["tiles"]}
     assert tiles["vault"]["state"] == "hidden" and tiles["statements"]["state"] != "hidden"
+
+
+def test_the_owners_hidden_mark_stays_on_a_populated_room_tile():
+    """The populated room's tiles carry the owner's mark too: the same
+    pill the drawer from zero shows, by the same state."""
+    cards = {k: v + ("hidden" if k == "valuation" else "live",) for k, v in _CARDS.items()}
+    out = bz.build(None, None, None, None, None, None, "", [], [], [], cards)
+    tiles = {t["key"]: t for b in out["bands"] for t in b["tiles"]}
+    assert tiles["valuation"]["state"] == "hidden" and tiles["statements"]["state"] != "hidden"

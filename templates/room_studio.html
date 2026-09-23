@@ -355,7 +355,7 @@
           <span class="rk-tile-text"><b>{{ t.name }}</b><span>{{ t.line }}</span></span>
         </span>
         <span class="rk-tile-foot">
-          <span></span>
+          {% if t.state == "hidden" %}<span class="rk-tile-status rk-tone-off"><i></i>Hidden</span>{% else %}<span></span>{% endif %}
           <span class="rk-tile-go">{{ icon("arrow", "rk-ico rk-ico--sm") }}</span>
         </span>
       </a>

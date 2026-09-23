@@ -400,8 +400,10 @@ def build(campaign, checks, groups, days_left, release_date, drops, calendar,
         href = card[0]
         if can_open and not can_open(href):
             continue
+        # The owner's mark on a page they hid rides with the tile.
         tiles.append({"key": key, "href": href, "icon": card[1],
-                      "name": card[2], "line": card[3]})
+                      "name": card[2], "line": card[3],
+                      "state": card[4] if len(card) > 4 else ""})
     all_tasks = tasks(checks, release_date)
     return {
         "campaign": campaign,

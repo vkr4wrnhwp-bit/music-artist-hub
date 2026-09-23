@@ -362,3 +362,12 @@ def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
              for k in ar.ZERO_TILES}
     tiles = {t["key"]: t for t in ar.build(None, [], [], None, None, [], cards, zero=True)["zero_tiles"]}
     assert tiles["artist-twin"]["state"] == "hidden" and tiles["pulse"]["state"] != "hidden"
+
+
+def test_the_owners_hidden_mark_stays_on_a_populated_room_tile():
+    """The populated room's tiles carry the owner's mark too: the same
+    pill the drawer from zero shows, by the same state."""
+    cards = {k: ("/" + k, "M1", k.title(), "desc", "hidden" if k == "reports" else "live")
+             for k in ("scores", "artist-twin", "reports")}
+    tiles = {t["key"]: t for t in ar.build(None, [], [], None, None, [], cards, today=TODAY, zero=False)["tiles"]}
+    assert tiles["reports"]["state"] == "hidden" and tiles["scores"]["state"] != "hidden"
