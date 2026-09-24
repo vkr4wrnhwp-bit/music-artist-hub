@@ -176,9 +176,17 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "inbox", "settings", "catalog", "command-center",
              # F-5 (audit 2026-09-18): the badges were backwards. The Collab
              # Marketplace is a real db-backed board (nothing seeded), so it
-             # is live; Discover shows example artists, so it is NOT here and
-             # wears the Sample badge.
+             # is live; Discover then showed example artists to everybody,
+             # so it was left out (it is below now; see 2026-09-23).
              "marketplace",
+             # Three real pages the sidebar badged Sample (make-it-real,
+             # 2026-09-23). Rights Conflicts reads the account's own
+             # passports and lockboxes (rights_conflicts.summary); Missing
+             # money reads its passports and its own statement rows;
+             # Discover has been real search for every account since
+             # 2026-09-21, and the showcase login's feed carries its own
+             # "Sample feed" banner on the page.
+             "conflicts", "money-queue", "discover",
              "actions", "autopilot", "scores",
              "vault", "pulse", "team",
              # Real packs from the artist's own uploads (it was live through
