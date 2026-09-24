@@ -1751,11 +1751,18 @@ def create_app():
         if (not emailer.configured() or links_engine.is_prerelease(campaign)
                 or (campaign.get("settings") or {}).get("release_email_sent")):
             return 0
-        # Claim the flag before sending so concurrent page views can't double-send.
-        settings = dict(campaign.get("settings") or {})
-        settings["release_email_sent"] = True
-        mls.update_campaign(campaign["id"], campaign["user_id"],
-                            {"settings": settings})
+        # More than a week after release it is not a reminder, from either
+        # caller (links_engine.RELEASE_EMAIL_DAYS). Until 2026-09-23 only
+        # the daily run checked, so a page view mailed "out now" months
+        # late.
+        if not links_engine.release_email_window_open(campaign):
+            return 0
+        # Claim the flag in the database before sending, not on the dict
+        # this was handed: only the caller whose claim lands sends, so a
+        # page view during the daily run, or two page views at once,
+        # cannot mail a fan twice (links_store.claim_release_email).
+        if not mls.claim_release_email(campaign["id"]):
+            return 0
         page_url = request.url_root.rstrip("/") + "/l/" + campaign["slug"]
         # Replies go to the artist, never to the sending address.
         owner = store.get_user(campaign["user_id"]) or {}
@@ -11781,10 +11788,6 @@ def create_app():
         cc.complete_actions_for(user["id"], "document", doc_id)
         return redirect("/vault?view=contracts&terms=saved#doc-%s" % doc_id)
 
-    # How late the daily run will still send a release-day email: a week.
-    # Later than that it is not a reminder, it is news that is not news.
-    RELEASE_EMAIL_DAYS = 7
-
     @app.route("/reminders/run", methods=["POST"])
     def reminders_run():
         """Fire the contract reminders that are due today.
@@ -11814,13 +11817,15 @@ def create_app():
         # The release-day email to the fans who asked to be reminded. It
         # also goes on the first view of the page after release; this run
         # sends it for a page nobody has opened yet. _send_release_emails
-        # claims the campaign's once-only flag itself, so a view that got
-        # there first means nothing more is sent.
+        # claims the campaign's once-only flag in the database itself, so a
+        # view that gets there first, even while this run is going, means
+        # nothing more is sent; it also keeps the week's window
+        # (links_engine.RELEASE_EMAIL_DAYS), which this list only narrows.
         released = 0
         try:
             today = datetime.now(timezone.utc).date()
-            for camp in mls.released_unsent_campaigns(
-                    today.isoformat(), (today - timedelta(days=RELEASE_EMAIL_DAYS)).isoformat()):
+            since = today - timedelta(days=links_engine.RELEASE_EMAIL_DAYS)
+            for camp in mls.released_unsent_campaigns(today.isoformat(), since.isoformat()):
                 released += _send_release_emails(camp)
         except Exception as exc:           # noqa: BLE001 - reminders already ran
             released = {"error": type(exc).__name__}

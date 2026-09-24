@@ -17,6 +17,7 @@ Now (fan_mail):
   * both send paths skip every suppressed address.
 """
 import uuid
+from datetime import date, timedelta
 
 import app as appmod
 import db as store
@@ -26,6 +27,7 @@ import links_store as mls
 
 PW = "unsub-pass-12345"
 SECRET = appmod.app.config["SECRET_KEY"]
+_YESTERDAY = (date.today() - timedelta(days=1)).isoformat()
 
 
 def _account():
@@ -40,7 +42,9 @@ def _account():
 
 def _released(uid, title="Out Now"):
     slug = "uns-%s" % uuid.uuid4().hex[:8]
-    cid = mls.create_campaign(uid, slug, {"title": title, "release_date": "2020-01-01",
+    # Released yesterday: the release-day email goes only in the week after
+    # release (links_engine.RELEASE_EMAIL_DAYS), so 2020-01-01 no longer sends.
+    cid = mls.create_campaign(uid, slug, {"title": title, "release_date": _YESTERDAY,
                                           "settings": {"email_capture": True}})
     mls.update_campaign(cid, uid, {"status": "live"})
     mls.set_destinations(cid, [{"service_key": "spotify", "service_name": "Spotify",

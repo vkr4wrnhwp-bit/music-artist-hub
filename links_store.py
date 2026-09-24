@@ -132,6 +132,29 @@ def released_unsent_campaigns(today, since):
             if not (c.get("settings") or {}).get("release_email_sent")]
 
 
+def claim_release_email(campaign_id):
+    """Claim a campaign's once-only release-day email. Returns True only
+    for the one caller that claimed it.
+
+    One conditional UPDATE, so the claim is the database's to give, not
+    the caller's copy of the campaign's: the daily run reads its list of
+    campaigns before it starts, and a first page view can claim one of
+    them while the run is still sending an earlier one. Before 2026-09-23
+    the flag was checked on the dict the caller held and then written, and
+    that campaign's fans were mailed twice. Two first page views at the
+    same moment are the same race and are closed the same way.
+    """
+    settings = "CASE WHEN json_valid(settings) THEN settings ELSE '{}' END"
+    with get_db() as db:
+        cur = db.execute(
+            "UPDATE ml_campaigns SET settings = json_set(" + settings + ","
+            " '$.release_email_sent', json('true')), updated = ?"
+            " WHERE id = ? AND COALESCE(json_extract(" + settings + ","
+            " '$.release_email_sent'), 0) = 0",
+            (_now(), campaign_id))
+    return cur.rowcount == 1
+
+
 def duplicate_campaign(campaign_id, user_id, new_slug):
     src = get_campaign(campaign_id, user_id)
     if src is None:

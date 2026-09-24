@@ -1951,10 +1951,13 @@ def test_release_day_emails(monkeypatch):
     anon.post("/l/%s/subscribe" % slug, data={"email": "notifyme@example.net"})
     anon.get("/l/" + slug)
     assert sent == []
-    # Release day: first page view emails the fan exactly once.
+    # Release day: first page view emails the fan exactly once. Released
+    # yesterday, not 2020-01-01: the email goes only in the week after
+    # release (links_engine.RELEASE_EMAIL_DAYS, 2026-09-23).
+    from datetime import date as _date, timedelta as _td
     with store_mod.get_db() as conn:
         conn.execute("UPDATE ml_campaigns SET release_date = ? WHERE id = ?",
-                     ("2020-01-01", cid))
+                     ((_date.today() - _td(days=1)).isoformat(), cid))
     anon.get("/l/" + slug)
     assert len(sent) == 1
     assert sent[0]["to"] == ["notifyme@example.net"]

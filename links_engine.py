@@ -7,7 +7,7 @@ released auto-conversion, which is derived from the release date so one
 campaign URL stays alive before and after release day).
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # Destination services: (key, display name, logo key for the shared macro).
 # Manual URLs now; provider integrations hang off the same keys later.
@@ -113,6 +113,28 @@ def effective_status(campaign):
 def is_prerelease(campaign):
     date = campaign.get("release_date") or ""
     return bool(date and date > _today())
+
+
+# How late the release-day email may still go: a week after release. Later
+# than that it is not a reminder, it is news that is not news. Both senders
+# obey it, the first page view after release and the daily run
+# (/reminders/run), because the window is checked where the email is sent
+# (app._send_release_emails), not by one of its callers.
+RELEASE_EMAIL_DAYS = 7
+
+
+def release_email_window_open(campaign, today=None):
+    """Whether this campaign's release-day email may go today: it has a
+    release date, that date has come, and it is no more than
+    RELEASE_EMAIL_DAYS ago. A campaign with no release date never sends
+    one: there is no release day to remind anybody of."""
+    date = (campaign.get("release_date") or "")[:10]
+    if not date:
+        return False
+    today = today or _today()
+    since = (datetime.strptime(today, "%Y-%m-%d").date()
+             - timedelta(days=RELEASE_EMAIL_DAYS)).isoformat()
+    return since <= date <= today
 
 
 # The email box on a pre-release page stores an address for the
