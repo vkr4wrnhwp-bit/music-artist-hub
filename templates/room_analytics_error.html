@@ -13,7 +13,8 @@
   <p class="mt-3 max-w-xl text-base text-gray-200">Your connected sources and everything they measured are safe. Try again.</p>
   <div class="mt-6 flex flex-wrap gap-3">
     {{ sb.btn("Try again", href="/room/analytics", variant="primary") }}
-    {{ sb.btn("Review connections", href="/connections", variant="secondary") }}
+    {#- carrying the way back, as the room's own door does (audit analytics-11) -#}
+    {{ sb.btn("Review connections", href="/connections?returnTo=%2Froom%2Fanalytics", variant="secondary") }}
   </div>
   <p class="mt-8 text-xs text-gray-300">If this keeps happening, tell us through <a href="/contact" class="font-semibold text-sb-gold-bright hover:underline">Contact</a> and say what you were doing.</p>
 </div>

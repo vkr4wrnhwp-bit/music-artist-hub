@@ -130,9 +130,38 @@
           </div>
           {% endfor %}
         </fieldset>
-        <button type="button" id="generate-btn" class="mt-2 w-full rounded-lg border border-sb-gold/40 bg-sb-gold/10 px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright transition-colors hover:bg-sb-gold/20">Generate cover art</button>
-          <button type="button" id="generate4-btn" class="rounded-lg border border-sb-gold/40 bg-sb-gold/10 px-3 py-2 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/20">4 variations</button>
-        <div id="generate-note" class="mt-2 hidden text-xs text-gray-300 font-medium"></div>
+        {#- The generator underneath (cover_ai.py). With OPENAI_API_KEY set it
+            is OpenAI's gpt-image-1 and every account has covers a month;
+            unset, it is the free Pollinations.ai model exactly as before and
+            none of the allowance lines below appear. At zero the buttons are
+            replaced by a line, never left as a dead control. -#}
+        {% set cg = cover_gen %}
+        {% set cg_open = cg.engine == 'openai' %}
+        {% if cg_open and cg.demo %}
+        <p id="cover-gen-demo" class="mt-2 rounded-lg border border-sb-gold/30 bg-black/30 px-3 py-2.5 text-xs font-medium text-gray-200">Cover generation isn't part of the demo. Upload your own art below to try the designer.</p>
+        {% else %}
+        <div id="generate-controls" class="{{ 'hidden' if cg_open and cg.left == 0 else '' }}">
+          {% if not (cg_open and cg.left == 0) %}
+          <button type="button" id="generate-btn" class="mt-2 w-full rounded-lg border border-sb-gold/40 bg-sb-gold/10 px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright transition-colors hover:bg-sb-gold/20">Generate cover art</button>
+          {% if not cg_open or cg.unlimited or (cg.left or 0) >= 4 %}
+          <button type="button" id="generate4-btn" class="rounded-lg border border-sb-gold/40 bg-sb-gold/10 px-3 py-2 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/20">{{ '4 variations (uses 4 covers)' if cg_open and not cg.unlimited else '4 variations' }}</button>
+          {% endif %}
+          {% endif %}
+        </div>
+        {% if cg_open %}
+        <p id="cover-allowance" class="mt-2 text-xs font-medium text-gray-200 {{ 'hidden' if cg.left == 0 and not cg.unlimited else '' }}">
+          {%- if cg.unlimited -%}Owner login: unlimited covers. {{ cg.used }} made on this account this month.
+          {%- else -%}{{ cg.left }} of {{ cg.limit }} covers left this month. Resets {{ cg.resets }}. Generate, Another take and Remix each use one.
+          {%- endif -%}
+        </p>
+        <p id="cover-used-up" class="mt-2 rounded-lg border border-sb-gold/30 bg-black/30 px-3 py-2.5 text-xs font-medium text-gray-200 {{ '' if cg.left == 0 and not cg.unlimited else 'hidden' }}">
+          {%- if cg.limit == 0 -%}Your plan has no cover renders. Upload your own art below.
+          {%- else -%}This month's {{ cg.limit }} covers are used. More on {{ cg.resets }}. You can still upload your own art below.
+          {%- endif -%}
+        </p>
+        {% endif %}
+        {% endif %}
+        <div id="generate-note" class="mt-2 hidden text-xs text-gray-300 font-medium" role="status" aria-live="polite"></div>
 
         <div id="ai-grid" class="mt-3 hidden grid-cols-2 gap-2"></div>
         <div id="ai-image-wrap" class="mt-3 hidden">
@@ -141,20 +170,28 @@
             <div id="ai-loading" class="absolute inset-0 grid place-items-center bg-black/70 text-xs font-bold text-sb-gold-bright">Painting… 10–30s</div>
           </div>
           <div class="mt-2 flex flex-wrap gap-2">
-            <button type="button" id="ai-save-btn" class="rounded-md bg-sb-gold/20 px-3 py-1.5 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/30" disabled>Save to My Uploads</button>
+            <button type="button" id="ai-save-btn" class="{{ 'hidden ' if cg_open else '' }}rounded-md bg-sb-gold/20 px-3 py-1.5 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/30" disabled>Save to My Uploads</button>
             <button type="button" id="ai-again-btn" class="rounded-md border border-white/15 px-3 py-1.5 text-xs font-bold text-gray-200 hover:bg-white/10" disabled>Another take</button>
             <button type="button" id="ai-remove-btn" class="hidden rounded-md border border-white/15 px-3 py-1.5 text-xs font-bold text-gray-300 hover:bg-white/10">Remove from cover</button>
           </div>
           <p id="ai-saved-msg" class="mt-2 hidden break-all text-xs text-green-400 font-medium"></p>
           <div id="ai-remix-wrap" class="mt-3 hidden">
-            <label for="remix-input" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Remix — describe the change</label>
+            <label for="remix-input" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">{{ 'Remix: describe the change' if cg_open else 'Remix — describe the change' }}</label>
             <div class="mt-1 flex gap-2">
               <input id="remix-input" placeholder="e.g. make it red and gold, add rain" class="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-sb-ink placeholder-gray-300 focus:border-sb-gold/60 focus:outline-none">
               <button type="button" id="remix-btn" class="shrink-0 rounded-md border border-sb-gold/40 bg-sb-gold/10 px-3 py-2 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/20">Remix</button>
             </div>
+            {% if cg_open %}
+            <p class="mt-1 text-xs text-gray-300 font-medium">Makes a new cover from your description plus this change. It is a new render, so it uses one of your covers{{ '' if cg.unlimited else ' this month' }}.</p>
+            {% else %}
             <p class="mt-1 text-xs text-gray-300 font-medium">Re-imagines the same concept with your change — it regenerates rather than editing pixels.</p>
+            {% endif %}
           </div>
+          {% if cg_open %}
+          <p class="mt-2 text-xs text-gray-300 font-medium">Made by OpenAI's {{ cg.model }}. Each cover is saved to your uploads as soon as it is made.</p>
+          {% else %}
           <p class="mt-2 text-xs text-gray-300 font-medium">Generated by Pollinations.ai — a free community model. Results vary; regenerate until it hits.</p>
+          {% endif %}
         </div>
 
         <label class="mt-3 block cursor-pointer rounded-lg border border-dashed border-white/15 px-3 py-2.5 text-center text-xs font-bold text-gray-200 hover:border-sb-gold/40 hover:text-sb-gold-bright">
@@ -630,15 +667,85 @@
   slider("img-panx", "panx-val", (v) => state.panX = v);
   slider("img-pany", "pany-val", (v) => state.panY = v);
 
-  // AI artwork: real image via Pollinations + palette suggestion
-  let currentAiUrl = null, lastPrompt = null, lastSeed = null;
+  // AI artwork. The server picks the generator (cover_ai.py): OpenAI's
+  // gpt-image-1 with a monthly allowance when OPENAI_API_KEY is set, else
+  // the free Pollinations.ai model exactly as before. An OpenAI cover is
+  // saved to the uploads when it is made, so there is nothing to save after.
+  const COVER = {{ cover_gen | js_json }};
+  const OPENAI = COVER.engine === "openai";
+  let coverLeft = COVER.unlimited ? null : COVER.left;
+  let currentAiUrl = null, lastPrompt = null, lastSeed = null, rendering = false;
   const aiWrap = document.getElementById("ai-image-wrap");
   const aiImg = document.getElementById("ai-image");
   const aiLoading = document.getElementById("ai-loading");
   const aiSave = document.getElementById("ai-save-btn");
   const aiAgain = document.getElementById("ai-again-btn");
+  const genNote = document.getElementById("generate-note");
 
-  function loadAiImage(url) {
+  function canRender() { return !OPENAI || coverLeft === null || coverLeft > 0; }
+
+  // The allowance line, kept true after every render. At zero every control
+  // that would render is taken away and the used-up line takes its place.
+  function showAllowance(a) {
+    if (!OPENAI || !a) return;
+    const line = document.getElementById("cover-allowance");
+    const up = document.getElementById("cover-used-up");
+    if (!line || !up) return;
+    if (a.unlimited) {
+      coverLeft = null;
+      line.textContent = "Owner login: unlimited covers. " + a.used + " made on this account this month.";
+      return;
+    }
+    coverLeft = a.left;
+    if (a.left > 0) {
+      line.textContent = a.left + " of " + a.limit + " covers left this month. Resets " + a.resets + ". Generate, Another take and Remix each use one.";
+      if (a.left < 4) { const four = document.getElementById("generate4-btn"); if (four) four.remove(); }
+      return;
+    }
+    const controls = document.getElementById("generate-controls");
+    if (controls) controls.remove();
+    aiAgain.classList.add("hidden");
+    document.getElementById("ai-remix-wrap").classList.add("hidden");
+    line.classList.add("hidden");
+    up.textContent = a.limit === 0
+      ? "Your plan has no cover renders. Upload your own art below."
+      : "This month's " + a.limit + " covers are used. More on " + a.resets + ". You can still upload your own art below.";
+    up.classList.remove("hidden");
+  }
+
+  async function requestCover(body) {
+    let data;
+    try {
+      const res = await fetch("/artwork/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      data = await res.json();
+    } catch (e) {
+      data = { ok: false, error: "The cover could not be made. Try again." };
+    }
+    if (data.allowance) showAllowance(data.allowance);
+    return data;
+  }
+
+  function showPainting() {
+    aiWrap.classList.remove("hidden");
+    aiLoading.classList.remove("hidden");
+    aiLoading.textContent = "Painting… this can take up to a minute.";
+    aiAgain.disabled = true;
+  }
+
+  function showFailure(data) {
+    genNote.textContent = data.error || "The cover could not be made. Try again.";
+    genNote.classList.remove("hidden");
+    if (OPENAI) {
+      aiLoading.classList.add("hidden");
+      if (!currentAiUrl) aiWrap.classList.add("hidden");
+      aiAgain.disabled = false;
+    }
+  }
+
+  function loadAiImage(url, savedPath) {
     currentAiUrl = url;
     aiWrap.classList.remove("hidden");
     aiLoading.classList.remove("hidden");
@@ -646,61 +753,73 @@
     aiSave.disabled = true;
     aiSave.textContent = "Save to My Uploads";
     aiAgain.disabled = true;
-    document.getElementById("ai-saved-msg").classList.add("hidden");
-    aiImg.onload = () => { aiLoading.classList.add("hidden"); aiSave.disabled = false; aiAgain.disabled = false; setDesignerImage(url); };
-    aiImg.onerror = () => { aiLoading.textContent = "The free model is busy — try Another take."; aiAgain.disabled = false; };
+    const savedMsg = document.getElementById("ai-saved-msg");
+    savedMsg.classList.add("hidden");
+    aiImg.onload = () => {
+      aiLoading.classList.add("hidden"); aiSave.disabled = false; aiAgain.disabled = false; setDesignerImage(url);
+      if (savedPath) {
+        savedMsg.className = "mt-2 break-all text-xs text-green-400 font-medium";
+        savedMsg.textContent = "Saved to your uploads at " + savedPath + ". Use it as a campaign cover or press kit asset.";
+      }
+    };
+    aiImg.onerror = () => {
+      aiLoading.textContent = OPENAI ? "The picture could not be shown here. It is saved in your uploads." : "The free model is busy — try Another take.";
+      aiAgain.disabled = false;
+    };
     aiImg.src = url;
   }
 
   async function generateArt() {
+    if (rendering || !canRender()) return;
     const btn = document.getElementById("generate-btn");
-    const note = document.getElementById("generate-note");
-    btn.disabled = true;
-    btn.textContent = "Generating...";
+    const prompt = document.getElementById("prompt-input").value;
+    rendering = true;
+    if (btn) { btn.disabled = true; btn.textContent = OPENAI ? "Painting… up to a minute" : "Generating..."; }
+    if (OPENAI && prompt.trim()) showPainting();
     try {
-      const res = await fetch("/artwork/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: document.getElementById("prompt-input").value, look: lookPicked() }),
-      });
-      const data = await res.json();
+      const data = await requestCover({ prompt, look: lookPicked() });
       if (data.ok) {
-        note.textContent = data.image_url ? "" : "Describe the cover first — then a real image generates.";
-        note.classList.remove("hidden");
+        genNote.textContent = data.image_url ? "" : "Describe the cover first — then a real image generates.";
+        genNote.classList.remove("hidden");
         if (data.image_url) {
-          lastPrompt = document.getElementById("prompt-input").value.trim();
+          lastPrompt = prompt.trim();
           lastSeed = data.seed;
-          document.getElementById("ai-remix-wrap").classList.remove("hidden");
-          loadAiImage(data.image_url);
+          if (canRender()) document.getElementById("ai-remix-wrap").classList.remove("hidden");
+          loadAiImage(data.image_url, data.saved ? data.path : null);
         }
+      } else {
+        showFailure(data);
       }
     } finally {
-      btn.disabled = false;
-      btn.textContent = "Generate cover art";
+      rendering = false;
+      if (btn) { btn.disabled = false; btn.textContent = "Generate cover art"; }
     }
   }
-  document.getElementById("generate-btn").addEventListener("click", generateArt);
+  const genBtn = document.getElementById("generate-btn");
+  if (genBtn) genBtn.addEventListener("click", generateArt);
 
   // Four takes at once: same endpoint, four seeds, pick your direction.
+  // With OpenAI each take is a render and uses a cover, and the button
+  // says so.
   async function generateFour() {
     const grid = document.getElementById("ai-grid");
     const btn = document.getElementById("generate4-btn");
     const prompt = document.getElementById("prompt-input").value;
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || rendering || !canRender()) return;
+    rendering = true;
+    const label = btn.textContent;
     btn.disabled = true; btn.textContent = "Painting 4…";
     grid.classList.remove("hidden"); grid.classList.add("grid");
     grid.innerHTML = "";
-    for (let i = 0; i < 4; i++) {
-      const cell = document.createElement("button");
-      cell.type = "button";
-      cell.className = "aspect-square overflow-hidden rounded-lg border border-white/10 bg-black/40 text-xs text-gray-300 transition-colors hover:border-sb-gold";
-      cell.textContent = "painting…";
-      grid.appendChild(cell);
-      try {
-        const res = await fetch("/artwork/generate", {method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({prompt, look: lookPicked()})});
-        const data = await res.json();
+    try {
+      for (let i = 0; i < 4; i++) {
+        const cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = "aspect-square overflow-hidden rounded-lg border border-white/10 bg-black/40 text-xs text-gray-300 transition-colors hover:border-sb-gold";
+        cell.textContent = "painting…";
+        grid.appendChild(cell);
+        if (!canRender()) { cell.textContent = "no covers left"; continue; }
+        const data = await requestCover({ prompt, look: lookPicked() });
         if (data.ok && data.image_url) {
           const img = document.createElement("img");
           img.className = "h-full w-full object-cover";
@@ -711,12 +830,18 @@
             cell.classList.add("border-sb-gold", "border-2");
             setDesignerImage(data.image_url);
           });
+        } else if (OPENAI) {
+          cell.textContent = data.kind === "refused" ? "refused" : "not made";
+          if (data.error) { genNote.textContent = data.error; genNote.classList.remove("hidden"); }
         } else { cell.textContent = "busy — retry"; }
-      } catch (e) { cell.textContent = "failed"; }
+      }
+    } finally {
+      rendering = false;
+      btn.disabled = false; btn.textContent = label;
     }
-    btn.disabled = false; btn.textContent = "4 variations";
   }
-  document.getElementById("generate4-btn").addEventListener("click", generateFour);
+  const fourBtn = document.getElementById("generate4-btn");
+  if (fourBtn) fourBtn.addEventListener("click", generateFour);
   aiAgain.addEventListener("click", generateArt);
   document.getElementById("ai-remove-btn").addEventListener("click", () => setDesignerImage(null));
 
@@ -781,16 +906,28 @@
     e.target.value = "";
   });
 
-  // Remix: same seed, same concept, your change appended
-  document.getElementById("remix-btn").addEventListener("click", async () => {
+  // Remix: your change appended to the last description. Pollinations
+  // reuses the seed, so it re-imagines the same concept. OpenAI has no
+  // seed: a remix is a new render with the changed words (and the ticked
+  // look), and it uses a cover, which the line under the box says.
+  const remixBtn = document.getElementById("remix-btn");
+  remixBtn.addEventListener("click", async () => {
     const change = document.getElementById("remix-input").value.trim();
-    if (!change || !lastPrompt) return;
-    const res = await fetch("/artwork/generate", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: lastPrompt + ", " + change, seed: lastSeed }),
-    });
-    const data = await res.json();
-    if (data.ok && data.image_url) loadAiImage(data.image_url);
+    if (!change || !lastPrompt || rendering || !canRender()) return;
+    const body = OPENAI
+      ? { prompt: lastPrompt + ", " + change, look: lookPicked() }
+      : { prompt: lastPrompt + ", " + change, seed: lastSeed };
+    rendering = true;
+    remixBtn.disabled = true;
+    if (OPENAI) showPainting();
+    try {
+      const data = await requestCover(body);
+      if (data.ok && data.image_url) loadAiImage(data.image_url, data.saved ? data.path : null);
+      else if (!data.ok && OPENAI) showFailure(data);
+    } finally {
+      rendering = false;
+      remixBtn.disabled = false;
+    }
   });
 
   aiSave.addEventListener("click", async () => {

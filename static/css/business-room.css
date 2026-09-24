@@ -302,6 +302,19 @@ a.bz-z-lens:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-of
 @media (max-width: 860px) {
   .bz-z-two, .bz-z-pair { grid-template-columns: 1fr; }
   .bz-z-empty, .bz-z-help { flex-wrap: wrap; }
+  /* Spec 20: the workflow is VERTICAL on a phone. The kit makes its rail
+     a sideways scroller under 860px, which on a 375px phone showed steps
+     one and two and cut the third to "Co" (audit business-8). Scoped to
+     this page, so the kit's own rule stands for every other rail: each
+     step is its numbered ring on the left, its name and line beside it. */
+  .bz-z-flow .rk-rail { flex-direction: column; overflow-x: visible; scroll-snap-type: none; gap: 12px; padding-bottom: 0; }
+  .bz-z-flow .rk-step {
+    flex: 0 0 auto; scroll-snap-align: none; display: grid; grid-template-columns: 52px minmax(0, 1fr);
+    column-gap: 14px; row-gap: 2px; align-items: center; text-align: left; padding: 0;
+  }
+  .bz-z-flow .rk-ring { grid-row: 1 / span 2; width: 52px; height: 52px; margin-bottom: 0; }
+  .bz-z-flow .rk-step b { align-self: end; }
+  .bz-z-flow .rk-step span:not(.rk-ring) { align-self: start; max-width: none; }
 }
 @media (max-width: 560px) {
   .bz-z-card { grid-template-columns: 1fr; grid-template-rows: auto; }

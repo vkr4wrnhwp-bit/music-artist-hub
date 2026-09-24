@@ -2,14 +2,14 @@
 {% block title %}Tasks - {{ tour['name'] }}{% endblock %}
 {% block tour_body %}
 {% import "tour/_macros.html" as m %}
-<div class="to-head"><div><p class="to-eyebrow">Tasks</p><h1 class="to-h1" style="font-size:20px">Tour tasks</h1><p class="to-sub">The same Street Banker actions that show in Command Center, tagged to this tour or a show on it.</p></div><a class="to-btn to-btn--ghost to-btn--small" href="/actions">Command Center actions</a></div>
+<div class="to-head"><div><p class="to-eyebrow">Tasks</p><h1 class="to-h1" style="font-size:20px">Tour tasks</h1><p class="to-sub">The same Street Banker actions that show in Command Center, tagged to this tour or a show on it.</p></div>{#- The Actions list is a whole-account page: a seat without every room, or a tour crew member (whose own list is not this account's), is told where the tasks also live rather than handed a door that bounces (audit, 2026-09-23). -#}{% if actions_open %}<a class="to-btn to-btn--ghost to-btn--small" href="/actions">Actions</a>{% else %}<span class="to-muted">Also on the account's Actions list</span>{% endif %}</div>
 {% if rows %}
 <div class="to-table-wrap"><table class="to-table is-stack">
   <thead><tr><th>Task</th><th>Show</th><th>Priority</th><th>Due</th><th>Status</th><th></th></tr></thead>
-  <tbody>{% for t in rows %}<tr><td data-k="Task"><b>{{ t['title'] }}</b>{% if t['description'] %}<div class="to-muted">{{ t['description'] }}</div>{% endif %}</td>
+  <tbody>{% for t in rows %}<tr><td data-k="Task"><b>{{ t['title'] }}</b>{% if t['assignee_name'] %}<div class="to-muted">Tour crew: {{ t['assignee_name'] }}</div>{% endif %}{% if t['description'] %}<div class="to-muted">{{ t['description'] }}</div>{% endif %}</td>
     <td data-k="Show">{% if t['entity_type'] == 'tour_show' and t['entity_id'] in show_by_id %}<a href="/tours/{{ tour['id'] }}/shows/{{ t['entity_id'] }}?tab=tasks">{{ show_by_id[t['entity_id']]['city'] or show_by_id[t['entity_id']]['venue'] }}</a>{% else %}<span class="to-muted">tour</span>{% endif %}</td>
-    <td data-k="Priority">{{ t['priority'] }}</td><td data-k="Due">{{ t['due_date'] or '—' }}</td><td data-k="Status">{{ m.chip(t['status']) }}</td>
-    <td>{% if t['status'] in ('new','in_progress') and (can('edit') or can('schedule') or can('advance') or can('production')) %}<form method="post" action="/tours/{{ tour['id'] }}/tasks/{{ t['id'] }}/status"><input type="hidden" name="status" value="complete"><button class="to-btn to-btn--small" type="submit">Done</button></form>{% endif %}</td></tr>{% endfor %}</tbody>
+    <td data-k="Priority">{{ t['priority'] }}</td><td data-k="Due">{{ t['due_date'] or '—' }}</td><td data-k="Status">{{ m.chip(t['status'], status_labels.get(t['status'])) }}</td>
+    <td>{% if t['status'] in ('new','in_progress') and (can('edit') or can('schedule') or can('advance') or can('production')) %}<form method="post" action="/tours/{{ tour['id'] }}/tasks/{{ t['id'] }}/status"><input type="hidden" name="status" value="complete"><button class="to-btn to-btn--small" type="submit">Complete</button></form>{% endif %}</td></tr>{% endfor %}</tbody>
 </table></div>
 {% else %}{{ m.empty("No tour tasks", "Add one below, or from any show's Tasks tab.") }}{% endif %}
 {% if can('edit') or can('schedule') or can('advance') or can('production') %}

@@ -125,7 +125,7 @@ def test_an_empty_account_meets_the_page_from_zero_not_an_empty_funnel():
     assert "Room Artist" in body, "the account selector still says whose campaigns these are"
     door = mr.DOOR.replace("&", "&amp;")
     assert 'class="mk-cta" href="%s"' % door in body and "Plan your first campaign" in body
-    assert mr.DOOR.startswith("/links/new?"), "the campaign builder: its first question is the goal"
+    assert mr.DOOR.startswith("/links/new?"), "the campaign builder, carrying the way back"
     # the card, the goals in place, the four areas as doors
     assert "Start with one goal" in body and "Choose your first marketing goal" in body
     assert 'class="mk-z-btn" href="%s"' % door in body and "Start planning</a>" in body
@@ -203,11 +203,20 @@ def test_one_campaign_brings_the_room_back_untouched():
 
 
 def test_the_demo_account_is_the_showcase_never_from_zero():
+    """It posted /demo-open with no workspace, was sent to /login, and the
+    `if` guard then skipped the only assert (audit, 2026-09-23). A real demo
+    session now, and the asserts are unconditional."""
+    import demo_accounts
     demo = appmod.app.test_client()
-    demo.post("/demo-open", data={})
-    body = demo.get("/room/marketing").get_data(as_text=True)
-    if "Sample data" in body:
-        assert "Start with one goal" not in body, "the showcase is not a fresh account"
+    uid = store.get_user_by_email("demo@streetbanker.io")["id"]
+    assert demo_accounts.is_demo_email("demo@streetbanker.io")
+    with demo.session_transaction() as sess:
+        sess["user_id"] = uid
+    r = demo.get("/room/marketing")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "Sample data" in body, "the showcase"
+    assert "Start with one goal" not in body, "the showcase is not a fresh account"
 
 
 def test_the_owners_hidden_mark_stays_on_a_zero_page_tile():
@@ -677,9 +686,14 @@ def test_8_no_action_is_offered_to_a_seat_that_would_be_bounced():
     for _f, _i, _t, _d, _s, _p, _c, href in mr.ACTIONS:
         if href != "/rollout-studio":
             assert seat(href), href
-    for href in ("/links", "/press-desk", "/epk", "/referrals",
+    for href in ("/links", "/press-desk", "/epk",
                  "/press-desk/announcements/new", "/press-desk/contacts"):
         assert seat(href), href
+    # /referrals is in Marketing's rooms, but it is the account holder's
+    # alone (app.py _TEAM_BLOCKED): team_areas.allows is not the whole
+    # gate, and this test used to treat it as openable (audit, 2026-09-23).
+    # tests/test_marketing_room.py::test_no_seat_is_offered_referrals checks
+    # it at the route.
 
 
 def test_9_the_room_reaches_smart_links_in_both_layouts():
@@ -891,3 +905,152 @@ def test_the_old_plate_s_rules_left_the_sheet_and_the_story_uses_tokens():
     for size in re.findall(r"font-size:\s*(\d+(?:\.\d+)?)px", rules):
         assert float(size) >= 12, size
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b", rules), "colours are tokens"
+
+
+# ---- the audit of 2026-09-23 (audit-group-mkact, marketing-*) ---------------
+
+import io  # noqa: E402
+import re as _re_audit  # noqa: E402
+
+import page_switches  # noqa: E402
+import team_areas  # noqa: E402
+
+
+def _back_link(page):
+    m = _re_audit.search(r'<a href="([^"]+)" id="sb-room-back"', page)
+    return m.group(1).replace("&amp;", "&") if m else ""
+
+
+def test_marketing_1_16_the_done_line_is_reached_through_the_real_builder():
+    """Post the door's own form, follow the save, follow the page's way
+    back: the done line. It used to be reached only by typing ?from=."""
+    c, uid = _account()
+    zero = c.get("/room/marketing").get_data(as_text=True)
+    door = _re_audit.search(r'class="mk-z-btn" href="([^"]+)"', zero).group(1).replace("&amp;", "&")
+    assert door == mr.DOOR
+    builder = c.get(door).get_data(as_text=True)
+    assert _back_link(builder).startswith("/room/marketing"), "the builder offers the way back"
+    r = c.post(door, data={"title": "First single", "campaign_type": "release"})
+    assert r.status_code == 302 and "/links/" in r.headers["Location"]
+    landing = c.get(r.headers["Location"]).get_data(as_text=True)
+    back = _back_link(landing)
+    assert back == "/room/marketing?from=marketing-zero-state", back
+    room = c.get(back).get_data(as_text=True)
+    assert mr.DONE_LINE in room
+    # and a hostile returnTo is not carried
+    r = c.post("/links/new?returnTo=//evil.example&from=x", data={"title": "Second"})
+    assert "evil.example" not in r.headers["Location"]
+
+
+@pytest.mark.parametrize("target", ["for_account", "list_campaigns", "get_epk"])
+def test_marketing_4_17_every_failed_read_is_the_error_page(monkeypatch, target):
+    c, _uid = _account()
+    monkeypatch.setitem(appmod.app.config, "PROPAGATE_EXCEPTIONS", False)
+    owner = {"for_account": mr, "list_campaigns": mls, "get_epk": store}[target]
+
+    def boom(*_a, **_k):
+        raise RuntimeError("store down")
+    monkeypatch.setattr(owner, target, boom)
+    r = c.get("/room/marketing")
+    assert r.status_code == 503, target
+    body = r.get_data(as_text=True)
+    assert "We could not load Marketing" in body and "Start with one goal" not in body
+
+
+def _seat_client(owner_uid, owner_client, access, areas):
+    member, muid = _account("Seat Person")
+    email = store.get_user(muid)["email"]
+    r = owner_client.post("/team/invite", data={"email": email, "role": "manager", "access": access,
+                                                "areas_sent": "1", "areas": areas})
+    assert r.get_json().get("ok"), r.get_json()
+    row = [m for m in store.list_team(owner_uid) if m["email"] == email][0]
+    member.post("/team/join/" + row["invite_token"], data={})
+    member.post("/portal/%s/open" % owner_uid)
+    return member
+
+
+def _hrefs(page):
+    # the room's own markup, not the shell around it (the sidebar's suite
+    # doors are the account holder's and are not this room's to offer)
+    body = page.split('<div class="mk" data-no-collapse>', 1)[1].split("<!-- Command palette", 1)[0]
+    body = body.split('<h2 class="sb-label text-gray-300">Tool suites</h2>', 1)[0]
+    return sorted({h.replace("&amp;", "&") for h in _re_audit.findall(r'href="(/[^"#]*)', body)})
+
+
+@pytest.mark.parametrize("access,areas", [("read", ["marketing"]), ("edit", ["marketing"]),
+                                          ("read", None), ("edit", None)])
+def test_marketing_5_19_a_seat_is_offered_no_door_that_bounces(access, areas):
+    owner, ouid = _account()
+    store.set_user_plan(ouid, "label")
+    seat = _seat_client(ouid, owner, access, areas if areas is not None else team_areas.keys())
+    page = seat.get("/room/marketing").get_data(as_text=True)
+    assert 'data-room-card="referrals"' not in page, "/referrals is the account holder's alone"
+    for href in _hrefs(page):
+        r = seat.get(href)
+        loc = r.headers.get("Location", "") if r.status_code in (301, 302, 303) else ""
+        for bounce in ("team=blocked", "team=room"):
+            assert bounce not in loc, (href, loc)
+    # the working room's closing tiles too
+    mls.create_campaign(ouid, "mkt-%s" % uuid.uuid4().hex[:8], {"title": "First campaign"})
+    page = seat.get("/room/marketing").get_data(as_text=True)
+    assert "Explore more tools" in page
+    assert 'data-room-card="referrals"' not in page
+    assert 'data-room-card="referrals"' in owner.get("/room/marketing").get_data(as_text=True), \
+        "the account holder keeps it"
+
+
+@pytest.mark.parametrize("hidden", [{"links"}, {"rollout"}])
+def test_marketing_7_19_a_switched_off_page_is_words_not_a_door(hidden):
+    c, _uid = _account()
+    saved = page_switches.set_hidden(hidden)
+    assert saved, "the switch exists"
+    try:
+        page = c.get("/room/marketing").get_data(as_text=True)
+        for href in _hrefs(page):
+            r = c.get(href)
+            loc = r.headers.get("Location", "") if r.status_code in (301, 302, 303) else ""
+            assert "/command-center?off=" not in loc, (href, loc)
+        if "links" in hidden:
+            assert "Plan your first campaign" not in page and "Start planning" not in page
+            assert mr.ZERO_PROJECT["off"] in page
+    finally:
+        page_switches.set_hidden(set())
+
+
+def test_marketing_2_the_card_does_not_claim_a_filter_the_builder_lacks():
+    c, _uid = _account()
+    body = c.get("/room/marketing").get_data(as_text=True)
+    assert "smallest useful toolset" not in body and "show only the tools that fit" not in body
+    assert "Planning opens the campaign builder" in body
+
+
+def test_marketing_9_the_hero_is_balanced_in_both_states():
+    c, uid = _account()
+    for _ in range(2):
+        page = c.get("/room/marketing").get_data(as_text=True)
+        hero = page.split('<section class="mk-hero"', 1)[1].split("</section>", 1)[0]
+        assert hero.count("<div") == hero.count("</div>"), (hero.count("<div"), hero.count("</div>"))
+        mls.create_campaign(uid, "mkt-%s" % uuid.uuid4().hex[:8], {"title": "First campaign"})
+
+
+def test_marketing_10_the_smart_links_tile_draws_a_link():
+    c, _uid = _account()
+    page = c.get("/room/marketing").get_data(as_text=True)
+    tile = page.split('data-room-card="links"', 1)[1].split("</a>", 1)[0]
+    assert '<circle cx="12" cy="12" r="8"/>' not in tile and "M9.5 14.5l5-5" in tile
+
+
+def test_marketing_13_14_the_zero_lists_have_markers_and_the_sheet_says_each_rule_once():
+    css = io.open("static/css/marketing-room.css", encoding="utf-8").read()
+    rule = _re_audit.search(r"\.mk-z-need ul \{([^}]*)\}", css).group(1)
+    assert "list-style: disc" in rule and ".mk-z-need li + li" in css
+    assert css.count(".mk-z-tools .mk-z-band { margin-top: 14px; }") == 1
+    assert css.count("@media (max-width: 560px) {\n  .mk-z-card") == 1
+    assert "What information do I need?" not in css
+    # marketing-11: the kit owns .mk-hero-aside and its narrow-width rule;
+    # this sheet redeclared it and won at every width. (The kit test's
+    # own check cannot see it: its rstrip(":hover") also eats a trailing
+    # "e" or "r", so ".mk-hero-aside" never compared equal.)
+    assert ".mk-hero-aside {" not in css and ".mk-hero-aside," not in css
+    tpl = io.open("templates/room_marketing.html", encoding="utf-8").read()
+    assert "mk-z-start" not in tpl.replace("mk-z-start-h", "") and "mk-z-lens-panel" not in tpl

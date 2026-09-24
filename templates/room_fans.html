@@ -3,7 +3,7 @@
 {% block title %}Fans{% endblock %}
 {% block head_scripts %}
   <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/fan-room.css?v=9">
+  <link rel="stylesheet" href="/static/css/fan-room.css?v=10">
   {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
       page from zero and the working room alike; its rules live with it -#}
   <link rel="stylesheet" href="/static/css/command-zero.css?v=4">
@@ -65,31 +65,44 @@
       </div>
       <div class="fr-controls">
         {% if fr.artist_name %}
-        <span class="fr-chip" title="The account these figures are for">
+        {#- On the page from zero there are no figures for the chip to
+            be the account of (audit, 2026-09-23). -#}
+        <span class="fr-chip" title="{{ 'The account this room is for' if fr.idle else 'The account these figures are for' }}">
           <span class="fr-avatar" aria-hidden="true">{{ (fr.artist_name[:1] or "?")|upper }}</span>{{ fr.artist_name }}
         </span>
         {% endif %}
+        {#- The window governs the readings, so it is drawn only when there
+            are some: on the page from zero it would be a control over
+            nothing (the sibling zero pages dropped theirs by spec). The
+            choices are links in a list, so each keeps its link role. -#}
+        {% if not fr.idle %}
         <details class="fr-range">
           <summary class="fr-chip">
             {{ icon("calendar", "fr-ico") }}<span>Last {{ fr.days }} days</span>{{ icon("chevron", "fr-ico fr-ico--sm") }}
           </summary>
-          <div class="fr-range-menu" role="list">
+          <ul class="fr-range-menu">
             {% for n in fr.ranges %}
-            <a role="listitem" href="/room/fans?days={{ n }}"{% if n == fr.days %} aria-current="true"{% endif %}>Last {{ n }} days</a>
+            <li><a href="/room/fans?days={{ n }}"{% if n == fr.days %} aria-current="true"{% endif %}>Last {{ n }} days</a></li>
             {% endfor %}
-          </div>
+          </ul>
         </details>
+        {% endif %}
         {#- /links/new belongs to Marketing, so a seat without that room is
             turned away from this room's own gold pill. It is offered the
-            fan list instead (audit, 2026-09-22). -#}
+            fan list instead (audit, 2026-09-22), as is a read seat, whose
+            save there would bounce (audit, 2026-09-23). -#}
         {% if fr.can_capture %}
         {#- ?type=bio: this room captures fans, so its door opens the
             builder on the Fan Hub rather than on a release (owner,
             2026-09-22). The button keeps its own words - "keep the fans
             button as launch fan campaign" - and the page now agrees with
-            it, because the page is named after what you are building. -#}
-        <a class="fr-cta" href="/links/new?type=bio">{{ icon("rocket", "fr-ico") }}Launch fan campaign</a>
-        {% else %}
+            it, because the page is named after what you are building.
+            It carries the way back, as the two cards below do, or the
+            builder offered "Back to Marketing" (audit, 2026-09-23). -#}
+        <a class="fr-cta" href="/links/new?type=bio&amp;returnTo=/room/fans">{{ icon("rocket", "fr-ico") }}Launch fan campaign</a>
+        {% elif fr.get("can_list", True) %}
+        {#- and not even that when the fan list's page is switched off
+            (audit, 2026-09-23, x-2: /links/fans goes with Smart Links) -#}
         <a class="fr-cta" href="/links/fans">{{ icon("rocket", "fr-ico") }}Open the fan list</a>
         {% endif %}
       </div>
@@ -199,14 +212,17 @@
   {% if fr.idle %}
   {#- ---- choose your starting point: two EQUAL cards ------------------ -#}
   <section class="fr-starts-wrap" aria-labelledby="fr-starts-h">
-    <h2 class="fr-z-h" id="fr-starts-h">Choose your starting point</h2>
+    {#- The heading counts what this reader can do: two ways, one, or none
+        (a read seat, told who can). -#}
+    <h2 class="fr-z-h" id="fr-starts-h">{{ fr.zero.starts_heading }}</h2>
     <ol class="fr-starts">
       {#- A seat sees only the doors it can open (the room's own rule
           since the 2026-09-22 audit): /links/new belongs to Marketing, so
           a seat without it is offered the import path alone rather than a
-          card that bounces. fr.can_capture is the same gate the hero pill
-          reads. -#}
-      {% for key, title, desc, cta, href, note in fr.zero.starts if key != "capture" or fr.can_capture %}
+          card that bounces. A read seat sees the cards its areas allow
+          WITHOUT their buttons, and one line saying who adds fans (the
+          rooms' can_add = "seat" rule, audit 2026-09-23). -#}
+      {% for key, title, desc, cta, href, note in fr.zero.starts %}
       <li class="fr-start">
         <span class="fr-start-ring" aria-hidden="true">{{ icon("link" if key == "capture" else "upload", "fr-start-ico") }}</span>
         <div class="fr-start-body">
@@ -216,11 +232,14 @@
         {#- Both are primary. The capture card's button is filled and the
             import card's outlined only so the eye has an order to read
             them in; neither is smaller, greyer or lower. -#}
+        {%- if (key == "capture" and fr.can_capture) or (key == "import" and fr.can_import) %}
         <a class="fr-start-btn{% if loop.first %} fr-start-btn--fill{% else %} fr-start-btn--line{% endif %}" href="{{ href }}">{{ cta }}{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
+        {%- endif %}
         <p class="fr-start-note">{{ note }}</p>
       </li>
       {% endfor %}
     </ol>
+    {% if fr.zero.locked %}<p class="fr-z-locked">{{ fr.zero.locked }}</p>{% endif %}
   </section>
 
   {#- ---- how the fan workflow works: education, not progress ---------- -#}
@@ -246,7 +265,12 @@
       <div>
         <h2 class="fr-z-h" id="fr-empty-h">Your fans will appear here</h2>
         <p class="fr-z-p">Once you launch a capture campaign or confirm an import, Street Banker will organize your fan relationships here.</p>
-        <p class="fr-z-links">{% if fr.can_capture %}<a href="/links?returnTo=/room/fans">How fan capture works{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>{% endif %}<a href="/fans?returnTo=/room/fans">Import requirements{{ icon("arrow", "fr-ico fr-ico--sm") }}</a></p>
+        {#- Each link lands on the explanation it names, both on /fans (the
+            room's own page): how a smart link captures an email, and what
+            an imported file needs. /links was a list of campaigns, not an
+            explanation, and "Import requirements" was the import card's
+            own door under a second name (audit, 2026-09-23). -#}
+        <p class="fr-z-links"><a href="/fans?returnTo=/room/fans#fr-alt-h">How fan capture works{{ icon("arrow", "fr-ico fr-ico--sm") }}</a><a href="/fans?returnTo=/room/fans#fr-needs-h">Import requirements{{ icon("arrow", "fr-ico fr-ico--sm") }}</a></p>
       </div>
     </section>
     <section class="fr-panel fr-z-control" aria-labelledby="fr-control-h">
@@ -264,14 +288,20 @@
     <span class="fr-z-ico" aria-hidden="true">{{ icon("idea", "fr-ico fr-ico--lg") }}</span>
     <div>
       <h2 class="fr-z-h" id="fr-help-h">Not sure where to begin?</h2>
-      <p class="fr-z-p">Start with a fan campaign if you do not already have a contact list.</p>
+      {#- The line matches the door this reader has (audit, 2026-09-23: a
+          fans-only seat was told to start with a campaign it could not
+          open). The spec's three questions sit under it. -#}
+      <p class="fr-z-p">{{ fr.zero.help_line }}</p>
+      <ul class="fr-z-qs">{% for q in fr.zero.help %}<li>{{ q }}</li>{% endfor %}</ul>
     </div>
     <div class="fr-z-help-acts">
       {%- if fr.can_capture %}
-      <a class="fr-start-btn fr-start-btn--fill" href="/links/new?type=bio&returnTo=/room/fans">Launch fan campaign{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
-      {%- else %}
+      <a class="fr-start-btn fr-start-btn--fill" href="/links/new?type=bio&amp;returnTo=/room/fans">Launch fan campaign{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
+      {%- elif fr.can_import %}
       <a class="fr-start-btn fr-start-btn--fill" href="/fans?returnTo=/room/fans">Import your list{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
       {%- endif %}
+      {#- Opens the corner Ask box on this page (the script below), as the
+          Command Center's does; /contact is the fallback with scripts off. -#}
       <a class="fr-more" href="/contact" id="fr-ask">Ask Street Banker{{ icon("arrow", "fr-ico fr-ico--sm") }}</a>
     </div>
   </section>
@@ -281,9 +311,10 @@
       they need to see it". The fold stays so it can be closed; it never
       starts closed. -#}
   <details class="fr-fold" open>
-    <summary class="fr-fold-sum">More fan tools{{ icon("chevron", "fr-ico fr-ico--sm") }}</summary>
+    {#- The heading IS the summary's text, so the drawer's name is read
+        once, not twice (audit, 2026-09-23). -#}
+    <summary class="fr-fold-sum"><h2 class="fr-fold-h" id="fr-tools-h">More fan tools</h2>{{ icon("chevron", "fr-ico fr-ico--sm") }}</summary>
     <section class="fr-tools" aria-labelledby="fr-tools-h">
-      <h2 class="fr-kicker sr-only" id="fr-tools-h">More fan tools</h2>
       <div class="fr-tiles">
         {% for t in fr.tiles %}
         <a class="fr-tile" href="{{ t.href }}"{% if t.external %} target="_blank" rel="noopener"{% endif %} data-room-card="{{ t.key }}">
@@ -364,4 +395,23 @@
 
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // The corner Ask box (partials/support_ask.html) keeps its panel hidden
+  // behind #sbq-open; open it first, then put the caret in the question.
+  // The same wiring as the Command Center's cz-ask.
+  var a = document.getElementById("fr-ask");
+  var open = document.getElementById("sbq-open");
+  var q = document.getElementById("sbq-q");
+  if (!a || !open || !q) return;
+  a.addEventListener("click", function (e) {
+    e.preventDefault();
+    if (open.getAttribute("aria-expanded") !== "true") open.click();
+    q.focus();
+  });
+})();
+</script>
 {% endblock %}

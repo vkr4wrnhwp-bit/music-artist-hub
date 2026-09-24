@@ -156,8 +156,10 @@ def test_a_passport_with_no_published_version_has_none_not_zero():
 
 
 def test_an_account_with_no_show_says_so_rather_than_showing_zero_cues():
+    """It names the LIGHT show: "No show saved yet" read as the Tour show
+    the room had just saved, under the done line (audit stage-2)."""
     figs = {f["key"]: f for f in sr.figures(None, sr.rig(None), None)}
-    assert figs["cues"]["value"] == "No show saved yet"
+    assert figs["cues"]["value"] == "No light show saved yet"
     assert figs["channels"]["value"] == "Nothing patched"
 
 
@@ -254,7 +256,7 @@ def test_the_first_show_is_the_tour_desk_s_record_and_comes_back_with_the_line()
     c, uid = _account()
     store.set_user_plan(uid, "pro")
     page = c.get("/room/stage?from=show").get_data(as_text=True)
-    assert sr.DONE_LINE not in page, "the param alone says nothing"
+    assert "Your first show was added" not in page, "the param alone says nothing"
     r = c.post("/tours/new", data={"one_off": "1", "name": "Release show", "date": "2031-04-18",
                                    "venue": "The Basement East", "city": "Nashville, TN",
                                    "returnTo": "/room/stage"})
@@ -264,10 +266,13 @@ def test_the_first_show_is_the_tour_desk_s_record_and_comes_back_with_the_line()
     shows = store.list_tour_shows(uid)
     assert len(shows) == 1 and shows[0]["venue"] == "The Basement East" and shows[0]["tour_id"] == tours[0]["id"]
     page = c.get("/room/stage?from=show").get_data(as_text=True)
-    assert sr.DONE_LINE in page
+    # the line names the saved show and claims no workspace (audit stage-2)
+    line = "Your first show was added: The Basement East, Nashville, TN, April 18, 2031. Next, draw the stage plot."
+    assert line in page and "Stage workspace is ready" not in page
     body = _room(page)
     assert "Start with a show" not in body and "sp-canvas" in body, "the desk is back, with the editor"
-    assert sr.DONE_LINE not in c.get("/room/stage").get_data(as_text=True)
+    assert "No show saved yet" not in body, "nothing under the line denies the show"
+    assert "Your first show was added" not in c.get("/room/stage").get_data(as_text=True)
 
 
 def test_a_way_back_is_a_same_site_path_or_nothing():
@@ -279,10 +284,15 @@ def test_a_way_back_is_a_same_site_path_or_nothing():
 
 
 def test_the_done_line_is_said_by_the_record_not_the_param():
-    assert sr.done_line("show", 0) == ""
-    assert sr.done_line(None, 2) == ""
-    assert sr.done_line("plot", 2) == ""
-    assert sr.done_line("show", 1) == sr.DONE_LINE
+    """It takes the show rows now, so it can name the one just saved."""
+    rows = [{"venue": "Room One", "city": "Austin, TX", "date": "2031-05-02", "created": "a"},
+            {"venue": "The Basement", "city": "Nashville", "date": "2026-10-30", "created": "b"}]
+    assert sr.done_line("show", []) == ""
+    assert sr.done_line(None, rows) == ""
+    assert sr.done_line("plot", rows) == ""
+    assert sr.done_line("show", rows) == (
+        "Your first show was added: The Basement, Nashville, October 30, 2026. "
+        "Next, draw the stage plot.")
 
 
 def test_new_account_is_empty_on_every_count_the_spec_names():
@@ -324,7 +334,9 @@ def test_who_may_add_a_show_is_told_on_the_card():
     store.set_user_plan(uid, "fan")
     body = _room(c.get("/room/stage").get_data(as_text=True))
     assert 'class="sg-z-form"' not in body and "membership that includes Tour" in body
-    assert 'href="#sg-z-show"' not in body, "and no hero pill pointing at a form that is not there"
+    # the hero pill specifically: the drawer's Stage Plot tile points at the
+    # card too, which says who adds shows (audit stage-5)
+    assert 'class="rk-cta" href="#sg-z-show"' not in body, "and no hero pill pointing at a form that is not there"
 
 
 def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch):
@@ -494,7 +506,8 @@ def test_the_working_room_draws_the_rooms_three_window_plate():
     assert 'class="cz-plate" src="/static/img/room-plate.webp' in body
     assert "stage-plate.webp" not in body, "the old desk is not on the working page"
     assert body.count('<li class="cz-screen"') == 3
-    assert "command-zero.css?v=4" in page and "stage-room.css?v=10" in page
+    # stage-room.css v=11 since the audit fixes of 2026-09-23 changed it
+    assert "command-zero.css?v=4" in page and "stage-room.css?v=11" in page
     got = _screens(body)
     assert [k for k, _v, _s in got] == ["Cues", "Channels", "Passport"]
     assert got[0][1] == "2" and got[0][2] == "In Main Show"
@@ -646,4 +659,215 @@ def test_a_locked_demo_is_offered_no_write_door():
     store.set_demo_lock(uid, True)
     body = _room(c.get("/room/stage").get_data(as_text=True))
     assert "Start with a show" in body and 'class="sg-z-form"' not in body
-    assert sr.ZERO_PROJECT["readonly"] in body and 'href="#sg-z-show"' not in body
+    assert sr.ZERO_PROJECT["readonly"] in body and 'class="rk-cta" href="#sg-z-show"' not in body
+
+
+# --- the audit of 2026-09-23 (stage-2 .. stage-19) ---------------------------
+
+import io as _io
+import os as _os
+import re as _re
+
+_HERE = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+
+
+def _css(name):
+    return _io.open(_os.path.join(_HERE, "static", "css", name), encoding="utf-8").read()
+
+
+def _signed_in(name, plan):
+    """A signed-in account carrying what the team helpers need."""
+    c, uid = _account(name)
+    store.set_user_plan(uid, plan)
+    c._id = uid
+    c._email = store.get_user(uid)["email"]
+    return c
+
+
+def _seat(owner, member, access="read", areas=None):
+    """A real team seat, joined and opened (tests/test_team_rooms.py)."""
+    import team_areas
+    data = {"email": member._email, "role": "manager", "access": access, "areas_sent": "1",
+            "areas": list(areas if areas is not None else team_areas.keys())}
+    r = owner.post("/team/invite", data=data)
+    assert r.get_json().get("ok"), r.get_json()
+    row = [m for m in store.list_team(owner._id) if m["email"] == member._email][0]
+    member.post("/team/join/" + row["invite_token"], data={})
+    member.post("/portal/%s/open" % owner._id)
+
+
+def test_a_failed_passport_version_read_is_the_error_page_not_a_500(monkeypatch):
+    """Audit stage-4: the version read sat after the one try, so a failure
+    there was a bare 500. It is the room's error page at 503 now."""
+    import passport_store
+    c, _uid = _account()
+    monkeypatch.setattr(passport_store, "list_passports",
+                        lambda _uid: [{"id": "p1", "current_version_id": "v1"}])
+
+    def boom(*_a, **_k):
+        raise RuntimeError("stage: version store down")
+    monkeypatch.setattr(passport_store, "current_version", boom)
+    r = c.get("/room/stage")
+    assert r.status_code == 503
+    assert "We could not load your Stage workspace" in r.get_data(as_text=True)
+
+
+def test_the_error_page_offers_only_doors_the_reader_can_open(monkeypatch):
+    """Audit stage-9: a Stage-only seat is refused at the Command Center,
+    which sends it back into the room that just failed. It gets Try again
+    and Contact; the account holder keeps the Command Center door."""
+    def boom(_uid):
+        raise RuntimeError("stage: store down")
+    owner, member = _signed_in("Owner", "pro"), _signed_in("Member", "artist")
+    _seat(owner, member, access="edit", areas=["stage"])
+    assert member.get("/command-center").status_code == 302, "the door it must not be shown"
+    monkeypatch.setattr(store, "list_tour_shows", boom)
+    page = member.get("/room/stage")
+    assert page.status_code == 503
+    body = page.get_data(as_text=True)
+    assert 'href="/room/stage"' in body and "Back to Command Center" not in body
+    mine = owner.get("/room/stage").get_data(as_text=True)
+    assert "Back to Command Center" in mine and 'href="/command-center"' in mine
+
+
+def test_the_plot_tile_from_zero_routes_to_add_show_not_the_editor():
+    """Audit stage-5, spec: before a show exists the plot routes to Add
+    show, never to a contextless editor - the tile included."""
+    c, _uid = _account()
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    drawer = body.split('<details class="sg-z-fold"', 1)[1]
+    assert 'href="/stage-plot"' not in body
+    tile = drawer.split('data-room-card="stage-plot"')[0].rsplit("<a ", 1)[1]
+    assert 'href="#sg-z-show"' in tile
+    assert sr.ZERO_PLOT_TILE[1] in drawer and "Draw it here before there is a tour" not in drawer
+
+
+def test_what_stage_keeps_together_claims_nothing_the_app_lacks():
+    """Audit stage-6: the plot and the light show are one per account and
+    read no show record, so no Stage tool 'reads the show record'."""
+    lines = " ".join(line for _k, _n, line in sr.KEEPS)
+    assert "every Stage tool" not in lines
+
+
+def test_every_drawer_tile_draws_its_own_icon():
+    """Audit stage-8: Stage Plot and Tour fell through to the placeholder."""
+    c, _uid = _account()
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    drawer = body.split('<details class="sg-z-fold"', 1)[1]
+    tiles = _re.findall(r'<a class="rk-tile".*?</a>', drawer, _re.S)
+    assert len(tiles) == len(sr.ZERO_TILES)
+    for tile in tiles:
+        assert '<circle cx="12" cy="12" r="8"/>' not in tile, tile[:80]
+
+
+def test_ask_street_banker_opens_the_corner_ask_box():
+    """Audit stage-7: the button kept only the no-script fallback and left
+    the app for the public Contact page. It opens the corner Ask box, as
+    the Command Center's does; Contact stays the no-script fallback."""
+    c, _uid = _account()
+    page = c.get("/room/stage").get_data(as_text=True)
+    assert 'href="/contact" id="sg-z-ask">Ask Street Banker' in page
+    script = page.split('getElementById("sg-z-ask")', 1)[1].split("</script>", 1)[0]
+    assert 'getElementById("sbq-open")' in script and "preventDefault" in script
+    assert 'id="sbq-open"' in page and 'id="sbq-q"' in page
+
+
+def test_a_refused_first_show_comes_back_with_what_was_typed():
+    """Audit stage-11 and stage-12. A date that is not a real calendar day
+    used to be stored as a show (2026-02-30), and a date the pattern
+    refused went to the Tour page with every typed field lost. Now a
+    refused save comes back to the Stage card with the name, venue and
+    city kept (in the session, never the URL) and the reason."""
+    c, uid = _account()
+    store.set_user_plan(uid, "pro")
+    for bad in ("2026-02-30", "2026-13-45", "10/30/2026"):
+        r = c.post("/tours/new", data={"one_off": "1", "name": "Release night", "date": bad,
+                                       "venue": "The Basement", "city": "Nashville",
+                                       "returnTo": "/room/stage"})
+        loc = r.headers["Location"]
+        assert r.status_code == 302 and loc == "/room/stage?show_error=date#sg-z-show", loc
+        assert "Basement" not in loc and "Nashville" not in loc, "typed fields never ride in the URL"
+        body = _room(c.get("/room/stage?show_error=date").get_data(as_text=True))
+        assert "That date is not a real calendar day." in body
+        form = body.split('<form class="sg-z-form"')[1].split("</form>")[0]
+        for kept in ('value="Release night"', 'value="The Basement"', 'value="Nashville"'):
+            assert kept in form, (bad, kept)
+    assert store.list_tour_shows(uid) == [], "no impossible date was saved"
+    # a second visit has nothing left to refill
+    again = _room(c.get("/room/stage").get_data(as_text=True))
+    assert 'value="The Basement"' not in again and "not a real calendar day" not in again
+    # without a way back the Tour desk's own page answers, as before
+    r = c.post("/tours/new", data={"one_off": "1", "date": "2026-02-30", "venue": "X", "city": "Y"})
+    assert r.headers["Location"] == "/tours?one_off=date"
+    assert store.list_tour_shows(uid) == []
+
+
+def test_the_first_show_form_explains_its_rules_in_visible_hints():
+    """Audit stage-17: the rules lived in placeholders a phone cut off."""
+    c, _uid = _account()
+    form = _room(c.get("/room/stage").get_data(as_text=True)).split(
+        '<form class="sg-z-form"')[1].split("</form>")[0]
+    for ph in _re.findall(r'placeholder="([^"]*)"', form):
+        assert len(ph) <= 24, ph
+    assert "Leave it blank and the venue and date name it." in form
+    assert "A stand-in label is fine until the venue is confirmed." in form
+    assert 'aria-describedby="sg-z-name-hint"' in form and 'id="sg-z-name-hint"' in form
+
+
+def test_touch_targets_are_44_pixels():
+    """Audit stage-13, spec Mobile: 44x44. The kit's header pill was 42px
+    and the two inline links had no height at all."""
+    kit = _css("room-kit.css")
+    cta = kit.split(".rk-cta, .fr-cta, .mk-cta, .pb-cta {", 1)[1].split("}", 1)[0]
+    assert "height: 44px" in cta
+    links = _css("stage-room.css").split(".sg-z-links a {", 1)[1].split("}", 1)[0]
+    assert "min-height: 44px" in links
+
+
+def test_the_help_button_stays_inside_its_panel():
+    """Audit stage-3: `.sg-z-help > div` also matched the actions wrapper
+    and beat its flex: 0 0 auto, so the wrapper shrank below its nowrap
+    button and the page scrolled sideways at 1024 and 1280."""
+    css = _css("stage-room.css")
+    assert ".sg-z-help > div {" not in css and ".sg-z-help > div," not in css
+    assert ".sg-z-help > div:not(.sg-z-help-acts)" in css
+    acts = css.split(".sg-z-help-acts {", 1)[1].split("}", 1)[0]
+    assert "flex: 0 0 auto" in acts
+
+
+def test_a_read_seat_meets_the_locked_line_and_never_a_form():
+    """Audit stage-18: the seat states were pinned only at unit level.
+    A real read seat on an account from zero gets the card without the
+    form and the line saying who adds shows; on a working account it sees
+    the plot and the input list without a Save it would be refused at."""
+    owner, member = _signed_in("Owner", "pro"), _signed_in("Member", "artist")
+    _seat(owner, member, access="read")
+    body = _room(member.get("/room/stage").get_data(as_text=True))
+    assert "Start with a show" in body and 'class="sg-z-form"' not in body
+    assert sr.ZERO_PROJECT["locked"] in body and 'class="rk-cta" href="#sg-z-show"' not in body
+    owner.post("/tours/new", data={"one_off": "1", "date": "2031-04-18",
+                                   "venue": "Room One", "city": "Austin, TX"})
+    store.save_stage_plot(owner._id, {"items": {"bass": 1}})
+    body = _room(member.get("/room/stage").get_data(as_text=True))
+    assert "sp-canvas" in body and 'id="sp-inputs"' in body
+    assert 'id="sp-save"' not in body and 'id="sp-items"' not in body
+    assert "Your seat can see this plot but not change it." in body
+    # an edit seat with the Stage room draws and saves
+    other = _signed_in("Editor", "artist")
+    _seat(owner, other, access="edit", areas=["stage"])
+    body = _room(other.get("/room/stage").get_data(as_text=True))
+    assert 'id="sp-save"' in body
+
+
+def test_a_plan_without_tour_gets_the_tier_line_when_the_gates_are_on(monkeypatch):
+    """Audit stage-18: under the deployed gates Tour is a Pro suite, so an
+    Artist plan is told what adding a show needs, not handed a form that
+    answers 402."""
+    monkeypatch.setenv("SUITE_GATES", "on")
+    c, uid = _account()
+    store.set_user_plan(uid, "artist")
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert 'class="sg-z-form"' not in body and sr.ZERO_PROJECT["tier"] in body
+    store.set_user_plan(uid, "pro")
+    body = _room(c.get("/room/stage").get_data(as_text=True))
+    assert 'class="sg-z-form"' in body

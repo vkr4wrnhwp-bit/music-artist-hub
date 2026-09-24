@@ -3,8 +3,8 @@
 
 {% block title %}Stage{% endblock %}
 {% block head_scripts %}
-  <link rel="stylesheet" href="/static/css/room-kit.css?v=9">
-  <link rel="stylesheet" href="/static/css/stage-room.css?v=10">
+  <link rel="stylesheet" href="/static/css/room-kit.css?v=10">
+  <link rel="stylesheet" href="/static/css/stage-room.css?v=11">
   {#- the rooms' shared three-window plate (partials/cc_rack.html), on the
       page from zero and the working room alike; its rules live with it -#}
   <link rel="stylesheet" href="/static/css/command-zero.css?v=4">
@@ -55,6 +55,10 @@
 {%- elif name == "tour-board" -%}<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3 2.7-5.4 6-5.4s6 2.4 6 5.4"/><path d="M16.5 6.5a3 3 0 010 5.5"/><path d="M18 19c0-2-.8-3.7-2-4.8"/>
 {%- elif name == "lights" -%}<path d="M12 2v3M5 7l2 1.5M19 7l-2 1.5"/><path d="M8 13a4 4 0 118 0v4H8z"/><path d="M10 21h4"/>
 {%- elif name == "live" -%}<path d="M3 12h2l2-6 3 14 3-11 2 5h6"/>
+{#- the drawer's two tiles that fell through to the placeholder ring
+    (audit stage-8): the plot's own mark, and a route between two pins -#}
+{%- elif name == "stage-plot" -%}<rect x="3" y="5" width="18" height="12" rx="1.5"/><rect x="7" y="8" width="4" height="4"/><rect x="14" y="8" width="4" height="4"/><path d="M8 20h8"/>
+{%- elif name == "tours" -%}<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 17c5 0 3-9 8-10"/>
 {%- else -%}<circle cx="12" cy="12" r="8"/>
 {%- endif -%}
 </svg>
@@ -124,10 +128,14 @@
         <form class="sg-z-form" method="post" action="{{ z.form.action }}">
           <input type="hidden" name="one_off" value="1">
           <input type="hidden" name="returnTo" value="{{ z.form.return_to }}">
-          <label class="sg-z-field sg-z-field--wide"><span>Show or event name</span><input name="name" maxlength="120" autocomplete="off" placeholder="Optional - the venue and date name it otherwise"></label>
-          <label class="sg-z-field"><span>Date</span><input type="date" name="date" required></label>
-          <label class="sg-z-field"><span>City or location</span><input name="city" maxlength="80" required autocomplete="off"></label>
-          <label class="sg-z-field sg-z-field--wide"><span>Venue</span><input name="venue" maxlength="120" required autocomplete="off" placeholder="The venue, or a stand-in label until it is confirmed"></label>
+          {#- a save the Tour desk refused comes back with what was typed and
+              the reason (audit stage-11). The rule each field follows is a
+              visible hint, not placeholder text a phone cuts off (stage-17). -#}
+          {% if show_error %}<p class="sg-z-err" role="alert">That date is not a real calendar day. Choose the show's date and add it again.</p>{% endif %}
+          <label class="sg-z-field sg-z-field--wide"><span>Show or event name</span><input name="name" maxlength="120" autocomplete="off" placeholder="Optional" aria-describedby="sg-z-name-hint" value="{{ show_draft.name or "" }}"><small class="sg-z-hint" id="sg-z-name-hint">Leave it blank and the venue and date name it.</small></label>
+          <label class="sg-z-field"><span>Date</span><input type="date" name="date" required{% if show_error %} aria-invalid="true"{% endif %}></label>
+          <label class="sg-z-field"><span>City or location</span><input name="city" maxlength="80" required autocomplete="off" value="{{ show_draft.city or "" }}"></label>
+          <label class="sg-z-field sg-z-field--wide"><span>Venue</span><input name="venue" maxlength="120" required autocomplete="off" placeholder="Venue or stand-in label" aria-describedby="sg-z-venue-hint" value="{{ show_draft.venue or "" }}"><small class="sg-z-hint" id="sg-z-venue-hint">A stand-in label is fine until the venue is confirmed.</small></label>
           <button class="sg-z-btn" type="submit">{{ z.project.cta }}{{ icon("arrow") }}</button>
         </form>
         <p class="sg-z-note">{{ z.project.note }}</p>
@@ -198,7 +206,10 @@
       <ul class="sg-z-qs">{% for q in z.questions %}<li>{{ q }}</li>{% endfor %}</ul>
     </div>
     <div class="sg-z-help-acts">
-      <a class="sg-z-more" href="/contact">Ask Street Banker{{ icon("arrow") }}</a>
+      {#- The corner Ask box is on every page; this opens it (audit
+          stage-7, the Command Center's button). With scripts off the link
+          goes to Contact, which is a person. -#}
+      <a class="sg-z-more" href="/contact" id="sg-z-ask">Ask Street Banker{{ icon("arrow") }}</a>
     </div>
   </section>
 
@@ -338,7 +349,7 @@
       here can be changed or saved.</p>
     {% elif not editable %}
     <p class="rk-foot">Your seat can see this plot but not change it. The artist's
-      own account and a seat with the Stage Plot area can edit it.</p>
+      own account and a seat with edit access to the Stage room can edit it.</p>
     {% endif %}
   </section>
 
@@ -368,4 +379,24 @@
   {% endif %}
 
 <!--/room:stage--></div>
+{% endblock %}
+
+{% block scripts %}
+{%- if sg.idle %}
+<script>
+(function () {
+  // The corner Ask box (partials/support_ask.html) keeps its panel hidden
+  // behind #sbq-open; open it first, then put the caret in the question.
+  var a = document.getElementById("sg-z-ask");
+  var open = document.getElementById("sbq-open");
+  var q = document.getElementById("sbq-q");
+  if (!a || !open || !q) return;
+  a.addEventListener("click", function (e) {
+    e.preventDefault();
+    if (open.getAttribute("aria-expanded") !== "true") open.click();
+    q.focus();
+  });
+})();
+</script>
+{%- endif %}
 {% endblock %}

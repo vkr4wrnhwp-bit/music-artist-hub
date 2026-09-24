@@ -9,8 +9,13 @@
    account reads the months on its own statements or shows none. #}
 {% set rr = real_royalty %}
 {% set this_month = months[-1][1] if months else 0 %}
-{% set last_month = months[-2][1] if months|length > 1 else this_month %}
-{% set growth_pct = ((this_month - last_month) / last_month * 100) if last_month else 0 %}
+{#- A comparison needs two periods. With one there is no "last month":
+    no figure, no arrow, no percentage (audit, 2026-09-23: one statement
+    printed a green "vs last month ↑ 0.0%" against a month that does not
+    exist). `compared` gates every place the pair is drawn. -#}
+{% set compared = months|length > 1 %}
+{% set last_month = months[-2][1] if compared else none %}
+{% set growth_pct = ((this_month - last_month) / last_month * 100) if (compared and last_month) else 0 %}
 {% set remaining = (goal - tracked) if goal > tracked else 0 %}
 {% set goal_pct = ((tracked / goal) * 100) if goal else 0 %}
 {% set health = overview_health %}
@@ -57,10 +62,14 @@
           <div class="sb-label text-gray-200">{{ month_labels.this }}</div>
           <div class="mt-1 text-xl font-bold tabular-nums text-gray-100">${{ "{:,.2f}".format(this_month) }}</div>
         </div>
+        {% if compared %}
         <div>
           <div class="sb-label text-gray-200">{{ month_labels.vs }}</div>
           <div class="mt-1 text-xl font-bold tabular-nums {{ 'text-green-400' if growth_pct >= 0 else 'text-red-400' }}">{{ '↑' if growth_pct >= 0 else '↓' }} {{ "%.1f"|format(growth_pct|abs) }}%</div>
         </div>
+        {% else %}
+        <p class="max-w-[14rem] text-xs text-gray-200">One period on file, so there is nothing to compare it with yet.</p>
+        {% endif %}
         {% endif %}
         <a href="{{ '/recovery' if rr else '/statements' }}"
            class="sb-btn sb-btn-secondary sb-btn-sm">
@@ -273,7 +282,7 @@
         {% if months %}<p class="text-xs text-gray-300">Royalties by month: {% for m in months %}{{ m[0] }}, ${{ "{:,.2f}".format(m[1]) }}{{ "; " if not loop.last }}{% endfor %}.</p>
         {% else %}<p class="text-xs text-gray-300">No statement months on file yet.</p>{% endif %}
       </canvas></div>
-      {% if months %}
+      {% if compared %}
       <div class="mt-4 grid grid-cols-3 gap-2 border-t border-white/5 pt-3 text-center">
         <div>
           <div class="text-sm font-bold sb-num">${{ "{:,.2f}".format(this_month) }}</div>

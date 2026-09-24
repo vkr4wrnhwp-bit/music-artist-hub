@@ -230,7 +230,13 @@ def test_a_failed_check_is_not_evidence_either():
     ev = artist_os.mlc_evidence(
         {"passport": {"mlc_status": "Registered"},
          "mlc_check": _check("error", works=[])})
-    assert ev["source"] == "typed" and ev["label"] == "typed, unverified"
+    # Updated 2026-09-23 (audit, providers-23): it used to read "typed,
+    # unverified - Nobody has asked The MLC", printed above the stored
+    # error row that shows it WAS asked. It is still not evidence (never
+    # green, never "check"), and the typed words are still quoted.
+    assert ev["source"] == "failed" and ev["label"] == "check failed"
+    assert ev["state"] == "yellow" and "Nobody has asked" not in ev["detail"]
+    assert "Registered" in ev["detail"]
 
 
 def test_clean_release_and_the_lane_both_read_the_check(monkeypatch):

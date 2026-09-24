@@ -36,7 +36,7 @@ WHAT IT REFUSES TO DO
 ---------------------
   * Nothing here claims a venue has received, confirmed or approved
     anything. A plot and a rig are what the artist intends.
-  * Nothing unsaved reads 0. "No show saved yet" and "Never published" are
+  * Nothing unsaved reads 0. "No light show saved yet" and "Never published" are
     the honest words, and a passport really does have no version until a
     first publish.
   * No control on this screen edits anything. The room is a door: every
@@ -47,6 +47,7 @@ WHAT IT REFUSES TO DO
     fill is a promise the page cannot keep.
 """
 import stage_plot_catalog
+from lights_store import SHOWCASE_CUE_COLOURS as _CUE
 
 # The path from a rig to a published technical record. Each rung is a
 # stored fact.
@@ -242,7 +243,9 @@ def figures(show, the_rig, version):
     cue_rows = cues(show)
     return [
         {"key": "cues",
-         "value": str(len(cue_rows)) if show else "No show saved yet",
+         # the LIGHT show: "no show" read as the Tour show the room had
+         # just saved (audit stage-2)
+         "value": str(len(cue_rows)) if show else "No light show saved yet",
          "measured": bool(show),
          "label": "Cues", "sub": "In your saved show",
          "note": ("From %s" % (show.get("name") or "your show")) if show else ""},
@@ -390,7 +393,9 @@ ZERO_PROJECT = {
 # What one show record carries through this room. GOLD icons: these
 # explain capabilities and must not look completed (spec).
 KEEPS = (
-    ("show", "Venue, date, and schedule", "The show record every Stage tool reads."),
+    # Not "the record every Stage tool reads": the plot and the light show
+    # are one per account and read no show (audit stage-6).
+    ("show", "Venue, date, and schedule", "The date, venue, and city each show starts from."),
     ("plotted", "Stage plot and equipment", "Where people and gear stand, and the input list."),
     ("lights", "Team, lighting, and advance",
      "Who is coming, what the rig does, and the package the venue gets."),
@@ -427,10 +432,36 @@ ZERO_LINKS = (("How stage planning works", "#sg-z-flow-h"),
               ("What belongs in an advance", "#sg-z-help-h"))
 # The drawer at the foot: the spec's six tools, by their room cards.
 ZERO_TILES = ("stage-plot", "lights", "tour-board", "passports", "live", "tours")
+# Before a show exists the Stage Plot tile routes to Add show, never to a
+# contextless editor (spec, Stage plot; audit stage-5): it points at the
+# first-show card.
+ZERO_PLOT_TILE = ("#sg-z-show", "The plot is drawn once a show exists. Shows start in the card above.")
 # The sentence the room carries back from the show door, with one next
 # action (spec: "tasks return with a completion message and one next
-# action").
-DONE_LINE = "Your first show was added. Its Stage workspace is ready. Next, draw the stage plot."
+# action"). It names the show that was saved and claims nothing else: it
+# used to say "Its Stage workspace is ready", and no per-show workspace
+# exists (audit stage-2).
+DONE_LINE = "Your first show was added: %s. Next, draw the stage plot."
+MONTHS = ("January", "February", "March", "April", "May", "June", "July",
+          "August", "September", "October", "November", "December")
+
+
+def day_label(iso):
+    """2026-10-30 -> "October 30, 2026". A value that is not a day stays
+    as it was stored."""
+    try:
+        y, m, d = (iso or "")[:10].split("-")
+        return "%s %d, %s" % (MONTHS[int(m) - 1], int(d), y)
+    except (ValueError, IndexError):
+        return iso or ""
+
+
+def show_label(row):
+    """The saved show in words: venue, city, date - what the form took."""
+    row = row or {}
+    return ", ".join(p for p in ((row.get("venue") or "").strip(),
+                                 (row.get("city") or "").strip(),
+                                 day_label(row.get("date"))) if p)
 
 
 # --- THE SHOWCASE (the demo account) ------------------------------------
@@ -443,13 +474,13 @@ DONE_LINE = "Your first show was added. Its Stage workspace is ready. Next, draw
 # instead, unmarked.
 SHOWCASE_NAME = "Sample show"
 SHOWCASE_CUES = (
-    (0, "House to half", 40, 3, "#e0a340", "all"),
-    (12, "Walk-on wash", 70, 2, "#3b6fd8", "truss"),
-    (28, "Verse one", 60, 1.5, "#e0a340", "all"),
-    (55, "Chorus hit", 100, 0, "#ffffff", "all"),
-    (84, "Floor sweep", 80, 1, "#c03a5a", "floor"),
-    (118, "Bridge", 50, 2.5, "#6a3bd8", "truss"),
-    (150, "Final chorus", 100, 0.5, "#e0a340", "all"),
+    (0, "House to half", 40, 3, _CUE["amber"], "all"),
+    (12, "Walk-on wash", 70, 2, _CUE["blue"], "truss"),
+    (28, "Verse one", 60, 1.5, _CUE["amber"], "all"),
+    (55, "Chorus hit", 100, 0, _CUE["white"], "all"),
+    (84, "Floor sweep", 80, 1, _CUE["rose"], "floor"),
+    (118, "Bridge", 50, 2.5, _CUE["violet"], "truss"),
+    (150, "Final chorus", 100, 0.5, _CUE["amber"], "all"),
     (184, "Blackout", 0, 0, "", "all"),
 )
 SHOWCASE_PLOT_ITEMS = {"drums": 1, "bass": 1, "gtr": 1, "keys": 1, "vox": 2, "wedge": 3}
@@ -486,8 +517,12 @@ def new_account(shows, tours, light_show, plot_state, passports):
 
 
 def done_line(came_from, shows):
-    """Said by the SAVED show, never by the param alone."""
-    return DONE_LINE if came_from == "show" and shows > 0 else ""
+    """Said by the SAVED show, never by the param alone. `shows` is the
+    account's show rows; the line names the one made last."""
+    if came_from != "show" or not shows:
+        return ""
+    newest = max(shows, key=lambda s: s.get("created") or "")
+    return DONE_LINE % show_label(newest)
 
 
 def zero_page(can_add=True, can_open=None):
@@ -551,10 +586,13 @@ def build(show, plot_state, plot_image, version, cards,
         href = card[0]
         if can_open and not can_open(href):
             continue
+        line = card[3]
+        if key == "stage-plot":
+            href, line = ZERO_PLOT_TILE
         # The owner's mark on a page they hid rides with the tile
         # (rooms.build keeps a hidden page for the owner alone).
         zero_tiles.append({"key": key, "href": href, "icon": card[1],
-                           "name": card[2], "line": card[3],
+                           "name": card[2], "line": line,
                            "state": card[4] if len(card) > 4 else ""})
 
     return {

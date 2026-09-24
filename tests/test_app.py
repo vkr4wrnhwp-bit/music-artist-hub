@@ -1519,13 +1519,20 @@ def test_discover_results_have_add_button(monkeypatch):
 
 
 def _fake_deezer(url):
+    # A hit is accepted only when its title and artist match the ones asked
+    # for (audit 2026-09-23, providers-19: the first keyword hit used to be
+    # stored as the artist's own codes), so the fake search names the songs
+    # these tests add, and the track and album carry their ids.
     if "api.deezer.com/search" in url:
-        return {"data": [{"id": 42}]}
+        return {"data": [{"id": 42, "title": title, "artist": {"name": artist}}
+                         for title, artist in (("Meta Song", "Meta Artist"),
+                                               ("ID Song", "A"),
+                                               ("First Song", "Clean Artist"))]}
     if "api.deezer.com/track/" in url:
-        return {"isrc": "USTEST2500001", "duration": 200, "release_date": "2025-01-10",
+        return {"id": 42, "isrc": "USTEST2500001", "duration": 200, "release_date": "2025-01-10",
                 "album": {"id": 7, "title": "Test LP"}}
     if "api.deezer.com/album/" in url:
-        return {"upc": "123456789012", "label": "Test Label", "title": "Test LP",
+        return {"id": 7, "upc": "123456789012", "label": "Test Label", "title": "Test LP",
                 "release_date": "2025-01-10", "nb_tracks": 10,
                 "genres": {"data": [{"name": "Electro"}]}}
     if "musicbrainz.org/ws/2/isrc/" in url:
@@ -3032,7 +3039,10 @@ def test_identifiers_page_uses_real_catalog(monkeypatch):
     body = client.get("/catalog").get_data(as_text=True)
     assert "Your Identifiers" in body
     assert "USTEST2500001" in body and "123456789012" in body   # real pulled IDs
-    assert "ISRC and UPC come from your catalog records" in body
+    # The codes were looked up on Deezer, and the page says so rather than
+    # calling them the artist's own records (audit 2026-09-23, providers-19).
+    assert "ISRC and UPC come from your catalog records" not in body
+    assert "from Deezer, matched by title and artist, not confirmed" in body
     assert "the ISWC is the work code The MLC returned" in body
     # A metadata-less track is flagged with an actionable MISSING row.
     monkeypatch.setattr(music_apis, "_fetch_json",
@@ -5708,12 +5718,16 @@ def test_studio_split_is_env_gated_and_honest():
     assert source_path("../../app.py") is None
     assert source_path("a/b") is None
 
-    # The diagnostic reports shape, never the secret itself.
-    diag = client.get("/rack/studio-split/diag").get_json()
-    assert diag["configured"] is False and diag["present"] is False
-
-    _os.environ["STEMSPLIT_API_KEY"] = "test-key-not-real"
+    # The diagnostic reports shape, never the secret itself - and only to
+    # an owner since 2026-09-23 (audit, providers-15): ?probe=1 spent the
+    # owner's StemSplit key for any customer. A non-owner gets a 404.
+    assert client.get("/rack/studio-split/diag").status_code == 404
+    _owner_before = _os.environ.get("OWNER_EMAILS")
+    _os.environ["OWNER_EMAILS"] = "demo@streetbanker.io"
     try:
+        diag = client.get("/rack/studio-split/diag").get_json()
+        assert diag["configured"] is False and diag["present"] is False
+        _os.environ["STEMSPLIT_API_KEY"] = "test-key-not-real"
         diag = client.get("/rack/studio-split/diag").get_json()
         assert diag["configured"] is True
         assert diag["length"] == len("test-key-not-real")
@@ -5735,6 +5749,10 @@ def test_studio_split_is_env_gated_and_honest():
             "/rack/studio-split", data={}).status_code in (302, 401)
     finally:
         _os.environ.pop("STEMSPLIT_API_KEY", None)
+        if _owner_before is None:
+            _os.environ.pop("OWNER_EMAILS", None)
+        else:
+            _os.environ["OWNER_EMAILS"] = _owner_before
 
 
 def test_stemsplit_reads_both_published_response_shapes():

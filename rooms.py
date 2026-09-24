@@ -177,7 +177,7 @@ EXTRA = {
     "tax": ("/statements?view=tax", "M6 3h8a1 1 0 011 1v13l-2-1.5L11 17l-2-1.5L7 17l-2-1.5V4a1 1 0 011-1z|M8 7h4M8 10h4", "Tax", "Your statement income filed by tax year.", "statements"),
     "track-passports": ("/catalog?view=passports", "M4 3h12v14H4z|M7 7h6|M7 10h6|M7 13h3|M13 13h.01", "Track Passports", "One page per recording: codes, splits, credits.", "catalog"),
     "release-calendar": ("/releases/autopilot?view=calendar", "M3 5h14v12H3z|M3 9h14|M7 3v4M13 3v4|M7 12h2M11 12h2", "Release Calendar", "Every scheduled drop on one calendar.", "autopilot"),
-    "release-check": ("/releases/autopilot?view=ready", "M4 10l4 4 8-8", "Release check", "The store checks before a release goes out.", "autopilot"),
+    "release-check": ("/releases/autopilot?view=ready", "M4 10l4 4 8-8", "Release check", "Twelve checks on your own release record before it goes out.", "autopilot"),
     "distribution": ("/distribution", "M3 10h14|M10 3v14|M5 5l10 10|M15 5L5 15", "Distribution", "How your releases reach the stores today.", None),
     # The three folded press pages. They are in NO room from 2026-09-21:
     # the Marketing room's screen closes with one Press Desk tile, and the
@@ -404,3 +404,44 @@ def back_map():
             parent = parent_of(key)
             out.setdefault(parent, (rkey, name))
     return out
+
+
+# ---- doors a reader can follow (audit, 2026-09-23) --------------------------
+# A room's page from zero draws one fixed primary door (business_room.DOOR,
+# publishing_room.DOOR, ...) plus a few help links, none of which went
+# through the reader's can_open - so when the owner switched the page
+# behind one off, every other account was handed a door that bounced it to
+# /command-center?off=. The routes' can_open (app.py _room_can_open) now
+# answers for the switched-off pages as well as for a team seat, and can
+# say WHY through .why(href): "off", "seat" or "". gate_zero() applies it to
+# what a zero_page() returned, in the route, so no room module changes.
+OFF_WORDS = "This is switched off on this account for now."
+
+
+def gate_zero(zero, can_open):
+    """The page from zero with every door this reader cannot follow taken
+    out: the primary door becomes words (OFF_WORDS for a switched-off page;
+    a seat's own words are the room's `locked` and stay the room's call),
+    and help links and starting points that would bounce are dropped.
+    Returns `zero`; a reader nothing refuses gets it untouched."""
+    why = getattr(can_open, "why", None)
+    if not zero or why is None:
+        return zero
+    project = zero.get("project") or {}
+    door = zero.get("door") or project.get("href") or ""
+    # A room that already worked out its own off-words for this door (its
+    # `can` is the string "off", not the ordinary True/"seat"/False) made
+    # that call itself, the same as a seat's `locked` does; this generic
+    # gate only fills in for a room that has not (audit marketing-7/19
+    # collided with this gate's own OFF_WORDS - the merge, 2026-09-24,
+    # keeps the room's own wording).
+    if door and why(door) == "off" and project.get("can") != "off":
+        zero["project"] = dict(project, can=False, locked=OFF_WORDS)
+        if zero.get("cta"):
+            zero["cta"] = None
+    if isinstance(zero.get("links"), (list, tuple)):
+        zero["links"] = [lk for lk in zero["links"]
+                         if lk[1].startswith("#") or not why(lk[1])]
+    if isinstance(zero.get("starts"), (list, tuple)):
+        zero["starts"] = [s for s in zero["starts"] if not why(s[4])]
+    return zero

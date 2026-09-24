@@ -42,6 +42,7 @@ ours." The row states the consequence, offers ours, and never implies
 theirs is disallowed.
 """
 import math
+import urllib.parse
 
 import board_taxonomy
 
@@ -418,21 +419,36 @@ ZERO_RACK = (
     ("Start here", "Choose what you want people to do."),
     ("Good to know", "Results begin only after something is sent or published."),
 )
-# The one door: the campaign builder, whose first question IS the goal
-# (its campaign types: a release, a pre-save, a fan hub, a download gate,
-# a reward, a tour page, a merch drop, a contest), carrying the way back.
-DOOR = "/links/new?returnTo=/room/marketing&from=marketing-zero-state"
+# The one door: the campaign builder, carrying the way back. Its first
+# question is the campaign TYPE (a release, a pre-save, a fan hub, and the
+# types marked Soon), not the goal: the spec's goal step (a draft saved
+# after only a goal, then the smallest toolset) is not built, and the
+# page no longer says it is (audit, 2026-09-23).
+#
+# The way back carries `from` INSIDE returnTo, the Analytics room's shape:
+# the builder's save lands on /links/<id>/edit, whose shell back link is
+# returnTo, so the done line is reached by the real form and said only by
+# the saved campaign (audit, 2026-09-23: it was never shown to anyone who
+# used the door).
+DONE_FROM = "marketing-zero-state"
+DOOR = ("/links/new?returnTo=" + urllib.parse.quote("/room/marketing?from=" + DONE_FROM, safe="")
+        + "&from=" + DONE_FROM)
 ZERO_PROJECT = {
     "heading": "Start with one goal",
     "title": "Choose your first marketing goal",
     "desc": ("Promote a release, announce news, grow your audience, or pitch the "
-             "media. Street Banker will show only the tools that fit."),
+             "media. Planning opens the campaign builder: start with the link "
+             "your goal needs."),
     "cta": "Start planning",
     "compare": "Compare campaign goals",
     # A seat that may not write here is told who plans campaigns rather
     # than handed a door that bounces.
     "locked": ("Campaigns are planned by the account owner or a seat with edit "
                "access. Marketing opens here once one exists."),
+    # The builder is a page the owner can switch off (Smart Links); then
+    # the door would bounce everyone to the Command Center (audit,
+    # 2026-09-23), so it is words instead.
+    "off": "The campaign builder is switched off for now. Marketing opens here once a campaign exists.",
 }
 # The goal choices (spec section 4), shown in place when "Compare
 # campaign goals" is opened: each goal and the smallest useful toolset.
@@ -523,7 +539,7 @@ def new_account(figures, campaigns):
 
 def done_line(came_from, campaigns):
     """Said by the SAVED campaign, never by the param alone."""
-    return DONE_LINE if came_from == "marketing-zero-state" and campaigns > 0 else ""
+    return DONE_LINE if came_from == DONE_FROM and campaigns > 0 else ""
 
 
 def _door(cards, key_or_href, can_open=None):
@@ -566,11 +582,19 @@ def zero_page(can_add=True, can_open=None, cards=None):
                         "state": card[5] if len(card) > 5 else ""})
         if got:
             bands.append({"title": title, "tiles": got})
+    # The one door goes through the same check as every other: a door
+    # this reader would be bounced at is words (its own line), not gold.
+    can = can_add
+    if can_add is True and can_open and not can_open(DOOR):
+        can = "off"
+    project = dict(ZERO_PROJECT, can=can)
+    if can == "off":
+        project["locked"] = ZERO_PROJECT["off"]
     return {
         "subtitle": ZERO_SUBTITLE,
         "screens": [{"k": k, "v": v} for k, v in ZERO_RACK],
         "door": DOOR,
-        "project": dict(ZERO_PROJECT, can=can_add),
+        "project": project,
         "goals": GOALS,
         "checklist": CHECKLIST,
         "checklist_label": CHECKLIST_LABEL,
@@ -689,6 +713,12 @@ def build(figures, cards, days=DEFAULT_RANGE, showcase=False, artist_name="",
         if card is None:
             continue                      # switched off, or not this plan's
         _k, href, _icon, label, _desc, state = card
+        if can_open and not can_open(href):
+            # A tile this reader would be bounced at is left out, as the
+            # zero drawer already did: /referrals is the account holder's
+            # alone, so every team seat was sent to ?team=blocked (audit,
+            # 2026-09-23).
+            continue
         tone, status = tile_status(key, state, kit_live)
         label, desc = TILE_COPY.get(key, (label, _desc))
         tiles.append({"key": key, "href": href, "label": label, "desc": desc,

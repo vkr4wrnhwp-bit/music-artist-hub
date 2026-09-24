@@ -186,6 +186,8 @@ def mlc_evidence(track):
 
         source  "check"  The MLC answered about this recording
                 "typed"  only the artist's own words are on file
+                "failed" the last check was made and got no answer; it
+                         is not evidence either way
                 "none"   neither
         state   green / yellow / red, as everywhere else
         lane    the royalty-lane word for the same fact
@@ -232,6 +234,20 @@ def mlc_evidence(track):
                 "detail": ("The MLC has no work linked to this recording's "
                            "ISRC, so nobody is collecting its mechanicals."),
                 "share_total": None, "song_code": "", "iswc": "", "typed": typed}
+    if result == "error":
+        # The last check was made and failed. "Nobody has asked The MLC"
+        # printed above its own stored error row contradicted the panel
+        # (audit, 2026-09-23): it was asked, and nothing came back.
+        said = ((check or {}).get("message") or "").strip()
+        detail = ("The last check failed%s, so whether this recording is "
+                  "registered at The MLC is not known yet."
+                  % ((" (%s)" % said[:160]) if said else ""))
+        if typed:
+            detail += (" “%s” is what was typed into the passport."
+                       % typed[:120])
+        return {"source": "failed", "state": "yellow", "lane": "needs action",
+                "label": "check failed", "detail": detail,
+                "share_total": None, "song_code": "", "iswc": "", "typed": typed}
     if typed:
         state = field_state("mlc_status", typed, False)
         return {"source": "typed",
@@ -239,8 +255,7 @@ def mlc_evidence(track):
                 "lane": "needs action",
                 "label": "typed, unverified",
                 "detail": ("Nobody has asked The MLC about this recording; "
-                           "“%s” is what was typed into the passport."
-                           % typed[:120]),
+                           "“%s” is what was typed into the passport." % typed[:120]),
                 "share_total": None, "song_code": "", "iswc": "", "typed": typed}
     return {"source": "none", "state": "yellow", "lane": "missing",
             "label": "not checked",

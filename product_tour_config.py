@@ -197,8 +197,10 @@ CREATIVE_STEPS = [
                        "exists."),
     ("Artwork directions", "Several coherent directions, generated from the "
                            "brief rather than picked from a library."),
-    ("Revision", "Targeted changes on the direction you want, keeping the "
-                 "concept."),
+    # A remix is a new render with the change added to the brief. OpenAI has
+    # no seed, so it cannot promise to keep the picture (2026-09-23).
+    ("Revision", "Describe a change and the cover is made again with it "
+                 "added to the brief."),
     ("Approval", "One direction becomes the campaign master."),
     ("Platform adaptation", "The approved direction converted into the sizes "
                             "and formats each channel asks for."),

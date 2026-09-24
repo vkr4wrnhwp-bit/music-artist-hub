@@ -136,8 +136,9 @@
       </div>
     </section>
 
-    <!-- Step 4: fan capture + compliance -->
-    <section class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">
+    <!-- Step 4: fan capture + compliance. #capture: the Command Center's
+         "Turn on fan capture" door opens the campaign here. -->
+    <section id="capture" class="rounded-2xl border border-sb-gold/25 bg-sb-surface-2 p-5">
       <h2 class="sb-label text-sb-gold-bright">4 · Fan Capture &amp; Consent</h2>
       <label class="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2.5">
         <input type="checkbox" name="email_capture" value="1" class="h-4 w-4 accent-sb-gold" {{ 'checked' if s.email_capture }}>

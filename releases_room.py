@@ -227,9 +227,14 @@ ZERO_PROJECT = {
     "cta": "Create a release",
     "need": "What do I need before I start?",
     # A seat that may not write here is told who creates releases rather
-    # than handed a door that bounces.
+    # than handed a door that bounces. The builder is the Marketing room's
+    # page (/links), so an edit seat needs that room too (audit releases-1).
     "locked": ("Releases are created by the account owner or a seat with edit "
-               "access. Releases opens here once one exists."),
+               "access to the Releases and Marketing rooms. Releases opens here "
+               "once one exists."),
+    # A plan the builder is not part of is told so rather than handed a
+    # door that answers 402 (audit releases-20).
+    "tier": "Creating a release needs an Artist membership or higher.",
     # An account under the read-only demo lock is offered no write door:
     # the builder would only bounce at the lock (audit, 2026-09-23).
     "readonly": "This account is read only, so releases cannot be created here.",
@@ -278,8 +283,11 @@ ZERO_HELP = ("Not sure whether your music is ready?",
 ZERO_LINKS = (("How release checks work", "#rl-z-flow-h"),
               ("Release requirements", "#rl-z-need"))
 # The drawer at the foot: the spec's four areas, each tool by its room card.
+# Track Passports is the Publishing room's card; spec section 4 names it
+# under More Release tools, so the route lends it to this drawer (audit
+# releases-11) and a seat that cannot open /catalog does not see it.
 ZERO_BANDS = (
-    ("Release record", ("autopilot",)),
+    ("Release record", ("autopilot", "track-passports")),
     ("Readiness checks", ("release-check",)),
     ("Rollout & calendar", ("release-calendar", "rollout")),
     ("Distribution & sync packs", ("distribution", "sync-packs")),
@@ -344,6 +352,14 @@ def showcase(today, artist=""):
                  "clean": {"blocked": False, "score": None}}]
     return {"campaign": campaign, "checks": checks, "release_date": release_date,
             "calendar": calendar, "drops": len(calendar), "passport": passport}
+
+
+def releases_of(campaigns):
+    """The campaigns that ARE releases: a campaign row of type "release"
+    (an unset type is the builder's default, release). A Fan Hub or a
+    Pre-save is a campaign, not a release, and ends nothing here (audit
+    releases-3)."""
+    return [c for c in campaigns or () if (c.get("campaign_type") or "release") == "release"]
 
 
 def new_account(campaigns, drops):

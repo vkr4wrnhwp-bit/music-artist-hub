@@ -37,8 +37,16 @@ ROOMS = {"fans": ("fan-room.css", "fr"),
          "analytics": ("analytics-room.css", "an"),
          "business": ("business-room.css", "bz")}
 
+# The prefix each room's PAGE FROM ZERO uses. Studio's zero classes are
+# `sz-`, not `sd-`, so until the 2026-09-23 audit (x-14) they sat outside
+# every check in this file.
+ZERO = {"fans": "fr-z", "marketing": "mk-z", "releases": "rl-z", "publishing": "pb-z",
+        "stage": "sg-z", "studio": "sz", "analytics": "an-z", "business": "bz-z"}
+
 # What the kit owns. A room may not redefine any of these for itself.
-SHARED = ("hero", "hero-top", "eyebrow", "title", "sub", "controls", "chip",
+# hero-aside joined 2026-09-23: marketing-room.css redeclared it and beat
+# the kit's narrow-width rule, floating the chip mid-header at 768.
+SHARED = ("hero", "hero-top", "hero-aside", "eyebrow", "title", "sub", "controls", "chip",
           "chip-name", "avatar", "cta", "panel", "kicker",
           "tiles", "tile", "tile-top", "tile-ico", "tile-text", "tile-foot",
           "tile-status", "tile-go", "tone-good", "tone-info", "tone-gold",
@@ -76,12 +84,13 @@ def test_a_room_never_redeclares_what_the_kit_owns(room):
     sheet, prefix = ROOMS[room]
     mine = set()
     for sel in _selectors(_read(sheet)):
-        m = re.match(r'^\.%s-([a-z0-9-]+)' % prefix, sel)
-        if m and m.group(1) in SHARED and "." not in sel[len(m.group(0)):2]:
-            # A compound selector like .mk-panel-head is its own thing; only
-            # an exact match on a shared name is a redeclaration.
-            if sel.rstrip(":hover").rstrip() == ".%s-%s" % (prefix, m.group(1)):
-                mine.add(sel)
+        for pre in {prefix, ZERO[room]}:
+            m = re.match(r'^\.%s-([a-z0-9-]+)' % pre, sel)
+            if m and m.group(1) in SHARED and "." not in sel[len(m.group(0)):2]:
+                # A compound selector like .mk-panel-head is its own thing; only
+                # an exact match on a shared name is a redeclaration.
+                if sel.rstrip(":hover").rstrip() == ".%s-%s" % (pre, m.group(1)):
+                    mine.add(sel)
     assert not mine, (
         "%s re-declares what room-kit.css owns: %s. Delete it there and let "
         "the kit's rule stand, or the rooms drift apart again."
@@ -240,3 +249,80 @@ def test_reduced_motion_stops_the_big_window_too():
     assert "animation: none" in body
     # and the glitch copies, which are pseudo-elements of the frame
     assert "rk-cine-frame b::before" in body and "rk-cine-frame b::after" in body
+
+
+# ---- the pages from zero: one set of parts, not eight copies (x-14) --------
+
+# The zero-page parts every room's sheet declares for itself (the card, its
+# button, the help link, the fold, the lens rows, the band heading, the
+# two-column row). They are hand-copied into each sheet, so a copy that
+# changes in one room drifts from the rest with nothing to say so - the
+# owner's "it's not starting to drift". This holds the copies together:
+# the same declarations in every room that has the part, except the
+# differences recorded below, which exist today and are waiting on a ruling.
+ZERO_PARTS = ("card", "btn", "more", "fold", "fold-sum", "lens", "band", "two")
+ZERO_DRIFT = {
+    # Fans and Studio set the start row 1.5fr and let the cards stretch; the
+    # other six set 1.6fr with the cards aligned to the top. OWNER: one of
+    # the two for all eight.
+    ("", ".Z-two"): [{"fans", "studio"},
+                     {"analytics", "business", "marketing", "publishing", "releases", "stage"}],
+    # Studio's "Ask" help is a text link; the rest are outlined buttons
+    # (the audit's x-8, judged not a defect). OWNER: keep or align.
+    ("", ".Z-more"): [{"studio"},
+                      {"analytics", "business", "marketing", "publishing", "releases", "stage"}],
+    ("", ".Z-more:hover"): [{"studio"},
+                            {"analytics", "business", "marketing", "publishing", "releases", "stage"}],
+    # Stage's card and button are laid out for the first-show form they
+    # hold (no three-row card grid). OWNER: keep or align.
+    ("", ".Z-btn"): [{"stage"},
+                     {"analytics", "business", "marketing", "publishing", "releases", "studio"}],
+    ("", ".Z-card"): [{"stage"}, {"analytics", "business", "marketing", "publishing", "releases"}],
+    ("@media (max-width: 560px)", ".Z-btn"): [
+        {"stage"}, {"analytics", "business", "marketing", "publishing", "releases", "studio"}],
+    ("@media (max-width: 560px)", ".Z-card"): [
+        {"stage"}, {"analytics", "business", "marketing", "publishing", "releases"}],
+}
+
+
+def _rules(css, context=""):
+    """(context, selector, body) for every rule, inside @media too."""
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    i, out = 0, []
+    while True:
+        j = css.find("{", i)
+        if j < 0:
+            return out
+        head = css[i:j].strip().split(";")[-1].strip()
+        depth, k = 1, j + 1
+        while depth and k < len(css):
+            depth += {"{": 1, "}": -1}.get(css[k], 0)
+            k += 1
+        inner = css[j + 1:k - 1]
+        if head.startswith(("@media", "@container", "@supports")):
+            out += _rules(inner, " ".join(head.split()))
+        elif not head.startswith("@"):
+            out.append((context, head, inner))
+        i = k
+
+
+def test_the_zero_page_parts_do_not_drift_apart():
+    table = {}
+    for room, pre in ZERO.items():
+        for ctx, sels, body in _rules(_read(ROOMS[room][0])):
+            decl = tuple(sorted(" ".join(d.split()) for d in body.split(";") if d.strip()))
+            for sel in sels.split(","):
+                n = " ".join(sel.split()).replace("." + pre + "-", ".Z-")
+                if any(n == ".Z-" + p or n.startswith(".Z-%s:" % p) for p in ZERO_PARTS):
+                    table.setdefault((ctx, n), {}).setdefault(room, set()).add(decl)
+    assert ("", ".Z-card") in table and ("", ".Z-two") in table, "the parser found the parts"
+    for key, by_room in sorted(table.items()):
+        groups = {}
+        for room, bodies in by_room.items():
+            groups.setdefault(frozenset(bodies), set()).add(room)
+        got = sorted(sorted(g) for g in groups.values())
+        want = sorted(sorted(g) for g in ZERO_DRIFT.get(key, [set(by_room)]))
+        assert got == want, (
+            "%s %s: the rooms' copies are %s, expected %s. A zero-page part changed in "
+            "one room and not the others - change them together (or, if a difference "
+            "is ruled on, record it in ZERO_DRIFT)." % (key[0] or "top level", key[1], got, want))

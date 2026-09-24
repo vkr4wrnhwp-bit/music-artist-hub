@@ -197,6 +197,10 @@
           <span><span class="font-bold">Edit the homepage</span><span class="block text-xs text-gray-300">The words, links and buttons on the public front page. Saves live, no deploy. Text and links only; layout stays.</span></span>
           <span class="text-sb-gold-bright" aria-hidden="true">›</span>
         </a>
+        <a href="/admin/providers" class="mt-3 flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-sm text-gray-100 hover:border-sb-gold/40">
+          <span><span class="font-bold">Providers</span><span class="block text-xs text-gray-300">Whether each outside service the app depends on answers right now: Stripe, Shopify, Resend, The MLC and the rest. Keys by name only; nothing is called until you press a button.</span></span>
+          <span class="text-sb-gold-bright" aria-hidden="true">›</span>
+        </a>
       </section>
 
       <section id="nav-layout" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
@@ -212,7 +216,7 @@
 
       <section id="home-layout" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
         <h2 class="sb-label text-sb-gold-bright">Home page</h2>
-        <p class="mt-2 text-sm text-gray-300">Long: the nine-section homepage, story and all. Split: the door only &mdash; headline, sign-in, the stages rail, the Artist EQ, the eight tools, the Artist Twin and memberships. Switch to Split once the story and the plans are up on the store. Changes the front page for everybody on their next visit, and switches back the same way.</p>
+        <p class="mt-2 text-sm text-gray-300">Long: the nine-section homepage, story and all. Split: the door only: headline, sign-in, the Artist EQ, the eight tools, the Artist Twin and memberships. Switch to Split once the story and the plans are up on the store. Changes the front page for everybody on their next visit, and switches back the same way.</p>
         {% if request.args.get('home') == 'saved' %}<p class="mt-2 text-sm text-green-400">Saved. The front page changed for everybody.</p>{% endif %}
         <form method="post" action="/admin/home-layout" class="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-100">
           <label class="flex items-center gap-2"><input type="radio" name="layout" value="full" class="accent-sb-gold"{% if not home_split %} checked{% endif %}> Long homepage</label>
@@ -221,12 +225,12 @@
         </form>
         <p class="mt-2 text-xs text-gray-300">Preview it either way at <a class="text-sb-gold-bright" href="/?home=split">/?home=split</a> and <a class="text-sb-gold-bright" href="/?home=full">/?home=full</a>. Owner only; nobody else's page changes.</p>
         {#- The memberships band on the app home (owner, 2026-09-23): the
-            three-screen rack with static until you point at one, or the
+            three-screen rack, dark glass until you point at a screen, or the
             engraved metal passes it replaced. Both stay; this picks. -#}
         {% if request.args.get('band') == 'saved' %}<p class="mt-4 text-sm text-green-400">Saved. The memberships band changed for everybody.</p>{% endif %}
         <form method="post" action="/admin/membership-band" class="mt-4 flex flex-wrap items-center gap-3 text-sm text-gray-100">
           <span class="font-bold">Memberships band:</span>
-          <label class="flex items-center gap-2"><input type="radio" name="band" value="rack" class="accent-sb-gold"{% if home_band != 'passes' %} checked{% endif %}> Rack &mdash; three screens, static until you point at one</label>
+          <label class="flex items-center gap-2"><input type="radio" name="band" value="rack" class="accent-sb-gold"{% if home_band != 'passes' %} checked{% endif %}> Rack: three dark screens, each shows its plan when you point at it</label>
           <label class="flex items-center gap-2"><input type="radio" name="band" value="passes" class="accent-sb-gold"{% if home_band == 'passes' %} checked{% endif %}> Metal passes</label>
           <button class="sb-btn sb-btn-secondary sb-btn-sm">Save band</button>
         </form>
@@ -376,7 +380,44 @@
       </section>
       {% endif %}
 
-      <section id="online-sales" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
+      {% if cover_month %}
+      {% set cv = cover_month %}
+      {% set cv_bad = (cover_msg or '')[8:].split(',') if (cover_msg or '').startswith('refused:') else [] %}
+      {#- Cover Studio renders (owner, 2026-09-23: "open ai and we allow x
+          amount of renders a month"). The key is shown as set or not set,
+          never its value. Counts are read from the cover_renders table;
+          the dollar figure is the done count times OpenAI's published price. -#}
+      <section id="cover-renders" class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
+        <h2 class="sb-label text-sb-gold-bright">Cover art renders</h2>
+        <p class="mt-2 text-sm text-gray-300">Owner only. The Cover Studio's Generate button. With OPENAI_API_KEY set, each cover is made by OpenAI's {{ cv.model }} and paid for by you, so every account gets a number of covers a month. A failed or refused cover is not counted. Your own logins are unlimited.</p>
+        {% if cover_msg == 'saved' %}<p class="mt-2 text-sm text-green-400">Saved.</p>
+        {% elif cv_bad %}<p class="mt-2 text-sm text-amber-300">Not saved for {{ cv_bad | join(', ') }}. Use a whole number from 0 to 10,000. The rest saved.</p>{% endif %}
+        <div class="mt-3 flex flex-wrap gap-2 text-sm">
+          <span class="sb-badge {{ 'sb-badge-good' if cv.key_set else 'sb-badge-warn' }}">OpenAI key: {{ 'set' if cv.key_set else 'not set' }}</span>
+          <span class="sb-badge sb-badge-idle">Generator: {{ 'OpenAI ' ~ cv.model if cv.key_set else 'Pollinations.ai (free, no key)' }}</span>
+        </div>
+        <dl class="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div class="rounded-lg border border-white/10 bg-black/30 p-2"><dt class="text-xs text-gray-300">Covers made, {{ cv.month }}</dt><dd class="text-lg font-black tabular-nums">{{ '{:,}'.format(cv.done) }}</dd></div>
+          <div class="rounded-lg border border-white/10 bg-black/30 p-2"><dt class="text-xs text-gray-300">Accounts</dt><dd class="text-lg font-black tabular-nums">{{ '{:,}'.format(cv.accounts) }}</dd></div>
+          <div class="rounded-lg border border-white/10 bg-black/30 p-2"><dt class="text-xs text-gray-300">OpenAI cost, about</dt><dd class="text-lg font-black tabular-nums">${{ cv.cost_usd }}</dd></div>
+        </dl>
+        <p class="mt-1 text-xs text-gray-300">${{ cv.price_usd }} a cover: {{ cv.price_source }}. The prompt's text is billed on top and is not counted here. Not made this month: {{ cv.refused }} refused by OpenAI's content rules, {{ cv.failed }} failed{% if cv.timeout %}, {{ cv.timeout }} timed out (OpenAI may have charged for these){% endif %}.</p>
+        {% if not cv.key_set %}<p class="mt-2 text-sm text-amber-300">No key yet, so covers come from the free Pollinations.ai model and nothing is counted or charged. Paste OPENAI_API_KEY in Render's Environment tab to switch to OpenAI.</p>{% endif %}
+        <form method="post" action="/admin/cover-renders" class="mt-3 space-y-3">
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {% for plan, label in (('fan', 'Fan'), ('artist', 'Artist'), ('pro', 'Pro'), ('label', 'Label')) %}
+            <label class="block text-xs font-bold uppercase tracking-wide text-gray-300" for="covers-{{ plan }}">{{ label }}, a month
+              <input id="covers-{{ plan }}" name="covers_{{ plan }}" inputmode="numeric" value="{{ cv.allowances[plan] }}" class="mt-1 block w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-gray-100">
+            </label>
+            {% endfor %}
+          </div>
+          <p class="text-xs text-gray-300">Covers per account each calendar month. They reset on the 1st (next: {{ cv.resets }}). Team members use the account holder's covers.</p>
+          <button type="submit" class="sb-btn sb-btn-primary w-full">Save cover allowances</button>
+        </form>
+      </section>
+      {% endif %}
+
+      <section id="online-sales"class="rounded-2xl border border-sb-gold/30 bg-gradient-to-b from-sb-surface-2 to-sb-surface-1 p-5">
         <h2 class="sb-label text-sb-gold-bright">Online sales</h2>
         <p class="mt-2 text-sm text-gray-300">Owner only. Artists' VIP packages and paid fan club joins take their fans' money into your Stripe account, and you settle with the artist by hand. While this is off, artists can still set them up, and a fan who opens the page is asked to email {{ online_sales_contact }} for details.</p>
         <p class="mt-3 text-sm font-bold {{ 'text-green-400' if online_sales_on else 'text-amber-300' }}">Online sales are {{ 'on' if online_sales_on else 'off' }}.</p>

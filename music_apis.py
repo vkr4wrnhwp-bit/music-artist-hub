@@ -163,44 +163,110 @@ def deezer_has_isrc(isrc):
             data = _fetch_json("https://api.deezer.com/track/isrc:" + isrc)
         except Exception as exc:                               # noqa: BLE001
             return None, "Deezer did not answer (%s)" % (str(exc)[:60] or "no detail")
-        store.cache_set(key, data)
+        # Only an answer is kept for 30 days: a track, or their 800 "no
+        # data". A quota or other error object comes back with HTTP 200 too,
+        # and caching it turned a minute's blip into a month of "Deezer
+        # refused" without Deezer being asked again (audit, 2026-09-23).
+        if _deezer_answer(data, no_data_is_answer=True):
+            store.cache_set(key, data)
     if not isinstance(data, dict):
         return None, "Deezer sent something unreadable"
     error = data.get("error") or {}
     if error:
         # 800 / "no data" is a real answer: they do not have it. Anything
         # else is their problem, not evidence about the recording.
-        if str(error.get("code")) == "800":
+        if isinstance(error, dict) and str(error.get("code")) == "800":
             return False, "not in Deezer's catalogue"
-        return None, "Deezer refused (%s)" % str(error.get("message") or error)[:60]
+        said = error.get("message") if isinstance(error, dict) else error
+        return None, "Deezer refused (%s)" % str(said or error)[:60]
     link = (data.get("link") or "").strip()
     if not link:
         return None, "Deezer answered without a track link"
     return True, link
 
 
+def _deezer_answer(reply, no_data_is_answer=False):
+    """True when a Deezer reply is an answer worth keeping for a month.
+
+    Deezer answers errors with HTTP 200 and an {"error": {...}} object
+    (quota, 4; no data, 800). Only their 800 "no data" is an answer, and
+    only where absence is the question; every other error, and anything
+    that is not a JSON object, is their problem and is asked again next
+    time rather than cached as a miss."""
+    if not isinstance(reply, dict):
+        return False
+    error = reply.get("error")
+    if error:
+        return bool(no_data_is_answer and isinstance(error, dict)
+                    and str(error.get("code")) == "800")
+    return True
+
+
+def _norm_name(text):
+    """A title or an artist name, compared as a person would read it:
+    accents, case, punctuation and a "(feat. ...)" tail do not make two
+    names different."""
+    import re
+    import unicodedata
+    t = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode("ascii")
+    t = t.lower()
+    t = re.sub(r"[\(\[]\s*(feat|ft|featuring|with)\b[^\)\]]*[\)\]]", " ", t)
+    t = re.sub(r"\s(feat|ft|featuring)\.?\s.*$", " ", t)
+    t = re.sub(r"[^a-z0-9]+", " ", t)
+    return " ".join(t.split())
+
+
+DEEZER_CANDIDATES = 10     # keyword hits read before one is accepted
+
+
 def deezer_track_metadata(title, artist):
     """Industry identifiers for a track from Deezer's free API: ISRC, and
-    the album's UPC, label, release date. Returns a dict or None."""
+    the album's UPC, label, release date. Returns a dict or None.
+
+    A keyword search is not an identity. The first hit for "Hello Probe
+    Artist" was Adele's "Hello", and its ISRC, UPC and label were stored
+    as the artist's own (audit, 2026-09-23). A hit is accepted only when
+    its title AND its artist name match the ones asked for; with no artist
+    to match, nothing is accepted. Even then it is a match by name, not a
+    confirmation, and the result says so: `source`, `matched_by`,
+    `read_on` (the day Deezer answered) and `lookup_codes` (the codes as
+    Deezer gave them, so a page can tell a looked-up code from a typed
+    one later).
+    """
     title = (title or "").strip()
     artist = (artist or "").strip()
-    if not title:
+    if not title or not artist:
         return None
-    key = "deezer2:%s|%s" % (title.lower(), artist.lower())
+    # "deezer3": answers cached under "deezer2" were first hits taken
+    # without matching the artist, and are not reused.
+    key = "deezer3:%s|%s" % (title.lower(), artist.lower())
     data = store.cache_get(key, DEEZER_TTL)
     if data is None:
         # Plain keyword query — Deezer's quoted advanced syntax 404s when urlencoded.
         url = "https://api.deezer.com/search?" + urllib.parse.urlencode(
-            {"q": ("%s %s" % (title, artist)).strip(), "limit": 1})
+            {"q": ("%s %s" % (title, artist)).strip(), "limit": DEEZER_CANDIDATES})
+        want_title, want_artist = _norm_name(title), _norm_name(artist)
         try:
-            hits = (_fetch_json(url).get("data") or [])
-            if not hits:
-                data = {}
+            found = _fetch_json(url)
+            if not _deezer_answer(found) or not isinstance(found.get("data"), list):
+                return None                       # an error object: asked again next time
+            hit = next((h for h in found["data"] if isinstance(h, dict)
+                        and _norm_name((h.get("artist") or {}).get("name")) == want_artist
+                        and want_title in (_norm_name(h.get("title_short")),
+                                           _norm_name(h.get("title")))), None)
+            if hit is None:
+                data = {}                          # Deezer answered: no such track by this artist
             else:
-                track = _fetch_json("https://api.deezer.com/track/%s" % hits[0]["id"])
+                track = _fetch_json("https://api.deezer.com/track/%s" % hit["id"])
+                if not _deezer_answer(track) or not track.get("id"):
+                    return None
                 album_id = (track.get("album") or {}).get("id")
                 album = _fetch_json("https://api.deezer.com/album/%s" % album_id) if album_id else {}
-                data = {"track": track, "album": album}
+                if album_id and (not _deezer_answer(album) or not album.get("id")):
+                    return None
+                from datetime import datetime, timezone
+                data = {"track": track, "album": album,
+                        "read_on": datetime.now(timezone.utc).date().isoformat()}
         except Exception:
             return None
         store.cache_set(key, data)
@@ -210,16 +276,29 @@ def deezer_track_metadata(title, artist):
     album = data.get("album") or {}
     genres = [g.get("name") for g in ((album.get("genres") or {}).get("data") or [])
               if g.get("name")]
-    return {
-        "isrc": track.get("isrc") or "",
-        "upc": album.get("upc") or "",
-        "label": album.get("label") or "",
+    codes = {"isrc": track.get("isrc") or "", "upc": album.get("upc") or "",
+             "label": album.get("label") or ""}
+    return dict(codes, **{
         "release_date": album.get("release_date") or track.get("release_date") or "",
         "album": album.get("title") or (track.get("album") or {}).get("title") or "",
         "genre": genres[0] if genres else "",
         "duration": track.get("duration") or 0,
         "track_count": album.get("nb_tracks") or 0,
-    }
+        "source": "Deezer",
+        "matched_by": "title and artist",
+        "read_on": data.get("read_on") or "",
+        "lookup_codes": {k: v for k, v in codes.items() if v},
+    })
+
+
+def deezer_artist_known_absent(name):
+    """True when Deezer answered a search for this name with no artist at
+    all - the only case where "no Deezer match" is a fact. False when it
+    was never asked, did not answer, or sent an error."""
+    name = (name or "").strip()
+    if not name:
+        return False
+    return store.cache_get("deezerartist:%s" % name.lower(), DEEZER_TTL) == {}
 
 
 def deezer_artist_fans(name):
@@ -234,12 +313,17 @@ def deezer_artist_fans(name):
         url = "https://api.deezer.com/search/artist?" + urllib.parse.urlencode(
             {"q": name, "limit": 1})
         try:
-            hits = _fetch_json(url).get("data") or []
+            reply = _fetch_json(url)
         except Exception:
             return None
+        # An error object (quota and the like, sent with HTTP 200) is not
+        # "no match": it is not cached, and Deezer is asked again next time.
+        if not _deezer_answer(reply) or not isinstance(reply.get("data"), list):
+            return None
+        hits = reply["data"]
         data = hits[0] if hits else {}
         store.cache_set(key, data)
-    if not data.get("id"):
+    if not isinstance(data, dict) or not data.get("id"):
         return None
     return {"name": data.get("name") or name,
             "fans": data.get("nb_fan") or 0,

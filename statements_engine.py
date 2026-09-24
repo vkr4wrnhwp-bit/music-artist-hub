@@ -181,9 +181,30 @@ def annualize(rows):
     }
 
 
+def _binary_kind(data):
+    """What a non-text upload is, by its first bytes, or "" for text."""
+    head = bytes(data[:8])
+    if head.startswith(b"%PDF"):
+        return "PDF"
+    if head.startswith(b"PK\x03\x04"):
+        return "spreadsheet (XLSX, ODS or Numbers)"
+    if head.startswith(b"\xd0\xcf\x11\xe0"):
+        return "spreadsheet (XLS)"
+    return ""
+
+
 def parse_statement(data, filename="statement.csv"):
     """Parse CSV bytes/str -> {rows, columns, skipped, error}."""
     if isinstance(data, bytes):
+        # Only CSV is read. A PDF or a spreadsheet used to be decoded as
+        # text and refused with its raw bytes printed as "Headers seen"
+        # (audit business-3, 2026-09-23); it is named and refused plainly.
+        kind = _binary_kind(data)
+        if kind:
+            return {"rows": [], "columns": {}, "skipped": 0,
+                    "error": ("This looks like a %s, not a CSV. PDF and spreadsheet "
+                              "statements can't be read yet. Export the statement as a "
+                              "CSV from the service that sent it, and upload that." % kind)}
         try:
             text = data.decode("utf-8-sig")
         except UnicodeDecodeError:

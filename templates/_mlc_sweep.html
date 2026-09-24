@@ -12,13 +12,17 @@
 {% if mlc.latest %}
       {%- set rows = mlc.latest.rows -%}
       {%- set gaps = rows | selectattr("gap") | list -%}
-      {%- set rest = rows | rejectattr("gap") | list -%}
+      {#- An error or an ISRC the check never asked is not "nothing at
+          risk": it is unknown, and it stays in view beside the gaps. -#}
+      {%- set unknown = rows | rejectattr("gap") | selectattr("result", "in", ["error", "not_asked"]) | list -%}
+      {%- set rest = rows | rejectattr("gap") | rejectattr("result", "in", ["error", "not_asked"]) | list -%}
       <div class="rv-mlc-sum">
         <span>Checked {{ mlc.latest.summary.checked }} · {{ mlc.latest.created[:16] }}</span>
         {{ sb.lamp(mlc.latest.summary.matched ~ ' fully claimed', 'good') }}
         {{ sb.lamp(mlc.latest.summary.partial ~ ' partly claimed', 'warn') }}
         {{ sb.lamp(mlc.latest.summary.unmatched ~ ' no work linked', 'crit') }}
         {% if mlc.latest.summary.errors %}{{ sb.lamp(mlc.latest.summary.errors ~ ' error' ~ ('' if mlc.latest.summary.errors == 1 else 's'), 'crit') }}{% endif %}
+        {% if mlc.latest.summary.not_asked %}{{ sb.lamp(mlc.latest.summary.not_asked ~ ' not asked', 'warn') }}{% endif %}
         {% if mlc.latest.summary.skipped %}<span>{{ mlc.latest.summary.skipped }} more not checked this run (cap {{ mlc.per_sweep }} a run)</span>{% endif %}
       </div>
       {%- macro work(r) %}
@@ -29,6 +33,8 @@
           <div class="rv-claim"><span class="bar" role="img" aria-label="{{ pct }}% of the work claimed"><i style="--rv-w: {{ pct }}%"></i>{% if pct < 99.5 %}<i class="rest" style="--rv-rest: {{ 100 - pct }}%"></i>{% endif %}</span><span>{{ pct }}% claimed</span></div>
           {% elif r.result == 'none' %}
           <div class="rv-claim"><span class="bar none" role="img" aria-label="no work linked"></span>{{ sb.lamp('no work linked', 'crit') }}</div>
+          {% elif r.result == 'not_asked' %}
+          <div class="rv-claim"><span class="bar error" role="img" aria-label="not asked"></span>{{ sb.lamp('not asked', 'warn') }}</div>
           {% else %}
           <div class="rv-claim"><span class="bar error" role="img" aria-label="error"></span>{{ sb.lamp('error', 'crit') }}</div>
           {% endif %}
@@ -58,8 +64,9 @@
       {%- endmacro %}
       <div class="mt-2">
         {% for r in gaps %}{{ work(r) }}{% endfor %}
+        {% for r in unknown %}{{ work(r) }}{% endfor %}
         {% if rest %}
-        {% if gaps %}
+        {% if gaps or unknown %}
         <details class="rv-more">
           <summary>{{ rest | length }} more checked, nothing at risk · show all {{ rows | length }}</summary>
           <div>{% for r in rest %}{{ work(r) }}{% endfor %}</div>

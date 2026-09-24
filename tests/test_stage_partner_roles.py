@@ -51,7 +51,6 @@ def stage(flask_app):
     adv.attach(show, owner["id"], pid)
     dev, _t = sb.register(owner["id"], show, "Rack A")
     sb.arm(dev["id"], owner["id"])
-    sb.heartbeat(sb.get_device(dev["id"]), {"ok": True})
 
     seats = {}
     for role in ("admin", "manager", "support", "viewer"):
@@ -61,6 +60,12 @@ def stage(flask_app):
     other_client, other = _account(flask_app, "elsewhere")
     other_partner = pstore.create_partner("Other %s" % uuid.uuid4().hex[:6])
     pstore.add_member(other_partner, other["email"], name=other["name"], role="owner", user_id=other["id"])
+    # The heartbeat goes last. The safety engine calls a bridge quieter than
+    # heartbeat_stale_s (20 s) absent - correctly - and signing up five
+    # accounts first could take longer than that on a loaded machine, so
+    # the desk read Request Mode and the role checks failed on timing, not
+    # on roles (2026-09-23: 4 of 4 runs under a full parallel suite).
+    sb.heartbeat(sb.get_device(dev["id"]), {"ok": True})
     return {"owner": owner_client, "owner_user": owner, "partner": partner_id, "show": show,
             "seats": seats, "stranger": other_client, "device": dev}
 
