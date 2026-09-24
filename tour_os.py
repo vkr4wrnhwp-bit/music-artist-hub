@@ -1314,6 +1314,8 @@ def _all_tours_month(tours, month_arg):
         for d in ts.list_days(t["id"]):
             s = show_by_id.get(d.get("show_id"))
             entries.append({"date": d["date"], "tour": t["name"], "tours_n": len(tours),
+                            # the Mock Up Tour's dates are marked Sample in the cell
+                            "sample": bool(t.get("is_sample")),
                             "label": (s["city"] or s["venue"]) if s else (d.get("title") or (d.get("kind") or "").replace("_", " ").capitalize()),
                             "show": bool(s),
                             "href": "/tours/%s/shows/%s" % (t["id"], s["id"]) if s else "/tours/%s/calendar?month=%s" % (t["id"], d["date"][:7])})

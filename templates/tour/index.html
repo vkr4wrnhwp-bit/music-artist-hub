@@ -72,7 +72,8 @@
       {% set tag = 'a' if first else 'span' %}
       <{{ tag }} class="to-cal-day {{ 'is-out' if not c['in_month'] }} {{ 'is-today' if c['today'] }}"{% if first %} href="{{ first['href'] }}"{% endif %} aria-label="{{ c['date'] }}">
         <span class="d">{{ c['day'] }}</span>
-        {% for it in c['items'][:2] %}<div class="ev {{ 'show' if it['show'] }}">{{ it['label'] }}</div>{% if it['tours_n'] > 1 %}<div class="pct">{{ it['tour'] }}</div>{% endif %}{% endfor %}
+        {#- A sample date says so in its cell, beside a real one or alone. -#}
+        {% for it in c['items'][:2] %}<div class="ev {{ 'show' if it['show'] }}">{{ it['label'] }}</div>{% if it['sample'] %}<div class="pct is-sample">Sample{% if it['tours_n'] > 1 %} · {{ it['tour'] }}{% endif %}</div>{% elif it['tours_n'] > 1 %}<div class="pct">{{ it['tour'] }}</div>{% endif %}{% endfor %}
         {% if c['items'] %}<span class="dot"></span>{% endif %}
       </{{ tag }}>
     {% endfor %}

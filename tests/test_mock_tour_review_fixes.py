@@ -126,6 +126,28 @@ def test_someone_invited_before_the_rule_sees_the_sample_marked_on_their_tour_ho
     assert "Mock Up Tour" in shared and "Sample</span>" in shared
 
 
+# --- internal pickers (sample-unlabelled-internal-pickers) ------------------
+
+def test_sample_dates_are_labelled_in_the_light_studio_picker(mock_on, flask_app):
+    c, user, mock_id, slug = _with_mock(flask_app)
+    _real_confirmed_show(c, "Real Picker Room")
+    page = c.get("/lights").get_data(as_text=True)
+    picker = page.split('id="lx-tourshow"')[1].split("</select>")[0]
+    assert "2027-04-08 · Milwaukee, WI (sample)</option>" in picker
+    assert "2030-06-12 · Knoxville, TN</option>" in picker, "a real date carries no label"
+
+
+def test_sample_dates_are_marked_on_the_tours_calendar(mock_on, flask_app):
+    c, user, mock_id, slug = _with_mock(flask_app)
+    tid, _sid = _real_confirmed_show(c, "Real Calendar Room", date_="2027-04-09")
+    cal = c.get("/tours?month=2027-04").get_data(as_text=True)
+    grid = cal.split('id="all-cal"')[1]
+    sample_cell = grid.split('aria-label="2027-04-08')[1].split("</a>")[0]
+    assert 'class="pct is-sample">Sample' in sample_cell
+    real_cell = grid.split('aria-label="2027-04-09')[1].split("</a>")[0]
+    assert "Knoxville, TN" in real_cell
+
+
 # --- recognising the sample (tour-safe-1, tour-safe-4) ----------------------
 
 def test_an_upload_named_like_the_sample_sheet_leaves_a_real_tour_real(mock_off, flask_app):

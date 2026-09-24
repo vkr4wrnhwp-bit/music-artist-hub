@@ -2827,7 +2827,7 @@ Named shows saved per account, each explicit save taking a version snapshot that
 
 Programs a light show against a track — cues, looks, rig layout and DMX patch — and sends it out over ENTTEC USB, Art-Net or sACN.
 
-- Because: app.py:7351 renders templates/lights.html with the account's own library, rigs, setlists and tour dates; static/js/lights-engine.js frames real DMX, Art-Net and sACN packets (:262, :315, :338) and templates/lights.html:150 downloads static/tools/lx-bridge.py, the local UDP forwarder the browser cannot be; probed GET /lights 200.
+- Because: app.py:7351 renders templates/lights.html with the account's own library, rigs, setlists and tour dates (a date on the Mock Up Tour is offered with "(sample)" after it, from tour_mockup.mock_tour_ids, so it is never mistaken for a real date when a show is linked; review 2026-09-24); static/js/lights-engine.js frames real DMX, Art-Net and sACN packets (:262, :315, :338) and templates/lights.html:150 downloads static/tools/lx-bridge.py, the local UDP forwarder the browser cannot be; probed GET /lights 200.
 - Routes: GET /lights; POST /lights/save
 - Files: app.py:7351 lights(), :7378 lights_save(); static/js/lights-engine.js, static/js/lights.js; static/tools/lx-bridge.py; db.py:187 light_shows (the working copy); templates/lights.html
 - Access: Signed in; required_tier("/lights") is artist, and plans._TOUR_PATHS puts it behind the Tour suite (Pro) wherever plans.gates_on(). Team seat: the Stage room.

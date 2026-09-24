@@ -8833,9 +8833,16 @@ def create_app():
         }
         tracks = [{"id": t["id"], "title": t["title"]} for t in store.list_os_tracks(user["id"])]
         # venue_key lets the page pick the rig bound to the room without a
-        # round trip when a show is linked to a tour date.
+        # round trip when a show is linked to a tour date. A date on the
+        # Mock Up Tour is offered too (the Studio is the member's own
+        # room) but labelled "(sample)": sample data is always labelled,
+        # and a show linked to one by mistake gives the real date's rider
+        # no Lighting section.
+        import tour_mockup
+        sample_ids = tour_mockup.mock_tour_ids(user["id"])
         tour_shows = [{"id": s["id"], "date": s["date"], "venue": s["venue"], "city": s.get("city") or "",
-                       "venue_key": lights_store.venue_key(s["venue"])}
+                       "venue_key": lights_store.venue_key(s["venue"]),
+                       "is_sample": (s.get("tour_id") or "") in sample_ids}
                       for s in store.list_tour_shows(user["id"])]
         return render_template("lights.html", active_page="lights",
                                saved_show=(_json.dumps(saved) if saved else "null"),
