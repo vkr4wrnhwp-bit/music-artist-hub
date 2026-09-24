@@ -2585,7 +2585,12 @@ def _send_context(tour, show, viewer, user, create_links=False):
     # account holder's to hand out: a team seat composes and sends the
     # advance without them (none are made or shown), and the page says so.
     links_held = viewer.get("seat") is not None
-    if links_held:
+    # A date on the Mock Up Tour gets no public link at all: the rider
+    # page and the production pack would put an invented show in front
+    # of real people, and one made before that rule opens nothing. The
+    # page says so instead of "created when you send".
+    links_sample = sample_tour(tour)
+    if links_held or links_sample:
         links = {"rider": "", "production": ""}
     else:
         links = {"rider": _rider_url(tour, show, create_links),
@@ -2607,7 +2612,8 @@ def _send_context(tour, show, viewer, user, create_links=False):
                            if v["kind"] == "press_kit"],
             "sender": sender, "sender_address": emailer.sender(),
             "mail_ready": emailer.configured() and not emailer.using_shared_test_sender(),
-            "links": links, "links_held": links_held, "sends": ts.list_advance_sends(tid, sid)}
+            "links": links, "links_held": links_held, "links_sample": links_sample,
+            "sends": ts.list_advance_sends(tid, sid)}
 
 
 def _file_bytes(record):

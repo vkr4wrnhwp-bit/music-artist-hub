@@ -206,3 +206,28 @@ def test_a_mock_up_tour_cut_off_half_built_is_still_the_sample(mock_on, flask_ap
     assert [s for s in ts.list_shows(tid) if s["status"] == "confirmed"], "it did get invented confirmed dates"
     assert tour_mockup.is_mock(tid)
     assert tour_dates.upcoming(user["id"]) == []
+
+
+# --- the Share page and the Send tab (tour-safe-3) --------------------------
+
+def test_the_sample_share_page_calls_no_old_link_live(mock_on, flask_app):
+    c, user, mock_id, slug = _with_mock(flask_app)
+    token = ts.create_share_link(mock_id, user["id"], "band")
+    link = ts.list_share_links(mock_id)[0]
+    page = c.get("/tours/%s/share" % mock_id).get_data(as_text=True)
+    assert 'to-chip--ok">live<' not in page and token not in page
+    assert "/share/%s/qr.svg" % link["id"] not in page
+    assert "off: sample tour" in page
+    assert 'action="/tours/%s/share/%s/revoke"' % (mock_id, link["id"]) in page, "revoking still works"
+    assert flask_app.test_client().get("/tour-share/%s" % token).status_code == 404
+
+
+def test_the_sample_send_tab_composes_no_public_link(mock_on, flask_app):
+    c, user, mock_id, slug = _with_mock(flask_app)
+    sid = _confirmed_sample_show(mock_id)["id"]
+    rider = uuid.uuid4().hex
+    store.set_show_share_token(user["id"], sid, rider)
+    prod = ts.create_share_link(mock_id, user["id"], "production", sid)
+    send = c.get("/tours/%s/shows/%s?tab=send" % (mock_id, sid)).get_data(as_text=True)
+    assert rider not in send and prod not in send
+    assert "created when you send" not in send

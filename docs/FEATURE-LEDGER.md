@@ -2965,7 +2965,7 @@ The pages a share token opens: day sheet, photographer brief, guest check-in, ve
 - Because: tour_os.py:4712 shared() resolves the link, enforces password and expiry, counts the access, and renders the scope's own template from real rows; the band scope is built field by field so a column added later cannot start travelling (:4743); guest and VIP check-in POST real status changes back.
 - Routes: GET and POST /tour-share/<token>; GET /tour-share/<token>/file/<file_id>
 - Files: tour_os.py:4712 shared(), :4840 shared_file(), :4699 _share_link_or_404(); templates/tour/share_*.html, print_day_sheet.html; stage_os.py:583 guest_page() for scope "stage"
-- Access: Anonymous — app.py:4848 lists /tour-share/ public; the token plus any password is the authorisation. A production file download re-checks visibility=all, category and that the file belongs to the linked show (tour_os.py:4846). A link on the Mock Up Tour answers 404 (_share_link_or_404) and share_new makes none there (2026-09-23).
+- Access: Anonymous — app.py:4848 lists /tour-share/ public; the token plus any password is the authorisation. A production file download re-checks visibility=all, category and that the file belongs to the linked show (tour_os.py:4846). A link on the Mock Up Tour answers 404 (_share_link_or_404) and share_new makes none there (2026-09-23); one made on it before that rule is listed on the sample's Share page as "off: sample tour", with no URL and no QR code, and can still be revoked (templates/tour/share.html; review 2026-09-24).
 
 **Public show day page**
 
@@ -3001,7 +3001,7 @@ Composes one email per show from its own rows, attaches the plot, input list, ri
 - Because: tour_os.py:2616 _deliver_advance composes through tour_advance_mail, attaches real bytes and calls email_provider.send, then writes tour_advance_sends with sent/failed; :2648 refuses to report "sent" when the mailer is unconfigured or on Resend's shared test sender.
 - Routes: POST /tours/<tour_id>/shows/<show_id>/advance/send; POST /tours/<tour_id>/advance/send-all
 - Files: tour_os.py:2641 advance_send(), :2669 advance_send_all(), _send_context :2498, _build_attachments :2553; tour_advance_mail.py; email_provider.py; tour_store.py:533 tour_advance_sends
-- Access: require_tour("advance", "edit"). A team seat composes and sends but is given no public rider or production link — tour_os.py:2513 links_held blanks both. Refused on the Mock Up Tour (fail=sample, advance_fail=sample): an invented show is never advanced to a real inbox (2026-09-23).
+- Access: require_tour("advance", "edit"). A team seat composes and sends but is given no public rider or production link — tour_os.py:2513 links_held blanks both. Refused on the Mock Up Tour (fail=sample, advance_fail=sample): an invented show is never advanced to a real inbox (2026-09-23), and its Send tab composes and shows no rider or production link, even one minted before the rule (_send_context links_sample; review 2026-09-24).
 
 **Set lists**
 
