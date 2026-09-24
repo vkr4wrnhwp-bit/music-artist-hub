@@ -321,3 +321,13 @@ def test_the_twin_reads_the_soundcharts_follower_series_without_spotify(monkeypa
         assert "Followers 1200 \u2192 1350 over your last 2 snapshots." in body
     finally:
         providers.reset_registry(None)
+
+
+def test_the_showcase_money_card_says_its_figure_is_sample():
+    """The showcase login's card reads royalty_data's sample findings; the
+    ledger line above it carries a Sample tag and this card did not."""
+    client = create_app().test_client()
+    client.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    card = _money_card(client.get("/overview").get_data(as_text=True))
+    assert "Estimated uncollected royalties" in card
+    assert ">Sample</span>" in card
