@@ -98,6 +98,34 @@ def test_the_old_hub_routes_neither_mail_nor_mint_a_link_for_a_sample_date(mock_
     assert "sent=1" in r.headers["Location"] and len(outbox) == 1
 
 
+# --- invitations (sample-note-cannot-be-shared-overclaim) -------------------
+
+def test_the_sample_cannot_be_shared_by_invitation(mock_on, flask_app, monkeypatch):
+    sent = []
+    monkeypatch.setattr(email_provider, "send", lambda *a, **k: sent.append(a) or True)
+    c, user, mock_id, slug = _with_mock(flask_app)
+    r = c.post("/tours/%s/team/invite" % mock_id,
+               data={"email": "crew-%s@example.net" % uuid.uuid4().hex[:6], "name": "Crew", "role": "crew"})
+    assert r.status_code == 302 and "invite=sample" in r.headers["Location"]
+    assert ts.list_members(mock_id) == [] and sent == []
+    team = c.get("/tours/%s/team" % mock_id).get_data(as_text=True)
+    assert 'id="sample-no-invite"' in team
+    assert 'action="/tours/%s/team/invite"' % mock_id not in team
+
+
+def test_someone_invited_before_the_rule_sees_the_sample_marked_on_their_tour_home(mock_on, flask_app):
+    c, user, mock_id, slug = _with_mock(flask_app)
+    email = "crew-%s@example.net" % uuid.uuid4().hex[:8]
+    m = ts.add_member(mock_id, user["id"], email, "Crew", "crew")
+    crew = flask_app.test_client()
+    crew.post("/signup", data={"name": "Crew", "email": email, "password": PW})
+    crew.post("/login", data={"email": email, "password": PW})
+    crew.get("/tours/join/%s" % m["invite_token"])
+    home = crew.get("/tours").get_data(as_text=True)
+    shared = home.split('id="shared"')[1].split("</div>\n  </div>")[0]
+    assert "Mock Up Tour" in shared and "Sample</span>" in shared
+
+
 # --- recognising the sample (tour-safe-1, tour-safe-4) ----------------------
 
 def test_an_upload_named_like_the_sample_sheet_leaves_a_real_tour_real(mock_off, flask_app):

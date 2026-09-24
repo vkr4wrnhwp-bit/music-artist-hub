@@ -3169,7 +3169,7 @@ In-platform reply threads between a poster and a replier, with an unread count a
 
 Invites people by email with a role preset and a scope list, links them to a person record, changes or removes them.
 
-- Because: tour_os.py:4870 writes tour_members with an invite token, notifies an existing account and emails the join link when the mailer is live; only the owner may hand out admin (:4877, :4915).
+- Because: tour_os.py:4870 writes tour_members with an invite token, notifies an existing account and emails the join link when the mailer is live; only the owner may hand out admin (:4877, :4915). Nobody is invited onto the Mock Up Tour: team_invite answers invite=sample and writes nothing, and templates/tour/team.html shows the reason (sample-no-invite) in place of the form, because a seat on the sample would put its invented dates in front of a real person (review, 2026-09-24; tests/test_mock_tour_review_fixes.py).
 - Routes: GET /tours/<tour_id>/team; POST .../team/invite; POST .../team/<member_id>
 - Files: tour_os.py:4858 team(), :4870 team_invite(), :4900 team_member(); tour_store.py:145 SCOPES, :149 ROLE_PRESETS, :200 tour_members; templates/tour/team.html
 - Access: require_tour("admin"), and refused to a team seat (app.py:5057, tour_os.py:266).
@@ -3250,7 +3250,7 @@ Tasks against the tour or one date, kept in the account's Command Center action 
 
 Lists the tours the account owns and the tours it was invited onto, plus one month-grid across all of them.
 
-- Because: tour_os.py:1234 reads tour_store.list_tours / tours_shared_with and renders tour/index.html; probed GET /tours returned 200 for a real account.
+- Because: tour_os.py:1234 reads tour_store.list_tours / tours_shared_with and renders tour/index.html; probed GET /tours returned 200 for a real account. The Mock Up Tour is marked Sample wherever it appears here: on the owner's card, on the card of anyone invited onto it before invitations were refused there (index sets is_sample on the shared tours too, by tour_mockup.is_mock), and in the month grid, where each of its dates carries a Sample mark beside a real tour's date (_all_tours_month; review 2026-09-24; tests/test_mock_tour_review_fixes.py).
 - Routes: GET /tours
 - Files: tour_os.py:1234 index(); _all_tours_month() tour_os.py:1271; templates/tour/index.html; store tour_store.py
 - Access: Any signed-in account (no required_tier for /tours, not suite-path-gated). Owning a tour needs the artist tier, or Pro where plans.gates_on() (tour_os.py:1225 _artist_tier). Team seat: the Stage room (team_areas.py EXTRA/rooms.ROOMS); a seat sees only the artist's own tours, never tours the artist was invited onto (tour_os.py:282 _seat_viewer).

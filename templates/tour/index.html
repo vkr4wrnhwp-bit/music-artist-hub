@@ -43,7 +43,7 @@
         <span class="to-tile-v">{{ t['name'] }}</span>
         <span class="to-tile-s">{{ t['artist_name'] or '' }}</span>
       </a>
-      <div class="to-date-state"></div>
+      <div class="to-date-state">{% if t['is_sample'] %}<span class="to-chip to-chip--info">Sample</span>{% endif %}</div>
       <div><a class="to-btn to-btn--small" href="/tours/{{ t['id'] }}/my-day">My Day</a></div>
     </div>
     {% endfor %}

@@ -1274,6 +1274,11 @@ def index():
     # Tours the artist was invited onto are another account's; a seat
     # does not open them (see _seat_viewer).
     shared = [] if seat is not None else ts.tours_shared_with(user["id"])
+    # One of them can be that account's Mock Up Tour (an invitation made
+    # before invitations were refused there); its card carries the
+    # Sample chip like the owner's own does.
+    for t in shared:
+        t["is_sample"] = tour_mockup.is_mock(t["id"])
     for t in mine + shared:
         shows = ts.list_shows(t["id"])
         t["show_count"] = len(shows)
@@ -4990,6 +4995,12 @@ def team(user, tour, viewer, tour_id):
 @bp.route("/tours/<tour_id>/team/invite", methods=["POST"])
 @require_tour("admin")
 def team_invite(user, tour, viewer, tour_id):
+    if sample_tour(tour):
+        # The sample is nobody's to share, by link or by seat: an
+        # invitation would put its invented dates in front of a real
+        # person (review, 2026-09-24). The team page says so in place
+        # of the form.
+        return redirect("/tours/%s/team?invite=sample" % tour_id)
     f = request.form
     role = f.get("role") or "crew"
     scopes = [s for s in f.getlist("scopes") if s in ts.SCOPES] or list(ts.ROLE_PRESETS.get(role, ["view"]))
