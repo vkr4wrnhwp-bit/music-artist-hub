@@ -247,6 +247,8 @@ import release_ready_store
 import royalty_types
 import insights_engine
 import email_provider as emailer
+import fan_mail             # the signed ?f= fan link and the way out of fan email
+import fan_segments         # contactable(): the one door every fan send list goes through
 import spotify_provider as spotify
 import artist_twin as twin
 import plans
@@ -1492,16 +1494,16 @@ def create_app():
     @app.route("/privacy")
     def privacy():
         return render_template("legal.html", title="Privacy Policy",
-                               updated="July 9, 2026", sections=[
+                               updated="September 23, 2026", sections=[
             ("What we collect", "Account data (name, email, hashed password), the content you upload (statements, artwork, documents), campaign analytics (link clicks, referrers), and — when you connect them — data from services you authorize, like Spotify artist stats."),
             # The pre-save sentence is resolved against the running
             # deployment rather than asserted. With Spotify credentials
             # unset the flow falls back to notify-me and no token is ever
             # requested - claiming we encrypt one would be false.
-            ("Fan data you capture", "When a fan subscribes on your campaign pages, we store their email with a consent record, on your behalf. Artists control this data; we process it. " + (
+            ("Fan data you capture", "When a fan subscribes on your campaign pages, we store their email with a consent record, on your behalf. Artists control this data; we process it. Links in the emails we send a fan for an artist carry a code that credits their visits and button clicks on that artist's pages to their record, and the page passes it on after they sign up; nothing is stored on the fan's device for this. " + (
                 "Where a fan pre-saves, they authorize Spotify directly; that token is encrypted at rest and deleted once the release-day save completes."
                 if capability_status.is_live("spotify_presave")
-                else "Spotify pre-save is not connected on this deployment: pre-save buttons collect a notify-me address instead, and no Spotify token is requested, stored or processed.")),
+                else "Spotify pre-save is not connected on this deployment: the page offers a release-day email reminder instead, and no Spotify token is requested, stored or processed.")),
             ("What we don't do", "We don't sell personal data. We don't use your uploads to train AI models. We don't read fan tokens for anything beyond the save and the consented email."),
             ("Service providers", "We use Render (hosting), Resend (email delivery), and public music APIs (Spotify, Deezer, iTunes, Odesli, MusicBrainz, Bandsintown) to provide features you invoke. Each receives only what's needed for that feature."),
             ("Cookies", "We use a single session cookie to keep you signed in. No advertising trackers."),
@@ -1735,31 +1737,96 @@ def create_app():
 
     # --- Spotify pre-save OAuth (env-gated; notify-me fallback otherwise) ------
 
+    def _owner_partner(owner):
+        """The reseller an artist's account belongs to (users.partner_id),
+        while that reseller is active; None for Street Banker's own."""
+        pid = (owner or {}).get("partner_id")
+        if not pid:
+            return None
+        try:
+            partner = partner_store.get_partner(pid)
+        except Exception:
+            return None
+        return partner if partner and partner.get("status") == "active" else None
+
+    def _fan_mail_base(owner):
+        """Where the links in an email to an artist's fan point: the
+        reseller's own domain when the artist belongs to one that has one,
+        otherwise the public address (PUBLIC_BASE_URL, always https).
+
+        Never request.url_root, the rule at the top of this file: an inbox
+        link outlives the request that made it, Host is the caller's input,
+        and the daily run's request comes from the scheduler, so its fan
+        emails carried the scheduler's internal host until 2026-09-23. A
+        mail client's one-click unsubscribe also needs an https address
+        (RFC 8058)."""
+        domain = ((_owner_partner(owner) or {}).get("domain") or "").strip().lower()
+        return ("https://" + domain) if domain else public_url()
+
+    def _fan_mail_from(owner):
+        """The sender name on an email to an artist's fan: the artist's
+        reseller, or "" for Street Banker's own. Read from the artist, not
+        from the request: the daily run has no tenant, and a fan's page
+        view on the plain address has none either."""
+        brand = partner_store.branding(_owner_partner(owner))
+        return (brand or {}).get("name") or ""
+
+    def _fan_unsubscribe_url(owner, kind, ref_id):
+        """The way out that every marketing email to a fan carries: signed,
+        no login, no expiry, naming the fan record (fan_mail.FAN_REF) or
+        the membership (MEMBER_REF) the email goes to, never the address
+        (fan_mail), at the artist's public address."""
+        return (_fan_mail_base(owner) + "/unsubscribe/"
+                + fan_mail.unsubscribe_token(app.config["SECRET_KEY"], owner["id"], kind, ref_id))
+
     def _send_release_emails(campaign):
-        """Once per campaign, on the first page view after release: email
-        every consented fan the listen link. Env-gated on RESEND_API_KEY."""
+        """Once per campaign, on the first page view after release or the
+        daily run (/reminders/run), whichever comes first: email every
+        consented fan the listen link. Env-gated on RESEND_API_KEY. Returns
+        how many messages Resend accepted."""
         if (not emailer.configured() or links_engine.is_prerelease(campaign)
                 or (campaign.get("settings") or {}).get("release_email_sent")):
-            return
-        # Claim the flag before sending so concurrent page views can't double-send.
-        settings = dict(campaign.get("settings") or {})
-        settings["release_email_sent"] = True
-        mls.update_campaign(campaign["id"], campaign["user_id"],
-                            {"settings": settings})
-        listen_url = request.url_root.rstrip("/") + "/l/" + campaign["slug"]
-        html = emailer.release_email_html(
-            campaign["title"], campaign.get("artist_name") or "",
-            listen_url, campaign.get("cover_url") or "")
+            return 0
+        # More than a week after release it is not a reminder, from either
+        # caller (links_engine.RELEASE_EMAIL_DAYS). Until 2026-09-23 only
+        # the daily run checked, so a page view mailed "out now" months
+        # late.
+        if not links_engine.release_email_window_open(campaign):
+            return 0
+        # Claim the flag in the database before sending, not on the dict
+        # this was handed: only the caller whose claim lands sends, so a
+        # page view during the daily run, or two page views at once,
+        # cannot mail a fan twice (links_store.claim_release_email).
+        if not mls.claim_release_email(campaign["id"]):
+            return 0
         # Replies go to the artist, never to the sending address.
-        owner = store.get_user(campaign["user_id"]) or {}
-        sent = sum(1 for f in mls.campaign_fans(campaign["id"])
-                   if emailer.send(f["email"], "%s is out now" % campaign["title"], html,
-                                   reply_to=owner.get("email") or None))
+        owner = store.get_user(campaign["user_id"]) or {"id": campaign["user_id"]}
+        # The artist's public address, whichever caller this is: a fan's
+        # page view, or the daily run from the scheduler's host.
+        page_url = _fan_mail_base(owner) + "/l/" + campaign["slug"]
+        sender_name = _fan_mail_from(owner)
+        sent = 0
+        # Nobody who unsubscribed or was marked do not contact: the one
+        # door every send list goes through (fan_segments.contactable).
+        for f in fan_segments.contactable(mls.campaign_fans(campaign["id"])):
+            # Each fan's listen link is their own (fan_mail.fan_token): the
+            # visit it starts, and the click after it, go on their record.
+            listen_url = page_url + "?f=" + fan_mail.fan_token(app.config["SECRET_KEY"], f["id"])
+            way_out = _fan_unsubscribe_url(owner, fan_mail.FAN_REF, f["id"])
+            html = emailer.release_email_html(
+                campaign["title"], campaign.get("artist_name") or "",
+                listen_url, campaign.get("cover_url") or "", unsubscribe_url=way_out)
+            if emailer.send(f["email"], "%s is out now" % campaign["title"], html,
+                            reply_to=owner.get("email") or None,
+                            headers=fan_mail.unsubscribe_headers(way_out),
+                            from_name=sender_name):
+                sent += 1
         if sent:
             store.notify(campaign["user_id"], "fan",
                          "Release emails sent: %s" % campaign["title"],
                          "%d fan%s notified with the listen link." % (sent, "" if sent == 1 else "s"),
                          "/links/%s/analytics" % campaign["id"])
+        return sent
 
     def _process_due_presaves(campaign):
         """Lazy release-day conversion: whenever a released campaign page is
@@ -2098,6 +2165,29 @@ def create_app():
         variant = mls.get_variant_by_slug(vslug)
         return variant["id"] if variant and variant["campaign_id"] == campaign_id else None
 
+    def _link_fan(campaign):
+        """The fan a smart-link request comes from, when it says so: the
+        signed ?f= the app puts in the links of an email it sent that fan
+        (fan_mail.fan_token), passed on by the page to its own buttons.
+        Only a fan on this campaign's own account counts. A token naming
+        another account's fan, a tampered one, or none, is nobody."""
+        # Flask answers HEAD with the GET view, and a mail scanner's HEAD
+        # on the fan's own link is not the fan reading it (review, 2026-09-23).
+        if request.method == "HEAD":
+            return None
+        fan_id = fan_mail.read_fan_token(app.config["SECRET_KEY"], request.args.get("f"))
+        fan = mls.get_fan(fan_id) if fan_id else None
+        return fan if fan and fan["user_id"] == campaign["user_id"] else None
+
+    def _credit_fan(fan_id, counter):
+        """Add one to a fan's Visits or Clicks and re-score them, the same
+        way a capture or a pre-save re-scores them."""
+        mls.bump_fan(fan_id, counter)
+        fan = mls.get_fan(fan_id)
+        if fan:
+            score, level = links_engine.calculate_fan_intent(fan)
+            mls.set_fan_intent(fan_id, score, level)
+
     @app.route("/l/<slug>")
     def smart_link_redirect(slug):
         # Street Banker Links campaigns share the /l/ namespace with quick links.
@@ -2110,18 +2200,36 @@ def create_app():
             if campaign["status"] != "live" and not owner_preview:
                 abort(404)
             variant_id = _ml_variant_id(campaign["id"])
+            fan = None if owner_preview else _link_fan(campaign)
             if not owner_preview:
+                # A known fan's view is their visit, once per sitting: a
+                # reload inside the window is still recorded as a view, but
+                # it is not a second visit on their record.
+                new_visit = fan is not None and not mls.fan_event_since(
+                    campaign["id"], fan["id"], "page_view",
+                    (datetime.now(timezone.utc) - timedelta(
+                        minutes=fan_mail.VISIT_WINDOW_MINUTES)).isoformat(timespec="seconds"))
                 mls.track(campaign["id"], "page_view", variant_id=variant_id,
+                          fan_id=fan["id"] if fan else None,
                           referrer=request.referrer,
                           utm_source=request.args.get("utm_source"))
+                if new_visit:
+                    _credit_fan(fan["id"], "total_visits")
                 if request.args.get("src") == "qr":
                     mls.track(campaign["id"], "qr_scan", variant_id=variant_id)
                 _process_due_presaves(campaign)
             owner_epk = store.get_epk(campaign["user_id"]) or {}
             return render_template(
                 "link_campaign.html", c=campaign,
+                # Passed on to the page's own service buttons, so the click
+                # that follows a known fan's visit is theirs too.
+                fan_token=(request.args.get("f") or "") if fan else "",
                 store_url=((owner_epk.get("data") or {}).get("store_url") or ""),
                 spotify_presave=spotify.configured(),
+                # The email box stores an address for the release-day
+                # email, so it never says Pre-Save (links_engine).
+                notify_label=links_engine.notify_button_text(campaign.get("settings"),
+                                                             emailer.configured()),
                 presave_state=(request.args.get("presave") or ""),
                 destinations=mls.get_destinations(campaign["id"], active_only=True),
                 prerelease=links_engine.is_prerelease(campaign),
@@ -2156,8 +2264,12 @@ def create_app():
         if campaign["status"] != "live" and not owner_preview:
             abort(404)
         if not owner_preview:
+            fan = _link_fan(campaign)
             mls.track(campaign["id"], "service_click", variant_id=_ml_variant_id(campaign["id"]),
-                      service_key=dest["service_key"], referrer=request.referrer)
+                      service_key=dest["service_key"], referrer=request.referrer,
+                      fan_id=fan["id"] if fan else None)
+            if fan:
+                _credit_fan(fan["id"], "total_clicks")
         target = dest["url"]
         if not target.startswith(("http://", "https://")):
             abort(400)
@@ -2179,6 +2291,10 @@ def create_app():
         fan_id = mls.upsert_fan(campaign["user_id"], email, campaign["id"], name)
         consent_type = "presave_notify" if prerelease else "email_marketing"
         mls.add_consent(fan_id, campaign["id"], consent_type, consent_text)
+        # A fresh sign-up is the fan's own consent again: it lifts their
+        # own earlier unsubscribe and nothing else (fan_mail). The artist's
+        # do-not-contact mark stands, and then no email is promised below.
+        mls.unsuppress_fan(campaign["user_id"], email, only_reason=fan_mail.UNSUBSCRIBED)
         event = "presave_notify" if prerelease else "email_capture"
         mls.track(campaign["id"], event, variant_id=_ml_variant_id(campaign["id"]),
                   fan_id=fan_id)
@@ -2186,7 +2302,8 @@ def create_app():
         fan = mls.get_fan(fan_id)
         score, level = links_engine.calculate_fan_intent(fan)
         mls.set_fan_intent(fan_id, score, level)
-        message = ("You're locked in — we'll remind you the moment it drops."
+        held = bool((fan.get("suppressed") or "").strip())
+        message = (links_engine.notify_done_text(emailer.configured() and not held)
                    if prerelease else "You're on the list. Welcome to the inner circle.")
         store.notify(campaign["user_id"], "fan",
                      "%s: %s" % ("New pre-save" if prerelease else "New fan captured", email),
@@ -2203,7 +2320,91 @@ def create_app():
                 reward = {"url": v["path"],
                           "label": settings.get("gate_label")
                           or v["label"] or "Your unlock"}
+        # No fan token comes back: a typed address is not proof of who is
+        # typing, and until 2026-09-23 anyone who typed a fan's address got
+        # that fan's ?f= and could press the buttons on their record. The
+        # only ?f= is the one in an email the app sent that address.
         return jsonify({"ok": True, "message": message, "reward": reward})
+
+    # --- The way out of fan email ----------------------------------------------
+
+    def _unsubscribe_address(owner_id, kind, ref_id):
+        """The address an unsubscribe link was sent to, looked up from the
+        row its token names (fan_mail.unsubscribe_token), or None when the
+        artist has removed that row since."""
+        if kind == fan_mail.FAN_REF:
+            row = mls.get_fan(ref_id)
+            return row["email"] if row and row["user_id"] == owner_id else None
+        row = store.get_club_member(ref_id, owner_id)
+        return (row or {}).get("member_email") or None
+
+    @app.route("/unsubscribe/<token>", methods=["GET", "POST"])
+    def fan_unsubscribe(token):
+        """The link at the foot of every marketing email the app sends a fan
+        (fan_mail). No login: the signed token names the artist's account
+        and the one fan record or membership the email went to, and the
+        address is looked up here; the link itself never carries it.
+
+        GET shows one button and changes nothing, because mail scanners
+        follow links in messages. POST unsubscribes: from that button, or
+        in one click from the mail client's own button (RFC 8058: the body
+        is List-Unsubscribe=One-Click and carries no action). A fan who
+        changes their mind can subscribe again from the same page; that
+        lifts only their own unsubscribe, never the artist's do-not-contact
+        mark."""
+        named = fan_mail.read_unsubscribe_token(app.config["SECRET_KEY"], token)
+        owner = store.get_user(named[0]) if named else None
+        if owner is None:
+            return render_template("fan_unsubscribe.html", state="invalid"), 404
+        owner_id = owner["id"]
+        artist = artist_identity.display_name(owner) or owner.get("name") or "This artist"
+        email = _unsubscribe_address(owner_id, named[1], named[2])
+        if email is None:
+            # The artist removed the record this link was for: nothing is
+            # sent to it any more, and there is no address to show.
+            return render_template("fan_unsubscribe.html", state="gone", artist=artist)
+        fan = mls.fan_by_email(owner_id, email)
+        if request.method == "POST":
+            if request.form.get("action") == "resubscribe":
+                if mls.unsuppress_fan(owner_id, email, only_reason=fan_mail.UNSUBSCRIBED):
+                    store.notify(owner_id, "fan", "A fan subscribed again",
+                                 "%s turned your emails back on." % email, "/links/fans")
+                fan = mls.fan_by_email(owner_id, email)
+            elif not (fan or {}).get("suppressed"):
+                marked = mls.suppress_fan(owner_id, email, fan_mail.UNSUBSCRIBED)
+                if not marked:
+                    # No CRM record: a Fan Club member whose record was
+                    # removed still gets drop emails, so the suppression
+                    # needs a row to live on. Anyone else has no record
+                    # that anything is sent to.
+                    member = store.get_active_club_member(owner_id, email)
+                    if member:
+                        mls.add_suppressed_fan(owner_id, email, fan_mail.UNSUBSCRIBED,
+                                               created=member.get("created"))
+                        marked = True
+                if marked:
+                    store.notify(owner_id, "fan", "A fan unsubscribed",
+                                 "%s will not get your fan emails any more." % email,
+                                 "/links/fans")
+                fan = mls.fan_by_email(owner_id, email)
+        why = ((fan or {}).get("suppressed") or "").strip()
+        # Something on file that fan email is sent to: a CRM record, or an
+        # active membership. Without one the page says nothing is sent,
+        # whichever button was pressed: until 2026-09-23 "Subscribe again"
+        # told an address with no record that emails would resume.
+        on_file = fan is not None or store.get_active_club_member(owner_id, email) is not None
+        if why == fan_mail.UNSUBSCRIBED:
+            state = "out"
+        elif why:
+            state = "held"          # the artist's mark, or a bounce: not theirs to lift
+        elif not on_file:
+            state = "none"
+        elif request.method == "POST" and request.form.get("action") == "resubscribe":
+            state = "back"
+        else:
+            state = "ask"
+        return render_template("fan_unsubscribe.html", state=state, artist=artist,
+                               email=email, token=token)
 
     # --- Reports: real CSV download --------------------------------------------
 
@@ -5740,7 +5941,12 @@ def create_app():
                         "/tour-share/",
                         # The Team-Up Board's one-click renew link from the
                         # expiry email; single-use token, renews one listing.
-                        "/board-renew/")
+                        "/board-renew/",
+                        # The way out at the foot of every fan email. The
+                        # fan has no account; the signed token is the
+                        # authorisation and names one address on one
+                        # artist's list (fan_mail).
+                        "/unsubscribe/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/catalog-sweep", "/demo-open", "/plan",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
@@ -6816,7 +7022,7 @@ def create_app():
         if user is None:
             return login_required_redirect()
         return render_template("all_tools.html", active_page="all-tools",
-                               modules=cc.MODULES, module_groups=cc.module_groups(),
+                               modules=cc.directory(), module_groups=cc.module_groups(cc.directory()),
                                **build_dashboard_context())
 
     @app.route("/command-center")
@@ -6916,7 +7122,7 @@ def create_app():
             cc_alerts=alerts[:3],
             cc_action_prios=_action_prios,
             cc_actions=[_acx.brief(a, _today) for a in _open],
-            modules=cc.MODULES, module_groups=cc.module_groups(),
+            modules=cc.directory(), module_groups=cc.module_groups(cc.directory()),
             signal=signal_ctx,
             tutor=tutor_panel,
             # The tutor's first stage IS the firstrun checklist, so when
@@ -7712,15 +7918,25 @@ def create_app():
         if not emailer.configured() or not club:
             return redirect("/fan-club?posted=1&email_off=1")
         import html as _html
-        notified = failed = 0
+        notified = failed = skipped = 0
         slug = _ensure_epk_slug(user)
-        base = request.url_root.rstrip("/")
+        # The artist's public address, not this request's host: an inbox
+        # link outlives the request (_fan_mail_base).
+        base = _fan_mail_base(user)
+        # A member who unsubscribed from these emails, or whom the artist
+        # marked do not contact, keeps the membership and the members
+        # area; they are just not written to (fan_mail).
+        blocked = fan_mail.suppressed_emails(mls.list_fans(user["id"]))
         for m in store.list_club_members(user["id"])[:200]:
             if m["status"] != "active":
+                continue
+            if (m["member_email"] or "").strip().lower() in blocked:
+                skipped += 1
                 continue
             token = _club_serializer().dumps(
                 {"artist_id": user["id"], "email": m["member_email"]})
             link = base + "/club/" + slug + "/members?token=" + token
+            way_out = _fan_unsubscribe_url(user, fan_mail.MEMBER_REF, m["id"])
             ok = emailer.send(
                 m["member_email"],
                 "%s: new members-only drop" % (club["name"] or "Fan club"),
@@ -7732,19 +7948,25 @@ def create_app():
                 'color:#14100A;padding:11px 20px;border-radius:10px;'
                 'text-decoration:none;font-weight:800">Open the drop</a></p>'
                 '<p style="color:#91836A;font-size:12px">This link signs you '
-                'straight in and works for 7 days.</p></div>'
+                'straight in and works for 7 days.</p>%s</div>'
                 % (_html.escape(artist_identity.display_name(user)
                                 or "Your artist"),
                    _html.escape(title),
                    ('<p style="color:#3A3226">%s</p>' % _html.escape(body[:300])
                     if body else ""),
-                   link), reply_to=user["email"])
+                   link,
+                   fan_mail.footer_html(
+                       "You get these because you are a member of %s. Unsubscribing "
+                       "stops these emails; your membership stays as it is."
+                       % (club["name"] or "this fan club"), way_out)),
+                reply_to=user["email"], headers=fan_mail.unsubscribe_headers(way_out),
+                from_name=_fan_mail_from(user))
             if ok:
                 notified += 1
             else:
                 failed += 1
-        return redirect("/fan-club?posted=1&notified=%d&failed=%d"
-                        % (notified, failed))
+        return redirect("/fan-club?posted=1&notified=%d&failed=%d&unsubscribed=%d"
+                        % (notified, failed, skipped))
 
     @app.route("/fan-club/drops/<drop_id>/delete", methods=["POST"])
     def fan_club_drop_delete(drop_id):
@@ -11832,7 +12054,23 @@ def create_app():
             rr = release_ready.run_due()
         except Exception as exc:           # noqa: BLE001 - reminders already ran
             rr = {"error": type(exc).__name__}
-        return jsonify({"ok": True, "run": result, "release_ready": rr})
+        # The release-day email to the fans who asked to be reminded. It
+        # also goes on the first view of the page after release; this run
+        # sends it for a page nobody has opened yet. _send_release_emails
+        # claims the campaign's once-only flag in the database itself, so a
+        # view that gets there first, even while this run is going, means
+        # nothing more is sent; it also keeps the week's window
+        # (links_engine.RELEASE_EMAIL_DAYS), which this list only narrows.
+        released = 0
+        try:
+            today = datetime.now(timezone.utc).date()
+            since = today - timedelta(days=links_engine.RELEASE_EMAIL_DAYS)
+            for camp in mls.released_unsent_campaigns(today.isoformat(), since.isoformat()):
+                released += _send_release_emails(camp)
+        except Exception as exc:           # noqa: BLE001 - reminders already ran
+            released = {"error": type(exc).__name__}
+        return jsonify({"ok": True, "run": result, "release_ready": rr,
+                        "release_emails": released})
 
     VAULT_KINDS = ("cover_art", "master", "stems", "press_photo", "video", "file")
     VAULT_EXTS = ("png", "jpg", "jpeg", "webp", "gif", "wav", "mp3", "flac",
@@ -12447,6 +12685,10 @@ def create_app():
                                # Remove redirects here with ?removed=1; until
                                # now nothing read it back (walk, 2026-09-20).
                                removed=request.args.get("removed") == "1",
+                               marked=request.args.get("marked") == "1",
+                               lifted=request.args.get("lifted") == "1",
+                               do_not_contact=fan_mail.DO_NOT_CONTACT,
+                               unsubscribed=fan_mail.UNSUBSCRIBED,
                                fans=fans, q=q, campaign_titles=campaigns,
                                intent_tones=links_engine.INTENT_TONES,
                                shopify=(shopify_customers.status()
@@ -12679,6 +12921,34 @@ def create_app():
             shopify_customers.forget_grant()
             shopify_customers.token()
         return redirect("/links/fans?imp=reconnected#import")
+
+    @app.route("/links/fans/<fan_id>/do-not-contact", methods=["POST"])
+    def ml_fan_do_not_contact(fan_id):
+        """The artist's own mark: this fan is never in a send list or the
+        default export again until the artist lifts it. Scoped to the
+        account; a fan who already unsubscribed keeps their own reason."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        fan = mls.get_fan(fan_id)
+        if fan is None or fan["user_id"] != user["id"]:
+            abort(404)
+        if not (fan.get("suppressed") or "").strip():
+            mls.suppress_fan(user["id"], fan["email"], fan_mail.DO_NOT_CONTACT)
+        return redirect("/links/fans?marked=1")
+
+    @app.route("/links/fans/<fan_id>/contact-again", methods=["POST"])
+    def ml_fan_contact_again(fan_id):
+        """Lift the artist's own do-not-contact mark. Only that one: a fan
+        who unsubscribed themselves is theirs to undo, not the artist's."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        fan = mls.get_fan(fan_id)
+        if fan is None or fan["user_id"] != user["id"]:
+            abort(404)
+        mls.unsuppress_fan(user["id"], fan["email"], only_reason=fan_mail.DO_NOT_CONTACT)
+        return redirect("/links/fans?lifted=1")
 
     @app.route("/links/fans/<fan_id>/delete", methods=["POST"])
     def ml_fan_delete(fan_id):

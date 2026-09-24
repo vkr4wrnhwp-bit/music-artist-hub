@@ -48,12 +48,17 @@ TILE_COPY = {
     "marketplace": ("Collab", "Artists, creators & brands"),
 }
 
+# The populated room's rail: the mockup's five stages, each with the count
+# of what the records can say about it (lifecycle() below). Until
+# 2026-09-23 the rail was these names and a line of aspiration each, with
+# nothing counted behind any of them.
+#   (key, name, singular, plural, what the line says with nothing counted)
 LIFECYCLE = [
-    ("discover", "Discover", "Find new listeners"),
-    ("capture", "Capture", "Turn interest into fans"),
-    ("know", "Know", "Enrich profiles and data"),
-    ("activate", "Activate", "Drive engagement and revenue"),
-    ("belong", "Belong", "Create a lasting community"),
+    ("discover", "Discover", "smart link visit", "smart link visits", "No smart link visits"),
+    ("capture", "Capture", "fan on file", "fans on file", "Nobody on file"),
+    ("know", "Know", "with a name or place", "with a name or place", "No names or places yet"),
+    ("activate", "Activate", "clicked through", "clicked through", "Nobody has clicked through yet"),
+    ("belong", "Belong", "Fan Club member", "Fan Club members", "No members yet"),
 ]
 
 TOP_BANDS = ("Superfan", "Hot")
@@ -357,6 +362,52 @@ def pulse(audience, labels=4):
             "unplotted": geo.get("unplotted") or 0}
 
 
+def _known(fan):
+    """Something on file beyond the address: a name, a city or a country."""
+    return any((fan.get(k) or "").strip() for k in ("name", "city", "country"))
+
+
+def lifecycle(rows, link_visits=0, club=None):
+    """The rail's five stages, each counted from the account's own records.
+
+      Discover   views of the account's smart links (ml_events page_view),
+                 the same figure the Audience funnel's Link visits row reads.
+                 Views, not people: the app keeps no identity for a visitor
+                 who has not signed up.
+      Capture    fans on file.
+      Know       fans whose record carries a name, a city or a country.
+      Activate   fans who pressed a service button on a smart link
+                 (total_clicks). A press is credited to a fan only when they
+                 are known on the link (fan_mail). A sign-up before release
+                 is a capture, not an activation, so pre-saves are not
+                 counted here: most of them are email reminders.
+      Belong     active Fan Club members; "No Fan Club yet" when the
+                 account has none.
+
+    A stage with nothing counted says so in words, never a nought.
+    """
+    rows = list(rows or ())
+    club = club or {"on": False, "members": 0}
+    counts = {
+        "discover": int(link_visits or 0),
+        "capture": len(rows),
+        "know": sum(1 for f in rows if _known(f)),
+        "activate": sum(1 for f in rows if int(f.get("total_clicks") or 0) > 0),
+        "belong": int(club.get("members") or 0),
+    }
+    out = []
+    for key, name, singular, plural, empty in LIFECYCLE:
+        n = counts[key]
+        if key == "belong" and not club.get("on"):
+            line = "No Fan Club yet"
+        elif n:
+            line = "%s %s" % (_fmt(n), singular if n == 1 else plural)
+        else:
+            line = empty
+        out.append({"key": key, "name": name, "count": n, "line": line})
+    return out
+
+
 def tile_status(key, audience, new_count, days, club, open_briefs, state):
     """(tone, text) for a tool tile: one true count, or the tool's state."""
     if state == "hidden":
@@ -418,7 +469,7 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
         "new": len(fresh),
         "new_label": _fmt(len(fresh)),
         "reachable_pct": audience.get("contactable_pct") if total else None,
-        "lifecycle": LIFECYCLE,
+        "lifecycle": lifecycle(rows, link_visits, club),
         "moves": moves(rows, audience, days, today, link_visits, shopify=shopify,
                        can_open=can_open),
         # The map, in its own panel directly under the rack.

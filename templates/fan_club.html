@@ -21,6 +21,7 @@
   <div class="rounded-2xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-sm">
     <span class="font-bold text-green-400">Drop posted.</span>
     {% if n %}<span class="text-gray-200"> Emailed {{ n }} member{{ 's' if n != 1 }} their access link.</span>{% endif %}
+    {% set u = request.args.get('unsubscribed', 0) | int %}{% if u %}<span class="text-gray-300"> {{ u }} member{{ 's' if u != 1 }} not emailed: unsubscribed or marked do not contact.</span>{% endif %}
     {% if request.args.get('email_off') %}<span class="text-gray-300"> Member emails are off until Resend is configured — members will see it when they open the area.</span>{% endif %}
   </div>
   {% if f %}

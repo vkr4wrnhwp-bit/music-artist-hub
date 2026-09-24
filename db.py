@@ -2442,6 +2442,16 @@ def get_active_club_member(artist_id, member_email):
     return dict(row) if row else None
 
 
+def get_club_member(member_id, artist_id):
+    """One membership row by its id, scoped to the artist in the query.
+    The Fan Club drop email's unsubscribe link names the row, not the
+    address (fan_mail.unsubscribe_token)."""
+    with get_db() as db:
+        row = db.execute("SELECT * FROM club_members WHERE id = ? AND artist_id = ?",
+                         (member_id, artist_id)).fetchone()
+    return dict(row) if row else None
+
+
 def add_club_drop(artist_id, title, body, link_url):
     drop_id = uuid.uuid4().hex
     with get_db() as db:
