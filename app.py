@@ -3195,6 +3195,18 @@ def create_app():
         recovery_mlc.sweep(user["id"])
         return redirect(back + "#mlc")
 
+    @app.route("/royalty-recovery/mlc")
+    def royalty_recovery_mlc():
+        """The All Tools row "MLC / Unmatched Recovery". It rendered the
+        generic preview page ("the engine is being built") while the real
+        sweep above already ran on Recovery; it opens that sweep now
+        (make-it-real, 2026-09-23). A door's ?returnTo=&from= rides
+        through, ahead of the fragment."""
+        carry = "&".join("%s=%s" % (k, urllib.parse.quote(v, safe="/"))
+                         for k in ("returnTo", "from")
+                         for v in [request.args.get(k) or ""] if v)
+        return redirect("/recovery" + ("?" + carry if carry else "") + "#mlc")
+
     @app.route("/valuation")
     def valuation():
         user = current_user()
@@ -8011,6 +8023,11 @@ def create_app():
         return {
             "statement_rows": len(rows),
             "statement_total": round(sum(r["amount"] for r in rows), 2),
+            # What each passport's OWN rows earned, a row counted for one
+            # track at most. Lane estimates are sized from this, never
+            # from statement_total (make-it-real, 2026-09-23).
+            "earned_by_track": artist_os.earnings_by_track(
+                store.list_os_tracks(user_id), rows),
             "lanes_with_data": artist_os.lanes_from_sources(
                 r.get("source") for r in rows),
             "live_links": len(campaigns),
@@ -8288,7 +8305,11 @@ def create_app():
         tracks = store.list_os_tracks(user["id"])
         ctx = _os_ctx(user["id"])
         queue = artist_os.action_queue([(t, ctx) for t in tracks])
-        est_total = round(sum(a["impact"] or 0 for a in queue), 2)
+        # How many gaps carry a figure, never what they add up to. The
+        # headline used to be the sum, and each figure was the account's
+        # whole total times a lane share, once per track, so it could pass
+        # everything the catalogue ever earned (make-it-real, 2026-09-23).
+        priced = len([a for a in queue if a["impact"]])
         criticals = len([a for a in queue if a["critical"]])
         # Settled tour income: money already collected, shown beside the money
         # still missing. TOUR's settlements (tour_show_ext, marked settled with
@@ -8310,7 +8331,7 @@ def create_app():
                     tour_income + touring.settlement_totals(st)["walk"], 2)
                 tour_settled += 1
         return render_template("money_queue.html", active_page="royalties",
-                               queue=queue, est_total=est_total,
+                               queue=queue, priced=priced,
                                criticals=criticals, ctx=ctx,
                                tour_income=tour_income,
                                tour_settled=tour_settled,
@@ -10927,9 +10948,23 @@ def create_app():
                 generated = {"kind": kind, "text": text, "used": used}
         os_tracks_list = store.list_os_tracks(user["id"])
         osctx = _os_ctx(user["id"])
+        # The audience section reads follower counts over time. The
+        # Spotify series is written only when Spotify app keys are set,
+        # which the live site does not have, so with fewer than two
+        # Spotify readings the metrics provider's series (Soundcharts,
+        # written when /pulse is opened) is read instead. Without this the
+        # section's "pin your artist on Artist Pulse" promise never came
+        # true on a site with Soundcharts and no Spotify (make-it-real,
+        # 2026-09-23). Stored rows only: this page spends no quota.
+        audience_snaps = store.list_pulse_snapshots(user["id"], limit=30)
+        if len([s for s in audience_snaps if s["followers"] is not None]) < 2:
+            _mprov = _metrics_provider()
+            if _mprov is not None:
+                audience_snaps = store.list_pulse_snapshots(
+                    user["id"], limit=30, provider=_mprov.key)
         strategist = artist_os.twin_report(
             os_tracks_list, osctx,
-            store.list_pulse_snapshots(user["id"], limit=30),
+            audience_snaps,
             artist_os.action_queue([(t, osctx) for t in os_tracks_list]),
             analysis=store.latest_track_analysis(user["id"]))
         # Artist Signal Profile: priorities the artist set on the homepage
@@ -15887,7 +15922,11 @@ def create_app():
             return jsonify({
                 "ok": True,
                 "count": view["finding_count"],
-                "total_estimated": view["total_at_stake"],
+                # Two bases, two keys. total_estimated was total_at_stake,
+                # which counted the actual unattributed money as estimated
+                # (make-it-real, 2026-09-23).
+                "total_actual": view["actual_unattributed"],
+                "total_estimated": view["estimated_gaps"],
                 "findings": [{"id": f["id"], "source": f["source"],
                               "issue_type": f["issue_type"],
                               "estimated_value": f["amount"],

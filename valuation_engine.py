@@ -57,7 +57,13 @@ def _drivers(user_id, view):
     out = []
 
     recovery = recovery_engine.build(user_id)
-    if recovery["has_data"] and recovery["total_at_stake"] > 0:
+    actual = recovery["actual_unattributed"]
+    estimated = recovery["estimated_gaps"]
+    # total_at_stake is not read: it adds the actual money to an estimate,
+    # and this chip printed that sum as "$X at stake" (make-it-real,
+    # 2026-09-23). The chip names the actual money, or the estimate as an
+    # estimate when there is no actual; the detail line carries both.
+    if recovery["has_data"] and (actual > 0 or estimated > 0):
         out.append({
             "route": "/recovery",
             "title": "Collect what your statements already flag",
@@ -68,7 +74,8 @@ def _drivers(user_id, view):
                           "" if recovery["finding_count"] == 1 else "s",
                           "{:,.2f}".format(recovery["actual_unattributed"]),
                           "{:,.2f}".format(recovery["estimated_gaps"]))),
-            "impact": "${:,.2f} at stake".format(recovery["total_at_stake"]),
+            "impact": ("${:,.2f} actual".format(actual) if actual > 0
+                       else "about ${:,.2f} estimated".format(estimated)),
         })
 
     if view["source_count"] < 3:

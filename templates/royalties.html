@@ -147,7 +147,7 @@
           {% if d.lanes.rows %}<div class="sbm-read"><span class="sbm-v">{{ d.lanes.paying }}<span class="ry-approx" style="font-size:18px"> of {{ d.lanes.of }}</span></span><span class="sbm-d flat">lanes show money</span>{% else %}<div class="sbm-read"><span class="sbm-v" style="font-size:22px">Not measured</span><span class="sbm-d flat">no lanes read yet</span>{% endif %}</div>
           {% if d.lanes.rows %}<div class="ry-cells" aria-hidden="true" style="grid-template-columns:repeat({{ d.lanes.of }},1fr)">{% for on in d.lanes.cells %}<i{% if on %} class="on"{% endif %}></i>{% endfor %}</div>{% endif %}
           <p class="ry-inst-note">{{ d.lanes.note }}</p>
-          <div class="sbm-prov">{% if d.lanes.rows %}<b>Est. missing <span class="ry-approx">≈</span> ${{ "{:,.2f}".format(d.lanes.missing_est) }}</b><span>· a share of your own earnings</span>{% else %}<b>No Track Passports</b><span>· <a href="/catalog">add one</a> and the lanes read against it</span>{% endif %}</div>
+          <div class="sbm-prov">{% if d.lanes.rows %}<b>Est. missing <span class="ry-approx">≈</span> ${{ "{:,.2f}".format(d.lanes.missing_est) }}</b><span>· a share of each track's own earnings</span>{% else %}<b>No Track Passports</b><span>· <a href="/catalog">add one</a> and the lanes read against it</span>{% endif %}</div>
         </div>
       </div>
     </div>
@@ -205,7 +205,7 @@
         <tfoot><tr><td>Est. missing</td>{% for f in d.lanes.footer %}<td class="c">{% if f.estimate %}<span class="ry-approx">≈</span> ${{ "{:,.2f}".format(f.estimate) }}<small>{{ f.share }}</small>{% else %}—{% if f.key in ('sync', 'fan_sales') %}<small>no evidence</small>{% endif %}{% endif %}</td>{% endfor %}</tr></tfoot>
       </table>
     </div>
-    <div class="ry-key"><span><i class="ry-dot claimed"></i> <b>Paying or connected</b> — a row on your statements, or a registration on the passport, names this lane for this track.</span><span><i class="ry-dot action"></i> <b>Needs a registration</b> — the lane exists for every released track and nothing on file carries it.</span><span><i class="ry-dot missing"></i> <b>No evidence</b> — sync and fan sales only exist when you make them; silence is not a gap.</span><span>Estimates are a share of your own earnings at typical lane shares, shown with the share. They order the registrations; they promise nothing. <a href="/money-queue">The queue of what to claim →</a></span></div>
+    <div class="ry-key"><span><i class="ry-dot claimed"></i> <b>Paying or connected</b> — a row on your statements, or a registration on the passport, names this lane for this track.</span><span><i class="ry-dot action"></i> <b>Needs a registration</b> — the lane exists for every released track and nothing on file carries it.</span><span><i class="ry-dot missing"></i> <b>No evidence</b> — sync and fan sales only exist when you make them; silence is not a gap.</span><span>Estimates are a typical lane share of each track's own statement earnings, shown with the share; a track with no rows of its own has none. They order the registrations; they promise nothing. <a href="/money-queue">The queue of what to claim →</a></span></div>
     {% else %}
     <div class="ry-panel"><p class="ry-note" style="margin:0">No Track Passports yet. The lanes read each recording's passport against your statements; <a href="/catalog">add a track</a> and every lane is scored for it.</p></div>
     {% endif %}

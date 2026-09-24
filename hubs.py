@@ -56,7 +56,7 @@ HUBS = [
         # REACH runs no paid promotion (2026-09-19 audit: its paid pitching
         # platforms are adapters switched off), so the line says what it does.
         ("reach", "/suites/go/reach", "M3 10a7 7 0 0114 0|M6 10a4 4 0 018 0|M10 10v7|M8 17h4", "REACH", "Find playlist, press and radio opportunities, pitch them once you approve, track the replies (opens the REACH app)."),
-        ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Daily follower and popularity snapshots, growth over time, and your link engagement."),
+        ("pulse", "/pulse", "M2 10h3l2-5 3 10 3-8 2 3h3", "Artist Pulse", "Follower and listener readings kept over time, and your own link engagement."),
     ]),
     ("stage", "Live Stage Suite", "Everything between the booking and the encore — shows, plots, lights, and the rider.", [
         ("tours", "/tours", "M3 4h14v12H3z|M3 8h14|M6 12h3|M12 12h2|M7 2v4|M13 2v4", "Tour", "The whole run: My Day, Show Command, advance, stage plot, travel, rooms, guests, money."),
@@ -91,13 +91,13 @@ HUBS = [
         # only what they may miss"). Beside Recovery because they answer
         # the same question from different rows: this one reads the track
         # passports, Recovery reads the statements.
-        ("money-queue", "/money-queue", "M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3M10 13v.01|M7 7l6 6", "Missing money", "Rights gaps on your passports, priced by what each is costing you."),
+        ("money-queue", "/money-queue", "M10 4a6 6 0 100 12 6 6 0 000-12z|M10 7v3M10 13v.01|M7 7l6 6", "Missing money", "Rights gaps on your passports, most urgent first; collection gaps priced from that track's own earnings."),
         ("cases", "/royalty-recovery/cases", "M4 5h12v10H4z|M4 8h12M8 5V3h4v2M10 11v2", "Recovery Cases", "Tracked claims from open to paid."),
         ("disputes", "/disputes", "M10 3l7 4v5c0 3-3 5-7 5s-7-2-7-5V7z|M10 8v3M10 13v0", "Disputes", "Log and track conflicts on your catalog."),
         ("valuation", "/valuation", "M10 3l6 4v6l-6 4-6-4V7z|M10 8v4", "Valuation", "Catalog value from your real history."),
         # The page reads "Profit & Loss" and the owner calls it the P&L, so
         # the entry does too; the address stays /revenue-os.
-        ("revenue-os", "/revenue-os", "M4 16V4h12v12z|M7 13V9M10 13V7M13 13v-3", "Profit & Loss", "Income structure across your whole operation."),
+        ("revenue-os", "/revenue-os", "M4 16V4h12v12z|M7 13V9M10 13V7M13 13v-3", "Profit & Loss", "Statement income against the spending you log."),
         ("deals", "/deal-room", "M7 9l3-3 3 3M10 6v8|M4 16h12M4 4h4M12 4h4", "Deals", "Offers, terms and what you signed."),
         ("reports", "/reports", "M6 3h6l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z|M8 10h5M8 13h5", "Reports", "Exports and summaries of everything above."),
         ("hours", "/hours", "M10 3a7 7 0 100 14 7 7 0 000-14z|M10 6v4l3 2|M3 3l2 2M17 3l-2 2", "Hours Desk", "Bill your time, take bookings, approve collaborators."),
@@ -176,9 +176,17 @@ _BASE_LIVE = ["apparel", "beats", "statements", "notifications", "cases",
              "inbox", "settings", "catalog", "command-center",
              # F-5 (audit 2026-09-18): the badges were backwards. The Collab
              # Marketplace is a real db-backed board (nothing seeded), so it
-             # is live; Discover shows example artists, so it is NOT here and
-             # wears the Sample badge.
+             # is live; Discover then showed example artists to everybody,
+             # so it was left out (it is below now; see 2026-09-23).
              "marketplace",
+             # Three real pages the sidebar badged Sample (make-it-real,
+             # 2026-09-23). Rights Conflicts reads the account's own
+             # passports and lockboxes (rights_conflicts.summary); Missing
+             # money reads its passports and its own statement rows;
+             # Discover has been real search for every account since
+             # 2026-09-21, and the showcase login's feed carries its own
+             # "Sample feed" banner on the page.
+             "conflicts", "money-queue", "discover",
              "actions", "autopilot", "scores",
              "vault", "pulse", "team",
              # Real packs from the artist's own uploads (it was live through

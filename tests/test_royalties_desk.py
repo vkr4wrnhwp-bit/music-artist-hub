@@ -89,7 +89,10 @@ def test_earnings_compare_the_last_two_periods_in_calendar_order():
 
 def test_lanes_count_the_lanes_that_show_money_and_price_the_registrations():
     tracks = [{"id": "t1", "title": "Hungry Gods", "passport": {}, "lockbox": {}}]
+    # earned_by_track: Hungry Gods' own $850. A lane is priced from the
+    # track's own rows since 2026-09-23, never from statement_total alone.
     ctx = {"statement_rows": 5, "statement_total": 850.0, "lanes_with_data": {"master", "soundexchange"},
+           "earned_by_track": {"t1": 850.0},
            "live_links": 0, "fans": 0, "club_members": 0, "sync_active": False,
            "release_scheduled": False, "rollout_assets": False}
     out = desk.lanes(tracks, ctx)
@@ -102,10 +105,15 @@ def test_lanes_count_the_lanes_that_show_money_and_price_the_registrations():
     assert footer["sync"]["estimate"] == 0 and out["missing_est"] > 0
     empty = desk.lanes([], ctx)
     assert empty["paying"] == 0 and "No Track Passports" in empty["note"]
-    # Two tracks do not double the catalogue estimate.
+    # Two tracks do not double the catalogue estimate: a track with no rows
+    # of its own adds nothing...
     two = desk.lanes(tracks + [dict(tracks[0], id="t2", title="Hellhounds")], ctx)
     assert {f["key"]: f for f in two["footer"]}["mechanicals"]["estimate"] == 51.0
     assert two["missing_est"] == out["missing_est"]
+    # ...and two that each earned part of the $850 add up to 6% of it.
+    split = dict(ctx, earned_by_track={"t1": 600.0, "t2": 250.0})
+    both = desk.lanes(tracks + [dict(tracks[0], id="t2", title="Hellhounds")], split)
+    assert {f["key"]: f for f in both["footer"]}["mechanicals"]["estimate"] == 51.0
 
 
 # --- the page -----------------------------------------------------------
@@ -160,9 +168,14 @@ def test_the_old_pages_land_on_their_section_of_the_one_page(artist):
 def test_the_lanes_matrix_reads_the_tracks(artist):
     _upload(artist, "may.csv", MAY)
     artist.post("/tracks/add", data={"title": "Lane Song"})
+    # Lane Song has no statement rows, so it prices nothing; this used to
+    # pass on 6% of the whole catalogue drawn under it. Hungry Gods earned
+    # $320 in MAY-26, and its missing lanes are priced from that
+    # (make-it-real, 2026-09-23).
+    artist.post("/tracks/add", data={"title": "Hungry Gods"})
     body = artist.get("/royalties").get_data(as_text=True)
     assert "Lane Song" in body and 'class="ry-dot claimed"' in body and 'class="ry-dot action"' in body
-    assert "Est. missing" in body and "6% share" in body
+    assert "Est. missing" in body and "6% share" in body and "$19.20" in body
 
 
 def test_the_sidebar_lists_royalties_once_and_the_folded_pages_not_at_all():

@@ -199,12 +199,15 @@ def lanes(tracks, ctx):
             cells.append({"key": lane["key"], "state": state, "word": word, "dot": dot,
                           "estimate": lane.get("estimate")})
             if lane.get("estimate"):
-                # lane_grid prices a lane as a share of the WHOLE catalogue's
-                # earnings, on every track. Summed across tracks that
-                # multiplies one estimate by the track count - the old
-                # Royalty Lanes page did exactly that. The footer carries the
-                # catalogue figure once.
-                per_lane[lane["key"]]["estimate"] = lane["estimate"]
+                # lane_grid used to price a lane as a share of the WHOLE
+                # catalogue's earnings on every track, so this footer kept
+                # one track's figure rather than multiply it by the track
+                # count. Since 2026-09-23 a track's figure is a share of
+                # ITS OWN rows (artist_os.earnings_by_track gives each row
+                # to one track at most), so the lane's footer is the sum of
+                # the tracks missing it: it cannot pass the share of what
+                # the catalogue earned, and a track with no rows adds nothing.
+                per_lane[lane["key"]]["estimate"] += lane["estimate"]
                 per_lane[lane["key"]]["count"] += 1
         rows.append({"id": t.get("id"), "title": t.get("title") or "Untitled", "cells": cells})
     for key, entry in per_lane.items():
