@@ -292,3 +292,32 @@ def test_the_profit_and_loss_line_says_what_the_page_reads():
     label, desc = _sidebar_line("revenue-os")
     assert label == "Profit & Loss"
     assert desc == "Statement income against the spending you log."
+
+
+def test_the_twin_reads_the_soundcharts_follower_series_without_spotify(monkeypatch):
+    """The live site has Soundcharts and no Spotify app keys. /pulse writes
+    Soundcharts' dated follower series under the provider's own key, and
+    the Twin read only the Spotify series, so its audience section waited
+    for ever while its line said pinning the artist on Pulse would fill it.
+    It reads the metrics provider's series when Spotify's has none."""
+    import signal_providers as providers
+
+    class _Metrics(providers.MusicIntelligenceProvider):
+        key = "fakecharts"
+        label = "Fakecharts"
+        capabilities = (providers.CAP_ARTIST, providers.CAP_METRICS)
+
+        def configured(self):
+            return True
+
+    providers.reset_registry(providers.ProviderRegistry(adapters=[_Metrics()]))
+    try:
+        client, uid = _client()
+        store.record_pulse_snapshot(uid, 1200, None, None, provider="fakecharts",
+                                    day="2026-09-01")
+        store.record_pulse_snapshot(uid, 1350, None, None, provider="fakecharts",
+                                    day="2026-09-20")
+        body = client.get("/artist-twin").get_data(as_text=True)
+        assert "Followers 1200 \u2192 1350 over your last 2 snapshots." in body
+    finally:
+        providers.reset_registry(None)

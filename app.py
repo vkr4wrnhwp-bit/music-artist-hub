@@ -10856,9 +10856,23 @@ def create_app():
                 generated = {"kind": kind, "text": text, "used": used}
         os_tracks_list = store.list_os_tracks(user["id"])
         osctx = _os_ctx(user["id"])
+        # The audience section reads follower counts over time. The
+        # Spotify series is written only when Spotify app keys are set,
+        # which the live site does not have, so with fewer than two
+        # Spotify readings the metrics provider's series (Soundcharts,
+        # written when /pulse is opened) is read instead. Without this the
+        # section's "pin your artist on Artist Pulse" promise never came
+        # true on a site with Soundcharts and no Spotify (make-it-real,
+        # 2026-09-23). Stored rows only: this page spends no quota.
+        audience_snaps = store.list_pulse_snapshots(user["id"], limit=30)
+        if len([s for s in audience_snaps if s["followers"] is not None]) < 2:
+            _mprov = _metrics_provider()
+            if _mprov is not None:
+                audience_snaps = store.list_pulse_snapshots(
+                    user["id"], limit=30, provider=_mprov.key)
         strategist = artist_os.twin_report(
             os_tracks_list, osctx,
-            store.list_pulse_snapshots(user["id"], limit=30),
+            audience_snaps,
             artist_os.action_queue([(t, osctx) for t in os_tracks_list]),
             analysis=store.latest_track_analysis(user["id"]))
         # Artist Signal Profile: priorities the artist set on the homepage
