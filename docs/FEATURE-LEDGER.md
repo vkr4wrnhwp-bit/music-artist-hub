@@ -2829,6 +2829,7 @@ Named shows saved per account, each explicit save taking a version snapshot that
 Programs a light show against a track — cues, looks, rig layout and DMX patch — and sends it out over ENTTEC USB, Art-Net or sACN.
 
 - Because: app.py:7351 renders templates/lights.html with the account's own library, rigs, setlists and tour dates; static/js/lights-engine.js frames real DMX, Art-Net and sACN packets (:262, :315, :338) and templates/lights.html:150 downloads static/tools/lx-bridge.py, the local UDP forwarder the browser cannot be; probed GET /lights 200.
+- Copy (make-real brief, 2026-09-23): the All Tools line said "real DMX out to an ENTTEC interface" and the sidebar line "real DMX output". The Web Serial path is in the code, but nothing in the repository records a run on a real interface (see the open question below), so both lines now say "DMX out to an ENTTEC interface (bring your own USB interface; Chrome or Edge)" and "DMX out to your own ENTTEC USB interface". "Real" returns when the owner runs one cue list on one and the result is recorded here. Locked by tests/test_real_lights_distro_copy.py.
 - Routes: GET /lights; POST /lights/save
 - Files: app.py:7351 lights(), :7378 lights_save(); static/js/lights-engine.js, static/js/lights.js; static/tools/lx-bridge.py; db.py:187 light_shows (the working copy); templates/lights.html
 - Access: Signed in; required_tier("/lights") is artist, and plans._TOUR_PATHS puts it behind the Tour suite (Pro) wherever plans.gates_on(). Team seat: the Stage room.
