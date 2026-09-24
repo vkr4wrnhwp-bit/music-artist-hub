@@ -521,6 +521,10 @@ def test_the_signoff_requests_survive_the_document(artist):
     entry = store.get_os_track(uid, tid)["lockbox"]["split_sheet"]
     assert entry.get("file", "") == ""
     assert [a["email"] for a in entry["approvals"]] == ["ray@example.net"]
+    # Kept as the record of who was asked, not as a live request: the
+    # link for the removed file is retired (tests/test_sign_link_document.py).
+    assert entry["approvals"][0]["state"] == "needs resend"
+    assert not entry["approvals"][0].get("token")
 
 
 def test_a_lockbox_slot_pointing_at_a_vault_file_keeps_the_bytes(artist):
@@ -596,9 +600,12 @@ def test_the_lockbox_control_appears_only_once_a_document_is_attached(artist):
     btn = _button(page, "lockbox-remove", 'data-doc="split_sheet"')
     assert btn
     assert "sb-btn-danger" in btn
-    # It names the slot, what goes, and what stays.
+    # It names the slot, what goes, and what stays. The signers stay on
+    # the list but must be asked again (2026-09-23 review): "The sign-off
+    # requests stay." read as if a signature carried over to the next file.
     assert ("onclick=\"return confirm('Remove the Split sheet document? "
-            "The file is deleted. The sign-off requests stay.')\"" in btn)
+            "The file is deleted. The signers stay on the list, marked to be "
+            "asked again, and their links stop working.')\"" in btn)
     # And only that slot: the other seven still hold nothing.
     assert _button(page, "lockbox-remove", 'data-doc="beat_license"') == ""
 

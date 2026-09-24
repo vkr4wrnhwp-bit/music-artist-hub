@@ -111,6 +111,30 @@ LOCKBOX_DOCS = [
 APPROVAL_STATES = ("pending", "signed", "declined", "needs resend")
 
 
+def reset_signoffs(entry, had_file):
+    """The document in a lockbox slot changed: a sign-off is for the paper
+    its signer saw, so it does not carry over (2026-09-23 review).
+
+    Replaced or removed (`had_file`): every approval in the slot becomes
+    "needs resend" and loses its token, which retires its signing link
+    (app.py _sign_link matches the approval's token). A split sheet signed
+    at 50/50 and swapped for 90/10 used to read "ready" and unlock pitching.
+
+    A first document (`had_file` False): a decision given before any paper
+    existed is asked again too; a link still pending stays live, because
+    its signer has decided nothing and now sees the file.
+
+    The approvals themselves stay, as the record of who was asked. Returns
+    how many were reset."""
+    n = 0
+    for a in (entry or {}).get("approvals") or []:
+        if had_file or a.get("state") != "pending":
+            a["state"] = "needs resend"
+            a.pop("token", None)
+            n += 1
+    return n
+
+
 def lockbox_report(track):
     box = track.get("lockbox") or {}
     docs = []

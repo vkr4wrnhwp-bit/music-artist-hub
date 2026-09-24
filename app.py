@@ -8501,8 +8501,12 @@ def create_app():
             if f and f.filename:
                 fname = uuid.uuid4().hex + "-" + os.path.basename(f.filename)[-60:]
                 f.save(os.path.join(UPLOADS_DIR, fname))
+                had_file = bool(entry.get("file"))
                 entry["file"] = "/uploads/" + fname
                 entry["not_applicable"] = False
+                # A new document is signed by someone who saw it: a
+                # signature, or a link, for the old one does not carry over.
+                artist_os.reset_signoffs(entry, had_file)
         elif action in ("approver", "resend"):
             email = (request.form.get("email") or "").strip().lower()
             name = (request.form.get("name") or "").strip()
@@ -8519,6 +8523,9 @@ def create_app():
                     # link. It used to keep the old token, so the email
                     # carried a link the page never showed (2026-09-23).
                     existing[0]["token"] = token
+                    # Asking someone whose document changed is a resend.
+                    if existing[0].get("state") == "needs resend":
+                        existing[0]["state"] = "pending"
                 else:
                     approvals.append({"name": name[:80], "email": email,
                                       "state": "pending", "token": token})
@@ -8550,9 +8557,10 @@ def create_app():
         Scoped exactly like the upload it undoes: `get_os_track` is
         already owner-scoped, so another artist's track and an unknown
         doc_key get the same 404 and neither confirms the other exists.
-        The approvals stay - they record who was asked and what they
-        answered - and lockbox_report puts the slot back to "missing" on
-        the file's absence by itself.
+        The approvals stay as the record of who was asked, each set to
+        "needs resend" with its signing link retired (the store calls
+        artist_os.reset_signoffs), and lockbox_report puts the slot back to
+        "missing" on the file's absence by itself.
         """
         user = current_user()
         if user is None:
@@ -8577,6 +8585,10 @@ def create_app():
         gone, or the artist has since sent this person a newer link - the
         approval carries the token of the newest request, and an older
         link must not be able to flip the decision the newer one records.
+        A replaced or removed document retires every link to its slot the
+        same way (artist_os.reset_signoffs drops the approval's token), and
+        db.align_sign_tokens points approvals at links emailed before the
+        approval carried the newest token.
         "used": a decision was recorded with it. "open": the one state that
         shows the document and takes a decision."""
         row = store.get_sign_token(token)
