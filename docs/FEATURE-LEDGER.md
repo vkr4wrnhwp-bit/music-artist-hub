@@ -944,7 +944,7 @@ Looks a song up on Discogs and attaches the chosen pressing, filling only passpo
 
 Explains who delivers releases, what a package needs and which parts are the partner's.
 
-- Because: Renders entirely fixed copy from distro_config (GUIDE, WORKFLOW, CHECKLIST, INTEGRATIONS, PARTNER). There is no delivery code anywhere behind it: INTEGRATIONS lists every store row as 'Delivered through partner' and 'Direct platform connections from Street Banker' as 'Coming soon'. Verified 200 signed out.
+- Because: Renders entirely fixed copy from distro_config (GUIDE, WORKFLOW, CHECKLIST, INTEGRATIONS, PARTNER). There is no delivery code anywhere behind it: INTEGRATIONS lists every store row as 'Delivered through partner' and 'Direct platform connections from Street Banker' as 'Not offered' (it said 'Coming soon' until 2026-09-23, a plan nothing in the code carries; whether direct delivery is ever planned is the owner's decision). Verified 200 signed out.
 - Routes: /distribution
 - Files: app.py:14168 distribution_guide(); distro_config.py; templates/distribution_public.html; rooms.py:120 (the Releases room card)
 - Access: Anonymous - _PUBLIC_EXACT. Also carried as a Releases room card for signed-in accounts; Releases room for team seats.
@@ -1226,7 +1226,7 @@ Sets, scenes, stems and MIDI mappings for a stage rig, with the audio engine run
 
 Says before soundcheck which browser capabilities the rig needs and where they are missing.
 
-- Because: live.py:90 readiness() returns four fixed statements of fact about Web Audio, Web MIDI, offline caching and setSinkId (Chromium-only) and templates/live/home.html renders them. These are capability statements, not measurements of anything.
+- Because: live.py readiness() returns four fixed statements and templates/live/home.html renders them. Since 2026-09-23 (make-real brief) they say only what the performance page does: the offline line is true because perform.html keeps the set in IndexedDB and the service worker keeps the page (see Performance Mode below); the outputs line says master, cue and click all play through one output and a separate mix per player is NOT built (the engine's buses all connect to one AudioContext destination and the page never calls setSinkId). The /live intro and the hubs.py Live card say the same. Locked by tests/test_real_live_claims.py.
 - Routes: inside GET /live
 - Files: live.py:90 readiness; templates/live/home.html
 - Access: Same as /live.
@@ -1269,9 +1269,10 @@ The mix view of a session: measured loudness/peak/dynamics, findings, timed note
 
 **New Studio project**
 
-Creates a project row from a name, artist name and one of seven project types.
+Creates a project row from a name, artist name and one of four project types, each of which works on one audio file.
 
-- Because: studio.py:207 POSTs into sstore.create_project and redirects to the new session id; _TYPE_LABELS is a form vocabulary, not seeded data.
+- Because: studio.py studio_new POSTs into sstore.create_project and redirects to the new session id; _TYPE_LABELS is a form vocabulary, not seeded data. A session holds ONE source (project_summary picks the first original asset), so Vocal + Instrumental, Stem Mix and Master an EP or Album left the form on 2026-09-23 (make-real brief) and the form says multi-file sessions are not built yet; a POST naming one gets stereo_mix_review. Rows already stored with those types keep their label and still open. Locked by tests/test_real_studio_types.py.
+- Import Existing Rack Project (made real 2026-09-23): the form lists the account's Rack library (db.list_rack_presets) under the option and refuses the import (400) without a chain of this account's own; the option is disabled with "Save a chain to your Rack library first" when the library is empty. create_project keeps a COPY of the chosen chain in studio_projects.rack_chain / rack_chain_name (additive migration steps project_rack_chain, project_rack_chain_name), so a later library edit cannot change what the session started from. The session's Rack chain panel shows that copy (studio.py _room, sstore.project_rack_chain) instead of the account rack. Locked by tests/test_real_studio_rack_import.py.
 - Routes: GET+POST /studio/new
 - Files: studio.py:207 studio_new; studio.py:187 _TYPE_LABELS; templates/studio/new.html; studio_store.py:create_project
 - Access: Same as /studio.
@@ -1280,7 +1281,7 @@ Creates a project row from a name, artist name and one of seven project types.
 
 Sends the artist into /rack carrying the project and source asset on the query string.
 
-- Because: studio.py:558 redirects to /rack?project=<id>&asset=<id>; static/js/rackdsp.js:2163 fetches /studio/asset/<id> to load it.
+- Because: studio.py studio_rack redirects to /rack?project=<id>&asset=<id>; static/js/rackdsp.js loadAssetFromStudio fetches /studio/asset/<id> to load it. When the project imported a chain, app.py rack() looks the project up with the signed-in account's own keys and serves that chain as window.__savedRack, with the note "Started from <name>, the chain this Studio session imported." in #rk-status; any other project id, or none, loads the account's own saved rack.
 - Routes: GET /studio/session/<project_id>/rack
 - Files: studio.py:558 studio_rack; static/js/rackdsp.js:2163
 - Access: Project owner only; same plan/suite gates.
@@ -2833,6 +2834,7 @@ Named shows saved per account, each explicit save taking a version snapshot that
 Programs a light show against a track — cues, looks, rig layout and DMX patch — and sends it out over ENTTEC USB, Art-Net or sACN.
 
 - Because: app.py:7351 renders templates/lights.html with the account's own library, rigs, setlists and tour dates (a date on the Mock Up Tour is offered with "(sample)" after it, from tour_mockup.mock_tour_ids, so it is never mistaken for a real date when a show is linked; review 2026-09-24); static/js/lights-engine.js frames real DMX, Art-Net and sACN packets (:262, :315, :338) and templates/lights.html:150 downloads static/tools/lx-bridge.py, the local UDP forwarder the browser cannot be; probed GET /lights 200.
+- Copy (make-real brief, 2026-09-23): the All Tools line said "real DMX out to an ENTTEC interface" and the sidebar line "real DMX output". The Web Serial path is in the code, but nothing in the repository records a run on a real interface (see the open question below), so both lines now say "DMX out to an ENTTEC interface (bring your own USB interface; Chrome or Edge)" and "DMX out to your own ENTTEC USB interface". "Real" returns when the owner runs one cue list on one and the result is recorded here. Locked by tests/test_real_lights_distro_copy.py.
 - Routes: GET /lights; POST /lights/save
 - Files: app.py:7351 lights(), :7378 lights_save(); static/js/lights-engine.js, static/js/lights.js; static/tools/lx-bridge.py; db.py:187 light_shows (the working copy); templates/lights.html
 - Access: Signed in; required_tier("/lights") is artist, and plans._TOUR_PATHS puts it behind the Tour suite (Pro) wherever plans.gates_on(). Team seat: the Stage room.
@@ -2850,9 +2852,9 @@ A second operator drives looks and blackout from a phone by scanning a QR; the l
 
 Hands the browser the whole set in one document and opens the dark, chrome-free stage screen that plays it.
 
-- Because: live.py:363 returns live_store.set_manifest as JSON and :376 renders templates/live/perform.html outside the app shell; the scheduling, MIDI and offline cache run in static/js/livelab.js (290 KB, present in the repo) because Web Audio timing cannot be done server-side.
+- Because: live.py live_manifest returns live_store.set_manifest as JSON and live_perform renders templates/live/perform.html outside the app shell; the scheduling and MIDI run in static/js/livelab.js (290 KB, present in the repo) because Web Audio timing cannot be done server-side. Offline (made real 2026-09-23): perform.html opens the bundle's own SBLive.cache.IndexedDbCacheStore per set and static/js/live-perform-cache.js loads the manifest network-first with the kept copy as fallback (8 s timeout) and the stems from this computer first, keeping what it downloads and pruning stems that left the set; static/js/sw.js LIVE_PERFORM keeps the page network-first with a cached fallback, like the TOUR pages. Before this every open re-fetched every stem. Proved in Node by tests/js/check_live_cache.js and end to end in headless Chrome (open online, stop the server, reopen: "1 of 1 stem loaded ... from this computer").
 - Routes: GET /live/<set_id>/manifest.json; GET /live/<set_id>/perform
-- Files: live.py:363 live_manifest(), :376 live_perform(); live_store.set_manifest(); static/js/livelab.js; templates/live/perform.html
+- Files: live.py live_manifest(), live_perform(); live_store.set_manifest(); static/js/livelab.js; static/js/live-perform-cache.js; static/js/sw.js (LIVE_PERFORM); templates/live/perform.html
 - Access: Same as Live sets.
 
 **Live — MIDI mappings**
@@ -2868,7 +2870,7 @@ Maps a physical control to a scene or transport target, refusing an unknown targ
 
 Scenes with bar counts, follow actions and launch quantisation, holding stems pointed at Vault files with gain, pan, mute, solo and output bus.
 
-- Because: live.py:221/247/299 write live_scenes and live_stems; a stem is a pointer to an existing vault_files row, never a copy (live.py:246), and :270 re-checks ownership on every byte served rather than minting a durable URL.
+- Because: live.py live_add_scene / live_add_stem / live_set_stem write live_scenes and live_stems; a stem is a pointer to an existing vault_files row, never a copy, and live_stem re-checks ownership on every byte served rather than minting a durable URL. live_stem now serves the bytes itself (2026-09-23): a bucket object is streamed through the app (blob_store.fetch; 503 when unreadable) because the performance page reads stems with fetch() and the bucket sends no CORS headers, and a file on this server's disk is read from app.config["UPLOADS_DIR"] via blob_store.safe_local_path. Before this a bucket stem was a redirect the page could not follow and a disk stem was always a 404 (it called store.uploads_dir(), which does not exist), so no stem ever reached the performance page. Locked by tests/test_real_live_stems.py.
 - Routes: POST /live/<set_id>/scene; POST /live/<set_id>/scene/<scene_id>/delete; POST /live/<set_id>/scene/<scene_id>/stem; GET /live/stem/<stem_id>; POST /live/stem/<stem_id>/set; POST /live/stem/<stem_id>/delete
 - Files: live.py:221 live_add_scene(), :236 live_delete_scene(), :247 live_add_stem(), :270 live_stem(), :299 live_set_stem(), :317 live_delete_stem(); live_store.py:99 live_scenes, :120 live_stems; blob_store.py
 - Access: Same as Live sets; every store call is scoped to partner key plus user id.
@@ -3729,6 +3731,15 @@ Live Spotify followers and popularity, Deezer fans, monthly listeners, a YouTube
 - Routes: /pulse (GET); /stats (GET, 301-style redirect to /pulse#engagement)
 - Files: app.py:9707 pulse_page; app.py:12341 stats; pulse_signals.py:1 build; pulse_everything.py:1 build; spotify_provider.py:133 pulse_configured; music_apis.py:225 deezer_artist_fans; templates/pulse.html, templates/_pulse_everything.html; db.py pulse_profiles, pulse_snapshots, pulse_peers, pulse_peer_snapshots
 - Access: artist tier (/pulse is in plans._ARTIST_PATHS); a fan plan got 402. Team seats need the "analytics" room. Changing the pinned artist once one is set additionally needs Pro/Label or an owner email (_pulse_change_allowed, app.py:9876), which answers 402 otherwise.
+
+**Artist Twin**
+
+Drafts (bio snippet, press pitch, playlist pitch, partner summary, fan thank-you) filled from templates with only the sources the artist approves, a do-not-say list scrubbed from every draft, the sources shown under each draft, and a rules-based read of the account's own numbers.
+
+- Because: app.py artist_twin_page gathers facts with artist_twin.gather_context from the approved sources only (twin_settings) and artist_twin.generate fills one of three tone template sets; no model writes anything. Drafts are kept in twin_generations and one can be written into the EPK bio (/epk/save). The Strategist Read is artist_os.twin_report over the account's tracks, Pulse snapshots and latest Rack measurement. Since 2026-09-23 (make-real brief) the labels say so: page heading "Drafts from your own data" with "Built from templates", directory line "Drafts from the data you approve, built from templates today", sidebar line "Template-built drafts from the data you approve, and a read of your own numbers", and the public start page's eyebrow "Artist Twin" (it said "AI Artist Twin"). A model behind generate() is the owner's decision because each draft would cost money. The homepage section and the public header still say "AI Artist Twin" (owner's pages, left for him). Locked by tests/test_real_twin_label.py.
+- Routes: GET+POST /artist-twin; GET /artist-twin/start (public)
+- Files: artist_twin.py gather_context/generate; app.py artist_twin_page; artist_os.py twin_report; templates/artist_twin.html, artist_twin_start.html; db.py twin_settings, twin_generations
+- Access: /artist-twin is in plans._ARTIST_PATHS (artist tier wherever gates are on); /artist-twin/start is public. Team seats need the "analytics" room.
 
 **Ask Signal**
 
@@ -4790,7 +4801,7 @@ File a dated, self-contained HTML copy of the kit in the artist's Vault.
 
 **The page a journalist opens (per-recipient announcement)**
 
-One announcement at one recipient's own token URL, with the embargo shown and the first open notified to the artist.
+One announcement at one recipient's own token URL, with the embargo shown and the first open notified to the artist. It shows the words, the dates, the contact and two links (Listen, Press kit); it draws no artwork and no audio player, because an announcement has no audio or artwork attached (the owner's announcement desk has no field for either). Since 2026-09-23 nothing promises otherwise: the Announcements intro says "with the details and your links", DEFAULT_BODY says "The announcement, the details and the links are here", and the kit button says "Press kit" rather than "Press kit, photos and audio" (tests/test_real_press_promise.py couples the intro to what the template draws). Attaching cover art and a playable master is waiting on the owner: it needs two pickers on his desk.
 
 - Because: press_desk.press_page resolves the token to a recipient, reads the pitch and the release owner-blind (get_release_any — the token is the authorisation), renders press_release_public.html and calls mark_opened, which increments open_count and returns the row only on the FIRST open so store.notify fires once. A team seat or an acting partner viewing it is excluded from counting as an open (session team_as / acting_as check). Probe: anonymous GET returned 200 and moved the recipient from prepared to opened with open_count 1.
 - Routes: GET /press/<token>
@@ -5500,7 +5511,7 @@ of them invents a figure to fill the gap.
 - Stripe webhooks (fan club member add / cancel) — app.py:5755 stripe_webhook, branches at :5766 and :5859; KEY REQUIRED: STRIPE_WEBHOOK_SECRET (or a secret stored in app_kv); the receiver 404s without one.
 - Suite services (SSO hand-off) — sb_suite_sso.py issues a 120-second signed token to street-banker-v2-workflows.onrender.com, street-banker-tour-open-preview-3.onrender.com and masterclip.onrender.com (overridable by SUITE_URL_*); shared secret required (SUITE_SSO_SECRET).
 - Suite services — The Room, REACH, Noise Lab (street-banker-v2-workflows.onrender.com), Tour (street-banker-tour-open-preview-3.onrender.com) and Motion (masterclip.onrender.com) — sb_suite_sso.py. Shared secret SUITE_SSO_SECRET required for the signed hand-off; without it app.py:917 falls back to a plain unauthenticated link. The same secret, under a separate salt, authenticates the suites' inbound credit calls to /api/suites/credits.
-- Symphonic Distribution via SummitArts - named on /distribution as the delivery partner. NO code integration exists: distro_config.INTEGRATIONS lists every store row as 'Delivered through partner' and direct platform connections as 'Coming soon'.
+- Symphonic Distribution via SummitArts - named on /distribution as the delivery partner. NO code integration exists: distro_config.INTEGRATIONS lists every store row as 'Delivered through partner' and direct platform connections as 'Not offered'.
 - The built-in mock universe — signal_providers.py:3180 MockMusicIntelligenceAdapter. NO KEY; it is always configured() and answers only while no real adapter is.
 - The MLC - signal_providers.py:2884 MLCAdapter, called from app.py:7035 /tracks/<id>/mlc and from app.py _mlc_credits() on /catalog/add. Key REQUIRED (MLC_ENABLED + MLC_USERNAME + MLC_PASSWORD); unconfigured it refuses honestly and writes nothing.
 - The MLC Public Search API — signal_providers.MLCAdapter (signal_providers.py:2884), called by recovery_mlc.sweep from POST /recovery/mlc. KEY REQUIRED: env_keys MLC_USERNAME + MLC_PASSWORD, env_flag MLC_ENABLED; unconfigured it refuses and the route redirects to /recovery?mlc=off (verified on this checkout).

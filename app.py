@@ -9624,6 +9624,29 @@ def create_app():
         if user is None:
             return login_required_redirect()
         saved = store.get_rack_preset(user["id"])
+        # Opened from a Studio session that imported a chain from the Rack
+        # library, the Rack starts from THAT chain (make-real, 2026-09-23:
+        # "Import Existing Rack Project" used to bring nothing in). The
+        # project is looked up with this account's own keys, so another
+        # account's project id loads nothing of theirs.
+        rack_start_note = ""
+        wanted_project = (request.args.get("project") or "").strip()
+        if wanted_project:
+            try:
+                import studio_config as _studio_config
+                import studio_store as _sstore
+                if _studio_config.enabled():
+                    project = _sstore.get_project(user.get("partner_id"),
+                                                  user["id"], wanted_project)
+                    imported = _sstore.project_rack_chain(project)
+                    if imported:
+                        saved = imported
+                        rack_start_note = (
+                            "Started from “%s”, the chain this Studio "
+                            "session imported." % (project.get("rack_chain_name")
+                                                   or "Saved chain"))
+            except Exception:
+                pass          # the Rack still opens with the account's own rack
         # Which song the Rack is measuring for (audit, 2026-09-23: the
         # Command Center's "Open the Rack" step counts a measurement only
         # when it names a song, and the Rack never named one, so the step
@@ -9637,6 +9660,7 @@ def create_app():
                       else (rack_tracks[0]["id"] if len(rack_tracks) == 1 else ""))
         return render_template("rack.html", active_page="rack",
                                rack_tracks=rack_tracks, rack_track=rack_track,
+                               rack_start_note=rack_start_note,
                                saved_rack=(_json.dumps(saved) if saved else "null"),
                                studio_split=stemsplit.configured(),
                                studio_modes=stemsplit.mode_list(),

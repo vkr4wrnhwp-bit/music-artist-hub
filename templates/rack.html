@@ -367,7 +367,7 @@
                 <span class="ru-sub">VU · Peak · Source</span>
                 <div class="ru-ctl rk-statusctl">
                   <span id="scope-lamp" class="lamp" aria-hidden="true"></span>
-                  <span id="rk-status"></span>
+                  <span id="rk-status">{{ rack_start_note or "" }}</span>
                   <span id="rk-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></span>
                 </div>
               </header>
@@ -1309,5 +1309,7 @@
    BEFORE the script that reads it — the other way round it was always
    undefined, so no saved rack ever came back. #}
 {% if saved_rack %}<script>window.__savedRack = {{ saved_rack | js_json }};</script>{% endif %}
-<script src="/static/js/rackdsp.js?v=62"></script>
+{#- Which chain a Studio session imported, said again once its master loads. -#}
+{% if rack_start_note %}<script>window.__rackStartNote = {{ rack_start_note | tojson }};</script>{% endif %}
+<script src="/static/js/rackdsp.js?v=63"></script>
 {% endblock %}

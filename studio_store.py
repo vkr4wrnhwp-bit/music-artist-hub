@@ -120,7 +120,9 @@ _PROJECTS_DDL = """
         created_by TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        archived_at TEXT
+        archived_at TEXT,
+        rack_chain TEXT NOT NULL DEFAULT '',
+        rack_chain_name TEXT NOT NULL DEFAULT ''
     )
 """
 
@@ -367,27 +369,67 @@ def _migrate(db):
     _add_column(db, "studio_versions", "report_json",
                 "TEXT NOT NULL DEFAULT ''", applied, "version_report")
 
+    # "Import Existing Rack Project" keeps a COPY of the chain it imported
+    # (2026-09-23). A copy, not a pointer to the library row: an import is
+    # the starting point, and editing or deleting the library preset later
+    # must not change what the session started from.
+    _add_column(db, "studio_projects", "rack_chain",
+                "TEXT NOT NULL DEFAULT ''", applied, "project_rack_chain")
+    _add_column(db, "studio_projects", "rack_chain_name",
+                "TEXT NOT NULL DEFAULT ''", applied, "project_rack_chain_name")
+
     return applied
 
 
 # --- projects ----------------------------------------------------------------
 
 def create_project(partner_id, user_id, title, project_type="stereo_mix_review",
-                   artist_name="", release_id="", track_id="", created_by=""):
+                   artist_name="", release_id="", track_id="", created_by="",
+                   rack_chain=None, rack_chain_name=""):
+    """`rack_chain` is the imported Rack state (a dict), kept only on an
+    imported_rack project: it is what the session's Rack panel shows and
+    what the Rack loads when it is opened from this session."""
+    import json as _json
+
     if project_type not in PROJECT_TYPES:
         project_type = "stereo_mix_review"
+    chain_text, chain_name = "", ""
+    if project_type == "imported_rack" and isinstance(rack_chain, dict) and rack_chain:
+        chain_text = _json.dumps(rack_chain)
+        chain_name = (rack_chain_name or "Saved chain")[:80]
     pid = _uid()
     now = _now()
     with get_db() as db:
         db.execute(
             "INSERT INTO studio_projects (id, partner_id, partner_key, user_id,"
             " artist_name, title, project_type, status, release_id, track_id,"
-            " created_by, created_at, updated_at)"
-            " VALUES (?,?,?,?,?,?,?,'draft',?,?,?,?,?)",
+            " created_by, created_at, updated_at, rack_chain, rack_chain_name)"
+            " VALUES (?,?,?,?,?,?,?,'draft',?,?,?,?,?,?,?)",
             (pid, partner_id, _pk(partner_id), user_id, artist_name, title,
-             project_type, release_id, track_id, created_by or user_id, now, now))
+             project_type, release_id, track_id, created_by or user_id, now, now,
+             chain_text, chain_name))
     record_event(partner_id, pid, "", "project.created", actor_id=created_by or user_id)
+    if chain_text:
+        record_event(partner_id, pid, "", "rack_chain.imported",
+                     actor_id=created_by or user_id,
+                     payload=_json.dumps({"name": chain_name}))
     return pid
+
+
+def project_rack_chain(project):
+    """The chain a project imported, as a dict, or None. A row whose copy
+    cannot be read is treated as having imported nothing rather than
+    handing the Rack half a patch."""
+    import json as _json
+
+    text = (project or {}).get("rack_chain") or ""
+    if not text:
+        return None
+    try:
+        chain = _json.loads(text)
+    except ValueError:
+        return None
+    return chain if isinstance(chain, dict) and chain else None
 
 
 def get_project(partner_id, user_id, project_id):

@@ -13,12 +13,18 @@
    open an hour ago still opens in a venue basement with no signal. The
    copy is per-URL - query string included, because Show Command tabs and
    My Day dates live in the query - is whatever the server last sent that
-   signed-in person, and is replaced on every successful load. */
-var VERSION = "sb-v320";   /* Marketing story window: centred on the glass */
+   signed-in person, and is replaced on every successful load.
+
+   The same for Live's performance page (2026-09-23): a set opened once
+   with internet reopens at the venue with none. The page is kept here;
+   its manifest and stems are kept in IndexedDB by the page itself
+   (static/js/live-perform-cache.js). */
+var VERSION = "sb-v321";   /* Live: the performance page reopens offline */
 var PAGES = VERSION + "-tour";
 var PRECACHE = ["/static/offline.html", "/static/img/streetbanker-logo.svg",
                 "/static/img/icon-192.png", "/static/manifest.json"];
 var TOUR_PAGE = /^\/tours\/[a-f0-9]{32}(\/my-day|\/shows\/[a-f0-9]{32})?$/;
+var LIVE_PERFORM = /^\/live\/[a-f0-9]{32}\/perform$/;
 
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(VERSION).then(function (c) { return c.addAll(PRECACHE); })
@@ -46,7 +52,8 @@ function retryThenFallback(request) {
 self.addEventListener("fetch", function (e) {
   var url = new URL(e.request.url);
   if (e.request.mode === "navigate") {
-    if (url.origin === location.origin && TOUR_PAGE.test(url.pathname)) {
+    if (url.origin === location.origin
+        && (TOUR_PAGE.test(url.pathname) || LIVE_PERFORM.test(url.pathname))) {
       e.respondWith(fetch(e.request).then(function (resp) {
         if (resp.ok) {
           var copy = resp.clone();

@@ -77,11 +77,15 @@ def test_the_integration_statuses_are_honest():
     from distro_config import INTEGRATIONS
 
     statuses = {s for _n, s in INTEGRATIONS}
+    # "Coming soon" left the vocabulary on 2026-09-23 (make-real brief): it
+    # promised a plan for direct delivery that nothing in the code carries.
+    # This test used to pin that row; it now pins the true status.
     assert statuses <= {"Connected", "Supported", "Delivered through partner",
-                        "Integration ready", "Coming soon"}
+                        "Integration ready", "Not offered"}
     # Nothing claims a direct connection this app does not hold.
     assert "Connected" not in statuses
-    assert ("Direct platform connections from Street Banker", "Coming soon") in INTEGRATIONS
+    assert "Coming soon" not in statuses
+    assert ("Direct platform connections from Street Banker", "Not offered") in INTEGRATIONS
     body = _anon().get("/distribution").get_data(as_text=True)
     for name, status in INTEGRATIONS:
         assert name in body, name

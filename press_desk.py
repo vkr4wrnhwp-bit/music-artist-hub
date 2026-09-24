@@ -2,8 +2,11 @@
 
 Everything here belongs to one artist and is reached only from their
 session. The public half is a single route, /press/<token>, which is the
-page a journalist opens: one announcement, its assets, and nothing that
-requires an account.
+page a journalist opens: one announcement, its details and its links, and
+nothing that requires an account. It draws no artwork and no audio player:
+an announcement has no audio or artwork attached to it (the owner's desk
+has no field for either), so nothing on the desk or in the default pitch
+says it does (make-real brief, 2026-09-23).
 
 On sending, which is the part worth being careful about:
 
@@ -53,7 +56,7 @@ DEFAULT_BODY = """Hi {name},
 
 I'm sending this over for {outlet} — {title}.
 
-Everything is here, including the audio, the artwork and the details:
+The announcement, the details and the links are here:
 {link}
 
 Happy to answer anything or set up an interview.

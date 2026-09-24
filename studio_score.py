@@ -165,8 +165,9 @@ def mix_readiness(measurements, versions=None):
         _loudness(m),
         _dynamics(m),
         _tempo_key(m),
+        # Needs the vocal on its own, which a one-file session cannot hold.
         _unmeasurable("vocal", "Vocal translation",
-                      "stems, or a vocal + instrumental session"),
+                      "the vocal as its own file; a session holds one file"),
         _unmeasurable("lowend", "Low-end control",
                       "stems, or a reference comparison"),
         _unmeasurable("stereo", "Stereo image",

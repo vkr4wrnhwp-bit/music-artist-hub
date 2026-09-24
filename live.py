@@ -32,10 +32,11 @@ deliberately and a plan gates it the same way the Rack and the Vault are
 gated. The flag is read per request; a module-level literal would freeze
 whatever the environment said when the process booted.
 """
+import mimetypes
 import os
 
-from flask import (Blueprint, abort, jsonify, redirect, render_template,
-                   request, send_file, url_for)
+from flask import (Blueprint, Response, abort, current_app, jsonify, redirect,
+                   render_template, request, send_file, url_for)
 
 import blob_store
 import db as store
@@ -91,9 +92,13 @@ def readiness():
     """What this browser will and will not be able to do, stated before
     somebody relies on it at a venue.
 
-    Reported rather than assumed: `AudioContext.setSinkId` - which is how each
-    player gets their own in-ear feed - is Chromium-only, and finding that out
-    during soundcheck is worse than reading it here.
+    Only what the performance page does (make-real, 2026-09-23). The offline
+    line is true because perform.html keeps the manifest and stems in
+    IndexedDB (static/js/live-perform-cache.js) and the service worker keeps
+    the page (static/js/sw.js LIVE_PERFORM). The outputs line used to promise
+    a separate feed per player through setSinkId; the engine's buses all
+    connect to one AudioContext destination and the page never calls
+    setSinkId, so it now says that.
     """
     return [
         ("audio", "Web Audio",
@@ -102,11 +107,13 @@ def readiness():
          "Triggers and MIDI Learn. Chromium-based browsers; Safari does not "
          "implement it."),
         ("offline", "Offline performance",
-         "Stems are cached in the browser so a show survives a reload with no "
-         "network."),
-        ("outputs", "Per-player outputs",
-         "Sending stems to separate interface channels uses setSinkId, which "
-         "is Chromium-only. Elsewhere everything folds to the default output."),
+         "Open the set once with internet. Its stems and the performance page "
+         "are then kept in this browser, so it opens again with no network. "
+         "Clearing this site's data in the browser removes them."),
+        ("outputs", "One output",
+         "Master, cue and click all play through the output this computer is "
+         "set to. Sending each to its own output, so each player gets their "
+         "own mix, is not built yet."),
     ]
 
 
@@ -283,15 +290,27 @@ def live_stem(stem_id):
     if row is None:
         abort(404)
     path = row["storage_path"] or ""
+    # Neither branch below used to deliver a byte to the performance page
+    # (make-real, 2026-09-23). A bucket object was a redirect to a signed
+    # URL, which the page's fetch() follows cross-origin, and the bucket
+    # sends no CORS headers (the Audio Studio found the same thing,
+    # 2026-09-15). A file on this server's disk looked for
+    # store.uploads_dir(), which does not exist, and so was always a 404.
+    mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
     if blob_store.is_remote(path):
-        return redirect(blob_store.url_for(path))
-    local = os.path.join(store.uploads_dir(), os.path.basename(path)) \
-        if hasattr(store, "uploads_dir") else None
-    if local and os.path.exists(local):
-        return send_file(local, conditional=True)
-    resolved = blob_store.url_for(path) if path else ""
-    if resolved and resolved != path:
-        return redirect(resolved)
+        data = blob_store.fetch(path)
+        if data is None:
+            abort(503)
+        return Response(data, mimetype=mime,
+                        headers={"Cache-Control": "private, max-age=300"})
+    if path.startswith("/uploads/"):
+        try:
+            local = blob_store.safe_local_path(
+                path, current_app.config.get("UPLOADS_DIR") or "")
+        except ValueError:
+            abort(404)
+        if os.path.exists(local):
+            return send_file(local, mimetype=mime, conditional=True)
     abort(404)
 
 
