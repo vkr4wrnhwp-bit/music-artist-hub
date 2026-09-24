@@ -132,9 +132,15 @@ def test_the_move_copy_follows_the_flag():
 
 def test_the_demo_fan_crm_shows_the_showcase_the_audience_counts():
     d, duid = _demo()
-    assert mls.list_fans(duid) == [], (
-        "the showcase only stands in while the demo has captured nobody; "
-        "a real capture takes the page back (see the test below)")
+    # Every test file a worker runs shares one database (conftest), and
+    # test_app's Spotify pre-save test captures a fan on this same demo
+    # account. When that file ran first, the demo had a fan, the page
+    # rightly took the showcase back, and this test failed on ordering,
+    # not on the product (2026-09-23). The showcase stands in only while
+    # the demo has captured nobody, so this test sets that up itself.
+    for fan in mls.list_fans(duid):
+        mls.delete_fan(duid, fan["id"])
+    assert mls.list_fans(duid) == []
     body = d.get("/links/fans").get_data(as_text=True)
     assert "Showcase." in body and "au-showcase" in body
     assert "the first 200 of 14,430 are listed" in body
