@@ -211,6 +211,16 @@ def variant_name(platform, phase, post_date):
     return "rollout_%s_%s_%s" % (platform, phase, post_date)
 
 
+def rollout_live(posts):
+    """Has this rollout actually gone out? At least one post marked posted,
+    and none still waiting as a draft or approved-but-unposted. Approved is
+    not posted, and a rollout whose every post was rejected went nowhere
+    (2026-09-23 review: both used to read "Rollout is live")."""
+    statuses = [p.get("status") for p in posts or []]
+    return ("posted" in statuses
+            and not any(s in ("draft", "approved") for s in statuses))
+
+
 def next_action(campaign, posts, assets):
     """One recommended next step for the dashboard."""
     if not posts:
@@ -218,14 +228,19 @@ def next_action(campaign, posts, assets):
     drafts = [p for p in posts if p["status"] == "draft"]
     if drafts:
         return "Review and approve %d draft post%s." % (len(drafts), "s" if len(drafts) != 1 else "")
+    approved = [p for p in posts if p["status"] == "approved"]
+    if not approved and not any(p["status"] == "posted" for p in posts):
+        # Every post rejected: nothing is going out, so neither a video
+        # nor the performance page is the next step.
+        return ("Every post was rejected, so nothing is going out. Approve "
+                "the ones you want on the plan page, or regenerate the rollout.")
     if not any(a["asset_type"] == "video" for a in assets):
         return ("Upload a video clip to unlock Reels/TikTok/Shorts edit plans. "
                 "No clip yet? Make it in Motion, then upload it to your Vault.")
-    approved = [p for p in posts if p["status"] == "approved"]
     if approved:
         return "%d approved post%s ready — post them and mark as posted." % (
             len(approved), "s" if len(approved) != 1 else "")
-    return "Rollout is live — watch the performance page for what converts."
+    return "Rollout is live. Watch the performance page for what converts."
 
 
 def platform_casts(caption, hashtags, title, link_url, avoid=None):

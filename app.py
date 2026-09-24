@@ -12069,18 +12069,22 @@ def create_app():
         # 2026-09-23, so the page was an error the moment every post left
         # draft (tests/test_rollout_overview_reviewed.py). _ro_owned has
         # already scoped the campaign to the signed-in account.
+        # The engine's step comes first. The learned line, which opens
+        # "Rollout is live.", replaces it only once the rollout really went
+        # out: a post posted and none waiting (rollout_engine.rollout_live).
+        # Approved-only and rejected-only rollouts used to read "live".
+        next_step = rollout_engine.next_action(campaign, posts, assets)
+        if rollout_engine.rollout_live(posts):
+            next_step = rollout_learning.next_action_line(
+                _rollout_learning(campaign["user_id"]),
+                rollout_engine.PLATFORM_NAMES,
+                rollout_engine.PHASE_NAMES) or next_step
         return render_template("rollout_overview.html", active_page="rollout",
                                c=campaign, posts=posts, assets=assets,
                                motion=rollout_engine.MOTION,
                                ml_campaign=ml_campaign, variants=variants,
                                direction=rollout_engine.creative_direction(campaign),
-                               next_action=(
-                                   rollout_learning.next_action_line(
-                                       _rollout_learning(campaign["user_id"]))
-                                   if posts and all(
-                                       p["status"] != "draft" for p in posts)
-                                   else None)
-                               or rollout_engine.next_action(campaign, posts, assets),
+                               next_action=next_step,
                                counts=ros.post_status_counts(cid),
                                phase_names=rollout_engine.PHASE_NAMES,
                                platform_names=rollout_engine.PLATFORM_NAMES,

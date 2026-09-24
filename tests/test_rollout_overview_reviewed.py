@@ -75,9 +75,9 @@ def test_the_overview_opens_once_every_post_is_rejected(campaign):
     assert campaign.get("/rollout-studio/%s" % campaign._cid).status_code == 200
 
 
-def test_the_learned_next_step_reads_the_signed_in_artists_history(campaign, monkeypatch):
-    """The branch that crashed now runs, and it asks about THIS account's
-    past rollouts: the learned line it returns is the one on the page."""
+def _learned(monkeypatch):
+    """A past-rollout finding for TikTok, and a record of whose history
+    the page asked about."""
     asked = []
 
     def fake_report(ml_campaigns, *_a, **_k):
@@ -94,9 +94,61 @@ def test_the_learned_next_step_reads_the_signed_in_artists_history(campaign, mon
 
     monkeypatch.setattr(rollout_learning, "report", fake_report)
     monkeypatch.setattr(appmod.mls, "list_campaigns", spy_list)
-    _review_every_post(campaign, "approve")
+    return asked, seen_users
+
+
+def test_the_learned_next_step_reads_the_signed_in_artists_history(campaign, monkeypatch):
+    """The branch that crashed now runs, and it asks about THIS account's
+    past rollouts: the learned line it returns is the one on the page.
+
+    It used to approve every post and expect the "Rollout is live" line
+    (2026-09-23 review): approved is not posted, so that pinned a false
+    sentence. The line belongs to a rollout whose posts went out."""
+    asked, seen_users = _learned(monkeypatch)
+    _review_every_post(campaign, "posted")
     body = campaign.get("/rollout-studio/%s" % campaign._cid).get_data(as_text=True)
     assert asked, "the learned next step was never asked for"
     assert campaign._uid in seen_users
-    line = rollout_learning.next_action_line(fake_report([]))
+    line = rollout_learning.next_action_line(
+        rollout_learning.report([]), rollout_engine.PLATFORM_NAMES,
+        rollout_engine.PHASE_NAMES)
     assert line and line in body
+    # The platform's name, not its utm key, and no em-dash.
+    assert "TikTok converts 42% better" in body
+    assert "tiktok converts" not in body
+    assert "—" not in line
+
+
+def test_an_approved_but_unposted_rollout_is_never_called_live(campaign, monkeypatch):
+    """Every post approved, none posted: nothing is live yet. The page
+    gives the engine's own next step, not the learned line."""
+    _learned(monkeypatch)
+    _review_every_post(campaign, "approve")
+    body = campaign.get("/rollout-studio/%s" % campaign._cid).get_data(as_text=True)
+    assert "Rollout is live" not in body
+    with appmod.app.app_context():
+        step = rollout_engine.next_action(
+            ros.get_campaign(campaign._cid), ros.list_posts(campaign._cid),
+            ros.list_assets(campaign._cid))
+    assert step in body
+
+
+def test_a_rejected_rollout_is_never_called_live(campaign, monkeypatch):
+    """Every post rejected: nothing went out, and the step says so."""
+    _learned(monkeypatch)
+    _review_every_post(campaign, "reject")
+    body = campaign.get("/rollout-studio/%s" % campaign._cid).get_data(as_text=True)
+    assert "Rollout is live" not in body
+    assert "Every post was rejected" in body
+
+
+def test_the_engine_never_calls_a_rejected_rollout_live():
+    """Even with a video on file, the engine's last branch was reached by
+    a rollout whose every post was rejected, and it said "live"."""
+    posts = [{"status": "rejected"}, {"status": "rejected"}]
+    assets = [{"asset_type": "video"}]
+    step = rollout_engine.next_action({}, posts, assets)
+    assert "live" not in step.lower()
+    assert not rollout_engine.rollout_live(posts)
+    assert rollout_engine.rollout_live([{"status": "posted"}, {"status": "rejected"}])
+    assert not rollout_engine.rollout_live([{"status": "posted"}, {"status": "approved"}])
