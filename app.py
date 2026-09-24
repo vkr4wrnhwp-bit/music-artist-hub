@@ -4185,7 +4185,10 @@ def create_app():
         if user is None:
             return jsonify({"ok": False, "error": "Sign in to make cover art."}), 401
         payload = _json_body()
-        prompt = (payload.get("prompt") or "").strip()[:300]
+        # 500 is what the page's counter says (owner's mockup, 2026-09-24),
+        # so 500 is what is kept; a counter that says /500 over a cap of
+        # 300 would be a lie.
+        prompt = (payload.get("prompt") or "").strip()[:500]
         suggestion = suggest_from_prompt(prompt)
         image_url, seed = None, None
         if not prompt:

@@ -690,7 +690,7 @@ def test_artwork_page_includes_generator():
     client = _demo()
     body = client.get("/artwork").get_data(as_text=True)
     assert 'id="cover-frame"' in body
-    assert "AI Artwork" in body and "Pollinations.ai" in body
+    assert "AI artwork is generated as a square cover" in body and "Pollinations.ai" in body
     assert 'id="bg-color"' in body              # background color wheel
     assert "colorway-btn" not in body           # preset blocks removed
     assert 'href="/artwork"' in body

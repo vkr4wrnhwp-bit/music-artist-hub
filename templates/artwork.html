@@ -15,7 +15,7 @@
 {% endif %}
 <style>
   .bebas { font-family: 'Bebas Neue', 'Arial Narrow', sans-serif; letter-spacing: .1em; }
-  /* Workflow plates: the rail is a real sequence — art, then type, then canvas. */
+  /* Workflow plates: the rail is a real sequence: art, then type, then canvas, then review. */
   .plate { display: flex; align-items: baseline; gap: .75rem; }
   .plate .no { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; line-height: 1; color: var(--sb-gold); }
   .plate .nm { font-family: 'Bebas Neue', sans-serif; font-size: 1.05rem; letter-spacing: .18em; color: var(--sb-ink); }
@@ -37,12 +37,113 @@
   .proof .tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; }
   .proof .bl { bottom: 0; left: 0; border-bottom-width: 3px; border-left-width: 3px; }
   .proof .br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; }
+  /* The print slug. The owner's audit measured the old rgba(239,233,220,.45)
+     at about 3.9:1 at 12px; ink-2 is the token that clears 4.5:1 on every
+     surface (tests/test_design_system.py measures it, and
+     tests/test_cover_studio.py measures it against this bench). */
   .slug { font-family: var(--sb-mono); font-variant-numeric: tabular-nums; font-size: 12px;
-    letter-spacing: .12em; color: rgba(239,233,220,.45); }
+    letter-spacing: .12em; color: var(--sb-ink-2); }
   .bench { background: radial-gradient(120% 90% at 50% 0%, var(--sb-on-gold) 0%, var(--sb-ground) 65%); }
   @media (prefers-reduced-motion: no-preference) {
     .proof svg, .proof img { transition: opacity .2s ease; }
   }
+
+  /* ---- The finish (owner's mockup + audit, 2026-09-24) --------------------
+     Same editor, same two columns, same black / cream / gold. What is new
+     is the four-step rail, cards that fold, the three actions under the
+     cover and the states that used to live only in a status line. -------- */
+
+  /* The starter pill: shown only while the cover is the untouched gradient. */
+  .cs-pill { display: inline-block; padding: 4px 10px; border-radius: var(--sb-r-pill);
+    border: 1px solid var(--sb-gold-line); background: var(--sb-gold-wash); color: var(--sb-gold-bright);
+    font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+  .cs-pill[hidden] { display: none; }
+
+  /* The rail: four steps, a dot and a line each. done and active are gold,
+     everything after the active step is grey. Four equal columns: the dot
+     and its line on top, the words under, so the words never collide in
+     the 400px column. */
+  .cs-rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; }
+  .cs-step { min-width: 0; }
+  .cs-step-btn { display: flex; flex-direction: column; align-items: stretch; width: 100%; gap: 6px; background: none; border: 0;
+    padding: 4px 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .1em;
+    text-transform: uppercase; text-align: left; color: var(--sb-ink-2); border-radius: var(--sb-r-control); }
+  .cs-step-btn:hover { color: var(--sb-ink); }
+  .cs-step-btn:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; }
+  .cs-track { display: flex; align-items: center; }
+  .cs-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--sb-line-strong); flex: 0 0 auto; }
+  .cs-line { flex: 1 1 auto; height: 1px; margin: 0 6px; background: var(--sb-line-strong); }
+  .cs-step:last-child .cs-line { display: none; }
+  .cs-step[data-state="active"] .cs-step-btn { color: var(--sb-gold-bright); }
+  .cs-step[data-state="active"] .cs-dot, .cs-step[data-state="done"] .cs-dot { background: var(--sb-gold); border-color: var(--sb-gold); }
+  .cs-step[data-state="active"] .cs-line, .cs-step[data-state="done"] .cs-line { background: var(--sb-gold); }
+  .cs-step-name { padding-right: 6px; }
+
+  /* Cards that fold. The heading is a real h2; the button inside it is the
+     disclosure, and aria-expanded is the truth about the body. */
+  .cs-head { display: flex; align-items: baseline; gap: .75rem; }
+  .cs-h { margin: 0; display: flex; min-width: 0; }
+  .cs-toggle { display: inline-flex; align-items: baseline; gap: .75rem; background: none; border: 0; padding: 0;
+    cursor: pointer; color: inherit; font: inherit; text-align: left; border-radius: var(--sb-r-control); }
+  .cs-toggle:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 3px; }
+  .cs-chev { width: 8px; height: 8px; align-self: center; margin-left: 2px; border-right: 2px solid var(--sb-gold);
+    border-bottom: 2px solid var(--sb-gold); transform: translateY(-2px) rotate(45deg); }
+  .cs-toggle[aria-expanded="false"] .cs-chev { transform: translateY(1px) rotate(-45deg); }
+  .cs-card[data-open="false"] > .cs-body { display: none; }
+  .cs-tail { margin-left: auto; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; justify-content: flex-end; }
+  .cs-link { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .08em; color: var(--sb-gold-bright); text-decoration: underline; text-underline-offset: 3px; }
+  .cs-link:hover { color: var(--sb-ink); }
+  .cs-muted { font-size: 12px; font-weight: 600; color: var(--sb-ink-2); }
+
+  /* Two segmented buttons: where the art comes from. */
+  .cs-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .cs-seg-btn { padding: 10px 10px; border-radius: var(--sb-r-control); border: 1px solid var(--sb-line-strong);
+    background: rgba(0,0,0,.3); color: var(--sb-ink); font: inherit; font-size: 12px; font-weight: 800;
+    letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+  .cs-seg-btn:hover { border-color: var(--sb-gold-line); }
+  .cs-seg-btn[aria-pressed="true"] { background: var(--sb-gold); border-color: var(--sb-gold); color: var(--sb-on-gold); }
+  .cs-seg-btn:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; }
+
+  /* Variations: 1 | 4. The chosen one is gold outlined, and aria-pressed says so. */
+  .cs-choices { display: inline-flex; gap: 6px; }
+  .cs-choice { min-width: 44px; min-height: 40px; padding: 6px 12px; border-radius: var(--sb-r-control);
+    border: 1px solid var(--sb-line-strong); background: rgba(0,0,0,.3); color: var(--sb-ink); font: inherit;
+    font-size: 14px; font-weight: 800; cursor: pointer; text-align: center; }
+  .cs-choice[aria-pressed="true"] { border-color: var(--sb-gold-bright); color: var(--sb-gold-bright);
+    box-shadow: inset 0 0 0 1px var(--sb-gold-bright); }
+  .cs-choice:disabled { opacity: .45; cursor: not-allowed; }
+  .cs-choice:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; }
+  .cs-choice small { display: block; font-size: 12px; font-weight: 600; color: var(--sb-ink-2); }
+  .cs-choice[aria-pressed="true"] small { color: var(--sb-gold-bright); }
+  .cs-generate { border-radius: var(--sb-r-control); padding: 12px 16px; border: 0; cursor: pointer;
+    background: linear-gradient(180deg, var(--sb-gold-bright), var(--sb-gold-bright) 55%, var(--sb-gold-deep));
+    color: var(--sb-on-gold); font: inherit; font-size: 12px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+  .cs-generate:disabled { opacity: .45; cursor: not-allowed; }
+  .cs-generate:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; }
+
+  /* The state line inside the Art card. Colour follows the word, never replaces it. */
+  #generate-note[data-state="generating"] { color: var(--sb-gold-bright); }
+  #generate-note[data-state="done"] { color: var(--sb-good); }
+  #generate-note[data-state="failed"] { color: var(--sb-crit); }
+
+  /* The Download menu: PNG and SVG behind one button. */
+  .cs-menu { position: relative; }
+  .cs-menu-list { position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; min-width: 150px;
+    display: grid; gap: 2px; padding: 6px; border-radius: var(--sb-r-panel); border: 1px solid var(--sb-gold-line);
+    background: var(--sb-surface-1); box-shadow: var(--sb-e3); }
+  .cs-menu-list[hidden] { display: none; }
+  .cs-menu-item { text-align: left; padding: 10px 12px; border-radius: var(--sb-r-control); background: none; border: 0;
+    color: var(--sb-ink); font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+  .cs-menu-item:hover, .cs-menu-item:focus-visible { background: var(--sb-gold-wash); color: var(--sb-gold-bright); outline: none; }
+  .cs-chev-dn { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor; transform: translateY(-3px) rotate(45deg); }
+
+  /* Under the three actions: saved or not, and where it lives. */
+  .cs-status { font-size: 12px; font-weight: 600; color: var(--sb-ink-2); }
+  .cs-status a { color: var(--sb-gold-bright); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+  .cs-status[data-saved="true"] { color: var(--sb-good); }
+
   /* Phone pass (2026-09-18): the sliders were a 2px line you had to land a
      finger on. On a phone each one is a 44px row with the same 2px line
      drawn through its middle and a bigger thumb; the align buttons, Reset
@@ -52,7 +153,7 @@
       background: linear-gradient(rgba(239,233,220,.14), rgba(239,233,220,.14)) center / 100% 2px no-repeat; }
     .studio input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
     .studio input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
-    .align-btn, #text-reset-btn { min-height: 44px; }
+    .align-btn, #text-reset-btn, .cs-link, .cs-menu-item { min-height: 44px; }
     .studio input[type="color"] { height: 44px; }
   }
 </style>
@@ -63,7 +164,7 @@
       <div class="text-xs font-semibold uppercase tracking-[0.35em] text-sb-gold">Street Banker · Promote</div>
       <h1 class="bebas mt-1 text-4xl text-sb-ink">Cover Studio</h1>
     </div>
-    <p class="max-w-xs text-right text-xs leading-relaxed text-gray-300">Art, then type, then ship. Everything you save lands in your uploads, ready for campaigns and the press kit.</p>
+    <p class="max-w-xs text-right text-xs leading-relaxed text-gray-300">Art, then type, then ship. Everything you save lands in your Studio Files, ready for campaigns and the press kit.</p>
   </div>
 
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
@@ -71,6 +172,7 @@
     <!-- ============ The proofing bench (sticky) ============ -->
     <div class="lg:sticky lg:top-4 lg:self-start">
       <div class="bench rounded-2xl border border-sb-gold/20 p-6 sm:p-10">
+        <div class="mb-3 flex justify-center"><span id="starter-pill" class="cs-pill">Starter preview</span></div>
         <div class="proof mx-auto w-full max-w-[560px]">
           <span class="mark tl"></span><span class="mark tr"></span><span class="mark bl"></span><span class="mark br"></span>
           <div id="cover-frame" class="w-full shadow-[0_30px_80px_rgba(0,0,0,0.7)]"></div>
@@ -84,32 +186,57 @@
         </div>
       </div>
 
-      <!-- Ship it -->
+      {#- Three actions, one row (audit 4): Save to Studio Files, Download
+          (PNG and SVG behind one button), Preview formats. Save brand kit
+          and Apply brand kit moved into the Type card's Brand settings. -#}
       <div class="mt-3 flex flex-wrap items-center gap-2">
-        <button type="button" id="save-cover-btn" class="flex-1 rounded-xl bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep px-5 py-3 text-sm font-black uppercase tracking-wide text-sb-on-gold transition-transform hover:scale-[1.01] sm:flex-none">Save cover to uploads</button>
-        <button type="button" id="download-png-btn" class="rounded-xl border border-sb-gold/40 px-4 py-3 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/10">PNG</button>
-        <button type="button" id="download-svg-btn" class="rounded-xl border border-white/10 px-4 py-3 text-xs font-bold text-gray-300 hover:bg-white/5">SVG</button>
-      </div>
-      <p id="cover-save-msg" class="mt-2 hidden break-all text-xs font-medium"></p>
-        <div class="mt-2 flex items-center gap-2">
-          <button type="button" id="allfmt-btn" class="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-200 hover:border-sb-gold/50 hover:text-sb-gold-bright">Preview all formats</button>
-          <button type="button" id="brand-save" class="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-200 hover:border-sb-gold/50 hover:text-sb-gold-bright" title="Remembers font, palette, template, and text treatment on this device">Save brand kit</button>
-          <button type="button" id="brand-apply" class="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-200 hover:border-sb-gold/50 hover:text-sb-gold-bright">Apply brand kit</button>
+        <button type="button" id="save-cover-btn" class="js-save-cover flex-1 rounded-xl bg-gradient-to-b from-sb-gold-bright via-sb-gold-bright to-sb-gold-deep px-5 py-3 text-sm font-black uppercase tracking-wide text-sb-on-gold transition-transform hover:scale-[1.01]">Save to Studio Files</button>
+        <div class="cs-menu">
+          <button type="button" id="download-btn" class="rounded-xl border border-sb-gold/40 px-4 py-3 text-xs font-bold uppercase tracking-wide text-sb-gold-bright hover:bg-sb-gold/10" aria-haspopup="menu" aria-expanded="false" aria-controls="download-menu">Download<span class="cs-chev-dn" aria-hidden="true"></span></button>
+          <div id="download-menu" class="cs-menu-list" role="menu" aria-label="Download as" hidden>
+            <button type="button" id="download-png-btn" class="cs-menu-item js-dl-png" role="menuitem">PNG</button>
+            <button type="button" id="download-svg-btn" class="cs-menu-item js-dl-svg" role="menuitem">SVG</button>
+          </div>
         </div>
-        <div id="fmt-strip" class="mt-3 hidden grid-cols-3 gap-3"></div>
+        <button type="button" id="allfmt-btn" class="js-preview-fmts rounded-xl border border-white/15 px-3 py-3 text-xs font-bold uppercase tracking-wide text-gray-200 hover:border-sb-gold/50 hover:text-sb-gold-bright">Preview formats</button>
+      </div>
+      <p id="cover-save-status" class="cs-status mt-2" data-saved="false">Not saved yet <span class="text-sb-gold">·</span> Stored in Vault</p>
+      <p id="cover-save-msg" class="mt-2 hidden break-all text-xs font-medium"></p>
+      <div id="fmt-strip" class="mt-3 hidden grid-cols-3 gap-3"></div>
     </div>
 
     <!-- ============ The workflow rail ============ -->
     <div class="space-y-6">
 
-      <!-- 01 · ART -->
-      <section class="rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5">
-        <div class="plate"><span class="no">01</span><span class="nm">Art</span><span class="rule"></span></div>
+      <ol id="cs-rail" class="cs-rail" aria-label="Cover Studio steps">
+        {% for n, name in (("1", "Art"), ("2", "Type"), ("3", "Canvas"), ("4", "Review &amp; Export")) %}
+        <li class="cs-step" data-step="{{ n }}" data-state="{{ 'active' if n == '1' else 'todo' }}"><button type="button" class="cs-step-btn" data-open-step="{{ n }}"{% if n == '1' %} aria-current="step"{% endif %}><span class="cs-track" aria-hidden="true"><span class="cs-dot"></span><span class="cs-line"></span></span><span class="cs-step-name">0{{ n }} {{ name | safe }}</span></button></li>
+        {% endfor %}
+      </ol>
 
-        {#- Owner 2026-09-19: this is cover art, not a general image generator. Video, social graphics and everything else are made in Motion. -#}
-        <p class="mt-3 text-xs text-gray-300">AI Artwork for the cover. Describe the cover and a real image paints onto the proof. Square cover art only: for video, social graphics and any other image, <a href="/suites/go/motion" target="_blank" rel="noopener" class="font-bold text-sb-gold-bright hover:underline">make it in Motion</a> and upload the finished file to your <a href="/vault" class="font-bold text-sb-gold-bright hover:underline">Vault</a>.</p>
-        <textarea aria-label="Describe the cover" id="prompt-input" rows="2" placeholder="e.g. moody midnight synthwave, neon city"
-                  class="mt-2 w-full resize-none rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-sb-ink placeholder-gray-300 focus:border-sb-gold/60 focus:outline-none"></textarea>
+      <!-- 01 · ART -->
+      <section id="step-art" class="cs-card rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5" data-step="1" data-open="true">
+        <div class="cs-head plate">
+          <h2 class="cs-h"><button type="button" class="cs-toggle" aria-expanded="true" aria-controls="step-art-body"><span class="no">01</span><span class="nm">Art</span><span class="cs-chev" aria-hidden="true"></span></button></h2>
+          <span class="rule"></span>
+        </div>
+        <div id="step-art-body" class="cs-body">
+        <p class="mt-3 text-xs font-medium text-gray-300">Generate with AI or upload your own artwork.</p>
+
+        <div class="cs-seg mt-3" role="group" aria-label="Where the art comes from">
+          <button type="button" id="art-mode-ai" class="cs-seg-btn" aria-pressed="true" aria-controls="art-ai-pane">Generate with AI</button>
+          <button type="button" id="art-mode-upload" class="cs-seg-btn" aria-pressed="false" aria-controls="art-upload-pane">Upload my art</button>
+        </div>
+
+        <div id="art-ai-pane">
+        {#- Owner 2026-09-19: this is cover art, not a general image generator. The one explanation of formats (audit 1, 2026-09-24): Story and Banner are real reframes of the same composition, and animation or video is Motion's. -#}
+        <p class="mt-3 text-xs text-gray-300">AI artwork is generated as a square cover. You can reframe that artwork for Story and Banner here. Use <a href="/suites/go/motion" target="_blank" rel="noopener" class="font-bold text-sb-gold-bright hover:underline">Motion</a> when you need animation or video.</p>
+        <div class="mt-3 flex items-baseline justify-between gap-2">
+          <label for="prompt-input" class="sb-label text-gray-200">Prompt</label>
+          <span id="prompt-count" class="cs-muted"><span id="prompt-len">0</span>/500</span>
+        </div>
+        <textarea id="prompt-input" rows="2" maxlength="500" placeholder="Describe the cover you want..."
+                  class="mt-1 w-full resize-none rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-sb-ink placeholder-gray-300 focus:border-sb-gold/60 focus:outline-none"></textarea>
         {#- What the model is told, beyond the words typed above. Every
             cover used to get the same four words, so every cover came back
             looking like the same cover. One tick per row: "photographic"
@@ -117,7 +244,7 @@
             it by ignoring one of them anyway. -#}
         <fieldset class="mt-3" id="look-boxes">
           <legend class="sb-label text-gray-200">The look</legend>
-          {% for group, label in (("medium", "Made as"), ("light", "Light"), ("finish", "Finish"), ("frame", "Framing")) %}
+          {% for group, label in (("medium", "Made as"), ("light", "Light"), ("finish", "Finish"), ("frame", "Framing"), ("scene", "Scene")) %}
           <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
             <span class="w-16 shrink-0 text-xs text-gray-300">{{ label }}</span>
             {% for key, g, text, words in look_options if g == group %}
@@ -138,14 +265,27 @@
         {% set cg = cover_gen %}
         {% set cg_open = cg.engine == 'openai' %}
         {% if cg_open and cg.demo %}
-        <p id="cover-gen-demo" class="mt-2 rounded-lg border border-sb-gold/30 bg-black/30 px-3 py-2.5 text-xs font-medium text-gray-200">Cover generation isn't part of the demo. Upload your own art below to try the designer.</p>
+        <p id="cover-gen-demo" class="mt-3 rounded-lg border border-sb-gold/30 bg-black/30 px-3 py-2.5 text-xs font-medium text-gray-200">Cover generation isn't part of the demo. Upload your own art to try the designer.</p>
         {% else %}
-        <div id="generate-controls" class="{{ 'hidden' if cg_open and cg.left == 0 else '' }}">
+        <div id="generate-controls" class="mt-3 {{ 'hidden' if cg_open and cg.left == 0 else '' }}">
           {% if not (cg_open and cg.left == 0) %}
-          <button type="button" id="generate-btn" class="mt-2 w-full rounded-lg border border-sb-gold/40 bg-sb-gold/10 px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright transition-colors hover:bg-sb-gold/20">Generate cover art</button>
-          {% if not cg_open or cg.unlimited or (cg.left or 0) >= 4 %}
-          <button type="button" id="generate4-btn" class="rounded-lg border border-sb-gold/40 bg-sb-gold/10 px-3 py-2 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/20">{{ '4 variations (uses 4 covers)' if cg_open and not cg.unlimited else '4 variations' }}</button>
-          {% endif %}
+          {#- "4" is a real choice with a real selected state (audit 3). It
+              uses four covers, and it is unavailable when fewer than four
+              are left this month rather than quietly failing part way. -#}
+          {% set four_ok = (not cg_open) or cg.unlimited or (cg.left or 0) >= 4 %}
+          <div class="flex flex-wrap items-end gap-3">
+            <div>
+              <div id="variations-label" class="sb-label text-gray-200">Variations</div>
+              <div class="cs-choices mt-1" role="group" aria-labelledby="variations-label">
+                <button type="button" id="variations-1" class="cs-choice" data-n="1" aria-pressed="true">1</button>
+                <button type="button" id="variations-4" class="cs-choice" data-n="4" aria-pressed="false"{{ '' if four_ok else ' disabled' }}>4{% if cg_open and not cg.unlimited %}<small>uses 4 covers</small>{% endif %}</button>
+              </div>
+              {% if cg_open and not cg.unlimited and not four_ok %}
+              <p id="variations-note" class="cs-muted mt-1">4 needs 4 covers; {{ cg.left }} left this month.</p>
+              {% endif %}
+            </div>
+            <button type="button" id="generate-btn" class="cs-generate ml-auto" disabled>Generate cover art</button>
+          </div>
           {% endif %}
         </div>
         {% if cg_open %}
@@ -155,28 +295,29 @@
           {%- endif -%}
         </p>
         <p id="cover-used-up" class="mt-2 rounded-lg border border-sb-gold/30 bg-black/30 px-3 py-2.5 text-xs font-medium text-gray-200 {{ '' if cg.left == 0 and not cg.unlimited else 'hidden' }}">
-          {%- if cg.limit == 0 -%}Your plan has no cover renders. Upload your own art below.
-          {%- else -%}This month's {{ cg.limit }} covers are used. More on {{ cg.resets }}. You can still upload your own art below.
+          {%- if cg.limit == 0 -%}Your plan has no cover renders. Upload your own art instead.
+          {%- else -%}This month's {{ cg.limit }} covers are used. More on {{ cg.resets }}. You can still upload your own art.
           {%- endif -%}
         </p>
         {% endif %}
         {% endif %}
-        <div id="generate-note" class="mt-2 hidden text-xs text-gray-300 font-medium" role="status" aria-live="polite"></div>
+        {#- Generating, done and failed live HERE, under the button (audit 3). -#}
+        <div id="generate-note" class="mt-2 hidden text-xs font-medium" role="status" aria-live="polite" data-state="idle"></div>
 
         <div id="ai-grid" class="mt-3 hidden grid-cols-2 gap-2"></div>
         <div id="ai-image-wrap" class="mt-3 hidden">
           <div class="relative overflow-hidden rounded-xl border border-white/10">
             <img id="ai-image" alt="Generated cover art" class="aspect-square w-full object-cover">
-            <div id="ai-loading" class="absolute inset-0 grid place-items-center bg-black/70 text-xs font-bold text-sb-gold-bright">Painting… 10–30s</div>
+            <div id="ai-loading" class="absolute inset-0 grid place-items-center bg-black/70 text-xs font-bold text-sb-gold-bright">Painting, 10 to 30 seconds</div>
           </div>
           <div class="mt-2 flex flex-wrap gap-2">
-            <button type="button" id="ai-save-btn" class="{{ 'hidden ' if cg_open else '' }}rounded-md bg-sb-gold/20 px-3 py-1.5 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/30" disabled>Save to My Uploads</button>
+            <button type="button" id="ai-save-btn" class="{{ 'hidden ' if cg_open else '' }}rounded-md bg-sb-gold/20 px-3 py-1.5 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/30" disabled>Save to Studio Files</button>
             <button type="button" id="ai-again-btn" class="rounded-md border border-white/15 px-3 py-1.5 text-xs font-bold text-gray-200 hover:bg-white/10" disabled>Another take</button>
             <button type="button" id="ai-remove-btn" class="hidden rounded-md border border-white/15 px-3 py-1.5 text-xs font-bold text-gray-300 hover:bg-white/10">Remove from cover</button>
           </div>
           <p id="ai-saved-msg" class="mt-2 hidden break-all text-xs text-green-400 font-medium"></p>
           <div id="ai-remix-wrap" class="mt-3 hidden">
-            <label for="remix-input" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">{{ 'Remix: describe the change' if cg_open else 'Remix — describe the change' }}</label>
+            <label for="remix-input" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Remix: describe the change</label>
             <div class="mt-1 flex gap-2">
               <input id="remix-input" placeholder="e.g. make it red and gold, add rain" class="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-sb-ink placeholder-gray-300 focus:border-sb-gold/60 focus:outline-none">
               <button type="button" id="remix-btn" class="shrink-0 rounded-md border border-sb-gold/40 bg-sb-gold/10 px-3 py-2 text-xs font-bold text-sb-gold-bright hover:bg-sb-gold/20">Remix</button>
@@ -184,50 +325,53 @@
             {% if cg_open %}
             <p class="mt-1 text-xs text-gray-300 font-medium">Makes a new cover from your description plus this change. It is a new render, so it uses one of your covers{{ '' if cg.unlimited else ' this month' }}.</p>
             {% else %}
-            <p class="mt-1 text-xs text-gray-300 font-medium">Re-imagines the same concept with your change — it regenerates rather than editing pixels.</p>
+            <p class="mt-1 text-xs text-gray-300 font-medium">Re-imagines the same concept with your change. It regenerates rather than editing pixels.</p>
             {% endif %}
           </div>
           {% if cg_open %}
-          <p class="mt-2 text-xs text-gray-300 font-medium">Made by OpenAI's {{ cg.model }}. Each cover is saved to your uploads as soon as it is made.</p>
+          <p class="mt-2 text-xs text-gray-300 font-medium">Made by OpenAI's {{ cg.model }}. Each cover is saved to your Studio Files as soon as it is made.</p>
           {% else %}
-          <p class="mt-2 text-xs text-gray-300 font-medium">Generated by Pollinations.ai — a free community model. Results vary; regenerate until it hits.</p>
+          <p class="mt-2 text-xs text-gray-300 font-medium">Generated by Pollinations.ai, a free community model. Results vary; regenerate until it hits.</p>
           {% endif %}
         </div>
+        </div>
 
-        <label class="mt-3 block cursor-pointer rounded-lg border border-dashed border-white/15 px-3 py-2.5 text-center text-xs font-bold text-gray-200 hover:border-sb-gold/40 hover:text-sb-gold-bright">
-          Or upload your own artwork
-          <input type="file" id="art-upload" accept=".png,.jpg,.jpeg,.webp" class="hidden">
-        </label>
-        <p id="upload-msg" class="mt-1.5 hidden text-xs font-medium"></p>
-
-        <!-- Image adjust: appears once art is on the proof -->
-        <div id="image-controls" class="mt-4 hidden border-t border-white/5 pt-4">
-          <div class="text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">Fit the image</div>
-          <div class="mt-3 space-y-3">
-            <div>
-              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Darken (for text)</span><span id="scrim-val" class="text-sb-gold-bright">28%</span></div>
-              <input aria-label="Image darkening" type="range" id="img-scrim" min="0" max="80" value="28" class="mt-1 w-full">
-            </div>
-            <div>
-              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Zoom</span><span id="zoom-val" class="text-sb-gold-bright">100%</span></div>
-              <input aria-label="Image zoom" type="range" id="img-zoom" min="100" max="250" value="100" class="mt-1 w-full">
-            </div>
-            <div>
-              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Pan horizontal</span><span id="panx-val" class="text-sb-gold-bright">50%</span></div>
-              <input aria-label="Image pan, left to right" type="range" id="img-panx" min="0" max="100" value="50" class="mt-1 w-full">
-            </div>
-            <div>
-              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Pan vertical</span><span id="pany-val" class="text-sb-gold-bright">50%</span></div>
-              <input aria-label="Image pan, up and down" type="range" id="img-pany" min="0" max="100" value="50" class="mt-1 w-full">
-            </div>
-          </div>
+        <div id="art-upload-pane" hidden>
+          <label class="mt-3 block cursor-pointer rounded-lg border border-dashed border-white/15 px-3 py-2.5 text-center text-xs font-bold text-gray-200 hover:border-sb-gold/40 hover:text-sb-gold-bright">
+            Upload your own artwork (PNG, JPG or WebP)
+            <input type="file" id="art-upload" accept=".png,.jpg,.jpeg,.webp" class="hidden">
+          </label>
+          <p id="upload-msg" class="mt-1.5 hidden text-xs font-medium"></p>
+          <p class="mt-2 text-xs text-gray-300">Your upload lands in Studio Files and on the cover. Fit it under 03 Canvas.</p>
+        </div>
         </div>
       </section>
 
       <!-- 02 · TYPE -->
-      <section class="rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5">
-        <div class="plate"><span class="no">02</span><span class="nm">Type</span><span class="rule"></span>
-          <button type="button" id="text-reset-btn" class="text-xs font-bold uppercase tracking-wide text-gray-300 hover:text-sb-gold-bright">Reset</button>
+      <section id="step-type" class="cs-card rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5" data-step="2" data-open="true">
+        <div class="cs-head plate">
+          <h2 class="cs-h"><button type="button" class="cs-toggle" aria-expanded="true" aria-controls="step-type-body"><span class="no">02</span><span class="nm">Type</span><span class="cs-chev" aria-hidden="true"></span></button></h2>
+          <span class="rule"></span>
+          <div class="cs-tail">
+            <button type="button" id="brand-settings-btn" class="cs-link" aria-expanded="false" aria-controls="brand-settings">Brand settings</button>
+            <span class="cs-muted">Saved on this device</span>
+            <button type="button" id="text-reset-btn" class="text-xs font-bold uppercase tracking-wide text-gray-300 hover:text-sb-gold-bright">Reset</button>
+          </div>
+        </div>
+        <div id="step-type-body" class="cs-body">
+        <p class="mt-3 text-xs font-medium text-gray-300">Title, artist, typography and logo.</p>
+
+        {#- Brand kit: the recurring look, remembered by this browser only
+            (localStorage). Saying so out loud was a tooltip; now it is the
+            words beside the link, and when nothing is saved the Apply
+            button is not there to look live. -#}
+        <div id="brand-settings" class="mt-3 rounded-lg border border-white/10 bg-black/20 p-3" hidden>
+          <p class="text-xs text-gray-300">A brand kit remembers your typeface, text style, letter spacing, caps and colours. It is saved on this device only and does not follow your account.</p>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <button type="button" id="brand-save" class="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-200 hover:border-sb-gold/50 hover:text-sb-gold-bright">Save brand kit</button>
+            <button type="button" id="brand-apply" class="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-200 hover:border-sb-gold/50 hover:text-sb-gold-bright" hidden>Apply brand kit</button>
+            <span id="brand-none" class="cs-muted">No brand kit saved</span>
+          </div>
         </div>
 
         <div class="mt-3">
@@ -239,29 +383,6 @@
           <label for="artist-input" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Artist</label>
           <input id="artist-input" value="{{ aw.artist }}"
                  class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-sb-ink focus:border-sb-gold/60 focus:outline-none">
-          <label class="mt-2 block cursor-pointer rounded-lg border border-dashed border-white/15 px-3 py-2 text-center text-xs font-bold text-gray-300 hover:border-sb-gold/40 hover:text-sb-gold-bright">
-            Upload band logo (PNG with transparency works best)
-            <input type="file" id="logo-upload" accept=".png,.jpg,.jpeg,.webp" class="hidden">
-          </label>
-          <p id="logo-msg" class="mt-1 hidden text-xs font-medium"></p>
-          <div id="logo-controls" class="mt-2 hidden space-y-3 rounded-lg border border-white/5 bg-black/20 p-3">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold uppercase tracking-wide text-gray-300">Logo on cover</span>
-              <button type="button" id="logo-remove" class="text-xs font-bold text-gray-300 hover:text-red-400">Remove</button>
-            </div>
-            <div>
-              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Logo size</span><span id="lsize-val" class="text-sb-gold-bright">24%</span></div>
-              <input aria-label="Logo size" type="range" id="logo-size" min="5" max="70" value="24" class="mt-1 w-full">
-            </div>
-            <div>
-              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Logo horizontal</span><span id="lx-val" class="text-sb-gold-bright">50%</span></div>
-              <input aria-label="Logo position, left to right" type="range" id="logo-x" min="0" max="100" value="50" class="mt-1 w-full">
-            </div>
-            <div>
-              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Logo vertical</span><span id="ly-val" class="text-sb-gold-bright">16%</span></div>
-              <input aria-label="Logo position, up and down" type="range" id="logo-y" min="0" max="100" value="16" class="mt-1 w-full">
-            </div>
-          </div>
         </div>
 
         <div class="mt-3">
@@ -271,19 +392,8 @@
           </select>
         </div>
 
-        <div class="mt-3 grid grid-cols-2 gap-3">
-          <div>
-            <span class="text-xs uppercase tracking-wide text-gray-300 font-medium">Title color</span>
-            <input aria-label="Title colour" type="color" id="title-color" value="#ffffff" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
-          </div>
-          <div>
-            <span class="text-xs uppercase tracking-wide text-gray-300 font-medium">Artist color</span>
-            <input aria-label="Artist name colour" type="color" id="artist-color" value="#E8B950" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
-          </div>
-        </div>
-
         <div class="mt-3 flex flex-wrap items-center gap-2">
-          <div class="flex overflow-hidden rounded-lg border border-white/10">
+          <div class="flex overflow-hidden rounded-lg border border-white/10" role="group" aria-label="Alignment">
             {% for al, label in [('left', 'Left'), ('center', 'Center'), ('right', 'Right')] %}
             <button type="button" class="align-btn px-3 py-1.5 text-xs font-bold uppercase text-gray-300 hover:text-sb-gold-bright" data-align="{{ al }}">{{ label }}</button>
             {% endfor %}
@@ -313,32 +423,74 @@
             <input aria-label="Letter spacing" type="range" id="letter-spacing" min="0" max="24" value="0" class="mt-1 w-full">
           </div>
           <div>
-            <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Title horizontal</span><span id="posx-val" class="text-sb-gold-bright">—</span></div>
+            <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Title horizontal</span><span id="posx-val" class="text-sb-gold-bright">auto</span></div>
             <input aria-label="Title position, left to right" type="range" id="text-x" min="0" max="100" value="50" class="mt-1 w-full">
           </div>
           <div>
-            <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Title vertical</span><span id="posy-val" class="text-sb-gold-bright">—</span></div>
+            <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Title vertical</span><span id="posy-val" class="text-sb-gold-bright">auto</span></div>
             <input aria-label="Title position, up and down" type="range" id="text-y" min="8" max="95" value="58" class="mt-1 w-full">
           </div>
           <div>
-            <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Artist horizontal</span><span id="ax-val" class="text-sb-gold-bright">—</span></div>
+            <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Artist horizontal</span><span id="ax-val" class="text-sb-gold-bright">auto</span></div>
             <input aria-label="Artist name position, left to right" type="range" id="artist-x" min="0" max="100" value="50" class="mt-1 w-full">
           </div>
           <div>
-            <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Artist vertical</span><span id="ay-val" class="text-sb-gold-bright">—</span></div>
+            <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Artist vertical</span><span id="ay-val" class="text-sb-gold-bright">auto</span></div>
             <input aria-label="Artist name position, up and down" type="range" id="artist-y" min="0" max="100" value="66" class="mt-1 w-full">
           </div>
+        </div>
+
+        <div class="mt-3 grid grid-cols-2 gap-3">
+          <div>
+            <span class="text-xs uppercase tracking-wide text-gray-300 font-medium">Title color</span>
+            <input aria-label="Title colour" type="color" id="title-color" value="#ffffff" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
+          </div>
+          <div>
+            <span class="text-xs uppercase tracking-wide text-gray-300 font-medium">Artist color</span>
+            <input aria-label="Artist name colour" type="color" id="artist-color" value="#E8B950" class="mt-1 h-8 w-full cursor-pointer rounded border border-white/10 bg-transparent">
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <label class="block cursor-pointer rounded-lg border border-dashed border-white/15 px-3 py-2 text-center text-xs font-bold text-gray-300 hover:border-sb-gold/40 hover:text-sb-gold-bright">
+            Upload band logo (PNG with transparency works best)
+            <input type="file" id="logo-upload" accept=".png,.jpg,.jpeg,.webp" class="hidden">
+          </label>
+          <p id="logo-msg" class="mt-1 hidden text-xs font-medium"></p>
+          <div id="logo-controls" class="mt-2 hidden space-y-3 rounded-lg border border-white/5 bg-black/20 p-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase tracking-wide text-gray-300">Logo on cover</span>
+              <button type="button" id="logo-remove" class="text-xs font-bold text-gray-300 hover:text-red-400">Remove</button>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Logo size</span><span id="lsize-val" class="text-sb-gold-bright">24%</span></div>
+              <input aria-label="Logo size" type="range" id="logo-size" min="5" max="70" value="24" class="mt-1 w-full">
+            </div>
+            <div>
+              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Logo horizontal</span><span id="lx-val" class="text-sb-gold-bright">50%</span></div>
+              <input aria-label="Logo position, left to right" type="range" id="logo-x" min="0" max="100" value="50" class="mt-1 w-full">
+            </div>
+            <div>
+              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Logo vertical</span><span id="ly-val" class="text-sb-gold-bright">16%</span></div>
+              <input aria-label="Logo position, up and down" type="range" id="logo-y" min="0" max="100" value="16" class="mt-1 w-full">
+            </div>
+          </div>
+        </div>
         </div>
       </section>
 
       <!-- 03 · CANVAS -->
-      <section class="rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5">
-        <div class="plate"><span class="no">03</span><span class="nm">Canvas</span><span class="rule"></span></div>
-
+      <section id="step-canvas" class="cs-card rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5" data-step="3" data-open="false">
+        <div class="cs-head plate">
+          <h2 class="cs-h"><button type="button" class="cs-toggle" aria-expanded="false" aria-controls="step-canvas-body"><span class="no">03</span><span class="nm">Canvas</span><span class="cs-chev" aria-hidden="true"></span></button></h2>
+          <span class="rule"></span>
+          <span id="canvas-summary" class="cs-muted">Square 1:1 · 1000×1000</span>
+        </div>
+        <div id="step-canvas-body" class="cs-body">
         <div class="mt-3">
           <label for="aspect-select" class="text-xs font-semibold uppercase tracking-[0.15em] text-gray-300">Size</label>
           <select id="aspect-select" class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-2 py-2 text-sm text-sb-ink focus:border-sb-gold/60 focus:outline-none">
-            {% for a in aw.aspects %}<option value="{{ a.id }}">{{ a.name }} — {{ a.w }}×{{ a.h }}</option>{% endfor %}
+            {% for a in aw.aspects %}<option value="{{ a.id }}">{{ a.name }} · {{ a.w }}×{{ a.h }}</option>{% endfor %}
           </select>
         </div>
 
@@ -350,17 +502,47 @@
           </div>
         </div>
 
-
+        <!-- Image adjust: appears once art is on the proof -->
+        <div id="image-controls" class="mt-4 hidden border-t border-white/5 pt-4">
+          <div class="text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">Fit the image</div>
+          <div class="mt-3 space-y-3">
+            <div>
+              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Darken (for text)</span><span id="scrim-val" class="text-sb-gold-bright">28%</span></div>
+              <input aria-label="Image darkening" type="range" id="img-scrim" min="0" max="80" value="28" class="mt-1 w-full">
+            </div>
+            <div>
+              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Zoom</span><span id="zoom-val" class="text-sb-gold-bright">100%</span></div>
+              <input aria-label="Image zoom" type="range" id="img-zoom" min="100" max="250" value="100" class="mt-1 w-full">
+            </div>
+            <div>
+              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Pan horizontal</span><span id="panx-val" class="text-sb-gold-bright">50%</span></div>
+              <input aria-label="Image pan, left to right" type="range" id="img-panx" min="0" max="100" value="50" class="mt-1 w-full">
+            </div>
+            <div>
+              <div class="flex justify-between text-xs uppercase tracking-wide text-gray-300 font-medium"><span>Pan vertical</span><span id="pany-val" class="text-sb-gold-bright">50%</span></div>
+              <input aria-label="Image pan, up and down" type="range" id="img-pany" min="0" max="100" value="50" class="mt-1 w-full">
+            </div>
+          </div>
+        </div>
+        </div>
       </section>
 
-      {#- Will the stores take it? artwork_check.py measured all of this and
-          was reachable from nowhere, so no artist ever saw it. A rejected
-          cover costs a release date, and the reason is almost always
-          something measurable that nobody measured. Nothing is saved here:
-          the file is read, measured and dropped. -#}
-      <section class="rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5">
-        <div class="plate"><span class="nm">Will the stores take it?</span><span class="rule"></span></div>
-        <p class="mt-3 text-sm font-medium text-gray-300">Check a cover before you send it to your distributor. Nothing is uploaded or kept: the file is measured here and dropped.</p>
+      <!-- 04 · REVIEW & EXPORT -->
+      <section id="step-review" class="cs-card rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5" data-step="4" data-open="true">
+        <div class="cs-head plate">
+          <h2 class="cs-h"><button type="button" class="cs-toggle" aria-expanded="true" aria-controls="step-review-body"><span class="no">04</span><span class="nm">Review &amp; Export</span><span class="cs-chev" aria-hidden="true"></span></button></h2>
+          <span class="rule"></span>
+        </div>
+        <div id="step-review-body" class="cs-body">
+        <p class="mt-3 text-xs font-medium text-gray-300">Make sure everything looks good before saving to your studio.</p>
+
+        {#- Will the stores take it? artwork_check.py measured all of this and
+            was reachable from nowhere, so no artist ever saw it. A rejected
+            cover costs a release date, and the reason is almost always
+            something measurable that nobody measured. Nothing is saved here:
+            the file is read, measured and dropped. -#}
+        <h3 class="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">Store check</h3>
+        <p class="mt-2 text-sm font-medium text-gray-300">Check a cover before you send it to your distributor. Nothing is uploaded or kept: the file is measured here and dropped.</p>
         <label for="cover-check-file" class="sb-btn sb-btn-secondary mt-3 inline-flex cursor-pointer">Check a cover</label>
         <input type="file" id="cover-check-file" accept="image/png,image/jpeg,image/webp,image/tiff" class="sr-only">
         <p id="cover-check-msg" class="mt-2 hidden text-sm font-medium text-gray-300" role="status" aria-live="polite"></p>
@@ -373,15 +555,25 @@
             <p id="cover-check-note" class="mt-3 text-xs font-medium text-gray-300"></p>
           </details>
         </div>
+
+        <h3 class="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">Export</h3>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <button type="button" id="review-save-btn" class="js-save-cover sb-btn sb-btn-primary">Save to Studio Files</button>
+          <button type="button" id="review-png-btn" class="js-dl-png sb-btn sb-btn-secondary">Download PNG</button>
+          <button type="button" id="review-svg-btn" class="js-dl-svg sb-btn sb-btn-secondary">Download SVG</button>
+          <button type="button" id="review-fmts-btn" class="js-preview-fmts sb-btn sb-btn-secondary">Preview formats</button>
+        </div>
+        <p class="mt-2 text-xs font-medium text-gray-300">Studio Files are stored in your <a href="/vault" class="font-bold text-sb-gold-bright underline">Vault</a>.</p>
+        </div>
       </section>
 
       {#- Studio files: every upload and every saved generate wrote a file
           and listed it nowhere, so a second idea orphaned the first one
           for good. This is the listing, and the way back off the disk.
           Only files this studio wrote for this account appear. -#}
-      <section class="rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5">
-        <div class="plate"><span class="nm">Your studio files</span><span class="rule"></span></div>
-        <p class="mt-3 text-xs font-medium text-gray-300">Uploads and saved generates land here. A finished cover sent with &ldquo;Save cover to uploads&rdquo; is a <a href="/vault" class="font-bold text-sb-gold-bright underline">Vault</a> file &mdash; remove that one there.</p>
+      <section id="studio-files" class="rounded-2xl border border-sb-gold/15 bg-sb-surface-2 p-5">
+        <div class="plate"><h2 class="nm">Studio Files</h2><span class="rule"></span></div>
+        <p class="mt-3 text-xs font-medium text-gray-300">Studio Files are stored in your <a href="/vault" class="font-bold text-sb-gold-bright underline">Vault</a>. Uploads and saved generates are listed here with a way to remove them; a finished cover saved with &ldquo;Save to Studio Files&rdquo; is removed from the Vault itself.</p>
         <div id="art-uploads" class="mt-3 space-y-1.5">
           {% for u in art_uploads %}
           <div class="art-upload-row flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 p-2">
@@ -426,6 +618,10 @@
   };
 
   const byId = (arr, id) => arr.find((x) => x.id === id) || arr[0];
+  const el = (id) => document.getElementById(id);
+
+  // The untouched starter gradient: no art placed, no colour chosen.
+  const isStarter = () => !state.image && !state.bgCustom;
 
   function buildSvg(forExport) {
     const c = byId(COLORWAYS, state.colorway);
@@ -515,21 +711,25 @@
   }
 
   function render() {
-    document.getElementById("cover-frame").innerHTML = buildSvg(false);
-    const rm = document.getElementById("ai-remove-btn");
+    el("cover-frame").innerHTML = buildSvg(false);
+    const rm = el("ai-remove-btn");
     if (rm) rm.classList.toggle("hidden", !state.image);
-    document.getElementById("image-controls").classList.toggle("hidden", !state.image);
-    document.getElementById("logo-controls").classList.toggle("hidden", !state.logo);
+    el("image-controls").classList.toggle("hidden", !state.image);
+    el("logo-controls").classList.toggle("hidden", !state.logo);
     document.querySelectorAll(".align-btn").forEach((b) => {
       const active = b.dataset.align === state.align;
       b.classList.toggle("bg-amber-500/15", active);
       b.classList.toggle("text-amber-400", active);
+      b.setAttribute("aria-pressed", active ? "true" : "false");
     });
     // The print slug stays true to the proof.
     const a = byId(ASPECTS, state.aspect);
-    document.getElementById("slug-dims").textContent = a.w + " × " + a.h;
-    document.getElementById("slug-font").textContent = byId(FONTS, state.font).name;
-    document.getElementById("slug-src").textContent = state.image ? "art placed" : "gradient background";
+    el("slug-dims").textContent = a.w + " × " + a.h;
+    el("slug-font").textContent = byId(FONTS, state.font).name;
+    el("slug-src").textContent = state.image ? "art placed" : (state.bgCustom ? "solid colour" : "gradient background");
+    el("canvas-summary").textContent = a.name + " · " + a.w + "×" + a.h;
+    // The starter pill: only while the cover is the untouched gradient.
+    el("starter-pill").hidden = !isStarter();
   }
 
   async function setDesignerImage(url) {
@@ -547,20 +747,75 @@
     render();
   }
 
+  // ---- The rail and the cards -------------------------------------------
+  // Four steps. A card folds with its own button (aria-expanded is the
+  // truth), the rail names the active step, and the step being worked on
+  // is the active one: opening a card, or touching anything inside it.
+  const CARDS = [...document.querySelectorAll(".cs-card[data-step]")];
+  const cardFor = (n) => CARDS.find((c) => +c.dataset.step === n);
+  function setOpen(card, open) {
+    card.dataset.open = open ? "true" : "false";
+    const t = card.querySelector(".cs-toggle");
+    if (t) t.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  function setActive(n) {
+    document.querySelectorAll("#cs-rail .cs-step").forEach((li) => {
+      const s = +li.dataset.step;
+      li.dataset.state = s < n ? "done" : (s === n ? "active" : "todo");
+      const b = li.querySelector(".cs-step-btn");
+      if (s === n) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+    });
+  }
+  CARDS.forEach((card) => {
+    const n = +card.dataset.step;
+    card.querySelector(".cs-toggle").addEventListener("click", () => {
+      const open = card.dataset.open !== "true";
+      setOpen(card, open);
+      if (open) setActive(n);
+    });
+    card.addEventListener("focusin", () => setActive(n));
+  });
+  document.querySelectorAll("#cs-rail .cs-step-btn").forEach((b) => b.addEventListener("click", () => {
+    const n = +b.dataset.openStep;
+    const card = cardFor(n);
+    setOpen(card, true);
+    setActive(n);
+    card.scrollIntoView({ block: "start", behavior: "smooth" });
+    card.querySelector(".cs-toggle").focus({ preventScroll: true });
+  }));
+  // Type starts open the first time this browser sees the studio, and
+  // folded after that; the words are still one click away.
+  const SEEN_KEY = "sbCoverStudioSeen";
+  try {
+    if (localStorage.getItem(SEEN_KEY)) setOpen(el("step-type"), false);
+    localStorage.setItem(SEEN_KEY, "1");
+  } catch (e) {}
+
+  // ---- Where the art comes from: two segmented buttons -------------------
+  function setArtMode(mode) {
+    const ai = mode === "ai";
+    el("art-mode-ai").setAttribute("aria-pressed", ai ? "true" : "false");
+    el("art-mode-upload").setAttribute("aria-pressed", ai ? "false" : "true");
+    el("art-ai-pane").hidden = !ai;
+    el("art-upload-pane").hidden = ai;
+  }
+  el("art-mode-ai").addEventListener("click", () => setArtMode("ai"));
+  el("art-mode-upload").addEventListener("click", () => setArtMode("upload"));
+
   // Wire basics
-  document.getElementById("title-input").addEventListener("input", (e) => { state.title = e.target.value; render(); });
-  document.getElementById("artist-input").addEventListener("input", (e) => { state.artist = e.target.value; render(); });
-  document.getElementById("font-select").addEventListener("change", (e) => { state.font = e.target.value; render(); });
-  document.getElementById("aspect-select").addEventListener("change", (e) => { state.aspect = e.target.value; render(); });
+  el("title-input").addEventListener("input", (e) => { state.title = e.target.value; render(); });
+  el("artist-input").addEventListener("input", (e) => { state.artist = e.target.value; render(); });
+  el("font-select").addEventListener("change", (e) => { state.font = e.target.value; render(); });
+  el("aspect-select").addEventListener("change", (e) => { state.aspect = e.target.value; render(); });
 
   // Text controls
-  const slider = (id, valId, fn, suffix = "%") => document.getElementById(id).addEventListener("input", (e) => {
+  const slider = (id, valId, fn, suffix = "%") => el(id).addEventListener("input", (e) => {
     fn(+e.target.value);
-    document.getElementById(valId).textContent = e.target.value + suffix;
+    el(valId).textContent = e.target.value + suffix;
     render();
   });
-  document.getElementById("title-color").addEventListener("input", (e) => { state.titleColor = e.target.value; render(); });
-  document.getElementById("artist-color").addEventListener("input", (e) => { state.artistColor = e.target.value; render(); });
+  el("title-color").addEventListener("input", (e) => { state.titleColor = e.target.value; render(); });
+  el("artist-color").addEventListener("input", (e) => { state.artistColor = e.target.value; render(); });
   slider("text-size", "size-val", (v) => state.textScale = v / 100);
   slider("artist-size", "asize-val", (v) => state.artistScale = v / 100);
   slider("letter-spacing", "ls-val", (v) => state.letterSpacing = v, "");
@@ -570,60 +825,81 @@
     state.align = state.align === b.dataset.align ? null : b.dataset.align;
     render();
   }));
-  document.getElementById("upper-toggle").addEventListener("change", (e) => { state.upper = e.target.checked; render(); });
-  document.getElementById("text-style").addEventListener("change", (e) => { state.textStyle = e.target.value; render(); });
+  el("upper-toggle").addEventListener("change", (e) => { state.upper = e.target.checked; render(); });
+  el("text-style").addEventListener("change", (e) => { state.textStyle = e.target.value; render(); });
 
   // Every format at once: the same composition reflowed per canvas size.
-  document.getElementById("allfmt-btn").addEventListener("click", () => {
-    const strip = document.getElementById("fmt-strip");
-    if (!strip.classList.contains("hidden")) { strip.classList.add("hidden"); strip.classList.remove("grid"); return; }
-    const keep = state.aspect;
-    strip.innerHTML = ASPECTS.map((a) => {
-      state.aspect = a.id;
-      return `<div class="min-w-0"><div class="rounded-lg border border-white/10 overflow-hidden">${buildSvg(false)}</div><div class="mt-1 text-center text-xs uppercase tracking-wide text-gray-300 font-medium">${a.name} · ${a.w}×${a.h}</div></div>`;
-    }).join("");
-    state.aspect = keep;
-    strip.classList.remove("hidden"); strip.classList.add("grid");
-  });
+  // Story and Banner are real reframes, and Canvas picks the download size.
+  function toggleFormats() {
+    const strip = el("fmt-strip");
+    const open = strip.classList.contains("hidden");
+    if (!open) { strip.classList.add("hidden"); strip.classList.remove("grid"); }
+    else {
+      const keep = state.aspect;
+      strip.innerHTML = ASPECTS.map((a) => {
+        state.aspect = a.id;
+        return `<div class="min-w-0"><div class="rounded-lg border border-white/10 overflow-hidden">${buildSvg(false)}</div><div class="mt-1 text-center text-xs uppercase tracking-wide text-gray-300 font-medium">${a.name} · ${a.w}×${a.h}</div></div>`;
+      }).join("");
+      state.aspect = keep;
+      strip.classList.remove("hidden"); strip.classList.add("grid");
+    }
+    document.querySelectorAll(".js-preview-fmts").forEach((b) => b.setAttribute("aria-expanded", open ? "true" : "false"));
+  }
+  document.querySelectorAll(".js-preview-fmts").forEach((b) => b.addEventListener("click", toggleFormats));
 
-  // Brand kit: your recurring look, saved on this device.
+  // Brand kit: your recurring look, saved on this device (localStorage).
   const BRAND_KEY = "sbBrandKit";
-  document.getElementById("brand-save").addEventListener("click", (e) => {
+  function brandKit() {
+    try { return JSON.parse(localStorage.getItem(BRAND_KEY) || "null"); } catch (err) { return null; }
+  }
+  function syncBrand() {
+    const kit = brandKit();
+    el("brand-apply").hidden = !kit;
+    el("brand-none").hidden = !!kit;
+  }
+  el("brand-settings-btn").addEventListener("click", (e) => {
+    const box = el("brand-settings");
+    const open = box.hidden;
+    box.hidden = !open;
+    e.currentTarget.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  el("brand-save").addEventListener("click", (e) => {
     const kit = {font: state.font, colorway: state.colorway, template: state.template,
                  textStyle: state.textStyle, letterSpacing: state.letterSpacing,
                  upper: state.upper, titleColor: state.titleColor, artistColor: state.artistColor};
     try { localStorage.setItem(BRAND_KEY, JSON.stringify(kit)); } catch (err) {}
-    e.currentTarget.textContent = "Brand kit saved ✓";
-    setTimeout(() => { document.getElementById("brand-save").textContent = "Save brand kit"; }, 1500);
+    e.currentTarget.textContent = "Brand kit saved";
+    setTimeout(() => { el("brand-save").textContent = "Save brand kit"; }, 1500);
+    syncBrand();
   });
-  document.getElementById("brand-apply").addEventListener("click", (e) => {
-    let kit = null;
-    try { kit = JSON.parse(localStorage.getItem(BRAND_KEY) || "null"); } catch (err) {}
-    if (!kit) { e.currentTarget.textContent = "No kit saved yet"; setTimeout(() => { document.getElementById("brand-apply").textContent = "Apply brand kit"; }, 1500); return; }
+  el("brand-apply").addEventListener("click", () => {
+    const kit = brandKit();
+    if (!kit) { syncBrand(); return; }
     Object.assign(state, kit);
-    document.getElementById("font-select") && (document.getElementById("font-select").value = state.font);
-    document.getElementById("text-style").value = state.textStyle || "shadow";
+    el("font-select").value = state.font;
+    el("text-style").value = state.textStyle || "shadow";
     render();
   });
+  syncBrand();
 
-  document.getElementById("text-reset-btn").addEventListener("click", () => {
+  el("text-reset-btn").addEventListener("click", () => {
     Object.assign(state, { titleColor: null, artistColor: null, textScale: 1,
       artistScale: 1, textX: null, textY: null, align: null, upper: true,
       textStyle: "shadow", letterSpacing: 0, artistX: null, artistY: null });
-    document.getElementById("ax-val").textContent = "—";
-    document.getElementById("ay-val").textContent = "—";
-    document.getElementById("artist-x").value = 50;
-    document.getElementById("artist-y").value = 66;
-    document.getElementById("title-color").value = "#ffffff";
-    document.getElementById("artist-color").value = "#E8B950";
+    el("ax-val").textContent = "auto";
+    el("ay-val").textContent = "auto";
+    el("artist-x").value = 50;
+    el("artist-y").value = 66;
+    el("title-color").value = "#ffffff";
+    el("artist-color").value = "#E8B950";
     const resets = [["text-size", 100, "size-val", "100%"], ["artist-size", 100, "asize-val", "100%"],
-                    ["letter-spacing", 0, "ls-val", "0"], ["text-x", 50, "posx-val", "—"], ["text-y", 58, "posy-val", "—"]];
+                    ["letter-spacing", 0, "ls-val", "0"], ["text-x", 50, "posx-val", "auto"], ["text-y", 58, "posy-val", "auto"]];
     for (const [id, v, valId, label] of resets) {
-      document.getElementById(id).value = v;
-      document.getElementById(valId).textContent = label;
+      el(id).value = v;
+      el(valId).textContent = label;
     }
-    document.getElementById("upper-toggle").checked = true;
-    document.getElementById("text-style").value = "shadow";
+    el("upper-toggle").checked = true;
+    el("text-style").value = "shadow";
     render();
   });
 
@@ -633,17 +909,17 @@
   slider("logo-size", "lsize-val", (v) => state.logoSize = v);
   slider("logo-x", "lx-val", (v) => state.logoX = v);
   slider("logo-y", "ly-val", (v) => state.logoY = v);
-  document.getElementById("bg-color").addEventListener("input", (e) => { state.bgCustom = e.target.value; render(); });
-  document.getElementById("bg-clear").addEventListener("click", () => { state.bgCustom = null; render(); });
-  document.getElementById("logo-remove").addEventListener("click", () => { state.logo = null; render(); });
+  el("bg-color").addEventListener("input", (e) => { state.bgCustom = e.target.value; render(); });
+  el("bg-clear").addEventListener("click", () => { state.bgCustom = null; render(); });
+  el("logo-remove").addEventListener("click", () => { state.logo = null; render(); });
 
-  document.getElementById("logo-upload").addEventListener("change", async (e) => {
+  el("logo-upload").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const msg = document.getElementById("logo-msg");
+    const msg = el("logo-msg");
     msg.classList.remove("hidden");
     msg.className = "mt-1 text-xs text-gray-300";
-    msg.textContent = "Uploading logo…";
+    msg.textContent = "Uploading logo...";
     const fd = new FormData();
     fd.append("art", file);
     const res = await fetch("/artwork/upload", { method: "POST", body: fd });
@@ -652,7 +928,7 @@
       const blob = await (await fetch(data.path)).blob();
       state.logo = await new Promise((r0) => { const r = new FileReader(); r.onloadend = () => r0(r.result); r.readAsDataURL(blob); });
       msg.className = "mt-1 text-xs text-green-400";
-      msg.textContent = "Logo on the cover ✓ — size and position it below.";
+      msg.textContent = "Logo on the cover. Size and position it below.";
       render();
     } else {
       msg.className = "mt-1 text-xs text-red-400";
@@ -670,26 +946,56 @@
   // AI artwork. The server picks the generator (cover_ai.py): OpenAI's
   // gpt-image-1 with a monthly allowance when OPENAI_API_KEY is set, else
   // the free Pollinations.ai model exactly as before. An OpenAI cover is
-  // saved to the uploads when it is made, so there is nothing to save after.
+  // saved to Studio Files when it is made, so there is nothing to save after.
   const COVER = {{ cover_gen | js_json }};
   const OPENAI = COVER.engine === "openai";
   let coverLeft = COVER.unlimited ? null : COVER.left;
   let currentAiUrl = null, lastPrompt = null, lastSeed = null, rendering = false;
-  const aiWrap = document.getElementById("ai-image-wrap");
-  const aiImg = document.getElementById("ai-image");
-  const aiLoading = document.getElementById("ai-loading");
-  const aiSave = document.getElementById("ai-save-btn");
-  const aiAgain = document.getElementById("ai-again-btn");
-  const genNote = document.getElementById("generate-note");
+  let variations = 1;
+  const aiWrap = el("ai-image-wrap");
+  const aiImg = el("ai-image");
+  const aiLoading = el("ai-loading");
+  const aiSave = el("ai-save-btn");
+  const aiAgain = el("ai-again-btn");
+  const genNote = el("generate-note");
+  const promptEl = el("prompt-input");
 
   function canRender() { return !OPENAI || coverLeft === null || coverLeft > 0; }
+
+  // The one state line in the Art card: generating, done, failed. The word
+  // carries the state; the colour only follows it.
+  function genState(kind, text) {
+    genNote.dataset.state = kind;
+    genNote.textContent = text || "";
+    genNote.classList.toggle("hidden", !text);
+  }
+
+  // Generate waits for a description (audit 3), and for a cover to spend.
+  function syncGenerate() {
+    el("prompt-len").textContent = promptEl.value.length;
+    const gb = el("generate-btn");
+    if (gb) gb.disabled = rendering || !promptEl.value.trim() || !canRender();
+  }
+  promptEl.addEventListener("input", syncGenerate);
+  syncGenerate();
+
+  // Variations: 1 | 4. A real choice with a real selected state.
+  function setVariations(n) {
+    const four = el("variations-4");
+    if (n === 4 && (!four || four.disabled)) n = 1;
+    variations = n;
+    document.querySelectorAll(".cs-choice[data-n]").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.n === n ? "true" : "false"));
+  }
+  document.querySelectorAll(".cs-choice[data-n]").forEach((b) => b.addEventListener("click", () => {
+    if (!b.disabled) setVariations(+b.dataset.n);
+  }));
 
   // The allowance line, kept true after every render. At zero every control
   // that would render is taken away and the used-up line takes its place.
   function showAllowance(a) {
     if (!OPENAI || !a) return;
-    const line = document.getElementById("cover-allowance");
-    const up = document.getElementById("cover-used-up");
+    const line = el("cover-allowance");
+    const up = el("cover-used-up");
     if (!line || !up) return;
     if (a.unlimited) {
       coverLeft = null;
@@ -699,17 +1005,28 @@
     coverLeft = a.left;
     if (a.left > 0) {
       line.textContent = a.left + " of " + a.limit + " covers left this month. Resets " + a.resets + ". Generate, Another take and Remix each use one.";
-      if (a.left < 4) { const four = document.getElementById("generate4-btn"); if (four) four.remove(); }
+      if (a.left < 4) {
+        const four = el("variations-4");
+        if (four && !four.disabled) {
+          four.disabled = true;
+          const note = document.createElement("p");
+          note.id = "variations-note"; note.className = "cs-muted mt-1";
+          note.textContent = "4 needs 4 covers; " + a.left + " left this month.";
+          four.parentNode.insertAdjacentElement("afterend", note);
+        }
+        if (variations === 4) setVariations(1);
+      }
+      syncGenerate();
       return;
     }
-    const controls = document.getElementById("generate-controls");
+    const controls = el("generate-controls");
     if (controls) controls.remove();
     aiAgain.classList.add("hidden");
-    document.getElementById("ai-remix-wrap").classList.add("hidden");
+    el("ai-remix-wrap").classList.add("hidden");
     line.classList.add("hidden");
     up.textContent = a.limit === 0
-      ? "Your plan has no cover renders. Upload your own art below."
-      : "This month's " + a.limit + " covers are used. More on " + a.resets + ". You can still upload your own art below.";
+      ? "Your plan has no cover renders. Upload your own art instead."
+      : "This month's " + a.limit + " covers are used. More on " + a.resets + ". You can still upload your own art.";
     up.classList.remove("hidden");
   }
 
@@ -731,13 +1048,13 @@
   function showPainting() {
     aiWrap.classList.remove("hidden");
     aiLoading.classList.remove("hidden");
-    aiLoading.textContent = "Painting… this can take up to a minute.";
+    aiLoading.textContent = "Painting. This can take up to a minute.";
     aiAgain.disabled = true;
+    genState("generating", OPENAI ? "Painting. This can take up to a minute." : "Generating. The free model can take 10 to 30 seconds.");
   }
 
   function showFailure(data) {
-    genNote.textContent = data.error || "The cover could not be made. Try again.";
-    genNote.classList.remove("hidden");
+    genState("failed", data.error || "The cover could not be made. Try again.");
     if (OPENAI) {
       aiLoading.classList.add("hidden");
       if (!currentAiUrl) aiWrap.classList.add("hidden");
@@ -749,21 +1066,23 @@
     currentAiUrl = url;
     aiWrap.classList.remove("hidden");
     aiLoading.classList.remove("hidden");
-    aiLoading.textContent = "Painting… 10–30s";
+    aiLoading.textContent = "Painting, 10 to 30 seconds";
     aiSave.disabled = true;
-    aiSave.textContent = "Save to My Uploads";
+    aiSave.textContent = "Save to Studio Files";
     aiAgain.disabled = true;
-    const savedMsg = document.getElementById("ai-saved-msg");
+    const savedMsg = el("ai-saved-msg");
     savedMsg.classList.add("hidden");
     aiImg.onload = () => {
       aiLoading.classList.add("hidden"); aiSave.disabled = false; aiAgain.disabled = false; setDesignerImage(url);
+      genState("done", savedPath ? "Cover made and placed on your canvas. Saved to Studio Files." : "Cover made and placed on your canvas.");
       if (savedPath) {
         savedMsg.className = "mt-2 break-all text-xs text-green-400 font-medium";
-        savedMsg.textContent = "Saved to your uploads at " + savedPath + ". Use it as a campaign cover or press kit asset.";
+        savedMsg.textContent = "Saved to Studio Files at " + savedPath + ". Use it as a campaign cover or press kit asset.";
       }
     };
     aiImg.onerror = () => {
-      aiLoading.textContent = OPENAI ? "The picture could not be shown here. It is saved in your uploads." : "The free model is busy — try Another take.";
+      aiLoading.textContent = OPENAI ? "The picture could not be shown here. It is saved in your Studio Files." : "The free model is busy. Try Another take.";
+      genState("failed", OPENAI ? "The picture could not be shown here. It is saved in your Studio Files." : "The free model is busy. Try Another take.");
       aiAgain.disabled = false;
     };
     aiImg.src = url;
@@ -771,58 +1090,62 @@
 
   async function generateArt() {
     if (rendering || !canRender()) return;
-    const btn = document.getElementById("generate-btn");
-    const prompt = document.getElementById("prompt-input").value;
+    const btn = el("generate-btn");
+    const prompt = promptEl.value;
+    if (!prompt.trim()) { syncGenerate(); return; }
     rendering = true;
-    if (btn) { btn.disabled = true; btn.textContent = OPENAI ? "Painting… up to a minute" : "Generating..."; }
-    if (OPENAI && prompt.trim()) showPainting();
+    if (btn) { btn.disabled = true; btn.textContent = OPENAI ? "Painting..." : "Generating..."; }
+    showPainting();
     try {
       const data = await requestCover({ prompt, look: lookPicked() });
       if (data.ok) {
-        genNote.textContent = data.image_url ? "" : "Describe the cover first — then a real image generates.";
-        genNote.classList.remove("hidden");
         if (data.image_url) {
           lastPrompt = prompt.trim();
           lastSeed = data.seed;
-          if (canRender()) document.getElementById("ai-remix-wrap").classList.remove("hidden");
+          if (canRender()) el("ai-remix-wrap").classList.remove("hidden");
           loadAiImage(data.image_url, data.saved ? data.path : null);
+        } else {
+          genState("failed", "Describe the cover first. Then a real image generates.");
         }
       } else {
         showFailure(data);
       }
     } finally {
       rendering = false;
-      if (btn) { btn.disabled = false; btn.textContent = "Generate cover art"; }
+      if (btn) { btn.textContent = "Generate cover art"; }
+      syncGenerate();
     }
   }
-  const genBtn = document.getElementById("generate-btn");
-  if (genBtn) genBtn.addEventListener("click", generateArt);
 
   // Four takes at once: same endpoint, four seeds, pick your direction.
-  // With OpenAI each take is a render and uses a cover, and the button
+  // With OpenAI each take is a render and uses a cover, and the choice
   // says so.
   async function generateFour() {
-    const grid = document.getElementById("ai-grid");
-    const btn = document.getElementById("generate4-btn");
-    const prompt = document.getElementById("prompt-input").value;
+    const grid = el("ai-grid");
+    const btn = el("generate-btn");
+    const prompt = promptEl.value;
     if (!prompt.trim() || rendering || !canRender()) return;
     rendering = true;
-    const label = btn.textContent;
-    btn.disabled = true; btn.textContent = "Painting 4…";
+    btn.disabled = true; btn.textContent = "Painting 4...";
+    genState("generating", "Painting 4 takes. Pick one to place it on the cover.");
     grid.classList.remove("hidden"); grid.classList.add("grid");
     grid.innerHTML = "";
+    let made = 0, lastError = null;
     try {
       for (let i = 0; i < 4; i++) {
         const cell = document.createElement("button");
         cell.type = "button";
         cell.className = "aspect-square overflow-hidden rounded-lg border border-white/10 bg-black/40 text-xs text-gray-300 transition-colors hover:border-sb-gold";
-        cell.textContent = "painting…";
+        cell.textContent = "painting...";
+        cell.setAttribute("aria-label", "Take " + (i + 1) + " of 4");
         grid.appendChild(cell);
         if (!canRender()) { cell.textContent = "no covers left"; continue; }
         const data = await requestCover({ prompt, look: lookPicked() });
         if (data.ok && data.image_url) {
+          made += 1;
           const img = document.createElement("img");
           img.className = "h-full w-full object-cover";
+          img.alt = "";
           img.src = data.image_url;
           img.onload = () => { cell.textContent = ""; cell.appendChild(img); };
           cell.addEventListener("click", () => {
@@ -832,23 +1155,26 @@
           });
         } else if (OPENAI) {
           cell.textContent = data.kind === "refused" ? "refused" : "not made";
-          if (data.error) { genNote.textContent = data.error; genNote.classList.remove("hidden"); }
-        } else { cell.textContent = "busy — retry"; }
+          if (data.error) lastError = data.error;
+        } else { cell.textContent = "busy, retry"; }
       }
     } finally {
       rendering = false;
-      btn.disabled = false; btn.textContent = label;
+      btn.textContent = "Generate cover art";
+      syncGenerate();
+      if (made === 4) genState("done", "4 takes made. Pick one to place it on the cover.");
+      else if (made > 0) genState("done", made + " of 4 takes made. Pick one to place it on the cover." + (lastError ? " " + lastError : ""));
+      else genState("failed", lastError || "No take was made. Try again.");
     }
   }
-  const fourBtn = document.getElementById("generate4-btn");
-  if (fourBtn) fourBtn.addEventListener("click", generateFour);
+  const genBtn = el("generate-btn");
+  if (genBtn) genBtn.addEventListener("click", () => (variations === 4 ? generateFour() : generateArt()));
   aiAgain.addEventListener("click", generateArt);
-  document.getElementById("ai-remove-btn").addEventListener("click", () => setDesignerImage(null));
+  el("ai-remove-btn").addEventListener("click", () => setDesignerImage(null));
 
-  // Studio files: one Remove per file, and the empty state comes back.
   // The ticked boxes, one per row. Radios rather than checkboxes because
-  // only one medium, one light, one finish and one framing make sense
-  // together; "clear" puts a row back to nothing chosen.
+  // only one medium, one light, one finish, one framing and one scene make
+  // sense together; "clear" puts a row back to nothing chosen.
   function lookPicked() {
     return [...document.querySelectorAll("#look-boxes input[data-look]:checked")]
       .map(function (i) { return i.value; });
@@ -860,6 +1186,7 @@
     });
   });
 
+  // Studio files: one Remove per file, and the empty state comes back.
   // The inline confirm is the only prompt - it cancels the event, and
   // this listener stands down on `defaultPrevented` rather than asking
   // a second time.
@@ -877,27 +1204,27 @@
       });
       if (!res.ok) { rm.disabled = false; return; }
       row.remove();
-      document.getElementById("art-uploads-empty").classList.toggle(
+      el("art-uploads-empty").classList.toggle(
         "hidden", !!document.querySelector(".art-upload-row"));
     });
   }
   document.querySelectorAll(".art-upload-row").forEach(wireArtUpload);
 
   // Upload your own artwork straight into the designer
-  document.getElementById("art-upload").addEventListener("change", async (e) => {
+  el("art-upload").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const msg = document.getElementById("upload-msg");
+    const msg = el("upload-msg");
     msg.classList.remove("hidden");
     msg.className = "mt-1.5 text-xs text-gray-300";
-    msg.textContent = "Uploading…";
+    msg.textContent = "Uploading...";
     const fd = new FormData();
     fd.append("art", file);
     const res = await fetch("/artwork/upload", { method: "POST", body: fd });
     const data = await res.json();
     if (data.ok) {
       msg.className = "mt-1.5 text-xs text-green-400";
-      msg.textContent = "On the cover ✓ — saved to your uploads at " + data.path;
+      msg.textContent = "On the cover. Saved to Studio Files at " + data.path;
       setDesignerImage(data.path);
     } else {
       msg.className = "mt-1.5 text-xs text-red-400";
@@ -910,23 +1237,24 @@
   // reuses the seed, so it re-imagines the same concept. OpenAI has no
   // seed: a remix is a new render with the changed words (and the ticked
   // look), and it uses a cover, which the line under the box says.
-  const remixBtn = document.getElementById("remix-btn");
+  const remixBtn = el("remix-btn");
   remixBtn.addEventListener("click", async () => {
-    const change = document.getElementById("remix-input").value.trim();
+    const change = el("remix-input").value.trim();
     if (!change || !lastPrompt || rendering || !canRender()) return;
     const body = OPENAI
       ? { prompt: lastPrompt + ", " + change, look: lookPicked() }
       : { prompt: lastPrompt + ", " + change, seed: lastSeed };
     rendering = true;
     remixBtn.disabled = true;
-    if (OPENAI) showPainting();
+    showPainting();
     try {
       const data = await requestCover(body);
       if (data.ok && data.image_url) loadAiImage(data.image_url, data.saved ? data.path : null);
-      else if (!data.ok && OPENAI) showFailure(data);
+      else if (!data.ok) showFailure(data);
     } finally {
       rendering = false;
       remixBtn.disabled = false;
+      syncGenerate();
     }
   });
 
@@ -938,16 +1266,17 @@
       body: JSON.stringify({ url: currentAiUrl }),
     });
     const data = await res.json();
-    const msg = document.getElementById("ai-saved-msg");
+    const msg = el("ai-saved-msg");
     msg.classList.remove("hidden");
     if (data.ok) {
-      msg.textContent = "Saved ✓ — available at " + data.path + " (use it as a campaign cover or EPK asset).";
-      aiSave.textContent = "Saved ✓";
+      msg.className = "mt-2 break-all text-xs text-green-400 font-medium";
+      msg.textContent = "Saved to Studio Files at " + data.path + ". Use it as a campaign cover or press kit asset.";
+      aiSave.textContent = "Saved";
       setDesignerImage(data.path);
     } else {
       msg.className = "mt-2 break-all text-xs text-red-400";
       msg.textContent = data.error || "Could not save.";
-      aiSave.textContent = "Save to My Uploads";
+      aiSave.textContent = "Save to Studio Files";
       aiSave.disabled = false;
     }
   });
@@ -1007,60 +1336,79 @@
   }
   const safeName = () => (state.title || "cover").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "cover";
 
-  document.getElementById("download-svg-btn").addEventListener("click", async () => {
+  // The Download menu: PNG and SVG behind one button, closed by a choice,
+  // a click elsewhere or Escape.
+  const dlBtn = el("download-btn"), dlMenu = el("download-menu");
+  function setMenu(open) {
+    dlMenu.hidden = !open;
+    dlBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) dlMenu.querySelector("[role=menuitem]").focus();
+  }
+  dlBtn.addEventListener("click", () => setMenu(dlMenu.hidden));
+  document.addEventListener("click", (e) => { if (!dlMenu.hidden && !e.target.closest(".cs-menu")) setMenu(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !dlMenu.hidden) { setMenu(false); dlBtn.focus(); } });
+
+  async function downloadSvg() {
     state._fontCss = await fontFaceCss();
     downloadBlob(new Blob([buildSvg(true)], { type: "image/svg+xml" }), safeName() + "-cover.svg");
-  });
-
-  document.getElementById("download-png-btn").addEventListener("click", async () => {
+  }
+  async function downloadPng() {
     try { downloadBlob(await coverPngBlob(), safeName() + "-cover.png"); } catch (e) {}
-  });
+  }
+  document.querySelectorAll(".js-dl-svg").forEach((b) => b.addEventListener("click", () => { setMenu(false); downloadSvg(); }));
+  document.querySelectorAll(".js-dl-png").forEach((b) => b.addEventListener("click", () => { setMenu(false); downloadPng(); }));
 
-  document.getElementById("save-cover-btn").addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
-    const msg = document.getElementById("cover-save-msg");
+  // Save to Studio Files: the finished cover into the Vault. Saving the
+  // untouched starter is allowed, and asked about first (audit 3).
+  async function saveCover(btn) {
+    const status = el("cover-save-status");
+    const msg = el("cover-save-msg");
+    if (isStarter() && !confirm("This is the starter preview: no artwork has been added yet. Save it to Studio Files anyway?")) return;
+    const label = btn.textContent;
     btn.disabled = true;
-    btn.textContent = "Saving…";
+    btn.textContent = "Saving...";
     try {
       const blob = await coverPngBlob();
       const fd = new FormData();
       fd.append("file", blob, safeName() + "-cover.png");
       fd.append("kind", "cover_art");
-      fd.append("label", (state.title || "Cover") + " — final cover");
+      fd.append("label", (state.title || "Cover") + " final cover");
       const res = await fetch("/vault/upload", { method: "POST", body: fd });
       const data = await res.json();
-      msg.classList.remove("hidden");
       if (data.ok) {
-        msg.className = "mt-2 break-all text-xs text-green-400";
-        msg.innerHTML = "Finished cover saved ✓ — " + data.path +
-          ' &middot; use it now: <a href="/links" class="font-bold text-sb-gold-bright underline">Smart Links</a> &middot; <a href="/epk" class="font-bold text-sb-gold-bright underline">Press Kit</a>';
-        btn.textContent = "Saved ✓";
-        setTimeout(() => { btn.textContent = "Save cover to uploads"; btn.disabled = false; }, 2000);
+        status.dataset.saved = "true";
+        status.innerHTML = 'Cover saved. <a href="/vault">View in Vault</a>';
+        msg.classList.remove("hidden");
+        msg.className = "mt-2 break-all text-xs font-medium text-gray-300";
+        msg.innerHTML = 'Use it now: <a href="/links" class="font-bold text-sb-gold-bright underline">Smart Links</a> &middot; <a href="/epk" class="font-bold text-sb-gold-bright underline">Press Kit</a>';
+        btn.textContent = "Saved";
+        setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 2000);
         return;
       }
       throw new Error(data.error || "save failed");
     } catch (err) {
       msg.classList.remove("hidden");
       msg.className = "mt-2 break-all text-xs text-red-400";
-      msg.textContent = "Couldn't save the cover: " + err.message;
-      btn.textContent = "Save cover to uploads";
+      msg.textContent = "Could not save the cover: " + err.message;
+      btn.textContent = label;
       btn.disabled = false;
     }
-  });
+  }
+  document.querySelectorAll(".js-save-cover").forEach((b) => b.addEventListener("click", () => saveCover(b)));
 
   render();
 
   // Will the stores take it. The states are carried by a word, never by a
   // colour alone, and "not checked" is its own answer rather than a pass.
   (function () {
-    const input = document.getElementById("cover-check-file");
+    const input = el("cover-check-file");
     if (!input) return;
-    const msg = document.getElementById("cover-check-msg");
-    const box = document.getElementById("cover-check-result");
-    const verdictEl = document.getElementById("cover-check-verdict");
-    const measuredEl = document.getElementById("cover-check-measured");
-    const uncheckedEl = document.getElementById("cover-check-unchecked");
-    const noteEl = document.getElementById("cover-check-note");
+    const msg = el("cover-check-msg");
+    const box = el("cover-check-result");
+    const verdictEl = el("cover-check-verdict");
+    const measuredEl = el("cover-check-measured");
+    const uncheckedEl = el("cover-check-unchecked");
+    const noteEl = el("cover-check-note");
     const WORD = {
       pass: ["Good", "text-green-400"],
       review: ["Worth a look", "text-sb-gold-bright"],
@@ -1094,7 +1442,7 @@
       const file = e.target.files[0];
       if (!file) return;
       msg.classList.remove("hidden");
-      msg.textContent = "Measuring " + file.name + "\u2026";
+      msg.textContent = "Measuring " + file.name + "...";
       box.classList.add("hidden");
       const fd = new FormData();
       fd.append("art", file);

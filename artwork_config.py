@@ -226,13 +226,23 @@ LOOK_OPTIONS = (
      "close-up, shallow depth of field, subject fills the frame"),
     ("wide", "frame", "Wide",
      "wide shot, lots of negative space, small subject in a big frame"),
+    # The owner's Cover Studio mockup (2026-09-24) lists four more chips.
+    # Each is real words to the model, like the rest of this table.
+    ("abstract", "medium", "Abstract",
+     "abstract composition, non-figurative forms, texture and colour fields"),
+    ("neon", "light", "Neon",
+     "neon light, saturated electric glow, coloured light sources"),
+    ("minimal", "scene", "Minimal",
+     "minimal, sparse composition, one subject, lots of empty space"),
+    ("urban", "scene", "Urban",
+     "urban setting, city streets, concrete, signage"),
 )
 
 _LOOK_BY_KEY = {k: (g, lab, w) for k, g, lab, w in LOOK_OPTIONS}
 
 # One from each group: "photographic" and "illustrated" together is a
 # muddle, and the model resolves it by ignoring one of them anyway.
-LOOK_GROUPS = ("medium", "light", "finish", "frame")
+LOOK_GROUPS = ("medium", "light", "finish", "frame", "scene")
 
 # Always true of an album cover, whatever is ticked. Stores reject covers
 # with the wrong shape or stray text, so this is not a style choice.
