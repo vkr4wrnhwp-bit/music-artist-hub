@@ -220,11 +220,11 @@ RENAMES = {
                "How ready you are to grow, scored from your own record."),
 }
 
-# The Contracts card said "with renewal reminders" while nothing ran them:
-# no scheduler called /reminders/run (make-it-real, 2026-09-23). The card
-# now says so only while contract_reminders.scheduled() has seen a
-# scheduler run in the last two days, and "renewal dates on file" (the
-# EXTRA line) otherwise.
+# The Contracts card said "with renewal reminders" whether or not anything
+# ran them (make-it-real, 2026-09-23). It now says so only while
+# contract_reminders.scheduled() has seen a scheduler run in the last two
+# days (on live, the nightly backup cron), and "renewal dates on file" (the
+# EXTRA line) otherwise, which is what a service with no cron shows.
 CONTRACTS_WITH_REMINDERS = "The paperwork that proves who gets paid, with renewal reminders."
 
 

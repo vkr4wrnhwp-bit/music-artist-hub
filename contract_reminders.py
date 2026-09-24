@@ -22,14 +22,20 @@ Rules:
   * nothing fires for a contract whose renewal is in the past: the
     page says the date needs updating instead
 
-Who runs it (make-it-real, 2026-09-23): nothing did. There is no
-scheduler in the repo, and an unsigned POST to /reminders/run was
-redirected to /login, which a cron log reads as success. The run now
-answers to its own secret, REMINDERS_CRON_TOKEN, presented in the
-X-Reminders-Token header, and refuses anything else with a 401 and a
-reason. Every page that promises reminders asks `scheduled()` first: the
-promise is made only while a scheduler has really run it in the last two
-days, and the words fall back to "dates on file" otherwise.
+Who runs it: the live service's nightly Render cron,
+street-banker-nightly-backup (09:00 UTC, kept in the Render dashboard, not
+in this repo). It POSTs /backup/run and then /reminders/run, both with
+BACKUP_TOKEN in X-Backup-Token, and its command fails unless both answer
+200. The make-it-real pass of 2026-09-23 read only the repo, believed
+nothing called the run, and refused BACKUP_TOKEN; its review found the
+cron, and the backup token runs it again. REMINDERS_CRON_TOKEN in
+X-Reminders-Token is a second door, for a scheduler that should not hold
+the secret that copies the database. Anything else gets a 401 and a
+reason, never the 302 to /login a cron log reads as success. Every page
+that promises reminders asks `scheduled()` first: the promise is made only
+while a scheduler has really run it in the last two days, and the words
+fall back to "dates on file" otherwise (a service with no cron, such as
+staging, says so).
 """
 import hmac
 import json
@@ -38,11 +44,17 @@ from datetime import date, datetime, timedelta, timezone
 
 import db as store
 
-# The scheduler's secret, and where it presents it. Its own variable, not
-# BACKUP_TOKEN: the token that may copy the database must not also be the
-# one that emails every artist, and the other way round.
+# A scheduler's own secret, and where it presents it: for a scheduler that
+# should not hold the token that may copy the database.
 TOKEN_ENV = "REMINDERS_CRON_TOKEN"
 TOKEN_HEADER = "X-Reminders-Token"
+
+# What the live nightly cron presents, right after the backup call. Kept:
+# refusing it broke that cron's run (review S1, 2026-09-23). Moving the
+# cron to REMINDERS_CRON_TOKEN and then dropping this door is the owner's
+# choice; nothing here needs it.
+BACKUP_TOKEN_ENV = "BACKUP_TOKEN"
+BACKUP_TOKEN_HEADER = "X-Backup-Token"
 
 # The run is daily at 09:00 UTC. Two days lets one late or failed run pass
 # without the pages changing their words; a second missed day is a
@@ -57,12 +69,25 @@ def token_configured():
     return bool((os.environ.get(TOKEN_ENV) or "").strip())
 
 
-def token_matches(presented):
-    """Constant-time. No configured token means no scheduler may run it."""
-    token = (os.environ.get(TOKEN_ENV) or "").strip()
+def scheduler_door_open():
+    """Is either secret a scheduler could present set on this service?"""
+    return token_configured() or bool((os.environ.get(BACKUP_TOKEN_ENV) or "").strip())
+
+
+def _matches(env, presented):
+    """Constant-time. No configured token means no scheduler may use it."""
+    token = (os.environ.get(env) or "").strip()
     if not token:
         return False
     return hmac.compare_digest((presented or "").encode("utf-8"), token.encode("utf-8"))
+
+
+def token_matches(presented):
+    return _matches(TOKEN_ENV, presented)
+
+
+def backup_token_matches(presented):
+    return _matches(BACKUP_TOKEN_ENV, presented)
 
 
 def record_run(result, by, now=None):
@@ -93,10 +118,10 @@ def last_scheduled_run():
 def scheduled(now=None):
     """Are reminders going out on their own on this deployment?
 
-    Measured, not configured: the token must be set AND a scheduler must
-    have completed a run with it inside FRESH_FOR. A token nobody presents
-    runs nothing, so it proves nothing."""
-    if not token_configured():
+    Measured, not configured: a scheduler's secret must be set (either
+    door) AND a scheduler must have completed a run inside FRESH_FOR. A
+    token nobody presents runs nothing, so it proves nothing."""
+    if not scheduler_door_open():
         return False
     rec = last_scheduled_run()
     if not rec or rec.get("ok") is False:

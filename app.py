@@ -5777,8 +5777,9 @@ def create_app():
         when a token is actually configured. The route re-checks; this is
         not a way in, it is a way past the redirect."""
         token = os.environ.get("BACKUP_TOKEN") or ""
-        # /reminders/run has its own token (REMINDERS_CRON_TOKEN) since
-        # 2026-09-23 and answers for itself; see plan_gate.
+        # /reminders/run checks its tokens itself (BACKUP_TOKEN, which the
+        # live nightly cron presents, or REMINDERS_CRON_TOKEN) and answers
+        # a refusal with a 401 of its own; see plan_gate.
         if not token or request.path != "/backup/run":
             return False
         presented = (request.headers.get("X-Backup-Token")
@@ -11715,26 +11716,33 @@ def create_app():
     def reminders_run():
         """Fire the contract reminders that are due today.
 
-        For a daily scheduler presenting REMINDERS_CRON_TOKEN in the
-        X-Reminders-Token header (constant-time compare); an owner signed
-        in can also trigger it, so it is testable without waiting for a
-        schedule. plan_gate lets this path through without a session so
-        that a refusal is a refusal: 401 JSON with the reason, never the
-        302 to /login a cron log reads as success (2026-09-23). A signed-in
-        account that is not the owner still gets the 404 it always had.
+        For a daily scheduler: the live nightly cron presents BACKUP_TOKEN
+        in X-Backup-Token straight after /backup/run, and a scheduler that
+        should not hold that secret can present REMINDERS_CRON_TOKEN in
+        X-Reminders-Token (both constant-time, headers only). Refusing the
+        backup token broke that cron (review S1, 2026-09-23). An owner
+        signed in can also trigger it, so it is testable without waiting
+        for a schedule. plan_gate lets this path through without a session
+        so that a refusal is a refusal: 401 JSON with the reason, never the
+        302 to /login a cron log reads as success. A signed-in account that
+        is not the owner still gets the 404 it always had.
         """
         import contract_reminders
-        by_token = contract_reminders.token_matches(
-            request.headers.get(contract_reminders.TOKEN_HEADER))
+        by_token = (contract_reminders.token_matches(
+                        request.headers.get(contract_reminders.TOKEN_HEADER))
+                    or contract_reminders.backup_token_matches(
+                        request.headers.get(contract_reminders.BACKUP_TOKEN_HEADER)))
         user = current_user()
         by_owner = bool(user and _is_owner_email(user.get("email")))
         if not (by_token or by_owner):
             if user is not None:
                 abort(404)
-            why = ("%s is not configured on the server" % contract_reminders.TOKEN_ENV
-                   if not contract_reminders.token_configured()
-                   else "the %s header did not match %s"
-                   % (contract_reminders.TOKEN_HEADER, contract_reminders.TOKEN_ENV))
+            why = ("%s is not configured on the server, and neither is %s"
+                   % (contract_reminders.TOKEN_ENV, contract_reminders.BACKUP_TOKEN_ENV)
+                   if not contract_reminders.scheduler_door_open()
+                   else "the %s or %s header did not match (%s goes in the first, %s in the second)"
+                   % (contract_reminders.TOKEN_HEADER, contract_reminders.BACKUP_TOKEN_HEADER,
+                      contract_reminders.TOKEN_ENV, contract_reminders.BACKUP_TOKEN_ENV))
             return jsonify({"ok": False, "error": why}), 401
         by = "scheduler" if by_token else "owner"
         try:

@@ -4,9 +4,9 @@ Owner, 2026-09-14: "is there a reminder alarm built to notify you when
 your auto renewals are coming up?" There was not. This is the half that
 needs no document reader: dates typed on the contract's row, reminders
 at 60, 30, 7 and 1 days before the notice deadline, in the
-app and by email where one can be sent, each once, from a daily run a
-scheduler triggers with REMINDERS_CRON_TOKEN (its own secret since
-2026-09-23; it used to share the backup token).
+app and by email where one can be sent, each once, from a daily run the
+nightly backup cron triggers with the backup token, or a scheduler with
+REMINDERS_CRON_TOKEN (a second door since 2026-09-23).
 """
 import io
 import json
@@ -145,6 +145,10 @@ def test_the_daily_run_is_reachable_by_its_own_token_or_an_owner(world, monkeypa
     r = anon.post("/reminders/run", headers={"X-Reminders-Token": "tok-123"})
     assert r.status_code == 200 and r.get_json()["ok"] is True and "checked" in r.get_json()["run"]
     assert anon.post("/reminders/run", headers={"X-Reminders-Token": "wrong"}).status_code == 401
+    # The live nightly cron presents BACKUP_TOKEN (review S1, 2026-09-23).
+    monkeypatch.setenv("BACKUP_TOKEN", "bk-456")
+    r = anon.post("/reminders/run", headers={"X-Backup-Token": "bk-456"})
+    assert r.status_code == 200 and r.get_json()["run"]["by"] == "scheduler"
     assert client.post("/reminders/run").status_code == 404, "a plain account may not trigger it"
     monkeypatch.setenv("OWNER_EMAILS", email)
     assert client.post("/reminders/run").status_code == 200

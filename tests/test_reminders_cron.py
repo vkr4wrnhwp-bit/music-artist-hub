@@ -2,16 +2,23 @@
 
 Found by the make-it-real pass of 2026-09-23: the Contracts card promised
 "renewal reminders", and reminders only go out when something POSTs to
-/reminders/run. Nothing did: there is no scheduler in the repo. Worse, an
-unsigned POST was redirected to /login, and a cron log reads a 302 as a
-success - the exact false green the nightly backup hit on its first run.
+/reminders/run. An unsigned POST was redirected to /login, and a cron log
+reads a 302 as a success - the exact false green the nightly backup hit on
+its first run.
+
+Corrected by the review of the same day: the pass believed nothing called
+the run. The live service's nightly Render cron (street-banker-nightly-
+backup, 09:00 UTC, kept in the Render dashboard, not in this repo) POSTs
+/reminders/run with X-Backup-Token straight after /backup/run, and fails
+unless both answer 200. Refusing BACKUP_TOKEN would have broken it on
+deploy and stopped the reminders.
 
 Held here:
 
-  * a scheduler reaches the run with REMINDERS_CRON_TOKEN in the
-    X-Reminders-Token header (its own secret, not BACKUP_TOKEN) and gets
-    200 JSON; anything else gets 401 JSON with the reason, never a
-    redirect; a signed-in owner can still run it by hand
+  * a scheduler reaches the run with BACKUP_TOKEN in X-Backup-Token (what
+    the live cron presents) or REMINDERS_CRON_TOKEN in X-Reminders-Token,
+    and gets 200 JSON; anything else gets 401 JSON with the reason, never
+    a redirect; a signed-in owner can still run it by hand
   * "are reminders going out?" is measured from the scheduler's own last
     run, not from the token being set
   * the Contracts card, the contract rows and the upload action promise
@@ -87,13 +94,36 @@ def test_the_token_must_come_in_the_header(anon, monkeypatch):
     assert anon.post("/reminders/run", data={"token": TOKEN}).status_code == 401
 
 
-def test_the_backup_token_no_longer_runs_the_reminders(anon, monkeypatch):
-    """The token that may copy the database is not the one that emails
-    every artist. It used to be both."""
+def test_the_live_crons_backup_token_still_runs_the_reminders(anon, monkeypatch):
+    """Inverted 2026-09-23 (review S1). This pinned a 401 for BACKUP_TOKEN,
+    on the belief that nothing called the run. The live nightly cron does,
+    with exactly this header, and its command fails unless the reminders
+    call answers 200: the 401 would have turned it red every night and
+    stopped the reminders. No REMINDERS_CRON_TOKEN is set, as on live."""
+    monkeypatch.setenv("BACKUP_TOKEN", "backup-" + TOKEN)
+    r = anon.post("/reminders/run", headers={"X-Backup-Token": "backup-" + TOKEN})
+    assert r.status_code == 200 and r.get_json()["ok"] is True
+    assert r.get_json()["run"]["by"] == "scheduler"
+    assert cr.last_scheduled_run()["by"] == "scheduler"
+    assert cr.scheduled() is True, "the live cron's run is reminders going out"
+    wrong = anon.post("/reminders/run", headers={"X-Backup-Token": "nope"})
+    assert wrong.status_code == 401 and "did not match" in wrong.get_json()["error"]
+    # Header only, as for the other token.
+    assert anon.post("/reminders/run",
+                     data={"token": "backup-" + TOKEN}).status_code == 401
+
+
+def test_either_token_runs_it_when_both_are_set(anon, monkeypatch):
     monkeypatch.setenv("BACKUP_TOKEN", "backup-" + TOKEN)
     monkeypatch.setenv(cr.TOKEN_ENV, TOKEN)
-    r = anon.post("/reminders/run", headers={"X-Backup-Token": "backup-" + TOKEN})
-    assert r.status_code == 401
+    assert anon.post("/reminders/run", headers={cr.TOKEN_HEADER: TOKEN}).status_code == 200
+    assert anon.post("/reminders/run",
+                     headers={"X-Backup-Token": "backup-" + TOKEN}).status_code == 200
+    # One secret does not open the other's header.
+    assert anon.post("/reminders/run",
+                     headers={cr.TOKEN_HEADER: "backup-" + TOKEN}).status_code == 401
+    assert anon.post("/reminders/run",
+                     headers={"X-Backup-Token": TOKEN}).status_code == 401
 
 
 def test_a_get_is_refused_not_redirected(anon, monkeypatch):
@@ -165,7 +195,16 @@ def test_an_owner_run_by_hand_does_not_stand_in_for_the_schedule(monkeypatch):
 def test_without_the_token_nothing_is_scheduled_whatever_is_on_record(monkeypatch):
     _scheduled_run(monkeypatch)
     monkeypatch.delenv(cr.TOKEN_ENV)
-    assert cr.scheduled() is False
+    assert cr.scheduled() is False            # BACKUP_TOKEN is unset too (autouse)
+
+
+def test_the_backup_token_alone_keeps_the_schedule_door_open(monkeypatch):
+    """Live sets BACKUP_TOKEN and not REMINDERS_CRON_TOKEN; its cron's
+    run must count."""
+    _scheduled_run(monkeypatch)
+    monkeypatch.delenv(cr.TOKEN_ENV)
+    monkeypatch.setenv("BACKUP_TOKEN", "backup-" + TOKEN)
+    assert cr.scheduled() is True
 
 
 # --- the words ------------------------------------------------------------------
