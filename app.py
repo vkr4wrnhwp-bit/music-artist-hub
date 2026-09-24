@@ -2171,6 +2171,10 @@ def create_app():
         (fan_mail.fan_token), passed on by the page to its own buttons.
         Only a fan on this campaign's own account counts. A token naming
         another account's fan, a tampered one, or none, is nobody."""
+        # Flask answers HEAD with the GET view, and a mail scanner's HEAD
+        # on the fan's own link is not the fan reading it (review, 2026-09-23).
+        if request.method == "HEAD":
+            return None
         fan_id = fan_mail.read_fan_token(app.config["SECRET_KEY"], request.args.get("f"))
         fan = mls.get_fan(fan_id) if fan_id else None
         return fan if fan and fan["user_id"] == campaign["user_id"] else None
@@ -2287,6 +2291,10 @@ def create_app():
         fan_id = mls.upsert_fan(campaign["user_id"], email, campaign["id"], name)
         consent_type = "presave_notify" if prerelease else "email_marketing"
         mls.add_consent(fan_id, campaign["id"], consent_type, consent_text)
+        # A fresh sign-up is the fan's own consent again: it lifts their
+        # own earlier unsubscribe and nothing else (fan_mail). The artist's
+        # do-not-contact mark stands, and then no email is promised below.
+        mls.unsuppress_fan(campaign["user_id"], email, only_reason=fan_mail.UNSUBSCRIBED)
         event = "presave_notify" if prerelease else "email_capture"
         mls.track(campaign["id"], event, variant_id=_ml_variant_id(campaign["id"]),
                   fan_id=fan_id)
@@ -2294,7 +2302,8 @@ def create_app():
         fan = mls.get_fan(fan_id)
         score, level = links_engine.calculate_fan_intent(fan)
         mls.set_fan_intent(fan_id, score, level)
-        message = (links_engine.notify_done_text(emailer.configured())
+        held = bool((fan.get("suppressed") or "").strip())
+        message = (links_engine.notify_done_text(emailer.configured() and not held)
                    if prerelease else "You're on the list. Welcome to the inner circle.")
         store.notify(campaign["user_id"], "fan",
                      "%s: %s" % ("New pre-save" if prerelease else "New fan captured", email),
@@ -2311,10 +2320,11 @@ def create_app():
                 reward = {"url": v["path"],
                           "label": settings.get("gate_label")
                           or v["label"] or "Your unlock"}
-        # The page hands this to its own service buttons, so a click the
-        # fan makes after signing up is credited to them (fan_mail).
-        return jsonify({"ok": True, "message": message, "reward": reward,
-                        "fan_token": fan_mail.fan_token(app.config["SECRET_KEY"], fan_id)})
+        # No fan token comes back: a typed address is not proof of who is
+        # typing, and until 2026-09-23 anyone who typed a fan's address got
+        # that fan's ?f= and could press the buttons on their record. The
+        # only ?f= is the one in an email the app sent that address.
+        return jsonify({"ok": True, "message": message, "reward": reward})
 
     # --- The way out of fan email ----------------------------------------------
 

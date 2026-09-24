@@ -16,8 +16,13 @@ account is that fan's visit; a click carrying it is that fan's click.
     it should still say who clicked.
   * Nothing is stored on the fan's device. The token rides in the link
     and the page passes it on to its own service buttons, so a fan is
-    known for the visit their email started, and for the clicks after
-    they sign up on the page, and at no other time.
+    known for the visit their email started and the clicks after it, and
+    at no other time. A sign-up on the page hands no token back: a typed
+    address is not proof of who typed it, and until 2026-09-23 anyone
+    who typed a fan's address got that fan's token and could press the
+    buttons on their record.
+  * A HEAD request is never the fan: mail scanners send one for every
+    link in a message, and Flask answers HEAD with the GET view.
 
 The token identifies; it authorises nothing. The worst a copied one can
 do is credit a visit to the fan it names.
@@ -70,9 +75,11 @@ def read_fan_token(secret, token):
 # and the Audience counts already use.
 #
 # WHO MAY UNDO WHAT. A fan's own unsubscribe is theirs: only they can
-# reverse it, from the same link. The artist's do-not-contact mark is the
-# artist's: only they can lift it, from the CRM. Neither can lift the
-# other's.
+# reverse it, from the same link, or by signing up again on a smart link,
+# which is consent given afresh (the consent row records the wording).
+# The artist's do-not-contact mark is the artist's: only they can lift
+# it, from the CRM, and a fan signing up while it stands is told nothing
+# about an email, because none goes. Neither side can lift the other's.
 #
 # In the mail client: each message also carries List-Unsubscribe and
 # List-Unsubscribe-Post (RFC 8058), so Gmail and Apple Mail offer their own

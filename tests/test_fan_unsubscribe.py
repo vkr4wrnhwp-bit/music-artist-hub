@@ -288,3 +288,57 @@ def test_the_unsubscribe_link_never_carries_the_address(monkeypatch):
     anon = appmod.app.test_client()
     anon.post(_path(links[1]), data={"action": "unsubscribe"})
     assert mls.fan_by_email(uid, fan)["suppressed"] == fan_mail.UNSUBSCRIBED
+
+
+def _prerelease(uid, days_ahead=5):
+    slug = "pre-%s" % uuid.uuid4().hex[:8]
+    cid = mls.create_campaign(uid, slug, {
+        "title": "Soon", "release_date": (date.today() + timedelta(days=days_ahead)).isoformat(),
+        "settings": {"email_capture": True}})
+    mls.update_campaign(cid, uid, {"status": "live"})
+    return cid, slug
+
+
+def test_signing_up_again_lifts_the_fans_own_unsubscribe_and_the_promised_email_goes(monkeypatch):
+    # Review probe (2026-09-23): a fan who had unsubscribed signed up on a
+    # new pre-release link, was told "We'll email you on release day", and
+    # the send list dropped them. A fresh sign-up is consent given again:
+    # it lifts the fan's own unsubscribe, so the promise is kept.
+    sent = _outbox(monkeypatch)
+    _c, uid = _account()
+    fan = "again-%s@example.net" % uuid.uuid4().hex[:6]
+    old, _s = _released(uid)
+    fid = _consent(uid, old, fan)
+    anon = appmod.app.test_client()
+    anon.post("/unsubscribe/" + fan_mail.unsubscribe_token(SECRET, uid, fan_mail.FAN_REF, fid),
+              data={"action": "unsubscribe"})
+    assert mls.get_fan(fid)["suppressed"] == fan_mail.UNSUBSCRIBED
+    soon, soon_slug = _prerelease(uid)
+    msg = anon.post("/l/%s/subscribe" % soon_slug, data={"email": fan}).get_json()["message"]
+    assert "release day" in msg
+    assert mls.get_fan(fid)["suppressed"] == ""
+    mls.update_campaign(soon, uid, {"release_date": _YESTERDAY})
+    del sent[:]
+    anon.get("/l/" + soon_slug)
+    assert [p["to"] for p in sent] == [[fan]]
+
+
+def test_signing_up_under_the_artists_mark_promises_no_email_and_none_goes(monkeypatch):
+    # The artist's do-not-contact mark is not the fan's to lift, so the
+    # sign-up reply makes no promise the send list would break.
+    sent = _outbox(monkeypatch)
+    c, uid = _account()
+    fan = "marked-%s@example.net" % uuid.uuid4().hex[:6]
+    old, _s = _released(uid)
+    fid = _consent(uid, old, fan)
+    assert c.post("/links/fans/%s/do-not-contact" % fid).status_code in (200, 302)
+    assert mls.get_fan(fid)["suppressed"] == fan_mail.DO_NOT_CONTACT
+    soon, soon_slug = _prerelease(uid)
+    anon = appmod.app.test_client()
+    data = anon.post("/l/%s/subscribe" % soon_slug, data={"email": fan}).get_json()
+    assert data["ok"] and "release day" not in data["message"] and "email" not in data["message"]
+    assert mls.get_fan(fid)["suppressed"] == fan_mail.DO_NOT_CONTACT
+    mls.update_campaign(soon, uid, {"release_date": _YESTERDAY})
+    del sent[:]
+    anon.get("/l/" + soon_slug)
+    assert sent == []

@@ -9,11 +9,11 @@ never move.
 
 Now a fan is known on a smart link when the request carries their signed
 ?f= (fan_mail.fan_token): the link in every release-day email the app
-sends them, passed on by the page to its own service buttons, and handed
-to the page when they sign up on it. A known fan's view is their visit
-(once per sitting), their button press is their click, and both re-score
-them. Anonymous traffic credits nobody, and a token only ever counts on
-its own account's links.
+sends them, passed on by the page to its own service buttons. A known
+fan's view is their visit (once per sitting), their button press is their
+click, and both re-score them. Anonymous traffic credits nobody, a token
+only ever counts on its own account's links, a sign-up on the page hands
+no token back, and a HEAD request is never the fan.
 """
 import csv
 import io
@@ -141,25 +141,50 @@ def test_a_token_counts_only_on_its_own_accounts_links_and_a_forged_one_never():
     assert all(e["fan_id"] is None for e in _events(cid_a, "page_view"))
 
 
-def test_signing_up_on_the_page_hands_back_the_link_that_credits_the_next_click():
+def test_signing_up_on_the_page_hands_back_no_fan_link_so_a_typed_address_credits_nobody():
+    # Until 2026-09-23 the sign-up reply carried the fan's own ?f= and the
+    # page set it on the service buttons, so the click after a sign-up was
+    # credited. The review found the cost: anyone who typed a fan's
+    # address got that fan's token and could press the buttons on their
+    # record. The only ?f= now is the one in an email the app sent.
     _c, uid = _account()
     cid, slug, dest = _live_campaign(uid)
+    victim = _fan(uid, cid, "victim-%s@example.net" % uuid.uuid4().hex[:6])
+    before = mls.get_fan(victim)
+    stranger = appmod.app.test_client()
+    stranger.get("/l/" + slug)
+    data = stranger.post("/l/%s/subscribe" % slug,
+                         data={"email": mls.get_fan(victim)["email"]}).get_json()
+    assert data["ok"] and "fan_token" not in data
+    for _ in range(5):
+        stranger.get("/l/%s/go/%s" % (slug, dest))
+    after = mls.get_fan(victim)
+    assert after["total_clicks"] == before["total_clicks"] == 0
+    assert after["total_captures"] == 1, "the sign-up itself is still recorded"
+    assert all(e["fan_id"] is None for e in _events(cid, "service_click"))
+    # The page script no longer sets a token on the buttons, and still
+    # strips a fan's own link from the address bar.
+    page = stranger.get("/l/" + slug).get_data(as_text=True)
+    assert "data.fan_token" not in page and 'searchParams.delete("f")' in page
+
+
+def test_a_head_request_on_the_fans_own_link_is_a_scanner_not_a_visit():
+    # Mail scanners HEAD every link in a message, and Flask answers HEAD
+    # with the GET view (review, 2026-09-23).
+    _c, uid = _account()
+    cid, slug, dest = _live_campaign(uid)
+    fid = _fan(uid, cid)
+    tok = fan_mail.fan_token(SECRET, fid)
     anon = appmod.app.test_client()
-    anon.get("/l/" + slug)
-    r = anon.post("/l/%s/subscribe" % slug, data={"email": "joined@example.net"})
-    data = r.get_json()
-    assert data["ok"] and data["fan_token"]
-    fan = mls.fan_by_email(uid, "joined@example.net")
-    assert fan_mail.read_fan_token(SECRET, data["fan_token"]) == fan["id"]
-    anon.get("/l/%s/go/%s?f=%s" % (slug, dest, data["fan_token"]))
-    fan = mls.get_fan(fan["id"])
-    assert fan["total_captures"] == 1 and fan["total_clicks"] == 1
-    assert fan["intent_score"] == 25 + 5
-    # The page script sets the token on the buttons and strips it from
-    # the address bar; both halves are in the page.
-    page = anon.get("/l/" + slug).get_data(as_text=True)
-    assert "data.fan_token" in page and 'searchParams.delete("f")' in page
-    assert "data-go" in page
+    ua = {"User-Agent": "Mozilla/5.0 (compatible; SafeLinks scanner)"}
+    assert anon.head("/l/%s?f=%s" % (slug, tok), headers=ua).status_code == 200
+    anon.head("/l/%s/go/%s?f=%s" % (slug, dest, tok), headers=ua)
+    fan = mls.get_fan(fid)
+    assert fan["total_visits"] == 0 and fan["total_clicks"] == 0 and fan["intent_score"] == 0
+    assert all(e["fan_id"] is None for e in _events(cid, "page_view") + _events(cid, "service_click"))
+    # The same link opened by the fan is still their visit.
+    anon.get("/l/%s?f=%s" % (slug, tok))
+    assert mls.get_fan(fid)["total_visits"] == 1
 
 
 def test_the_owners_preview_of_a_draft_credits_nobody():

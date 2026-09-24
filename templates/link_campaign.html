@@ -176,17 +176,8 @@
       if (data.ok) {
         form.querySelector(".flex").classList.add("hidden");
         done.textContent = data.message;
-        // From here on this visitor is a fan on file: their clicks on the
-        // service buttons are credited to them.
-        if (data.fan_token) {
-          document.querySelectorAll("a[data-go]").forEach((a) => {
-            try {
-              const u = new URL(a.href, window.location.origin);
-              u.searchParams.set("f", data.fan_token);
-              a.href = u.pathname + u.search;
-            } catch (e) {}
-          });
-        }
+        // The buttons stay as they are: a sign-up hands back no fan link,
+        // because a typed address is not proof of who typed it (fan_mail).
         if (data.reward && data.reward.url) {
           const a = document.createElement("a");
           a.href = data.reward.url;
