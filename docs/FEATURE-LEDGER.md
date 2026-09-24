@@ -3088,7 +3088,7 @@ The realtime transport: returns everything after a cursor plus the counters, on 
 
 The same performer page for someone with no account, opened from a TOUR share link of scope "stage".
 
-- Because: stage_os.py:563 _guest_link checks the link the way TOUR does and additionally that scope == "stage"; :583 guest_page is what tour_os.shared() calls for that scope, and the guest POSTs write the same stage_requests rows.
+- Because: stage_os.py:563 _guest_link checks the link the way TOUR does and additionally that scope == "stage"; :583 guest_page is what tour_os.shared() calls for that scope, and the guest POSTs write the same stage_requests rows. A link minted on the Mock Up Tour answers 404 at every guest route (_guest_link asks tour_os.sample_tour, the check /tour-share makes), so the sample opens nothing through the Stage door either (review, 2026-09-24; tests/test_mock_tour_review_fixes.py).
 - Routes: GET /stage/guest/<token>; POST /stage/guest/<token>/ask; POST /stage/guest/<token>/cancel/<request_id>; GET /stage/guest/<token>/events; also reached via GET /tour-share/<token>
 - Files: stage_os.py:563 _guest_link(), :583 guest_page(), :591 guest(), :602 guest_ask(), :610 guest_cancel(); templates/stage/_guest_shell.html; tour_os.py:4730 dispatch
 - Access: Anonymous — app.py:4811 lists /stage/guest/ public; the token is the authorisation and a password-protected link bounces to TOUR's password form first.

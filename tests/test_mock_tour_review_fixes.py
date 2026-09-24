@@ -57,6 +57,23 @@ def _member_added_show(c, mock_id, venue="Member Added Real Room", date_="2027-0
     return sid
 
 
+# --- the Stage door (stage-guest-alias-not-404) -----------------------------
+
+def test_a_stage_link_on_the_sample_opens_nothing_through_the_stage_door(mock_on, flask_app):
+    c, user, mock_id, slug = _with_mock(flask_app)
+    sid = _confirmed_sample_show(mock_id)["id"]
+    tok = ts.create_share_link(mock_id, user["id"], "stage", sid)
+    anon = flask_app.test_client()
+    assert anon.get("/tour-share/%s" % tok).status_code == 404
+    assert anon.get("/stage/guest/%s" % tok).status_code == 404
+    assert anon.get("/stage/guest/%s/events" % tok).status_code == 404
+    assert anon.post("/stage/guest/%s/ask" % tok, data={"kind": "more", "source": "vox"}).status_code == 404
+    # The same kind of link on a real date still opens.
+    tid, real_sid = _real_confirmed_show(c, "Real Stage Room")
+    real_tok = ts.create_share_link(tid, user["id"], "stage", real_sid)
+    assert anon.get("/stage/guest/%s" % real_tok).status_code == 200
+
+
 # --- recognising the sample (tour-safe-1, tour-safe-4) ----------------------
 
 def test_an_upload_named_like_the_sample_sheet_leaves_a_real_tour_real(mock_off, flask_app):

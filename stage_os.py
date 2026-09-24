@@ -597,7 +597,10 @@ def _guest_link(token):
     if link is None or link["revoked"] or link["scope"] != "stage" or not link.get("show_id"):
         abort(404)
     tour = ts.get_tour(link["tour_id"])
-    if tour is None:
+    # A link minted on the Mock Up Tour opens nothing through this door
+    # either, the rule tour_os._share_link_or_404 keeps at /tour-share:
+    # the sample never reaches a public page (review, 2026-09-24).
+    if tour is None or tour_os.sample_tour(tour):
         abort(404)
     if link["expires"] and link["expires"] < tour_os.eng.today_in(tour["home_tz"]):
         abort(410)
