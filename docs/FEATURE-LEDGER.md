@@ -3196,7 +3196,7 @@ The tour's list of dates with a readiness figure each, and the fetch buttons for
 
 The old Hub's POST endpoints that still write a show's status, advance fields, settlement and public rider token.
 
-- Because: app.py:7204-7290 still write through db.add_tour_show / update_tour_show_status / save_show_advance / save_show_settlement / set_show_share_token against the same tour_shows rows TOUR reads.
+- Because: app.py:7204-7290 still write through db.add_tour_show / update_tour_show_status / save_show_advance / save_show_settlement / set_show_share_token against the same tour_shows rows TOUR reads. No template posts to /tour/<show_id>/share or /tour/<show_id>/send-advance any more, but a hand-made POST still reaches them, so both refuse a date on the Mock Up Tour (app.py _real_hub_show: share_fail=sample mints no /showday or /rider token, email_fail=sample sends no mail); a real date still mints and still mails (review, 2026-09-24; tests/test_mock_tour_review_fixes.py).
 - Routes: POST /tour/add; /tour/<show_id>/status; /tour/<show_id>/delete; /tour/<show_id>/advance; /tour/<show_id>/settlement; /tour/<show_id>/share; /tour/<show_id>/send-advance
 - Files: app.py:7204 tour_add(), :7217 tour_status(), :7227 tour_delete(), :7254 tour_show_advance(), :7264 tour_show_settlement(), :7282 tour_show_share(), :7290 tour_send_advance(); touring.py; db.py:148 tour_shows
 - Access: Signed in, artist tier. Settlement additionally needs the Money and business room on a team seat (app.py:7268). /tour/<id>/share and /tour/<id>/send-advance are shut to any team seat (app.py:5059).

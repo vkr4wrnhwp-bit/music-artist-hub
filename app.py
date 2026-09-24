@@ -8729,8 +8729,23 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        show = store.get_tour_show(user["id"], show_id)
+        if show is None:
+            abort(404)
+        if not _real_hub_show(show):
+            # No /showday or /rider token for a date on the Mock Up Tour:
+            # the token would open nothing (_public_show_or_404).
+            return redirect("/tour/" + show_id + "?share_fail=sample")
         store.set_show_share_token(user["id"], show_id, uuid.uuid4().hex)
         return redirect("/tour/" + show_id)
+
+    def _real_hub_show(show):
+        """False for a date on the Mock Up Tour. The old Hub's routes are
+        posted to by nothing in the app now, but a hand-made POST still
+        reaches them, and the sample's rule (nothing public, no mail to a
+        real inbox) has to hold here as it does in tour_os."""
+        import tour_mockup
+        return bool(tour_mockup.real_shows(show["user_id"], [show]))
 
     @app.route("/tour/<show_id>/send-advance", methods=["POST"])
     def tour_send_advance(show_id):
@@ -8740,6 +8755,9 @@ def create_app():
         show = store.get_tour_show(user["id"], show_id)
         if show is None:
             abort(404)
+        if not _real_hub_show(show):
+            # An invented show is never advanced to a real inbox.
+            return redirect("/tour/" + show_id + "?email_fail=sample")
         to = (show["advance"].get("contact_email") or "").strip()
         if not (to and "@" in to and emailer.configured()):
             return redirect("/tour/" + show_id + "?email_fail=1")

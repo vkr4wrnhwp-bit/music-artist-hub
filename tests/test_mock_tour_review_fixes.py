@@ -74,6 +74,30 @@ def test_a_stage_link_on_the_sample_opens_nothing_through_the_stage_door(mock_on
     assert anon.get("/stage/guest/%s" % real_tok).status_code == 200
 
 
+# --- the old Tour Hub routes (legacy-send-advance-unguarded) ----------------
+
+def test_the_old_hub_routes_neither_mail_nor_mint_a_link_for_a_sample_date(mock_on, flask_app, monkeypatch):
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    outbox = []
+    monkeypatch.setattr(email_provider, "send",
+                        lambda to, subject, html, *a, **k: outbox.append((to, subject)) or True)
+    c, user, mock_id, slug = _with_mock(flask_app)
+    sid = _confirmed_sample_show(mock_id)["id"]
+    c.post("/tour/%s/advance" % sid, data={"contact_email": "venue@example.com"})
+    r = c.post("/tour/%s/send-advance" % sid)
+    assert "sent=1" not in r.headers["Location"]
+    assert outbox == [], "no advance for an invented show reaches a real inbox"
+    c.post("/tour/%s/share" % sid)
+    assert not store.get_tour_show(user["id"], sid).get("share_token"), "no public token is minted"
+    # A real date through the same old routes still mails and still mints.
+    tid, real_sid = _real_confirmed_show(c, "Real Hub Room")
+    c.post("/tour/%s/advance" % real_sid, data={"contact_email": "venue@example.com"})
+    c.post("/tour/%s/share" % real_sid)
+    assert store.get_tour_show(user["id"], real_sid).get("share_token")
+    r = c.post("/tour/%s/send-advance" % real_sid)
+    assert "sent=1" in r.headers["Location"] and len(outbox) == 1
+
+
 # --- recognising the sample (tour-safe-1, tour-safe-4) ----------------------
 
 def test_an_upload_named_like_the_sample_sheet_leaves_a_real_tour_real(mock_off, flask_app):
