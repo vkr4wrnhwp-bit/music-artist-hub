@@ -281,10 +281,13 @@ def test_a_row_whose_amount_is_not_a_number_does_not_take_the_page_down():
 # --- the missing-money queue is a count, never a figure -------------------
 
 def test_the_missing_money_tile_carries_no_dollars():
-    """artist_os._LANE_SHARE applies six hardcoded coefficients to the
-    WHOLE-ACCOUNT total once per track, so its estimate can exceed
-    everything the catalogue has ever earned. Its tile is a door, not a
-    reading."""
+    """Its tile is a door, not a reading. When this was written
+    artist_os._LANE_SHARE applied six hardcoded coefficients to the
+    WHOLE-ACCOUNT total once per track, so its estimate could exceed
+    everything the catalogue had ever earned. Since 2026-09-23 each figure
+    is a share of that track's own rows (tests/test_real_money.py), but the
+    queue prints no total and the tile still carries none: a sum of
+    estimates is not a reading either."""
     name, line = bz.RENAMED["money-queue"]
     assert name == "Missing money"
     assert not re.search(r"[£$]\s?[\d,]+", line)
