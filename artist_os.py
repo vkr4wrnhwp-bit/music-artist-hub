@@ -696,22 +696,31 @@ def twin_report(tracks, ctx, pulse_snaps, queue, analysis=None):
     # and `popularity` for some apps, and a line reading "Followers
     # None -> None" under the words "Real numbers" is worse than no
     # line at all.
-    _measured = [s for s in (pulse_snaps or [])
-                 if s["followers"] is not None and s["popularity"] is not None]
+    #
+    # Followers alone decide it (make-it-real, 2026-09-23). Spotify
+    # retired popularity for apps like this one on 2026-09-15, so a
+    # section that also waited for a popularity reading waited for ever,
+    # even with Soundcharts' follower counts on file. Popularity is
+    # printed only where both ends were measured.
+    _measured = [s for s in (pulse_snaps or []) if s["followers"] is not None]
     if len(_measured) >= 2:
         # Snapshots come oldest first, so the last one is the current
         # reading. The names were the wrong way round here, which made
         # the arrow in the line below run backwards through time.
         old, new = _measured[0], _measured[-1]
-        sec("Audience signal (Spotify/Deezer via Pulse)", "ready",
-            ["Followers %s \u2192 %s, popularity %s \u2192 %s over your last %d snapshots."
-             % (old["followers"], new["followers"], old["popularity"],
-                new["popularity"], len(_measured)),
-             "Real numbers from your connected profiles \u2014 not projections."])
+        if old.get("popularity") is not None and new.get("popularity") is not None:
+            line = ("Followers %s \u2192 %s, popularity %s \u2192 %s over your last %d snapshots."
+                    % (old["followers"], new["followers"], old["popularity"],
+                       new["popularity"], len(_measured)))
+        else:
+            line = ("Followers %s \u2192 %s over your last %d snapshots."
+                    % (old["followers"], new["followers"], len(_measured)))
+        sec("Audience signal (via Pulse)", "ready",
+            [line, "Real numbers from your connected profiles \u2014 not projections."])
     else:
         sec("Audience signal", "awaiting",
-            ["Connect Artist Pulse and this reads your real Spotify followers, "
-             "popularity, and Deezer fans over time."])
+            ["Pin your artist on Artist Pulse and this reads your follower "
+             "count over time, once two readings are on file."])
 
     rollout_lines = []
     if ctx.get("club_members"):

@@ -269,10 +269,23 @@ def test_the_pulse_line_does_not_promise_what_spotify_retired():
     assert "popularity" not in blurb.lower()
     assert "Deezer" not in blurb
     assert "Soundcharts" in blurb
+    _label, line = _sidebar_line("pulse")
+    assert "popularity" not in line.lower() and "Daily" not in line
     twin = artist_os.twin_report([], {"statement_rows": 0, "fans": 0,
                                       "live_links": 0}, [], [])
-    said = " ".join(" ".join(s["lines"]) for s in twin["sections"])
-    assert "popularity" not in said.lower()
+    said = " ".join(" ".join(s["lines"]) for s in twin)
+    assert "popularity" not in said.lower() and "Deezer" not in said
+
+
+def test_the_twin_reads_followers_without_waiting_for_popularity():
+    """Spotify retired popularity; Soundcharts' follower readings carry
+    none. The Twin's audience section waited for both and never came."""
+    snaps = [{"followers": 1200, "popularity": None, "deezer_fans": None},
+             {"followers": 1350, "popularity": None, "deezer_fans": None}]
+    twin = artist_os.twin_report([], {"fans": 0, "live_links": 0}, snaps, [])
+    audience = [s for s in twin if s["title"].startswith("Audience")][0]
+    assert audience["state"] == "ready"
+    assert "Followers 1200 → 1350 over your last 2 snapshots." in audience["lines"]
 
 
 def test_the_profit_and_loss_line_says_what_the_page_reads():

@@ -359,7 +359,11 @@ MODULES = [
     ("/fraud-sentinel", "Fraud Sentinel", "Artificial streaming and shady playlist risk monitoring.", "preview", None),
     ("/metadata-passport", "Metadata Passport", "Identifier and credit completeness per track, with a clean export.", "live", None),
     ("/ai-rights", "AI Rights & Likeness", "Voice/likeness policies, do-not-train notices, takedown tracking.", "preview", _NOT_LEGAL),
-    ("/pulse", "Artist Pulse", "Live Spotify followers, popularity, top tracks, and Deezer fans.", "live", None),
+    # What /pulse reads with no Spotify app keys (make-it-real, 2026-09-23).
+    # Spotify retired followers, popularity and genres for apps like this
+    # one on 2026-09-15; Deezer fans and top tracks need SPOTIFY_CLIENT_ID
+    # and SPOTIFY_CLIENT_SECRET, so the line does not promise them.
+    ("/pulse", "Artist Pulse", "Followers and monthly listeners from Soundcharts, a YouTube channel you name, and clicks on your own smart links.", "live", None),
     ("/trust-score", "Trust Score", "One verifiable readiness score for partners, labels, and supervisors.", "live", None),
     ("/artist-twin", "Artist Twin", "A private writing agent using only data you approve.", "live", None),
     ("/opportunities", "Opportunity Feed", "Matched sync briefs, playlists, grants, and collaborations.", "preview", None),
