@@ -196,8 +196,10 @@ def take_upload(user_id, name, uploads_dir):
 
 
 # --- what the ticked boxes add to the prompt --------------------------------
-# The model is Pollinations.ai: free, keyless, and generic unless it is told
-# what to make. Everything sent to it used to get the same four words, so
+# The model is OpenAI's gpt-image-1 when OPENAI_API_KEY is set (cover_ai.py),
+# else Pollinations.ai: free, keyless, and generic unless it is told
+# what to make. The same words go to either. Everything sent to it used to
+# get the same four words, so
 # every cover came back looking like the same cover. These are the terms a
 # person actually means when they say "make it better", each one real words
 # that go into the prompt - not a style preset that hides what it did.

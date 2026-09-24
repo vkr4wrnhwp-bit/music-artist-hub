@@ -113,7 +113,8 @@ No network calls in tests; the fetch is one injectable function.
 ## What this does not promise
 
 - Nothing in V1 edits video or generates images. The Cover Studio makes
-  square cover art through Pollinations and is labelled as cover art.
+  square cover art (OpenAI's gpt-image-1 when OPENAI_API_KEY is set,
+  Pollinations without it) and is labelled as cover art.
 - Motion's per-account workspaces are not done (see the demo-account gate
   in `suite_go`), so the button in step 2 waits on that too.
 - "Artist profile" placement is a Vault question: once a file is in the

@@ -18,6 +18,12 @@ services:
       # account and credits are bought. Never commit it.
       - key: ROEX_API_KEY
         sync: false
+      # Cover Studio renders: OpenAI's gpt-image-1 makes the covers once this
+      # is set, and each account gets its plan's covers a month (numbers in
+      # Settings > Cover art renders). Unset, the free Pollinations model is
+      # used and nothing is counted. Paste it in the dashboard. Never commit it.
+      - key: OPENAI_API_KEY
+        sync: false
       # Error reporting (Sentry). Paste the project DSN in the dashboard;
       # unset, observability.py never starts the SDK. Never commit it.
       - key: SENTRY_DSN
