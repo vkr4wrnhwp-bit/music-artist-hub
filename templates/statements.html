@@ -66,7 +66,7 @@
             are header shapes in tests/test_statement_formats.py, not real
             files, so the card no longer names them as working (make-it-real,
             2026-09-23). A file that does not read says what was missing. -#}
-        <p class="sd-note">CSV exports from your distributor, collecting society or The MLC. Tested on a real Symphonic export; other services' files are read by their column names but are not yet proven on a real one. If a file does not read, the page says what it could not find.</p>
+        <p class="sd-note">CSV exports from your distributor, collecting society or The MLC, up to 210 MB. Tested on a real Symphonic export; other services' files are read by their column names but are not yet proven on a real one. If a file does not read, the page says what it could not find.</p>
         <p class="sd-note">The file itself is not kept: Street Banker keeps its name and the rows it reads. No currency is converted, so every amount counts as the file writes it, and a row whose amount can't be read is skipped. Remove takes an upload and every figure from it back out. Duplicates are not detected yet, so a file uploaded twice counts twice.</p>
         {% if error %}<div class="sd-error" role="alert">{{ error }}</div>{% endif %}
         <form method="post" enctype="multipart/form-data" class="sd-field">

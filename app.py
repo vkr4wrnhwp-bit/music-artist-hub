@@ -7672,13 +7672,14 @@ def create_app():
         # Portal or Referrals, which bounce every seat, nor a room it was
         # not given (audit, 2026-09-23, x-1).
         seat = current_team_seat()
-        groups = cc.module_groups()
+        modules = cc.directory()
+        groups = cc.module_groups(modules)
         if seat is not None:
             groups = [(g, [m for m in items if not _door_refusal(m[0], user, seat)])
                       for g, items in groups]
             groups = [(g, items) for g, items in groups if items]
         return render_template("all_tools.html", active_page="all-tools",
-                               modules=cc.directory(), module_groups=cc.module_groups(cc.directory()),
+                               modules=modules, module_groups=groups,
                                **build_dashboard_context())
 
     def _command_center_error(exc):

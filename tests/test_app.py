@@ -3788,7 +3788,12 @@ def test_drop_notifications(monkeypatch):
     to, subject, html = [m for m in outbox if m[0] == "n1@ok.example"][0]
     assert "Notify Club" in subject and "/members?token=" in html
     # The emailed magic link actually signs the member in.
-    path = html.split('href="')[1].split('"')[0].replace("http://localhost", "")
+    # The link is the artist's public address (PUBLIC_BASE_URL), not this
+    # request's host - an inbox link outlives the request (make-it-real,
+    # 2026-09-23: _fan_mail_base). Strip whatever that base is, not a
+    # hardcoded localhost.
+    import app as _appmod
+    path = html.split('href="')[1].split('"')[0].replace(_appmod.PUBLIC_BASE_URL, "")
     fan = app_obj.test_client()
     assert fan.get(path).status_code == 302
     slug = store_mod.get_epk(uid)["slug"]
