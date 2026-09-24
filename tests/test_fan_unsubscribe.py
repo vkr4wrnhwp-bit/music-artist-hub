@@ -80,7 +80,7 @@ def test_the_release_email_carries_a_way_out_and_a_one_click_post_unsubscribes(m
     _c, uid = _account()
     cid, slug = _released(uid)
     fan = "leaver-%s@example.net" % uuid.uuid4().hex[:6]
-    _consent(uid, cid, fan)
+    fid = _consent(uid, cid, fan)
     anon = appmod.app.test_client()
     anon.get("/l/" + slug)
     assert [p["to"] for p in sent] == [[fan]]
@@ -88,7 +88,9 @@ def test_the_release_email_carries_a_way_out_and_a_one_click_post_unsubscribes(m
     url = msg["headers"]["List-Unsubscribe"].strip("<>")
     assert msg["headers"]["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
     assert "/unsubscribe/" in url and url in msg["html"] and ">Unsubscribe</a>" in msg["html"]
-    assert fan_mail.read_unsubscribe_token(SECRET, url.rsplit("/", 1)[1]) == (uid, fan)
+    # The token names the fan's record, not their address (review F5).
+    assert fan_mail.read_unsubscribe_token(SECRET, url.rsplit("/", 1)[1]) == (
+        uid, fan_mail.FAN_REF, fid)
     # A GET is a page with one button; it changes nothing (mail scanners).
     page = anon.get(_path(url))
     assert page.status_code == 200
@@ -115,7 +117,7 @@ def test_a_fan_can_subscribe_again_but_the_artist_cannot_lift_their_unsubscribe(
     cid, _slug = _released(uid)
     fan = "back-%s@example.net" % uuid.uuid4().hex[:6]
     fid = _consent(uid, cid, fan)
-    token = fan_mail.unsubscribe_token(SECRET, uid, fan)
+    token = fan_mail.unsubscribe_token(SECRET, uid, fan_mail.FAN_REF, fid)
     anon = appmod.app.test_client()
     anon.post("/unsubscribe/" + token, data={"action": "unsubscribe"})
     assert mls.get_fan(fid)["suppressed"] == fan_mail.UNSUBSCRIBED
@@ -150,7 +152,7 @@ def test_the_artist_marks_do_not_contact_and_the_send_list_leaves_them_out(monke
     appmod.app.test_client().get("/l/" + slug)
     assert [p["to"] for p in sent] == [[other]]
     # The fan's own link cannot lift the artist's mark.
-    token = fan_mail.unsubscribe_token(SECRET, uid, held)
+    token = fan_mail.unsubscribe_token(SECRET, uid, fan_mail.FAN_REF, fid)
     anon = appmod.app.test_client()
     r = anon.post("/unsubscribe/" + token, data={"action": "resubscribe"})
     assert 'data-unsub-state="held"' in r.get_data(as_text=True)
@@ -181,8 +183,9 @@ def test_a_bad_or_foreign_key_token_changes_nothing():
     fan = "safe-%s@example.net" % uuid.uuid4().hex[:6]
     fid = _consent(uid, cid, fan)
     anon = appmod.app.test_client()
-    good = fan_mail.unsubscribe_token(SECRET, uid, fan)
-    for bad in (good[:-2] + "zz", fan_mail.unsubscribe_token("another-key", uid, fan),
+    good = fan_mail.unsubscribe_token(SECRET, uid, fan_mail.FAN_REF, fid)
+    for bad in (good[:-2] + "zz",
+                fan_mail.unsubscribe_token("another-key", uid, fan_mail.FAN_REF, fid),
                 fan_mail.fan_token(SECRET, fid)):
         r = anon.post("/unsubscribe/" + bad, data={"action": "unsubscribe"})
         assert r.status_code == 404
@@ -224,9 +227,64 @@ def test_fan_club_drops_carry_the_way_out_and_skip_who_took_it(monkeypatch):
     assert "1 member not emailed: unsubscribed or marked do not contact." in banner
 
 
-def test_a_stranger_with_no_record_is_told_the_truth():
+def test_a_link_whose_record_is_gone_is_told_the_truth():
+    # The token names a row now (review F5), so "no record" is a fan the
+    # artist removed after the email went out, or a membership that ended.
     _c, uid = _account()
-    token = fan_mail.unsubscribe_token(SECRET, uid, "never-%s@example.net" % uuid.uuid4().hex[:6])
+    cid, _slug = _released(uid)
+    fid = _consent(uid, cid, "gone-%s@example.net" % uuid.uuid4().hex[:6])
+    token = fan_mail.unsubscribe_token(SECRET, uid, fan_mail.FAN_REF, fid)
+    assert mls.delete_fan(uid, fid)
     anon = appmod.app.test_client()
-    r = anon.post("/unsubscribe/" + token, data={"action": "unsubscribe"})
-    assert r.status_code == 200 and 'data-unsub-state="out"' in r.get_data(as_text=True)
+    for how in ({}, {"action": "unsubscribe"}, {"action": "resubscribe"}):
+        r = anon.post("/unsubscribe/" + token, data=how) if how else anon.get("/unsubscribe/" + token)
+        body = r.get_data(as_text=True)
+        assert r.status_code == 200 and 'data-unsub-state="gone"' in body, how
+        assert "will get" not in body
+
+
+def test_subscribe_again_never_promises_email_to_an_address_nothing_is_sent_to():
+    # Review findings fans-real-10 and F4 (2026-09-23): "Subscribe again"
+    # for an address with no record said it "will get" the artist's fan
+    # emails again, when nothing would be sent to it. Here: a Fan Club
+    # membership that ended, with no CRM record.
+    _c, uid = _account()
+    email = "ended-%s@example.net" % uuid.uuid4().hex[:6]
+    sub = "sub_%s" % uuid.uuid4().hex[:8]
+    store.add_club_member(uid, email, "cus_end", sub)
+    member = store.get_active_club_member(uid, email)
+    store.cancel_club_member_by_subscription(sub)
+    token = fan_mail.unsubscribe_token(SECRET, uid, fan_mail.MEMBER_REF, member["id"])
+    anon = appmod.app.test_client()
+    for how in ({"action": "unsubscribe"}, {"action": "resubscribe"}):
+        body = anon.post("/unsubscribe/" + token, data=how).get_data(as_text=True)
+        assert 'data-unsub-state="none"' in body, how
+        assert "will get" not in body and "is not sending emails to %s" % email in body
+    assert mls.fan_by_email(uid, email) is None, "nothing to hold a suppression for"
+
+
+def test_the_unsubscribe_link_never_carries_the_address(monkeypatch):
+    # Review finding F5 (2026-09-23): the token was the signed pair
+    # [owner, email], and signed is not encrypted: the address sat in
+    # plain base64 in every List-Unsubscribe header and request log.
+    import json
+    from itsdangerous import URLSafeSerializer
+    sent = _outbox(monkeypatch)
+    c, uid = _account()
+    cid, slug = _released(uid)
+    fan = "private.person-%s@example.net" % uuid.uuid4().hex[:6]
+    _consent(uid, cid, fan)
+    store.save_fan_club(uid, "Inner Room", "b", 500, ["Early drops"], True)
+    store.add_club_member(uid, fan, "cus_p", "sub_%s" % uuid.uuid4().hex[:8])
+    appmod.app.test_client().get("/l/" + slug)
+    c.post("/fan-club/drops", data={"title": "A Drop", "body": "Hi"})
+    links = [p["headers"]["List-Unsubscribe"].strip("<>") for p in sent if p["to"] == [fan]]
+    assert len(links) == 2, "one release-day email, one drop notice"
+    for url in links:
+        token = url.rsplit("/", 1)[1]
+        _ok, payload = URLSafeSerializer("any key", salt="fan-unsubscribe").loads_unsafe(token)
+        assert fan not in url and fan.split("@")[0] not in json.dumps(payload), payload
+        # and each still unsubscribes the right address
+    anon = appmod.app.test_client()
+    anon.post(_path(links[1]), data={"action": "unsubscribe"})
+    assert mls.fan_by_email(uid, fan)["suppressed"] == fan_mail.UNSUBSCRIBED

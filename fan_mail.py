@@ -54,8 +54,13 @@ def read_fan_token(secret, token):
 #
 # Every marketing email the app sends a fan for an artist - the release-day
 # note and the Fan Club drop notice - carries an unsubscribe link that
-# works with no login: a signed token naming the artist's account and the
-# address. It never expires, because an unsubscribe link that stops working
+# works with no login: a signed token naming the artist's account and ONE
+# ROW, the fan's CRM record (FAN_REF) or their Fan Club membership
+# (MEMBER_REF). The server looks the address up when the link is used.
+# Until 2026-09-23 the token carried the address itself: signed is not
+# encrypted, so anyone who saw the link, in a List-Unsubscribe header, a
+# request log or an error report, could read the fan's email address out
+# of it. It never expires, because an unsubscribe link that stops working
 # is not one.
 #
 # ONE LIST. A fan who unsubscribes, or whom the artist marks do not
@@ -82,23 +87,33 @@ UNSUBSCRIBED = "unsubscribed"       # the fan's own, from the link
 DO_NOT_CONTACT = "do not contact"   # the artist's mark, from the CRM
 
 
-def unsubscribe_token(secret, owner_id, email):
+FAN_REF = "f"       # an ml_fans row: the release-day email
+MEMBER_REF = "m"    # a club_members row: the Fan Club drop notice
+
+
+def unsubscribe_token(secret, owner_id, kind, ref_id):
+    """The signed reference in one unsubscribe link: the artist's account,
+    and the fan record or membership the email went to. Never the
+    address."""
+    if kind not in (FAN_REF, MEMBER_REF):
+        raise ValueError("unsubscribe_token: kind must be FAN_REF or MEMBER_REF")
     return URLSafeSerializer(secret, salt=_UNSUB_SALT).dumps(
-        [str(owner_id), (email or "").strip().lower()])
+        [str(owner_id), kind, str(ref_id)])
 
 
 def read_unsubscribe_token(secret, token):
-    """(owner_id, email) the token names, or None."""
+    """(owner_id, kind, ref_id) the token names, or None."""
     if not token:
         return None
     try:
         value = URLSafeSerializer(secret, salt=_UNSUB_SALT).loads(token)
     except (BadSignature, ValueError, TypeError):
         return None
-    if (not isinstance(value, list) or len(value) != 2
-            or not all(isinstance(v, str) and v for v in value) or "@" not in value[1]):
+    if (not isinstance(value, list) or len(value) != 3
+            or not all(isinstance(v, str) and v for v in value)
+            or value[1] not in (FAN_REF, MEMBER_REF)):
         return None
-    return value[0], value[1]
+    return value[0], value[1], value[2]
 
 
 def unsubscribe_headers(url):

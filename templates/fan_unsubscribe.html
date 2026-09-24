@@ -36,6 +36,10 @@
     <form method="post" class="mt-6">
       <button type="submit" name="action" value="unsubscribe" class="sb-btn sb-btn-secondary">Unsubscribe</button>
     </form>
+    {% elif state == "gone" %}
+    {#- The artist removed the record this link was for (app._unsubscribe_address). -#}
+    <h1 class="text-xl font-black">Nothing to unsubscribe from</h1>
+    <p class="mt-2 text-sm text-gray-300">{{ artist }} has removed the record this link was for, so no more emails go out through it. A Fan Club email has its own unsubscribe link at the foot.</p>
     {% else %}
     <h1 class="text-xl font-black">No emails from {{ artist }}</h1>
     <p class="mt-2 text-sm text-gray-300">{{ artist }} is not sending emails to {{ email }}. There is nothing more to do.</p>
