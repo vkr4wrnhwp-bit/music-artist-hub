@@ -67,7 +67,8 @@ def _outbox(monkeypatch):
 
 
 def _path(url):
-    return url.replace("http://localhost", "")
+    # Fan email links are built on the public address (app._fan_mail_base).
+    return url.replace(appmod.PUBLIC_BASE_URL, "").replace("http://localhost", "")
 
 
 def _unsub_link(html):

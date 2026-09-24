@@ -84,19 +84,25 @@ def _http(url, payload, headers):
 
 
 def send(to, subject, html, attachments=None, reply_to=None, cc=None, text=None,
-         headers=None):
+         headers=None, from_name=None):
     """One email (optional attachments: [{filename, content-b64}]).
     True only when Resend accepted it. reply_to is where a human's
     answer should land - the advance sender, not the app - and cc is a
     list or one address. headers are extra message headers: a fan email
-    passes List-Unsubscribe here (fan_mail.unsubscribe_headers)."""
+    passes List-Unsubscribe here (fan_mail.unsubscribe_headers).
+
+    from_name, when given (even ""), is the sender name to use instead of
+    the tenant this request resolved to: an email to an artist's fan names
+    the artist's reseller however it was triggered, including by the daily
+    run, which has no tenant (app._fan_mail_from)."""
     if not configured() or not to:
         return False
     # The tenant whose page triggered this send, if any. Resolved here
     # rather than threaded through forty call sites: every one of them
     # would have to remember, and the one that forgot would put the
     # platform's name in a reseller's artist's inbox.
-    payload = {"from": sender(_tenant_display_name()), "to": [to],
+    name = _tenant_display_name() if from_name is None else from_name
+    payload = {"from": sender(name), "to": [to],
                "subject": subject, "html": html}
     if attachments:
         payload["attachments"] = attachments

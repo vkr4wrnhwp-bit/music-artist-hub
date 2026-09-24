@@ -1737,11 +1737,45 @@ def create_app():
 
     # --- Spotify pre-save OAuth (env-gated; notify-me fallback otherwise) ------
 
-    def _fan_unsubscribe_url(owner_id, email):
+    def _owner_partner(owner):
+        """The reseller an artist's account belongs to (users.partner_id),
+        while that reseller is active; None for Street Banker's own."""
+        pid = (owner or {}).get("partner_id")
+        if not pid:
+            return None
+        try:
+            partner = partner_store.get_partner(pid)
+        except Exception:
+            return None
+        return partner if partner and partner.get("status") == "active" else None
+
+    def _fan_mail_base(owner):
+        """Where the links in an email to an artist's fan point: the
+        reseller's own domain when the artist belongs to one that has one,
+        otherwise the public address (PUBLIC_BASE_URL, always https).
+
+        Never request.url_root, the rule at the top of this file: an inbox
+        link outlives the request that made it, Host is the caller's input,
+        and the daily run's request comes from the scheduler, so its fan
+        emails carried the scheduler's internal host until 2026-09-23. A
+        mail client's one-click unsubscribe also needs an https address
+        (RFC 8058)."""
+        domain = ((_owner_partner(owner) or {}).get("domain") or "").strip().lower()
+        return ("https://" + domain) if domain else public_url()
+
+    def _fan_mail_from(owner):
+        """The sender name on an email to an artist's fan: the artist's
+        reseller, or "" for Street Banker's own. Read from the artist, not
+        from the request: the daily run has no tenant, and a fan's page
+        view on the plain address has none either."""
+        brand = partner_store.branding(_owner_partner(owner))
+        return (brand or {}).get("name") or ""
+
+    def _fan_unsubscribe_url(owner, email):
         """The way out that every marketing email to a fan carries: signed,
-        no login, no expiry (fan_mail)."""
-        return (request.url_root.rstrip("/") + "/unsubscribe/"
-                + fan_mail.unsubscribe_token(app.config["SECRET_KEY"], owner_id, email))
+        no login, no expiry (fan_mail), at the artist's public address."""
+        return (_fan_mail_base(owner) + "/unsubscribe/"
+                + fan_mail.unsubscribe_token(app.config["SECRET_KEY"], owner["id"], email))
 
     def _send_release_emails(campaign):
         """Once per campaign, on the first page view after release or the
@@ -1763,9 +1797,12 @@ def create_app():
         # cannot mail a fan twice (links_store.claim_release_email).
         if not mls.claim_release_email(campaign["id"]):
             return 0
-        page_url = request.url_root.rstrip("/") + "/l/" + campaign["slug"]
         # Replies go to the artist, never to the sending address.
-        owner = store.get_user(campaign["user_id"]) or {}
+        owner = store.get_user(campaign["user_id"]) or {"id": campaign["user_id"]}
+        # The artist's public address, whichever caller this is: a fan's
+        # page view, or the daily run from the scheduler's host.
+        page_url = _fan_mail_base(owner) + "/l/" + campaign["slug"]
+        sender_name = _fan_mail_from(owner)
         sent = 0
         # Nobody who unsubscribed or was marked do not contact: the one
         # door every send list goes through (fan_segments.contactable).
@@ -1773,13 +1810,14 @@ def create_app():
             # Each fan's listen link is their own (fan_mail.fan_token): the
             # visit it starts, and the click after it, go on their record.
             listen_url = page_url + "?f=" + fan_mail.fan_token(app.config["SECRET_KEY"], f["id"])
-            way_out = _fan_unsubscribe_url(campaign["user_id"], f["email"])
+            way_out = _fan_unsubscribe_url(owner, f["email"])
             html = emailer.release_email_html(
                 campaign["title"], campaign.get("artist_name") or "",
                 listen_url, campaign.get("cover_url") or "", unsubscribe_url=way_out)
             if emailer.send(f["email"], "%s is out now" % campaign["title"], html,
                             reply_to=owner.get("email") or None,
-                            headers=fan_mail.unsubscribe_headers(way_out)):
+                            headers=fan_mail.unsubscribe_headers(way_out),
+                            from_name=sender_name):
                 sent += 1
         if sent:
             store.notify(campaign["user_id"], "fan",
@@ -7828,7 +7866,9 @@ def create_app():
         import html as _html
         notified = failed = skipped = 0
         slug = _ensure_epk_slug(user)
-        base = request.url_root.rstrip("/")
+        # The artist's public address, not this request's host: an inbox
+        # link outlives the request (_fan_mail_base).
+        base = _fan_mail_base(user)
         # A member who unsubscribed from these emails, or whom the artist
         # marked do not contact, keeps the membership and the members
         # area; they are just not written to (fan_mail).
@@ -7842,7 +7882,7 @@ def create_app():
             token = _club_serializer().dumps(
                 {"artist_id": user["id"], "email": m["member_email"]})
             link = base + "/club/" + slug + "/members?token=" + token
-            way_out = _fan_unsubscribe_url(user["id"], m["member_email"])
+            way_out = _fan_unsubscribe_url(user, m["member_email"])
             ok = emailer.send(
                 m["member_email"],
                 "%s: new members-only drop" % (club["name"] or "Fan club"),
@@ -7865,7 +7905,8 @@ def create_app():
                        "You get these because you are a member of %s. Unsubscribing "
                        "stops these emails; your membership stays as it is."
                        % (club["name"] or "this fan club"), way_out)),
-                reply_to=user["email"], headers=fan_mail.unsubscribe_headers(way_out))
+                reply_to=user["email"], headers=fan_mail.unsubscribe_headers(way_out),
+                from_name=_fan_mail_from(user))
             if ok:
                 notified += 1
             else:

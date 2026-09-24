@@ -214,6 +214,7 @@ def test_each_release_day_email_carries_the_fans_own_link(monkeypatch):
         assert "/l/%s?f=%s" % (slug, fan_mail.fan_token(SECRET, fid)) in by_to[email]
     # Following the link in the email is that fan's visit.
     link = by_to[mls.get_fan(one)["email"]].split('href="', 1)[1].split('"', 1)[0]
-    anon.get(link.replace("http://localhost", ""))
+    assert link.startswith(appmod.PUBLIC_BASE_URL + "/l/"), "the public address, not the request's host"
+    anon.get(link.replace(appmod.PUBLIC_BASE_URL, ""))
     assert mls.get_fan(one)["total_visits"] == 1
     assert mls.get_fan(two)["total_visits"] == 0

@@ -219,3 +219,58 @@ def test_a_view_long_after_release_sends_nothing_and_a_view_in_the_week_still_do
     assert links_engine.release_email_window_open({"release_date": "2026-09-16"}, "2026-09-23")
     assert not links_engine.release_email_window_open({"release_date": "2026-09-15"}, "2026-09-23")
     assert not links_engine.release_email_window_open({"release_date": "2026-09-24"}, "2026-09-23")
+
+
+def _mail_to(sent, email):
+    return next(p for p in sent if p["to"] == [email])
+
+
+def test_the_daily_runs_mail_points_at_the_public_address_not_the_schedulers_host(monkeypatch):
+    # Review findings fans-real-3 and F6 (2026-09-23): the release-day
+    # email built its listen link, its unsubscribe link and the
+    # List-Unsubscribe header from request.url_root, so when the daily run
+    # sent it they carried the scheduler's own host (and its scheme).
+    import re
+    _run_patched(monkeypatch)
+    sent = []
+    monkeypatch.setattr(emailer, "_http",
+                        lambda url, payload, headers: sent.append(payload) or {"id": "em"})
+    uid = _account()
+    cid, slug = _campaign(uid, (date.today() - timedelta(days=1)).isoformat())
+    fan = _remind(uid, cid)
+    r = appmod.app.test_client().post("/reminders/run", base_url="http://10.0.0.5:10000",
+                                      headers={"X-Backup-Token": "tok-notify"})
+    assert r.status_code == 200
+    msg = _mail_to(sent, fan)
+    base = appmod.PUBLIC_BASE_URL
+    assert base.startswith("https://")
+    hrefs = re.findall(r'href="([^"]+)"', msg["html"])
+    assert len(hrefs) == 2 and all(h.startswith(base + "/") for h in hrefs), hrefs
+    assert hrefs[0].startswith(base + "/l/" + slug + "?f=")
+    assert "10.0.0.5" not in msg["html"]
+    assert msg["headers"]["List-Unsubscribe"].startswith("<" + base + "/unsubscribe/")
+
+
+def test_a_resellers_artists_fans_get_the_resellers_address_and_name(monkeypatch):
+    # fans-real-3: the sender name followed the request's tenant, and the
+    # daily run has none, so a reseller's artist's fans got the platform's
+    # name. It follows the artist's own reseller now, from either caller.
+    import partner_store as ps
+    _run_patched(monkeypatch)
+    sent = []
+    monkeypatch.setattr(emailer, "_http",
+                        lambda url, payload, headers: sent.append(payload) or {"id": "em"})
+    uid = _account()
+    tag = "fx%s" % uuid.uuid4().hex[:6]
+    domain = "fans.%s.example" % tag
+    pid = ps.create_partner("Foxglove Records", slug=tag, domain=domain)
+    ps.set_branding(pid, display_name="FOXGLOVE")
+    assert ps.attach_user(pid, uid)
+    cid, slug = _campaign(uid, (date.today() - timedelta(days=1)).isoformat())
+    fan = _remind(uid, cid)
+    appmod.app.test_client().post("/reminders/run", base_url="http://10.0.0.5:10000",
+                                  headers={"X-Backup-Token": "tok-notify"})
+    msg = _mail_to(sent, fan)
+    assert msg["from"].startswith("FOXGLOVE <"), msg["from"]
+    assert 'href="https://%s/l/%s?f=' % (domain, slug) in msg["html"]
+    assert msg["headers"]["List-Unsubscribe"].startswith("<https://%s/unsubscribe/" % domain)
