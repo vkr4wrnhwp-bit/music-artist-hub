@@ -408,7 +408,13 @@ def gate_zero(zero, can_open):
         return zero
     project = zero.get("project") or {}
     door = zero.get("door") or project.get("href") or ""
-    if door and why(door) == "off":
+    # A room that already worked out its own off-words for this door (its
+    # `can` is the string "off", not the ordinary True/"seat"/False) made
+    # that call itself, the same as a seat's `locked` does; this generic
+    # gate only fills in for a room that has not (audit marketing-7/19
+    # collided with this gate's own OFF_WORDS - the merge, 2026-09-24,
+    # keeps the room's own wording).
+    if door and why(door) == "off" and project.get("can") != "off":
         zero["project"] = dict(project, can=False, locked=OFF_WORDS)
         if zero.get("cta"):
             zero["cta"] = None

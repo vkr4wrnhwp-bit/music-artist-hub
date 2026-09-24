@@ -646,7 +646,10 @@ def test_each_link_lands_on_the_explanation_it_names():
     landing = c.get("/fans?returnTo=/room/fans").get_data(as_text=True)
     assert 'id="fr-alt-h"' in landing and "asks for an email on the way through" in landing
     assert 'id="fr-needs-h"' in landing and "What the file needs" in landing
-    assert "Back to the fans room" in landing
+    # Business-13 (owner, 2026-09-22: "rooms are called by their bare
+    # names") renamed every room's back link after this test was
+    # written; it now reads "Back to Fans", not "Back to the fans room".
+    assert "Back to Fans" in landing and "the fans room" not in landing
 
 
 def test_the_drawer_is_named_once():
@@ -687,7 +690,8 @@ def test_the_capture_path_keeps_its_way_back_after_the_save():
     loc = r.headers["Location"]
     assert "/edit?returnTo=/room/fans" in loc, loc
     landing = c.get(loc).get_data(as_text=True)
-    assert 'href="/room/fans" id="sb-room-back"' in landing and "Back to the fans room" in landing
+    # Same rename (business-13) as above.
+    assert 'href="/room/fans" id="sb-room-back"' in landing and "Back to Fans" in landing
     # and a door with no way back is not given one, nor a foreign one
     bare = c.post("/links/new", data={"title": "Bare %s" % uid[:6]})
     assert bare.headers["Location"].endswith("/edit")
