@@ -4491,6 +4491,11 @@ def _import_status(raw):
     return None
 
 
+# What the Import page can record as a source. tour_mockup.IMPORT_SOURCE
+# is deliberately not one of them.
+IMPORT_SOURCES = ("paste", "csv", "ics")
+
+
 @bp.route("/tours/<tour_id>/import", methods=["GET", "POST"])
 @require_tour("edit")
 def import_dates(user, tour, viewer, tour_id):
@@ -4500,6 +4505,14 @@ def import_dates(user, tour, viewer, tour_id):
     if request.method != "POST":            # HEAD is answered by this view too; only a POST imports
         return render_template("tour/import.html", **_ctx(user, tour, viewer, "import", shows=shows, history=history))
     source = request.form.get("source") or "paste"
+    if source not in IMPORT_SOURCES:
+        # The form names paste, csv or ics; anything else is read as a
+        # paste. The Mock Up Tour is recognised by an import source only
+        # tour_mockup.ensure_for writes (its IMPORT_SOURCE), so a posted
+        # source never reaches record_import unchecked: a form claiming
+        # it could otherwise mark a real tour as the sample and take its
+        # dates and public links down (review of 2026-09-23).
+        source = "paste"
     text = request.form.get("text") or ""
     filename = ""
     up = request.files.get("file")
