@@ -592,7 +592,11 @@ def test_a_failed_ask_with_no_answer_is_not_nobody_asked():
     store.add_track_mlc_check(uid, tid, "ISRC US-ABC-24-00002", "error", "down", [])
     track = store.get_os_track(uid, tid)
     ev = __import__("artist_os").mlc_evidence(track)
-    assert ev["source"] == "none" and "could not be reached" in ev["detail"]
+    # Merged 2026-09-23 with the providers group's fix of the same fault
+    # (providers-23): a failed ask is its own source, "check failed", and
+    # says the last check failed - never "nobody has asked".
+    assert ev["source"] == "failed" and ev["label"] == "check failed"
+    assert "The last check failed" in ev["detail"]
     assert "Nobody has asked" not in ev["detail"]
     body = _body(c.get("/room/publishing").get_data(as_text=True))
     assert "Nobody has asked" not in body and "No registry has answered yet" in body

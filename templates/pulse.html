@@ -172,7 +172,16 @@
 
   {% elif not pulse %}
   <section class="rounded-2xl border border-white/10 bg-sb-surface-2 p-6">
-    <p class="text-sm text-gray-200">Spotify didn't return data for <span class="font-bold">{{ profile.artist_name }}</span> just now. That's usually temporary — reload in a minute, or pick the artist again.</p>
+    {#- Why Spotify gave nothing, in its own words where it said any. A
+        refused credential is this service's key, not a passing blip, so it
+        is never called "usually temporary"; a rate limit says so. -#}
+    {% if spotify_refusal and spotify_refusal.kind == 'credentials' %}
+    <p class="text-sm text-gray-200" data-spotify-refusal="credentials">Spotify refused this service's app credentials ({{ spotify_refusal.text }}), so nothing from Spotify can be read for <span class="font-bold">{{ profile.artist_name }}</span> until the key is fixed. This is on our side, not yours.</p>
+    {% elif spotify_refusal and spotify_refusal.kind == 'rate' %}
+    <p class="text-sm text-gray-200" data-spotify-refusal="rate">Spotify is limiting how often this service may ask ({{ spotify_refusal.text }}). Nothing was read for <span class="font-bold">{{ profile.artist_name }}</span>; reload in a minute.</p>
+    {% else %}
+    <p class="text-sm text-gray-200" data-spotify-refusal="{{ spotify_refusal.kind if spotify_refusal else '' }}">Spotify didn't return data for <span class="font-bold">{{ profile.artist_name }}</span> just now{% if spotify_refusal %} ({{ spotify_refusal.text }}){% endif %}. That's usually temporary. Reload in a minute, or pick the artist again.</p>
+    {% endif %}
   </section>
 
   {% else %}
@@ -371,8 +380,16 @@
       const box = document.getElementById("pulse-results");
       box.innerHTML = "";
       if (!data.results.length) {
+        // The server says what kind of failure it was; only a refused
+        // credential is called one (a timeout used to read as one too).
+        const lead = {
+          credentials: "Spotify refused this app's credentials: ",
+          rate: "Spotify is limiting requests just now, try again in a minute: ",
+          unconfigured: "",
+          noanswer: "Spotify did not answer just now, so nothing was searched: ",
+        };
         err.textContent = data.refused
-          ? "Spotify refused this app's credentials: " + data.refused
+          ? ((data.refused_kind in lead) ? lead[data.refused_kind] : lead.noanswer) + data.refused
           : "No artists found — check the spelling.";
         err.classList.remove("hidden");
         return;

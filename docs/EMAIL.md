@@ -91,7 +91,7 @@ older address needs the new one from the Statements page.
 
 ## Object storage (R2), and how to see why it is off
 
-`/storage/diag` (any signed-in account) writes, reads and deletes one tiny
+`/storage/diag` (owner accounts only since 23 September 2026) writes, reads and deletes one tiny
 object and, when that fails, names the variable that is wrong by SHAPE —
 never by value. As of 2 September 2026 it reports a secret of 32
 characters where R2 wants 64 hex, and a bucket holding a 32-hex id rather

@@ -206,7 +206,42 @@ def not_measured_stats():
             for label, sub in NOT_MEASURED_LABELS]
 
 
-def real_stats(statement_rows, track_count, metrics=None):
+# A reading older than this is not presented as the artist's current
+# audience: the kit says it is the last figure on file.
+AUDIENCE_FRESH_DAYS = 7
+
+
+def _day_words(iso):
+    """"2026-03-07" -> "7 Mar 2026"; None for anything that is not a date."""
+    from datetime import date
+    try:
+        d = date.fromisoformat(str(iso or "")[:10])
+    except ValueError:
+        return None
+    return "%d %s" % (d.day, d.strftime("%b %Y"))
+
+
+def audience_sub(metrics, today=None):
+    """Who measured an audience figure and when, for the line under it.
+
+    The kit is the page that leaves the building, and it reads the
+    snapshot Pulse last stored, however old: an undated figure from 200
+    days ago read as this month's audience (audit, 2026-09-23). The date
+    is always said, and an old one is called the last figure on file.
+    """
+    from datetime import date, datetime, timezone
+    label = metrics.get("label") or "the metrics provider"
+    when = _day_words(metrics.get("as_of"))
+    if not when:
+        return "Measured by %s" % label
+    today = today or datetime.now(timezone.utc).date()
+    age = (today - date.fromisoformat(str(metrics["as_of"])[:10])).days
+    if age > AUDIENCE_FRESH_DAYS:
+        return "Measured by %s; last figure on file, from %s" % (label, when)
+    return "Measured by %s, as of %s" % (label, when)
+
+
+def real_stats(statement_rows, track_count, metrics=None, today=None):
     """Headline figures built only from what the artist actually has.
 
     The press kit is the one page that leaves the building. It goes to
@@ -225,14 +260,15 @@ def real_stats(statement_rows, track_count, metrics=None):
     # it is real without a single statement having been uploaded. It
     # comes from whichever provider the registry has for CAP_METRICS.
     if metrics:
+        sub = audience_sub(metrics, today=today)
         if metrics.get("monthly_listeners") is not None:
             stats.append({"label": "Monthly Listeners",
                           "value": "{:,}".format(metrics["monthly_listeners"]),
-                          "sub": "Measured by %s" % metrics.get("label", "the metrics provider")})
+                          "sub": sub})
         if metrics.get("followers") is not None:
             stats.append({"label": "Followers",
                           "value": "{:,}".format(metrics["followers"]),
-                          "sub": "Measured by %s" % metrics.get("label", "the metrics provider")})
+                          "sub": sub})
     rows = statement_rows or []
     if rows:
         import statements_engine

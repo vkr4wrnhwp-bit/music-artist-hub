@@ -2,6 +2,7 @@ import json
 import hmac
 import math
 import os
+import re
 import time
 import urllib.parse
 import uuid
@@ -110,6 +111,15 @@ _OWNER_EMAIL_HASHES = {
     "aa35acb84a0b782e5bdf902478d53127d9fc68f885493cd231fbe98b1f5ad020",
 }
 OWNER_PLAN = "label"          # top of plans.TIER_RANK
+
+
+def _day_words(iso):
+    """"2026-09-23" -> "23 Sep 2026"; "" for anything that is not a date."""
+    try:
+        d = date.fromisoformat(str(iso or "")[:10])
+    except ValueError:
+        return ""
+    return "%d %s" % (d.day, d.strftime("%b %Y"))
 
 
 def _is_owner_email(email):
@@ -1234,10 +1244,15 @@ def create_app():
         _demo_access_seen[ip] = now
 
         sent = False
+        send_error = ""
         if emailer.configured():
             try:
                 pw = os.environ.get("DEMO_PASSWORD", "sweep")
-                emailer.send(
+                # "Sent" only when Resend accepted it. send() returns False
+                # on a refusal and never raises, so ignoring its answer told
+                # the visitor the password was on its way after a 403 and
+                # wrote password_sent: true for the owner (audit, 2026-09-23).
+                sent = bool(emailer.send(
                     email,
                     "Your Street Banker demo access",
                     "<p>Thanks for your interest in Street Banker.</p>"
@@ -1248,13 +1263,19 @@ def create_app():
                     "<p>The demo is illustrative sample data - no account is "
                     "created and nothing is shared.</p>"
                     % (pw, PUBLIC_BASE_URL,
-                       PUBLIC_BASE_URL.split("//", 1)[-1], workspace.title()))
-                sent = True
+                       PUBLIC_BASE_URL.split("//", 1)[-1], workspace.title())))
             except Exception:
                 sent = False
-        store.add_inbox("demo-access", {
-            "email": email, "workspace": workspace, "password_sent": sent,
-            "requested": datetime.now().isoformat(timespec="seconds")})
+            if not sent:
+                try:
+                    send_error = (emailer.last_send_error() or "")[:200]
+                except Exception:
+                    send_error = ""
+        lead = {"email": email, "workspace": workspace, "password_sent": sent,
+                "requested": datetime.now().isoformat(timespec="seconds")}
+        if send_error:
+            lead["send_error"] = send_error    # why, for the owner's follow-up
+        store.add_inbox("demo-access", lead)
         resp = redirect("/login?demo=%s#tour-rack" % ("sent" if sent else "pending"))
         resp.set_cookie("sb_demo_lead", email, max_age=90 * 24 * 3600,
                         httponly=True, samesite="Lax")
@@ -1832,11 +1853,14 @@ def create_app():
         """Why aren't emails reaching anyone? Reports the SHAPE of the mail
         setup and, read-only, what Resend says about the account's domains -
         including the exact DNS records each still needs, so nobody has to
-        go hunting for them. Requires a signed-in account; no secret ever
-        leaves this endpoint."""
-        user = current_user()
-        if user is None:
-            return jsonify({"error": "auth required"}), 401
+        go hunting for them. No secret ever leaves this endpoint.
+
+        Owner accounts only, a 404 for everyone else (audit, 2026-09-23):
+        the domain list and its DNS records are the owner's setup, and
+        every ?domains=1 is a call on the owner's Resend key."""
+        user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
         info = {
             "configured": emailer.configured(),
             "sender": emailer.sender(),
@@ -1871,11 +1895,13 @@ def create_app():
             # names the failure exactly: InvalidAccessKeyId,
             # SignatureDoesNotMatch, NoSuchBucket, AccessDenied. Throwing
             # that away and reporting "Unauthorized" loses the answer.
+            # Only the Code and the Message are kept: the raw body can
+            # carry the AWSAccessKeyId, and this report promises the shape
+            # of each credential, never a value (audit, 2026-09-23).
             body = getattr(exc, "read", None)
             if callable(body):
                 try:
                     raw = exc.read().decode("utf-8", "replace")[:600]
-                    result["s3_error_body"] = raw
                     code = re.search(r"<Code>([^<]+)</Code>", raw)
                     msg = re.search(r"<Message>([^<]+)</Message>", raw)
                     if code:
@@ -1910,11 +1936,14 @@ def create_app():
         whether two of them are the same string) and never a value.
 
         It lived inside /presave/diag, which only a label-plan account could
-        open, so the person who owns the bucket could not see it.
+        open, so the person who owns the bucket could not see it. Now it
+        answers the owner, and only the owner (audit, 2026-09-23): any
+        signed-in account could make the server write into the owner's
+        bucket and read back the S3 error body.
         """
-        user = current_user()
-        if user is None:
-            return jsonify({"error": "auth required"}), 401
+        user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
         report = _r2_check()
         if not report.get("configured"):
             report["next"] = ("Set R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID and "
@@ -1948,10 +1977,14 @@ def create_app():
     @app.route("/presave/diag")
     def presave_diag():
         # Owner-only config check: reports WHICH credentials the running
-        # process can see (presence booleans only, never values).
-        user = current_user()
-        if user is None or (user.get("plan") or "artist") != "label":
-            abort(404)
+        # process can see (presence booleans only, never values). It said
+        # owner-only and checked the label PLAN, so any paying label
+        # customer could read platform-wide billing counts and the database
+        # path, and fire an R2 write and Spotify probes on the owner's keys
+        # (audit, 2026-09-23). The owner check is the one /admin uses.
+        user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
         return jsonify({
             "SPOTIFY_CLIENT_ID": bool(os.environ.get("SPOTIFY_CLIENT_ID")),
             "SPOTIFY_CLIENT_SECRET": bool(os.environ.get("SPOTIFY_CLIENT_SECRET")),
@@ -2696,10 +2729,21 @@ def create_app():
         ids_rows = []
         for t in ctx["my_tracks"]:
             m = t.get("meta") or {}
+            # A code Deezer's title + artist search supplied is named as
+            # such, with the day it was read: it is a match by name, not a
+            # confirmation. A code that differs from what Deezer gave (typed
+            # on the passport, say) is the artist's own and is not marked.
+            looked = m.get("lookup_codes") or {}
+            from_lookup = [k for k in ("isrc", "upc", "label")
+                           if looked.get(k) and m.get(k) == looked.get(k)]
             ids_rows.append({"id": t["id"], "title": t["title"], "artist": t["artist"],
                              "isrc": m.get("isrc") or "", "upc": m.get("upc") or "",
                              "label": m.get("label") or "", "iswc": "",
-                             "release_date": m.get("release_date") or ""})
+                             "release_date": m.get("release_date") or "",
+                             "lookup_source": (m.get("source") or "") if from_lookup else "",
+                             "lookup_fields": [{"isrc": "ISRC", "upc": "UPC", "label": "label"}[k]
+                                               for k in from_lookup],
+                             "lookup_read_on": _day_words(m.get("read_on"))})
         ctx["ids_rows"] = ids_rows
         ctx["ids_with_isrc"] = sum(1 for r in ids_rows if r["isrc"])
         ctx["ids_with_upc"] = sum(1 for r in ids_rows if r["upc"])
@@ -3739,15 +3783,30 @@ def create_app():
 
     _METRICS_WINDOW_DAYS = 30
 
-    # What /pulse?yt=... means. Anything not in here is Google's own error
-    # text, passed through as it stands rather than flattened to "failed".
+    # Everything Pulse asks the metrics provider shares this many seconds
+    # (signal_providers.time_budget), like TOUR's PHOTO/GEO/TICKETS_BUDGET_S.
+    PULSE_BUDGET_S = 25
+
+    # What /pulse?yt=... means: a code, looked up here. Google's own reason
+    # for a failed lookup travels in the session under "failed" and is
+    # shown once. Free text in the link is never printed: it used to be,
+    # so any link could put any sentence on the page in the app's own
+    # error style (audit, 2026-09-23).
     _YT_ERRORS = {
         "": "",
         "notfound": ("No YouTube channel matched that. The surest form is the "
                      "channel's own URL, copied from YouTube."),
         "unconfigured": ("This server has no YouTube key, so nothing was looked "
                          "up."),
+        "failed": "YouTube did not answer just now, so nothing was looked up.",
     }
+
+    def _yt_error_text():
+        code = request.args.get("yt") or ""
+        if code == "failed":
+            said = session.pop("yt_error", "")
+            return said or _YT_ERRORS["failed"]
+        return _YT_ERRORS.get(code, "")
 
     def _metrics_provider():
         """The registry's REAL metrics provider, or None.
@@ -3763,22 +3822,40 @@ def create_app():
         return None if prov is None or prov is reg.mock else prov
 
     def _metrics_artist_id(prov, user_id, profile):
-        """The provider's own id for this artist: read from the pulse
-        profile, or resolved once by search and stored there.
+        """(id, failure): the provider's own id for this artist, read from
+        the pulse profile or resolved once by search and stored there, and
+        the exception when that search failed (None otherwise).
 
         Searching on every page load would spend a billed call to learn
-        what the last one already established.
+        what the last one already established. A search that failed is not
+        an answer, and its reason is handed back rather than swallowed: a
+        401 on a new artist used to read exactly like no provider at all.
         """
         if profile.get("provider") == prov.key and profile.get("provider_artist_id"):
-            return profile["provider_artist_id"]
+            return profile["provider_artist_id"], None
         try:
             found = prov.search_artists(profile.get("artist_name") or "", limit=1)
-        except Exception:
-            return ""                # a provider that is down is not an answer
+        except Exception as e:                                  # noqa: BLE001
+            return "", e
         pid = (found[0].get("provider_artist_id") or "") if found else ""
         if pid:
             store.save_pulse_provider_artist(user_id, prov.key, pid)
-        return pid
+        return pid, None
+
+    def _metrics_failure_words(label, exc):
+        """One sentence for why no fresh reading came back, in words a
+        person can act on. The allowance pausing a call is not the vendor
+        failing; a call this page never sent is not a refusal; a 401 or 403
+        is the vendor refusing, not failing to answer."""
+        import signal_providers as sp
+        text = (str(exc).strip() or "%s did not answer." % label).rstrip(".")
+        if isinstance(exc, sp.SoundchartsPaused):
+            return "Fresh %s readings are paused until next month." % label
+        if isinstance(exc, (sp.ProviderNotAsked, sp.ProviderNoAnswer)):
+            return text + "."                   # already worded for a person
+        if re.search(r"\b(401|403)\b", text):
+            return "%s refused the request just now (%s)." % (label, text)
+        return "%s did not answer just now (%s)." % (label, text)
 
     # --- YouTube, as a public read ------------------------------------------
     # A second, unrelated source beside the metrics provider: the owner names
@@ -3835,8 +3912,14 @@ def create_app():
         try:
             social = prov.get_social(out["channel_id"])
         except Exception as e:                                  # noqa: BLE001
-            out["note"] = ("YouTube did not answer just now (%s), so these stay "
-                           "unmeasured." % prov.redact(e))
+            import signal_providers as sp
+            if isinstance(e, (sp.ProviderNoAnswer, sp.ProviderNotAsked)):
+                # Already a sentence for a person ("YouTube did not answer
+                # in time"), not Python's words inside a bracket.
+                out["note"] = "%s, so these stay unmeasured." % str(e).rstrip(".")
+            else:
+                out["note"] = ("YouTube did not answer just now (%s), so these stay "
+                               "unmeasured." % prov.redact(e))
             return out
         if not social:
             out["note"] = ("YouTube no longer has a channel with that id. Set it "
@@ -3878,9 +3961,12 @@ def create_app():
         start = end - timedelta(days=_METRICS_WINDOW_DAYS)
         pid = ""
         refusal = ""
+        failure = None
+        asked = False
         if fetch:
-            pid = _metrics_artist_id(prov, user_id, profile)
+            pid, failure = _metrics_artist_id(prov, user_id, profile)
             if pid:
+                asked = True
                 try:
                     rows = prov.get_artist_metrics(pid, start, end)
                 except Exception as e:
@@ -3888,7 +3974,7 @@ def create_app():
                     # right; presenting it as a fresh reading is not, and
                     # that is what the note used to do.
                     rows = []
-                    refusal = str(e).strip() or "%s did not answer." % prov.label
+                    failure = e
                 by_day = {}
                 for r in rows:
                     by_day.setdefault(r["date"], {})[r["metric"]] = r["value"]
@@ -3902,10 +3988,33 @@ def create_app():
                         vals.get("spotify_popularity"), None,
                         provider=prov.key, day=day,
                         monthly_listeners=vals.get("spotify_monthly_listeners"))
+        if failure is not None:
+            refusal = str(failure).strip() or "%s did not answer." % prov.label
         snaps = store.list_pulse_snapshots(user_id, limit=_METRICS_WINDOW_DAYS + 5,
                                            provider=prov.key)
         if not snaps:
-            return None
+            if not fetch:
+                return None      # a press kit shows nothing rather than a reason
+            # Nothing on file is still a state the page has to name. It used
+            # to return None here, which threw the refusal away and dropped
+            # the instrument, so a 401, a timeout and "no provider" all
+            # read the same.
+            if failure is not None:
+                note = (_metrics_failure_words(prov.label, failure)
+                        + " No earlier figure is on file, so monthly listeners "
+                          "are not measured.")
+            elif not pid:
+                note = ("%s found no artist matching \u201c%s\u201d, so monthly "
+                        "listeners are not measured."
+                        % (prov.label, (profile.get("artist_name") or "").strip()))
+            else:
+                note = ("%s holds no monthly listener figure for this artist yet."
+                        % prov.label)
+            return {"provider": prov.key, "label": prov.label,
+                    "monthly_listeners": None, "followers": None,
+                    "as_of": None, "cached_hours": None,
+                    "stale": bool(refusal), "refusal": refusal,
+                    "snapshots": [], "note": note, "asked": asked}
         latest = snaps[-1]
         listeners = next((s["monthly_listeners"] for s in reversed(snaps)
                           if s["monthly_listeners"] is not None), None)
@@ -3923,9 +4032,9 @@ def create_app():
         if refusal:
             # The vendor's own words, and the age of what is on screen.
             # Anything softer invites the figure to be read as current.
-            note = ("%s did not answer just now (%s). These are the last "
-                    "figures on file, from %s - not a reading taken today."
-                    % (prov.label, refusal, latest["day"]))
+            note = ("%s These are the last figures on file, from %s - not a "
+                    "reading taken today."
+                    % (_metrics_failure_words(prov.label, failure), latest["day"]))
         elif hours is None:
             note = "Measured by %s; the snapshot on file is from %s." % (
                 prov.label, latest["day"])
@@ -3939,7 +4048,7 @@ def create_app():
                 "monthly_listeners": listeners, "followers": followers,
                 "as_of": latest["day"], "cached_hours": hours,
                 "stale": bool(refusal), "refusal": refusal,
-                "snapshots": snaps, "note": note}
+                "snapshots": snaps, "note": note, "asked": asked}
 
     def _epk_real_tracks(user_id):
         """(top tracks, strongest store) from the account's own statements,
@@ -9955,12 +10064,17 @@ def create_app():
         """Why isn't Studio Split showing up? Reports the SHAPE of the
         environment, never a value: which STEM-ish names exist, how long
         the key is, and whether it carries stray whitespace or quotes -
-        the three things that silently break a pasted secret. Requires a
-        signed-in account; no secret ever leaves this endpoint."""
+        the three things that silently break a pasted secret. No secret
+        ever leaves this endpoint.
+
+        Owner accounts only, a 404 for everyone else (audit, 2026-09-23):
+        ?probe=1 spends calls on the owner's StemSplit key and returns the
+        replies, the account balance among them. The Rack decides whether
+        to show Studio Split from stemsplit.configured(), not from here."""
         import json as _json
-        user = current_user()
-        if user is None:
-            return jsonify({"error": "auth required"}), 401
+        user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
         raw = os.environ.get("STEMSPLIT_API_KEY")
         names = sorted(k for k in os.environ
                        if "STEM" in k.upper() or "SPLIT" in k.upper())
@@ -11557,10 +11671,24 @@ def create_app():
             return login_required_redirect()
         profile = store.get_pulse_profile(user["id"])
         pulse, deezer = None, None
+        # Why the Spotify block is empty, when it is: a refused credential
+        # is not "usually temporary", and a timeout is not a refusal.
+        spotify_refusal = None
+        # Whether Deezer was asked at all. It is looked up by the name
+        # Spotify returns, so without Spotify it never is, and "No Deezer
+        # match found for this name" would be a claim nobody tested.
+        deezer_state = "no_spotify" if not spotify.pulse_configured() else "spotify_failed"
         if profile and spotify.pulse_configured():
+            spotify.clear_refusal()
             pulse = spotify.artist_pulse(profile["artist_id"])
+            if not pulse and spotify.last_refusal():
+                spotify_refusal = {"text": spotify.last_refusal(),
+                                   "kind": spotify.last_refusal_kind()}
             if pulse:
                 deezer = music_apis.deezer_artist_fans(pulse["name"])
+                deezer_state = ("measured" if deezer is not None else
+                                "no_match" if music_apis.deezer_artist_known_absent(pulse["name"])
+                                else "no_answer")
                 # None when Deezer was not reached. `.get("fans", 0)` wrote
                 # a nought for an unanswered call, which claims a following
                 # of nobody - the same false reading the column was made
@@ -11569,27 +11697,48 @@ def create_app():
                     user["id"], pulse["followers"], pulse["popularity"],
                     (deezer or {}).get("fans"))
         # Monthly listeners, which Spotify's own public API does not
-        # carry, from whichever provider the registry has for CAP_METRICS.
-        # None of this is required for the Spotify and Deezer blocks: with
-        # no real metrics provider the page is exactly what it was.
-        metrics = _provider_metrics(user["id"], profile) if profile else None
-        # Everything else the provider holds on the artist (owner,
-        # 2026-09-14: "as much information as we can find"): nine
-        # questions, each its own call and its own failure, cached six
-        # hours like the instruments. The provider id was resolved and
-        # stored by _provider_metrics, so this spends no search.
+        # carry, from whichever provider the registry has for CAP_METRICS,
+        # and everything else that provider holds on the artist (owner,
+        # 2026-09-14: "as much information as we can find"): each its own
+        # call and its own failure, cached six hours like the instruments.
+        # The provider id was resolved and stored by _provider_metrics, so
+        # the second part spends no search.
+        #
+        # All of it shares one time budget. Up to 21 calls go one after
+        # another, and when the vendor hangs each used to wait its full
+        # 15 s, holding one of the service's 8 request threads for over
+        # five minutes (audit, 2026-09-23). Now a slow failure stops the
+        # rest of the page's questions to that vendor, and the rest say
+        # "not asked" rather than waiting.
+        import signal_providers as _sp
+        metrics = None
         everything = None
-        if profile and metrics is not None:
-            import pulse_everything
-            _prov = _metrics_provider()
-            _pid = (profile.get("provider_artist_id") or "") if profile.get("provider") == getattr(_prov, "key", None) else ""
-            if _prov is not None and _pid:
-                everything = pulse_everything.build(_prov, _pid)
+        if profile:
+            with _sp.time_budget(PULSE_BUDGET_S):
+                metrics = _provider_metrics(user["id"], profile)
+                # Everything else only beside a reading on file, as before:
+                # a provider with nothing on this artist has nothing more.
+                if metrics is not None and metrics.get("snapshots"):
+                    import pulse_everything
+                    _prov = _metrics_provider()
+                    _pid = ((profile.get("provider_artist_id") or "")
+                            if profile.get("provider") == getattr(_prov, "key", None) else "")
+                    if _prov is not None and _pid:
+                        everything = pulse_everything.build(_prov, _pid)
+            if metrics is None and _metrics_provider() is None:
+                # No real metrics provider on this service: the instrument
+                # is still named, with the reason, rather than vanishing.
+                metrics = {"provider": "", "label": "", "monthly_listeners": None,
+                           "followers": None, "as_of": None, "cached_hours": None,
+                           "stale": False, "refusal": "", "snapshots": [],
+                           "note": ("No metrics provider is connected on this service, "
+                                    "so monthly listeners are not measured."),
+                           "asked": False}
         # YouTube: only for a channel the owner has named, and never
-        # derived from the artist name (see _youtube_pulse).
-        youtube = _youtube_pulse(user["id"], profile,
-                                 error=_YT_ERRORS.get(request.args.get("yt") or "",
-                                                      (request.args.get("yt") or "")[:200]))
+        # derived from the artist name (see _youtube_pulse). The ?yt= code
+        # is looked up, never printed: free text in a link would show in
+        # the app's own error style (audit, 2026-09-23).
+        youtube = _youtube_pulse(user["id"], profile, error=_yt_error_text())
         snaps = store.list_pulse_snapshots(user["id"], limit=30)
         # Peers: pinned artists' PUBLIC Spotify numbers, snapshotted on the
         # same cadence — a real comparison, not a modeled one.
@@ -11656,11 +11805,17 @@ def create_app():
             ps = store.count_spotify_presaves(c["id"])
             presaves += ps.get("pending", 0) + ps.get("completed", 0)
         import pulse_signals
-        instruments = pulse_signals.build(pulse, metrics, youtube, deezer, snaps) if profile else []
+        instruments = (pulse_signals.build(pulse, metrics, youtube, deezer, snaps,
+                                           deezer_state=deezer_state)
+                       if profile else [])
         return render_template("pulse.html", active_page="pulse",
                                instruments=instruments,
                                everything=everything,
+                               # A plan refusal ("Not in the plan") is the
+                               # owner's business; the template reads this.
+                               is_owner=_is_owner_email(user.get("email")),
                                pulse_configured=spotify.pulse_configured(),
+                               spotify_refusal=spotify_refusal,
                                profile=profile, pulse=pulse, deezer=deezer,
                                metrics=metrics, youtube=youtube,
                                snaps=snaps, peers=peers, my_delta7=my_delta7,
@@ -11709,7 +11864,10 @@ def create_app():
         # An empty list has two very different causes. Say which one.
         refused = spotify.last_refusal() if not results else None
         return jsonify({"ok": True, "results": results,
-                        "refused": refused or ""})
+                        "refused": refused or "",
+                        # credentials / rate / noanswer / unconfigured: the
+                        # page words each one as what it was.
+                        "refused_kind": (spotify.last_refusal_kind() or "") if refused else ""})
 
     # Every new Pulse artist costs about two dozen Soundcharts calls from the
     # owner's monthly allowance, and nothing capped how often an account
@@ -11784,9 +11942,10 @@ def create_app():
         except Exception as e:                                  # noqa: BLE001
             # Google's own reason travels to the owner: quotaExceeded means
             # wait, keyInvalid means fix the key. "Something went wrong"
-            # would tell them neither.
-            return redirect("/pulse?" + urllib.parse.urlencode(
-                {"yt": prov.redact(e)[:200]}) + "#youtube")
+            # would tell them neither. It travels in the session, not the
+            # link, so the page only ever prints what this server wrote.
+            session["yt_error"] = prov.redact(e)[:200]
+            return redirect("/pulse?yt=failed#youtube")
         if not channel_id:
             return redirect("/pulse?yt=notfound#youtube")
         store.save_pulse_youtube_channel(user["id"], channel_id)

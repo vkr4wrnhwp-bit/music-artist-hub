@@ -85,6 +85,29 @@ def record(kind=None):
     db.kv_incr(_count_key(kind or who()))
 
 
+def reserve(kind=None):
+    """Count one call and say whether it may go, as one step.
+
+    allowed() then record() were two: calls running at the same moment (2
+    workers x 4 threads, and Pulse sends up to 21) could all pass the
+    check before any was counted, and 99 spent of 100 became 107 (audit,
+    2026-09-23). Here the count is taken first, in kv_incr's single
+    statement, and the total read after it; a call that would pass the
+    ceiling gives its count back and is refused. Whichever of two racing
+    calls counts last sees both counts, so the ceiling cannot be passed;
+    at worst two calls at the edge are both refused, which spends
+    nothing.
+    """
+    kind = kind or who()
+    mine = db.kv_incr(_count_key(kind))
+    other = int(db.get_kv(_count_key("team" if kind == "customers" else "customers")) or 0)
+    ceiling = customer_ceiling() if kind == "customers" else budget()
+    if mine + other > ceiling:
+        db.kv_incr(_count_key(kind), -1)
+        return False
+    return True
+
+
 def summary():
     """Everything a page needs to show the month."""
     c = counts()

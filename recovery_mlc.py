@@ -23,6 +23,13 @@ import royalty_types
 import signal_providers as providers
 
 PER_SWEEP = 25        # bounded: their limits are not published
+# The whole sweep's waiting, in seconds (signal_providers.time_budget).
+# 25 ISRCs one after another at 20 s each was 520 s when The MLC hung,
+# holding one of the service's 8 request threads for nine minutes and
+# storing nothing if the process stopped first (audit, 2026-09-23). Now a
+# slow failure stops the asking, the rest are kept as "not asked", and
+# the row is written with what was actually asked.
+SWEEP_BUDGET_S = 60
 
 # The statement lanes a mechanical gap is about.
 LANES = ("mechanical", "publishing")
@@ -45,18 +52,42 @@ def candidates(user_id):
     return ready, missing
 
 
-def sweep(user_id, adapter=None):
-    """Ask about every ready ISRC (up to PER_SWEEP), keep the sweep, return its id."""
+def sweep(user_id, adapter=None, budget_s=None):
+    """Ask about every ready ISRC (up to PER_SWEEP), keep the sweep, return its id.
+
+    Inside one time budget: once The MLC fails slowly (a timeout, no
+    connection) or the budget is spent, the ISRCs still waiting are kept
+    as "not_asked" with the reason, never asked and never read as gaps."""
     adapter = adapter or providers.mlc_adapter()
     ready, _missing = candidates(user_id)
+    with providers.time_budget(SWEEP_BUDGET_S if budget_s is None else budget_s):
+        rows = _ask_each(adapter, ready[:PER_SWEEP])
+    return _keep(user_id, ready, rows)
+
+
+def _ask_each(adapter, batch):
     rows = []
-    for c in ready[:PER_SWEEP]:
+    stopped = ""
+    for c in batch:
         row = dict(c, result="none", song_code="", iswc="", share_total=0.0,
                    writers=0, publishers=0, message="")
+        if stopped:
+            row["result"], row["message"] = "not_asked", stopped
+            rows.append(row)
+            continue
         try:
             works = adapter.lookup(isrc=c["isrc"])["works"]
+        except providers.ProviderNotAsked as e:
+            stopped = str(e)
+            row["result"], row["message"] = "not_asked", stopped
+            rows.append(row)
+            continue
         except providers.ProviderError as e:
             row["result"], row["message"] = "error", str(e)
+            if isinstance(e, providers.ProviderNoAnswer) and e.slow:
+                # The rest would each wait as long again: stop asking.
+                stopped = ("Not asked: The MLC did not answer an earlier ISRC "
+                           "in this check.")
             rows.append(row)
             continue
         if works:
@@ -66,12 +97,18 @@ def sweep(user_id, adapter=None):
                        writers=len(w.get("writers") or []),
                        publishers=len(w.get("publishers") or []))
         rows.append(row)
+    return rows
+
+
+def _keep(user_id, ready, rows):
+    asked = [r for r in rows if r["result"] != "not_asked"]
     summary = {
-        "checked": len(rows),
+        "checked": len(asked),
         "matched": sum(1 for r in rows if r["result"] == "match" and r["share_total"] >= 99.5),
         "partial": sum(1 for r in rows if r["result"] == "match" and r["share_total"] < 99.5),
         "unmatched": sum(1 for r in rows if r["result"] == "none"),
         "errors": sum(1 for r in rows if r["result"] == "error"),
+        "not_asked": sum(1 for r in rows if r["result"] == "not_asked"),
         "skipped": max(0, len(ready) - PER_SWEEP),
     }
     return store.add_recovery_mlc_sweep(user_id, summary, rows)

@@ -25,6 +25,7 @@ Feature flags (all default off; see .env.example):
     DISCOGS_ENABLED
 """
 import base64
+import contextlib
 import hashlib
 import json
 import os
@@ -91,6 +92,92 @@ class _HttpError(ProviderError):
     def __init__(self, code, msg):
         ProviderError.__init__(self, "%s %s" % (code, msg))
         self.code, self.msg = int(code or 0), msg or ""
+
+
+class ProviderNoAnswer(ProviderError):
+    """The question was sent and nothing usable came back: the vendor did
+    not answer in time, could not be reached, or sent a reply this app
+    could not read. Worded for a person, never Python's own words
+    ("<urlopen error timed out>", "Expecting value: line 1 column 1").
+
+    `slow` is True when the failure cost the wait (a timeout, a connection
+    that never opened). Only a slow failure stops the rest of a page's
+    questions to that vendor: asking again would wait again."""
+
+    def __init__(self, text, slow=False):
+        ProviderError.__init__(self, text)
+        self.slow = bool(slow)
+
+
+class ProviderNotAsked(ProviderError):
+    """The question was never sent. The page's time for this vendor ran
+    out, or the vendor already failed to answer once on this page (or a
+    moment ago), and asking again would only hold the page open longer."""
+
+
+def transport_error(vendor, exc):
+    """A transport failure (anything that is not an HTTP status), worded
+    for a person. Returns the ProviderError to raise."""
+    if isinstance(exc, ProviderError):
+        return exc
+    import socket
+    reason = getattr(exc, "reason", None)
+    timed_out = (isinstance(exc, (socket.timeout, TimeoutError))
+                 or isinstance(reason, (socket.timeout, TimeoutError))
+                 or "timed out" in str(exc).lower())
+    if timed_out:
+        return ProviderNoAnswer("%s did not answer in time" % vendor, slow=True)
+    if isinstance(exc, ValueError):          # JSON and Unicode decode errors
+        return ProviderNoAnswer("%s sent a reply this app could not read" % vendor)
+    return ProviderNoAnswer("%s could not be reached" % vendor, slow=True)
+
+
+# --- a page's time budget ------------------------------------------------------
+# A page that asks one vendor many questions one after another (Pulse asks
+# Soundcharts up to 21, the MLC sweep up to 26) must not hold a request
+# thread for minutes when that vendor hangs: the service runs 2 workers x 4
+# threads, so a handful of such loads stalls the whole site. Inside
+# `time_budget(seconds)` every call to a budget-aware adapter waits at most
+# what is left of the budget, and a vendor that failed slowly once is not
+# asked again on that page (ProviderNotAsked), the way TOUR's
+# PHOTO/GEO/TICKETS_BUDGET_S already work. Outside a budget nothing changes.
+
+_budget_local = threading.local()
+
+
+@contextlib.contextmanager
+def time_budget(seconds):
+    """Everything asked inside this block shares `seconds` of waiting."""
+    prev = getattr(_budget_local, "state", None)
+    _budget_local.state = {"until": time.monotonic() + float(seconds), "down": set()}
+    try:
+        yield _budget_local.state
+    finally:
+        _budget_local.state = prev
+
+
+def budget_timeout(vendor, default):
+    """The timeout for one call to `vendor` right now: `default`, or what is
+    left of the page's budget if that is less. Raises ProviderNotAsked when
+    the budget is spent or the vendor already failed slowly on this page."""
+    state = getattr(_budget_local, "state", None)
+    if state is None:
+        return default
+    if vendor in state["down"]:
+        raise ProviderNotAsked("%s was not asked, because it did not answer an "
+                               "earlier question on this page" % vendor)
+    left = state["until"] - time.monotonic()
+    if left < 1.0:
+        raise ProviderNotAsked("%s was not asked, because this page's time for "
+                               "it ran out" % vendor)
+    return min(float(default), left)
+
+
+def budget_note_failure(vendor, exc):
+    """Remember, for the rest of this page, that `vendor` failed slowly."""
+    state = getattr(_budget_local, "state", None)
+    if state is not None and isinstance(exc, ProviderNoAnswer) and exc.slow:
+        state["down"].add(vendor)
 
 
 class MusicIntelligenceProvider(object):
@@ -332,6 +419,7 @@ class SoundchartsAdapter(_EnvProvider):
         self._fetch = fetch
         self._http = http
         self._token_http = token_http
+        self._down_until = 0.0       # monotonic time before which nothing is sent
 
     # -- credentials --
     @staticmethod
@@ -431,6 +519,8 @@ class SoundchartsAdapter(_EnvProvider):
                 answer = self._urlopen(SOUNDCHARTS_TOKEN_URL, headers, data=body.encode("utf-8"))
         except _HttpError as e:
             raise ProviderError("Soundcharts sign-in failed: %s %s" % (e.code, e.msg))
+        except ProviderNoAnswer as e:
+            raise ProviderNoAnswer("Soundcharts sign-in failed: %s" % e, slow=e.slow)
         except ProviderError as e:
             raise ProviderError("Soundcharts sign-in failed: %s" % e)
         except Exception as e:
@@ -613,26 +703,43 @@ class SoundchartsAdapter(_EnvProvider):
         url = self.base_url + path
         if params:
             url += ("&" if "?" in path else "?") + urllib.parse.urlencode(params)
+        # A vendor that just failed slowly is not asked again for a minute,
+        # and inside a page's time budget not at all once it has failed
+        # (time_budget). Neither spends the allowance: no call leaves.
+        if time.monotonic() < self._down_until:
+            raise ProviderNotAsked("Soundcharts was not asked, because it did not "
+                                   "answer a moment ago")
+        timeout = budget_timeout("Soundcharts", self.timeout_s)
         # Every call that leaves is counted against the owner's monthly
         # allowance, and none leaves once the caller's share is spent
-        # (soundcharts_budget, 2026-09-19).
+        # (soundcharts_budget, 2026-09-19). Checking and counting are one
+        # step, so calls running at the same moment cannot all pass the
+        # check before any of them is counted.
         import soundcharts_budget
         kind = soundcharts_budget.who()
-        if not soundcharts_budget.allowed(kind):
+        if not soundcharts_budget.reserve(kind):
             raise SoundchartsPaused(
                 "Soundcharts paused: this month's allowance for %s is spent; "
                 "fresh numbers return next month" % ("customers" if kind == "customers" else "the team"))
-        soundcharts_budget.record(kind)
+        try:
+            return self._fetch_counted(url, timeout)
+        except ProviderNoAnswer as e:
+            if e.slow:
+                self._down_until = time.monotonic() + self.down_for_s
+            budget_note_failure("Soundcharts", e)
+            raise
+
+    def _fetch_counted(self, url, timeout):
         if self._fetch is not None:
             return self._fetch(url)
         mode = self.auth_mode()
         try:
-            return self._call(url, mode)
+            return self._call(url, mode, timeout)
         except _HttpError as e:
             if e.code == 401 and mode == "oauth":
                 self._token_forget()
                 try:
-                    return self._call(url, mode)
+                    return self._call(url, mode, timeout)
                 except _HttpError as again:
                     raise ProviderError("Soundcharts %s: %s" % (again.code, again.msg))
             if e.code == 401 and mode == "token" and self._env("SOUNDCHARTS_APP_ID"):
@@ -640,28 +747,35 @@ class SoundchartsAdapter(_EnvProvider):
                 # pair once, and keep whichever the account accepts.
                 self._pair_instead = not self._pair_instead
                 try:
-                    answer = self._call(url, mode)
+                    answer = self._call(url, mode, timeout)
                 except _HttpError as again:
                     self._pair_instead = not self._pair_instead
                     raise ProviderError("Soundcharts %s: %s" % (again.code, again.msg))
                 return answer
             raise ProviderError("Soundcharts %s: %s" % (e.code, e.msg))
 
-    def _call(self, url, mode):
+    def _call(self, url, mode, timeout=None):
         headers = dict(self._auth_headers(mode),
                        Accept="application/json")
         headers["User-Agent"] = "StreetBanker/1.0"
         if self._http is not None:
             return self._http(url, headers)
-        return self._urlopen(url, headers)
+        return self._urlopen(url, headers, timeout=timeout or self.timeout_s)
+
+    # One call waits this long at most; a page's time budget may cut it.
+    timeout_s = 15
+    # After a slow failure (a timeout, no connection) the next minute's
+    # calls are not sent: a reload during an outage must not wait again.
+    down_for_s = 60
 
     @staticmethod
-    def _urlopen(url, headers, data=None):
+    def _urlopen(url, headers, data=None, timeout=15):
         """The wire. A non-2xx raises _HttpError with the body's own message;
-        anything else (DNS, timeout) raises ProviderError as it stands."""
+        anything else (DNS, timeout, an unreadable reply) raises
+        ProviderNoAnswer, worded for a person."""
         req = urllib.request.Request(url, data=data, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             msg = ""
@@ -676,7 +790,7 @@ class SoundchartsAdapter(_EnvProvider):
         except ProviderError:
             raise
         except Exception as e:
-            raise ProviderError("Soundcharts: %s" % e)
+            raise transport_error("Soundcharts", e)
 
     def _items(self, path, **params):
         """Every item of a paged list, following page.next a bounded way.
@@ -950,6 +1064,28 @@ class SoundchartsAdapter(_EnvProvider):
                 "kind": obj.get("type") or "", "isni": obj.get("isni") or "", "ipi": obj.get("ipi") or "",
                 "biography": (obj.get("biography") or "").strip()[:600]}
 
+    @staticmethod
+    def _platform_failure(err):
+        """One platform's failed question, named for what it was.
+
+        Only a 403 is the plan refusing ("Not in the plan", shown to the
+        owner). A timeout, a 429 or a 500 is Soundcharts not answering,
+        the allowance stopping the call is a pause, and a call the page's
+        time budget never sent is "not asked". Each of those is shown to
+        everyone: calling them refusals hid them all behind the owner's
+        flag and left headings over empty space.
+        """
+        text = str(err)
+        if isinstance(err, SoundchartsPaused):
+            state = "paused"
+        elif isinstance(err, ProviderNotAsked):
+            state = "not_asked"
+        elif text.startswith("Soundcharts 403"):
+            state = "refused"
+        else:
+            state = "failed"
+        return {"state": state, "why": text[:160]}
+
     def get_audience_all(self, provider_artist_id, start, end):
         """{platform: reading} for every audience platform. A reading is
         measured (followers, the 7 and 28-day change, and whatever other
@@ -962,7 +1098,7 @@ class SoundchartsAdapter(_EnvProvider):
                                                 % (provider_artist_id, platform), **span)
                        if it.get("date") and it.get("followerCount") is not None]
             except ProviderError as e:
-                out[platform] = {"state": "refused", "why": str(e)[:160]}
+                out[platform] = self._platform_failure(e)
                 continue
             if not pts:
                 out[platform] = {"state": "empty"}
@@ -989,7 +1125,7 @@ class SoundchartsAdapter(_EnvProvider):
             try:
                 got = self._playlists_on(provider_artist_id, platform, limit=limit)
             except ProviderError as e:
-                out[platform] = {"state": "refused", "why": str(e)[:160], "items": [], "total": 0}
+                out[platform] = dict(self._platform_failure(e), items=[], total=0)
                 continue
             out[platform] = {"state": "measured" if got["items"] else "empty",
                              "items": got["items"], "total": got["total"]}
@@ -1071,7 +1207,7 @@ class SoundchartsAdapter(_EnvProvider):
             try:
                 out[platform] = self.get_audience_report(provider_artist_id, platform)
             except ProviderError as e:
-                out[platform] = {"state": "refused", "why": str(e)[:160]}
+                out[platform] = self._platform_failure(e)
         return out
 
     def get_related(self, provider_artist_id):
@@ -1966,9 +2102,28 @@ class DiscogsAdapter(_EnvProvider):
         self._read_limits(headers)
         if status != 200:
             raise ProviderError("Discogs %s: %s" % (status, self._message(status, body)))
+        if not self._readable(path, body):
+            # An empty or off-shape 200 is not "no release matching": it
+            # used to be cached for six hours and shown as exactly that.
+            raise ProviderNoAnswer("Discogs sent a reply this app could not read")
         if key:
             self._cache_write(key, body)
         return body
+
+    @staticmethod
+    def _readable(path, body):
+        """The documented shape for the endpoint asked: a search carries
+        `results` or `pagination`, a version list `versions` or
+        `pagination`, and a release or a master its `id`."""
+        if not isinstance(body, dict):
+            return False
+        if path.startswith("/database/search"):
+            return "results" in body or "pagination" in body
+        if path.rstrip("/").endswith("/versions"):
+            return "versions" in body or "pagination" in body
+        if path.startswith(("/releases/", "/masters/")):
+            return bool(body.get("id"))
+        return bool(body)
 
     def _pace(self):
         """Stay inside their window instead of discovering it with a 429.
@@ -2027,7 +2182,7 @@ class DiscogsAdapter(_EnvProvider):
                 body = None
             return e.code, dict(e.headers or {}), body
         except Exception as e:
-            raise ProviderError("Discogs: %s" % e)
+            raise transport_error("Discogs", e)
 
     @classmethod
     def _message(cls, status, body):
@@ -2418,12 +2573,23 @@ class YouTubeAdapter(_EnvProvider):
         key = self.cache_key(path, params) if ttl else None
         if key:
             hit = self._cache_read(key, ttl)
-            if hit is not None:
+            if hit is not None and self._readable(hit):
                 return hit
         body = self._fetch_json(path, **params)
+        if not self._readable(body):
+            # A 200 that is not a list response ({} or anything else) is not
+            # "no such channel": it used to be cached for six hours and read
+            # as "YouTube no longer has a channel with that id".
+            raise ProviderNoAnswer("YouTube sent a reply this app could not read")
         if key:
             self._cache_write(key, body)
         return body
+
+    @staticmethod
+    def _readable(body):
+        """A Data API list response: a JSON object carrying its `kind`, its
+        `pageInfo` or its `items` (an empty result has no `items` at all)."""
+        return isinstance(body, dict) and any(k in body for k in ("kind", "pageInfo", "items"))
 
     def _fetch_json(self, path, **params):
         """One HTTP call. A non-200 raises ProviderError carrying Google's
@@ -2454,7 +2620,8 @@ class YouTubeAdapter(_EnvProvider):
         except ProviderError:
             raise
         except Exception as e:
-            raise ProviderError(YouTubeAdapter.redact("YouTube: %s" % e))
+            # Worded for a person, and never carrying the URL (and its key).
+            raise transport_error("YouTube", e)
 
     @classmethod
     def redact(cls, text):
@@ -2476,9 +2643,16 @@ class YouTubeAdapter(_EnvProvider):
         `accessNotConfigured` means switch YouTube Data API v3 on for the
         project. Restating it as "forbidden" would throw that away.
         """
-        err = (body or {}).get("error") or {}
+        if not isinstance(body, dict):
+            return ""
+        err = body.get("error") or {}
+        if not isinstance(err, dict):
+            # {"error": "..."}: not Google's shape, but still their words.
+            return str(err)[:200]
         errs = err.get("errors") or []
-        first = errs[0] if errs else {}
+        if not isinstance(errs, list):
+            errs = []
+        first = errs[0] if errs and isinstance(errs[0], dict) else {}
         reason = (first.get("reason") or "").strip()
         msg = (first.get("message") or err.get("message") or "").strip()
         if reason and msg:
@@ -2552,13 +2726,16 @@ class YouTubeAdapter(_EnvProvider):
         A filter YouTube rejects outright (400 for a malformed handle, say)
         is not an error the owner needs to see as a failure - it is a
         no-match on that filter, and the next one still gets its turn.
+        Only a 400 is that. A timeout, a 429 rateLimitExceeded or a 500
+        backendError is YouTube not answering, and it is raised: calling it
+        "no channel matched" told the owner their handle was wrong.
         """
         try:
             data = self._get("/channels", part="id", **{filter_name: term})
         except ProviderError as e:
-            if self._is_quota_or_key(e):
-                raise
-            return ""
+            if str(e).startswith("YouTube 400"):
+                return ""
+            raise
         items = data.get("items") or []
         return (items[0].get("id") or "") if items else ""
 
@@ -2914,6 +3091,7 @@ class MLCAdapter(_EnvProvider):
     base_url = "https://public-api.themlc.com"
     portal_search = "https://portal.themlc.com/search"
     token_margin = 60             # seconds before expiry a token counts as spent
+    timeout_s = 12                # one call waits this long at most (it was 20)
 
     def __init__(self, transport=None, now=None):
         self._transport = transport
@@ -2931,11 +3109,17 @@ class MLCAdapter(_EnvProvider):
             headers["Authorization"] = "Bearer " + bearer
         url = self.base_url + path
         if self._transport is not None:
-            return self._transport(method, url, headers, body)
+            budget_timeout("The MLC", self.timeout_s)
+            try:
+                return self._transport(method, url, headers, body)
+            except ProviderNoAnswer as e:
+                budget_note_failure("The MLC", e)
+                raise
         data = json.dumps(body).encode("utf-8") if body is not None else None
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        timeout = budget_timeout("The MLC", self.timeout_s)
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 raw = resp.read().decode("utf-8")
                 return resp.status, (json.loads(raw) if raw.strip() else None)
         except urllib.error.HTTPError as e:
@@ -2945,7 +3129,9 @@ class MLCAdapter(_EnvProvider):
             except ValueError:
                 return e.code, {"message": raw[:200]}
         except Exception as e:
-            raise ProviderError("The MLC: %s" % e)
+            failure = transport_error("The MLC", e)
+            budget_note_failure("The MLC", failure)
+            raise failure
 
     def _token(self):
         if self._access and self._now() < self._expires_at - self.token_margin:
@@ -3018,6 +3204,13 @@ class MLCAdapter(_EnvProvider):
         status, answer = self._call_raw(path, body)
         if status == 204:
             return []                     # their "no such recording": an answer, not a failure
+        if status == 200 and not isinstance(answer, list):
+            # An empty body, {} or an error-shaped object is not the
+            # documented list. Reading it as [] stored "no work linked",
+            # offered a recovery case and told the artist nobody collects
+            # their mechanicals (audit, 2026-09-23). Only a 204 or a real
+            # empty list is The MLC saying "no such recording".
+            raise ProviderNoAnswer("The MLC answered with a reply this app could not read")
         if status != 200:
             raise ProviderError(self.refusal(status, answer))
         return answer if isinstance(answer, list) else []
