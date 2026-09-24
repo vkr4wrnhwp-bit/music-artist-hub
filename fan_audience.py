@@ -583,12 +583,16 @@ def for_account(user_id, resend_configured=False, now=None):
     """The screen for one real account, from its own rows only."""
     import db as store
     import links_store as mls
+    import tour_mockup
     now = now or datetime.now(timezone.utc)
     fans = mls.list_fans(user_id)
+    # The Mock Up Tour's cities are a sample routing, not where this artist
+    # plays; they never pick which fans are "near a show".
     return build(fans,
                  consented=consented_count(user_id) if fans else 0,
                  club_members=store.list_club_members(user_id),
-                 shows=upcoming(store.list_tour_shows(user_id), now.date()),
+                 shows=upcoming(tour_mockup.real_shows(user_id, store.list_tour_shows(user_id)),
+                                now.date()),
                  campaigns=mls.list_campaigns(user_id),
                  now=now, resend_configured=resend_configured,
                  link_visits=_visits(user_id),

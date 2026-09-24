@@ -7737,6 +7737,7 @@ def create_app():
     # --- Label Mode: real roster seats for the Label tier -------------------------
 
     def _artist_snapshot(aid, today):
+        import tour_mockup
         rows = store.get_statement_rows(aid)
         return {
             "revenue": round(sum(r["amount"] for r in rows), 2),
@@ -7744,7 +7745,8 @@ def create_app():
             "fans": len(mls.list_fans(aid)),
             "links": [c for c in mls.list_campaigns(aid)
                       if c["status"] == "live" and not c.get("archived_at")],
-            "shows": [s for s in store.list_tour_shows(aid)
+            # A roster artist's Mock Up Tour is a sample, not their dates.
+            "shows": [s for s in tour_mockup.real_shows(aid, store.list_tour_shows(aid))
                       if s["date"] >= today and s["status"] in ("confirmed", "advanced")],
         }
 
@@ -7979,7 +7981,10 @@ def create_app():
         campaigns = [c for c in mls.list_campaigns(uid)
                      if c["status"] == "live" and not c.get("archived_at")]
         today = datetime.now(timezone.utc).date().isoformat()
-        shows = [s for s in store.list_tour_shows(uid)
+        # The Mock Up Tour is a sample; its invented dates never reach
+        # this public page.
+        import tour_mockup
+        shows = [s for s in tour_mockup.real_shows(uid, store.list_tour_shows(uid))
                  if s["date"] >= today and s["status"] in ("confirmed", "advanced")]
         return render_template("artist_hub.html", prof=prof, data=data,
                                artist_name=prof["user_name"], slug=slug,
@@ -8724,8 +8729,23 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        show = store.get_tour_show(user["id"], show_id)
+        if show is None:
+            abort(404)
+        if not _real_hub_show(show):
+            # No /showday or /rider token for a date on the Mock Up Tour:
+            # the token would open nothing (_public_show_or_404).
+            return redirect("/tour/" + show_id + "?share_fail=sample")
         store.set_show_share_token(user["id"], show_id, uuid.uuid4().hex)
         return redirect("/tour/" + show_id)
+
+    def _real_hub_show(show):
+        """False for a date on the Mock Up Tour. The old Hub's routes are
+        posted to by nothing in the app now, but a hand-made POST still
+        reaches them, and the sample's rule (nothing public, no mail to a
+        real inbox) has to hold here as it does in tour_os."""
+        import tour_mockup
+        return bool(tour_mockup.real_shows(show["user_id"], [show]))
 
     @app.route("/tour/<show_id>/send-advance", methods=["POST"])
     def tour_send_advance(show_id):
@@ -8735,6 +8755,9 @@ def create_app():
         show = store.get_tour_show(user["id"], show_id)
         if show is None:
             abort(404)
+        if not _real_hub_show(show):
+            # An invented show is never advanced to a real inbox.
+            return redirect("/tour/" + show_id + "?email_fail=sample")
         to = (show["advance"].get("contact_email") or "").strip()
         if not (to and "@" in to and emailer.configured()):
             return redirect("/tour/" + show_id + "?email_fail=1")
@@ -8749,12 +8772,20 @@ def create_app():
                           % _html.escape(mail["body"]), reply_to=user["email"])
         return redirect("/tour/" + show_id + ("?sent=1" if ok else "?email_fail=1"))
 
+    def _public_show_or_404(token):
+        """The show a public /showday or /rider token names. A date on the
+        Mock Up Tour is a sample: its token opens nothing, even one minted
+        before the sample was kept off public pages."""
+        import tour_mockup
+        show = store.get_show_by_share_token(token)
+        if show is None or not tour_mockup.real_shows(show["user_id"], [show]):
+            abort(404)
+        return show
+
     @app.route("/showday/<token>")
     def showday(token):
         import json as _json
-        show = store.get_show_by_share_token(token)
-        if show is None:
-            abort(404)
+        show = _public_show_or_404(token)
         adv = show["advance"]
         schedule = [(label, adv.get(key)) for key, label in (
             ("load_in", "Load-in"), ("soundcheck", "Soundcheck"), ("doors", "Doors"),
@@ -8769,21 +8800,18 @@ def create_app():
         # Public tech rider for venue staff: stage plot + input list, schedule,
         # backline, and the lighting rig — everything real, nothing invented.
         import json as _json
-        show = store.get_show_by_share_token(token)
-        if show is None:
-            abort(404)
+        show = _public_show_or_404(token)
         adv = show["advance"]
         schedule = [(label, adv.get(key)) for key, label in (
             ("load_in", "Load-in"), ("soundcheck", "Soundcheck"), ("doors", "Doors"),
             ("set_time", "Set"), ("curfew", "Curfew")) if (adv.get(key) or "").strip()]
         plot = store.get_stage_plot(show["user_id"])
-        lightshow = store.get_light_show(show["user_id"])
-        lights = None
-        if lightshow:
-            lights = {"name": lightshow.get("name") or "",
-                      "bars": int(lightshow.get("bars") or 0),
-                      "chans": int(lightshow.get("chans") or 3),
-                      "cues": len(lightshow.get("cues") or [])}
+        # The light show saved to the library against THIS date, with its
+        # own patch and output - not the Light Studio's working copy,
+        # which is whatever the artist last had open. No show linked to
+        # the date, no Lighting section.
+        lights = lights_store.rider_lights(
+            lights_store.show_for_tour_date(show["user_id"], show["id"]))
         return render_template("rider.html", show=show, adv=adv,
                                schedule=schedule, lights=lights,
                                plot_json=(_json.dumps(plot) if plot else "null"))
@@ -8805,9 +8833,16 @@ def create_app():
         }
         tracks = [{"id": t["id"], "title": t["title"]} for t in store.list_os_tracks(user["id"])]
         # venue_key lets the page pick the rig bound to the room without a
-        # round trip when a show is linked to a tour date.
+        # round trip when a show is linked to a tour date. A date on the
+        # Mock Up Tour is offered too (the Studio is the member's own
+        # room) but labelled "(sample)": sample data is always labelled,
+        # and a show linked to one by mistake gives the real date's rider
+        # no Lighting section.
+        import tour_mockup
+        sample_ids = tour_mockup.mock_tour_ids(user["id"])
         tour_shows = [{"id": s["id"], "date": s["date"], "venue": s["venue"], "city": s.get("city") or "",
-                       "venue_key": lights_store.venue_key(s["venue"])}
+                       "venue_key": lights_store.venue_key(s["venue"]),
+                       "is_sample": (s.get("tour_id") or "") in sample_ids}
                       for s in store.list_tour_shows(user["id"])]
         return render_template("lights.html", active_page="lights",
                                saved_show=(_json.dumps(saved) if saved else "null"),

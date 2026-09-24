@@ -7,7 +7,8 @@ word rather than a third party's listing. This module is the one seam
 the EPK and Signal read - no HTTP, no key, no cache.
 
 Honesty rules, in code: a hold is a hope, not a date, so it never
-appears; a past date is never called upcoming; and every row names the
+appears; a past date is never called upcoming; the Mock Up Tour is a
+sample, so none of its dates ever appears; and every row names the
 tour it came from so the page can say where the date is held.
 
 "Today" is the tour's own day, not the server's: a show is upcoming
@@ -85,7 +86,13 @@ def _rows(user_id, statuses, today, keep):
     out = []
     if not user_id:
         return out
+    # The Mock Up Tour is a sample: its confirmed dates are invented and
+    # never reach the press kit, /connections or Signal.
+    import tour_mockup
+    mock = tour_mockup.mock_tour_ids(user_id)
     for tour in ts.list_tours(user_id):
+        if tour["id"] in mock:
+            continue
         cutoff = _tour_today(tour, today)
         for show in ts.list_shows(tour["id"]):
             day = (show.get("date") or "")[:10]

@@ -11,6 +11,8 @@
 
 {% if advanced is not none %}
 <div class="to-note"><strong>{{ advanced }} advance{{ '' if advanced == '1' else 's' }} sent.</strong>{% if advance_failed and advance_failed != '0' %} {{ advance_failed }} failed — each failed show carries the mail service's reason on its Send advance tab.{% endif %}{% if advance_skipped and advance_skipped != '0' %} {{ advance_skipped }} skipped for having no address.{% endif %}</div>
+{% elif advance_fail == 'sample' %}
+<div class="to-note to-note--warn"><strong>Nothing sent.</strong> This is the sample tour. Its shows are invented, so no advance goes to a real inbox from it.</div>
 {% elif advance_fail == 'sender' %}
 <div class="to-note to-note--warn"><strong>Nothing sent.</strong> This deployment's email sender is Resend's shared test address, which only delivers to the account owner. Set <code>EMAIL_FROM</code> to an address on a verified domain first.</div>
 {% endif %}

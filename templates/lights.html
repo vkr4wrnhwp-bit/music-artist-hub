@@ -43,7 +43,7 @@
       <input id="lx-show-name" class="lx-input" type="text" placeholder="Show name" aria-label="Show name" maxlength="120">
       <select id="lx-lib-select" class="lx-select" aria-label="Open a saved show"></select>
       <select id="lx-track" class="lx-select" aria-label="Track this show belongs to"><option value="">— track —</option>{% for t in lights_tracks %}<option value="{{ t['id'] }}">{{ t['title'] }}</option>{% endfor %}</select>
-      <select id="lx-tourshow" class="lx-select" aria-label="Tour date this show belongs to"><option value="">— tour date —</option>{% for s in lights_tour_shows %}<option value="{{ s['id'] }}" data-venue-key="{{ s['venue_key'] }}" data-venue="{{ s['venue'] }}">{{ s['date'] }} · {{ s['city'] or s['venue'] }}</option>{% endfor %}</select>
+      <select id="lx-tourshow" class="lx-select" aria-label="Tour date this show belongs to"><option value="">— tour date —</option>{% for s in lights_tour_shows %}<option value="{{ s['id'] }}" data-venue-key="{{ s['venue_key'] }}" data-venue="{{ s['venue'] }}">{{ s['date'] }} · {{ s['city'] or s['venue'] }}{% if s['is_sample'] %} (sample){% endif %}</option>{% endfor %}</select>
       <input id="lx-version-note" class="lx-input" type="text" placeholder="version note (optional)" aria-label="Version note" maxlength="200" style="min-width:150px">
       <button id="lx-lib-save" class="lx-btn" type="button" aria-label="Save this show to the library and keep a version">Save to library</button>
       <span id="lx-libdirty" class="lx-libdirty" role="status" aria-live="polite"></span>

@@ -1085,6 +1085,41 @@ def orphan_shows(user_id):
     return [dict(r) for r in rows]
 
 
+# Every table hung on one show by (tour_id, show_id). A show moved to
+# another tour (move_show) takes all of them with it; tour_files hangs
+# on (entity_type, entity_id) and is moved beside them.
+SHOW_SCOPED_TABLES = ("tour_days", "tour_show_ext", "tour_schedule", "tour_advance",
+                      "tour_travel", "tour_lodging", "tour_guests", "tour_vip",
+                      "tour_vip_offers", "tour_vip_sales", "tour_vip_links",
+                      "tour_advance_sends", "tour_expenses", "tour_merch_counts",
+                      "tour_content", "tour_setlists", "tour_share_links",
+                      "tour_fan_captures", "tour_lineup", "tour_show_calls")
+
+
+def move_show(from_tour_id, to_tour_id, show_id):
+    """Move one show, and everything hung on it, from one tour to another
+    of the same account: its day row, ext fields, schedule, advance,
+    travel, hotel, guests, VIP offers, sales and purchase link, files,
+    expenses, merch counts, content plan, set lists, share links, fan
+    captures, lineup and calls. Built for the one case that needs it: a
+    real date the member added to the Mock Up Tour themselves, which the
+    sample's rule otherwise keeps off every public page with no way out
+    but deleting it (review, 2026-09-24). The change log stays where it
+    was written. Returns False when the show is not on from_tour_id."""
+    with get_db() as db:
+        row = db.execute("SELECT id FROM tour_shows WHERE id = ? AND tour_id = ?",
+                         (show_id, from_tour_id)).fetchone()
+        if row is None:
+            return False
+        db.execute("UPDATE tour_shows SET tour_id = ? WHERE id = ?", (to_tour_id, show_id))
+        for t in SHOW_SCOPED_TABLES:
+            db.execute("UPDATE %s SET tour_id = ? WHERE tour_id = ? AND show_id = ?" % t,
+                       (to_tour_id, from_tour_id, show_id))
+        db.execute("UPDATE tour_files SET tour_id = ? WHERE tour_id = ? AND entity_type = 'show' "
+                   "AND entity_id = ?", (to_tour_id, from_tour_id, show_id))
+    return True
+
+
 def adopt_orphan_shows(user_id):
     """Put every show this account entered in the old Tour Hub onto a tour.
 
@@ -1097,7 +1132,13 @@ def adopt_orphan_shows(user_id):
     orphans = orphan_shows(user_id)
     if not orphans:
         return None, 0
-    tours = list_tours(user_id)
+    # Never onto the Mock Up Tour: it is a sample, kept off every public
+    # page, and a real show adopted onto it would vanish from the press
+    # kit with it. An account whose only tour is the sample gets the
+    # adopted tour made for it, as an account with none does.
+    import tour_mockup
+    mock = tour_mockup.mock_tour_ids(user_id)
+    tours = [t for t in list_tours(user_id) if t["id"] not in mock]
     if not tours:
         dates = sorted(s["date"] for s in orphans if s.get("date"))
         create_tour(user_id, {
@@ -1106,7 +1147,7 @@ def adopt_orphan_shows(user_id):
             "home_tz": "America/New_York", "currency": "USD",
             "notes": "Made when the old hub folded into TOUR: every show entered there is on "
                      "this tour. Rename it in Settings."})
-        tours = list_tours(user_id)
+        tours = [t for t in list_tours(user_id) if t["id"] not in mock]
 
     def home_for(show):
         date = show.get("date") or ""
@@ -2090,6 +2131,30 @@ def guest_summary(tour_id, show_id, allocation=""):
             "allocation": allocation_n,
             "remaining": (allocation_n - used) if allocation_n is not None else None,
             "over": (allocation_n is not None and used > allocation_n)}
+
+
+GUEST_HOLDING = ("approved", "checked_in")   # the statuses that take a spot
+
+
+def guest_over_allocation(tour_id, show_id, allocation, guest_id, status, count):
+    """How many spots past the show's allocation a guest would take it if
+    set to `status` with `count` people (guest_id None for a new guest),
+    or 0 when it fits or no allocation is set.
+
+    Only a change that takes MORE spots can be over. Checking in an
+    approved guest, a denial or a no-show never is, even on a list that is
+    already over because the allocation was lowered after approvals: the
+    refusal is for approving past the allocation, not for working the
+    door of a list that already stands."""
+    s = guest_summary(tour_id, show_id, allocation)
+    if s["allocation"] is None:
+        return 0
+    cur = get_guest(tour_id, guest_id) if guest_id else None
+    before = cur["count"] if cur and cur["status"] in GUEST_HOLDING else 0
+    after = count if status in GUEST_HOLDING else 0
+    if after <= before:
+        return 0
+    return max(0, s["used"] - before + after - s["allocation"])
 
 
 def delete_guest(tour_id, guest_id):

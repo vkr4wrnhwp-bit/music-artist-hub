@@ -2588,7 +2588,7 @@ Artists seeking tour partners and venues seeking acts, filtered by who, region, 
 
 Facts drawn from the poster's own TOUR records (shows played, home market, confirmed dates ahead) shown beside their name.
 
-- Because: bs.verified_chips reads tour_shows and epk_profiles for that user and labels each chip with its source; a poster with no shows gets an empty list (probe returned {'chips': [], 'slug': ''}) rather than an invented badge, and self-reported draw is rendered separately and marked as such
+- Because: bs.verified_chips reads tour_shows and epk_profiles for that user and labels each chip with its source; a poster with no shows gets an empty list (probe returned {'chips': [], 'slug': ''}) rather than an invented badge, and self-reported draw is rendered separately and marked as such Shows on the Mock Up Tour are not counted (tour_mockup.real_shows, 2026-09-23), so its invented CONFIRMED dates never become a "confirmed dates ahead" chip.
 - Routes: shown on GET /tour-board and GET /tour-board/<id>
 - Files: board_store.py:731 verified_chips; templates/board/_macros.html:30 chips(), :47 (slug -> /@<slug>)
 - Access: Displayed to anyone who can open the board.
@@ -2755,7 +2755,7 @@ The run as an .ics feed, a printable itinerary, CSVs for the itinerary, personne
 
 Guest requests per date against an allocation, with approve/deny, credentials, check-in and a CSV for the door.
 
-- Because: tour_os.py:3211/3226/3252 write tour_guests and ts.guest_summary counts against the show's allocation; an approval over the remaining allocation is downgraded to pending rather than silently over-approved (tour_os.py:3244).
+- Because: tour_os.py:3211/3226/3252 write tour_guests and ts.guest_summary counts against the show's allocation; approving past the allocation is refused on the server by one rule, tour_store.guest_over_allocation (make-it-real, 2026-09-23; it used to be only the add form that held a guest back, while Approve, a party-size change and a check-in went through and the page lit Over allocation afterwards). guest_update saves nothing and returns to the guests tab with ?full=<guest>, where the page names who did not fit and the allocation; guest_add lands the guest pending with ?held=<guest> and says so. Only a change that takes more spots is refused: checking in, undoing, a no-show or a denial on a list already over (the allocation lowered after approvals) still works. Tests: tests/test_guest_allocation_refused.py.
 - Routes: GET /tours/<tour_id>/guests; POST .../shows/<show_id>/guests/add; POST .../shows/<show_id>/guests/<guest_id>; GET .../shows/<show_id>/guests.csv
 - Files: tour_os.py:3211 guests_all(), :3226 guest_add(), :3252 guest_update(), :3277 guests_csv(); templates/tour/guests.html, show/_guests.html
 - Access: require_tour("guests") throughout. The guests scope alone may set the allocation and cutoff via .../ext (tour_os.py:2064).
@@ -2827,7 +2827,7 @@ Named shows saved per account, each explicit save taking a version snapshot that
 
 Programs a light show against a track — cues, looks, rig layout and DMX patch — and sends it out over ENTTEC USB, Art-Net or sACN.
 
-- Because: app.py:7351 renders templates/lights.html with the account's own library, rigs, setlists and tour dates; static/js/lights-engine.js frames real DMX, Art-Net and sACN packets (:262, :315, :338) and templates/lights.html:150 downloads static/tools/lx-bridge.py, the local UDP forwarder the browser cannot be; probed GET /lights 200.
+- Because: app.py:7351 renders templates/lights.html with the account's own library, rigs, setlists and tour dates (a date on the Mock Up Tour is offered with "(sample)" after it, from tour_mockup.mock_tour_ids, so it is never mistaken for a real date when a show is linked; review 2026-09-24); static/js/lights-engine.js frames real DMX, Art-Net and sACN packets (:262, :315, :338) and templates/lights.html:150 downloads static/tools/lx-bridge.py, the local UDP forwarder the browser cannot be; probed GET /lights 200.
 - Routes: GET /lights; POST /lights/save
 - Files: app.py:7351 lights(), :7378 lights_save(); static/js/lights-engine.js, static/js/lights.js; static/tools/lx-bridge.py; db.py:187 light_shows (the working copy); templates/lights.html
 - Access: Signed in; required_tier("/lights") is artist, and plans._TOUR_PATHS puts it behind the Tour suite (Pro) wherever plans.gates_on(). Team seat: the Stage room.
@@ -2965,7 +2965,7 @@ The pages a share token opens: day sheet, photographer brief, guest check-in, ve
 - Because: tour_os.py:4712 shared() resolves the link, enforces password and expiry, counts the access, and renders the scope's own template from real rows; the band scope is built field by field so a column added later cannot start travelling (:4743); guest and VIP check-in POST real status changes back.
 - Routes: GET and POST /tour-share/<token>; GET /tour-share/<token>/file/<file_id>
 - Files: tour_os.py:4712 shared(), :4840 shared_file(), :4699 _share_link_or_404(); templates/tour/share_*.html, print_day_sheet.html; stage_os.py:583 guest_page() for scope "stage"
-- Access: Anonymous — app.py:4848 lists /tour-share/ public; the token plus any password is the authorisation. A production file download re-checks visibility=all, category and that the file belongs to the linked show (tour_os.py:4846).
+- Access: Anonymous — app.py:4848 lists /tour-share/ public; the token plus any password is the authorisation. A production file download re-checks visibility=all, category and that the file belongs to the linked show (tour_os.py:4846). A link on the Mock Up Tour answers 404 (_share_link_or_404) and share_new makes none there (2026-09-23); one made on it before that rule is listed on the sample's Share page as "off: sample tour", with no URL and no QR code, and can still be revoked (templates/tour/share.html; review 2026-09-24).
 
 **Public show day page**
 
@@ -2980,9 +2980,9 @@ The public page a show's share token opens for local crew: schedule, advance fac
 
 The public rider a venue reads: stage plot, input list, schedule, backline and the lighting rig summary.
 
-- Because: app.py:7327 renders templates/rider.html from the show's advance, the account's stage plot and db.get_light_show; tour_os mints the token on first advance send (_rider_url :2451).
+- Because: app.py tech_rider renders templates/rider.html from the show's advance, the account's stage plot and the light show saved to the library against THIS date (lights_store.show_for_tour_date, newest save; make-it-real, 2026-09-23). The Lighting section is lights_store.rider_lights: the show's bar count and channel width, each bar's DMX address by the Light Studio's own rule (a bar's own patch, else run on from the start address, clamped to 512), the universe for an Art-Net or sACN output, the output it is set to (ENTTEC, Art-Net or sACN; preview names no device) and its cue count. Review fixes, 2026-09-23: a 4-channel bar is "dimmer + RGB, 4 DMX channels each (dimmer, red, green, blue)", never RGBA, as lights-engine.js sends it; a bar whose channels run past 512 reads "not sent (patched past the end of the universe)" because the Studio skips it; the rig is named only while its preset (RIG_PRESET_SHAPES) or saved rig still has the show's bars and channel width. It used to read the working copy (db.get_light_show, whatever was last open) and always said "addressed outward-in in pairs", "over an ENTTEC DMX USB Pro" and "a power drop stage left"; no linked show now means no Lighting section. A date on the Mock Up Tour has no public rider or show day (_public_show_or_404). tour_os mints the token on first advance send (_rider_url). Tests: tests/test_rider_light_show.py.
 - Routes: GET /rider/<token>
-- Files: app.py:7327 tech_rider(); templates/rider.html; db.get_stage_plot / get_light_show
+- Files: app.py:7327 tech_rider(); templates/rider.html; db.get_stage_plot; lights_store.show_for_tour_date / rider_lights
 - Access: Anonymous — app.py:4817 lists /rider/ public.
 
 **Schedule (the day's times)**
@@ -3001,7 +3001,7 @@ Composes one email per show from its own rows, attaches the plot, input list, ri
 - Because: tour_os.py:2616 _deliver_advance composes through tour_advance_mail, attaches real bytes and calls email_provider.send, then writes tour_advance_sends with sent/failed; :2648 refuses to report "sent" when the mailer is unconfigured or on Resend's shared test sender.
 - Routes: POST /tours/<tour_id>/shows/<show_id>/advance/send; POST /tours/<tour_id>/advance/send-all
 - Files: tour_os.py:2641 advance_send(), :2669 advance_send_all(), _send_context :2498, _build_attachments :2553; tour_advance_mail.py; email_provider.py; tour_store.py:533 tour_advance_sends
-- Access: require_tour("advance", "edit"). A team seat composes and sends but is given no public rider or production link — tour_os.py:2513 links_held blanks both.
+- Access: require_tour("advance", "edit"). A team seat composes and sends but is given no public rider or production link — tour_os.py:2513 links_held blanks both. Refused on the Mock Up Tour (fail=sample, advance_fail=sample): an invented show is never advanced to a real inbox (2026-09-23), and its Send tab composes and shows no rider or production link, even one minted before the rule (_send_context links_sample; review 2026-09-24).
 
 **Set lists**
 
@@ -3088,7 +3088,7 @@ The realtime transport: returns everything after a cursor plus the counters, on 
 
 The same performer page for someone with no account, opened from a TOUR share link of scope "stage".
 
-- Because: stage_os.py:563 _guest_link checks the link the way TOUR does and additionally that scope == "stage"; :583 guest_page is what tour_os.shared() calls for that scope, and the guest POSTs write the same stage_requests rows.
+- Because: stage_os.py:563 _guest_link checks the link the way TOUR does and additionally that scope == "stage"; :583 guest_page is what tour_os.shared() calls for that scope, and the guest POSTs write the same stage_requests rows. A link minted on the Mock Up Tour answers 404 at every guest route (_guest_link asks tour_os.sample_tour, the check /tour-share makes), so the sample opens nothing through the Stage door either (review, 2026-09-24; tests/test_mock_tour_review_fixes.py).
 - Routes: GET /stage/guest/<token>; POST /stage/guest/<token>/ask; POST /stage/guest/<token>/cancel/<request_id>; GET /stage/guest/<token>/events; also reached via GET /tour-share/<token>
 - Files: stage_os.py:563 _guest_link(), :583 guest_page(), :591 guest(), :602 guest_ask(), :610 guest_cancel(); templates/stage/_guest_shell.html; tour_os.py:4730 dispatch
 - Access: Anonymous — app.py:4811 lists /stage/guest/ public; the token is the authorisation and a password-protected link bounces to TOUR's password form first.
@@ -3169,7 +3169,7 @@ In-platform reply threads between a poster and a replier, with an unread count a
 
 Invites people by email with a role preset and a scope list, links them to a person record, changes or removes them.
 
-- Because: tour_os.py:4870 writes tour_members with an invite token, notifies an existing account and emails the join link when the mailer is live; only the owner may hand out admin (:4877, :4915).
+- Because: tour_os.py:4870 writes tour_members with an invite token, notifies an existing account and emails the join link when the mailer is live; only the owner may hand out admin (:4877, :4915). Nobody is invited onto the Mock Up Tour: team_invite answers invite=sample and writes nothing, and templates/tour/team.html shows the reason (sample-no-invite) in place of the form, because a seat on the sample would put its invented dates in front of a real person (review, 2026-09-24; tests/test_mock_tour_review_fixes.py).
 - Routes: GET /tours/<tour_id>/team; POST .../team/invite; POST .../team/<member_id>
 - Files: tour_os.py:4858 team(), :4870 team_invite(), :4900 team_member(); tour_store.py:145 SCOPES, :149 ROLE_PRESETS, :200 tour_members; templates/tour/team.html
 - Access: require_tour("admin"), and refused to a team seat (app.py:5057, tour_os.py:266).
@@ -3196,7 +3196,7 @@ The tour's list of dates with a readiness figure each, and the fetch buttons for
 
 The old Hub's POST endpoints that still write a show's status, advance fields, settlement and public rider token.
 
-- Because: app.py:7204-7290 still write through db.add_tour_show / update_tour_show_status / save_show_advance / save_show_settlement / set_show_share_token against the same tour_shows rows TOUR reads.
+- Because: app.py:7204-7290 still write through db.add_tour_show / update_tour_show_status / save_show_advance / save_show_settlement / set_show_share_token against the same tour_shows rows TOUR reads. No template posts to /tour/<show_id>/share or /tour/<show_id>/send-advance any more, but a hand-made POST still reaches them, so both refuse a date on the Mock Up Tour (app.py _real_hub_show: share_fail=sample mints no /showday or /rider token, email_fail=sample sends no mail); a real date still mints and still mails (review, 2026-09-24; tests/test_mock_tour_review_fixes.py).
 - Routes: POST /tour/add; /tour/<show_id>/status; /tour/<show_id>/delete; /tour/<show_id>/advance; /tour/<show_id>/settlement; /tour/<show_id>/share; /tour/<show_id>/send-advance
 - Files: app.py:7204 tour_add(), :7217 tour_status(), :7227 tour_delete(), :7254 tour_show_advance(), :7264 tour_show_settlement(), :7282 tour_show_share(), :7290 tour_send_advance(); touring.py; db.py:148 tour_shows
 - Access: Signed in, artist tier. Settlement additionally needs the Money and business room on a team seat (app.py:7268). /tour/<id>/share and /tour/<id>/send-advance are shut to any team seat (app.py:5059).
@@ -3250,7 +3250,7 @@ Tasks against the tour or one date, kept in the account's Command Center action 
 
 Lists the tours the account owns and the tours it was invited onto, plus one month-grid across all of them.
 
-- Because: tour_os.py:1234 reads tour_store.list_tours / tours_shared_with and renders tour/index.html; probed GET /tours returned 200 for a real account.
+- Because: tour_os.py:1234 reads tour_store.list_tours / tours_shared_with and renders tour/index.html; probed GET /tours returned 200 for a real account. The Mock Up Tour is marked Sample wherever it appears here: on the owner's card, on the card of anyone invited onto it before invitations were refused there (index sets is_sample on the shared tours too, by tour_mockup.is_mock), and in the month grid, where each of its dates carries a Sample mark beside a real tour's date (_all_tours_month; review 2026-09-24; tests/test_mock_tour_review_fixes.py).
 - Routes: GET /tours
 - Files: tour_os.py:1234 index(); _all_tours_month() tour_os.py:1271; templates/tour/index.html; store tour_store.py
 - Access: Any signed-in account (no required_tier for /tours, not suite-path-gated). Owning a tour needs the artist tier, or Pro where plans.gates_on() (tour_os.py:1225 _artist_tier). Team seat: the Stage room (team_areas.py EXTRA/rooms.ROOMS); a seat sees only the artist's own tours, never tours the artist was invited onto (tour_os.py:282 _seat_viewer).
@@ -3345,7 +3345,7 @@ One public purchase link per date: a fan picks a package, pays Stripe, and the s
 - Because: the whole path is real — stripe_provider.create_vip_checkout posts to /v1/checkout/sessions, claim_vip_session (tour_os.py:3443) records only a session Stripe says is paid and is idempotent across the webhook and the redirect — but sales_switch.is_on() defaults to off (sales_switch.py:22) so /vip/<token>/buy redirects with err=closed, and payouts are not automatic: the pages say Street Banker settles outside the app (templates/tour/vip.html:28).
 - Routes: GET /vip/<token>; POST /vip/<token>/buy; POST .../shows/<show_id>/vip/offers/add; POST .../shows/<show_id>/vip/offers/<offer_id>; POST .../shows/<show_id>/vip/dayof; POST /webhooks/stripe
 - Files: tour_os.py:3484 vip_public(), :3508 vip_buy(), :3537 vip_offer_add(), :3552 vip_offer_update(), :3562 vip_dayof(), :3443 claim_vip_session(); app.py:5781 webhook branch; stripe_provider.py:579; sales_switch.py; tour_store.py:474 tour_vip_offers / :492 tour_vip_sales / :512 tour_vip_links; templates/tour/vip_public.html
-- Access: /vip/<token> and /vip/<token>/buy are anonymous (app.py:4816 lists /vip/ public). Offers, day-of mail and the ledger need require_tour("vip"); a team seat is shown no purchase link and mints none (tour_os.py:3387). Fee from VIP_PLATFORM_FEE_PCT, clamped 0-50, default 15 (tour_os.py:3348).
+- Access: /vip/<token> and /vip/<token>/buy are anonymous (app.py:4816 lists /vip/ public). Offers, day-of mail and the ledger need require_tour("vip"); a team seat is shown no purchase link and mints none (tour_os.py:3387). Fee from VIP_PLATFORM_FEE_PCT, clamped 0-50, default 15 (tour_os.py:3348). The Mock Up Tour gets no purchase link and no offer (_vip_context, vip_offer_add), and /vip/<token> answers 404 for a date on it, so nothing is ever sold for an invented show (2026-09-23).
 
 ### Stubbed
 
@@ -3362,7 +3362,7 @@ Loads a fictional four-show tour into the demo showcase account.
 
 Seeds each empty Tour account with a 44-day invented routing so the product opens on something clickable.
 
-- Because: tour_mockup.py holds a hard-coded tab-separated SHEET of invented venues on 2027 dates; it is run for any account with no tours (tour_os.py:1249) and only when enabled() is true, which is RENDER or MOCK_UP_TOUR=on.
+- Because: tour_mockup.py holds a hard-coded tab-separated SHEET of invented venues on 2027 dates; it is run for any account with no tours (tour_os.py:1249) and only when enabled() is true, which is RENDER or MOCK_UP_TOUR=on. It is a sample and labelled as one (make-it-real, 2026-09-23): its card on /tours carries a Sample chip, every page of it says it is a sample whose venues, dates and deals are invented and that none of it reaches the press kit, the Artist Hub or the Team-Up Board (templates/tour/_shell.html, tour_is_sample from tour_os._ctx), and its printed sheets say Sample tour (templates/tour/_public.html, the sample_tour template global). It never reaches a public page: tour_mockup.real_shows / mock_tour_ids is the one filter the press kit's dates, /connections and Signal (all via tour_dates), the Artist Hub, the Team-Up Board's chips, a label's roster and the Fans screen read through. Nothing public is made from it: share_new, vip_offer_add, _vip_context (no purchase link), advance_send and advance_send_all refuse it and say why, and a /tour-share, /vip, /rider or /showday token minted on it before that answers 404. A loose show is never adopted onto it (tour_store.adopt_orphan_shows makes the adopted tour instead), so a real show cannot vanish into the sample. Recognised (tour_mockup.is_mock / mock_tour_ids) by an import record only ensure_for writes: source "mockup" (tour_mockup.IMPORT_SOURCE), written right after create_tour and before the first show, so a build cut off half way is still the sample; a sample built before 2026-09-24 is recognised by the sheet's filename plus ensure_for's own summary shape. tour_os.import_dates records no source but paste, csv or ics (IMPORT_SOURCES), so no upload named mock-up-tour.tsv and no posted source can turn a real tour into the sample and take its dates and public links down (review, 2026-09-24; tests/test_mock_tour_review_fixes.py). The whole tour is excluded, not only the sheet's rows, so an invented show renamed while clicking through cannot slip out; the note on its pages tells the member to put real dates on a tour of their own. A real date the member added to the sample themselves (not one of the sheet's (date, venue) pairs) is theirs: its page offers "Move this date" (POST /tours/<tour_id>/shows/<show_id>/move, owner only, onto one of the account's real tours or a new one), and tour_store.move_show takes the day row, ext fields, schedule, advance, travel, hotel, guests, VIP offers, sales and purchase link, files, expenses, merch counts, content plan, set lists, share links, fan captures, lineup and calls with it, so the date is back on the press kit with its guest list and its rider link working; a sheet row never moves (move=invented). Review 2026-09-24; tests/test_mock_tour_review_fixes.py. Tests: tests/test_mock_tour_off_public_pages.py.
 - Routes: no route of its own; runs inside GET /tours
 - Files: tour_mockup.py:24 enabled(), SHEET at :39, ensure_for(); called tour_os.py:1249; parsed through tour_engine.parse_csv_rows
 - Access: Any signed-in account at the artist/Pro tier reaching /tours with no tours; never on a team seat's visit (tour_os.py:1244).
@@ -4524,7 +4524,7 @@ Write a press release (headline, subhead, dateline, body, quote, boilerplate, em
 
 A public hub page at /@<slug> keyed on the same press-kit slug, showing the fan club, live links and upcoming shows.
 
-- Because: app.py artist_hub resolves store.get_epk_by_slug and renders artist_hub.html from real rows (fan club, live non-archived ml_campaigns, confirmed/advanced upcoming tour_shows) and links back to /epk/<slug>. Included here because it depends on epk_profiles.slug; its body belongs to the links/fan area.
+- Because: app.py artist_hub resolves store.get_epk_by_slug and renders artist_hub.html from real rows (fan club, live non-archived ml_campaigns, confirmed/advanced upcoming tour_shows) and links back to /epk/<slug>. Included here because it depends on epk_profiles.slug; its body belongs to the links/fan area. A show on the Mock Up Tour is never listed (tour_mockup.real_shows, 2026-09-23).
 - Routes: GET /@<slug>
 - Files: app.py:6816 (artist_hub), db.py get_epk_by_slug, templates/artist_hub.html:109,113
 - Access: Anonymous.
@@ -4852,7 +4852,7 @@ Choose the public kit's link or a Vault-saved copy to fill {kit}, and attach the
 
 Upcoming shows on the kit, from the artist's own TOUR first and Bandsintown only as a fallback.
 
-- Because: app.py _epk_tour_dates returns tour_dates_feed.epk_rows(user_id) whenever TOUR holds confirmed/advanced upcoming dates, and the page is told the source. The Bandsintown fallback is dormant: bandsintown_provider.configured() requires BANDSINTOWN_APP_ID, which is unset here, so upcoming_events()/artist_info() return nothing.
+- Because: app.py _epk_tour_dates returns tour_dates_feed.epk_rows(user_id) whenever TOUR holds confirmed/advanced upcoming dates, and the page is told the source. The Bandsintown fallback is dormant: bandsintown_provider.configured() requires BANDSINTOWN_APP_ID, which is unset here, so upcoming_events()/artist_info() return nothing. A show on the Mock Up Tour is never read (tour_dates._rows skips tour_mockup.mock_tour_ids): the sample's invented CONFIRMED dates stay off the kit, /connections and Signal (2026-09-23).
 - Routes: GET /epk; GET /epk/<slug>; GET /pitch/<token>
 - Files: app.py:3272 (_epk_tour_dates), bandsintown_provider.py:27,59,83, epk_config.py get_epk_data tour_dates/tour_source
 - Access: Follows the page it is on: /epk artist-tier, the public pages anonymous.
