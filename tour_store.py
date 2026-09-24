@@ -1085,6 +1085,41 @@ def orphan_shows(user_id):
     return [dict(r) for r in rows]
 
 
+# Every table hung on one show by (tour_id, show_id). A show moved to
+# another tour (move_show) takes all of them with it; tour_files hangs
+# on (entity_type, entity_id) and is moved beside them.
+SHOW_SCOPED_TABLES = ("tour_days", "tour_show_ext", "tour_schedule", "tour_advance",
+                      "tour_travel", "tour_lodging", "tour_guests", "tour_vip",
+                      "tour_vip_offers", "tour_vip_sales", "tour_vip_links",
+                      "tour_advance_sends", "tour_expenses", "tour_merch_counts",
+                      "tour_content", "tour_setlists", "tour_share_links",
+                      "tour_fan_captures", "tour_lineup", "tour_show_calls")
+
+
+def move_show(from_tour_id, to_tour_id, show_id):
+    """Move one show, and everything hung on it, from one tour to another
+    of the same account: its day row, ext fields, schedule, advance,
+    travel, hotel, guests, VIP offers, sales and purchase link, files,
+    expenses, merch counts, content plan, set lists, share links, fan
+    captures, lineup and calls. Built for the one case that needs it: a
+    real date the member added to the Mock Up Tour themselves, which the
+    sample's rule otherwise keeps off every public page with no way out
+    but deleting it (review, 2026-09-24). The change log stays where it
+    was written. Returns False when the show is not on from_tour_id."""
+    with get_db() as db:
+        row = db.execute("SELECT id FROM tour_shows WHERE id = ? AND tour_id = ?",
+                         (show_id, from_tour_id)).fetchone()
+        if row is None:
+            return False
+        db.execute("UPDATE tour_shows SET tour_id = ? WHERE id = ?", (to_tour_id, show_id))
+        for t in SHOW_SCOPED_TABLES:
+            db.execute("UPDATE %s SET tour_id = ? WHERE tour_id = ? AND show_id = ?" % t,
+                       (to_tour_id, from_tour_id, show_id))
+        db.execute("UPDATE tour_files SET tour_id = ? WHERE tour_id = ? AND entity_type = 'show' "
+                   "AND entity_id = ?", (to_tour_id, from_tour_id, show_id))
+    return True
+
+
 def adopt_orphan_shows(user_id):
     """Put every show this account entered in the old Tour Hub onto a tour.
 

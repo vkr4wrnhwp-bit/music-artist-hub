@@ -1971,6 +1971,17 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         # activity
         "changes": _changes_for(viewer, tid, mine)[:100],
     }
+    # A real date the member added to the sample themselves is theirs to
+    # move to a tour of their own (show_move): never a sheet row, never
+    # for a seat. The form lists the account's real tours.
+    import tour_mockup
+    d["sample_move"] = None
+    if (tour_mockup.is_mock(tid) and viewer.get("is_owner") and not viewer.get("seat")
+            and (show["date"], show["venue"]) not in tour_mockup.sheet_show_keys()):
+        mock = tour_mockup.mock_tour_ids(tour["user_id"])
+        d["sample_move"] = {"targets": [t for t in ts.list_tours(tour["user_id"]) if t["id"] not in mock]}
+    d["moved"] = request.args.get("moved")
+    d["move_fail"] = request.args.get("move")
     d["lineup_warnings"] = ts.lineup_warnings(d["lineup"], fmt_time=eng.fmt_time)
     # Each feature's tour-wide page, for the viewers who may open it.
     paths = {k: p for k, _l, p in TOUR_TABS}
@@ -2223,6 +2234,46 @@ def show_delete(user, tour, viewer, tour_id, show_id):
     ts.log_change(tour_id, tour["user_id"], _actor(viewer), "show", show_id, show["venue"],
                   "deleted", show["date"], "", "critical")
     return redirect("/tours/%s/shows" % tour_id)
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/move", methods=["POST"])
+@require_tour("edit")
+def show_move(user, tour, viewer, tour_id, show_id):
+    """A real date the member put on the Mock Up Tour themselves goes to
+    a tour of their own, with everything hung on it (ts.move_show), so it
+    is on the press kit again and can be shared, sold and advanced. Only
+    off the sample, only by the owner, never a date the sheet invented,
+    and only onto one of the account's own real tours or a new one made
+    the way adopt_orphan_shows makes one (review, 2026-09-24)."""
+    import tour_mockup
+    if not sample_tour(tour) or not viewer.get("is_owner") or viewer.get("seat"):
+        abort(404)
+    show = _show_or_404(tour, show_id)
+    back = _show_url(tour, show)
+    if (show["date"], show["venue"]) in tour_mockup.sheet_show_keys():
+        return redirect(back + "?move=invented")
+    target = (request.form.get("to_tour") or "").strip()
+    if target == "new":
+        dest = ts.create_tour(tour["user_id"], {
+            "name": ts.ADOPTED_TOUR_NAME, "artist_name": tour.get("artist_name") or "",
+            "start_date": show["date"], "end_date": show["date"],
+            "home_tz": show.get("tz") or tour.get("home_tz") or "America/New_York",
+            "currency": tour.get("currency") or "USD",
+            "notes": "Made when a date you added to the sample tour was moved off it. "
+                     "Rename it in Settings."})
+    else:
+        t = ts.get_tour(target)
+        if t is None or t["user_id"] != tour["user_id"] or tour_mockup.is_mock(t["id"]):
+            return redirect(back + "?move=target")
+        dest = t["id"]
+    if not ts.move_show(tour_id, dest, show_id):
+        return redirect(back + "?move=target")
+    label = "%s · %s" % (show["date"], show["venue"])
+    ts.log_change(tour_id, tour["user_id"], _actor(viewer), "show", show_id, label,
+                  "moved", "", "to a tour of your own", "info")
+    ts.log_change(dest, tour["user_id"], _actor(viewer), "show", show_id, label,
+                  "moved", "", "from the sample tour", "info")
+    return redirect("/tours/%s/shows/%s?moved=1" % (dest, show_id))
 
 
 # --- schedule ---------------------------------------------------------------

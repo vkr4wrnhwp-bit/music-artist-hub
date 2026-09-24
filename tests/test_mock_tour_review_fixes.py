@@ -231,3 +231,73 @@ def test_the_sample_send_tab_composes_no_public_link(mock_on, flask_app):
     send = c.get("/tours/%s/shows/%s?tab=send" % (mock_id, sid)).get_data(as_text=True)
     assert rider not in send and prod not in send
     assert "created when you send" not in send
+
+
+# --- a real date on the sample (tour-safe-2) --------------------------------
+
+def test_a_real_date_on_the_sample_moves_to_a_tour_of_the_members_own(mock_on, flask_app):
+    c, user, mock_id, slug = _with_mock(flask_app)
+    sid = _member_added_show(c, mock_id)
+    assert ts.add_guest(mock_id, user["id"], sid, {"name": "Jo Guest", "status": "approved"})
+    assert ts.add_vip_offer(mock_id, user["id"], sid, {"name": "Soundcheck party", "price": "150"})
+    rider = uuid.uuid4().hex
+    store.set_show_share_token(user["id"], sid, rider)
+    anon = flask_app.test_client()
+    assert "Member Added Real Room" not in anon.get("/epk/" + slug).get_data(as_text=True)
+    tid, _other = _real_confirmed_show(c, "Real Room Elsewhere")
+
+    page = c.get("/tours/%s/shows/%s" % (mock_id, sid)).get_data(as_text=True)
+    assert 'id="sample-move"' in page and 'value="%s"' % tid in page
+    assert 'value="%s"' % mock_id not in page.split('id="sample-move"')[1].split("</form>")[0]
+    r = c.post("/tours/%s/shows/%s/move" % (mock_id, sid), data={"to_tour": tid})
+    assert r.status_code == 302 and r.headers["Location"].endswith("/tours/%s/shows/%s?moved=1" % (tid, sid))
+
+    assert store.get_tour_show(user["id"], sid)["tour_id"] == tid
+    assert sid in {s["id"] for s in ts.list_shows(tid)}
+    assert sid not in {s["id"] for s in ts.list_shows(mock_id)}
+    assert [g["name"] for g in ts.list_guests(tid, sid)] == ["Jo Guest"], "its guest list survives"
+    assert [o["name"] for o in ts.list_vip_offers(tid, sid)] == ["Soundcheck party"]
+    assert "Member Added Real Room" in [r["venue"] for r in tour_dates.upcoming(user["id"])]
+    assert "Member Added Real Room" in anon.get("/epk/" + slug).get_data(as_text=True)
+    assert anon.get("/rider/%s" % rider).status_code == 200, "its rider opens again"
+
+
+def test_a_real_date_on_the_sample_can_start_a_tour_of_its_own(mock_on, flask_app):
+    c, user, mock_id, slug = _with_mock(flask_app)
+    sid = _member_added_show(c, mock_id, venue="Only Real Room")
+    r = c.post("/tours/%s/shows/%s/move" % (mock_id, sid), data={"to_tour": "new"})
+    assert r.status_code == 302
+    tid = store.get_tour_show(user["id"], sid)["tour_id"]
+    assert tid and tid != mock_id and not tour_mockup.is_mock(tid)
+    assert ts.get_tour(tid)["start_date"] == "2027-06-02"
+    assert "Only Real Room" in [r["venue"] for r in tour_dates.upcoming(user["id"])]
+
+
+def test_an_invented_date_never_moves_off_the_sample(mock_on, flask_app):
+    c, user, mock_id, slug = _with_mock(flask_app)
+    tid, _other = _real_confirmed_show(c, "Real Room Target")
+    invented = _confirmed_sample_show(mock_id)
+    page = c.get("/tours/%s/shows/%s" % (mock_id, invented["id"])).get_data(as_text=True)
+    assert 'id="sample-move"' not in page
+    r = c.post("/tours/%s/shows/%s/move" % (mock_id, invented["id"]), data={"to_tour": tid})
+    assert "move=invented" in r.headers["Location"]
+    assert store.get_tour_show(user["id"], invented["id"])["tour_id"] == mock_id
+    assert tour_dates.upcoming(user["id"])[0]["venue"] == "Real Room Target"
+    assert len(tour_dates.upcoming(user["id"])) == 1
+
+
+def test_the_move_only_goes_from_the_sample_to_the_members_own_real_tour(mock_on, flask_app):
+    c, user, mock_id, slug = _with_mock(flask_app)
+    sid = _member_added_show(c, mock_id)
+    # Not onto the sample itself, nor onto a tour of another account.
+    other, _o = _with_mock(flask_app)[:2]
+    other_tid, _osid = _real_confirmed_show(other, "Someone Else's Room")
+    for target in (mock_id, other_tid, "nope"):
+        r = c.post("/tours/%s/shows/%s/move" % (mock_id, sid), data={"to_tour": target})
+        assert "move=target" in r.headers["Location"], target
+        assert store.get_tour_show(user["id"], sid)["tour_id"] == mock_id
+    # A real tour's show page offers no move and the route refuses it.
+    tid, real_sid = _real_confirmed_show(c, "Real Room Stays")
+    assert 'id="sample-move"' not in c.get("/tours/%s/shows/%s" % (tid, real_sid)).get_data(as_text=True)
+    assert c.post("/tours/%s/shows/%s/move" % (tid, real_sid), data={"to_tour": "new"}).status_code == 404
+    assert store.get_tour_show(user["id"], real_sid)["tour_id"] == tid

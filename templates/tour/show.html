@@ -82,6 +82,23 @@
   </div>
 </div>
 
+{#- A real date the member added to the sample themselves: theirs to move
+    to a tour of their own, with everything hung on it (tour_os.show_move).
+    Never a sheet row, never for a seat. -#}
+{% if sample_move %}
+<form method="post" action="{{ show_url }}/move" class="to-note" id="sample-move">
+  <strong>This date is yours, not the sample's.</strong> Move it to a tour of your own and it goes on your press kit and can be shared, sold and advanced again. Its guest list, VIP offers, deal, times, files and links go with it.
+  <div class="to-inline" style="margin-top:8px">
+    <select name="to_tour" aria-label="Tour to move this date to">{% for t in sample_move.targets %}<option value="{{ t['id'] }}">{{ t['name'] }}</option>{% endfor %}<option value="new">A new tour of its own</option></select>
+    <button class="to-btn to-btn--small" type="submit">Move this date</button>
+  </div>
+  {% if move_fail == 'target' %}<p class="to-muted" style="margin:6px 0 0">Pick one of your own tours, or a new one.</p>{% endif %}
+</form>
+{% elif move_fail == 'invented' %}
+<div class="to-note to-note--warn">This date is one of the sample's own and stays on it. Only a date you added yourself can be moved.</div>
+{% endif %}
+{% if moved %}<div class="to-note" id="moved-note"><strong>Moved.</strong> This date is on your own tour now, with everything that was on it.</div>{% endif %}
+
 {#- What the import sheet gave us, and nothing else: the ticket link, the
     guarantee (only to someone who may read money), the support, the
     capacity and the promoter - plain facts, each only when the sheet
