@@ -5777,8 +5777,10 @@ def create_app():
         when a token is actually configured. The route re-checks; this is
         not a way in, it is a way past the redirect."""
         token = os.environ.get("BACKUP_TOKEN") or ""
-        # The same token lets the same scheduler reach the reminders run.
-        if not token or request.path not in ("/backup/run", "/reminders/run"):
+        # /reminders/run checks its tokens itself (BACKUP_TOKEN, which the
+        # live nightly cron presents, or REMINDERS_CRON_TOKEN) and answers
+        # a refusal with a 401 of its own; see plan_gate.
+        if not token or request.path != "/backup/run":
             return False
         presented = (request.headers.get("X-Backup-Token")
                      or request.form.get("token") or "")
@@ -5846,6 +5848,12 @@ def create_app():
         user = current_user()
         if user is None:
             if _is_public_path(request.path) or _valid_backup_token():
+                return None
+            if request.path == "/reminders/run":
+                # The route checks REMINDERS_CRON_TOKEN itself and refuses
+                # with a 401 and the reason (a GET gets Flask's 405). A
+                # redirect to /login here would read as success in a cron
+                # log, which is what hid that nothing ran it.
                 return None
             if request.path == "/backup/run" and request.method == "POST":
                 # A scheduler cannot follow a redirect to /login, and the
@@ -8499,8 +8507,12 @@ def create_app():
             if f and f.filename:
                 fname = uuid.uuid4().hex + "-" + os.path.basename(f.filename)[-60:]
                 f.save(os.path.join(UPLOADS_DIR, fname))
+                had_file = bool(entry.get("file"))
                 entry["file"] = "/uploads/" + fname
                 entry["not_applicable"] = False
+                # A new document is signed by someone who saw it: a
+                # signature, or a link, for the old one does not carry over.
+                artist_os.reset_signoffs(entry, had_file)
         elif action in ("approver", "resend"):
             email = (request.form.get("email") or "").strip().lower()
             name = (request.form.get("name") or "").strip()
@@ -8511,7 +8523,16 @@ def create_app():
                 if action == "resend" and existing:
                     existing[0]["state"] = "pending"
                     existing[0]["token"] = token
-                elif not existing:
+                elif existing:
+                    # Asked again: the link about to be emailed is the live
+                    # one, and the one shown on the page must be the same
+                    # link. It used to keep the old token, so the email
+                    # carried a link the page never showed (2026-09-23).
+                    existing[0]["token"] = token
+                    # Asking someone whose document changed is a resend.
+                    if existing[0].get("state") == "needs resend":
+                        existing[0]["state"] = "pending"
+                else:
                     approvals.append({"name": name[:80], "email": email,
                                       "state": "pending", "token": token})
                 store.add_sign_token(token, user["id"], track_id, doc_key, email)
@@ -8542,9 +8563,10 @@ def create_app():
         Scoped exactly like the upload it undoes: `get_os_track` is
         already owner-scoped, so another artist's track and an unknown
         doc_key get the same 404 and neither confirms the other exists.
-        The approvals stay - they record who was asked and what they
-        answered - and lockbox_report puts the slot back to "missing" on
-        the file's absence by itself.
+        The approvals stay as the record of who was asked, each set to
+        "needs resend" with its signing link retired (the store calls
+        artist_os.reset_signoffs), and lockbox_report puts the slot back to
+        "missing" on the file's absence by itself.
         """
         user = current_user()
         if user is None:
@@ -8559,21 +8581,47 @@ def create_app():
             blob_store.remove(path, uploads_dir=UPLOADS_DIR)
         return redirect("/tracks/" + track_id)
 
-    @app.route("/sign/<token>", methods=["GET", "POST"])
-    def sign_document(token):
+    def _sign_link(token):
+        """One rule for a signing link, read by the page AND by the
+        document behind it (make-it-real, 2026-09-23: the document route
+        checked none of this and served the contract after the link was
+        used).
+
+        "invalid": nobody minted this token, its track or lockbox slot is
+        gone, or the artist has since sent this person a newer link - the
+        approval carries the token of the newest request, and an older
+        link must not be able to flip the decision the newer one records.
+        A replaced or removed document retires every link to its slot the
+        same way (artist_os.reset_signoffs drops the approval's token), and
+        db.align_sign_tokens points approvals at links emailed before the
+        approval carried the newest token.
+        "used": a decision was recorded with it. "open": the one state that
+        shows the document and takes a decision."""
         row = store.get_sign_token(token)
         if row is None:
-            return render_template("sign.html", invalid=True, row=None,
-                                   doc_label=None, track=None, done=None)
+            return {"state": "invalid"}
         track = store.get_os_track(row["user_id"], row["track_id"])
         doc_label = dict((k, l) for k, l, _r in artist_os.LOCKBOX_DOCS).get(row["doc_key"])
         if track is None or doc_label is None:
-            return render_template("sign.html", invalid=True, row=None,
-                                   doc_label=None, track=None, done=None)
+            return {"state": "invalid"}
         entry = (track["lockbox"] or {}).get(row["doc_key"]) or {}
         approval = next((a for a in entry.get("approvals", [])
                          if a.get("email") == row["email"]), None)
-        if request.method == "POST" and not row["used"] and approval:
+        if approval is None or approval.get("token") != row["token"]:
+            return {"state": "invalid"}
+        return {"state": "used" if row["used"] else "open", "row": row,
+                "track": track, "doc_label": doc_label, "entry": entry,
+                "approval": approval}
+
+    @app.route("/sign/<token>", methods=["GET", "POST"])
+    def sign_document(token):
+        link = _sign_link(token)
+        if link["state"] == "invalid":
+            return render_template("sign.html", invalid=True, row=None,
+                                   doc_label=None, track=None, done=None)
+        row, track, doc_label = link["row"], link["track"], link["doc_label"]
+        entry, approval = link["entry"], link["approval"]
+        if request.method == "POST" and link["state"] == "open":
             decision = request.form.get("decision")
             if decision in ("signed", "declined"):
                 approval["state"] = decision
@@ -8588,9 +8636,14 @@ def create_app():
                 return render_template("sign.html", invalid=False, row=row,
                                        doc_label=doc_label, track=track,
                                        done=decision)
+        if link["state"] == "used":
+            # What was decided, not "Signed" for every used link: a
+            # declined link read Signed until 2026-09-23. No document.
+            done = "declined" if approval.get("state") == "declined" else "signed"
+            return render_template("sign.html", invalid=False, row=row,
+                                   doc_label=doc_label, track=track, done=done)
         return render_template("sign.html", invalid=False, row=row,
-                               doc_label=doc_label, track=track,
-                               done=("signed" if row["used"] else None),
+                               doc_label=doc_label, track=track, done=None,
                                # The file itself is the owner's now; the
                                # approver reads it by their token.
                                file_url=(("/sign/%s/document" % token)
@@ -8600,12 +8653,16 @@ def create_app():
     def sign_document_file(token):
         """The contract an approver was asked to sign, read by their
         token. /uploads keeps lockbox files to the account that holds
-        them (walk, 2026-09-20), and an approver is not signed in."""
+        them (walk, 2026-09-20), and an approver is not signed in.
+
+        Only while the link is open, by the same rule as the page: a used,
+        replaced or orphaned link gets the same 404 as a token nobody
+        minted (tests/test_sign_link_document.py)."""
         from flask import send_from_directory
-        row = store.get_sign_token(token)
-        track = store.get_os_track(row["user_id"], row["track_id"]) if row else None
-        entry = ((track or {}).get("lockbox") or {}).get(row["doc_key"]) if row else None
-        path = (entry or {}).get("file") or ""
+        link = _sign_link(token)
+        if link["state"] != "open":
+            abort(404)
+        path = (link["entry"] or {}).get("file") or ""
         if not path.startswith("/uploads/") or not _is_lockbox_upload(path):
             abort(404)
         return send_from_directory(UPLOADS_DIR, path[len("/uploads/"):])
@@ -11590,10 +11647,24 @@ def create_app():
                                documents_catalog_types=documents_engine.CATALOG_TYPES,
                                doc_types=_DOC_TYPES, doc_error=doc_error,
                                doc_terms=_document_terms_view(user["id"]),
+                               # Whether a scheduler really sends the
+                               # reminders the rows would otherwise promise.
+                               reminders_on=_reminders_on(),
                                terms_saved=request.args.get("terms"),
                                doc_readings=_document_readings_view(user["id"]),
                                read_result=request.args.get("read"),
                                **build_dashboard_context())
+
+    def _reminders_on():
+        """Are contract reminders going out on their own here? Measured
+        from the scheduler's last run (contract_reminders.scheduled), so a
+        page promises reminders only while something really sends them.
+        A failure to tell is a no: the honest words are the smaller ones."""
+        try:
+            import contract_reminders
+            return contract_reminders.scheduled()
+        except Exception:                  # noqa: BLE001
+            return False
 
     def _document_terms_view(user_id):
         """{document_id: {terms, status}} for the contracts section."""
@@ -11680,20 +11751,44 @@ def create_app():
     def reminders_run():
         """Fire the contract reminders that are due today.
 
-        Meant for the same scheduler that runs the nightly backup,
-        presenting BACKUP_TOKEN; an owner can also trigger it, so it is
-        testable without waiting for a schedule.
+        For a daily scheduler: the live nightly cron presents BACKUP_TOKEN
+        in X-Backup-Token straight after /backup/run, and a scheduler that
+        should not hold that secret can present REMINDERS_CRON_TOKEN in
+        X-Reminders-Token (both constant-time, headers only). Refusing the
+        backup token broke that cron (review S1, 2026-09-23). An owner
+        signed in can also trigger it, so it is testable without waiting
+        for a schedule. plan_gate lets this path through without a session
+        so that a refusal is a refusal: 401 JSON with the reason, never the
+        302 to /login a cron log reads as success. A signed-in account that
+        is not the owner still gets the 404 it always had.
         """
         import contract_reminders
-        token = os.environ.get("BACKUP_TOKEN") or ""
-        presented = (request.headers.get("X-Backup-Token")
-                     or request.form.get("token") or "")
-        by_token = bool(token) and hmac.compare_digest(presented, token)
+        by_token = (contract_reminders.token_matches(
+                        request.headers.get(contract_reminders.TOKEN_HEADER))
+                    or contract_reminders.backup_token_matches(
+                        request.headers.get(contract_reminders.BACKUP_TOKEN_HEADER)))
         user = current_user()
-        if not (by_token or (user and _is_owner_email(user.get("email")))):
-            abort(404)
-        result = contract_reminders.run(emailer=emailer, public_url=public_url)
-        store.set_kv("reminders_last_run", json.dumps(result))
+        by_owner = bool(user and _is_owner_email(user.get("email")))
+        if not (by_token or by_owner):
+            if user is not None:
+                abort(404)
+            why = ("%s is not configured on the server, and neither is %s"
+                   % (contract_reminders.TOKEN_ENV, contract_reminders.BACKUP_TOKEN_ENV)
+                   if not contract_reminders.scheduler_door_open()
+                   else "the %s or %s header did not match (%s goes in the first, %s in the second)"
+                   % (contract_reminders.TOKEN_HEADER, contract_reminders.BACKUP_TOKEN_HEADER,
+                      contract_reminders.TOKEN_ENV, contract_reminders.BACKUP_TOKEN_ENV))
+            return jsonify({"ok": False, "error": why}), 401
+        by = "scheduler" if by_token else "owner"
+        try:
+            result = contract_reminders.run(emailer=emailer, public_url=public_url)
+        except Exception as exc:           # noqa: BLE001 - reported, and recorded
+            app.logger.exception("reminders: the run failed")
+            contract_reminders.record_run(
+                {"ok": False, "error": type(exc).__name__}, by)
+            return jsonify({"ok": False, "error": "the reminders run failed: %s"
+                            % type(exc).__name__}), 500
+        result = contract_reminders.record_run(dict(result, ok=True), by)
         # The same daily run moves Release-Ready's queue: reports paused on
         # the budget when it allows again, polls that came due, and an alert
         # for a paid master not stored after 30 minutes. It never starts a
@@ -12024,18 +12119,27 @@ def create_app():
                        if campaign.get("ml_campaign_id") else None)
         variants = ({v["id"]: v for v in mls.list_variants(campaign["ml_campaign_id"])}
                     if campaign.get("ml_campaign_id") else {})
+        # The learned line reads the history of the account that owns this
+        # rollout. It read `user["id"]` with no `user` in scope until
+        # 2026-09-23, so the page was an error the moment every post left
+        # draft (tests/test_rollout_overview_reviewed.py). _ro_owned has
+        # already scoped the campaign to the signed-in account.
+        # The engine's step comes first. The learned line, which opens
+        # "Rollout is live.", replaces it only once the rollout really went
+        # out: a post posted and none waiting (rollout_engine.rollout_live).
+        # Approved-only and rejected-only rollouts used to read "live".
+        next_step = rollout_engine.next_action(campaign, posts, assets)
+        if rollout_engine.rollout_live(posts):
+            next_step = rollout_learning.next_action_line(
+                _rollout_learning(campaign["user_id"]),
+                rollout_engine.PLATFORM_NAMES,
+                rollout_engine.PHASE_NAMES) or next_step
         return render_template("rollout_overview.html", active_page="rollout",
                                c=campaign, posts=posts, assets=assets,
                                motion=rollout_engine.MOTION,
                                ml_campaign=ml_campaign, variants=variants,
                                direction=rollout_engine.creative_direction(campaign),
-                               next_action=(
-                                   rollout_learning.next_action_line(
-                                       _rollout_learning(user["id"]))
-                                   if posts and all(
-                                       p["status"] != "draft" for p in posts)
-                                   else None)
-                               or rollout_engine.next_action(campaign, posts, assets),
+                               next_action=next_step,
                                counts=ros.post_status_counts(cid),
                                phase_names=rollout_engine.PHASE_NAMES,
                                platform_names=rollout_engine.PLATFORM_NAMES,
@@ -13789,7 +13893,8 @@ def create_app():
             if cc.open_action_for(user["id"], "document", doc_id):
                 return
             cc.create_action(
-                user["id"], "Set the renewal reminders for %s" % filename[:80],
+                user["id"], ("Set the renewal reminders for %s" if _reminders_on()
+                             else "Set the renewal dates for %s") % filename[:80],
                 category="rights", priority="medium",
                 description=contract_reader.summary(findings, status),
                 entity_type="document", entity_id=doc_id,

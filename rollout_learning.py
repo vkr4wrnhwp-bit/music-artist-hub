@@ -7,7 +7,7 @@ is attributable to a platform and a release phase.
 
 Then `rollout_engine.next_action` finishes with:
 
-    "Rollout is live — watch the performance page for what converts."
+    "Rollout is live. Watch the performance page for what converts."
 
 ...and the generator that plans the next one takes no performance
 argument at all. The app told the artist to watch what converts and then
@@ -175,15 +175,22 @@ def suggested_platforms(rep, available, fallback):
     return keys or list(fallback)
 
 
-def next_action_line(rep):
-    """Something true to say instead of 'watch the performance page'."""
+def next_action_line(rep, platform_names=None, phase_names=None):
+    """Something true to say instead of 'watch the performance page'.
+
+    Only for a rollout that has gone out (rollout_engine.rollout_live): the
+    line opens "Rollout is live." The caller checks that; this reads the
+    history. Names are the ones the artist sees (TikTok, Pre-save Push),
+    not the utm keys the variants carry (2026-09-23 review)."""
     p = (rep.get("platforms") or {}).get("finding")
     ph = (rep.get("phases") or {}).get("finding")
     if p:
+        name = (platform_names or {}).get(p["key"], p["key"])
         return ("Rollout is live. Across your past rollouts %s converts %d%% "
-                "better than average — worth weighting next time."
-                % (p["key"], p["lift"]))
+                "better than average, so it is worth weighting next time."
+                % (name, p["lift"]))
     if ph:
+        name = (phase_names or {}).get(ph["key"], ph["key"])
         return ("Rollout is live. Your %s phase converts %d%% better than "
-                "average across past rollouts." % (ph["key"], ph["lift"]))
+                "average across past rollouts." % (name, ph["lift"]))
     return None

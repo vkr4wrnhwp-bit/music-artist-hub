@@ -161,7 +161,10 @@ EXTRA = {
     "all-tools": ("/all-tools", "M3 3h6v6H3z|M11 3h6v6h-6z|M3 11h6v6H3z|M11 11h6v6h-6z", "All Tools", "Every window in the app, grouped like the sidebar, searchable.", "settings"),
     "fan-crm": ("/links/fans", "M4 5h12v10H4z|M4 8h12|M7 11h3|M7 13h5", "Fan CRM", "Everyone who left a name or a number, in one list.", "fans"),
     "fan-club": ("/fan-club", "M10 3l2 4 4 .6-3 3 .7 4.4L10 13l-3.7 2 .7-4.4-3-3L8 7z", "Fan Club", "Paid membership, run by you.", "fans"),
-    "contracts": ("/vault?view=contracts", "M5 3h8l3 3v11H5z|M13 3v3h3|M8 12l2 2 3-4|M8 8h4", "Contracts and licences", "The paperwork that proves who gets paid, with renewal reminders.", "vault"),
+    # The line is what is true today: the dates are kept on each contract's
+    # row. catalogue() promises reminders only while a scheduler really
+    # sends them (CONTRACTS_WITH_REMINDERS below).
+    "contracts": ("/vault?view=contracts", "M5 3h8l3 3v11H5z|M13 3v3h3|M8 12l2 2 3-4|M8 8h4", "Contracts and licences", "The paperwork that proves who gets paid, with renewal dates on file.", "vault"),
     # Deliberately in no room (2026-09-17). Signal is internal: the
     # Operator Desk links it, and no customer room holds it. The entry
     # stays so the card has one definition if it is ever placed again.
@@ -217,6 +220,21 @@ RENAMES = {
                "How ready you are to grow, scored from your own record."),
 }
 
+# The Contracts card said "with renewal reminders" whether or not anything
+# ran them (make-it-real, 2026-09-23). It now says so only while
+# contract_reminders.scheduled() has seen a scheduler run in the last two
+# days (on live, the nightly backup cron), and "renewal dates on file" (the
+# EXTRA line) otherwise, which is what a service with no cron shows.
+CONTRACTS_WITH_REMINDERS = "The paperwork that proves who gets paid, with renewal reminders."
+
+
+def _reminders_scheduled():
+    try:
+        import contract_reminders
+        return contract_reminders.scheduled()
+    except Exception:
+        return False
+
 
 def catalogue():
     """{key: (href, icon, label, desc)} for every card any room can hold,
@@ -234,6 +252,9 @@ def catalogue():
         if key in out:
             href, icon, _l, _d = out[key]
             out[key] = (href, icon, label, desc)
+    if "contracts" in out and _reminders_scheduled():
+        href, icon, label, _d = out["contracts"]
+        out["contracts"] = (href, icon, label, CONTRACTS_WITH_REMINDERS)
     return out
 
 

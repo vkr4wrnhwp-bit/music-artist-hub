@@ -30,8 +30,8 @@ changed or removed. A status change counts.
 
 | | Count |
 | --- | ---: |
-| Live | 390 |
-| Partial | 85 |
+| Live | 391 |
+| Partial | 84 |
 | Stubbed | 63 |
 | Dead code | 22 |
 | **Features in total** | **560** |
@@ -125,12 +125,12 @@ Pull renewal terms out of a filed contract's own text so a person can check them
 
 **Contract renewal terms and reminders**
 
-Type a renewal date and notice period on a contract, and get told at 90/30/7 days and on the notice deadline.
+Type a renewal date and notice period on a contract, and get told at 60, 30, 7 and 1 days before the notice deadline by the nightly reminders run.
 
-- Because: POST validates the date format and clamps notice_days to 0-365 before store.set_document_terms; contract_reminders.status() drives the row's state and contract_reminders.run() fires the milestones, writing document_reminders and sending email where the deployment can. Each milestone fires once and nothing fires for a renewal already in the past.
+- Because: POST validates the date format and clamps notice_days to 0-365 before store.set_document_terms; contract_reminders.status() drives the row's state and contract_reminders.run() fires the milestones, writing document_reminders and sending email where the deployment can. Each milestone fires once and nothing fires for a renewal already in the past. The run happens when something POSTs /reminders/run. On the live service that is the Render dashboard's nightly cron street-banker-nightly-backup (09:00 UTC; not in render.yaml), which calls it with BACKUP_TOKEN straight after /backup/run and fails unless both answer 200 (its config read 2026-09-23; its run log was not). A service with no cron, such as staging, never runs it. So the words are measured (2026-09-23): contract_reminders.scheduled() is true only when a scheduler's token is set (BACKUP_TOKEN or REMINDERS_CRON_TOKEN) AND a scheduler completed a run in the last 48 hours; on live the first nightly run after deploy turns it on. Until then the Contracts card reads "with renewal dates on file", each row says the 60, 30, 7 and 1 day reminders "are not switched on yet", the saved note drops "Reminders follow them" and the upload action asks to "Set the renewal dates"; once it is true the reminder wording comes back by itself (tests/test_reminders_cron.py).
 - Routes: POST /vault/documents/<doc_id>/terms; POST /reminders/run
-- Files: app.py:10398 (terms), app.py:10422 (reminders_run); contract_reminders.py MILESTONES/status/run; db.py document_terms, document_reminders tables, set_kv("reminders_last_run"); templates/vault.html
-- Access: The terms form is Artist tier and above, behind the contracts gate. /reminders/run is deliberately outside the session wall: _valid_backup_token (app.py:4885) lets a request through only when it presents BACKUP_TOKEN on that exact path, and the route itself re-checks the token or _is_owner_email — anyone else gets 404. Team seats never reach it: "/backup" and "/settings" are blocked and the route is owner-or-token.
+- Files: app.py document_terms, reminders_run, _reminders_on, _read_on_upload; contract_reminders.py MILESTONES/status/run/token_matches/backup_token_matches/record_run/scheduled; rooms.py catalogue (the Contracts card line); readiness.py "Contract renewal reminders" row; db.py document_terms, document_reminders tables, set_kv("reminders_last_run") and set_kv("reminders_last_scheduled_run"); templates/_vault_contracts.html
+- Access: The terms form is Artist tier and above, behind the contracts gate. /reminders/run answers for itself outside the session wall (plan_gate lets the path through): a scheduler presents BACKUP_TOKEN in X-Backup-Token (what the live nightly cron sends) or REMINDERS_CRON_TOKEN in X-Reminders-Token (hmac.compare_digest, headers only), or a signed-in owner runs it by hand. The make-it-real pass refused BACKUP_TOKEN, which would have broken the live cron on deploy; its review restored it. Anonymous without a token gets 401 JSON with the reason, never a redirect; a GET gets 405; a signed-in non-owner gets 404. Team seats never reach it: the route is owner-or-token.
 
 **Contracts and licences (Documents)**
 
@@ -199,9 +199,9 @@ Rule-based observations over the account's own numbers, including income concent
 
 The page an outside approver opens from their emailed link to read the contract and sign off.
 
-- Because: GET/POST /sign/<token> reads the token row and renders the real passport slot; /sign/<token>/document serves the attached file by token and aborts 404 unless the path is under /uploads/ and matches the lockbox uploader's own name shape — so an approver who is not signed in can read exactly the one file they were asked about and nothing else.
+- Because: GET/POST /sign/<token> reads the token row and renders the real passport slot; /sign/<token>/document serves the attached file by token and aborts 404 unless the path is under /uploads/ and matches the lockbox uploader's own name shape, so an approver who is not signed in can read exactly the one file they were asked about and nothing else. Both routes answer by one rule, _sign_link (2026-09-23): the document is served only while the link is open. A used link (signed or declined), a link the artist has replaced by resending or asking the same person again, a link to a slot whose document was since replaced or removed, and a link whose track or slot is gone all get the same 404 as an unknown token. Until then the document route read none of this and served the contract after the link was used (tests/test_sign_link_document.py).
 - Routes: GET/POST /sign/<token>; GET /sign/<token>/document
-- Files: app.py:7401, app.py:7438, app.py:7312 (_is_lockbox_upload); db.py get_sign_token/sign_tokens; templates/sign.html
+- Files: app.py _sign_link, sign_document, sign_document_file, _is_lockbox_upload, os_lockbox_update (approver/resend mint the token the approval carries); artist_os.reset_signoffs; db.py get_sign_token/sign_tokens, align_sign_tokens (start-up); templates/sign.html; tests/test_sign_link_document.py
 - Access: Anonymous by design — "/sign/" is in _PUBLIC_PREFIXES (app.py:4817); the unguessable token is the authorisation and is checked on both routes.
 
 **Money queue**
@@ -402,9 +402,9 @@ The same uploaded rows filed by tax year and payor, with the $600-per-payor 1099
 
 Attach the paperwork that proves who gets paid for one recording, mark a slot not-applicable, and ask a named person to sign it.
 
-- Because: POST writes real files into UPLOADS_DIR and updates the passport's lockbox dict through store.update_os_track_lockbox; the approver flow mints a token with store.add_sign_token and emails a link when emailer.configured(), leaving the link visible on the page either way. The delete route is scoped by get_os_track (owner-scoped) and only unlinks names matching the uploader's own uuid4-hex + "-" shape. rights_conflicts reads the lockbox back.
+- Because: POST writes real files into UPLOADS_DIR and updates the passport's lockbox dict through store.update_os_track_lockbox; the approver flow mints a token with store.add_sign_token and emails a link when emailer.configured(), leaving the link visible on the page either way. The delete route is scoped by get_os_track (owner-scoped) and only unlinks names matching the uploader's own uuid4-hex + "-" shape. rights_conflicts reads the lockbox back. A signature is for the document its signer saw (2026-09-23 review): uploading over a file or removing it sets every approval in the slot to "needs resend" and retires its link (artist_os.reset_signoffs), so the slot reads "awaiting signatures" until the new file is signed. Before, a split sheet signed at 50/50 and swapped for 90/10 read "ready" and unlocked pitching, and a pending link took a signature after its file was removed. On a slot's first file, a decision given before any document existed is asked again and a pending link stays live. Resend (or asking the same person again) reopens it. db.align_sign_tokens runs at start-up so a link emailed by the old ask-again path, which left the approval on the older token, is the live one (tests/test_sign_link_document.py, tests/test_uploads_delete.py).
 - Routes: POST /tracks/<track_id>/lockbox/<doc_key>; POST /tracks/<track_id>/lockbox/<doc_key>/delete
-- Files: app.py:7323, app.py:7371, app.py:7312 (_is_lockbox_upload); artist_os.py LOCKBOX_DOCS, lockbox_report; db.py update_os_track_lockbox, delete_os_track_lockbox_file, add_sign_token (tables os_tracks, sign_tokens)
+- Files: app.py os_lockbox_update, os_lockbox_file_delete, _is_lockbox_upload; artist_os.py LOCKBOX_DOCS, lockbox_report, reset_signoffs; db.py update_os_track_lockbox, delete_os_track_lockbox_file, add_sign_token, align_sign_tokens (tables os_tracks, sign_tokens)
 - Access: Artist tier and above ("/tracks" in _ARTIST_PATHS). Team seats: "/tracks" is in team_areas.EXTRA["publishing"], so a seat needs the Publishing room; writes need edit access.
 
 **Trust Score**
@@ -655,10 +655,10 @@ Copies songwriters and publishers from a Track Passport onto the matching catalo
 
 A tokenised page where an approver with no account reads a lockbox document and signs or declines it.
 
-- Because: /sign/ is in _PUBLIC_PREFIXES so it answers without a session; a valid token renders the document, the POST writes the decision into the artist's lockbox, burns the token and files an in-app notification for the artist. An unknown token renders the invalid state.
+- Because: /sign/ is in _PUBLIC_PREFIXES so it answers without a session; a valid token renders the document, the POST writes the decision into the artist's lockbox, burns the token and files an in-app notification for the artist. An unknown token, a token whose track or slot is gone, a token the artist has since replaced (the approval carries the newest request's token), and a token for a document since replaced or removed (the approval is set to "needs resend" and loses its token) render the invalid state, so an old link cannot flip a decision a newer one recorded or sign a file its holder never saw. A used link shows the decision that was made (it read "Signed" for a declined link until 2026-09-23) and no document.
 - Routes: /sign/<token> (GET, POST)
-- Files: app.py:7401 sign_document(); templates/sign.html; db.py sign_tokens table (db.py:297), add_sign_token/get_sign_token/use_sign_token
-- Access: Anonymous, by single-use token only - no plan gate, no session. _is_public_path allows the '/sign/' prefix (app.py:4817).
+- Files: app.py _sign_link, sign_document(); templates/sign.html; db.py sign_tokens table (db.py:297), add_sign_token/get_sign_token/use_sign_token; tests/test_sign_link_document.py
+- Access: Anonymous, by single-use token only - no plan gate, no session. _is_public_path allows the '/sign/' prefix. Only the newest link sent to an approver is live.
 
 **Registration wizard**
 
@@ -901,9 +901,9 @@ Eight rights documents per track: upload a file, mark one not applicable, or ema
 
 Generates a dated social rollout - phased posts, captions, hashtags and edit plans - with one tracked smart-link variant per post.
 
-- Because: The campaign, assets, posts and per-post attribution are all real rows (ro_campaigns/ro_assets/ro_posts joined to ml_variants and ml_events), and generation is honest deterministic templating that never claims to have rendered a video. But /rollout-studio/<cid> crashes: app.py:10777 reads an undefined `user` inside the next_action expression, which evaluates once every post on the rollout is out of draft - reproduced on a throwaway DB, NameError: name 'user' is not defined, HTTP 500 (200 while any post is still a draft).
+- Because: The campaign, assets, posts and per-post attribution are all real rows (ro_campaigns/ro_assets/ro_posts joined to ml_variants and ml_events), and generation is honest deterministic templating that never claims to have rendered a video. The overview's next step is rollout_engine.next_action. Once the rollout has really gone out (rollout_engine.rollout_live: a post marked posted and none still draft or approved) the learned line from this account's past rollouts (campaign["user_id"]) replaces it, naming the platform or phase as the artist sees it (TikTok, not the utm key). Until 2026-09-23 that expression read an undefined `user` and the page was a 500 once every post left draft; the first fix then showed "Rollout is live." for approved-only and rejected-only rollouts, and a rejected-only rollout with a video read live in the engine too. Both fixed: an approved-only rollout gets the engine's step, a rejected-only one says every post was rejected. Held through the real pages by tests/test_rollout_overview_reviewed.py (approve every post, reject every post, post every post, and the engine alone).
 - Routes: /rollout-studio, /rollout-studio/new, /rollout-studio/<cid>, /rollout-studio/<cid>/generate, /rollout-studio/<cid>/plan (?view=list|board|calendar), /rollout-studio/<cid>/performance, /rollout-studio/<cid>/socials, /rollout-studio/<cid>/delete; 301s: /posts, /storyboard, /calendar
-- Files: app.py:10663 rollout_dashboard(), :10680 rollout_new(), :10730 rollout_generate(), :10759 rollout_overview() (bug at app.py:10777), :10805 rollout_plan(), :10917 rollout_performance(), :10939 rollout_socials(), :10625 rollout_delete(); rollout_engine.py, rollout_store.py, rollout_learning.py; templates/rollout_dashboard.html, rollout_new.html, rollout_overview.html, rollout_plan.html, rollout_performance.html, rollout_socials.html
+- Files: app.py rollout_dashboard(), rollout_new(), rollout_generate(), rollout_overview(), rollout_plan(), rollout_performance(), rollout_socials(), rollout_delete(); rollout_engine.py, rollout_store.py, rollout_learning.py; templates/rollout_dashboard.html, rollout_new.html, rollout_overview.html, rollout_plan.html, rollout_performance.html, rollout_socials.html; tests/test_rollout_overview_reviewed.py
 - Access: required_tier = artist, so Artist/Pro/Label; Fan 402 (verified); anonymous to /login. Marketing room for team seats; read-only seat refused on every POST.
 
 **Track Passport list page (/tracks)**
@@ -1038,7 +1038,7 @@ A per-passport list of rider, stage-plot, patch-list and similar attachments.
 - Files: passport_store.py:511 add_document(), :524 documents(), :531 delete_document(), passport_documents table at passport_store.py:229; passport_os.py:109 detail() passes documents=...
 - Access: Unreachable by any account.
 
-> Noted by the reviewer as not yet written up in this area: Street Banker Certified — /certified (C:/Users/17049/OneDrive/Desktop/claude/music/mah-login/app.py:7156 certified_page, helper _os_full at app.py:7150; artist_os.py:420 CERT_LEVELS and artist_os.py:424 certification(); templates/certified.html). Six-rung ladder (Unranked -> Upstream Ready) with the next requirement named, computed from _os_summary/_os_ctx over the account's own os_tracks, lockboxes, royalty lanes, fan rows and statement rows — no seeded data anywhere in the path. LIVE: verified 200 for an artist account and 402 for Fan on a throwaway DB. It is a sidebar entry (hubs.py:128 "Certified — Six rungs computed from your real record") and a Publishing-room card (rooms.py:57), sits beside 'catalog' and 'track-passports', and '/certified' is in plans._ARTIST_PATHS. The ledger uses artist_os.certification for passport_cert on /catalog?view=passports but never lists the page it belongs to.; Approver's document download — GET /sign/<token>/document (app.py:7443 sign_document_file). Public: '/sign/' is in _PUBLIC_PREFIXES, so an approver with no account fetches the lockbox contract file by token alone; verified 200 with the file bytes from an anonymous client. The 'Public document signing' entry lists only /sign/<token> (GET, POST). Worth its own line because it is the one path that hands a private rights document to an unauthenticated caller — and unlike the POST (gated on `not row["used"]`) this handler has no `used` check at all: verified 200 still returning the file after the token had been burned by a signature.; Rollout learning — rollout_learning.py, reached at app.py:10694 (suggested_platforms) and app.py:10776 (next_action_line) via the _rollout_learning helper at app.py:10648. Real, not templated: it reads ml_variants and ml_events conversion history (which survives clear_posts) and, when the artist ticks no platforms on /rollout-studio/new, picks the platforms their past rollouts actually converted on, falling back to the fixed list when traffic is too thin to say. The ledger names rollout_learning.py in the Rollout Engine entry's file list but describes generation as purely deterministic templating, so this measured-from-real-data behaviour has no entry. (Its other call site is the app.py:10777 NameError the ledger already documents — I reproduced that 500 on a throwaway DB.)
+> Noted by the reviewer as not yet written up in this area: Street Banker Certified — /certified (C:/Users/17049/OneDrive/Desktop/claude/music/mah-login/app.py:7156 certified_page, helper _os_full at app.py:7150; artist_os.py:420 CERT_LEVELS and artist_os.py:424 certification(); templates/certified.html). Six-rung ladder (Unranked -> Upstream Ready) with the next requirement named, computed from _os_summary/_os_ctx over the account's own os_tracks, lockboxes, royalty lanes, fan rows and statement rows — no seeded data anywhere in the path. LIVE: verified 200 for an artist account and 402 for Fan on a throwaway DB. It is a sidebar entry (hubs.py:128 "Certified — Six rungs computed from your real record") and a Publishing-room card (rooms.py:57), sits beside 'catalog' and 'track-passports', and '/certified' is in plans._ARTIST_PATHS. The ledger uses artist_os.certification for passport_cert on /catalog?view=passports but never lists the page it belongs to.; Approver's document download — GET /sign/<token>/document (app.py:7443 sign_document_file). Public: '/sign/' is in _PUBLIC_PREFIXES, so an approver with no account fetches the lockbox contract file by token alone; verified 200 with the file bytes from an anonymous client. The 'Public document signing' entry lists only /sign/<token> (GET, POST). Worth its own line because it is the one path that hands a private rights document to an unauthenticated caller — and unlike the POST (gated on `not row["used"]`) this handler has no `used` check at all: verified 200 still returning the file after the token had been burned by a signature (fixed 2026-09-23: _sign_link; the document is served only while the link is open; tests/test_sign_link_document.py).; Rollout learning — rollout_learning.py, reached at app.py:10694 (suggested_platforms) and app.py:10776 (next_action_line) via the _rollout_learning helper at app.py:10648. Real, not templated: it reads ml_variants and ml_events conversion history (which survives clear_posts) and, when the artist ticks no platforms on /rollout-studio/new, picks the platforms their past rollouts actually converted on, falling back to the fixed list when traffic is too thin to say. The ledger names rollout_learning.py in the Rollout Engine entry's file list but describes generation as purely deterministic templating, so this measured-from-real-data behaviour has no entry. (Its other call site is the app.py:10777 NameError the ledger already documents — I reproduced that 500 on a throwaway DB.)
 
 ## Studio and audio
 
@@ -5004,7 +5004,7 @@ One per-account address that files Hypeddit download-gate signups into the Fan C
 
 A plain server-side string store used for owner settings, the last backup record and the stored Stripe webhook secret.
 
-- Because: db.py:2033 get_kv / 2041 set_kv / 2049 delete_kv / 2055 kv_incr all read and write the real app_kv table. Keys actually written (grepped set_kv literals): backup_last_run, reminders_last_run, home_layout, nav_layout, page_switches, shopify:storefront, stripe_webhook_secret, stripe_ref_coupon_50, stripe_open_checkout:*, stripe_cs_done:*, rr_* (six Release-Ready settings). Note: a live Stripe webhook signing secret is stored here in plaintext (stripe_provider.py:86) and therefore lands in every /backup zip.
+- Because: db.py:2033 get_kv / 2041 set_kv / 2049 delete_kv / 2055 kv_incr all read and write the real app_kv table. Keys actually written (grepped set_kv literals): backup_last_run, reminders_last_run, reminders_last_scheduled_run, home_layout, nav_layout, page_switches, shopify:storefront, stripe_webhook_secret, stripe_ref_coupon_50, stripe_open_checkout:*, stripe_cs_done:*, rr_* (six Release-Ready settings). Note: a live Stripe webhook signing secret is stored here in plaintext (stripe_provider.py:86) and therefore lands in every /backup zip.
 - Routes: none (library)
 - Files: db.py:960-964 (CREATE TABLE app_kv), db.py:2033-2066; stripe_provider.py:86-106; page_switches.py:20
 - Access: n/a — callers gate
@@ -5208,6 +5208,15 @@ Names the app, its icons and its standalone display for an installed home-screen
 - Files: static/manifest.json; templates/base.html head
 - Access: Anonymous
 
+**Daily reminders run**
+
+One POST fires the contract renewal reminders and moves the Release-Ready queue.
+
+- Because: The work is real: contract_reminders.run(...) then release_ready.run_due(), with the result stored under reminders_last_run (and a scheduler's run also under reminders_last_scheduled_run, with when and by whom). Fixed 2026-09-23: it had answered an unsigned POST with a 302 to /login, the false green /backup/run was fixed for. It answers 401 JSON with the reason when no token is presented or none matches, 200 JSON when it ran, and 500 JSON (recorded) when the run raised. It is called: the live service's nightly Render cron (street-banker-nightly-backup, 09:00 UTC, in the Render dashboard, not the repo) POSTs it with BACKUP_TOKEN in X-Backup-Token straight after /backup/run, and the job fails unless both answer 200. The make-it-real pass had refused BACKUP_TOKEN here on the belief that nothing called it, which would have turned that cron red on deploy; the review restored it (tests/test_reminders_cron.py test_the_live_crons_backup_token_still_runs_the_reminders). REMINDERS_CRON_TOKEN in X-Reminders-Token is a second door. The cron's run log was not read.
+- Routes: POST /reminders/run
+- Files: app.py reminders_run, plan_gate; contract_reminders.py run/token_matches/backup_token_matches/record_run/scheduled; release_ready.py run_due; tests/test_reminders_cron.py, tests/test_contract_reminders.py
+- Access: BACKUP_TOKEN holder (X-Backup-Token header) or REMINDERS_CRON_TOKEN holder (X-Reminders-Token header), headers only, or a signed-in owner (_is_owner_email). Anonymous otherwise: 401 JSON. A signed-in non-owner gets 404.
+
 ### Partial
 
 **Cross-site request forgery protection**
@@ -5218,15 +5227,6 @@ What stops a third-party page from making a state-changing request with the user
 - Routes: every POST
 - Files: app.py:610; requirements.txt (no CSRF package); observability.py:87
 - Access: n/a
-
-**Daily reminders run**
-
-One POST fires the contract renewal reminders and moves the Release-Ready queue.
-
-- Because: The work is real — app.py:10440 contract_reminders.run(...) then app.py:10445 release_ready.run_due(), with the result stored under reminders_last_run. But the refusal is wrong in the one way that matters for a scheduler: with no token and no session, plan_gate lets /reminders/run through _valid_backup_token only on a match and otherwise falls to redirect(url_for("login")) — probed anonymous POST /reminders/run → 302, not 403. That is the exact false-green that app.py:4963-4970 was written to stop for /backup/run, and the same fix was not extended here.
-- Routes: POST /reminders/run
-- Files: app.py:10422-10447; app.py:4885-4897 _valid_backup_token; contract_reminders.py:run; release_ready.py:1171 run_due
-- Access: BACKUP_TOKEN holder, or a signed-in owner (_is_owner_email). A signed-in non-owner gets 404 (probed).
 
 **Error reporting (Sentry)**
 
@@ -5567,7 +5567,7 @@ repository. This list is mechanical, so it is complete.
 
 ## Environment variables
 
-95 names, extracted mechanically. **Names only. No values appear in this
+96 names, extracted mechanically. **Names only. No values appear in this
 file and none should ever be added to it.** A value belongs in the
 service's own environment settings and nowhere else.
 
@@ -5587,7 +5587,7 @@ service's own environment settings and nowhere else.
 `PATH_INFO`, `PORT`, `PUBLIC_BASE_URL`
 `QUERY_STRING`, `R2_ACCESS_KEY_ID`, `R2_ACCOUNT_ID`
 `R2_BUCKET`, `R2_PUBLIC_BASE_URL`, `R2_SECRET_ACCESS_KEY`
-`REMIX_LAB_AUDIO_ENGINE_ENABLED`, `RENDER`, `RENDER_GIT_COMMIT`
+`REMINDERS_CRON_TOKEN`, `REMIX_LAB_AUDIO_ENGINE_ENABLED`, `RENDER`, `RENDER_GIT_COMMIT`
 `RESEND_API_KEY`, `RESEND_INBOUND_DOMAIN`, `RESEND_WEBHOOK_SECRET`
 `ROEX_API_KEY`, `SANDBOX`, `SANDBOX_NAME`
 `SB_NODE_BIN`, `SB_REQUIRE_JS_TESTS`, `SECRET_KEY`
@@ -5656,13 +5656,13 @@ in its own way, listed in its feature entry above.
 - POST /api/suites/credits (app.py:932) — server-to-server receiver for the suites; no session, a token signed under sb_suite_sso.CREDIT_SALT is the authorisation
 - POST /backup/run (app.py:13767) — meant for an external scheduler presenting BACKUP_TOKEN via the X-Backup-Token header or a token form field; _valid_backup_token (app.py:4884) lets it past the login wall for this path only. No cron entry for it exists in this repo's render.yaml.
 - POST /backup/run (app.py:13767) — the off-box backup. Intended for an external scheduler presenting BACKUP_TOKEN; app.py:4963 gives an anonymous POST an explicit 403 rather than a redirect so a cron log cannot read it as green. Records every outcome, success or failure, under app_kv 'backup_last_run', and notifies the OWNER_EMAIL account on failure.
-- POST /reminders/run (app.py:10422) — contract renewal reminders plus release_ready.run_due(). Same BACKUP_TOKEN, or a signed-in owner. Result stored under app_kv 'reminders_last_run'. Unlike /backup/run it still answers a token-less anonymous POST with a 302 to /login (probed), which is the same false-green shape the other endpoint was fixed for.
-- POST /reminders/run (app.py:10422) — scheduled job endpoint. Runs contract_reminders.run(), which fires the 90/30/7/0-day renewal milestones, writes document_reminders and emails where configured; then stores the result under app_kv key "reminders_last_run" and also calls release_ready.run_due() in a try/except. Authorised by an X-Backup-Token header or a token form field matching BACKUP_TOKEN (app.py:4885 lets that one path past the login wall), or by an owner account; anyone else gets 404.
+- POST /reminders/run — contract renewal reminders plus release_ready.run_due(). BACKUP_TOKEN in X-Backup-Token (the live nightly cron) or REMINDERS_CRON_TOKEN in X-Reminders-Token, or a signed-in owner. Result stored under app_kv 'reminders_last_run' (a scheduler's run also under 'reminders_last_scheduled_run'). Since 2026-09-23 a token-less or wrong-token POST gets 401 JSON with the reason, not the 302 to /login a cron log reads as success.
+- POST /reminders/run — scheduled job endpoint. Runs contract_reminders.run(), which fires the 60/30/7/1-day renewal milestones, writes document_reminders and emails where configured; then records the run and also calls release_ready.run_due() in a try/except. Called nightly on live by the Render dashboard cron street-banker-nightly-backup (crn-dair6clg1s2s738f0630, 0 9 * * *), whose one command runs the backup, then the reminders, and exits non-zero unless BOTH answered 200, so a failed backup can never read green behind a good reminders call: code=$(curl -sS -o /dev/stderr -w '%{http_code}' -X POST -H "X-Backup-Token: $BACKUP_TOKEN" https://app.streetbankermusic.com/backup/run); echo "HTTP $code"; [ "$code" = 200 ] && rcode=$(curl -sS -o /dev/stderr -w '%{http_code}' -X POST -H "X-Backup-Token: $BACKUP_TOKEN" https://app.streetbankermusic.com/reminders/run); echo "REMINDERS HTTP $rcode"; [ "$code" = 200 ] && [ "$rcode" = 200 ]. No new cron is needed. Never append a second call that reuses $code and ends on its own [ "$code" = 200 ]: the job's exit would then come from the last check alone and hide a failed backup.
 - POST /webhooks/resend (app.py:1275) — webhook receiver. Resend inbound email → signature verified with RESEND_WEBHOOK_SECRET → recipient local part resolved to an account via ingest_tokens → CSV attachments run through the same _ingest_statement the upload uses, writing statements/statement_rows and a recovery or statement notification. Aborts 404 when emailer.inbound_configured() is false. Anonymous by design ("/webhooks/" prefix is public).
 - POST /webhooks/stripe (app.py:5755) — Stripe webhook receiver; 404 unless a signing secret exists, signature-verified, answers 503 'retry' when Stripe cannot be read so the event is redelivered
 - Press pitch sending is synchronous and inside the request: press_desk.pitch_send loops the recipients and calls email_provider.send once per address before redirecting (press_desk.py:498).
 - Release-Ready background steps: release_ready.advance(job_id) runs one step at a time under a database lease in a Python thread, capped at four per process by a BoundedSemaphore (release_ready.py:636 _spawn). There is no worker process — a job that cannot get a slot stays due for the next poll.
-- Release-Ready queue sweep: release_ready.run_due(limit=20) (release_ready.py:1168), called from POST /reminders/run (app.py:10423, authorised by BACKUP_TOKEN or the owner) and from POST /admin/release-ready/run. It moves reports paused on the budget, polls that came due, and raises an alert for a paid master not stored after 30 minutes. It can never start a paid RoEx retrieval that was not paid for.
+- Release-Ready queue sweep: release_ready.run_due(limit=20) (release_ready.py:1168), called nightly from POST /reminders/run (the live backup cron, with BACKUP_TOKEN; REMINDERS_CRON_TOKEN or the owner also run it) and from POST /admin/release-ready/run. It moves reports paused on the budget, polls that came due, and raises an alert for a paid master not stored after 30 minutes. It can never start a paid RoEx retrieval that was not paid for.
 - Request-time expiry on the Stage desk and every poll — stage_bridge.expire_stale(show_id, user_id) (stage_os.py:162 and :197): the poll is the clock, so a dead command cannot sit at 'sent' forever.
 - Request-time sweep on GET /tour-board — board._sweep_renewals() (board.py:68, called at :94) notifies and emails the owner of every listing at or past expiry, then marks the notice so it is sent once.
 - Request-time sweep on GET /tours — tour_store.adopt_orphan_shows(user_id) (tour_os.py:1244) and tour_mockup.ensure_for(user) (tour_os.py:1252). Skipped entirely on a team seat's visit.
@@ -5785,7 +5785,7 @@ can close, and nothing here was guessed to fill it.
 **money**
 
 - Whether MLC_USERNAME/MLC_PASSWORD/MLC_ENABLED, SONGSTATS_API_KEY, SPOTIFY_CLIENT_ID/SECRET, RESEND_* or R2_* are actually set on any deployed service. This was a read-only local checkout, I did not read .env or .env.example values, and render.yaml declares only SECRET_KEY, DEMO_PASSWORD, ROEX_API_KEY, SENTRY_DSN and DATABASE_PATH. So the MLC sweep and the statement drop-box are Partial on the evidence here; they may be fully live in production.
-- Whether anything actually calls POST /reminders/run or POST /backup/run on a schedule. render.yaml in this repo contains no cron service, and I did not look at the Render dashboard.
+- Whether anything actually calls POST /backup/run on a schedule: render.yaml in this repo contains no cron service (the nightly backup cron lives in the Render dashboard). POST /reminders/run: the same cron calls it right after the backup (its config read 2026-09-23 through Render's API; its run log was not read, so a 200 on live is expected from the code, not seen). The pages promise reminders only once a scheduler run is on record (contract_reminders.scheduled).
 - advance_store.py — named in the brief for this area, but the code is not about money. It is the Stage/Tour show-advance store (show_passports, show_questions, show_conflicts), imported by passport_os.py, stage_os.py, stage_bridge.py and tour_os.py. Nothing in it touches royalties, capital or a cash advance. The brief's file list and the code disagree; the code wins.
 - statements_engine.py is the real name of what the brief called "statements_engine (find its real name)" — it exists under that exact name and is imported at app.py:141. There is also a separate statements_desk.py (page layout) and statements are surfaced through royalties_desk.py and recovery_desk.py.
 - /conflicts computes real data but is badged Sample: "conflicts" is absent from hubs._BASE_LIVE (hubs.py:155) and from hubs.live_keys(). I verified the absence by grep; I did not open the sidebar template to confirm exactly what badge renders as a result.
@@ -5799,7 +5799,7 @@ can close, and nothing here was guessed to fill it.
 **releases**
 
 - app.py was being edited by another session throughout this pass (mtime moved 16:14 -> 17:03 while I read it, and line numbers shifted by ~370). All app.py line numbers above are from a final sweep at 17:03 against a 14,527-line file and WILL drift. Two behaviours I observed changed mid-pass: _release_checks gained the dated-post rollout rule and the passport-aware ISRC hint, and /conflicts went from HTTP 500 to 200. Re-verify every app.py file:line before relying on it.
-- /rollout-studio/<cid> NameError (app.py:10777): I reproduced the 500 on a throwaway DB by approving every generated post. I did NOT verify whether a fix is already in flight from the concurrent edit, nor whether any existing test covers it.
+- /rollout-studio/<cid> NameError: fixed 2026-09-23 (rollout_overview reads campaign["user_id"]); tests/test_rollout_overview_reviewed.py reproduces the old 500 through the plan page and the overview.
 - artwork_check.py: was uncalled when this ledger was written. Wired 2026-09-21 to POST /artwork/check and the Cover Studio panel; see its entry above.
 - templates/os_tracks.html dead branch: proved unreachable by the plan matrix (artist/pro/label redirect, fan blocked 402) and by a live probe of both cases. Not verified for a hypothetical account whose plan string is absent or unknown - plans.allowed defaults such a plan to artist rank 1, which also redirects, but I did not construct that account.
 - Demo-account catalog: app.py:2584 exempts email demo@streetbanker.io from the zeroing block, so that one account still renders the invented 1,248-track showcase. I did not sign in as it to confirm what the page looks like.

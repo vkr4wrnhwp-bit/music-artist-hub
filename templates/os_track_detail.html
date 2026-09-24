@@ -208,7 +208,7 @@
               <a href="{{ doc.file }}" target="_blank" class="min-w-0 flex-1 truncate text-xs text-sb-gold-bright hover:underline font-medium">View document ↗</a>
               <form method="post" action="/tracks/{{ track.id }}/lockbox/{{ doc.key }}/delete" class="shrink-0">
                 <button class="lockbox-remove sb-btn sb-btn-danger sb-btn-sm" data-doc="{{ doc.key }}"
-                        onclick="return confirm('Remove the {{ doc.label }} document? The file is deleted. The sign-off requests stay.')">Remove</button>
+                        onclick="return confirm('Remove the {{ doc.label }} document? The file is deleted. The signers stay on the list, marked to be asked again, and their links stop working.')">Remove</button>
               </form>
             </div>
             {% endif %}
@@ -255,7 +255,7 @@
           <div><div class="text-sm {{ 'text-green-400' if ok else 'text-gray-300' }}">{{ '●' if ok else '○' }}</div><div class="text-xs uppercase tracking-wide text-gray-300 font-medium">{{ cap }}</div></div>
           {% endfor %}
         </div>
-        <p class="mt-2 text-xs text-gray-300 font-medium">Sign-off requests email a signing link (deliverability limited until the Resend domain is verified — the link also works copied from the signer's row). Capabilities unlock when required docs are uploaded and every signer has signed.</p>
+        <p class="mt-2 text-xs text-gray-300 font-medium">Sign-off requests email a signing link (deliverability limited until the Resend domain is verified — the link also works copied from the signer's row). Capabilities unlock when required docs are uploaded and every signer has signed. A new or removed document needs its signers asked again.</p>
       </section>
     </div>
   </div>
