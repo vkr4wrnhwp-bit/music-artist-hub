@@ -33,6 +33,7 @@ import urllib.parse
 import urllib.request
 import random
 import re
+import threading
 from datetime import date, datetime, timedelta, timezone
 
 # --- capabilities -----------------------------------------------------------
@@ -1626,15 +1627,20 @@ class MusicBrainzAdapter(_EnvProvider):
         self._fetch = fetch
         self._sleep = sleep if sleep is not None else time.sleep
         self._last = 0.0
+        # Two threads of one worker (a Signal lookup and the owner's
+        # Providers check) must not both read the same _last and fire
+        # together: the wait and the stamp happen under one lock.
+        self._pace_lock = threading.Lock()
 
     # -- transport --
     def _get(self, path, **params):
         params.setdefault("fmt", "json")
         url = "%s/%s?%s" % (self.base_url, path.lstrip("/"), urllib.parse.urlencode(params))
-        wait = self.min_interval - (time.time() - self._last)
-        if wait > 0:
-            self._sleep(wait)
-        self._last = time.time()
+        with self._pace_lock:
+            wait = self.min_interval - (time.time() - self._last)
+            if wait > 0:
+                self._sleep(wait)
+            self._last = time.time()
         if self._fetch is not None:
             return self._fetch(url)
         contact = (os.environ.get("MUSICBRAINZ_CONTACT") or "").strip()
@@ -2977,7 +2983,11 @@ class MLCAdapter(_EnvProvider):
             return self._id
         return self._access
 
-    def _call(self, path, body):
+    def _call_raw(self, path, body):
+        """(status, answer) for one search, after the bearer dance below,
+        with nothing turned into anything - so a caller that must tell a
+        real answer from an unreadable 200 (the owner's Providers check)
+        can. _call is this plus the product's reading of it."""
         status, answer = self._send("POST", path, body, bearer=self._bearer())
         if status == 401:
             # Their gateway may want the other token (Cognito takes the ID
@@ -2992,15 +3002,24 @@ class MLCAdapter(_EnvProvider):
                 self._bearer_kind = "access"
                 self._access, self._id, self._expires_at = "", "", 0.0
                 status, answer = self._send("POST", path, body, bearer=self._bearer())
+        return status, answer
+
+    @staticmethod
+    def refusal(status, answer):
+        """What a non-200, non-204 search answer says, in The MLC's words."""
+        msg = (answer or {}).get("message") if isinstance(answer, dict) else ""
+        if status == 401:
+            msg = ("signed in, but the search was refused with both tokens - "
+                   "the account's Public Search API access is not active, or the API "
+                   "expects a bearer this app does not send (%s)" % (msg or "Unauthorized"))
+        return "The MLC %s: %s" % (status, msg or "request failed")
+
+    def _call(self, path, body):
+        status, answer = self._call_raw(path, body)
         if status == 204:
             return []                     # their "no such recording": an answer, not a failure
         if status != 200:
-            msg = (answer or {}).get("message") if isinstance(answer, dict) else ""
-            if status == 401:
-                msg = ("signed in, but the search was refused with both tokens - "
-                       "the account's Public Search API access is not active, or the API "
-                       "expects a bearer this app does not send (%s)" % (msg or "Unauthorized"))
-            raise ProviderError("The MLC %s: %s" % (status, msg or "request failed"))
+            raise ProviderError(self.refusal(status, answer))
         return answer if isinstance(answer, list) else []
 
     # -- lookups, in the API's own units --

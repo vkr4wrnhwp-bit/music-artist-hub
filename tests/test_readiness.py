@@ -127,12 +127,19 @@ def test_it_links_the_probes_that_actually_prove_something(app_obj, monkeypatch)
 def test_a_setup_check_is_not_offered_as_proof():
     """The first draft of this page said /mail/diag "sends a real
     message" and /presave/diag "checks the OAuth round trip". Neither
-    does: one asks Resend read-only about domain verification, the other
-    reports which variables the process can see. A page built to stop a
-    presence check reading as proof must not make that mistake itself.
+    is proof: one asks Resend read-only about domain verification, the
+    other asks Spotify for an app token that may come from the app's own
+    50-minute cache. A page built to stop a presence check reading as proof
+    must not make that mistake itself.
 
     So the two are separated in the data, and the link text follows: only
     a row that really calls the vendor says "Prove it".
+
+    The old wording overcorrected the other way - "It does not attempt an
+    OAuth exchange" - when /presave/diag does run the client-credentials
+    exchange (_app_token_check). The row keeps "Check the setup" because
+    of the cache, and now says what it does (2026-09-23 providers
+    inventory).
     """
     real, shape = [], []
     for group in readiness.report():
@@ -140,7 +147,7 @@ def test_a_setup_check_is_not_offered_as_proof():
             if row.get("probe"):
                 (real if row.get("roundtrip") else shape).append(row["name"])
     assert "Object storage (R2)" in real, "the R2 check is a genuine round trip"
-    assert "Spotify" in shape, "/presave/diag reads variables, it does not sign in"
+    assert "Spotify" in shape, "/presave/diag's app token can come from a 50-minute cache"
     assert "Stem splitting" in shape, "that one inspects the key, not the vendor"
     for group in readiness.report():
         for row in group["rows"]:
@@ -193,7 +200,10 @@ def test_every_variable_named_is_one_the_app_actually_reads():
                    if d not in (".git", "tests", "__pycache__", "tools",
                                 "node_modules", "static", "templates")]
         for name in files:
-            if name.endswith(".py") and name != "readiness.py":
+            # provider_status.py is a list of names too (the Providers
+            # page, 2026-09-23), not a reader: counting it would let a name
+            # both pages invented pass.
+            if name.endswith(".py") and name not in ("readiness.py", "provider_status.py"):
                 try:
                     with open(os.path.join(root, name), encoding="utf-8",
                               errors="ignore") as fh:
@@ -269,3 +279,73 @@ def test_each_flag_row_agrees_with_the_module_that_owns_it():
     assert _row("Live Lab")["on"] is bool(live_mod.enabled())
     assert _row("Studio")["on"] is bool(studio_config.enabled())
 
+
+# --- drift the 2026-09-23 providers inventory found ------------------------------
+
+def test_the_mlc_needs_its_switch_as_well_as_the_sign_in(monkeypatch):
+    """The row read MLC_USERNAME and MLC_PASSWORD alone and said On, while
+    every page that uses The MLC is gated on the adapter's configured(),
+    which needs MLC_ENABLED too."""
+    monkeypatch.setenv("MLC_USERNAME", "someone")
+    monkeypatch.setenv("MLC_PASSWORD", "something")
+    monkeypatch.delenv("MLC_ENABLED", raising=False)
+    assert _row("The MLC")["on"] is False
+    assert "MLC_ENABLED" in _row("The MLC")["env"]
+    monkeypatch.setenv("MLC_ENABLED", "1")
+    assert _row("The MLC")["on"] is True
+
+
+def test_discogs_needs_its_switch_and_stays_off_in_a_sandbox(monkeypatch):
+    monkeypatch.setenv("DISCOGS_TOKEN", "a-token")
+    monkeypatch.delenv("DISCOGS_ENABLED", raising=False)
+    monkeypatch.delenv("SANDBOX", raising=False)
+    assert _row("Discogs")["on"] is False
+    monkeypatch.setenv("DISCOGS_ENABLED", "1")
+    assert _row("Discogs")["on"] is True
+    monkeypatch.setenv("SANDBOX", "1")
+    assert _row("Discogs")["on"] is False
+    assert "DISCOGS_ENABLED" in _row("Discogs")["env"]
+
+
+def test_acrcloud_is_two_credentials_with_two_lamps(monkeypatch):
+    """One row listed the console token while its lamp read only the
+    identify key: a console token alone read Not set."""
+    for name in ("ACRCLOUD_HOST", "ACRCLOUD_ACCESS_KEY", "ACRCLOUD_ACCESS_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("SANDBOX", raising=False)
+    monkeypatch.setenv("ACRCLOUD_CONSOLE_TOKEN", "console-token")
+    assert _row("ACRCloud console")["on"] is True
+    assert _row("ACRCloud identify")["on"] is False
+    assert "ACRCLOUD_CONSOLE_TOKEN" not in _row("ACRCloud identify")["env"]
+
+
+def test_the_soundcharts_row_names_the_ready_made_token(monkeypatch):
+    """auth_mode() accepts SOUNDCHARTS_ACCESS_TOKEN between the client pair
+    and the legacy pair; the row named neither it nor that mode."""
+    assert "SOUNDCHARTS_ACCESS_TOKEN" in _row("Soundcharts")["env"]
+    for name in ("SOUNDCHARTS_CLIENT_ID", "SOUNDCHARTS_CLIENT_SECRET",
+                 "SOUNDCHARTS_APP_ID", "SOUNDCHARTS_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("SOUNDCHARTS_ENABLED", "1")
+    monkeypatch.setenv("SOUNDCHARTS_ACCESS_TOKEN", "a-token")
+    assert _row("Soundcharts")["on"] is True
+
+
+def test_ticketmaster_reads_off_while_the_ruling_keeps_it_off(monkeypatch):
+    monkeypatch.setenv("TICKETMASTER_API_KEY", "a-key")
+    monkeypatch.setenv("TICKETMASTER_ENABLED", "off")
+    monkeypatch.delenv("SANDBOX", raising=False)
+    assert _row("Ticketmaster")["on"] is False
+    monkeypatch.setenv("TICKETMASTER_ENABLED", "on")
+    assert _row("Ticketmaster")["on"] is True
+
+
+def test_the_presave_probe_says_what_it_does():
+    proof = _row("Spotify")["proof"]
+    assert "does not attempt an OAuth exchange" not in proof
+    assert "client-credentials exchange" in proof and "cache" in proof
+
+
+def test_it_points_at_the_providers_page(app_obj, monkeypatch):
+    client = _owner(app_obj, monkeypatch)
+    assert 'href="/admin/providers"' in client.get("/admin/readiness").get_data(as_text=True)

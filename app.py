@@ -439,6 +439,9 @@ def _internal_tools():
         # email behind a tier anyone could buy.
         out.append({"href": "/admin/review", "label": "Artist accounts"})
         out.append({"href": "/admin/readiness", "label": "Readiness"})
+        # Whether each outside service answers, checked on a button press
+        # (owner, 2026-09-23). Readiness says what is set; this asks.
+        out.append({"href": "/admin/providers", "label": "Providers"})
         # The reseller back office (/resellers) was built and linked from
         # nowhere (audit, 2026-09-19). Owner only, like its route.
         out.append({"href": "/resellers", "label": "Resellers"})
@@ -794,6 +797,12 @@ def create_app():
         acting_as = session.get("acting_as")
         if acting_as:
             actor = partner_os.acting_context(user_id, acting_as)
+            if actor is not None and _is_owner_email(actor.get("email")):
+                # The platform owner's account is never worked from a
+                # reseller's seat, as a team seat never opens it either
+                # (_team_seat): every owner page would open to the staff
+                # (providers review, 2026-09-23).
+                actor = None
             if actor is None:
                 # No longer permitted. Drop it rather than silently falling
                 # back to the staff account mid-journey.
@@ -5872,6 +5881,113 @@ def create_app():
             return bail
         split_home.set_band(request.form.get("band") or "rack")
         return redirect("/settings?band=saved#home-layout")
+
+    # ---- Providers (owner, 2026-09-23) --------------------------------------
+    # Is every outside service working right now? Keys by NAME only, a live
+    # check only when the owner presses a button (provider_status.py).
+
+    @app.route("/admin/providers")
+    def admin_providers():
+        """Owner only; a 404 for everyone else. Reads the environment and
+        the last remembered checks; calls nobody."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        import provider_status as ps
+        fams = ps.rows(store)
+        counts = {"good": 0, "crit": 0, "off": 0, "idle": 0}
+        for fam in fams:
+            for p in fam["providers"]:
+                counts[p["lamp"][0]] = counts.get(p["lamp"][0], 0) + 1
+        costed = sum(1 for p in ps.PROVIDERS if p.get("check") and not p.get("auto"))
+        checked = (request.args.get("checked") or "")[:40]
+        if checked not in ("all", "busy") and ps.by_key(checked) is None:
+            checked = ""
+        # Services a press did not ask again, and why: asked inside their
+        # interval ("skipped") or already being checked ("running"). Only
+        # real keys are named.
+        skipped = []
+        for arg, running in (("skipped", False), ("running", True)):
+            for key in (request.args.get(arg) or "")[:400].split(","):
+                q = ps.by_key(key.strip())
+                if q is not None:
+                    prev = ps.last(q["key"], store) or {}
+                    skipped.append({"name": q["name"], "running": running,
+                                    "at": (prev.get("at") or "")[:16].replace("T", " "),
+                                    "gap": int(q.get("min_interval_s") or 0)})
+        return render_template("admin_providers.html", active_page="providers",
+                               fams=fams, counts=counts, costed=costed,
+                               checked=checked, skipped=skipped,
+                               wait=request.args.get("wait") == "busy",
+                               checked_name=(ps.by_key(checked) or {}).get("name", ""),
+                               **build_dashboard_context())
+
+    def _same_origin_post():
+        """A check press must come from this app's own page. The session
+        cookie is SameSite=Lax, which a cross-site form cannot ride but a
+        same-site one can - the Shopify storefront on the apex domain, or
+        a script running there - and a paid check spends money on every
+        press (providers review, 2026-09-23). A request that carries no
+        Origin, Referer or Sec-Fetch-Site at all is not a browser's, so no
+        other page sent it; it still needs the owner's session."""
+        site = (request.headers.get("Sec-Fetch-Site") or "").strip().lower()
+        if site and site != "same-origin":
+            return False
+        origin = (request.headers.get("Origin") or "").strip()
+        seen = origin or (request.headers.get("Referer") or "").strip()
+        if not seen:
+            return True
+        if seen == "null":
+            return False
+        try:
+            return urllib.parse.urlsplit(seen).netloc.lower() == (request.host or "").lower()
+        except ValueError:
+            return False
+
+    def _press_base():
+        return request.url_root.rstrip("/")
+
+    @app.route("/admin/providers/check", methods=["POST"])
+    def admin_providers_check_all():
+        """Every configured service whose check is free, together. The ones
+        that cost money to check keep their own button."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        if not _same_origin_post():
+            abort(403)
+        import provider_status as ps
+        results = ps.check_all(store, base_url=_press_base())
+        if results and all(r.get("skipped") == "busy" for r in results.values()):
+            return redirect("/admin/providers?checked=busy")
+        soon = [k for k, r in results.items() if r.get("skipped") == "too_soon"]
+        running = [k for k, r in results.items() if r.get("skipped") == "busy"]
+        return redirect("/admin/providers?checked=all" +
+                        ("&skipped=" + ",".join(soon) if soon else "") +
+                        ("&running=" + ",".join(running) if running else ""))
+
+    @app.route("/admin/providers/check/<key>", methods=["POST"])
+    def admin_providers_check(key):
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        import provider_status as ps
+        if ps.by_key(key) is None:
+            abort(404)
+        if not _same_origin_post():
+            abort(403)
+        result = ps.check(key, store, base_url=_press_base()) or {}
+        why = result.get("skipped")
+        extra = ("&skipped=%s" % key) if why == "too_soon" else ("&wait=busy" if why == "busy" else "")
+        return redirect("/admin/providers?checked=%s%s#p-%s" % (key, extra, key))
+
+    @app.after_request
+    def _admin_never_framed(resp):
+        """Owner pages are never drawn inside another page's frame, so a
+        framed click cannot press one of their buttons."""
+        if request.path.startswith("/admin/"):
+            resp.headers.setdefault("X-Frame-Options", "DENY")
+        return resp
 
     @app.route("/desk/<hub_key>")
     def hub_desk(hub_key):
@@ -11860,7 +11976,13 @@ def create_app():
         user = current_user()
         if user is None:
             return None, login_required_redirect()
-        if session.get("team_as") or not _is_owner_email(user.get("email")):
+        # Working as somebody else - a team seat inside an account, or a
+        # partner's staff acting on an account's behalf - is never the
+        # owner, even when the account worked in is an owner's (providers
+        # review, 2026-09-23: staff acting as an owner's account reached
+        # every owner page and could press the paid checks).
+        if (session.get("team_as") or session.get("acting_as")
+                or not _is_owner_email(user.get("email"))):
             abort(404)
         return user, None
 
@@ -11960,6 +12082,13 @@ def create_app():
                 "No account here uses %s. They have to sign up before they can "
                 "be put on a roster - an account is not invented for them."
                 % email)
+        if _is_owner_email(artist.get("email")):
+            # A reseller's staff can act as any account on its roster; an
+            # owner's account there would hand them the owner's pages.
+            return _partners_view(
+                "An owner account cannot go on a reseller's roster: the "
+                "reseller's staff could then work inside it. Use a separate "
+                "account to try the reseller side.")
         current = artist.get("partner_id")
         if current and current != pid:
             other = partner_store.get_partner(current)

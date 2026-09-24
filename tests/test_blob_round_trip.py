@@ -171,3 +171,34 @@ def test_no_secret_reaches_the_report(creds, monkeypatch):
     printed = repr(blob_store.round_trip())
     assert "c" * 64 not in printed
     assert "b" * 32 not in printed
+
+
+@pytest.mark.parametrize("code,deleted", [(503, True), (500, True), (403, False), (404, False)])
+def test_a_write_that_may_have_landed_is_still_deleted(creds, monkeypatch, code, deleted):
+    """A server error can come after the object was stored, so the test
+    object is deleted all the same; a 4xx refused the write, so there is
+    nothing to delete (providers review, 2026-09-23)."""
+    gone = []
+    monkeypatch.setattr(blob_store, "put", lambda *a, **k: (_ for _ in ()).throw(_http_error(code)))
+    monkeypatch.setattr(blob_store, "delete", lambda k: gone.append(k) or True)
+    out = blob_store.round_trip()
+    assert out["ok"] is False and out["step"] == "put"
+    assert bool(gone) is deleted
+    if deleted:
+        assert out["cleaned_up"] is True and gone == [out["key"]]
+
+
+def test_a_lost_reply_is_not_called_a_refusal(creds, monkeypatch):
+    gone = []
+    monkeypatch.setattr(blob_store, "put", lambda *a, **k: (_ for _ in ()).throw(TimeoutError("timed out")))
+    monkeypatch.setattr(blob_store, "delete", lambda k: gone.append(k) or True)
+    out = blob_store.round_trip()
+    assert gone == [out["key"]] and out["cleaned_up"] is True
+    assert "no reply came back" in out["verdict"] and "refused" not in out["verdict"]
+
+
+def test_a_delete_that_answers_no_is_not_tidy(creds, monkeypatch):
+    monkeypatch.setattr(blob_store, "put", lambda *a, **k: True)
+    monkeypatch.setattr(blob_store, "delete", lambda k: False)
+    _reads(monkeypatch, lambda url: _Body(b"round trip"))
+    assert blob_store.round_trip()["cleaned_up"] is False

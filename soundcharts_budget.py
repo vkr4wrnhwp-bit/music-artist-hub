@@ -24,7 +24,10 @@ import db
 BUDGET_KEY = "soundcharts_monthly_budget"
 DEFAULT_BUDGET = 10000          # Soundcharts' lowest paid plan
 CUSTOMER_SHARE = 0.8
-TEAM_PATHS = ("/signal", "/operator-desk")
+# The owner's Providers page checks Soundcharts on the team's share too
+# (its checks run off the request thread, which already counts as the
+# team's; the path is named so a check made in-request is not a customer's).
+TEAM_PATHS = ("/signal", "/operator-desk", "/admin/providers")
 
 
 def month(now=None):
