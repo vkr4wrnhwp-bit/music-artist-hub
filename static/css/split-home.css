@@ -576,22 +576,36 @@
 
 /* --- credits --------------------------------------------------------- */
 
-.sbmem-credits {
-  margin-top: 22px;
-  padding: 24px;
-  border: 1px solid var(--sb-line);
-  border-radius: var(--sb-r-panel);
-  background: var(--sb-surface-1);
-  display: grid;
-  gap: 22px;
-  align-items: center;
+/* The credits plate (owner, 2026-09-26: "Use this plate for the home page
+ * for credits. You fill out the needed text and button placements on
+ * it"). His photograph, static/img/credits-plate.webp (1508x562), is the
+ * panel; the words sit on its empty black field, MEASURED off the file at
+ * 57.7-95.5% across and 10.1-89.3% down, between the two gold rails and
+ * clear of the coin pile and the single coin. Every size on the field
+ * is off the plate's width (cqw), so the words scale with the picture.
+ * Below 1100px the field is too short for them at a 12px floor, so they
+ * step down under the plate, the same rule as the membership rack. */
+.sbmem-credits { margin-top: 22px; }
+.sbcr-unit { position: relative; container-type: inline-size; max-width: 1240px; margin: 0 auto; }
+.sbcr-plate { display: block; width: 100%; height: auto; }
+.sbcr-unit .sbmem-credits-say {
+  position: absolute; left: 58.5%; top: 13%; width: 35.5%; height: 74%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.1cqw;
 }
-
-@media (min-width: 900px) {
-  .sbmem-credits { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 32px; }
+.sbcr-fig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1; }
+.sbcr-fig b {
+  font-family: var(--sb-display); font-weight: 900; font-size: clamp(34px, 4.4cqw, 58px);
+  color: var(--sb-gold-bright); font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
 }
-
-.sbmem-pile { width: 100%; height: auto; display: block; }
+.sbcr-fig span { font-size: clamp(13px, 1.15cqw, 15px); font-weight: 600; color: var(--sb-ink); }
+.sbcr-unit .sbmem-credits-note { margin-top: 0; }
+.sbcr-go { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 4px; }
+.sbcr-go .sb-btn { min-height: 44px; display: inline-flex; align-items: center; } /* a full tap target on a phone */
+@media (max-width: 1099px) {
+  .sbcr-unit { container-type: normal; }
+  .sbcr-unit .sbmem-credits-say { position: static; width: auto; height: auto; padding: 20px 8px 4px; gap: 12px; }
+  .sbcr-fig b { font-size: 40px; }
+}
 
 /* The words beside the coins are centred in their column: the heading,
  * the note and the packs when there are any (owner, 2026-09-19: "we need
@@ -610,10 +624,6 @@
   text-transform: uppercase;
   color: var(--sb-gold);
 }
-
-/* Shot bigger before the band came back (owner, 2026-09-20: "the coin is
- * super tiny"; 2026-09-26: "put the tokens back on the homepage"). */
-.sbmem-coin { width: 64px; height: 64px; }
 
 .sbmem-credits-note {
   margin: 12px auto 0;

@@ -322,28 +322,37 @@ def test_each_pass_is_a_plate_a_word_mask_and_the_light_between(passes):
         assert split_home.ENGRAVED[key] in band, key
 
 
-def test_the_credits_band_is_back_beneath_the_memberships(page):
+def test_the_credits_band_is_the_owners_plate_beneath_the_memberships(page):
     """Owner, 2026-09-26: "put the tokens back on the homepage. Beneath
-    where the membership is." It had been hidden since 2026-09-20 ("the
-    coin is super tiny ... or we just hide it for right now"), so it comes
-    back with the coin shot bigger, under the rack, and still with no pack
-    price while packs are off sale (the next test). One flag still
-    controls it."""
+    where the membership is", then "Use this plate for the home page for
+    credits. You fill out the needed text and button placements on it."
+    The band is his photographed plate with the words live on its black
+    field: the monthly figure is the one Billing grants, the note is the
+    shared one, and the two doors are Billing (Label) and the tiers above.
+    Still no pack price while packs are off sale (the next test)."""
     assert split_home.SHOW_CREDITS is True
-    for name in ("credit-pile", "credit-coin"):
-        assert os.path.exists(
-            os.path.join(HERE, "static", "img", "%s.webp" % name)), name
+    assert os.path.exists(os.path.join(HERE, "static", "img", "credits-plate.webp"))
     band = page.split('class="sbmem"')[1].split("</section>")[0]
-    assert "sbmem-credits" in band and "credit-coin" in band and "credit-pile" in band
     assert band.index("sbrk-unit") < band.index("sbmem-credits"), "beneath the memberships"
-    assert "Credits" in band and split_home.CREDIT_NOTE in band
-    t = io.open(os.path.join(HERE, "templates", "partials", "memberships_band.html"),
-                encoding="utf-8").read()
-    assert "{% if sh.show_credits %}" in t and "credit-coin.webp" in t
+    credits = band.split('class="sbmem-credits"', 1)[1]
+    assert 'src="/static/img/credits-plate.webp?v=1"' in credits and 'width="1508" height="562"' in credits
+    assert "credit-coin" not in credits and "credit-pile" not in credits, "the plate replaces the loose coin art"
+    assert "Studio credits" in credits and split_home.CREDIT_NOTE in credits
+    assert "<b>%s</b>" % "{:,}".format(plans.LABEL_MONTHLY_CREDITS) in credits, "the figure Billing grants"
+    assert "credits every month with Label" in credits
+    assert re.search(r'href="/billing">Choose Label</a>', credits)
+    assert re.search(r'href="#memberships">Compare memberships</a>', credits)
     css = io.open(os.path.join(HERE, "static", "css", "split-home.css"),
-                  encoding="utf-8").read()
-    m = re.search(r"\.sbmem-coin \{ width: (\d+)px; height: (\d+)px; \}", css)
-    assert m and int(m.group(1)) >= 56 and m.group(1) == m.group(2), "the coin is no longer tiny"
+                  encoding="utf-8").read().replace("\r\n", "\n")
+    # the words sit inside the measured field (57.7-95.5% x, 10.1-89.3% y)
+    rule = css.split(".sbcr-unit .sbmem-credits-say {", 1)[1].split("}", 1)[0]
+    box = {k: float(v) for k, v in re.findall(r"(left|top|width|height): ([\d.]+)%", rule)}
+    assert box["left"] >= 57.7 and box["left"] + box["width"] <= 95.5, box
+    assert box["top"] >= 10.1 and box["top"] + box["height"] <= 89.3, box
+    step = css.split("@media (max-width: 1099px) {\n  .sbcr-unit", 1)
+    assert len(step) == 2 and "position: static" in step[1].split("}\n}", 1)[0], "the words step under the plate"
+    assert ".sbmem-coin" not in css and ".sbmem-pile" not in css
+    assert ".sbcr-go .sb-btn { min-height: 44px;" in css, "both doors are full tap targets"
 
 
 def test_the_home_page_has_no_dim_text_and_the_artist_letters_are_bronze(passes):
@@ -372,7 +381,7 @@ def test_the_home_page_has_no_dim_text_and_the_artist_letters_are_bronze(passes)
     # The tint sits before the light layers, so the hover still lights the letters.
     assert band.index('class="sbmem-tint"') < band.index('class="sbmem-bloom"')
     # A fresh sheet and script version, so no browser keeps the old look.
-    assert "split-home.css?v=17" in page and "artist-eq.js?v=15" in page
+    assert "split-home.css?v=18" in page and "artist-eq.js?v=15" in page
 
 def _band(body):
     return body.split('class="sbmem"')[1].split("</section>")[0]
@@ -410,7 +419,10 @@ def test_the_passes_and_the_plans_link_go_somewhere_real(page, client):
     are bought; a visitor who is not signed in signs in first."""
     band = _band(page)
     assert "/plan#" not in page
-    assert band.count('href="/billing"') == 3
+    # one door per tier; the credits plate under them adds its own Label
+    # door to Billing (owner's credits plate, 2026-09-26)
+    tiers = band.split('class="sbmem-credits"', 1)[0]
+    assert tiers.count('href="/billing"') == 3
     bar = page.split('class="sbbar"')[1].split("</header>")[0]
     assert 'href="#memberships">Plans</a>' in bar
     assert '<section class="sbmem" id="memberships"' in page

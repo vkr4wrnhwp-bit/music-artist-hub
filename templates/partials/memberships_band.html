@@ -82,20 +82,23 @@
     </ul>
     {% endif %}
 
-    {#- Hidden for now (owner, 2026-09-20: "the coin is super tiny. It doesn't
-        make any sense. Or we just hide it for right now"). The markup stays so
-        the band comes back, with a bigger coin, once credits are priced;
-        split_home.SHOW_CREDITS is the switch. -#}
+    {#- The credits plate (owner, 2026-09-26: "Use this plate for the home
+        page for credits. You fill out the needed text and button
+        placements on it"). His photograph carries the coins; the words
+        and the two doors are live, set on the plate's empty black field,
+        so the monthly figure is READ from plans.LABEL_MONTHLY_CREDITS -
+        what Billing grants each month - and cannot drift from it. The
+        plate is decoration (alt=""); the words say everything it does.
+        split_home.SHOW_CREDITS is still the switch (the band was hidden
+        2026-09-20 and came back 2026-09-26). -#}
     {% if sh.show_credits %}
     <div class="sbmem-credits">
-      <img class="sbmem-pile" src="/static/img/credit-pile.webp"
-           width="760" height="449" loading="lazy" decoding="async" alt="">
-      <div class="sbmem-credits-say">
-        <h3 class="sbmem-credits-h">
-          <img class="sbmem-coin" src="/static/img/credit-coin.webp"
-               width="320" height="317" loading="lazy" decoding="async" alt="">
-          Credits
-        </h3>
+      <div class="sbcr-unit">
+        <img class="sbcr-plate" src="/static/img/credits-plate.webp?v=1"
+             width="1508" height="562" loading="lazy" decoding="async" alt="">
+      <div class="sbmem-credits-say" aria-labelledby="sbmem-credits-h">
+        <h3 class="sbmem-credits-h" id="sbmem-credits-h">Studio credits</h3>
+        <p class="sbcr-fig"><b>{{ "{:,}".format(sh.label_credits) }}</b><span>credits every month with Label</span></p>
         <p class="sbmem-credits-note">{{ sh.credit_note }}</p>
         {#- No list at all while packs are off sale (owner, 2026-09-18: "hide
             them until we know what the credits actually cost"). -#}
@@ -106,6 +109,14 @@
           {% endfor %}
         </ul>
         {% endif %}
+        {#- Two doors: Label is the membership that carries credits, and
+            Billing is where it is bought (the same door the screens use);
+            the second goes back up to the three tiers. -#}
+        <div class="sbcr-go">
+          <a class="sb-btn sb-btn-primary" href="/billing">Choose Label</a>
+          <a class="sb-btn sb-btn-secondary" href="#memberships">Compare memberships</a>
+        </div>
+      </div>
       </div>
     </div>
     {% endif %}

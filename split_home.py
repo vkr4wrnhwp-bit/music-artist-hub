@@ -84,7 +84,7 @@ SHOW_CREDITS = True
 
 CREDIT_NOTE = (
     "The Room and Motion run on credits, because every render costs real "
-    "compute. Label includes credits every month. Noise Lab is coming soon.")
+    "compute. Noise Lab is coming soon.")
 
 
 def enabled():
@@ -285,6 +285,10 @@ def get_split_home_config(signup_open=False):
         "band": band(),
         "rack_screens": RACK_SCREENS,
         "credit_note": CREDIT_NOTE,
+        # What Billing grants a Label membership each month (app.py adds
+        # plans.LABEL_MONTHLY_CREDITS to the wallet), read here so the
+        # figure on the credits plate cannot drift from it.
+        "label_credits": plans.LABEL_MONTHLY_CREDITS,
         "packs": packs,
         # Hidden while SHOW_CREDITS is off, unless packs are actually on sale:
         # a price list nobody can see is worse than a small coin.
