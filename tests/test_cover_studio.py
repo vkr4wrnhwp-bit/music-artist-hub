@@ -358,6 +358,35 @@ def _node():
     return None
 
 
+def test_the_review_step_checks_the_canvas_not_a_file():
+    """Ticket 2: 04 Review & Export. Three boxes the page ticks from state
+    (disabled, never clickable), a Cover status that reads Ready only when
+    all three hold, "Check this cover" first - the canvas rendered and
+    measured with no file dialog - and the file path demoted to "Check
+    another file"; a Vault link that waits for a save."""
+    page = _page()
+    card = _section(page, "step-review")
+    for cid, label in (("review-art", "Artwork added"), ("review-info", "Release information"),
+                       ("review-store", "Store-ready check")):
+        box = re.search(r'<input type="checkbox" id="%s"[^>]*>' % cid, card)
+        assert box and "disabled" in box.group(0) and 'aria-disabled="true"' in box.group(0), cid
+        assert '<label for="%s"' % cid in card and label in card, cid
+    status = re.search(r'<span id="review-status"[^>]*>([^<]*)</span>', card)
+    assert status and 'data-ready="false"' in status.group(0) and status.group(1) == "Needs attention"
+    assert card.index('id="check-this-cover"') < card.index('for="cover-check-file"'), "the canvas check comes first"
+    assert re.search(r'<button type="button" id="check-this-cover"[^>]*>Check this cover</button>', card)
+    assert "Check another file" in card and ">Check a cover<" not in card
+    vault = re.search(r'<a id="review-vault-link"[^>]*>View saved file in Vault</a>', card)
+    assert vault and " hidden" in vault.group(0) and 'href="/vault"' in vault.group(0)
+    # The script: the canvas check renders the cover itself and shares the
+    # file path's runner; the boxes follow every render; a pass holds only
+    # for the canvas it measured.
+    assert 'el("check-this-cover")' in page
+    assert 'await runCheck(new File([blob], safeName() + "-cover.png"' in page
+    assert "function updateReview()" in page and "updateReview();" in page
+    assert 'state.checkedSvg === buildSvg(false) && state.checkedVerdict === "pass"' in page
+
+
 def test_the_inline_script_parses(tmp_path):
     """node --check on every inline script the rendered page carries. A
     syntax error in the editor's script is a page that draws no cover and

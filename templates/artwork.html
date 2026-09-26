@@ -143,6 +143,8 @@
   .cs-status { font-size: 12px; font-weight: 600; color: var(--sb-ink-2); }
   .cs-status a { color: var(--sb-gold-bright); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
   .cs-status[data-saved="true"] { color: var(--sb-good); }
+  .cs-pill[data-ready="true"] { color: var(--sb-good); border-color: currentColor; }
+  .cs-check { width: 1rem; height: 1rem; accent-color: var(--sb-good); }
 
   /* Phone pass (2026-09-18): the sliders were a 2px line you had to land a
      finger on. On a phone each one is a 44px row with the same 2px line
@@ -535,6 +537,20 @@
         </div>
         <div id="step-review-body" class="cs-body">
         <p class="mt-3 text-xs font-medium text-gray-300">Make sure everything looks good before saving to your studio.</p>
+        {#- Ticket 2 (the owner's mockup, 2026-09-24): three boxes the page
+            ticks from what it can see - art on the canvas, a title and an
+            artist, a store check that passed on THIS canvas - never by a
+            click, so a tick is a measurement. Cover status reads Ready only
+            when all three are. -#}
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <span class="text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">Cover status</span>
+          <span id="review-status" class="cs-pill" data-ready="false" role="status" aria-live="polite">Needs attention</span>
+        </div>
+        <ul id="review-checklist" class="mt-3 space-y-2" aria-label="What this cover has">
+          <li class="flex items-center gap-2"><input type="checkbox" id="review-art" class="cs-check" disabled aria-disabled="true"><label for="review-art" class="text-sm font-medium text-gray-200">Artwork added</label></li>
+          <li class="flex items-center gap-2"><input type="checkbox" id="review-info" class="cs-check" disabled aria-disabled="true"><label for="review-info" class="text-sm font-medium text-gray-200">Release information</label></li>
+          <li class="flex items-center gap-2"><input type="checkbox" id="review-store" class="cs-check" disabled aria-disabled="true"><label for="review-store" class="text-sm font-medium text-gray-200">Store-ready check</label></li>
+        </ul>
 
         {#- Will the stores take it? artwork_check.py measured all of this and
             was reachable from nowhere, so no artist ever saw it. A rejected
@@ -542,8 +558,11 @@
             something measurable that nobody measured. Nothing is saved here:
             the file is read, measured and dropped. -#}
         <h3 class="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-gray-300">Store check</h3>
-        <p class="mt-2 text-sm font-medium text-gray-300">Check a cover before you send it to your distributor. Nothing is uploaded or kept: the file is measured here and dropped.</p>
-        <label for="cover-check-file" class="sb-btn sb-btn-secondary mt-3 inline-flex cursor-pointer">Check a cover</label>
+        <p class="mt-2 text-sm font-medium text-gray-300">Check the cover on the canvas as it stands, or another file, before you send it to your distributor. Nothing is uploaded or kept: the file is measured here and dropped.</p>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" id="check-this-cover" class="sb-btn sb-btn-primary">Check this cover</button>
+          <label for="cover-check-file" class="sb-btn sb-btn-secondary inline-flex cursor-pointer">Check another file</label>
+        </div>
         <input type="file" id="cover-check-file" accept="image/png,image/jpeg,image/webp,image/tiff" class="sr-only">
         <p id="cover-check-msg" class="mt-2 hidden text-sm font-medium text-gray-300" role="status" aria-live="polite"></p>
         <div id="cover-check-result" class="mt-4 hidden">
@@ -562,6 +581,7 @@
           <button type="button" id="review-png-btn" class="js-dl-png sb-btn sb-btn-secondary">Download PNG</button>
           <button type="button" id="review-svg-btn" class="js-dl-svg sb-btn sb-btn-secondary">Download SVG</button>
           <button type="button" id="review-fmts-btn" class="js-preview-fmts sb-btn sb-btn-secondary">Preview formats</button>
+          <a id="review-vault-link" href="/vault" class="sb-btn sb-btn-secondary" hidden>View saved file in Vault</a>
         </div>
         <p class="mt-2 text-xs font-medium text-gray-300">Studio Files are stored in your <a href="/vault" class="font-bold text-sb-gold-bright underline">Vault</a>.</p>
         </div>
@@ -730,6 +750,22 @@
     el("canvas-summary").textContent = a.name + " · " + a.w + "×" + a.h;
     // The starter pill: only while the cover is the untouched gradient.
     el("starter-pill").hidden = !isStarter();
+    updateReview();
+  }
+  // 04 Review & Export: each box is a measurement of the canvas as it
+  // stands. The store box holds only while the canvas is the one the
+  // last passing check measured; any change clears it.
+  function updateReview() {
+    const art = !isStarter();
+    const info = !!((state.title || "").trim() && (state.artist || "").trim());
+    const store = !!state.checkedSvg && state.checkedSvg === buildSvg(false) && state.checkedVerdict === "pass";
+    const set = (id, on) => { const c = el(id); if (!c) return; c.checked = on; c.setAttribute("aria-checked", on ? "true" : "false"); };
+    set("review-art", art); set("review-info", info); set("review-store", store);
+    const ready = art && info && store;
+    const st = el("review-status");
+    if (st) { st.textContent = ready ? "Ready" : "Needs attention"; st.dataset.ready = ready ? "true" : "false"; }
+    const li = document.querySelector('#cs-rail .cs-step[data-step="4"]');
+    if (li) li.dataset.ready = ready ? "true" : "false";
   }
 
   async function setDesignerImage(url) {
@@ -1378,6 +1414,7 @@
       if (data.ok) {
         status.dataset.saved = "true";
         status.innerHTML = 'Cover saved. <a href="/vault">View in Vault</a>';
+        const vl = el("review-vault-link"); if (vl) vl.hidden = false;
         msg.classList.remove("hidden");
         msg.className = "mt-2 break-all text-xs font-medium text-gray-300";
         msg.innerHTML = 'Use it now: <a href="/links" class="font-bold text-sb-gold-bright underline">Smart Links</a> &middot; <a href="/epk" class="font-bold text-sb-gold-bright underline">Press Kit</a>';
@@ -1438,11 +1475,9 @@
       li.appendChild(p);
       return li;
     }
-    input.addEventListener("change", async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    async function runCheck(file, label) {
       msg.classList.remove("hidden");
-      msg.textContent = "Measuring " + file.name + "...";
+      msg.textContent = "Measuring " + label + "...";
       box.classList.add("hidden");
       const fd = new FormData();
       fd.append("art", file);
@@ -1453,7 +1488,6 @@
       } catch (err) {
         data = null;
       }
-      e.target.value = "";
       if (!data || !data.ok) {
         msg.textContent = (data && data.error) || "The check did not run. Try again.";
         return;
@@ -1473,6 +1507,33 @@
       });
       noteEl.textContent = found.note || "";
       box.classList.remove("hidden");
+      return found;
+    }
+    input.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      await runCheck(file, file.name);
+      e.target.value = "";
+    });
+    // Check this cover: the canvas as it stands, rendered at export size
+    // and measured, no file dialog. A pass ticks the store box for this
+    // exact canvas (ticket 2).
+    const mine = el("check-this-cover");
+    if (mine) mine.addEventListener("click", async () => {
+      const t = mine.textContent;
+      mine.disabled = true; mine.textContent = "Checking...";
+      const svg = buildSvg(false);
+      try {
+        const blob = await coverPngBlob();
+        const found = await runCheck(new File([blob], safeName() + "-cover.png", { type: "image/png" }), "the cover on the canvas");
+        state.checkedSvg = found ? svg : null;
+        state.checkedVerdict = found ? found.verdict : null;
+        updateReview();
+      } catch (err) {
+        msg.classList.remove("hidden");
+        msg.textContent = "Could not render the cover to check it: " + err.message;
+      }
+      mine.textContent = t; mine.disabled = false;
     });
   })();
 </script>
