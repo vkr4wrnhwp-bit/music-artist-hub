@@ -75,10 +75,12 @@ ENGRAVED = {
               "monthly credits."),
 }
 
-# The credits band is off the page for now (owner, 2026-09-20: the coin
+# The credits band is back beneath the memberships (owner, 2026-09-26:
+# "put the tokens back on the homepage. Beneath where the membership is"),
+# with the coin shot bigger. It had been off the page (owner, 2026-09-20: the coin
 # "is super tiny... or we just hide it for right now"). It returns, with a
 # bigger coin, once credits are priced.
-SHOW_CREDITS = False
+SHOW_CREDITS = True
 
 CREDIT_NOTE = (
     "The Room and Motion run on credits, because every render costs real "
@@ -115,13 +117,13 @@ def set_layout(value):
 # engraved metal passes it replaces stay in the repo, one switch away.
 BANDS = ("rack", "passes")
 
-# The three screens as (x, y, w, h) percentages of command-plate.webp,
-# MEASURED off the file - the same numbers partials/cc_rack.html carries,
-# and tests/test_split_home.py holds the two copies equal. Re-measure both
-# if the plate is ever regenerated.
-RACK_SCREENS = (("6.22", "16.82", "25.14", "61.61"),
-                ("36.5", "16.82", "26.84", "61.61"),
-                ("68.49", "16.82", "25.24", "61.61"))
+# The three screens as (x, y, w, h) percentages of the plate, MEASURED
+# off the file. Since 2026-09-26 the plate is the rooms' slim room-plate.webp (owner:
+# "use this one ... instead of the thicker, wider one"), so these are
+# cc_rack.html's boxes, and tests/test_split_home.py holds the two equal.
+RACK_SCREENS = (("5.30", "22.09", "26.83", "51.07"),
+                ("35.34", "22.09", "28.75", "51.07"),
+                ("67.31", "22.09", "27.34", "51.07"))
 
 
 def band():

@@ -1,11 +1,17 @@
 {# THE MEMBERSHIP RACK (owner, 2026-09-23): "make it when you hover over it
    they render".
 
-   The three memberships on the photographed three-screen plate the
-   Command Center uses (static/img/command-plate.webp), at the same
-   measured screen fractions (split_home.RACK_SCREENS - a test holds them
-   equal to partials/cc_rack.html). At rest each screen is plain dark glass, nothing on it;
-   point at one, or tab to it, and the tier cuts in:
+   The three memberships on the rooms' photographed three-screen plate
+   (static/img/room-plate.webp, 1774x421; owner, 2026-09-26: "use this one
+   ... instead of the thicker, wider one? We don't necessarily need it to
+   be as big" - until then it was the Command Center's taller
+   command-plate.webp), at the screen fractions cc_rack.html measured off
+   the file (split_home.RACK_SCREENS - a test holds them equal to
+   partials/cc_rack.html). At rest each screen carries one word, the tier's
+   name in dim screen type (owner, 2026-09-26: with the glass empty "the
+   three screens are blank ... it looks like an error"; "put artist pro
+   label on the three screens so when you scroll over them they come
+   alive"). Point at one, or tab to it, and the tier cuts in over it:
    name, price, /month, the plan's own line, and the line naming what on
    it is not open yet (hubs.suites_pending, via split_home.coming_soon).
 
@@ -17,8 +23,8 @@
    use (Archivo, CRT green), so it scales, reads to a screen reader, and
    cannot drift from Billing.
 
-   At rest the glass is the photograph's own dark screen and NOTHING is
-   laid over it - no static, no particles, no sweep (owner, 2026-09-23,
+   At rest the glass is the photograph's own dark screen with the name
+   on it and NOTHING else - no static, no particles, no sweep (owner, 2026-09-23,
    three times over: TV snow "looks weird, it's cheesy"; a resting drift
    the same; a particle layer "turns into a square ... no static,
    nothing"). The reveal is :hover / :focus-visible, and on touch the
@@ -38,17 +44,19 @@
    passes on split_home.band(). #}
 
 <div class="sbrk-unit">
-  <img class="sbrk-plate" src="/static/img/command-plate.webp?v=1" alt=""
-       width="1916" height="821" loading="lazy" decoding="async">
+  <img class="sbrk-plate" src="/static/img/room-plate.webp?v=1" alt=""
+       width="1774" height="421" loading="lazy" decoding="async">
   <ul class="sbrk-screens">
     {% for t in sh.tiers %}{% set b = sh.rack_screens[loop.index0] %}
     <li class="sbrk-screen" style="--x:{{ b[0] }}%;--y:{{ b[1] }}%;--w:{{ b[2] }}%;--h:{{ b[3] }}%">
       <a class="sbrk-door{% if t.top %} is-top{% endif %}" href="/billing"
          aria-label="{{ t.name }}, {{ t.price_words }}. {{ t.blurb }}{% if t.soon %} {{ t.soon }}{% endif %} Choose {{ t.name }}.">
+        {#- The name at rest (owner, 2026-09-26). It cuts off the instant the
+            reading cuts in; the link's aria-label already carries the name. -#}
+        <span class="sbrk-idle" aria-hidden="true">{{ t.name }}</span>
         <span class="sbrk-read" aria-hidden="true">
           <span class="sbrk-k" data-t="{{ t.name }}">{{ t.name }}</span>
-          <span class="sbrk-price"><span class="sbrk-cur">$</span>{{ t.amount }}</span>
-          <span class="sbrk-per">/month</span>
+          <span class="sbrk-row"><span class="sbrk-price"><span class="sbrk-cur">$</span>{{ t.amount }}</span><span class="sbrk-per">/month</span></span>
           <span class="sbrk-line">{{ t.blurb }}</span>
           {% if t.soon %}<span class="sbrk-soon">{{ t.soon }}</span>{% endif %}
         </span>

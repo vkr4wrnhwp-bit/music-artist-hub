@@ -603,15 +603,17 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 11px;
-  font-size: 12px;
+  gap: 14px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: .16em;
   text-transform: uppercase;
   color: var(--sb-gold);
 }
 
-.sbmem-coin { width: 34px; height: 34px; }
+/* Shot bigger before the band came back (owner, 2026-09-20: "the coin is
+ * super tiny"; 2026-09-26: "put the tokens back on the homepage"). */
+.sbmem-coin { width: 64px; height: 64px; }
 
 .sbmem-credits-note {
   margin: 12px auto 0;
@@ -736,15 +738,32 @@
 .sbrk-door {
   position: absolute; inset: 0; box-sizing: border-box; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 5% 6%; text-align: center; text-decoration: none; border-radius: var(--sb-r-control);
+  padding: 3% 4%; text-align: center; text-decoration: none; border-radius: var(--sb-r-control);
 }
 
 /* the reading, dark until the pointer arrives */
 .sbrk-read {
-  position: relative; display: flex; flex-direction: column; align-items: center; gap: 1.5%;
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 1%;
   opacity: 0; transform: scale(.985);
   transition: opacity .28s ease .06s, transform .28s ease .06s;
 }
+/* at rest: the tier's name alone, dim, so the three screens read as three
+ * memberships and not three dead screens (owner, 2026-09-26: "the three
+ * screens are blank ... it looks like an error ... put artist pro label
+ * on the three screens so when you scroll over them they come alive").
+ * Still no static and no overlay: one word in the screen's own type. It
+ * cuts off the instant the reading cuts in, and comes back only once the
+ * leave has glitched the reading out. */
+.sbrk-idle {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: clamp(14px, 1.5cqw, 24px); font-weight: 800; letter-spacing: .3em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--sb-crt) 62%, transparent);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--sb-crt) 40%, transparent);
+  pointer-events: none;
+}
+.sbrk-door:hover .sbrk-idle, .sbrk-door:focus-visible .sbrk-idle, .sbrk-door.is-on .sbrk-idle { opacity: 0; }
+.sbrk-door.is-out .sbrk-idle { animation: sbrk-idle-back .55s steps(1, end) both; }
+@keyframes sbrk-idle-back { 0%, 85% { opacity: 0; } 100% { opacity: 1; } }
 .sbrk-k {
   position: relative;
   font-size: clamp(12px, .95cqw, 15px); font-weight: 800; letter-spacing: .24em; text-transform: uppercase;
@@ -757,9 +776,13 @@
 }
 .sbrk-k::before { color: color-mix(in srgb, var(--sb-crt) 55%, #fff); }
 .sbrk-k::after { color: var(--sb-crt-dim); }
+/* The slim plate's glass (room-plate.webp, 2026-09-26) is a third as tall
+ * as the command plate's was, so the price and /month share one row and
+ * the figure is sized to the glass, never the page. */
+.sbrk-row { display: flex; align-items: baseline; justify-content: center; gap: .3em; margin-top: 1%; }
 .sbrk-price {
-  margin-top: 2%; font-family: var(--sb-display); font-weight: 800; line-height: 1;
-  font-size: clamp(30px, 5.4cqw, 96px); color: var(--sb-crt);
+  font-family: var(--sb-display); font-weight: 800; line-height: 1;
+  font-size: clamp(26px, 3.4cqw, 60px); color: var(--sb-crt);
   font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
   text-shadow: 0 0 12px color-mix(in srgb, var(--sb-crt) 70%, transparent), 0 0 34px color-mix(in srgb, var(--sb-crt) 35%, transparent);
 }
@@ -769,10 +792,10 @@
   text-shadow: 0 0 10px color-mix(in srgb, var(--sb-crt) 60%, transparent);
 }
 .sbrk-line {
-  margin-top: 4%; font-size: clamp(12px, .98cqw, 15px); line-height: 1.35;
+  margin-top: 1.5%; font-size: clamp(12px, .98cqw, 15px); line-height: 1.3;
   color: var(--sb-crt-dim);
 }
-.sbrk-soon { margin-top: 1.5%; font-size: clamp(12px, .85cqw, 13px); line-height: 1.3; color: var(--sb-crt-dim); }
+.sbrk-soon { margin-top: .5%; font-size: clamp(12px, .85cqw, 13px); line-height: 1.3; color: var(--sb-crt-dim); }
 /* Every word renders on the glass (owner, 2026-09-23: the bottom line was
  * cut off on the first two screens). The lines take the full width of the
  * glass rather than a ch cap that wrapped them to three lines, and below
@@ -783,9 +806,9 @@
  * memberships-rack.js): the number CUTS IN the way the room racks'
  * displays do (room-kit.css rk-frame / rk-split) - slices thrown a few
  * pixels sideways, the colour-split copies of the name, each line
- * arriving in turn - and nothing is laid over the glass at any point
- * (owner, 2026-09-23: "no static, nothing"; a particle layer read as a
- * square and went). Hard cuts (steps), never a crossfade. */
+ * arriving in turn - and nothing but the resting name is ever laid over
+ * the glass (owner, 2026-09-23: "no static, nothing"; a particle layer
+ * read as a square and went). Hard cuts (steps), never a crossfade. */
 /* and when the pointer leaves, it glitches OUT (.is-out, from
  * memberships-rack.js, for the length of the animation): the number
  * breaks into slices and goes, and the glass is dark again */
@@ -818,6 +841,8 @@
 .sbrk-door:hover .sbrk-read > *,
 .sbrk-door:focus-visible .sbrk-read > *,
 .sbrk-door.is-on .sbrk-read > * { animation: sbrk-in .32s ease both; }
+.sbrk-door:hover .sbrk-row > *, .sbrk-door:focus-visible .sbrk-row > *, .sbrk-door.is-on .sbrk-row > * { animation: sbrk-in .32s ease both; }
+.sbrk-door:hover .sbrk-row, .sbrk-door:focus-visible .sbrk-row, .sbrk-door.is-on .sbrk-row { animation-delay: .5s; }
 .sbrk-door:hover .sbrk-k, .sbrk-door:focus-visible .sbrk-k, .sbrk-door.is-on .sbrk-k { animation-delay: .12s; }
 .sbrk-door:hover .sbrk-price, .sbrk-door:focus-visible .sbrk-price, .sbrk-door.is-on .sbrk-price { animation-delay: .5s; }
 .sbrk-door:hover .sbrk-per, .sbrk-door:focus-visible .sbrk-per, .sbrk-door.is-on .sbrk-per { animation-delay: .92s; }
@@ -854,22 +879,27 @@
   .sbrk-read { transition: none; }
   .sbrk-door:hover .sbrk-read, .sbrk-door:hover .sbrk-read > *, .sbrk-door:hover .sbrk-k::before, .sbrk-door:hover .sbrk-k::after,
   .sbrk-door:focus-visible .sbrk-read, .sbrk-door:focus-visible .sbrk-read > *, .sbrk-door:focus-visible .sbrk-k::before, .sbrk-door:focus-visible .sbrk-k::after,
-  .sbrk-door.is-on .sbrk-read, .sbrk-door.is-on .sbrk-read > *, .sbrk-door.is-on .sbrk-k::before, .sbrk-door.is-on .sbrk-k::after {
+  .sbrk-door.is-on .sbrk-read, .sbrk-door.is-on .sbrk-read > *, .sbrk-door.is-on .sbrk-k::before, .sbrk-door.is-on .sbrk-k::after,
+  .sbrk-door:hover .sbrk-row > *, .sbrk-door:focus-visible .sbrk-row > *, .sbrk-door.is-on .sbrk-row > * {
     animation: none; clip-path: none; transform: none; filter: none;
   }
   .sbrk-door:hover .sbrk-k::before, .sbrk-door:hover .sbrk-k::after,
   .sbrk-door:focus-visible .sbrk-k::before, .sbrk-door:focus-visible .sbrk-k::after,
   .sbrk-door.is-on .sbrk-k::before, .sbrk-door.is-on .sbrk-k::after { opacity: 0; }
-  .sbrk-door.is-out .sbrk-read,
+  .sbrk-door.is-out .sbrk-read, .sbrk-door.is-out .sbrk-idle,
   .sbrk-door.is-out .sbrk-k::before, .sbrk-door.is-out .sbrk-k::after { animation: none; }
 }
 /* the narrow page: the photograph steps aside and the three screens
  * stack, resolved - the same rule as every plate in the app. The band's
  * own breakpoint is 960px: these screens carry five lines of type with a
  * 12px floor, and under that width the glass is too short to hold them
- * all (owner, 2026-09-23: "the bottom was cut off"). */
-@media (max-width: 959px) {
+ * all (owner, 2026-09-23: "the bottom was cut off"). On the slim plate
+ * (2026-09-26) the glass is 150px tall at the unit's full 1240px and
+ * five lines of 12px type need about 110px of it, so the plate steps
+ * aside from 1100px down. */
+@media (max-width: 1099px) {
   .sbrk-plate { display: none; }
+  .sbrk-idle { display: none; }
   .sbrk-unit { container-type: normal; max-width: 420px; }
   .sbrk-screens { display: flex; flex-direction: column; gap: 22px; }
   .sbrk-screen { position: static; left: auto; top: auto; width: auto; height: auto; }

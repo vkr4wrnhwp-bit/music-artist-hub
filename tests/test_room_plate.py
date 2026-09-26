@@ -4,8 +4,9 @@
 and "one room has a different plate on it... swap it out to this
 three-window one like the rest". The Command Center and every room's page
 from zero draw the same shorter plate through partials/cc_rack.html; the
-Fans room's map plate is its working page's; the membership rack on the
-home page keeps the taller command-plate.webp.
+Fans room's map plate is its working page's; since 2026-09-26 the
+membership rack on the home page draws this plate too (owner: "use this
+one ... instead of the thicker, wider one"), at the same boxes.
 """
 import io
 import os

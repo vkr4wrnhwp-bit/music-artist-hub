@@ -4214,6 +4214,15 @@ The owner switches the front page between the long homepage and the split app do
 - Files: app.py:4716 admin_home_layout(); split_home.py; templates/settings.html:216
 - Access: owner only; env SPLIT_HOME can also turn it on
 
+**Home page memberships rack and credits band**
+
+The three memberships on the rooms' slim three-screen plate, each screen a door to Billing, with the credits band beneath them.
+
+- Because: split_home.get_split_home_config() reads every price from plans.PLANS at render and coming_soon() from hubs.suites_pending(), so the glass cannot drift from Billing; the band is drawn by partials/memberships_band.html (rack, or the engraved passes on MEMBERSHIP_BAND=passes). 2026-09-26: the plate is room-plate.webp at cc_rack.html's measured boxes (owner: "use this one ... instead of the thicker, wider one"); each screen shows the tier's name at rest and the full reading cuts in on hover, focus or a first tap (owner: the empty glass "looks like an error"); the credits band is back under the rack with a 64px coin (split_home.SHOW_CREDITS), still with no pack prices while plans.CREDIT_PACKS_ON_SALE is False.
+- Routes: GET / (the split app door, when split_home.enabled())
+- Files: split_home.py; templates/partials/memberships_band.html; templates/partials/memberships_rack.html; static/css/split-home.css; static/js/memberships-rack.js; tests/test_split_home.py
+- Access: public
+
 **Settings > notification preferences**
 
 Ticks which kinds of notification the account wants; unticked kinds are dropped before they are written.

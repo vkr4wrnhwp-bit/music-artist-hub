@@ -322,22 +322,28 @@ def test_each_pass_is_a_plate_a_word_mask_and_the_light_between(passes):
         assert split_home.ENGRAVED[key] in band, key
 
 
-def test_the_credits_band_is_off_the_page_for_now(page):
-    """Owner, 2026-09-20: "the coin is super tiny. It doesn't make any
-    sense. Or we just hide it for right now." The band is hidden behind
-    split_home.SHOW_CREDITS until credits are priced and the coin is shot
-    bigger; the two coin images stay on disk and the markup stays in the
-    template so the band comes back with one flag."""
-    assert split_home.SHOW_CREDITS is False
+def test_the_credits_band_is_back_beneath_the_memberships(page):
+    """Owner, 2026-09-26: "put the tokens back on the homepage. Beneath
+    where the membership is." It had been hidden since 2026-09-20 ("the
+    coin is super tiny ... or we just hide it for right now"), so it comes
+    back with the coin shot bigger, under the rack, and still with no pack
+    price while packs are off sale (the next test). One flag still
+    controls it."""
+    assert split_home.SHOW_CREDITS is True
     for name in ("credit-pile", "credit-coin"):
         assert os.path.exists(
             os.path.join(HERE, "static", "img", "%s.webp" % name)), name
     band = page.split('class="sbmem"')[1].split("</section>")[0]
-    assert "sbmem-credits" not in band
-    assert "credit-coin" not in band and "credit-pile" not in band
+    assert "sbmem-credits" in band and "credit-coin" in band and "credit-pile" in band
+    assert band.index("sbrk-unit") < band.index("sbmem-credits"), "beneath the memberships"
+    assert "Credits" in band and split_home.CREDIT_NOTE in band
     t = io.open(os.path.join(HERE, "templates", "partials", "memberships_band.html"),
                 encoding="utf-8").read()
     assert "{% if sh.show_credits %}" in t and "credit-coin.webp" in t
+    css = io.open(os.path.join(HERE, "static", "css", "split-home.css"),
+                  encoding="utf-8").read()
+    m = re.search(r"\.sbmem-coin \{ width: (\d+)px; height: (\d+)px; \}", css)
+    assert m and int(m.group(1)) >= 56 and m.group(1) == m.group(2), "the coin is no longer tiny"
 
 
 def test_the_home_page_has_no_dim_text_and_the_artist_letters_are_bronze(passes):
@@ -542,7 +548,7 @@ def test_the_rack_is_the_band_and_the_passes_are_one_switch_away(page, monkeypat
     """Nothing set anywhere means the rack. MEMBERSHIP_BAND=passes brings
     the engraved plates back; the owner's saved choice beats both."""
     band = _rack(page)
-    assert "command-plate.webp" in band and "sbmem-pass" not in band
+    assert "room-plate.webp" in band and "sbmem-pass" not in band
     assert "pass-plate-" not in band, "no photographed metal on the rack"
     monkeypatch.setenv("MEMBERSHIP_BAND", "passes")
     assert split_home.band() == "passes"
@@ -576,18 +582,29 @@ def test_each_screen_reads_its_price_from_plans(page):
     assert "sbrk-go" not in band, "the screens are the doors; no second button"
 
 
-def test_the_membership_rack_keeps_its_own_plate_and_its_measured_screens():
-    """The rooms moved to the owner's shorter three-window plate
-    (room-plate.webp, 2026-09-23: "they are too tall"); the membership
-    rack on the home page keeps the taller command-plate.webp, so the two
-    no longer share fractions. RACK_SCREENS are the ones measured off
-    command-plate.webp; if that plate is ever re-measured, this moves."""
-    assert split_home.RACK_SCREENS == (("6.22", "16.82", "25.14", "61.61"),
-                                       ("36.5", "16.82", "26.84", "61.61"),
-                                       ("68.49", "16.82", "25.24", "61.61"))
+def test_the_membership_rack_is_the_rooms_slim_plate_at_its_measured_screens():
+    """Owner, 2026-09-26: "Should we use this one for the memberships on the
+    home page instead of the thicker, wider one? We don't necessarily need
+    it to be as big." So the rack is the rooms' room-plate.webp (1774x421),
+    and RACK_SCREENS are the boxes cc_rack.html measured off that file,
+    held equal here so a re-measure moves both. The price and /month share
+    a row and the plate steps aside from 1100px down, because this glass
+    is a third as tall as the command plate's."""
+    cc = io.open(os.path.join(HERE, "templates", "partials", "cc_rack.html"),
+                 encoding="utf-8").read()
+    boxes = tuple(tuple(re.findall(r'"([\d.]+)"', box))
+                  for box in re.findall(r"\(([^()]+)\)", cc.split("set boxes = [", 1)[1].split("]", 1)[0]))
+    assert len(boxes) == 3 and all(len(b) == 4 for b in boxes), boxes
+    assert split_home.RACK_SCREENS == boxes, (split_home.RACK_SCREENS, boxes)
     t = io.open(os.path.join(HERE, "templates", "partials", "memberships_rack.html"),
                 encoding="utf-8").read()
-    assert "command-plate.webp" in t
+    assert 'src="/static/img/room-plate.webp?v=1"' in t and 'width="1774" height="421"' in t
+    assert 'src="/static/img/command-plate' not in t, "the comment may name it as history; the img may not"
+    assert '<span class="sbrk-row"><span class="sbrk-price">' in t and '<span class="sbrk-per">/month</span></span>' in t
+    css = io.open(os.path.join(HERE, "static", "css", "split-home.css"),
+                  encoding="utf-8").read()
+    assert ".sbrk-row { display: flex; align-items: baseline;" in css
+    assert "@media (max-width: 1099px) {\n  .sbrk-plate { display: none; }" in css.replace("\r\n", "\n")
     rooms = io.open(os.path.join(HERE, "templates", "partials", "cc_rack.html"),
                     encoding="utf-8").read()
     assert 'src="/static/img/room-plate.webp' in rooms
@@ -595,9 +612,11 @@ def test_the_membership_rack_keeps_its_own_plate_and_its_measured_screens():
 
 
 def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
-    """At rest the glass is dark and NOTHING is laid over it (owner,
-    2026-09-23: "no static, nothing" - snow, a drift and a particle layer
-    were each rejected in turn). Hover, focus or a first tap cuts the
+    """At rest the glass is dark with the tier's NAME on it and nothing
+    else (owner, 2026-09-23: "no static, nothing" - snow, a drift and a
+    particle layer were each rejected in turn; 2026-09-26: the empty glass
+    "looks like an error", so the name sits there until the reading cuts
+    in over it). Hover, focus or a first tap cuts the
     tier in the way the room racks do; the leave glitches it out. No media query decides who gets the static -
     a touchscreen laptop reports no hover at all in Chrome (the owner's
     own machine, 2026-09-23) and a gate would have shown him nothing. A
@@ -619,6 +638,15 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     t = io.open(os.path.join(HERE, "templates", "partials", "memberships_rack.html"),
                 encoding="utf-8").read()
     assert "sbrk-static" not in t
+    # the name at rest (owner, 2026-09-26): one word before the reading,
+    # dim, gone the instant the reading cuts in, back once the leave has
+    # glitched the reading out; never on the phone, whose screens render
+    # resolved and would say the name twice.
+    assert t.index('class="sbrk-idle" aria-hidden="true">{{ t.name }}<') < t.index('class="sbrk-read"')
+    assert ".sbrk-idle {" in body
+    assert ".sbrk-door:hover .sbrk-idle, .sbrk-door:focus-visible .sbrk-idle, .sbrk-door.is-on .sbrk-idle { opacity: 0; }" in body
+    assert "@keyframes sbrk-idle-back" in body and ".sbrk-door.is-out .sbrk-idle { animation: sbrk-idle-back" in body
+    assert ".sbrk-idle { display: none; }" in body.split("@media (max-width: 1099px)", 1)[1]
     # the cut-in and the glitch-out, in the kit's grammar
     assert "@keyframes sbrk-out" in body and ".sbrk-door.is-out .sbrk-read" in body
     assert ".sbrk-door:focus-visible .sbrk-read" in body, "the keyboard cuts it in too"
@@ -636,7 +664,7 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     delays = re.findall(r"\.sbrk-door\.is-on \.sbrk-(k|per|line|soon) \{ animation-delay: ([\d.]+)s; \}", body)
     order = {k: float(v) for k, v in delays}
     assert order["k"] < order["per"] < order["line"] < order["soon"], order
-    for q in ("@media (prefers-reduced-motion: reduce)", "@media (max-width: 959px)"):
+    for q in ("@media (prefers-reduced-motion: reduce)", "@media (max-width: 1099px)"):
         assert q in body, q
     for gate in ("(hover: none)", "(any-hover: none)", "(pointer: coarse)"):
         assert gate not in body, gate + " would hide the static from a touchscreen laptop"
@@ -651,7 +679,7 @@ def test_the_static_clears_under_the_pointer_and_never_shows_on_a_phone():
     # every word renders on the glass: no ch cap on the lines, and the plate
     # steps aside below 960px where the glass is too short for five lines
     assert "max-width: 26ch" not in body and "max-width: 28ch" not in body
-    phone = body.split("@media (max-width: 959px)", 1)[1]
+    phone = body.split("@media (max-width: 1099px)", 1)[1]
     assert ".sbrk-plate { display: none; }" in phone
     # ...and the stacked screens STAY resolved: pointing at one or tabbing
     # to it must not blank it and replay the cut-in (audit, 2026-09-23 -
