@@ -82,9 +82,12 @@ ENGRAVED = {
 # bigger coin, once credits are priced.
 SHOW_CREDITS = True
 
-CREDIT_NOTE = (
-    "The Room and Motion run on credits, because every render costs real "
-    "compute. Noise Lab is coming soon.")
+# The one line on the credits plate (owner, 2026-09-26: the old wording
+# "makes zero sense ... take out Noise Lab coming soon, just all that
+# crap"). It says the one thing credits do today: plans.suite_open lets
+# a wallet with credits into The Room and Motion. Nothing is charged per
+# render yet (plans.CREDIT_PACKS_ON_SALE), so the line claims no cost.
+CREDIT_NOTE = "Credits unlock The Room for audio and Motion for video."
 
 
 def enabled():

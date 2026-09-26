@@ -338,6 +338,12 @@ def test_the_credits_band_is_the_owners_plate_beneath_the_memberships(page):
     assert 'src="/static/img/credits-plate.webp?v=1"' in credits and 'width="1508" height="562"' in credits
     assert "credit-coin" not in credits and "credit-pile" not in credits, "the plate replaces the loose coin art"
     assert "Studio credits" in credits and split_home.CREDIT_NOTE in credits
+    # one plain line that says what credits do (owner, 2026-09-26: the old
+    # wording "makes zero sense ... take out Noise Lab coming soon")
+    assert split_home.CREDIT_NOTE == "Credits unlock The Room for audio and Motion for video."
+    for filler in ("coming soon", "compute", "Noise Lab"):
+        assert filler not in credits, filler
+    assert plans.suite_open("fan", "the-room", 1) and plans.suite_open("fan", "motion", 1), "the line is true"
     assert "<b>%s</b>" % "{:,}".format(plans.LABEL_MONTHLY_CREDITS) in credits, "the figure Billing grants"
     assert "credits every month with Label" in credits
     assert re.search(r'href="/billing">Choose Label</a>', credits)
