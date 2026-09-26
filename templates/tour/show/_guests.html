@@ -8,6 +8,13 @@
   <a class="to-card" href="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/guests.csv"><b>CSV</b><span>Venue list export</span><small>approved only</small></a>
 </div>
 
+{#- Approving past the allocation is refused on the server
+    (tour_os.guest_update / guest_add); this says who did not fit. -#}
+{% set refused_id = request.args.get('full') or request.args.get('held') %}
+{% if refused_id %}{% for g in (guest_rows or []) if g['id'] == refused_id %}
+<div class="to-note to-note--warn" id="guest-refused"><strong>{% if request.args.get('full') %}Not approved.{% else %}Added as pending, not approved.{% endif %}</strong> {{ g['name'] }}{% if g['count'] > 1 %} (party of {{ g['count'] }}){% endif %} would take this list past its allocation of {{ guests['allocation'] }}{% if guests['remaining'] is not none and guests['remaining'] > 0 %}, with {{ guests['remaining'] }} spot{{ '' if guests['remaining'] == 1 else 's' }} left{% elif guests['remaining'] is not none %}, which is already full{% endif %}. Raise the allocation or free a spot first.</div>
+{% endfor %}{% endif %}
+
 {% if can('edit') or can('guests') %}
 <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/ext" class="to-inline" style="margin-bottom:12px">
   <label class="to-field" style="width:120px"><span>Allocation</span><input name="guest_allocation" value="{{ show['guest_allocation'] }}" inputmode="numeric"></label>

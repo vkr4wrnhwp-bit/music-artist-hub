@@ -13,6 +13,8 @@
 <div class="to-note to-note--warn"><strong>Not sent.</strong> The To address is not an email address.</div>
 {% elif fail == 'send' %}
 <div class="to-note to-note--warn"><strong>Not sent.</strong> The mail service did not accept the message. It is recorded as failed below; try again in a minute.</div>
+{% elif fail == 'sample' %}
+<div class="to-note to-note--warn"><strong>Not sent.</strong> This is the sample tour. Its shows are invented, so no advance goes to a real inbox from it.</div>
 {% endif %}
 
 {% if not mail_ready %}
@@ -73,7 +75,11 @@
   <aside>
     <div class="to-panel">
       <div class="to-eyebrow">Links in the email</div>
-      {% if links_held %}
+      {% if links_sample %}
+      {#- The sample's dates are invented: no public link is made for one,
+          and one made before that rule opens nothing (tour_os._send_context). -#}
+      <p class="to-sub">No public link is made for a date on the sample tour. The tech rider page and the production pack would show an invented show to real people, so this email carries neither.</p>
+      {% elif links_held %}
       {#- Public links that open without a login are the account holder's to hand out (tour_os._send_context). -#}
       <p class="to-sub">The tech rider page and the production pack open without a login, so they are {{ team_seat.owner.name or 'the artist' }}'s to send. An advance you send goes out without them. The attachments you tick still go.</p>
       {% else %}

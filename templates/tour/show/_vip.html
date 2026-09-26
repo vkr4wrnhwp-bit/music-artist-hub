@@ -6,7 +6,9 @@
 {% if vip_link is defined %}
 <div class="to-panel is-warm" id="vip-sell" style="margin-bottom:12px">
   <div class="to-eyebrow">Sell online</div>
-  {% if vip_link and not team_seat %}
+  {% if vip_sample %}
+  <p class="to-sub" style="margin-top:6px" id="vip-sample">Nothing is sold from the sample tour: its shows are invented, so it has no purchase link. Put a date on a tour of your own to sell VIP for it.</p>
+  {% elif vip_link and not team_seat %}
   <div class="to-inline" style="margin-top:6px">
     <input class="to-input" type="text" readonly value="{{ vip_link }}" id="vip-link" aria-label="Purchase link to share" style="min-height:36px;padding:6px 10px;width:min(100%, 420px)">
     <button class="to-btn to-btn--ghost to-btn--small" type="button" data-copy="#vip-link">Copy link</button>
@@ -62,7 +64,9 @@
     {% endfor %}
   </div>
   {% endif %}
-  {#- The offer form waits behind a plus once a package is on sale. -#}
+  {#- The offer form waits behind a plus once a package is on sale. The
+      sample tour has none: nothing is put on sale from it. -#}
+  {% if not vip_sample %}
   {% if vip_offers %}<details class="to-add" id="add-offer">
   <summary><span class="plus" aria-hidden="true">+</span> Add a package to sell</summary>
   <div class="to-add-body">{% endif %}
@@ -75,11 +79,12 @@
       {{ m.textarea('blurb', 'What to tell the buyer', rows=2, placeholder='Where to meet, what to bring') }}
     </div>
     <div class="to-inline" style="margin-top:6px">{{ m.check('meet_greet', 'Meet & greet') }} {{ m.check('early_entry', 'Early entry') }} {{ m.check('merch', 'Merch') }} {{ m.check('photo', 'Photo') }}</div>
-    {% if request.args.get('offer') == 'invalid' %}<p class="to-muted">A package needs a name and a price above zero.</p>{% endif %}
+    {% if request.args.get('offer') == 'invalid' %}<p class="to-muted">A package needs a name and a price above zero.</p>{% elif request.args.get('offer') == 'sample' %}<p class="to-muted">Nothing is put on sale from the sample tour: its shows are invented.</p>{% endif %}
     <div class="to-bar" style="margin-bottom:0"><button class="to-btn to-btn--small" type="submit">Put it on sale</button></div>
   </form>
   {% if vip_offers %}</div>
   </details>{% endif %}
+  {% endif %}
   {% if vip_sales %}
   <form method="post" action="/tours/{{ tour['id'] }}/shows/{{ show['id'] }}/vip/dayof" class="to-inline" style="margin-top:10px">
     <input class="to-input" name="message" maxlength="600" placeholder="Anything extra for the day (optional)" aria-label="Extra day-of note" style="min-height:36px;padding:6px 10px;width:min(100%, 320px)">

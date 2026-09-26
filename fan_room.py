@@ -44,16 +44,24 @@ TILE_COPY = {
     # (walk, 2026-09-20). The card says what the page is.
     "fan-crm": ("Fan CRM", "Everyone on file, searchable and exportable"),
     "fan-club": ("Fan Club", "Memberships & exclusives"),
-    "discover": ("Discover", "Find listeners and scenes"),
+    # The mockup said "Find listeners and scenes"; /discover is catalogue
+    # search with a preview, and it sends people-finding to Collab. No
+    # listener or scene finding exists (audit, 2026-09-23).
+    "discover": ("Discover", "Search the catalogue and play a preview"),
     "marketplace": ("Collab", "Artists, creators & brands"),
 }
 
+# The populated room's rail: the mockup's five stages, each with the count
+# of what the records can say about it (lifecycle() below). Until
+# 2026-09-23 the rail was these names and a line of aspiration each, with
+# nothing counted behind any of them.
+#   (key, name, singular, plural, what the line says with nothing counted)
 LIFECYCLE = [
-    ("discover", "Discover", "Find new listeners"),
-    ("capture", "Capture", "Turn interest into fans"),
-    ("know", "Know", "Enrich profiles and data"),
-    ("activate", "Activate", "Drive engagement and revenue"),
-    ("belong", "Belong", "Create a lasting community"),
+    ("discover", "Discover", "smart link visit", "smart link visits", "No smart link visits"),
+    ("capture", "Capture", "fan on file", "fans on file", "Nobody on file"),
+    ("know", "Know", "with a name or place", "with a name or place", "No names or places yet"),
+    ("activate", "Activate", "clicked through", "clicked through", "Nobody has clicked through yet"),
+    ("belong", "Belong", "Fan Club member", "Fan Club members", "No members yet"),
 ]
 
 TOP_BANDS = ("Superfan", "Hot")
@@ -99,12 +107,50 @@ HELP_QUESTIONS = ("How do I collect my first fans?",
                   "What counts as permission to contact someone?")
 
 
-def zero_page():
-    return {"rack": ZERO_RACK, "starts": STARTS, "workflow": WORKFLOW,
+# A seat that may not add fans is told who can, rather than handed a door
+# its save would bounce at (the rooms' can_add = "seat" rule).
+LOCKED = "Fans are added by the account holder or a team seat with edit access."
+# The help line and the rack's START HERE for each set of doors a reader
+# has: both (the spec's own words), the import alone (a seat without the
+# Marketing room, which owns /links/new), or none (a read seat).
+HELP_LINE = {
+    "both": "Start with a fan campaign if you do not already have a contact list.",
+    "import": "Start by importing the contact list you already have. You will preview every record first.",
+    "capture": "Start with a fan campaign that turns listeners into contacts you can reach.",
+    "none": LOCKED,
+}
+START_LINE = {
+    "both": ZERO_RACK["start"][1],
+    "import": "Bring in the list you already have",
+    "capture": "Launch a campaign that captures fans",
+    "none": "Fans are added by the account holder",
+}
+STARTS_HEADING = {
+    "both": "Choose your starting point",
+    "import": "Your starting point",
+    "capture": "Your starting point",
+    "none": "How fans are added",
+}
+
+
+def zero_page(can_capture=True, can_import=True, shown=("capture", "import")):
+    """The page from zero. `can_capture` / `can_import` are the doors this
+    reader can use, and the copy says only what those doors do; `shown` is
+    the start cards its areas allow, drawn without a button where the
+    reader may not use the door (a read seat)."""
+    ways = ("both" if can_capture and can_import else "capture" if can_capture
+            else "import" if can_import else "none")
+    rack = [(ZERO_RACK["purpose"][0], ZERO_RACK["purpose"][1]),
+            (ZERO_RACK["start"][0], START_LINE[ways]),
+            (ZERO_RACK["know"][0], ZERO_RACK["know"][1])]
+    return {"rack": ZERO_RACK, "starts": [s for s in STARTS if s[0] in shown],
+            "workflow": WORKFLOW,
             "control": CONTROL, "help": HELP_QUESTIONS,
+            "ways": ways, "help_line": HELP_LINE[ways],
+            "starts_heading": STARTS_HEADING[ways],
+            "locked": LOCKED if ways == "none" else "",
             # the three screens of the rooms' shared rack (partials/cc_rack.html)
-            "screens": [{"k": ZERO_RACK[key][0], "v": ZERO_RACK[key][1]}
-                        for key in ("purpose", "start", "know")]}
+            "screens": [{"k": k, "v": v} for k, v in rack]}
 
 
 # --- THE RACK ----------------------------------------------------------
@@ -192,11 +238,13 @@ def _fmt(n):
 
 
 def moves(rows, audience, days, today, link_visits=0, shopify=False,
-          can_open=None):
+          can_open=None, can_write=True):
     """Up to three things the artist can do now, strongest first. Each is
     one the app carries out, with the number of fans it acts on. `shopify`
     is whether this account may import the connected store's customers
-    (the owner alone); the move names Shopify only then."""
+    (the owner alone); the move names Shopify only then. `can_write` is
+    False for a read seat, which is offered no move whose point is a save
+    it would be refused."""
     total = audience["total"]
     out = []
     if not total:
@@ -245,7 +293,13 @@ def moves(rows, audience, days, today, link_visits=0, shopify=False,
                     "cta": "See your links", "href": "/links"})
     if can_open:
         out = [m for m in out if can_open(m["href"].split("?")[0])]
+    if not can_write:
+        out = [m for m in out if m["cta"] not in _WRITE_MOVES]
     return out[:3]
+
+
+# The moves whose whole point is a save: a read seat is refused at it.
+_WRITE_MOVES = ("Import your list", "Add a capture")
 
 
 PULSE_W, PULSE_H = fan_audience.MAP_W, fan_audience.MAP_H
@@ -357,6 +411,52 @@ def pulse(audience, labels=4):
             "unplotted": geo.get("unplotted") or 0}
 
 
+def _known(fan):
+    """Something on file beyond the address: a name, a city or a country."""
+    return any((fan.get(k) or "").strip() for k in ("name", "city", "country"))
+
+
+def lifecycle(rows, link_visits=0, club=None):
+    """The rail's five stages, each counted from the account's own records.
+
+      Discover   views of the account's smart links (ml_events page_view),
+                 the same figure the Audience funnel's Link visits row reads.
+                 Views, not people: the app keeps no identity for a visitor
+                 who has not signed up.
+      Capture    fans on file.
+      Know       fans whose record carries a name, a city or a country.
+      Activate   fans who pressed a service button on a smart link
+                 (total_clicks). A press is credited to a fan only when they
+                 are known on the link (fan_mail). A sign-up before release
+                 is a capture, not an activation, so pre-saves are not
+                 counted here: most of them are email reminders.
+      Belong     active Fan Club members; "No Fan Club yet" when the
+                 account has none.
+
+    A stage with nothing counted says so in words, never a nought.
+    """
+    rows = list(rows or ())
+    club = club or {"on": False, "members": 0}
+    counts = {
+        "discover": int(link_visits or 0),
+        "capture": len(rows),
+        "know": sum(1 for f in rows if _known(f)),
+        "activate": sum(1 for f in rows if int(f.get("total_clicks") or 0) > 0),
+        "belong": int(club.get("members") or 0),
+    }
+    out = []
+    for key, name, singular, plural, empty in LIFECYCLE:
+        n = counts[key]
+        if key == "belong" and not club.get("on"):
+            line = "No Fan Club yet"
+        elif n:
+            line = "%s %s" % (_fmt(n), singular if n == 1 else plural)
+        else:
+            line = empty
+        out.append({"key": key, "name": name, "count": n, "line": line})
+    return out
+
+
 def tile_status(key, audience, new_count, days, club, open_briefs, state):
     """(tone, text) for a tool tile: one true count, or the tool's state."""
     if state == "hidden":
@@ -385,7 +485,11 @@ def tile_status(key, audience, new_count, days, club, open_briefs, state):
 
 def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
           open_briefs=0, link_visits=0, showcase=False, artist_name="",
-          shopify=False, can_open=None):
+          shopify=False, can_open=None, can_add=True):
+    """Everything the screen renders. `can_open` is the seat's area gate;
+    `can_add` is who may add fans - True for the account holder or an edit
+    seat, "seat" for a read seat, which gets no door and a line saying who
+    can (the rooms' rule)."""
     now = now or datetime.now(timezone.utc)
     today = now.date()
     days = days_from(days)
@@ -408,6 +512,11 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
                       "state": state,
                       "external": href.startswith(("http://", "https://", "/suites/go/"))})
     total = audience["total"]
+    writer = can_add is True
+    shown = tuple(key for key, href in (("capture", "/links/new"), ("import", "/fans"))
+                  if can_open is None or can_open(href))
+    can_capture = writer and "capture" in shown
+    can_import = writer and "import" in shown
     return {
         "showcase": showcase,
         "artist_name": artist_name,
@@ -418,19 +527,22 @@ def build(rows, audience, cards, days=DEFAULT_RANGE, now=None, club=None,
         "new": len(fresh),
         "new_label": _fmt(len(fresh)),
         "reachable_pct": audience.get("contactable_pct") if total else None,
-        "lifecycle": LIFECYCLE,
+        "lifecycle": lifecycle(rows, link_visits, club),
         "moves": moves(rows, audience, days, today, link_visits, shopify=shopify,
-                       can_open=can_open),
+                       can_open=can_open, can_write=can_add is True),
         # The map, in its own panel directly under the rack.
         "pulse": pulse(audience),
         # Nothing captured at all: the page from zero. One real fan and
         # the working rack and its map take over for good.
         "idle": not total,
-        "zero": zero_page(),
+        "zero": zero_page(can_capture, can_import, shown),
         # The hero's gold pill goes to /links/new, which is not this room's
-        # page. A reader who cannot open it is offered the room's own list
-        # instead of a button that turns them away.
-        "can_capture": bool(can_open is None or can_open("/links/new")),
+        # page. A reader who cannot open it - or may not save there - is
+        # offered the room's own list instead of a button that turns them
+        # away.
+        "can_capture": can_capture,
+        "can_import": can_import,
+        "can_add": can_add,
         # The working rack's three screens: On file, Reachable, New.
         "screens": rack_screens(windows(_fmt(total), total, _fmt(len(fresh)), len(fresh),
                                         audience.get("contactable_pct") if total else None,

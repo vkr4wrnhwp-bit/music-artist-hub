@@ -95,7 +95,8 @@ def test_a_sweep_sorts_the_catalogue_into_claimed_partial_and_gone(monkeypatch):
     r = client.post("/recovery/mlc")
     assert r.status_code == 302 and r.headers["Location"].endswith("/recovery#mlc")
     sweep = store.latest_recovery_mlc_sweep(user["id"])
-    assert sweep["summary"] == {"checked": 3, "matched": 1, "partial": 1, "unmatched": 1, "errors": 0, "skipped": 0}
+    assert sweep["summary"] == {"checked": 3, "matched": 1, "partial": 1, "unmatched": 1, "errors": 0,
+                                "not_asked": 0, "skipped": 0}
     by_isrc = {row["isrc"]: row for row in sweep["rows"]}
     assert by_isrc["USAIW2600123"]["result"] == "match" and by_isrc["USAIW2600123"]["share_total"] == 100.0
     assert by_isrc["USAIW2600777"]["result"] == "match" and by_isrc["USAIW2600777"]["publishers"] == 0

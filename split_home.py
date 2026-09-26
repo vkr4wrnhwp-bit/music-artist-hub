@@ -11,7 +11,6 @@ replaced by the door. What is left is what only the app can do:
 
   the door          headline, the words over it, and the sign-in form
                     where the marketing hero used to be
-  the stages rail   the eight words the whole product is organised by
   the Artist EQ     the one thing on the page a visitor operates
   eight tools       the rack, so a member can see which doors exist
   the Artist Twin   because it is the argument for the account
@@ -111,8 +110,8 @@ def set_layout(value):
 
 # --- THE MEMBERSHIP RACK (owner, 2026-09-23) -------------------------------
 # The memberships band as the Command Center's photographed three-screen
-# plate: CRT static on each screen at rest, and the tier renders when it
-# is pointed at ("make it when you hover over it they render"). The
+# plate: dark glass at rest, nothing laid over it, and the tier cuts in
+# when it is pointed at, tabbed to or tapped once ("make it when you hover over it they render"). The
 # engraved metal passes it replaces stay in the repo, one switch away.
 BANDS = ("rack", "passes")
 

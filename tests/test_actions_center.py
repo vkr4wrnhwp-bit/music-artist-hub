@@ -282,7 +282,10 @@ def test_an_action_a_check_raised_is_dismissed_not_deleted():
     a = [x for x in cc.list_actions(c._id) if x["title"].startswith("Raise trust")][0]
     assert not cc.deletable(a) and a["source"] == "trust_score"
     page = _page(c, "/actions/%s" % a["id"])
-    assert "Why this cannot be deleted" in page and "From the Trust score raised this action" in page
+    # "From the Trust score raised this action" was the label pasted into a
+    # sentence; this pinned it until the audit of 2026-09-23.
+    assert "Why this cannot be deleted" in page and "The Trust score raised this action" in page
+    assert "From the Trust score raised" not in page
     c.post("/actions/%s/delete" % a["id"])
     assert cc.get_action(a["id"], c._id) is not None
 
@@ -406,8 +409,11 @@ def test_the_shared_confirmation_links_to_the_action_it_made():
     aid = re.search(r"action_id=([0-9a-f]+)", loc).group(1)
     page = _page(c, "/trust-score?action=TS%20action&action_id=" + aid)
     assert 'href="/actions/%s" class="underline">View action' % aid in page
+    # An id that is not this account's action says nothing at all: the
+    # sentence used to be said by ?action= alone, and this test pinned it
+    # (audit, 2026-09-23).
     page = _page(c, "/trust-score?action=TS%20action&action_id=0000")
-    assert "is on your" in page and "View action" not in page
+    assert "is on your" not in page and "View action" not in page
 
 
 # ---- finding 10: safe defaults, and the last choice is remembered ------------
@@ -430,3 +436,285 @@ def test_the_form_controls_all_carry_a_name():
         attrs = control.group(2)
         if 'type="hidden"' not in attrs:
             assert "id=" in attrs or "aria-label=" in attrs, attrs[:90]
+
+
+# ---- the audit of 2026-09-23 (audit-group-mkact, actions-1 .. actions-23) --
+
+import io  # noqa: E402
+
+
+def _demo_client():
+    c = appmod.app.test_client()
+    with c.session_transaction() as sess:
+        sess["user_id"] = store.get_user_by_email("demo@streetbanker.io")["id"]
+    return c
+
+
+def _statement(uid):
+    store.save_statement(uid, "s.csv", [{"title": "Song", "source": "Spotify",
+                                         "amount": 10.0, "period": "2026-06"}])
+
+
+def _boom(*_a, **_k):
+    raise RuntimeError("store down")
+
+
+def test_actions_1_a_tab_in_return_to_is_never_the_way_back():
+    """Browsers strip a tab from a URL, so "/<TAB>/evil.example" is
+    "//evil.example": another site."""
+    c = _account()
+    aid = _create(c, title="Tabbed", returnTo="/\t/evil.example/phish", source="release_check")
+    assert cc.get_action(aid, c._id)["source_href"] == ""
+    page = _page(c, "/actions?title=Fix+ISRC&source=release_check&returnTo=/%09/evil.example")
+    assert 'name="returnTo"' not in page and "evil.example" not in page
+    assert "evil.example" not in _page(c, "/royalties?returnTo=/%09/evil.example/back")
+    for bad in ("/\t/x.example", "/\n/x.example", "/\r/x", "/\x0b/x", "/\x7f/x"):
+        assert cc._safe_href(bad) == "", repr(bad)
+    assert cc._safe_href("/room/stage") == "/room/stage"
+
+
+def test_actions_2_a_failed_read_is_the_error_page_at_503(monkeypatch):
+    c = _account()
+    _create(c, title="Kept safe")
+    monkeypatch.setitem(appmod.app.config, "PROPAGATE_EXCEPTIONS", False)
+    monkeypatch.setattr(cc, "list_actions", _boom)
+    r = c.get("/actions")
+    assert r.status_code == 503
+    body = r.get_data(as_text=True)
+    assert "We could not load your actions" in body and "No actions yet" not in body
+    assert 'href="/actions">Try again' in body and 'href="/command-center"' in body
+    monkeypatch.undo()
+    monkeypatch.setitem(appmod.app.config, "PROPAGATE_EXCEPTIONS", False)
+    monkeypatch.setattr(cc, "open_actions", _boom)
+    r = c.get("/command-center")
+    assert r.status_code == 503, "the page from zero"
+    assert "We could not load your Command Center" in r.get_data(as_text=True)
+    _statement(c._id)
+    r = c.get("/command-center")
+    assert r.status_code == 503, "the operational page"
+    assert "We could not load your Command Center" in r.get_data(as_text=True)
+
+
+def test_actions_3_a_record_that_could_not_be_read_is_not_called_gone(monkeypatch):
+    c = _account()
+    camp = mls.create_campaign(c._id, "md-%s" % uuid.uuid4().hex[:6], {"title": "Midnight Drive"})
+    aid = _create(c, title="About the release", related="release:%s" % camp)
+    monkeypatch.setattr(mls, "list_campaigns", _boom)
+    for page in (_page(c, "/actions?status=all"), _page(c, "/actions/%s" % aid)):
+        assert "no longer on file" not in page
+        assert "This release could not be read right now" in page
+    assert 'value="__keep__" selected' in _page(c, "/actions/%s" % aid)
+    c.post("/actions/%s" % aid, data={"title": "About the release", "related": "__keep__"})
+    assert cc.get_action(aid, c._id)["entity_id"] == camp, "the link survives an edit"
+    monkeypatch.undo()
+    assert "Midnight Drive · Release" in _page(c, "/actions?status=all")
+
+
+def test_actions_4_the_command_center_counts_every_open_action():
+    c = _account()
+    _statement(c._id)
+    for i in range(8):
+        _create(c, title="Low thing %d" % i, priority="low")
+    page = _page(c, "/command-center")
+    assert "No alerts right now." in page, "an operational account with no alert"
+    assert "8 open actions on your board, the first 5 listed under Open Actions." in page
+    assert "5 open actions on your board" not in page
+
+
+def test_actions_5_22_the_menu_and_the_summary_keep_inside_the_page():
+    css = io.open("static/css/actions.css", encoding="utf-8").read()
+    assert "right: auto; left: 0" not in css, "the menu no longer grows right from a right-hand button"
+    assert "max-width: calc(100vw - 32px)" in css and "min-width: min(250px, calc(100vw - 32px))" in css
+    assert ".ac-row .ac-acts .ac-menu { margin-left: auto; }" in css
+    assert ".ac-fig + .ac-fig" not in css, "no divider that can start a wrapped line"
+    assert ".ac-figs { flex: 1 1 auto; min-width: 0; overflow: hidden; }" in css
+    assert "margin-left: -25px" in css
+    c = _account()
+    _create(c, title="One")
+    page = _page(c, "/actions?status=all")
+    assert '<div class="ac-figs"><div class="ac-figs-in">' in page and "actions.css?v=3" in page
+
+
+def test_actions_6_a_long_unbroken_title_wraps():
+    zero = io.open("static/css/command-zero.css", encoding="utf-8").read()
+    rule = re.search(r"\n\.cz-h \{([^}]*)\}", zero).group(1)
+    assert "overflow-wrap: anywhere" in rule
+    css = io.open("static/css/actions.css", encoding="utf-8").read()
+    assert ".ac .sb-plate-title, .ac .sb-plate-sub { overflow-wrap: anywhere; min-width: 0; }" in css
+    assert "command-zero.css?v=5" in _page(_account(), "/command-center")
+
+
+def test_actions_7_a_rights_conflict_becomes_an_action_about_its_song():
+    c = _account()
+    t1 = store.add_os_track(c._id, "After Hours")
+    store.update_os_track_passport(c._id, t1, {"songwriters": "Ann, Bo"})
+    page = _page(c, "/conflicts")
+    form = page.split('action="/actions/from-alert"', 1)[1].split("</form>", 1)[0]
+    for field in ('name="source" value="rights_conflict"', 'name="room" value="publishing"',
+                  'name="entity_type" value="song"', 'name="entity_id" value="%s"' % t1,
+                  'value="Review split conflict: After Hours"'):
+        assert field in form, field
+    c.post("/actions/from-alert", data={"title": "Review split conflict: After Hours",
+                                        "category": "rights", "source": "rights_conflict",
+                                        "room": "publishing", "entity_type": "song", "entity_id": t1},
+           headers={"Referer": "http://localhost/conflicts"})
+    a = [x for x in cc.list_actions(c._id) if x["source"] == "rights_conflict"][0]
+    assert (a["room"], a["entity_type"], a["entity_id"]) == ("publishing", "song", t1)
+    row = _row(_page(c, "/actions?status=all"), "Review split conflict: After Hours")
+    assert "After Hours · Song" in row and "From Rights Conflict" in row
+    # a song that is not this account's is not kept
+    other = _account(name="Other")
+    other.post("/actions/from-alert", data={"title": "Sneaky song", "entity_type": "song",
+                                            "entity_id": t1},
+               headers={"Referer": "http://localhost/conflicts"})
+    assert [x for x in cc.list_actions(other._id) if x["title"] == "Sneaky song"][0]["entity_id"] == ""
+
+
+def test_actions_7_a_seat_that_cannot_file_an_action_is_told_who_can():
+    owner, rey = _account(), _account(name="Rey")
+    _seat(owner, rey, access="read")
+    t1 = store.add_os_track(owner._id, "After Hours")
+    store.update_os_track_passport(owner._id, t1, {"songwriters": "Ann, Bo"})
+    page = _page(rey, "/conflicts")
+    assert 'action="/actions/from-alert"' not in page
+    assert "Actions are filed by the account holder or a seat with every room and edit access." in page
+
+
+def test_actions_8_no_source_is_produced_by_nothing():
+    band = io.open("templates/_real_royalty_band.html", encoding="utf-8").read()
+    assert "band_mode == 'recovery'" not in band and 'value="royalty_check"' not in band
+    assert "royalty_check" not in cc.ACTION_SOURCES
+    assert acx.source_for_path("/recovery") == "" and acx.source_for_path("/statements") == ""
+
+
+def test_actions_9_an_alert_action_keeps_its_campaign_room_and_fix_link():
+    c = _account()
+    camp = mls.create_campaign(c._id, "hp-%s" % uuid.uuid4().hex[:6], {"title": "Higher Places"})
+    c.post("/actions/from-alert", data={
+        "title": "“Higher Places” captures emails without consent copy", "category": "rights",
+        "source": "alert", "fix": "/links/%s/edit" % camp},
+        headers={"Referer": "http://localhost/command-center"})
+    a = [x for x in cc.list_actions(c._id) if "consent copy" in x["title"]][0]
+    assert a["room"] == team_areas.room_for_path("/links/%s/edit" % camp) == "marketing"
+    assert a["entity_id"] == camp and a["entity_type"] in ("campaign", "release")
+    assert a["source_href"] == "/links/%s/edit" % camp
+    # a fix link that is another site is dropped
+    c.post("/actions/from-alert", data={"title": "Hostile fix", "fix": "//evil.example/x"},
+           headers={"Referer": "http://localhost/command-center"})
+    h = [x for x in cc.list_actions(c._id) if x["title"] == "Hostile fix"][0]
+    assert h["source_href"] == "/command-center"
+    tpl = io.open("templates/command_center.html", encoding="utf-8").read()
+    assert '<input type="hidden" name="fix" value="{{ link }}">' in tpl
+
+
+def test_actions_10_the_shared_line_is_said_by_the_saved_action_only():
+    c = _account()
+    page = _page(c, "/qualification?action=Your%20royalties%20were%20claimed&action_id=nope")
+    assert "Your royalties were claimed" not in page and "is on your" not in page
+
+
+def test_actions_11_a_fresh_board_says_it_is_empty_once():
+    page = _page(_account())
+    assert page.count("No actions yet.") == 1
+    assert 'aria-label="Filter actions"' not in page and 'class="ac-views"' not in page
+    assert '<span class="ac-count">0</span>' not in page
+
+
+def test_actions_12_the_demo_account_opens_on_the_showcase():
+    import demo_seed
+    page = _page(_demo_client(), "/actions?status=all")
+    assert "No actions yet" not in page
+    for title in ("Fix missing ISRC: Midnight Drive", "Review split conflict: Neon Dreams",
+                  "Prepare press announcement"):
+        assert title in page, title
+    uid = store.get_user_by_email("demo@streetbanker.io")["id"]
+    before = len(cc.list_actions(uid))
+    assert demo_seed.seed_actions(uid) is False, "keyed: a reboot adds nothing"
+    assert len(cc.list_actions(uid)) == before
+    s = cc.board_summary([a for a in cc.list_actions(uid) if a["created_by"] == "demo-seed"])
+    assert (s["complete"], s["in_progress"], s["not_started"], s["dismissed"]) == (3, 2, 2, 1)
+
+
+def test_actions_13_18_tour_tasks_use_the_one_set_of_names_and_a_real_assignee():
+    import tour_store as ts
+    c = _account()
+    tid = ts.create_tour(c._id, {"name": "Autumn run"})
+    c.post("/tours/%s/tasks/add" % tid, data={"title": "Book the van", "assignee": "Sam"})
+    a = [x for x in cc.list_actions(c._id) if x["title"].startswith("Book the van")][0]
+    assert a["title"] == "Book the van", "the name is no longer glued onto the title"
+    assert (a["assignee_id"], a["assignee_name"]) == ("", "Sam")
+    page = _page(c, "/tours/%s/tasks" % tid)
+    assert ">Not started</span>" in page and ">new</span>" not in page
+    assert ">Complete</button>" in page and ">Done</button>" not in page
+    assert 'href="/actions">Actions</a>' in page and "Command Center actions" not in page
+    assert "Tour crew: Sam" in page
+    assert "Tour crew: Sam" in _row(_page(c, "/actions?status=all"), "Book the van")
+    c.post("/actions", data={"action_id": a["id"], "status": "dismissed"})
+    assert ">Dismissed</span>" in _page(c, "/tours/%s/tasks" % tid)
+    # a name that is a confirmed team member is that person
+    mia = _account(name="Mia")
+    _seat(c, mia, access="edit")
+    c.post("/tours/%s/tasks/add" % tid, data={"title": "Load in", "assignee": "Mia"})
+    b = [x for x in cc.list_actions(c._id) if x["title"] == "Load in"][0]
+    assert (b["assignee_id"], b["assignee_name"]) == (mia._id, "")
+
+
+def test_actions_14_a_seat_that_cannot_open_actions_is_told_in_words():
+    import tour_store as ts
+    owner, rey = _account(), _account(name="Rey")
+    r = owner.post("/team/invite", data={"email": rey._email, "role": "manager", "access": "edit",
+                                         "areas_sent": "1", "areas": ["stage", "fans"]})
+    assert r.get_json().get("ok"), r.get_json()
+    row = [m for m in store.list_team(owner._id) if m["email"] == rey._email][0]
+    rey.post("/team/join/" + row["invite_token"], data={})
+    rey.post("/portal/%s/open" % owner._id)
+    assert rey.get("/actions").status_code == 302, "the whole-account page bounces this seat"
+    tid = ts.create_tour(owner._id, {"name": "Autumn run"})
+    r = rey.get("/tours/%s/tasks" % tid)
+    assert r.status_code == 200
+    head = r.get_data(as_text=True).split("Tour tasks</h1>", 1)[1][:900]
+    assert 'href="/actions"' not in head and "Also on the account's Actions list" in head
+
+
+def test_actions_15_the_reason_a_raised_action_stays_reads_as_a_sentence():
+    c = _account()
+    aid = cc.create_action(c._id, "Contract dates", source="document", entity_type="document",
+                           entity_id="d1")
+    assert "A contract reading raised this action" in _page(c, "/actions/%s" % aid)
+    listing = _page(c, "/actions?status=all")
+    assert "Raised by a contract reading, so it stays on record." in listing
+    assert set(cc.SOURCE_NOUNS) == set(cc.ACTION_SOURCES)
+
+
+def test_actions_16_action_deleted_is_said_by_a_delete_that_happened():
+    c = _account()
+    page = _page(c, "/actions?deleted=Your%20royalty%20claim")
+    assert "Action deleted" not in page and "Your royalty claim" not in page
+    aid = _create(c, title="Oops again")
+    r = c.post("/actions/%s/delete" % aid)
+    assert r.headers["Location"].endswith("/actions?deleted=1")
+    assert "&ldquo;Oops again&rdquo; is gone for good" in _page(c, r.headers["Location"])
+    assert "Action deleted" not in _page(c, r.headers["Location"]), "said once"
+
+
+def test_actions_17_creating_from_the_board_stays_on_the_board():
+    c = _account()
+    r = c.post("/actions", data={"title": "From the board", "back": "/actions?status=all&view=board"})
+    loc = r.headers["Location"]
+    assert "view=board" in loc and "status=all" in loc and "created=" in loc
+    assert 'class="ac-board"' in _page(c, loc)
+
+
+def test_actions_21_repeated_controls_name_their_action():
+    c = _account()
+    _create(c, title="Name me", room="publishing")
+    row = _row(_page(c, "/actions?status=all"), "Name me")
+    assert 'aria-label="Start: Name me"' in row
+    assert 'aria-label="Open Publishing for Name me" href="/room/publishing">Open Publishing' in row
+
+
+def test_actions_23_titles_and_descriptions_are_escaped():
+    c = _account()
+    aid = _create(c, title="<script>x()</script>", description="<b>bold</b>")
+    for page in (_page(c, "/actions?status=all"), _page(c, "/actions/%s" % aid)):
+        assert "<script>x()</script>" not in page and "&lt;script&gt;" in page

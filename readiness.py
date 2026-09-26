@@ -14,9 +14,12 @@ somebody typed a value, not that the vendor accepts it, that the account
 has quota, or that the sending domain is verified. Where something stronger exists the row links it and says exactly
 what that endpoint does, because they differ sharply: /storage/diag
 genuinely writes an object, signs a URL, reads it back and deletes it,
-while /presave/diag only reports which variables the process can see.
+while /presave/diag's Spotify token can come from the app's own 50-minute
+cache, so a secret revoked within the hour still reads "ok" there.
 Calling both of those "proof" would reintroduce the confusion this page
-exists to remove. A rotated Stripe
+exists to remove. The Providers page (/admin/providers) is where each
+outside service is asked one real question, uncached, on a button press.
+A rotated Stripe
 webhook secret reads "configured" forever, which is the exact shape of
 the billing overclaim the audit found.
 
@@ -76,6 +79,10 @@ def _signal_rows():
     for provider in sp.registry().all_providers():
         keys = list(getattr(provider, "env_keys", ()) or ())
         oauth = list(getattr(provider, "oauth_keys", ()) or ())
+        # Soundcharts also takes a ready-made access token (token_key),
+        # which its auth_mode() reads between the client pair and the
+        # legacy pair. The row named neither it nor the mode it enables.
+        token = getattr(provider, "token_key", "") or ""
         flag = getattr(provider, "env_flag", "")
         if not (keys or oauth or flag):
             continue          # the demo universe and other no-credential ones
@@ -83,7 +90,7 @@ def _signal_rows():
         rows.append({
             "name": provider.label,
             "on": bool(health.get("configured")),
-            "env": ([flag] if flag else []) + keys + oauth,
+            "env": ([flag] if flag else []) + keys + oauth + ([token] if token else []),
             "unlocks": health.get("detail") or "",
             "signal": True,
         })
@@ -137,14 +144,18 @@ def _groups():
     # Each group is a question an owner actually has - "can my artists be
     # emailed?", "do uploads survive a deploy?" - and rows are ordered by
     # how much stops working when they are missing.
+    import acr_console
     import acr_provider
     import backup_store
     import bandsintown_provider
     import blob_store
     import email_provider
     import eventbrite_provider
+    import signal_providers
     import spotify_provider
     import stripe_provider
+    import ticketmaster_provider
+    import venue_geo
 
     return [
         ("Email", "Nothing reaches anybody without this.", [
@@ -208,26 +219,49 @@ def _groups():
                          "real pre-save button on a campaign link. Without it, "
                          "the button labelled Pre-Save is an email box.",
                  probe="/presave/diag",
+                 # It said "It does not attempt an OAuth exchange". It does:
+                 # _app_token_check runs the client-credentials grant and
+                 # three catalog reads follow (app.py presave_diag). What
+                 # keeps it off "Prove it" is the token cache.
                  proof="reports which Spotify variables this process can "
-                       "see. It does not attempt an OAuth exchange"),
+                       "see, then asks Spotify for an app token (the "
+                       "client-credentials exchange) and makes three catalog "
+                       "reads with it. The token can come from the app's own "
+                       "50-minute cache, so a secret revoked within the hour "
+                       "can still read ok; Providers asks uncached"),
         ]),
         ("Rights",
          "Registration and fingerprinting in the catalog and the fingerprints "
          "desk. These are the keys those surfaces read directly - Signal's own "
          "use of the same vendors is the section above, and needs its flags.", [
-            dict(name="The MLC", on=_present("MLC_USERNAME", "MLC_PASSWORD"),
-                 env=["MLC_USERNAME", "MLC_PASSWORD"],
+            # The MLC and Discogs rows read the credentials alone, so they
+            # said On where every page that uses them (gated on the
+            # adapter's configured(), which needs the switch too) said off.
+            # The adapter answers now, switch and sandbox included.
+            dict(name="The MLC",
+                 on=_try(lambda: signal_providers.MLCAdapter().configured()),
+                 env=["MLC_ENABLED", "MLC_USERNAME", "MLC_PASSWORD"],
                  unlocks="Matching a work, filling ISWC and publisher from a "
                          "real registration, and a Clean Release score that "
-                         "can actually reach 100."),
-            dict(name="ACRCloud", on=_try(acr_provider.configured),
+                         "can actually reach 100. MLC_ENABLED has to be on as "
+                         "well as the sign-in."),
+            # One row listed the console token while its lamp read only the
+            # identify key, so a console token alone read "Not set" and an
+            # identify key alone lit the console. Two credentials, two rows.
+            dict(name="ACRCloud identify", on=_try(acr_provider.configured),
                  env=["ACRCLOUD_HOST", "ACRCLOUD_ACCESS_KEY",
-                      "ACRCLOUD_ACCESS_SECRET", "ACRCLOUD_CONSOLE_TOKEN"],
-                 unlocks="Registering a master for fingerprinting, and "
-                         "scanning audio against it."),
-            dict(name="Discogs", on=_present("DISCOGS_TOKEN"),
-                 env=["DISCOGS_TOKEN"],
-                 unlocks="Finding a pressing and filling its metadata."),
+                      "ACRCLOUD_ACCESS_SECRET"],
+                 unlocks="Identify on the Beats desk: a beat slice or a clip "
+                         "checked against released recordings."),
+            dict(name="ACRCloud console", on=_try(acr_console.configured),
+                 env=["ACRCLOUD_CONSOLE_TOKEN"],
+                 unlocks="The fingerprints desk: registering a master into a "
+                         "bucket, and scanning long recordings against it."),
+            dict(name="Discogs",
+                 on=_try(lambda: signal_providers.DiscogsAdapter().configured()),
+                 env=["DISCOGS_ENABLED", "DISCOGS_TOKEN"],
+                 unlocks="Finding a pressing and filling its metadata. "
+                         "DISCOGS_ENABLED has to be on as well as the token."),
         ]),
         ("Audio", "The key, the splitter, and one flag per lane.", [
             dict(name="ElevenLabs key", on=_present("ELEVENLABS_API_KEY"),
@@ -273,13 +307,18 @@ def _groups():
             dict(name="Eventbrite", on=_try(eventbrite_provider.configured),
                  env=["EVENTBRITE_TOKEN"],
                  unlocks="Measured ticket counts rather than typed ones."),
-            dict(name="Ticketmaster", on=_present("TICKETMASTER_API_KEY"),
-                 env=["TICKETMASTER_API_KEY"],
-                 unlocks="The same, for its own events."),
+            # It read the key alone, so it said On on Render where the
+            # owner's ruling (2026-09-18) keeps it off until
+            # TICKETMASTER_ENABLED=on.
+            dict(name="Ticketmaster", on=_try(ticketmaster_provider.configured),
+                 env=["TICKETMASTER_API_KEY", "TICKETMASTER_ENABLED"],
+                 unlocks="Ticket links and on-sale status for its own events. "
+                         "Off on deployed services by the owner's ruling "
+                         "(2026-09-18) until TICKETMASTER_ENABLED=on."),
             dict(name="Bandsintown", on=_try(bandsintown_provider.configured),
                  env=["BANDSINTOWN_APP_ID"],
                  unlocks="Dates on an artist's Signal page."),
-            dict(name="Google Maps", on=_present("GOOGLE_MAPS_API_KEY"),
+            dict(name="Google Maps", on=_try(venue_geo.configured),
                  env=["GOOGLE_MAPS_API_KEY"],
                  unlocks="Venue photos and coordinates on a show."),
         ]),
@@ -289,6 +328,25 @@ def _groups():
                  unlocks="Every link the app SENDS - password resets, rider "
                          "links, share links, QR codes - naming your own "
                          "domain rather than the hosting one."),
+            # Make-it-real, 2026-09-23: this row reads on only after a
+            # scheduler really ran /reminders/run. On live that is the
+            # nightly backup cron, presenting BACKUP_TOKEN; a service with
+            # no cron (staging) reads off, which is true there.
+            dict(name="Contract renewal reminders",
+                 on=_try(__import__("contract_reminders").scheduled),
+                 env=["BACKUP_TOKEN", "REMINDERS_CRON_TOKEN"],
+                 unlocks="The daily run that sends contract renewal reminders "
+                         "at 60, 30, 7 and 1 days before a notice deadline, "
+                         "in the app and by email, and moves the "
+                         "Release-Ready queue. While it is off, the "
+                         "Contracts card and each contract's row say the "
+                         "dates are on file, not that reminders go out.",
+                 caution="Measured, not a presence check: it reads on only "
+                         "when a scheduler has POSTed to /reminders/run in the "
+                         "last two days, with BACKUP_TOKEN in X-Backup-Token "
+                         "(the nightly backup cron does, straight after the "
+                         "backup) or REMINDERS_CRON_TOKEN in X-Reminders-Token. "
+                         "Either token alone runs nothing."),
             dict(name="Session secret", on=_present("SECRET_KEY"),
                  env=["SECRET_KEY"],
                  unlocks="Sessions surviving a restart.",

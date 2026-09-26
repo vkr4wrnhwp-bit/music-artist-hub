@@ -292,6 +292,8 @@
   text-transform: none; letter-spacing: 0; min-width: 0;
 }
 .sg-z-field input::placeholder { color: var(--sb-ink-2); font-weight: 400; }
+.sg-z-hint { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; line-height: 1.4; color: var(--sb-ink-2); }
+.sg-z-err { grid-column: 1 / -1; margin: 0; font-size: 14px; font-weight: 700; color: var(--sb-crit); }
 .sg-z-field input:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 2px; }
 .sg-z-btn {
   grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -321,11 +323,14 @@
 .sg-z-flow .rk-step.is-first b { color: var(--sb-gold-bright); }
 .sg-z-pair { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; }
 .sg-z-empty, .sg-z-help { display: flex; align-items: center; gap: 18px; }
-.sg-z-empty > div, .sg-z-help > div { flex: 1 1 auto; min-width: 0; }
+/* the text column grows; the help panel's actions wrapper is a div too,
+   and must keep its own flex: 0 0 auto or the button spills out of the
+   panel (audit stage-3, 2026-09-23) */
+.sg-z-empty > div, .sg-z-help > div:not(.sg-z-help-acts) { flex: 1 1 auto; min-width: 0; }
 .sg-z-ico { display: inline-grid; place-items: center; width: 52px; height: 52px; flex: 0 0 auto; color: var(--sb-gold-bright); }
 .sg-z-ico svg { width: 30px; height: 30px; }
 .sg-z-links { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
-.sg-z-links a { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
+.sg-z-links a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
 .sg-z-links a:hover { text-decoration: underline; }
 .sg-z-qs { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--sb-ink-2); }
 .sg-z-help-acts { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; flex: 0 0 auto; }

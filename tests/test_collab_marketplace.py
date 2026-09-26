@@ -176,10 +176,14 @@ def test_existing_actions_still_work(app_obj):
 
 
 def test_badges_are_the_right_way_round():
-    """F-5: the marketplace is a real board; Discover shows example artists."""
+    """F-5: the marketplace is a real board. Discover showed example
+    artists to everybody when this was written (2026-09-18) and so wore
+    the Sample badge; since 2026-09-21 it is real search for every account
+    and the sample feed reaches only the showcase login, under its own
+    banner, so it is live too (make-it-real, 2026-09-23)."""
     live = set(hubs.live_keys())
     assert "marketplace" in live
-    assert "discover" not in live
+    assert "discover" in live
 
 
 # --- Review fixes, 2026-09-18 -------------------------------------------------

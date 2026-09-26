@@ -1,10 +1,13 @@
 """Street Banker Artist Twin.
 
-A private writing agent that uses ONLY the data the artist approves:
-each source can be excluded, a do-not-say list is enforced on every
-output, and every generation shows exactly which sources fed it.
-Deterministic template generation today — an AI provider can slot in
-behind generate() later without changing the consent layer.
+Template-built drafts from ONLY the data the artist approves: each
+source can be excluded, a do-not-say list is enforced on every output,
+and every generation shows exactly which sources fed it. Deterministic
+template generation today; no model writes anything. A model can slot in
+behind generate() later without changing the consent layer, but each
+draft would then cost money, so that is the owner's decision, and the
+labels say "built from templates" until he makes it (make-real brief,
+2026-09-23).
 """
 
 import artist_identity

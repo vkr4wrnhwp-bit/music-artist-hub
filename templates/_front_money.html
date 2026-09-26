@@ -9,8 +9,13 @@
    account reads the months on its own statements or shows none. #}
 {% set rr = real_royalty %}
 {% set this_month = months[-1][1] if months else 0 %}
-{% set last_month = months[-2][1] if months|length > 1 else this_month %}
-{% set growth_pct = ((this_month - last_month) / last_month * 100) if last_month else 0 %}
+{#- A comparison needs two periods. With one there is no "last month":
+    no figure, no arrow, no percentage (audit, 2026-09-23: one statement
+    printed a green "vs last month ↑ 0.0%" against a month that does not
+    exist). `compared` gates every place the pair is drawn. -#}
+{% set compared = months|length > 1 %}
+{% set last_month = months[-2][1] if compared else none %}
+{% set growth_pct = ((this_month - last_month) / last_month * 100) if (compared and last_month) else 0 %}
 {% set remaining = (goal - tracked) if goal > tracked else 0 %}
 {% set goal_pct = ((tracked / goal) * 100) if goal else 0 %}
 {% set health = overview_health %}
@@ -57,10 +62,14 @@
           <div class="sb-label text-gray-200">{{ month_labels.this }}</div>
           <div class="mt-1 text-xl font-bold tabular-nums text-gray-100">${{ "{:,.2f}".format(this_month) }}</div>
         </div>
+        {% if compared %}
         <div>
           <div class="sb-label text-gray-200">{{ month_labels.vs }}</div>
           <div class="mt-1 text-xl font-bold tabular-nums {{ 'text-green-400' if growth_pct >= 0 else 'text-red-400' }}">{{ '↑' if growth_pct >= 0 else '↓' }} {{ "%.1f"|format(growth_pct|abs) }}%</div>
         </div>
+        {% else %}
+        <p class="max-w-[14rem] text-xs text-gray-200">One period on file, so there is nothing to compare it with yet.</p>
+        {% endif %}
         {% endif %}
         <a href="{{ '/recovery' if rr else '/statements' }}"
            class="sb-btn sb-btn-secondary sb-btn-sm">
@@ -145,8 +154,24 @@
       {% if recovery_view is not none %}
       {# A real account: its own statements or nothing at all. #}
       {% if recovery_view.has_data %}
-      <div class="relative mt-3 text-3xl font-bold tracking-tight text-sb-ink tabular-nums">${{ "{:,.2f}".format(recovery_view.total_at_stake) }}</div>
-      <div class="relative mt-1 text-xs text-gray-200">From your statements — ${{ "{:,.2f}".format(recovery_view.actual_unattributed) }} actual, ${{ "{:,.2f}".format(recovery_view.estimated_gaps) }} estimated</div>
+      {#- Two bases, two figures, never one total (make-it-real,
+          2026-09-23). This card led with recovery_engine's total_at_stake,
+          which adds the actual unattributed money to the estimated
+          coverage gaps; the Recovery page and the Business room already
+          refused to print that sum. -#}
+      <div class="relative mt-3 grid grid-cols-2 gap-3">
+        <div class="min-w-0">
+          <div class="text-xs font-semibold uppercase tracking-wide text-gray-200">Actual</div>
+          <div class="mt-0.5 text-xl font-bold tracking-tight text-sb-ink tabular-nums sm:text-2xl">${{ "{:,.2f}".format(recovery_view.actual_unattributed) }}</div>
+          <div class="text-xs text-gray-200">paid with no track named</div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-xs font-semibold uppercase tracking-wide text-gray-200">Estimate</div>
+          <div class="mt-0.5 text-xl font-bold tracking-tight text-sb-ink tabular-nums sm:text-2xl"><span aria-hidden="true">≈ </span>${{ "{:,.2f}".format(recovery_view.estimated_gaps) }}</div>
+          <div class="text-xs text-gray-200">stores silent on a track</div>
+        </div>
+      </div>
+      <div class="relative mt-2 text-xs text-gray-200">From your statements. Two different bases, so they are never added together.</div>
       <div class="relative mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-gray-200">
         <span>{{ recovery_view.finding_count }} finding{{ '' if recovery_view.finding_count == 1 else 's' }}</span>
         <span>{{ recovery_view.row_count }} rows scanned</span>
@@ -157,7 +182,10 @@
       {% endif %}
       {% else %}
       <div class="relative mt-3 text-3xl font-bold tracking-tight text-sb-ink tabular-nums">${{ "{:,.2f}".format(money_left.total) }}</div>
-      <div class="relative mt-1 text-xs text-gray-300">Estimated uncollected royalties</div>
+      {#- The showcase's figure is royalty_data's sample findings, so the
+          card says so on its face, as the ledger line above does
+          (make-it-real, 2026-09-23). -#}
+      <div class="relative mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-300">Estimated uncollected royalties<span class="rounded-full border border-sb-gold/30 bg-sb-gold/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-sb-gold-bright">Sample</span></div>
       <div class="relative mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-300 font-medium">
         <span>{{ story.missing_count }} issues found</span>
         <span>${{ "{:,.0f}".format(money_left.high) }} high confidence</span>
@@ -254,7 +282,7 @@
         {% if months %}<p class="text-xs text-gray-300">Royalties by month: {% for m in months %}{{ m[0] }}, ${{ "{:,.2f}".format(m[1]) }}{{ "; " if not loop.last }}{% endfor %}.</p>
         {% else %}<p class="text-xs text-gray-300">No statement months on file yet.</p>{% endif %}
       </canvas></div>
-      {% if months %}
+      {% if compared %}
       <div class="mt-4 grid grid-cols-3 gap-2 border-t border-white/5 pt-3 text-center">
         <div>
           <div class="text-sm font-bold sb-num">${{ "{:,.2f}".format(this_month) }}</div>

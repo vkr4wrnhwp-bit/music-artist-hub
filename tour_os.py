@@ -58,6 +58,17 @@ import venue_photos
 
 bp = Blueprint("tours", __name__)
 
+
+@bp.app_template_global("sample_tour")
+def sample_tour(tour):
+    """True for the Mock Up Tour. The print and share frame asks, so a
+    printed sheet of the sample says it is one."""
+    if not tour or not tour.get("id"):
+        return False
+    import tour_mockup
+    return tour_mockup.is_mock(tour["id"])
+
+
 _base_url = lambda: ""
 # The account this request works in, the team seat it works through, and
 # the partner staff member acting on the artist's behalf (all set by init
@@ -973,10 +984,31 @@ def _ctx(user, tour, viewer, nav, **extra):
             "tour_statuses": ts.TOUR_STATUSES, "show_statuses": ts.SHOW_STATUSES,
         },
         "fmt_time": eng.fmt_time, "fmt_day": eng.fmt_day_long,
+        # A task is a Street Banker action: its states have one set of
+        # names everywhere (Not started / In progress / Complete /
+        # Dismissed), and the Actions list is offered only to someone who
+        # can open THIS account's list (audit, 2026-09-23).
+        "status_labels": command_center.STATUS_LABELS,
+        "actions_open": _actions_open(viewer),
     }
     base["thumbs"], base["thumb_credits"] = _venue_art(tour, shows)
+    # The Mock Up Tour is a sample: every page of it says so, and says
+    # that nothing on it reaches a public page.
+    import tour_mockup
+    base["tour_is_sample"] = tour_mockup.is_mock(tour["id"])
     base.update(extra)
     return base
+
+
+def _actions_open(viewer):
+    """Whether /actions shows this viewer the account these tasks are on:
+    the account holder, or a team seat with every room (/actions is a
+    whole-account page, and a seat with some rooms is bounced from it). A
+    tour crew member's own /actions is their account, not this one."""
+    if not viewer.get("is_owner"):
+        return False
+    seat = viewer.get("seat")
+    return seat is None or team_areas.allows(seat["areas"], "/actions")
 
 
 def _tour_tabs(viewer):
@@ -1252,9 +1284,18 @@ def index():
         except Exception:                       # a demo must never break the page
             current_app.logger.exception("mock up tour")
     mine = ts.list_tours(user["id"])
+    import tour_mockup
+    sample_ids = tour_mockup.mock_tour_ids(user["id"])
+    for t in mine:
+        t["is_sample"] = t["id"] in sample_ids
     # Tours the artist was invited onto are another account's; a seat
     # does not open them (see _seat_viewer).
     shared = [] if seat is not None else ts.tours_shared_with(user["id"])
+    # One of them can be that account's Mock Up Tour (an invitation made
+    # before invitations were refused there); its card carries the
+    # Sample chip like the owner's own does.
+    for t in shared:
+        t["is_sample"] = tour_mockup.is_mock(t["id"])
     for t in mine + shared:
         shows = ts.list_shows(t["id"])
         t["show_count"] = len(shows)
@@ -1290,6 +1331,8 @@ def _all_tours_month(tours, month_arg):
         for d in ts.list_days(t["id"]):
             s = show_by_id.get(d.get("show_id"))
             entries.append({"date": d["date"], "tour": t["name"], "tours_n": len(tours),
+                            # the Mock Up Tour's dates are marked Sample in the cell
+                            "sample": bool(t.get("is_sample")),
                             "label": (s["city"] or s["venue"]) if s else (d.get("title") or (d.get("kind") or "").replace("_", " ").capitalize()),
                             "show": bool(s),
                             "href": "/tours/%s/shows/%s" % (t["id"], s["id"]) if s else "/tours/%s/calendar?month=%s" % (t["id"], d["date"][:7])})
@@ -1321,6 +1364,22 @@ def _tz_guess():
 def _is_demo(user):
     import demo_accounts
     return demo_accounts.is_demo_email((user or {}).get("email"))
+
+
+# The session key a refused one-off show's typed fields ride back in.
+ONE_OFF_DRAFT = "one_off_draft"
+
+
+def _real_day(value):
+    """True for a YYYY-MM-DD string that is a real calendar day."""
+    value = (value or "").strip()
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+        return False
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
 
 
 def _safe_back(value):
@@ -1356,7 +1415,19 @@ def create():
     own_act = artist_identity.display_name(user)
     if one_off:
         # A one-off show is a tour of one date, its single show made now.
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", f.get("date") or ""):
+        # The date must be a real calendar day: the pattern alone let
+        # 2026-02-30 and 2026-13-45 through as shows (audit stage-12).
+        if not _real_day(f.get("date")):
+            back = _safe_back(f.get("returnTo"))
+            if back:
+                # A door that said where it came from gets the person back
+                # there with what they typed kept, and the reason (audit
+                # stage-11): the draft rides in the session, never the URL.
+                session[ONE_OFF_DRAFT] = {k: (f.get(k) or "").strip()[:120]
+                                          for k in ("name", "date", "venue", "city")}
+                path, _, frag = back.partition("#")
+                return redirect(path + ("&" if "?" in path else "?") + "show_error=date"
+                                + "#" + (frag or "sg-z-show"))
             return redirect("/tours?one_off=date")
         venue = (f.get("venue") or "").strip() or "TBA"
         # The Stage room's first-show form (2026-09-23) offers an event
@@ -1945,6 +2016,17 @@ def _date_page(user, tour, viewer, show, tab, **extra):
         # activity
         "changes": _changes_for(viewer, tid, mine)[:100],
     }
+    # A real date the member added to the sample themselves is theirs to
+    # move to a tour of their own (show_move): never a sheet row, never
+    # for a seat. The form lists the account's real tours.
+    import tour_mockup
+    d["sample_move"] = None
+    if (tour_mockup.is_mock(tid) and viewer.get("is_owner") and not viewer.get("seat")
+            and (show["date"], show["venue"]) not in tour_mockup.sheet_show_keys()):
+        mock = tour_mockup.mock_tour_ids(tour["user_id"])
+        d["sample_move"] = {"targets": [t for t in ts.list_tours(tour["user_id"]) if t["id"] not in mock]}
+    d["moved"] = request.args.get("moved")
+    d["move_fail"] = request.args.get("move")
     d["lineup_warnings"] = ts.lineup_warnings(d["lineup"], fmt_time=eng.fmt_time)
     # Each feature's tour-wide page, for the viewers who may open it.
     paths = {k: p for k, _l, p in TOUR_TABS}
@@ -2197,6 +2279,46 @@ def show_delete(user, tour, viewer, tour_id, show_id):
     ts.log_change(tour_id, tour["user_id"], _actor(viewer), "show", show_id, show["venue"],
                   "deleted", show["date"], "", "critical")
     return redirect("/tours/%s/shows" % tour_id)
+
+
+@bp.route("/tours/<tour_id>/shows/<show_id>/move", methods=["POST"])
+@require_tour("edit")
+def show_move(user, tour, viewer, tour_id, show_id):
+    """A real date the member put on the Mock Up Tour themselves goes to
+    a tour of their own, with everything hung on it (ts.move_show), so it
+    is on the press kit again and can be shared, sold and advanced. Only
+    off the sample, only by the owner, never a date the sheet invented,
+    and only onto one of the account's own real tours or a new one made
+    the way adopt_orphan_shows makes one (review, 2026-09-24)."""
+    import tour_mockup
+    if not sample_tour(tour) or not viewer.get("is_owner") or viewer.get("seat"):
+        abort(404)
+    show = _show_or_404(tour, show_id)
+    back = _show_url(tour, show)
+    if (show["date"], show["venue"]) in tour_mockup.sheet_show_keys():
+        return redirect(back + "?move=invented")
+    target = (request.form.get("to_tour") or "").strip()
+    if target == "new":
+        dest = ts.create_tour(tour["user_id"], {
+            "name": ts.ADOPTED_TOUR_NAME, "artist_name": tour.get("artist_name") or "",
+            "start_date": show["date"], "end_date": show["date"],
+            "home_tz": show.get("tz") or tour.get("home_tz") or "America/New_York",
+            "currency": tour.get("currency") or "USD",
+            "notes": "Made when a date you added to the sample tour was moved off it. "
+                     "Rename it in Settings."})
+    else:
+        t = ts.get_tour(target)
+        if t is None or t["user_id"] != tour["user_id"] or tour_mockup.is_mock(t["id"]):
+            return redirect(back + "?move=target")
+        dest = t["id"]
+    if not ts.move_show(tour_id, dest, show_id):
+        return redirect(back + "?move=target")
+    label = "%s · %s" % (show["date"], show["venue"])
+    ts.log_change(tour_id, tour["user_id"], _actor(viewer), "show", show_id, label,
+                  "moved", "", "to a tour of your own", "info")
+    ts.log_change(dest, tour["user_id"], _actor(viewer), "show", show_id, label,
+                  "moved", "", "from the sample tour", "info")
+    return redirect("/tours/%s/shows/%s?moved=1" % (dest, show_id))
 
 
 # --- schedule ---------------------------------------------------------------
@@ -2559,7 +2681,12 @@ def _send_context(tour, show, viewer, user, create_links=False):
     # account holder's to hand out: a team seat composes and sends the
     # advance without them (none are made or shown), and the page says so.
     links_held = viewer.get("seat") is not None
-    if links_held:
+    # A date on the Mock Up Tour gets no public link at all: the rider
+    # page and the production pack would put an invented show in front
+    # of real people, and one made before that rule opens nothing. The
+    # page says so instead of "created when you send".
+    links_sample = sample_tour(tour)
+    if links_held or links_sample:
         links = {"rider": "", "production": ""}
     else:
         links = {"rider": _rider_url(tour, show, create_links),
@@ -2581,7 +2708,8 @@ def _send_context(tour, show, viewer, user, create_links=False):
                            if v["kind"] == "press_kit"],
             "sender": sender, "sender_address": emailer.sender(),
             "mail_ready": emailer.configured() and not emailer.using_shared_test_sender(),
-            "links": links, "links_held": links_held, "sends": ts.list_advance_sends(tid, sid)}
+            "links": links, "links_held": links_held, "links_sample": links_sample,
+            "sends": ts.list_advance_sends(tid, sid)}
 
 
 def _file_bytes(record):
@@ -2688,6 +2816,9 @@ def _deliver_advance(tour, show, viewer, user, to, cc, subject, body, picks):
 def advance_send(user, tour, viewer, tour_id, show_id):
     show = _show_or_404(tour, show_id)
     back = _show_url(tour, show, "send")
+    if sample_tour(tour):
+        # An invented show is never advanced to a real inbox.
+        return redirect(back + "&fail=sample")
     to = (request.form.get("to") or "").strip()
     if not _EMAIL_RE.match(to):
         return redirect(back + "&fail=to")
@@ -2718,6 +2849,8 @@ def advance_send_all(user, tour, viewer, tour_id):
     each, composed per show. A show with no address is skipped and said so;
     a failure is recorded on that show like a single send would be."""
     back = "/tours/%s/shows" % tour_id
+    if sample_tour(tour):
+        return redirect(back + "?advance_fail=sample")
     if not emailer.configured() or emailer.using_shared_test_sender():
         return redirect(back + "?advance_fail=sender")
     picks = set(request.form.getlist("show"))
@@ -3282,16 +3415,26 @@ def guest_add(user, tour, viewer, tour_id, show_id):
         c = press_store.get_contact(tour["user_id"], f.get("linked_contact_id"))
         if c:
             fields.update({"name": c.get("name"), "email": c.get("email"), "company": c.get("outlet") or ""})
-    # A full list takes requests as pending, never silently over-approves
-    summary = ts.guest_summary(tour_id, show_id, show.get("guest_allocation"))
-    if summary["allocation"] is not None and summary["remaining"] is not None:
-        if fields.get("status") == "approved" and int(fields["count"]) > summary["remaining"]:
-            fields["status"] = "pending"
+    # A full list takes an approval as pending, and says so: approving past
+    # the allocation is refused, never silently allowed.
+    held = False
+    if fields.get("status") in ts.GUEST_HOLDING and ts.guest_over_allocation(
+            tour_id, show_id, show.get("guest_allocation"), None, fields["status"], _guest_count(fields["count"])):
+        fields["status"] = "pending"
+        held = True
     gid = ts.add_guest(tour_id, tour["user_id"], show_id, fields)
     if gid:
         ts.log_change(tour_id, tour["user_id"], _actor(viewer), "guest", gid,
                       "%s · %s" % (show["venue"], fields.get("name")), "created", "", fields.get("status") or "pending", "info")
-    return redirect(_show_url(tour, show, "guests"))
+    return redirect(_show_url(tour, show, "guests") + ("&held=%s" % gid if held and gid else ""))
+
+
+def _guest_count(raw, default=1):
+    """A guest's party size as the store keeps it: a whole number, at least 1."""
+    try:
+        return max(1, int(raw or default))
+    except (TypeError, ValueError):
+        return max(1, int(default or 1))
 
 
 @bp.route("/tours/<tour_id>/shows/<show_id>/guests/<guest_id>", methods=["POST"])
@@ -3310,6 +3453,13 @@ def guest_update(user, tour, viewer, tour_id, show_id, guest_id):
     for flag in ("backstage", "meet_greet", "aftershow"):
         if request.form.get("_flags"):
             fields[flag] = bool(request.form.get(flag))
+    # Approving past the allocation is refused here, on the server, not
+    # only lit as "Over allocation" afterwards (overclaim audit, 2026-09-11):
+    # nothing is saved, and the page says who did not fit and why.
+    status = fields.get("status") if fields.get("status") in ts.GUEST_STATUSES else g["status"]
+    count = _guest_count(fields.get("count"), g["count"]) if "count" in fields else g["count"]
+    if ts.guest_over_allocation(tour_id, show_id, show.get("guest_allocation"), guest_id, status, count):
+        return redirect(_show_url(tour, show, "guests") + "&full=%s" % guest_id)
     if fields.get("status") == "approved":
         fields["approved_by"] = viewer["name"]
     changed = ts.update_guest(tour_id, guest_id, fields)
@@ -3403,8 +3553,11 @@ def vip_includes(offer):
 def _vip_context(tour, show):
     # The purchase link is the account holder's to share, like the tour's
     # other public links: a team seat neither sees it nor makes it.
-    token = "" if _seat() is not None else ts.ensure_vip_link(tour["id"], show["id"])
-    return {"vip_offers": ts.list_vip_offers(tour["id"], show["id"]),
+    # The Mock Up Tour's dates are invented: no purchase link is made for
+    # one, and /vip/<token> refuses any made before this rule.
+    sample = sample_tour(tour)
+    token = "" if (_seat() is not None or sample) else ts.ensure_vip_link(tour["id"], show["id"])
+    return {"vip_offers": ts.list_vip_offers(tour["id"], show["id"]), "vip_sample": sample,
             "vip_link": (_vip_base_url() + "/vip/" + token) if token else "",
             "vip_ledger": ts.vip_sales_ledger(tour["id"], show["id"]),
             "vip_sales": ts.list_vip_sales(tour["id"], show["id"]),
@@ -3513,7 +3666,9 @@ def _vip_link_or_404(token):
     found = ts.vip_link(token)
     tour = ts.get_tour(found[0]) if found else None
     show = ts.get_show(found[0], found[1]) if tour else None
-    if not (tour and show):
+    # Nothing is sold for a date on the Mock Up Tour: its shows are
+    # invented, and a fan must never pay for one.
+    if not (tour and show) or sample_tour(tour):
         abort(404)
     return tour, show
 
@@ -3583,6 +3738,8 @@ def vip_buy(token):
 @require_tour("vip")
 def vip_offer_add(user, tour, viewer, tour_id, show_id):
     show = _show_or_404(tour, show_id)
+    if sample_tour(tour):
+        return redirect(_show_url(tour, show, "vip") + "&offer=sample")
     f = request.form
     fields = {k: f.get(k) for k in ("name", "blurb", "price", "capacity", "schedule_time")}
     for flag in ts.VIP_OFFER_FLAGS:
@@ -4002,8 +4159,11 @@ def task_add(user, tour, viewer, tour_id):
         return _back("/tours/%s/tasks" % tour_id)
     show_id = f.get("show_id") or ""
     show = ts.get_show(tour_id, show_id) if show_id else None
-    if f.get("assignee"):
-        title = "%s — %s" % (title, f.get("assignee"))
+    # Who has it. The name used to be glued onto the title while the
+    # Action Center said "Unassigned" (audit, 2026-09-23). A name that is a
+    # confirmed member of the account's team is that person; anyone else
+    # is tour crew, kept by name and shown as "Tour crew: <name>".
+    assignee_id, crew = _task_assignee(tour["user_id"], (f.get("assignee") or "").strip())
     command_center.create_action(
         tour["user_id"], title, category="general", priority=f.get("priority") or "medium",
         description=(f.get("description") or "")[:1000],
@@ -4012,9 +4172,28 @@ def task_add(user, tour, viewer, tour_id):
         # The Action Center shows where it came from and the room it
         # belongs to (owner's mockup, 2026-09-23); typed in by hand, so it
         # can be deleted there.
-        room="stage", source="tour_task",
+        room="stage", source="tour_task", assignee_id=assignee_id, assignee_name=crew,
         source_href=_show_url(tour, show, "tasks") if show else "/tours/%s/tasks" % tour_id)
     return _back(_show_url(tour, show, "tasks") if show else "/tours/%s/tasks" % tour_id)
+
+
+def _task_assignee(owner_id, name):
+    """(assignee_id, crew name) for the name typed into a task's Assignee
+    field: a confirmed team member of the account by name or email is that
+    person; any other name is tour crew."""
+    if not name:
+        return "", ""
+    key = name.lower()
+    try:
+        team = store.list_team(owner_id)
+    except Exception:
+        team = []
+    for m in team:
+        if m.get("status") != "active" or not m.get("member_user_id"):
+            continue
+        if key in ((m.get("member_name") or "").strip().lower(), (m.get("email") or "").strip().lower()):
+            return m["member_user_id"], ""
+    return "", name[:80]
 
 
 @bp.route("/tours/<tour_id>/tasks/<action_id>/status", methods=["POST"])
@@ -4443,6 +4622,11 @@ def _import_status(raw):
     return None
 
 
+# What the Import page can record as a source. tour_mockup.IMPORT_SOURCE
+# is deliberately not one of them.
+IMPORT_SOURCES = ("paste", "csv", "ics")
+
+
 @bp.route("/tours/<tour_id>/import", methods=["GET", "POST"])
 @require_tour("edit")
 def import_dates(user, tour, viewer, tour_id):
@@ -4452,6 +4636,14 @@ def import_dates(user, tour, viewer, tour_id):
     if request.method != "POST":            # HEAD is answered by this view too; only a POST imports
         return render_template("tour/import.html", **_ctx(user, tour, viewer, "import", shows=shows, history=history))
     source = request.form.get("source") or "paste"
+    if source not in IMPORT_SOURCES:
+        # The form names paste, csv or ics; anything else is read as a
+        # paste. The Mock Up Tour is recognised by an import source only
+        # tour_mockup.ensure_for writes (its IMPORT_SOURCE), so a posted
+        # source never reaches record_import unchecked: a form claiming
+        # it could otherwise mark a real tour as the sample and take its
+        # dates and public links down (review of 2026-09-23).
+        source = "paste"
     text = request.form.get("text") or ""
     filename = ""
     up = request.files.get("file")
@@ -4704,6 +4896,9 @@ SHARE_SCOPE_LABELS = {
 @bp.route("/tours/<tour_id>/share/new", methods=["POST"])
 @require_tour("admin")
 def share_new(user, tour, viewer, tour_id):
+    if sample_tour(tour):
+        # The sample's invented dates never reach a public page.
+        return redirect("/tours/%s/share" % tour_id)
     scope = request.form.get("scope") or ""
     show_id = request.form.get("show_id") or None
     if scope in ("day_sheet", "photographer", "guest_checkin", "venue_guest_list", "driver", "setlist",
@@ -4753,7 +4948,9 @@ def _share_link_or_404(token):
     if link is None or link["revoked"]:
         abort(404)
     tour = ts.get_tour(link["tour_id"])
-    if tour is None:
+    # A link minted on the Mock Up Tour before links were refused there
+    # opens nothing: the sample never reaches a public page.
+    if tour is None or sample_tour(tour):
         abort(404)
     if link["expires"] and link["expires"] < eng.today_in(tour["home_tz"]):
         abort(410)
@@ -4924,6 +5121,12 @@ def team(user, tour, viewer, tour_id):
 @bp.route("/tours/<tour_id>/team/invite", methods=["POST"])
 @require_tour("admin")
 def team_invite(user, tour, viewer, tour_id):
+    if sample_tour(tour):
+        # The sample is nobody's to share, by link or by seat: an
+        # invitation would put its invented dates in front of a real
+        # person (review, 2026-09-24). The team page says so in place
+        # of the form.
+        return redirect("/tours/%s/team?invite=sample" % tour_id)
     f = request.form
     role = f.get("role") or "crew"
     scopes = [s for s in f.getlist("scopes") if s in ts.SCOPES] or list(ts.ROLE_PRESETS.get(role, ["view"]))

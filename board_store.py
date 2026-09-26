@@ -732,10 +732,15 @@ def verified_chips(user_id):
     """Facts from the poster's own platform records, labelled by source.
     Nothing self-reported sneaks in here: that lives on the listing and is
     marked as such in the template."""
+    import tour_mockup
     chips = []
     with get_db() as db:
-        rows = db.execute("SELECT city, status, date FROM tour_shows WHERE user_id = ?", (user_id,)).fetchall()
+        rows = db.execute("SELECT city, status, date, tour_id FROM tour_shows WHERE user_id = ?",
+                          (user_id,)).fetchall()
         slug_row = db.execute("SELECT slug FROM epk_profiles WHERE user_id = ?", (user_id,)).fetchone()
+    # The Mock Up Tour is a sample: its CONFIRMED dates are invented and
+    # never become a "confirmed dates ahead" badge other members read.
+    rows = tour_mockup.real_shows(user_id, [dict(r) for r in rows])
     played = [r for r in rows if r["status"] in ("played", "settled")]
     if played:
         chips.append({"key": "shows", "label": "%d show%s played" % (len(played), "" if len(played) == 1 else "s"), "source": "TOUR"})

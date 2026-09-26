@@ -335,5 +335,110 @@ def test_the_owner_still_gets_the_capture_pill():
     body = owner.get("/room/fans").get_data(as_text=True)
     assert "Launch fan campaign" in body
     # ?type=bio since the same afternoon (owner: "add the ?type=bio to the
-    # fans link") - the door opens the builder on the Fan Hub
-    assert 'href="/links/new?type=bio"' in body
+    # fans link") - the door opens the builder on the Fan Hub - and the
+    # way back since the Fans audit of 2026-09-23: the bare href's builder
+    # offered "Back to Marketing"
+    assert 'href="/links/new?type=bio&amp;returnTo=/room/fans"' in body
+
+
+def _fans_main(member):
+    import re
+    body = member.get("/room/fans").get_data(as_text=True)
+    main = re.search(r'<main id="sb-main"[^>]*>(.*?)</main>', body, re.S)
+    assert main, "no main on the fans room"
+    return main.group(1)
+
+
+def test_a_read_seat_in_the_fans_room_gets_no_door_and_is_told_who_can():
+    """Fans audit, 2026-09-23 (fans-2, fans-18). A READ seat with Fans and
+    Marketing was offered "Launch fan campaign" three times and "Import
+    your list", and each save bounced to ?team=readonly. It now gets the
+    cards without their buttons, the fan list as the hero's pill, and one
+    line saying who adds fans - the rooms' can_add = "seat" rule."""
+    import fan_room
+    owner, member = _account(), _account(name="Reader")
+    _seat(owner, member, access="read", areas=["fans", "marketing"])
+    _open_account(member, owner)
+    main = _fans_main(member)
+    assert "Launch fan campaign" not in main and "Import your list" not in main
+    assert "/links/new" not in main, "no builder door for a seat whose save bounces"
+    assert 'class="fr-start-btn' not in main
+    assert 'class="fr-cta" href="/links/fans"' in main, "the pill is the fan list"
+    assert fan_room.LOCKED in main
+    assert main.count('class="fr-start"') == 2, "the two ways are still explained"
+    # and what it would have been refused at is still refused
+    r = member.post("/fans/import/preview", data={})
+    assert "team=readonly" in (r.headers.get("Location") or "")
+
+
+def test_a_fans_only_edit_seat_keeps_the_import_door_and_its_own_words():
+    """fans-15: the seat without Marketing is offered the import alone, so
+    the copy around it speaks of the import alone."""
+    owner, member = _account(), _account(name="Importer")
+    _seat(owner, member, access="edit", areas=["fans"])
+    _open_account(member, owner)
+    main = _fans_main(member)
+    assert "Import your list" in main and "Launch fan campaign" not in main
+    assert "Start with a fan campaign" not in main
+    assert "Your starting point" in main and "Choose your starting point" not in main
+    assert "Choose how to add your first fans" not in main
+    assert "Fans are added by the account holder" not in main, "an edit seat can add them"
+
+
+def test_no_room_claims_another_rooms_card_through_extra():
+    """Audit publishing-6, 2026-09-23. /conflicts is the Publishing room's
+    own "conflicts" card and was also in EXTRA["business"]; room_for_path
+    broke the tie by ROOMS order, so a Publishing seat could not open its
+    own card. An EXTRA prefix may name only a page no other room holds as
+    a card."""
+    import urllib.parse
+    import rooms
+    cat = rooms.catalogue()
+    cards = {}
+    for rkey, _n, _p, keys in rooms.ROOMS:
+        for k in keys:
+            if k in cat:
+                path = urllib.parse.urlsplit(cat[k][0]).path.rstrip("/")
+                cards.setdefault(path, set()).add(rkey)
+    clashes = [(rkey, p, sorted(cards[p] - {rkey}))
+               for rkey, prefixes in team_areas.EXTRA.items()
+               for p in prefixes if cards.get(p, set()) - {rkey}]
+    assert not clashes, clashes
+    assert team_areas.room_for_path("/conflicts") == "publishing"
+
+
+def test_a_publishing_seat_opens_every_publishing_card():
+    """publishing-17: a seat with only Publishing ticked opens every card
+    of the Publishing room, Rights Conflicts included - and the room draws
+    that card for it."""
+    import rooms
+    cat = rooms.catalogue()
+    keys = [r for r in rooms.ROOMS if r[0] == "publishing"][0][3]
+    owner, member = _account("label"), _account(name="Publisher")
+    _seat(owner, member, access="read", areas=["publishing"])
+    _open_account(member, owner)
+    for k in keys:
+        if k not in cat or cat[k][0].startswith(("http", "/suites/go")):
+            continue
+        r = member.get(cat[k][0])
+        assert r.status_code == 200 or "team=room" not in (r.headers.get("Location") or ""), (
+            k, cat[k][0], r.status_code, r.headers.get("Location"))
+    assert member.get("/conflicts").status_code == 200
+    body = member.get("/room/publishing").get_data(as_text=True)
+    assert 'class="pb-z-lens" href="/conflicts?returnTo=/room/publishing"' in body
+
+
+def test_a_read_seat_on_the_populated_publishing_room_gets_no_add_button():
+    """publishing-5 and -16: the page from zero held the door back from a
+    read seat, but once a song existed the header's gold "Add a song" was
+    drawn for everybody, and the save bounced."""
+    owner, member = _account(), _account(name="Looker")
+    store.add_os_track(owner._id, "Owner Song")
+    _seat(owner, member, access="read", areas=["publishing"])
+    _open_account(member, owner)
+    body = member.get("/room/publishing").get_data(as_text=True)
+    assert "Works on file" in body
+    assert 'class="rk-cta"' not in body
+    assert "Songs are added by the account owner or a seat with edit access." in body
+    assert 'class="rk-cta" href="/catalog?view=passports"' in owner.get(
+        "/room/publishing").get_data(as_text=True), "the owner keeps it"

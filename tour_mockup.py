@@ -103,6 +103,13 @@ def ensure_for(user):
         "start_date": "2027-04-05", "end_date": "2027-05-19",
         "home_tz": "America/Chicago", "currency": "USD",
         "notes": "A demonstration routing. Every venue on it is invented and every date is an example to click through, not a booking of yours."})
+    # Marked as the sample before a single show is added. The build is ~40
+    # separate writes; one cut off half way (a killed worker, an error
+    # mid-loop, which tour_os.index only logs, and ensure_for never runs
+    # again for an account that has a tour) would otherwise leave invented
+    # CONFIRMED dates on a tour nothing recognises as the sample.
+    ts.record_import(tour_id, user["id"], IMPORT_SOURCE, IMPORT_FILENAME, SHEET,
+                     {"created": {"rows": len(rows)}, "problems": [], "rows": len(rows)})
     for r in rows:
         if r["kind"] == "show":
             sid = store.add_tour_show(user["id"], r["date"], r["venue"] or "TBA", r["city"], r["notes"])
@@ -116,12 +123,22 @@ def ensure_for(user):
         else:
             ts.add_day(tour_id, user["id"], r["date"], r["kind"], r["venue"] or r["kind"].title(),
                        r["city"], r["tz"] if eng.valid_tz(r["tz"]) else "", None, r["notes"])
-    ts.record_import(tour_id, user["id"], "csv", IMPORT_FILENAME, SHEET,
-                     {"created": {"rows": len(rows)}, "problems": [], "rows": len(rows)})
     return tour_id
 
 
 IMPORT_FILENAME = "mock-up-tour.tsv"
+# The sample's mark: an import record with this source. Only ensure_for
+# writes it; tour_os.import_dates stores no source but paste, csv or ics,
+# so no upload, whatever its file is called, can turn a real tour into
+# "the sample" and take its dates and public links down (review of
+# 2026-09-23: an upload named mock-up-tour.tsv used to do exactly that).
+IMPORT_SOURCE = "mockup"
+# Mock Up Tours built before that carry ensure_for's old record: source
+# csv, the sheet's filename, and a summary no import route writes
+# ({"created": {"rows": N}}; an upload's is {"created": {"shows": ...}}).
+_LEGACY_SUMMARY = '{"created": {"rows": %'
+_MARK = "(i.source = ? OR (i.filename = ? AND i.summary LIKE ?))"
+_MARK_ARGS = (IMPORT_SOURCE, IMPORT_FILENAME, _LEGACY_SUMMARY)
 
 
 def sheet_show_keys():
@@ -131,12 +148,44 @@ def sheet_show_keys():
 
 
 def is_mock(tour_id):
-    """Was this tour built by ensure_for? Read from its import record, so a
-    renamed Mock Up Tour is still recognised."""
+    """Was this tour built by ensure_for? Read from the import record only
+    ensure_for writes (_MARK), so a renamed Mock Up Tour is still
+    recognised and no uploaded file can make a real tour look like one."""
     with store.get_db() as db:
-        row = db.execute("SELECT 1 FROM tour_imports WHERE tour_id = ? AND filename = ?",
-                         (tour_id, IMPORT_FILENAME)).fetchone()
+        row = db.execute("SELECT 1 FROM tour_imports i WHERE i.tour_id = ? AND " + _MARK,
+                         (tour_id,) + _MARK_ARGS).fetchone()
     return row is not None
+
+
+def mock_tour_ids(user_id):
+    """The ids of every Mock Up Tour this account owns, recognised the way
+    is_mock() recognises one (its import record), in one query."""
+    if not user_id:
+        return set()
+    with store.get_db() as db:
+        rows = db.execute("SELECT DISTINCT i.tour_id FROM tour_imports i "
+                          "JOIN tours t ON t.id = i.tour_id "
+                          "WHERE t.user_id = ? AND " + _MARK,
+                          (user_id,) + _MARK_ARGS).fetchall()
+    return {r["tour_id"] for r in rows}
+
+
+def real_shows(user_id, shows):
+    """`shows` (tour_shows rows, or anything carrying their tour_id) less
+    every show on this account's Mock Up Tour.
+
+    The one filter every reader outside Tour passes through: the press
+    kit's dates, the Artist Hub, the Team-Up Board's chips, /connections,
+    a label's roster, the Fans screen. The Mock Up Tour is a sample; its
+    CONFIRMED rows are invented, and a sample never reaches a public page
+    (owner's standing rule). The whole tour is excluded, not just the
+    sheet's own rows, so an invented show the member renamed while
+    clicking through cannot slip out either; the tour's own pages say
+    that nothing on it is shown publicly."""
+    mock = mock_tour_ids(user_id)
+    if not mock:
+        return list(shows)
+    return [s for s in shows if (s.get("tour_id") or "") not in mock]
 
 
 def discard_invented_shows(tour_id):

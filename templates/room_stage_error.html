@@ -13,7 +13,9 @@
   <p class="mt-3 max-w-xl text-base text-gray-200">Your shows and plans are safe. Try loading the Room again.</p>
   <div class="mt-6 flex flex-wrap gap-3">
     {{ sb.btn("Try again", href="/room/stage", variant="primary") }}
-    {{ sb.btn("Back to Command Center", href="/command-center", variant="secondary") }}
+    {#- only for a reader who can open it: a seat without the whole account
+        is sent back from the Command Center into this room (audit stage-9) -#}
+    {% if back_home %}{{ sb.btn("Back to Command Center", href="/command-center", variant="secondary") }}{% endif %}
   </div>
   <p class="mt-8 text-xs text-gray-300">If this keeps happening, tell us through <a href="/contact" class="font-semibold text-sb-gold-bright hover:underline">Contact</a> and say what you were doing.</p>
 </div>

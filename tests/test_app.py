@@ -1519,13 +1519,20 @@ def test_discover_results_have_add_button(monkeypatch):
 
 
 def _fake_deezer(url):
+    # A hit is accepted only when its title and artist match the ones asked
+    # for (audit 2026-09-23, providers-19: the first keyword hit used to be
+    # stored as the artist's own codes), so the fake search names the songs
+    # these tests add, and the track and album carry their ids.
     if "api.deezer.com/search" in url:
-        return {"data": [{"id": 42}]}
+        return {"data": [{"id": 42, "title": title, "artist": {"name": artist}}
+                         for title, artist in (("Meta Song", "Meta Artist"),
+                                               ("ID Song", "A"),
+                                               ("First Song", "Clean Artist"))]}
     if "api.deezer.com/track/" in url:
-        return {"isrc": "USTEST2500001", "duration": 200, "release_date": "2025-01-10",
+        return {"id": 42, "isrc": "USTEST2500001", "duration": 200, "release_date": "2025-01-10",
                 "album": {"id": 7, "title": "Test LP"}}
     if "api.deezer.com/album/" in url:
-        return {"upc": "123456789012", "label": "Test Label", "title": "Test LP",
+        return {"id": 7, "upc": "123456789012", "label": "Test Label", "title": "Test LP",
                 "release_date": "2025-01-10", "nb_tracks": 10,
                 "genres": {"data": [{"name": "Electro"}]}}
     if "musicbrainz.org/ws/2/isrc/" in url:
@@ -1951,10 +1958,13 @@ def test_release_day_emails(monkeypatch):
     anon.post("/l/%s/subscribe" % slug, data={"email": "notifyme@example.net"})
     anon.get("/l/" + slug)
     assert sent == []
-    # Release day: first page view emails the fan exactly once.
+    # Release day: first page view emails the fan exactly once. Released
+    # yesterday, not 2020-01-01: the email goes only in the week after
+    # release (links_engine.RELEASE_EMAIL_DAYS, 2026-09-23).
+    from datetime import date as _date, timedelta as _td
     with store_mod.get_db() as conn:
         conn.execute("UPDATE ml_campaigns SET release_date = ? WHERE id = ?",
-                     ("2020-01-01", cid))
+                     ((_date.today() - _td(days=1)).isoformat(), cid))
     anon.get("/l/" + slug)
     assert len(sent) == 1
     assert sent[0]["to"] == ["notifyme@example.net"]
@@ -2673,8 +2683,11 @@ def test_shopify_merch_stitch():
 
 def test_preview_modules_are_honest():
     client = _ml_login(create_app())
+    # /royalty-recovery/mlc left this list on 2026-09-23: it called the
+    # MLC sweep "in preview" while the sweep already ran on Recovery, and
+    # it now opens that sweep (tests/test_real_money.py).
     routes = ["/fraud-sentinel", "/ai-rights",
-              "/opportunities", "/voice-of-fan", "/royalty-recovery/mlc"]
+              "/opportunities", "/voice-of-fan"]
     for route in routes:
         r = client.get(route)
         assert r.status_code == 200, route
@@ -3026,7 +3039,10 @@ def test_identifiers_page_uses_real_catalog(monkeypatch):
     body = client.get("/catalog").get_data(as_text=True)
     assert "Your Identifiers" in body
     assert "USTEST2500001" in body and "123456789012" in body   # real pulled IDs
-    assert "ISRC and UPC come from your catalog records" in body
+    # The codes were looked up on Deezer, and the page says so rather than
+    # calling them the artist's own records (audit 2026-09-23, providers-19).
+    assert "ISRC and UPC come from your catalog records" not in body
+    assert "from Deezer, matched by title and artist, not confirmed" in body
     assert "the ISWC is the work code The MLC returned" in body
     # A metadata-less track is flagged with an actionable MISSING row.
     monkeypatch.setattr(music_apis, "_fetch_json",
@@ -3772,7 +3788,12 @@ def test_drop_notifications(monkeypatch):
     to, subject, html = [m for m in outbox if m[0] == "n1@ok.example"][0]
     assert "Notify Club" in subject and "/members?token=" in html
     # The emailed magic link actually signs the member in.
-    path = html.split('href="')[1].split('"')[0].replace("http://localhost", "")
+    # The link is the artist's public address (PUBLIC_BASE_URL), not this
+    # request's host - an inbox link outlives the request (make-it-real,
+    # 2026-09-23: _fan_mail_base). Strip whatever that base is, not a
+    # hardcoded localhost.
+    import app as _appmod
+    path = html.split('href="')[1].split('"')[0].replace(_appmod.PUBLIC_BASE_URL, "")
     fan = app_obj.test_client()
     assert fan.get(path).status_code == 302
     slug = store_mod.get_epk(uid)["slug"]
@@ -4400,13 +4421,21 @@ def test_artist_os_engines():
     # Lanes: estimates only exist when statements exist.
     lanes_dry = artist_os.lane_grid(track, ctx)
     assert all(l["estimate"] is None for l in lanes_dry)
+    # An estimate is sized from THIS track's own rows (earned_by_track),
+    # never the account total: this used to pass statement_total alone and
+    # expect 6% of it on every track, the figure that summed past the
+    # whole catalogue (make-it-real, 2026-09-23).
+    assert all(l["estimate"] is None for l in artist_os.lane_grid(
+        track, dict(ctx, statement_rows=10, statement_total=1000.0)))
     lanes_paid = artist_os.lane_grid(track, dict(ctx, statement_rows=10,
-                                                 statement_total=1000.0))
+                                                 statement_total=1000.0,
+                                                 earned_by_track={"t1": 1000.0}))
     mech = [l for l in lanes_paid if l["key"] == "mechanicals"][0]
-    assert mech["estimate"] == 60.0 and "your own statement" in mech["estimate_basis"]
+    assert mech["estimate"] == 60.0 and "this track's own" in mech["estimate_basis"]
     # Action queue: critical rights first.
     q = artist_os.action_queue([(track, dict(ctx, statement_total=1000.0,
-                                             statement_rows=10))])
+                                             statement_rows=10,
+                                             earned_by_track={"t1": 1000.0}))])
     assert q and q[0]["critical"] and q[0]["urgency"] == "release-blocking"
     assert any(a["impact"] for a in q)
     # Certification climbs only on real signals.
@@ -4535,7 +4564,10 @@ def test_os_p3_lanes_and_queue():
     assert artist_os.lanes_from_sources([]) == set()
     # A lane with real income reads "claimed".
     track = {"id": "x", "title": "Lane Song", "passport": {}, "lockbox": {}}
+    # earned_by_track: the estimate is this track's own $500, not the
+    # account total (make-it-real, 2026-09-23).
     ctx = {"statement_rows": 5, "statement_total": 500.0,
+           "earned_by_track": {"x": 500.0},
            "lanes_with_data": {"master", "pro"}, "live_links": 0, "fans": 0,
            "club_members": 0, "sync_active": False,
            "release_scheduled": False, "rollout_assets": False}
@@ -5691,12 +5723,16 @@ def test_studio_split_is_env_gated_and_honest():
     assert source_path("../../app.py") is None
     assert source_path("a/b") is None
 
-    # The diagnostic reports shape, never the secret itself.
-    diag = client.get("/rack/studio-split/diag").get_json()
-    assert diag["configured"] is False and diag["present"] is False
-
-    _os.environ["STEMSPLIT_API_KEY"] = "test-key-not-real"
+    # The diagnostic reports shape, never the secret itself - and only to
+    # an owner since 2026-09-23 (audit, providers-15): ?probe=1 spent the
+    # owner's StemSplit key for any customer. A non-owner gets a 404.
+    assert client.get("/rack/studio-split/diag").status_code == 404
+    _owner_before = _os.environ.get("OWNER_EMAILS")
+    _os.environ["OWNER_EMAILS"] = "demo@streetbanker.io"
     try:
+        diag = client.get("/rack/studio-split/diag").get_json()
+        assert diag["configured"] is False and diag["present"] is False
+        _os.environ["STEMSPLIT_API_KEY"] = "test-key-not-real"
         diag = client.get("/rack/studio-split/diag").get_json()
         assert diag["configured"] is True
         assert diag["length"] == len("test-key-not-real")
@@ -5718,6 +5754,10 @@ def test_studio_split_is_env_gated_and_honest():
             "/rack/studio-split", data={}).status_code in (302, 401)
     finally:
         _os.environ.pop("STEMSPLIT_API_KEY", None)
+        if _owner_before is None:
+            _os.environ.pop("OWNER_EMAILS", None)
+        else:
+            _os.environ["OWNER_EMAILS"] = _owner_before
 
 
 def test_stemsplit_reads_both_published_response_shapes():

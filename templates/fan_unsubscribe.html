@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{% if state == "invalid" %}Link not recognised{% else %}Email settings for {{ artist }}{% endif %}</title>
+  <link rel="stylesheet" href="/static/css/tailwind.css?v=27">
+  {% include "_fonts.html" %}
+</head>
+{#- The way out at the foot of every fan email (fan_mail, app.fan_unsubscribe).
+    A GET never unsubscribes: mail scanners follow links. The one button
+    posts, and the mail client's own unsubscribe button posts straight to
+    the same address. No platform name: the fan signed up with the artist. -#}
+<body class="grid min-h-screen place-items-center bg-sb-ground px-6 text-center text-gray-100 antialiased">
+  <main class="mx-auto w-full max-w-md" data-unsub-state="{{ state }}">
+    {% if state == "invalid" %}
+    <h1 class="text-xl font-black">This link was not recognised</h1>
+    <p class="mt-2 text-sm text-gray-300">It may have been cut short when it was copied. Nothing was changed. Open the unsubscribe link from the email itself.</p>
+    {% elif state == "ask" %}
+    <h1 class="text-xl font-black">Stop emails from {{ artist }}?</h1>
+    <p class="mt-2 text-sm text-gray-300">{{ email }} will stop getting {{ artist }}'s release-day and fan club emails sent from here.</p>
+    <form method="post" class="mt-6">
+      <button type="submit" name="action" value="unsubscribe" class="sb-btn sb-btn-primary">Unsubscribe</button>
+    </form>
+    {% elif state == "out" %}
+    <h1 class="text-xl font-black">You're unsubscribed</h1>
+    <p class="mt-2 text-sm text-gray-300">{{ artist }} will not email {{ email }} from here again.</p>
+    <form method="post" class="mt-6">
+      <p class="text-sm text-gray-300">Changed your mind?</p>
+      <button type="submit" name="action" value="resubscribe" class="sb-btn sb-btn-secondary mt-2">Subscribe again</button>
+    </form>
+    {% elif state == "back" %}
+    <h1 class="text-xl font-black">You're subscribed again</h1>
+    <p class="mt-2 text-sm text-gray-300">{{ email }} will get {{ artist }}'s fan emails again.</p>
+    <form method="post" class="mt-6">
+      <button type="submit" name="action" value="unsubscribe" class="sb-btn sb-btn-secondary">Unsubscribe</button>
+    </form>
+    {% elif state == "gone" %}
+    {#- The artist removed the record this link was for (app._unsubscribe_address). -#}
+    <h1 class="text-xl font-black">Nothing to unsubscribe from</h1>
+    <p class="mt-2 text-sm text-gray-300">{{ artist }} has removed the record this link was for, so no more emails go out through it. A Fan Club email has its own unsubscribe link at the foot.</p>
+    {% else %}
+    <h1 class="text-xl font-black">No emails from {{ artist }}</h1>
+    <p class="mt-2 text-sm text-gray-300">{{ artist }} is not sending emails to {{ email }}. There is nothing more to do.</p>
+    {% endif %}
+  </main>
+</body>
+</html>

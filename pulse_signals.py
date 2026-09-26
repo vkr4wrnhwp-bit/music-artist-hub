@@ -88,8 +88,25 @@ def instrument(key, label, value, series, provider, as_of, today, *,
     }
 
 
-def build(pulse, metrics, youtube, deezer, snaps, today=None):
-    """The bridge, in display order. Every argument may be None."""
+# Why Deezer fans read "Not measured", by what actually happened. Deezer is
+# looked up by the name Spotify returns, so without Spotify it is never
+# asked, and "no match" is only true after a search that came back empty.
+DEEZER_WHY = {
+    "no_spotify": ("Deezer is looked up by the Spotify artist name, and Spotify "
+                   "is not connected on this service, so Deezer was not asked."),
+    "spotify_failed": ("Deezer is looked up by the Spotify artist name, and "
+                       "Spotify did not answer just now, so Deezer was not asked."),
+    "no_answer": "Deezer did not answer just now.",
+    "no_match": "No Deezer match found for this name.",
+}
+
+
+def build(pulse, metrics, youtube, deezer, snaps, today=None, deezer_state=None):
+    """The bridge, in display order. Every argument may be None.
+
+    `deezer_state` says why Deezer fans may be missing: "no_spotify",
+    "spotify_failed", "no_answer" or "no_match" (DEEZER_WHY). None, from a
+    caller that did not say, never claims a search came back empty."""
     today = today or date.today()
     out = []
 
@@ -145,7 +162,8 @@ def build(pulse, metrics, youtube, deezer, snaps, today=None):
         _series(spotify_snaps, "deezer_fans"), "Deezer",
         today.isoformat() if fans is not None else
         (spotify_snaps[-1].get("day") if spotify_snaps else None), today,
-        detail=("" if fans is not None else "No Deezer match found for this name.")))
+        detail=("" if fans is not None else
+                DEEZER_WHY.get(deezer_state or "", "Deezer was not read for this artist."))))
 
     if youtube is not None:
         subs = youtube.get("subscribers")

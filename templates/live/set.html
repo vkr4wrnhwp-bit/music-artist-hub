@@ -53,9 +53,11 @@
           <ul class="mt-2 space-y-1">
             {% for stem in scene.stems %}
               {#- Gain is linear 0..2, which is what the engine's LiveStem
-                  schema accepts. Pan is -1..1. Output decides which bus the
-                  stem lands on: master is front of house, cue is the in-ear
-                  feed, click is the count. -#}
+                  schema accepts. Pan is -1..1. Bus decides which of the
+                  engine's three buses the stem lands on: master, cue or
+                  click. All three play through one output today (the page
+                  never routes a bus to its own device), so the labels name
+                  the bus, not a feed. -#}
               <li class="rounded border border-sb-line bg-black/20 px-2.5 py-2">
                 <form method="post" class="flex flex-wrap items-end gap-2"
                       action="{{ url_for('live.live_set_stem', stem_id=stem.id) }}">
@@ -74,10 +76,10 @@
                            class="mt-1 w-20 rounded border border-sb-line bg-black/20 px-2 py-1 text-sm text-gray-300">
                   </label>
                   <label>
-                    <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Output</span>
+                    <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Bus</span>
                     <select name="output_bus"
                             class="mt-1 rounded border border-sb-line bg-black/20 px-2 py-1 text-sm text-gray-300">
-                      {% for bus, label in [("master","Master"), ("cue","Cue / in-ear"), ("click","Click")] %}
+                      {% for bus, label in [("master","Master"), ("cue","Cue"), ("click","Click")] %}
                         <option value="{{ bus }}"{{ " selected" if stem.output_bus == bus }}>{{ label }}</option>
                       {% endfor %}
                     </select>
@@ -113,10 +115,10 @@
               </select>
             </label>
             <label>
-              <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Output</span>
+              <span class="block font-mono text-xs uppercase tracking-[0.16em] text-sb-ink-3">Bus</span>
               <select name="output_bus" class="mt-1 rounded-lg border border-sb-line bg-black/20 px-2 py-1.5 text-sm text-gray-300">
                 <option value="master">Master</option>
-                <option value="cue">Cue / in-ear</option>
+                <option value="cue">Cue</option>
                 <option value="click">Click</option>
               </select>
             </label>

@@ -49,7 +49,10 @@
   text-transform: uppercase;
   color: var(--sb-ink);
 }
-.ac-p { margin: 0 0 12px; font-size: 15px; line-height: 1.5; color: var(--sb-ink); max-width: 68ch; }
+.ac-p { margin: 0 0 12px; font-size: 15px; line-height: 1.5; color: var(--sb-ink); max-width: 68ch; overflow-wrap: anywhere; }
+/* An action's title is free text, and an unbroken address in it was cut
+   mid-word by the plate on its details page (audit, 2026-09-23). */
+.ac .sb-plate-title, .ac .sb-plate-sub { overflow-wrap: anywhere; min-width: 0; }
 .ac-ico { width: 18px; height: 18px; flex: 0 0 auto; }
 .ac-inline { display: inline; margin: 0; }
 .ac-readonly { margin: 0; font-size: 15px; }
@@ -152,12 +155,17 @@
 .ac-ring-bg { stroke: var(--sb-surface-3); }
 .ac-ring-fg { stroke: var(--sb-gold-bright); stroke-linecap: round; }
 .ac-ring b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 16px; font-variant-numeric: tabular-nums; }
-.ac-fig { margin: 0; font-size: 17px; color: var(--ac-soft); font-variant-numeric: tabular-nums; }
+/* The figures sit in their own wrapping box. Every figure carries its
+   divider on its left, and the box is pulled 25px left and clipped, so
+   the divider of whichever figure STARTS a line is cut off: a wrapped
+   line never begins with a lone rule (audit, 2026-09-23, seen at 768). */
+.ac-figs { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.ac-figs-in { display: flex; flex-wrap: wrap; align-items: center; row-gap: 10px; margin-left: -25px; }
+.ac-fig { margin: 0; padding: 0 24px; border-left: 1px solid var(--sb-line-strong); font-size: 17px; color: var(--ac-soft); font-variant-numeric: tabular-nums; }
 .ac-fig b { color: var(--sb-ink); font-weight: 800; }
-.ac-fig + .ac-fig { padding-left: 24px; border-left: 1px solid var(--sb-line-strong); }
 .ac-fig.is-crit, .ac-fig.is-crit b { color: var(--sb-crit); }
 .ac-fig.is-soft, .ac-fig.is-soft b { color: var(--sb-ink-2); font-weight: 600; }
-.ac-fig.is-empty { font-size: 15px; color: var(--sb-ink); }
+.ac-fig.is-empty { padding: 0; border-left: 0; font-size: 15px; color: var(--sb-ink); }
 .ac-views {
   margin-left: auto;
   display: inline-flex;
@@ -298,7 +306,12 @@ a.ac-title:hover { color: var(--sb-gold-bright); text-decoration: underline; tex
   right: 0;
   top: calc(100% + 6px);
   z-index: 30;
-  min-width: 250px;
+  /* Anchored to the button's right edge, which is always the right edge
+     of its row or card, and never wider than the screen: at 375 a 250px
+     menu grown rightward from a button near the edge ran to x=515 and
+     widened the page (audit, 2026-09-23). */
+  min-width: min(250px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
   display: grid;
   padding: 6px;
   background: var(--sb-surface-3);
@@ -366,6 +379,10 @@ a.ac-title:hover { color: var(--sb-gold-bright); text-decoration: underline; tex
   .ac-row .ac-meta:not(.ac-rel) { grid-area: meta; }
   .ac-row .ac-rel { grid-area: rel; }
   .ac-row .ac-acts { grid-area: acts; justify-content: flex-start; flex-wrap: wrap; }
+  /* The overflow menu keeps to the row's right edge here too, so its
+     list, which opens from that edge, has the row's width to open into:
+     a closed row's menu sat at the left and opened off the screen. */
+  .ac-row .ac-acts .ac-menu { margin-left: auto; }
   .ac-meta { padding-left: 0; border-left: 0; }
   .ac-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ac-field, .ac-f-side, .ac-create { grid-column: span 1; }
@@ -377,9 +394,7 @@ a.ac-title:hover { color: var(--sb-gold-bright); text-decoration: underline; tex
   .ac-board, .ac-form, .ac-facts { grid-template-columns: minmax(0, 1fr); }
   .ac-row { grid-template-columns: 32px minmax(0, 1fr); grid-template-areas: "mark main" ". meta" ". rel" "acts acts"; padding: 14px; }
   .ac-meta:not(.ac-rel) .ac-line { white-space: normal; }
-  .ac-fig + .ac-fig { padding-left: 0; border-left: 0; }
   .ac-sum { gap: 10px 18px; }
-  .ac-menu-list { right: auto; left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ac-btn { transition: none; }

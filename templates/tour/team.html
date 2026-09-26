@@ -6,6 +6,12 @@
 
 {% if not email_live %}<div class="to-note"><strong>Invitation emails are not being sent from this deployment.</strong> Copy each join link below and send it yourself; the link is the invitation.</div>{% endif %}
 
+{% if tour_is_sample %}
+{#- The Mock Up Tour is a sample: a seat on it would put its invented
+    dates in front of a real person, so nobody is invited
+    (tour_os.team_invite refuses too). -#}
+<div class="to-note" id="sample-no-invite"><strong>Nobody can be invited onto the sample tour.</strong> Every date on it is invented, so there is nothing for a crew member to work. Start a tour of your own and invite them there.</div>
+{% else %}
 <form method="post" action="/tours/{{ tour['id'] }}/team/invite" class="to-form">
   <div class="to-grid">
     {{ m.field('email', 'Email', type='email', required=True) }}
@@ -17,6 +23,7 @@
   </div>
   <div class="to-bar" style="margin-bottom:0"><button class="to-btn" type="submit">Invite</button></div>
 </form>
+{% endif %}
 
 {% if members %}
 <h2 class="to-h2">Members</h2>

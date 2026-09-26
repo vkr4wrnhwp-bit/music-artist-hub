@@ -281,10 +281,13 @@ def test_a_row_whose_amount_is_not_a_number_does_not_take_the_page_down():
 # --- the missing-money queue is a count, never a figure -------------------
 
 def test_the_missing_money_tile_carries_no_dollars():
-    """artist_os._LANE_SHARE applies six hardcoded coefficients to the
-    WHOLE-ACCOUNT total once per track, so its estimate can exceed
-    everything the catalogue has ever earned. Its tile is a door, not a
-    reading."""
+    """Its tile is a door, not a reading. When this was written
+    artist_os._LANE_SHARE applied six hardcoded coefficients to the
+    WHOLE-ACCOUNT total once per track, so its estimate could exceed
+    everything the catalogue had ever earned. Since 2026-09-23 each figure
+    is a share of that track's own rows (tests/test_real_money.py), but the
+    queue prints no total and the tile still carries none: a sum of
+    estimates is not a reading either."""
     name, line = bz.RENAMED["money-queue"]
     assert name == "Missing money"
     assert not re.search(r"[£$]\s?[\d,]+", line)
@@ -625,3 +628,189 @@ def test_the_owners_hidden_mark_stays_on_a_populated_room_tile():
     out = bz.build(None, None, None, None, None, None, "", [], [], [], cards)
     tiles = {t["key"]: t for b in out["bands"] for t in b["tiles"]}
     assert tiles["valuation"]["state"] == "hidden" and tiles["statements"]["state"] != "hidden"
+
+
+# --- the audit of 2026-09-23 ---------------------------------------------
+
+_CSV = b"Title,Store,Amount,Period\nHigher Places,Spotify,2640.00,2026-01\n"
+
+
+def test_the_real_upload_from_the_door_comes_back_with_the_done_line():
+    """Audit business-1/17: the desk's form has no action, so it posts to
+    the door's own address. The save redirected to bare /statements and
+    dropped returnTo and from, so the done line was unreachable except by
+    typing ?from= by hand. The save now carries the way back."""
+    c, uid = _account()
+    door = c.get(bz.DOOR).get_data(as_text=True)
+    form = door.split('<form method="post" enctype="multipart/form-data"', 1)[1].split(">", 1)[0]
+    assert "action=" not in form, "the form posts to the door's own address"
+    r = c.post(bz.DOOR, data={"statement": (io.BytesIO(_CSV), "q1.csv")},
+               content_type="multipart/form-data")
+    assert r.status_code == 302
+    assert r.headers["Location"].endswith("/room/business?from=business-zero-state")
+    assert len(store.get_statements(uid)) == 1
+    room = c.get(r.headers["Location"]).get_data(as_text=True)
+    assert bz.DONE_LINE in room
+
+
+def test_an_upload_with_a_way_back_but_no_from_keeps_the_way_back():
+    c, _uid = _account()
+    r = c.post("/statements?returnTo=/room/business",
+               data={"statement": (io.BytesIO(_CSV), "q1.csv")}, content_type="multipart/form-data")
+    assert r.headers["Location"].endswith("/statements?returnTo=/room/business")
+    r = c.post("/statements?returnTo=//evil.example&from=x",
+               data={"statement": (io.BytesIO(_CSV), "q2.csv")}, content_type="multipart/form-data")
+    assert r.headers["Location"].endswith("/statements") and "evil" not in r.headers["Location"]
+
+
+def test_an_open_business_action_keeps_the_account_off_the_zero_page():
+    """Audit business-2, spec 3: new_account only after confirming no
+    Business actions. An open action filed under Business is work."""
+    import command_center as cc
+    assert bz.new_account([], [], [], [], [], [{"id": "a"}]) is False
+    c, uid = _account()
+    aid = cc.create_action(uid, "Chase the missing BMI statement", room="business", priority="high")
+    body = _room(c.get("/room/business").get_data(as_text=True))
+    assert "Start with your first statement" not in body
+    cc.set_action_status(aid, uid, "complete")
+    body = _room(c.get("/room/business").get_data(as_text=True))
+    assert "Start with your first statement" in body, "a finished action is not open work"
+    cc.create_action(uid, "Pitch the single", room="marketing")
+    assert "Start with your first statement" in _room(c.get("/room/business").get_data(as_text=True))
+
+
+def test_the_card_promises_only_what_the_upload_reads():
+    """Audit business-3: the card said "CSV, spreadsheet, or PDF"; the
+    upload reads CSV only and printed a PDF's raw bytes as its headers."""
+    desc = bz.ZERO_PROJECT["desc"]
+    assert "CSV" in desc and "PDF" not in desc and "spreadsheet" not in desc
+    c, uid = _account()
+    for name, data in (("statement.pdf", b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj"),
+                       ("statement.xlsx", b"PK\x03\x04\x14\x00\x06\x00\x08\x00"),
+                       ("statement.xls", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1\x00")):
+        page = c.post("/statements", data={"statement": (io.BytesIO(data), name)},
+                      content_type="multipart/form-data").get_data(as_text=True)
+        err = page.split('class="sd-error" role="alert">', 1)[1].split("</div>", 1)[0]
+        assert "Headers seen" not in err and "%PDF" not in err and "PK" not in err, err
+        assert "Export" in err and "CSV" in err, err
+    assert store.get_statements(uid) == []
+
+
+def test_the_intake_says_what_happens_to_a_file_before_it_is_chosen():
+    """Audit business-5, spec 6 and 22: before the file chooser, the
+    types, the size, what is kept, currencies, undo and duplicates - as
+    they are today, claiming nothing unbuilt."""
+    c, _uid = _account()
+    page = c.get(bz.DOOR).get_data(as_text=True)
+    intake = page.split('id="intake"', 1)[1].split("<form", 1)[0]
+    for said in ("CSV", "210 MB", "file itself is not kept", "currency", "Remove", "twice"):
+        assert said in intake, said
+
+
+def test_ask_street_banker_opens_the_corner_box():
+    """Audit business-6: the help button went to the public Contact page
+    while the corner box of the same name sat on the page."""
+    c, _uid = _account()
+    page = c.get("/room/business").get_data(as_text=True)
+    assert '<a class="bz-z-more" id="bz-ask" href="/contact">' in page
+    script = page.split('getElementById("bz-ask")', 1)[1][:600]
+    assert 'getElementById("sbq-open")' in script and "preventDefault" in script
+    assert 'id="sbq-open"' in page, "the corner box it opens is on the page"
+
+
+def test_business_is_the_current_page_in_the_sidebar(monkeypatch):
+    """Audit business-7, spec 21: the room link says aria-current, not
+    only a colour."""
+    monkeypatch.setenv("NAV_ROOMS", "1")
+    c, _uid = _account()
+    page = c.get("/room/business").get_data(as_text=True)
+    links = re.findall(r'<a href="/room/business"[^>]*>', page)
+    assert links and all('aria-current="page"' in a for a in links), links
+    assert not any("aria-current" in a for a in re.findall(r'<a href="/room/fans"[^>]*>', page))
+    inside = c.get("/statements").get_data(as_text=True)
+    links = [a for a in re.findall(r'<a href="/room/business"[^>]*>', inside) if "sb-room-back" not in a]
+    assert links and all('aria-current="true"' in a for a in links), links
+
+
+def test_the_workflow_stacks_on_a_phone():
+    """Audit business-8, spec 20: "workflow vertical" on mobile. The kit's
+    rail is a sideways scroller under 860px; the page from zero's rail
+    stacks instead, scoped to this page so the kit's lock is untouched."""
+    css = re.sub(r"/\*.*?\*/", "", _css(), flags=re.S)
+    rail = re.search(r"@media \(max-width: 860px\) \{[^@]*?\.bz-z-flow \.rk-rail \{([^}]*)\}", css)
+    assert rail and "flex-direction: column" in rail.group(1) and "overflow-x: visible" in rail.group(1)
+    c, _uid = _account()
+    assert "business-room.css?v=6" in c.get("/room/business").get_data(as_text=True)
+
+
+def test_the_way_back_names_the_room_as_the_sidebar_does():
+    """Audit business-13: a returnTo back link read "Back to the business
+    room"; rooms are called by their bare names (owner, 2026-09-22)."""
+    c, _uid = _account()
+    page = c.get("/statements?returnTo=/room/business").get_data(as_text=True)
+    back = page.split('id="sb-room-back"', 1)[1].split("</a>", 1)[0].split("</svg>", 1)[1]
+    assert "Back to Business" in back and "room" not in back
+    page = c.get("/connections?returnTo=%2Froom%2Fanalytics%3Ffrom%3Dconnect").get_data(as_text=True)
+    assert "Back to Analytics" in page.split('id="sb-room-back"', 1)[1].split("</a>", 1)[0]
+
+
+def test_the_demo_sees_the_business_showcase():
+    """Audit business-18: the demo's Business showcase was right and
+    unpinned."""
+    demo = appmod.app.test_client()
+    demo.post("/login", data={"email": "demo@streetbanker.io", "password": "sweep"})
+    body = _room(demo.get("/room/business").get_data(as_text=True))
+    assert "Sample data" in body and "Start with your first statement" not in body
+    assert "room-plate.webp?v=" in body
+
+
+def _team(access):
+    import team_areas
+
+    def acct(name):
+        email = "%s-%s@example.net" % (name, uuid.uuid4().hex[:8])
+        cl = appmod.app.test_client()
+        cl.post("/signup", data={"name": name, "email": email, "password": PW})
+        uid = store.get_user_by_email(email)["id"]
+        store.set_user_plan(uid, "pro")
+        cl.post("/login", data={"email": email, "password": PW})
+        return cl, uid, email
+    owner, oid, _ = acct("bzowner")
+    member, _mid, memail = acct("bzseat")
+    assert owner.post("/team/invite", data={
+        "email": memail, "role": "manager", "access": access, "areas_sent": "1",
+        "areas": list(team_areas.keys())}).get_json()["ok"]
+    row = [m for m in store.list_team(oid) if m["email"] == memail][0]
+    member.post("/team/join/" + row["invite_token"], data={})
+    member.post("/portal/%s/open" % oid)
+    return member
+
+
+def test_a_read_seat_is_offered_no_upload_door_at_the_route():
+    body = _room(_team("read").get("/room/business").get_data(as_text=True))
+    assert "Start with your first statement" in body
+    assert bz.DOOR.replace("&", "&amp;") not in body and 'class="rk-cta"' not in body
+    assert bz.ZERO_PROJECT["locked"] in body
+    body = _room(_team("edit").get("/room/business").get_data(as_text=True))
+    assert 'class="rk-cta" href="%s"' % bz.DOOR.replace("&", "&amp;") in body
+
+
+@pytest.mark.parametrize("read", ["get_statement_rows", "get_statements", "list_expenses",
+                                  "list_recovery_cases", "list_disputes"])
+def test_every_failed_read_is_the_error_page(monkeypatch, read):
+    def boom(*_a, **_k):
+        raise RuntimeError("business: store down")
+    c, _uid = _account()
+    monkeypatch.setattr(store, read, boom)
+    r = c.get("/room/business")
+    assert r.status_code == 503 and "We could not load Business" in r.get_data(as_text=True)
+
+
+def test_a_failed_action_read_is_the_error_page(monkeypatch):
+    import command_center as cc
+
+    def boom(*_a, **_k):
+        raise RuntimeError("actions down")
+    c, _uid = _account()
+    monkeypatch.setattr(cc, "list_actions", boom)
+    assert c.get("/room/business").status_code == 503

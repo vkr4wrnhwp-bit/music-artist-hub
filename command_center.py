@@ -48,12 +48,27 @@ ACTION_SOURCES = {
     "release_check": "From Release Check",
     "catalog_check": "From the Catalog check",
     "rights_conflict": "From Rights Conflict",
-    "royalty_check": "From the Royalty check",
     "growth_score": "From the Growth score",
     "trust_score": "From the Trust score",
     "module": "From a preview module",
     "document": "From a contract reading",
     "tour_task": "From Tour tasks",
+}
+
+# The same sources as the subject of a sentence: "<noun> raised this
+# action". "From the Trust score raised this action" was the label pasted
+# into the sentence (audit, 2026-09-23).
+SOURCE_NOUNS = {
+    "manual": "You",
+    "alert": "A Command Center alert",
+    "release_check": "Release Check",
+    "catalog_check": "The Catalog check",
+    "rights_conflict": "The Rights Conflict Center",
+    "growth_score": "The Growth score",
+    "trust_score": "The Trust score",
+    "module": "A preview module",
+    "document": "A contract reading",
+    "tour_task": "Tour tasks",
 }
 
 # Only work a person typed in can be deleted. An action a check, an alert
@@ -110,12 +125,17 @@ def _safe_href(href):
     href = (href or "").strip()[:300]
     if not href.startswith("/") or href.startswith("//") or "\\" in href:
         return ""
+    # A browser strips a tab or a line break inside a URL before reading
+    # it, so "/<TAB>/host" is "//host": no control character is kept.
+    if any(ord(c) < 0x20 or ord(c) == 0x7f for c in href):
+        return ""
     return href
 
 
 def create_action(user_id, title, category="general", priority="medium",
                   description="", entity_type="", entity_id="", due_date="",
-                  room="", assignee_id="", source="", source_href="", created_by=""):
+                  room="", assignee_id="", source="", source_href="", created_by="",
+                  assignee_name=""):
     aid = uuid.uuid4().hex
     now = _now()
     category = category if category in ACTION_CATEGORIES else "general"
@@ -124,15 +144,17 @@ def create_action(user_id, title, category="general", priority="medium",
         db.execute(
             "INSERT INTO street_actions (id, user_id, title, category, priority,"
             " description, entity_type, entity_id, due_date, status, created, updated,"
-            " room, assignee_id, source, source_href, created_by)"
-            " VALUES (?,?,?,?,?,?,?,?,?,'new',?,?,?,?,?,?,?)",
+            " room, assignee_id, source, source_href, created_by, assignee_name)"
+            " VALUES (?,?,?,?,?,?,?,?,?,'new',?,?,?,?,?,?,?,?)",
             (aid, user_id, title[:200], category,
              priority if priority in ACTION_PRIORITIES else "medium",
              _cut(description, 600), entity_type[:40], entity_id[:64],
              _clean_date(due_date), now, now,
              room, (assignee_id or "")[:64],
              source if source in ACTION_SOURCES else "",
-             _safe_href(source_href), (created_by or "")[:64]))
+             _safe_href(source_href), (created_by or "")[:64],
+             # someone with no Street Banker account: a tour's crew
+             (assignee_name or "").strip()[:80]))
     return aid
 
 
@@ -340,6 +362,14 @@ def open_actions(user_id, limit=5, today=None):
 _NOT_LEGAL = "Workflow support only — not legal advice. Have an attorney review agreements."
 _NOT_FINANCIAL = "Estimates only — not financial advice."
 
+# The Fan Club's line says paid joins only while a fan can pay. Joins need
+# the owner's online-sales switch (sales_switch, off unless he turns it
+# on) and Stripe; until both hold the club can be set up and nobody can
+# join, and the line says that instead (directory() below).
+FAN_CLUB_OPEN = ("Paid monthly memberships through Stripe with a members-only drops "
+                 "area, wired into the Fan CRM.")
+FAN_CLUB_SETUP = "Set up your club now; paid joins open when online sales are switched on."
+
 MODULES = [
     ("/links", "Smart Links 2.0", "Campaigns, pre-saves, fan capture, variants, QR, attribution.", "live", None),
     ("/rollout-studio", "Rollout Engine", "Generated social rollouts with per-post tracked links.", "live", None),
@@ -347,7 +377,10 @@ MODULES = [
     ("/epk", "Press Office / EPK", "Editable press kit with public share link and media assets.", "live", None),
     ("/releases/autopilot", "Release Autopilot", "One release in: readiness, the arc, the plan, the kit, and the rights checks before it ships.", "live", None),
     ("/royalty-recovery/cases", "Royalty Recovery Cases", "Turn recovery insights into tracked cases with evidence and deadlines.", "live", None),
-    ("/royalty-recovery/mlc", "MLC / Unmatched Recovery", "Find and claim unmatched mechanical royalties with claim packets.", "preview", None),
+    # The real MLC sweep on Recovery. This row was a "preview" whose page
+    # said the engine was being built while the sweep already ran there;
+    # the address now opens it (make-it-real, 2026-09-23).
+    ("/royalty-recovery/mlc", "MLC / Unmatched Recovery", "Check every Track Passport ISRC against The MLC's public registry and open a recovery case on any gap.", "live", None),
     ("/sync/clearance-packs", "Sync Clearance Packs", "One-click supervisor-safe pitch packages with clearance status.", "live", None),
     ("/sync/deal-simulator", "Sync Deal Simulator", "Evaluate sync terms, flag buyouts, draft counteroffers.", "live", _NOT_LEGAL),
     ("/deal-room", "Deal Room", "Splits, producer and feature agreements, document vault, deal board.", "live", _NOT_LEGAL),
@@ -356,13 +389,17 @@ MODULES = [
     ("/fraud-sentinel", "Fraud Sentinel", "Artificial streaming and shady playlist risk monitoring.", "preview", None),
     ("/metadata-passport", "Metadata Passport", "Identifier and credit completeness per track, with a clean export.", "live", None),
     ("/ai-rights", "AI Rights & Likeness", "Voice/likeness policies, do-not-train notices, takedown tracking.", "preview", _NOT_LEGAL),
-    ("/pulse", "Artist Pulse", "Live Spotify followers, popularity, top tracks, and Deezer fans.", "live", None),
+    # What /pulse reads with no Spotify app keys (make-it-real, 2026-09-23).
+    # Spotify retired followers, popularity and genres for apps like this
+    # one on 2026-09-15; Deezer fans and top tracks need SPOTIFY_CLIENT_ID
+    # and SPOTIFY_CLIENT_SECRET, so the line does not promise them.
+    ("/pulse", "Artist Pulse", "Followers and monthly listeners from Soundcharts, a YouTube channel you name, and clicks on your own smart links.", "live", None),
     ("/trust-score", "Trust Score", "One verifiable readiness score for partners, labels, and supervisors.", "live", None),
-    ("/artist-twin", "Artist Twin", "A private writing agent using only data you approve.", "live", None),
+    ("/artist-twin", "Artist Twin", "Drafts from the data you approve, built from templates today.", "live", None),
     ("/opportunities", "Opportunity Feed", "Matched sync briefs, playlists, grants, and collaborations.", "preview", None),
     ("/voice-of-fan", "Voice of Fan", "Fan comments and behavior turned into campaign intelligence.", "preview", None),
     ("/spend-optimizer", "Spend Optimizer", "Where to put a limited release budget — and what to avoid.", "live", _NOT_FINANCIAL),
-    ("/fan-club", "Fan Club", "Paid monthly memberships through Stripe with a members-only drops area, wired into the Fan CRM.", "live", None),
+    ("/fan-club", "Fan Club", FAN_CLUB_OPEN, "live", None),
     ("/portal", "Partner Portal", "Team members see role-scoped, read-only views of your business.", "live", None),
     ("/tours", "TOUR", "The whole run, every show from hold to settled: dates, advance, travel, rooms, guests, money.", "live", None),
     ("/stage-plot", "Stage Plot", "Design your stage plot and auto-build the input list venues ask for.", "live", None),
@@ -370,7 +407,7 @@ MODULES = [
     ("/rack", "The Rack", "Mix and master in the browser: 12-band EQ, tube stage, cab & mic sim, compressor, LUFS loudness against platform targets, WAV export \u2014 nothing is uploaded.", "live", None),
     ("/roster", "Label Mode", "Roster seats for the Label tier: invite artists, see the whole roster's real numbers.", "live", None),
     ("/referrals", "Referrals", "Half off each way: your link, your sign-ups, credits on your Stripe balance.", "live", None),
-    ("/lights", "Light Designer", "Cue your light show to the song — stage preview plus real DMX out to an ENTTEC interface.", "live", None),
+    ("/lights", "Light Designer", "Cue your light show to the song: stage preview, with DMX out to an ENTTEC interface (bring your own USB interface; Chrome or Edge).", "live", None),
     ("/tracks", "Track Passports", "Per-track rights and metadata spine: passport, clean-release score, royalty lanes, lockbox.", "live", None),
     ("/money-queue", "Money Queue", "What is costing you money, criticals first — every action names its fix and its basis.", "live", None),
     ("/certified", "Street Banker Certified", "Six rungs from Verified to Upstream Ready, every one computed from your real record.", "live", None),
@@ -378,6 +415,27 @@ MODULES = [
 
 MODULE_BY_ROUTE = {route: (route, name, blurb, status, disc)
                    for route, name, blurb, status, disc in MODULES}
+
+
+def fan_club_joins_open():
+    """Whether a fan can pay to join a club right now: the owner's switch
+    and Stripe, the same two checks club_join makes."""
+    import sales_switch
+    import stripe_provider
+    return sales_switch.is_on() and stripe_provider.configured()
+
+
+def directory(modules=None):
+    """MODULES as the tool directory shows them today: each line says what
+    the tool does now. The Fan Club line promises paid memberships only
+    while joins are open."""
+    joins = fan_club_joins_open()
+    out = []
+    for route, name, blurb, status, disc in modules or MODULES:
+        if route == "/fan-club" and not joins:
+            blurb = FAN_CLUB_SETUP
+        out.append((route, name, blurb, status, disc))
+    return out
 
 # Windows whose route the sidebar folds under a front, so they group with it.
 FOLD_FRONTS = {
@@ -431,7 +489,6 @@ def module_groups(modules=None):
 # Planned-feature bullets shown on preview pages, keyed by route.
 PREVIEW_FEATURES = {
     "/royalty-recovery/cases": ["Case board with status, evidence, and deadlines", "Estimated amounts and confidence scores", "Recovery packet generator", "Results and payout tracking"],
-    "/royalty-recovery/mlc": ["Unmatched recording search", "Claim checklist and packet generator", "Registration correction queue", "Deadline and status tracking"],
     "/sync/clearance-packs": ["Instrumental, clean, and stem uploads", "Master + publishing clearance status", "Private supervisor listening links", "Exportable PDF one-sheet"],
     "/sync/deal-simulator": ["Fee, term, territory, and exclusivity inputs", "Buyout and MFN risk flags", "Quote recommendations", "Counteroffer drafts"],
     "/deal-room": ["Split, producer, and feature agreement generators", "Document vault with revision history", "Advance offer comparison", "Recoupment simulator"],

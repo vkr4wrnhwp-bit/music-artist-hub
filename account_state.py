@@ -65,6 +65,28 @@ ESSENTIALS = [
 
 KEYS = tuple(e[0] for e in ESSENTIALS)
 
+# The Press Kit keys that are SETTINGS, not artist or label details: the
+# cover colour, the sweep switch and which sections show. The EPK form
+# always sends the colour input's default (the kit's dark cover), so Save on
+# an untouched form saved a colour and nothing else - and that alone used
+# to complete "Tell us who you are" (audit, 2026-09-23).
+EPK_SETTINGS = frozenset(("bg_color", "show_sweep", "sections_off", "sections_on"))
+
+
+def door(href, key, anchor=""):
+    """A setup door that carries the way back WITH the key inside it:
+    ?returnTo=/command-center%3Ffrom%3D<key>. The shell's back link is the
+    bare returnTo, and a save that honours returnTo redirects to it, so
+    the Command Center is reached with ?from=<key> either way and can say
+    what is now real (audit, 2026-09-23: a from= beside returnTo was
+    dropped by the back link and by every save, so the sentence only
+    appeared when ?from= was typed by hand). `href` may carry its own
+    query; `anchor` goes last, after the query, where a browser reads it."""
+    from urllib.parse import quote
+    back = quote("/command-center?from=" + key, safe="/")
+    sep = "&" if "?" in href else "?"
+    return href + sep + "returnTo=" + back + (("#" + anchor) if anchor else "")
+
 # How many cards compete for attention at once. The rest are revealed
 # as the ones before them are done (owner: "only three should compete
 # for attention at once").
@@ -83,7 +105,8 @@ def read(uid, store, mls, release_ready_store):
               pulse profile's artist name. NOT the signup name: the old
               has_profile counted `user["name"]`, so a brand-new account
               read "1 / 5 done" for having typed its name at signup
-              (audit, 2026-09-22).
+              (audit, 2026-09-22). NOT an EPK setting either (EPK_SETTINGS:
+              the cover colour an untouched Save sends is not a detail).
     song      a saved song or Work record: a passport, a catalog row, or
               a title on a statement the account uploaded (a statement
               is a record of a song the account owns).
@@ -103,7 +126,8 @@ def read(uid, store, mls, release_ready_store):
     pulse = store.get_pulse_profile(uid) or {}
     identity = bool(
         (isinstance(epk_data, dict) and any(
-            str(v or "").strip() for v in epk_data.values()))
+            str(v or "").strip() for k, v in epk_data.items()
+            if k not in EPK_SETTINGS))
         or str(pulse.get("artist_name") or "").strip())
 
     passports = store.list_os_tracks(uid)
@@ -128,23 +152,34 @@ def read(uid, store, mls, release_ready_store):
             "link": link, "capture": capture}
 
 
-def build(flags, reachable=None):
+def build(flags, reachable=None, doors=None):
     """The five essentials for one account, with status and reveal.
 
     `flags`      {key: bool} from read()
     `reachable`  the keys this plan can open, or None for all. A step
                  nobody can reach is dropped rather than counted, so the
                  tally matches the doors on offer (firstrun's rule).
+    `doors`      {key: href} where this account's door for a step is more
+                 exact than the default: the Rack already attached to the
+                 song that has no audio yet, capture opened on the
+                 campaign's own capture section (see account_doors()).
+
+    Every row carries `door`, the href with the way back built in
+    (door()); the pages render that and never assemble one themselves.
 
     Returns a dict the page renders from, never None: the zero-state
     page shows this list; the operational page shows it collapsed.
     """
     flags = flags or {}
+    doors = doors or {}
     rows = []
     for key, title, why, href, cta, locked_by, reveal_after, lock_text in ESSENTIALS:
         if reachable is not None and key not in reachable:
             continue
+        exact = doors.get(key) or href
+        path, _hash, anchor = exact.partition("#")
         rows.append({"key": key, "title": title, "why": why, "href": href,
+                     "door": door(path, key, anchor),
                      "cta": cta, "locked_by": locked_by,
                      "reveal_after": reveal_after, "lock_text": lock_text,
                      "done": bool(flags.get(key))})
@@ -265,8 +300,38 @@ def state_of(essentials, has_records):
     return "setup"
 
 
+def account_doors(tracks, masters_by_track, analyses, campaigns):
+    """The exact door for two steps, from this account's own rows.
+
+    asset    the Rack, already attached to the newest song with no working
+             audio (/rack?track=<id>): the Rack files its measurement
+             against the song named there, and a measurement that names
+             no song cannot complete the step (audit, 2026-09-23: it never
+             named one, so the step could not be completed at all).
+    capture  the first open campaign that is not capturing yet, opened at
+             its capture section - the /links list it used to open has no
+             capture control on it.
+    """
+    from urllib.parse import quote
+    out = {}
+    measured = {(a.get("track_id") or "").strip() for a in (analyses or ())}
+    bare = next((t for t in (tracks or ())
+                 if t.get("id") not in (masters_by_track or {})
+                 and t.get("id") not in measured), None)
+    if bare is not None:
+        out["asset"] = "/rack?track=" + quote(str(bare["id"]), safe="")
+    live = [c for c in (campaigns or ()) if not c.get("archived_at")]
+    target = next((c for c in live if not (
+        (c.get("settings") or {}).get("email_capture")
+        and str((c.get("settings") or {}).get("consent_text") or "").strip())),
+        live[0] if live else None)
+    if target is not None:
+        out["capture"] = "/links/%s/edit#capture" % target["id"]
+    return out
+
+
 def decide(uid, store, mls, release_ready_store, reachable=None,
-           has_records=None):
+           has_records=None, doors=None):
     """The state, the essentials, and - if reading failed - the reason.
 
     Returns {"state", "essentials", "error"}. On ANY exception in read()
@@ -277,7 +342,7 @@ def decide(uid, store, mls, release_ready_store, reachable=None,
         flags = read(uid, store, mls, release_ready_store)
     except Exception as exc:                          # noqa: BLE001
         return {"state": "error", "essentials": None, "error": repr(exc)}
-    essentials = build(flags, reachable)
+    essentials = build(flags, reachable, doors)
     if has_records is None:
         has_records = False
     return {"state": state_of(essentials, bool(has_records)),
@@ -304,7 +369,7 @@ def compass(essentials, alerts, campaigns, has_statements, actions=None):
         resume = {"k": "Resume", "v": "Setup: %d of %d essentials done." % (essentials["done"], essentials["total"]),
                   "href": "/command-center"}
         action = {"k": "Next action", "v": (nxt["title"] + ".") if nxt else "Finish setup.",
-                  "href": (nxt["href"] + "?returnTo=/command-center&from=" + nxt["key"]) if nxt else "/command-center"}
+                  "href": nxt["door"] if nxt else "/command-center"}
     else:
         if campaigns:
             last = campaigns[0]           # list_campaigns orders by updated DESC
@@ -346,9 +411,9 @@ def in_progress(tracks, masters_by_track, analyses, campaigns):
             # The Rack arrives attached to THIS song, so what it measures
             # is filed against it (audit, 2026-09-23).
             nxt = ("No working audio yet.", "Open the Rack",
-                   "/rack?track=%s&returnTo=/command-center&from=asset" % quote(str(tid), safe=""))
+                   door("/rack?track=" + quote(str(tid), safe=""), "asset"))
         elif not has_link:
-            nxt = ("No smart link yet.", "Create smart link", "/links/new?returnTo=/command-center&from=link")
+            nxt = ("No smart link yet.", "Create smart link", door("/links/new", "link"))
         else:
             nxt = ("Ready to publish.", "Open the link", "/links")
         rows.append({"id": tid, "title": t.get("title") or "Untitled",
@@ -406,5 +471,5 @@ def _link_attention(campaigns):
         x = uncaptured[0]
         return {"title": "Turn on fan capture for \u201c%s\u201d." % (x.get("title") or "your link"),
                 "body": "Traffic without capture is rented attention. Capture needs consent text too.",
-                "cta": "Set up capture", "href": "/links/%s/edit?returnTo=/command-center&from=capture" % x["id"]}
+                "cta": "Set up capture", "href": door("/links/%s/edit" % x["id"], "capture", "capture")}
     return None

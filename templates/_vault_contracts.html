@@ -20,7 +20,10 @@
       <a href="/plan" class="ml-2 font-bold text-sb-gold-bright hover:underline">See plans →</a>
     </div>
     {% else %}
-    {% if terms_saved == 'saved' %}<p class="mt-3 text-xs font-semibold text-green-400">Renewal dates saved. Reminders follow them.</p>
+    {#- reminders_on: a scheduler has really run the reminders in the last
+        two days (contract_reminders.scheduled). Until one does, nothing
+        sends them, so no sentence here says they are coming. -#}
+    {% if terms_saved == 'saved' %}<p class="mt-3 text-xs font-semibold text-green-400">{{ 'Renewal dates saved. Reminders follow them.' if reminders_on else 'Renewal dates saved.' }}</p>
     {% elif terms_saved == 'baddate' %}<p class="mt-3 text-xs font-semibold text-amber-300">That renewal date could not be read. Use the date picker.</p>{% endif %}
     {% if read_result == 'ok' %}<p class="mt-3 text-xs font-semibold text-green-400">Read the file. Check what it found on the row before saving.</p>
     {% elif read_result %}<p class="mt-3 text-xs font-semibold text-amber-300">The file could not be read. The row says why.</p>{% endif %}
@@ -55,10 +58,11 @@
         <form method="post" action="/vault/documents/{{ d.id }}/delete" class="shrink-0">
           <button class="text-gray-200 hover:text-red-400" title="Delete" aria-label="Delete {{ d.filename }}">✕</button>
         </form>
-        {#- Renewal terms, typed by a person (2026-09-14). The app reminds at
-            90, 30 and 7 days before the notice deadline and on the day, in
-            the app and by email where one can be sent. Nobody has read the
-            document, and the row says so. -#}
+        {#- Renewal terms, typed by a person (2026-09-14). The daily run
+            reminds at 60, 30, 7 and 1 days before the notice deadline, in
+            the app and by email where one can be sent, and the row says so
+            only while a scheduler really runs it (reminders_on). Nobody has
+            read the document, and the row says so. -#}
         {% set dt = doc_terms.get(d.id) if doc_terms is defined else none %}
         {#- The reader's candidates (2026-09-14): pattern-found in the
             file's text, shown with their sentence, filled into the form
@@ -67,8 +71,8 @@
         {% set rf = rd.findings if rd and rd.status == 'ok' else none %}
         <details class="w-full"{% if rd and read_result %} open{% endif %}>
           <summary class="cursor-pointer text-gray-200">
-            {% if dt and dt.status %}<span class="font-semibold {{ 'text-sb-gold-bright' if dt.status.phase == 'open' else 'text-amber-300' }}">{{ dt.status.sentence }}</span> <span class="text-gray-300">Reminders at 60, 30, 7 and 1 days before the notice date.</span>
-            {% else %}<span class="font-semibold">Renewal: not set.</span> <span class="text-gray-300">Type the renewal date and notice period and the app reminds you at 60, 30, 7 and 1 days before the notice date.</span>{% endif %}
+            {% if dt and dt.status %}<span class="font-semibold {{ 'text-sb-gold-bright' if dt.status.phase == 'open' else 'text-amber-300' }}">{{ dt.status.sentence }}</span> <span class="text-gray-300">{{ 'Reminders at 60, 30, 7 and 1 days before the notice date.' if reminders_on else 'Reminders at 60, 30, 7 and 1 days before the notice date are not switched on yet, so keep an eye on this date.' }}</span>
+            {% else %}<span class="font-semibold">Renewal: not set.</span> <span class="text-gray-300">{{ 'Type the renewal date and notice period and the app reminds you at 60, 30, 7 and 1 days before the notice date.' if reminders_on else 'Type the renewal date and notice period to keep the notice deadline on this row. Reminders at 60, 30, 7 and 1 days before it are not switched on yet.' }}</span>{% endif %}
           </summary>
           <form method="post" action="/vault/documents/{{ d.id }}/read" class="mt-2 flex flex-wrap items-center gap-2">
             <button class="sb-btn sb-btn-secondary sb-btn-sm">{{ 'Read it again' if rd else 'Read the document' }}</button>

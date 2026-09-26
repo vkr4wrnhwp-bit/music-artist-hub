@@ -7,10 +7,13 @@
     back where you started with no sign anything had happened, while the
     row was quietly created (walk, 2026-09-20). One line, one place, every
     page. -#}
-{% if user_plan and request.args.get('action') %}
-{#- The way to the thing that was made, said only by the SAVED row
-    (the rooms' done-line rule): an id that is not this account's action
-    adds nothing. -#}
+{% if user_plan and request.args.get('action_id') %}
+{#- The whole sentence is said by the SAVED row (the rooms' done-line
+    rule), and it names the row's own title: ?action=<anything> with an id
+    that is not this account's action says nothing at all (audit,
+    2026-09-23: "Your royalties were claimed" was claimed by a URL). -#}
 {%- set made = created_action(request.args.get('action_id')) if created_action is defined else none %}
-<p role="status" class="mb-4 rounded-xl border border-sb-good/40 bg-sb-good/10 px-4 py-2 text-sm font-medium text-sb-ink">&ldquo;{{ request.args.get('action') }}&rdquo; is on your <a href="/actions" class="underline">Actions</a> list.{% if made %} <a href="/actions/{{ made.id }}" class="underline">View action</a>{% endif %}</p>
+{%- if made %}
+<p role="status" class="mb-4 rounded-xl border border-sb-good/40 bg-sb-good/10 px-4 py-2 text-sm font-medium text-sb-ink">&ldquo;{{ made.title }}&rdquo; is on your <a href="/actions" class="underline">Actions</a> list. <a href="/actions/{{ made.id }}" class="underline">View action</a></p>
+{%- endif %}
 {% endif %}

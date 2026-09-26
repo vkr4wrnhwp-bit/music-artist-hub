@@ -57,10 +57,17 @@ Read-only, cached in `api_cache`.
 **Gate:** `BACKUP_S3_ENDPOINT/BUCKET/KEY/SECRET` · **Absent:** no off-box copy
 
 SigV4 implemented in pure Python — no boto3. `/backup/run` is exempt from
-the login wall via `BACKUP_TOKEN` so a cron job can reach it. So is
-`POST /reminders/run` (contract renewal reminders, `contract_reminders.py`):
-the same nightly job can call both, one after the other, with the same
-token in `X-Backup-Token`.
+the login wall via `BACKUP_TOKEN` so a cron job can reach it.
+`POST /reminders/run` (contract renewal reminders, `contract_reminders.py`)
+is called by the same nightly cron: the Render dashboard's
+`street-banker-nightly-backup` (09:00 UTC) POSTs it with `BACKUP_TOKEN` in
+`X-Backup-Token` straight after `/backup/run`, and its command fails unless
+both answer 200. Since 2026-09-23 it also takes `REMINDERS_CRON_TOKEN` in
+`X-Reminders-Token`, for a scheduler that should not hold the backup
+secret. Anything else gets 401 JSON with the reason, never a redirect. The
+Contracts card and rows promise reminders only while a scheduler has run
+it in the last two days (so a service with no cron, such as staging, says
+the dates are on file instead).
 
 ### ffmpeg — `convert_engine.py`
 **Gate:** binary on `PATH` · **Absent:** WAV and AIFF only, in-browser

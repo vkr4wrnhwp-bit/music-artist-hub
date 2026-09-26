@@ -89,3 +89,59 @@ def seed_statements(user_id):
         return False
     store.save_statement(user_id, FILENAME, parsed["rows"])
     return True
+
+
+# ---- the Action Center's showcase -----------------------------------------
+# The owner's mockup is drawn as "demo account · Label" with a working board:
+# two not started, two in progress, three complete, one dismissed, a Needs
+# attention list led by "Fix missing ISRC", "Review split conflict" and
+# "Prepare press announcement". The demo account is the showcase, never the
+# empty board (audit, 2026-09-23). Real rows, written once through the same
+# create_action an artist's form uses; the songs are the showcase
+# statement's own. Nothing is linked to a record the account does not hold.
+ACTIONS_SEED_BY = "demo-seed"
+
+# (title, room, type, priority, status, source, due in days or None, description)
+SHOWCASE_ACTIONS = (
+    ("Fix missing ISRC: Midnight Drive", "releases", "metadata", "high", "in_progress",
+     "release_check", 0, "The release check found no ISRC on the track."),
+    ("Review split conflict: Neon Dreams", "publishing", "rights", "high", "new",
+     "rights_conflict", 1, "Two writers and no signed split sheet."),
+    ("Prepare press announcement", "marketing", "press", "medium", "new",
+     "manual", 4, "One story, one call to action, ready for the media list."),
+    ("Confirm the venue advance", "stage", "show", "medium", "in_progress",
+     "manual", 9, ""),
+    ("Upload cover art: City Lights", "releases", "release", "medium", "complete",
+     "release_check", None, ""),
+    ("Add consent text to the fan sign-up", "fans", "fan_growth", "medium", "complete",
+     "alert", None, ""),
+    ("Upload the Q2 statement", "business", "report", "low", "complete",
+     "manual", None, ""),
+    ("Ask Deezer about City Lights", "business", "royalty_recovery", "low", "dismissed",
+     "alert", None, "Deezer was still inside its usual reporting wait."),
+)
+
+
+def seed_actions(user_id, today=None):
+    """Give a demo account the Action Center's showcase. True if it wrote
+    any. Keyed on who wrote them (created_by = "demo-seed"), so a reboot
+    never adds them twice and a board someone has been working keeps its
+    changes."""
+    from datetime import date, timedelta
+
+    import command_center as cc
+    if not user_id:
+        return False
+    with store.get_db() as db:
+        if db.execute("SELECT 1 FROM street_actions WHERE user_id = ? AND created_by = ? LIMIT 1",
+                      (user_id, ACTIONS_SEED_BY)).fetchone():
+            return False
+    today = today or date.today()
+    for title, room, kind, priority, status, source, due, desc in SHOWCASE_ACTIONS:
+        aid = cc.create_action(
+            user_id, title, category=kind, priority=priority, description=desc,
+            due_date=(today + timedelta(days=due)).isoformat() if due is not None else "",
+            room=room, assignee_id=user_id, source=source, created_by=ACTIONS_SEED_BY)
+        if status != "new":
+            cc.set_action_status(aid, user_id, status)
+    return True

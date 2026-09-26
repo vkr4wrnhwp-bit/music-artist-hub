@@ -83,18 +83,26 @@ def _http(url, payload, headers):
         return json.loads(body.decode("utf-8")) if body else {}
 
 
-def send(to, subject, html, attachments=None, reply_to=None, cc=None, text=None):
+def send(to, subject, html, attachments=None, reply_to=None, cc=None, text=None,
+         headers=None, from_name=None):
     """One email (optional attachments: [{filename, content-b64}]).
     True only when Resend accepted it. reply_to is where a human's
     answer should land - the advance sender, not the app - and cc is a
-    list or one address."""
+    list or one address. headers are extra message headers: a fan email
+    passes List-Unsubscribe here (fan_mail.unsubscribe_headers).
+
+    from_name, when given (even ""), is the sender name to use instead of
+    the tenant this request resolved to: an email to an artist's fan names
+    the artist's reseller however it was triggered, including by the daily
+    run, which has no tenant (app._fan_mail_from)."""
     if not configured() or not to:
         return False
     # The tenant whose page triggered this send, if any. Resolved here
     # rather than threaded through forty call sites: every one of them
     # would have to remember, and the one that forgot would put the
     # platform's name in a reseller's artist's inbox.
-    payload = {"from": sender(_tenant_display_name()), "to": [to],
+    name = _tenant_display_name() if from_name is None else from_name
+    payload = {"from": sender(name), "to": [to],
                "subject": subject, "html": html}
     if attachments:
         payload["attachments"] = attachments
@@ -104,6 +112,8 @@ def send(to, subject, html, attachments=None, reply_to=None, cc=None, text=None)
         payload["cc"] = list(cc) if isinstance(cc, (list, tuple)) else [cc]
     if text:
         payload["text"] = text
+    if headers:
+        payload["headers"] = dict(headers)
     global _last_error
     try:
         out = _http("https://api.resend.com/emails", payload, {
@@ -248,10 +258,22 @@ def domain_status():
     return {"error": None, "domains": out}
 
 
-def release_email_html(campaign_title, artist_name, listen_url, cover_url=""):
-    """Branded release-day note. Plain, readable, one clear button."""
+def release_email_html(campaign_title, artist_name, listen_url, cover_url="",
+                       unsubscribe_url=""):
+    """Branded release-day note. Plain, readable, one clear button, and the
+    fan's own way out at the foot (fan_mail): every one the app sends
+    carries unsubscribe_url. The title and the artist's name are the
+    artist's words, so they are escaped."""
+    import html as _html
+    import fan_mail
+    campaign_title = _html.escape(campaign_title or "")
+    artist_name = _html.escape(artist_name or "")
+    listen_url = _html.escape(listen_url or "", quote=True)
     cover = ('<img src="%s" alt="" width="120" style="border-radius:var(--sb-r-panel);display:block;margin:0 auto 16px;">'
-             % cover_url) if cover_url else ""
+             % _html.escape(cover_url, quote=True)) if cover_url else ""
+    why = "You asked to be notified about this release. Links open your preferred platform."
+    foot = (fan_mail.footer_html(why, unsubscribe_url) if unsubscribe_url
+            else '<p style="color:#91836A;font-size:12px;margin:24px 0 0;">%s</p>' % why)
     return (
         '<div style="background:#0B0A08;padding:32px 16px;font-family:Arial,sans-serif;">'
         '<div style="max-width:480px;margin:0 auto;background:#131110;border:1px solid #8A6E30;'
@@ -263,7 +285,6 @@ def release_email_html(campaign_title, artist_name, listen_url, cover_url=""):
         '<a href="%s" style="display:inline-block;background:#E8B950;color:#14100A;'
         'font-weight:bold;font-size:14px;padding:12px 28px;border-radius:var(--sb-r-panel);'
         'text-decoration:none;">Listen Now</a>'
-        '<p style="color:#91836A;font-size:12px;margin:24px 0 0;">You asked to be notified '
-        'about this release. Links open your preferred platform.</p>'
+        '%s'
         '</div></div>'
-    ) % (campaign_title, artist_name, listen_url)
+    ) % (campaign_title, artist_name, listen_url, foot)

@@ -26,7 +26,7 @@
         <span class="to-tile-v">{{ t['name'] }}</span>
         <span class="to-tile-s">{% if t['artist_name'] %}{{ t['artist_name'] }} · {% endif %}{{ t['start_date'] or '—' }} → {{ t['end_date'] or '—' }}</span>
       </a>
-      <div class="to-date-state"><span class="to-chip to-chip--gold">{{ t['show_count'] }} date{{ '' if t['show_count'] == 1 else 's' }}</span></div>
+      <div class="to-date-state">{% if t['is_sample'] %}<span class="to-chip to-chip--info">Sample</span> {% endif %}<span class="to-chip to-chip--gold">{{ t['show_count'] }} date{{ '' if t['show_count'] == 1 else 's' }}</span></div>
       <div><a class="to-btn to-btn--small" href="/tours/{{ t['id'] }}">Open</a></div>
     </div>
     {% endfor %}
@@ -43,7 +43,7 @@
         <span class="to-tile-v">{{ t['name'] }}</span>
         <span class="to-tile-s">{{ t['artist_name'] or '' }}</span>
       </a>
-      <div class="to-date-state"></div>
+      <div class="to-date-state">{% if t['is_sample'] %}<span class="to-chip to-chip--info">Sample</span>{% endif %}</div>
       <div><a class="to-btn to-btn--small" href="/tours/{{ t['id'] }}/my-day">My Day</a></div>
     </div>
     {% endfor %}
@@ -72,7 +72,8 @@
       {% set tag = 'a' if first else 'span' %}
       <{{ tag }} class="to-cal-day {{ 'is-out' if not c['in_month'] }} {{ 'is-today' if c['today'] }}"{% if first %} href="{{ first['href'] }}"{% endif %} aria-label="{{ c['date'] }}">
         <span class="d">{{ c['day'] }}</span>
-        {% for it in c['items'][:2] %}<div class="ev {{ 'show' if it['show'] }}">{{ it['label'] }}</div>{% if it['tours_n'] > 1 %}<div class="pct">{{ it['tour'] }}</div>{% endif %}{% endfor %}
+        {#- A sample date says so in its cell, beside a real one or alone. -#}
+        {% for it in c['items'][:2] %}<div class="ev {{ 'show' if it['show'] }}">{{ it['label'] }}</div>{% if it['sample'] %}<div class="pct is-sample">Sample{% if it['tours_n'] > 1 %} · {{ it['tour'] }}{% endif %}</div>{% elif it['tours_n'] > 1 %}<div class="pct">{{ it['tour'] }}</div>{% endif %}{% endfor %}
         {% if c['items'] %}<span class="dot"></span>{% endif %}
       </{{ tag }}>
     {% endfor %}

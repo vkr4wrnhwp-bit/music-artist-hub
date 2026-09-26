@@ -69,12 +69,12 @@
 
     {% set capture_on = c.settings.get('email_capture') %}
     {% if prerelease and capture_on %}
-    <!-- Primary CTA: pre-save / notify -->
+    {#- Primary CTA: the release-day reminder. It stores an address; it saves nothing to any library (links_engine.notify_button_text). -#}
     <form id="capture-form" class="mt-4">
       <input type="hidden" name="v" value="{{ variant_slug }}">
       <div class="flex gap-2">
         <input name="email" type="email" required placeholder="your@email.com" class="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3.5 text-sm text-white placeholder-gray-300 backdrop-blur focus:border-white/40 focus:outline-none">
-        <button type="submit" class="shrink-0 rounded-xl px-5 py-3.5 text-sm font-black uppercase tracking-wide text-sb-on-gold" style="background: {{ accent }};">{{ c.settings.get('cta_text') or 'Pre-Save' }}</button>
+        <button type="submit" class="shrink-0 rounded-xl px-5 py-3.5 text-sm font-black uppercase tracking-wide text-sb-on-gold" style="background: {{ accent }};">{{ notify_label }}</button>
       </div>
       <p class="mt-2 text-xs leading-snug text-gray-300 font-medium">{{ c.settings.get('consent_text') or 'I agree to receive updates about this release.' }} <a href="{{ c.settings.get('privacy_url') or '/privacy' }}" class="underline" target="_blank" rel="noopener">Privacy</a></p>
       {% if c.settings.get('gate_reward') %}
@@ -88,11 +88,14 @@
     {% if destinations %}
     <div class="mt-6 space-y-2.5">
       {% if not prerelease %}<div class="sb-label text-center text-gray-300">{{ c.settings.get('cta_text') or 'Listen Now' }}</div>{% endif %}
+      {#- A known fan's token rides on to these buttons (app._link_fan), so
+          the click that follows their visit is credited to them. -#}
+      {% set go_q = [] %}{% if variant_slug %}{% set _ = go_q.append('v=' ~ variant_slug|urlencode) %}{% endif %}{% if fan_token %}{% set _ = go_q.append('f=' ~ fan_token|urlencode) %}{% endif %}
       {% for d in destinations %}
-      <a href="/l/{{ c.slug }}/go/{{ d.id }}{% if variant_slug %}?v={{ variant_slug }}{% endif %}"
+      <a href="/l/{{ c.slug }}/go/{{ d.id }}{% if go_q %}?{{ go_q|join('&') }}{% endif %}" data-go
          class="flex items-center justify-between rounded-xl border border-white/10 bg-black/45 px-5 py-3.5 backdrop-blur transition-all hover:border-white/35 hover:bg-black/60">
         <span class="text-sm font-bold">{{ d.service_name }}</span>
-        <span class="text-xs font-bold uppercase tracking-wide" style="color: {{ accent }};">{{ 'Pre-save' if prerelease and d.service_key in ('spotify', 'apple_music', 'deezer') else 'Play' }} →</span>
+        <span class="text-xs font-bold uppercase tracking-wide" style="color: {{ accent }};">{{ 'Open' if prerelease else 'Play' }} →</span>
       </a>
       {% endfor %}
     </div>
@@ -152,6 +155,17 @@
       tick(); setInterval(tick, 1000);
     }
 
+    // A fan's own link (?f=, from an email the artist sent them) is not
+    // for passing on: take it out of the address bar, so a copied URL is
+    // the plain page. The service buttons already carry it.
+    try {
+      const here = new URL(window.location.href);
+      if (here.searchParams.has("f")) {
+        here.searchParams.delete("f");
+        history.replaceState(null, "", here.pathname + here.search + here.hash);
+      }
+    } catch (e) {}
+
     // Email capture -> fan record + consent log
     const form = document.getElementById("capture-form");
     if (form) form.addEventListener("submit", async (e) => {
@@ -162,6 +176,8 @@
       if (data.ok) {
         form.querySelector(".flex").classList.add("hidden");
         done.textContent = data.message;
+        // The buttons stay as they are: a sign-up hands back no fan link,
+        // because a typed address is not proof of who typed it (fan_mail).
         if (data.reward && data.reward.url) {
           const a = document.createElement("a");
           a.href = data.reward.url;

@@ -5,6 +5,21 @@
     provider holding nothing, and a dash is a counter it left out. Every
     figure here was measured by the provider named in the heading. -#}
 {% set ev = everything %}
+{#- A platform tile that holds no reading says why, in words. "Not in the
+    plan" (a 403) is the owner's business and only the owner sees it; a
+    timeout, a 429 or a 500, the monthly allowance pausing the call, and a
+    call this page's time budget never sent are shown to everyone
+    (audit, 2026-09-23: every one of them used to be filed as a refusal,
+    and the refusal tiles never rendered, so the headings sat over
+    nothing). -#}
+{%- set UNANSWERED = ['failed', 'paused', 'not_asked'] -%}
+{%- macro why_empty(state) -%}
+{%- if state == 'refused' -%}Not in the plan
+{%- elif state == 'paused' -%}Paused until next month
+{%- elif state == 'not_asked' -%}Not asked this time
+{%- else -%}Did not answer just now
+{%- endif -%}
+{%- endmacro -%}
 {% if ev %}
 <section id="everything" class="rounded-2xl border border-white/10 bg-sb-surface-1 p-5">
   <div class="flex flex-wrap items-baseline justify-between gap-2">
@@ -40,10 +55,11 @@
   <h4 class="sb-label mt-5 text-gray-200">Audience by platform</h4>
   <p class="mt-1 text-xs text-gray-300 font-medium">Followers on each platform as {{ ev.label }} last measured them, with the change over 7 and 28 days where two measured points exist.</p>
   {%- set shown_audience = ev.audience_rows | selectattr('state', 'equalto', 'measured') | rejectattr('followers', 'equalto', 0) | list -%}
+  {%- set unanswered_audience = ev.audience_rows | selectattr('state', 'in', UNANSWERED) | list -%}
   {%- set refused_audience = ev.audience_rows | selectattr('state', 'equalto', 'refused') | list if (is_owner is defined and is_owner) else [] -%}
-  {% if shown_audience or refused_audience %}
+  {% if shown_audience or unanswered_audience or refused_audience %}
   <div class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    {% for a in shown_audience + refused_audience %}
+    {% for a in shown_audience + unanswered_audience + refused_audience %}
     <div class="rounded-xl border border-white/10 bg-black/30 p-3">
       <div class="text-xs font-bold uppercase tracking-wide text-gray-200">{{ a.name }}</div>
       {% if a.state == 'measured' %}
@@ -61,23 +77,28 @@
       </div>
       {% endif %}
       {% else %}
-      <div class="mt-1 text-sm font-bold text-gray-300">Not in the plan</div>
+      <div class="mt-1 text-sm font-bold {{ 'text-gray-300' if a.state == 'refused' else 'text-amber-300' }}" data-state="{{ a.state }}">{{ why_empty(a.state) }}</div>
       {% endif %}
     </div>
     {% endfor %}
   </div>
   {% elif 'audience' in ev.failed %}
   <p class="mt-2 text-xs font-semibold text-amber-300">{{ ev.label }} did not answer the audience question just now.</p>
+  {% elif 'audience' in ev.paused %}
+  <p class="mt-2 text-xs font-semibold text-amber-300">Fresh {{ ev.label }} readings are paused until next month, and none is on file for this question.</p>
+  {% elif 'audience' in ev.not_asked %}
+  <p class="mt-2 text-xs font-semibold text-amber-300">Not asked this time: {{ ev.label }} was not answering.</p>
   {% endif %}
 
   {#- 3. Playlists by platform -#}
   <h4 class="sb-label mt-5 text-gray-200">Playlists by platform</h4>
   <p class="mt-1 text-xs text-gray-300 font-medium">Current placements, highest position first. The count is every placement {{ ev.label }} holds; the rows are the top of the list.</p>
   {%- set shown_playlists = ev.playlist_rows | selectattr('state', 'equalto', 'measured') | list -%}
+  {%- set unanswered_playlists = ev.playlist_rows | selectattr('state', 'in', UNANSWERED) | list -%}
   {%- set refused_playlists = ev.playlist_rows | selectattr('state', 'equalto', 'refused') | list if (is_owner is defined and is_owner) else [] -%}
-  {% if shown_playlists or refused_playlists %}
+  {% if shown_playlists or unanswered_playlists or refused_playlists %}
   <div class="mt-3 grid gap-3 lg:grid-cols-2">
-    {% for p in shown_playlists + refused_playlists %}
+    {% for p in shown_playlists + unanswered_playlists + refused_playlists %}
     <div class="rounded-xl border border-white/10 bg-black/30 p-3">
       <div class="flex items-baseline justify-between gap-2">
         <div class="text-xs font-bold uppercase tracking-wide text-gray-200">{{ p.name }}</div>
@@ -96,27 +117,32 @@
         {% endfor %}
       </div>
       {% else %}
-      <div class="mt-1 text-sm font-bold text-gray-300">Not in the plan</div>
+      <div class="mt-1 text-sm font-bold {{ 'text-gray-300' if p.state == 'refused' else 'text-amber-300' }}" data-state="{{ p.state }}">{{ why_empty(p.state) }}</div>
       {% endif %}
     </div>
     {% endfor %}
   </div>
   {% elif 'playlists' in ev.failed %}
   <p class="mt-2 text-xs font-semibold text-amber-300">{{ ev.label }} did not answer the playlist question just now.</p>
+  {% elif 'playlists' in ev.paused %}
+  <p class="mt-2 text-xs font-semibold text-amber-300">Fresh {{ ev.label }} readings are paused until next month, and none is on file for this question.</p>
+  {% elif 'playlists' in ev.not_asked %}
+  <p class="mt-2 text-xs font-semibold text-amber-300">Not asked this time: {{ ev.label }} was not answering.</p>
   {% endif %}
 
   {#- 4. The audience reports -#}
   <h4 class="sb-label mt-5 text-gray-200">Audience reports</h4>
   <p class="mt-1 text-xs text-gray-300 font-medium">{{ ev.label }} reports on three platforms: who follows, how the account performs, and the posts that did the most.</p>
-  {%- set shown_reports = ev.report_rows | rejectattr('state', 'equalto', 'refused') | list -%}
+  {%- set shown_reports = ev.report_rows | rejectattr('state', 'equalto', 'refused') | rejectattr('state', 'in', UNANSWERED) | list -%}
+  {%- set unanswered_reports = ev.report_rows | selectattr('state', 'in', UNANSWERED) | list -%}
   {%- set refused_reports = ev.report_rows | selectattr('state', 'equalto', 'refused') | list if (is_owner is defined and is_owner) else [] -%}
-  {% if shown_reports or refused_reports %}
+  {% if shown_reports or unanswered_reports or refused_reports %}
   <div class="mt-3 grid gap-3 lg:grid-cols-3">
-    {% for r in shown_reports + refused_reports %}
+    {% for r in shown_reports + unanswered_reports + refused_reports %}
     <div class="rounded-xl border border-white/10 bg-black/30 p-3">
       <div class="text-xs font-bold uppercase tracking-wide text-gray-200">{{ r.name }}</div>
-      {% if r.state == 'refused' %}
-      <div class="mt-1 text-sm font-bold text-gray-300">Not in the plan</div>
+      {% if r.state == 'refused' or r.state in UNANSWERED %}
+      <div class="mt-1 text-sm font-bold {{ 'text-gray-300' if r.state == 'refused' else 'text-amber-300' }}" data-state="{{ r.state }}">{{ why_empty(r.state) }}</div>
       {% else %}
       <div class="mt-1 text-xs text-gray-200">
         {{ r.account.name }}{% if r.account.verified %} · verified{% endif %}{% if r.account.country %} · {{ r.account.country }}{% endif %}{% if r.account.language %} · {{ r.account.language }}{% endif %}
@@ -161,6 +187,10 @@
   </div>
   {% elif 'reports' in ev.failed %}
   <p class="mt-2 text-xs font-semibold text-amber-300">{{ ev.label }} did not answer the report question just now.</p>
+  {% elif 'reports' in ev.paused %}
+  <p class="mt-2 text-xs font-semibold text-amber-300">Fresh {{ ev.label }} readings are paused until next month, and none is on file for this question.</p>
+  {% elif 'reports' in ev.not_asked %}
+  <p class="mt-2 text-xs font-semibold text-amber-300">Not asked this time: {{ ev.label }} was not answering.</p>
   {% endif %}
 
   {#- 5. Radio -#}
@@ -225,6 +255,13 @@
   <p class="mt-1 text-sm font-bold text-gray-300">Not in the plan</p>
   {% endif %}
 
+  {%- set quiet = [] -%}
+  {%- for key, name in [('profile', 'artist profile'), ('radio', 'radio'), ('youtube_views', 'YouTube views by day')] -%}
+  {%- if key in ev.failed or key in ev.paused or key in ev.not_asked %}{% set _ = quiet.append(name) %}{% endif -%}
+  {%- endfor %}
+  {% if quiet %}
+  <p class="mt-5 text-xs font-semibold text-amber-300" data-unread-sections>Not read just now: {{ quiet | join(', ') }}. {{ ev.label }} did not answer, was paused for the month, or was not asked on this load, so nothing is shown for {{ 'it' if quiet | length == 1 else 'them' }}.</p>
+  {% endif %}
   <p class="mt-5 text-xs text-gray-300 font-medium">Every figure in this section was measured by {{ ev.label }}. Nothing here is estimated, and a figure that would read zero is left out rather than shown. Stream counts and money are not in any of it: those come from your statements.</p>
 </section>
 {% endif %}

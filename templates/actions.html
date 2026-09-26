@@ -2,7 +2,7 @@
 {% import "_sb.html" as sb %}
 
 {% block title %}Actions{% endblock %}
-{% block head_scripts %}<link rel="stylesheet" href="/static/css/actions.css?v=2">{% endblock %}
+{% block head_scripts %}<link rel="stylesheet" href="/static/css/actions.css?v=3">{% endblock %}
 
 {#- The Action Center (owner's mockup + crawl, 2026-09-23). An action is
     work that belongs somewhere: the room it belongs to, the record it is
@@ -48,8 +48,14 @@
 <form method="post" action="/actions" class="ac-inline">
   <input type="hidden" name="action_id" value="{{ r.id }}">
   <input type="hidden" name="back" value="{{ back }}">
-  <button type="submit" name="status" value="{{ r.step[0] }}" class="ac-btn {{ 'ac-btn--gold' if r.active else 'ac-btn--line' }}">{{ r.step[1] }}</button>
+  {#- Each repeated control names its action for a screen reader, as the
+      overflow's "More for <title>" does (audit, 2026-09-23). -#}
+  <button type="submit" name="status" value="{{ r.step[0] }}" class="ac-btn {{ 'ac-btn--gold' if r.active else 'ac-btn--line' }}" aria-label="{{ r.step[1] }}: {{ r.title }}">{{ r.step[1] }}</button>
 </form>
+{%- endmacro %}
+
+{% macro door(r) -%}
+{%- if r.door %}<a class="ac-btn ac-btn--line" aria-label="{{ r.door.label }} for {{ r.title }}" href="{{ r.door.href }}">{{ r.door.label }}</a>{% endif -%}
 {%- endmacro %}
 
 {% macro menu(r, back) -%}
@@ -68,7 +74,10 @@
     {%- if r.deletable %}
     <a class="is-crit" href="/actions/{{ r.id }}?confirm=delete#ac-delete">Delete&hellip;</a>
     {%- else %}
-    <p class="ac-menu-note">Raised by a check or an alert, so it stays on record. Dismiss it to take it off your list.</p>
+    {#- mid-sentence: "the Trust score", "a Command Center alert", but a
+        name such as Release Check keeps its capitals -#}
+    {%- set noun = r.source_noun or "a check or an alert" %}
+    <p class="ac-menu-note">Raised by {{ (noun[:1]|lower ~ noun[1:]) if noun.split(" ")[0] in ("The", "A") else noun }}, so it stays on record. Dismiss it to take it off your list.</p>
     {%- endif %}
     {%- endif %}
   </div>
@@ -153,30 +162,40 @@
   {% endif %}
 
   {#- ---- the summary: dismissed work is set aside, not unfinished ------ -#}
+  {#- A board with nothing on it, not even dismissed work, says so ONCE:
+      no List/Board toggle over nothing, no six zero-count pills, no second
+      empty sentence under them (audit, 2026-09-23; the zero rule). -#}
+  {%- set empty_board = not stats.total and not stats.dismissed %}
   <section class="ac-panel ac-sum" aria-label="Board summary">
     {% if stats.total %}
     <span class="ac-ring" role="img" aria-label="{{ stats.pct }}% complete">
       <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle cx="32" cy="32" r="26" class="ac-ring-bg"/>{% if stats.pct %}<circle cx="32" cy="32" r="26" class="ac-ring-fg" stroke-dasharray="{{ (stats.pct / 100 * 163.4)|round(1) }} 200"/>{% endif %}</svg>
       <b>{{ stats.pct }}%</b>
     </span>
+    <div class="ac-figs"><div class="ac-figs-in">
     <p class="ac-fig"><b>{{ stats.complete }} of {{ stats.total }}</b> complete</p>
     <p class="ac-fig"><b>{{ stats.in_progress }}</b> in progress</p>
     <p class="ac-fig"><b>{{ stats.not_started }}</b> not started</p>
     {%- if stats.overdue %}<p class="ac-fig is-crit"><b>{{ stats.overdue }}</b> overdue</p>{% endif %}
     {%- if stats.dismissed %}<p class="ac-fig is-soft"><b>{{ stats.dismissed }}</b> dismissed, not counted</p>{% endif %}
+    </div></div>
     {% else %}
     <p class="ac-fig is-empty">
       {%- if stats.dismissed %}Nothing open. {{ stats.dismissed }} dismissed action{{ "s" if stats.dismissed != 1 }} set aside, not counted.
       {%- else %}No actions yet. Create one above, or press &ldquo;Create action&rdquo; on a Command Center alert or a release check.{% endif -%}
     </p>
     {% endif %}
+    {%- if not empty_board %}
     <nav class="ac-views" aria-label="View">
       <a href="/actions?status={{ filt }}" class="ac-view{% if view == 'list' %} is-on{% endif %}"{% if view == 'list' %} aria-current="page"{% endif %}>{{ ico("list") }}List</a>
       <a href="/actions?status={{ filt }}&amp;view=board" class="ac-view{% if view == 'board' %} is-on{% endif %}"{% if view == 'board' %} aria-current="page"{% endif %}>{{ ico("grid") }}Board</a>
     </nav>
+    {%- endif %}
   </section>
 
-  {% if view == "board" %}
+  {% if empty_board %}
+  {#- nothing more to say: the summary above said it -#}
+  {% elif view == "board" %}
   {#- ---- the board: the same four states, by the same names ----------- -#}
   <div class="ac-board">
     {% for key in acx.BOARD %}
@@ -191,7 +210,7 @@
         {%- if r.related %}<p class="ac-line">{{ ico("link") }}{% if r.related.href %}<a href="{{ r.related.href }}">{{ r.related.label }}</a>{% else %}{{ r.related.label }}{% endif %}</p>{% endif %}
         <div class="ac-card-acts">
           {%- if can_write %}{{ step_form(r, back) }}{% endif %}
-          {%- if r.door %}<a class="ac-btn ac-btn--line" href="{{ r.door.href }}">{{ r.door.label }}</a>{% endif %}
+          {{ door(r) }}
           {{ menu(r, back) }}
         </div>
       </article>
@@ -242,7 +261,7 @@
         </div>
         <div class="ac-acts">
           {%- if can_write %}{{ step_form(r, back) }}{% endif %}
-          {%- if r.door %}<a class="ac-btn ac-btn--line" href="{{ r.door.href }}">{{ r.door.label }}</a>{% endif %}
+          {{ door(r) }}
           {{ menu(r, back) }}
         </div>
       </li>
@@ -252,8 +271,7 @@
     <p class="ac-empty">
       {%- if filt == "attention" %}Nothing needs attention. Nothing open is high priority, overdue, or due within {{ attention_days }} days.
       {%- elif filt == "dismissed" %}Nothing dismissed.
-      {%- elif stats.total or stats.dismissed %}No actions here.
-      {%- else %}No actions yet. Create one above, or press &ldquo;Create action&rdquo; on a Command Center alert or a release check.{% endif -%}
+      {%- else %}No actions here.{% endif -%}
     </p>
     {% endif %}
   </section>

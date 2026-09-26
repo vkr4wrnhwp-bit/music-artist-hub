@@ -9,9 +9,12 @@ YouTube daily views. (Related artists, the platform pages and the song
 list were on the page for one day and came off, owner, 2026-09-15.)
 
 Each section is its own call and its own failure. A section the plan
-refuses reads "not in the plan"; one the provider holds nothing for
-reads "nothing on file"; one that did not answer says so. Nothing is
-estimated to fill a gap, and every count names who measured it.
+refuses reads "not in the plan" (the owner's business, shown to the
+owner); one the provider holds nothing for reads "nothing on file"; one
+that did not answer, was paused by the monthly allowance, or was never
+asked because the page's time ran out says so, to everyone, per platform
+as well as per section. Nothing is estimated to fill a gap, and every
+count names who measured it.
 """
 from datetime import date, datetime, timedelta, timezone
 
@@ -52,7 +55,8 @@ def build(prov, provider_artist_id, today=None):
     end = today or datetime.now(timezone.utc).date()
     start = end - timedelta(days=WINDOW_DAYS)
     out = {"label": getattr(prov, "label", "the provider"), "provider_artist_id": provider_artist_id,
-           "window_days": WINDOW_DAYS, "refused": [], "failed": [], "empty": [], "paused": []}
+           "window_days": WINDOW_DAYS, "refused": [], "failed": [], "empty": [], "paused": [],
+           "not_asked": []}
     calls = {
         "profile": lambda: prov.get_profile(provider_artist_id),
         "audience": lambda: prov.get_audience_all(provider_artist_id, start, end),
@@ -69,10 +73,16 @@ def build(prov, provider_artist_id, today=None):
             out[key] = None
             # The owner's monthly allowance stopping a call is neither the
             # plan refusing nor the vendor failing (soundcharts_budget).
+            # A question the page's time budget never sent is not a
+            # failure of the vendor's, and a 403 is the only refusal.
             if text.startswith("Soundcharts paused"):
                 out["paused"].append(key)
+            elif " was not asked" in text:
+                out["not_asked"].append(key)
+            elif text.startswith("Soundcharts 403"):
+                out["refused"].append(key)
             else:
-                (out["refused"] if "403" in text else out["failed"]).append(key)
+                out["failed"].append(key)
             continue
         out[key] = value
         if not value:

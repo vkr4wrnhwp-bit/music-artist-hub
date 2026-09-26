@@ -111,6 +111,30 @@ LOCKBOX_DOCS = [
 APPROVAL_STATES = ("pending", "signed", "declined", "needs resend")
 
 
+def reset_signoffs(entry, had_file):
+    """The document in a lockbox slot changed: a sign-off is for the paper
+    its signer saw, so it does not carry over (2026-09-23 review).
+
+    Replaced or removed (`had_file`): every approval in the slot becomes
+    "needs resend" and loses its token, which retires its signing link
+    (app.py _sign_link matches the approval's token). A split sheet signed
+    at 50/50 and swapped for 90/10 used to read "ready" and unlock pitching.
+
+    A first document (`had_file` False): a decision given before any paper
+    existed is asked again too; a link still pending stays live, because
+    its signer has decided nothing and now sees the file.
+
+    The approvals themselves stay, as the record of who was asked. Returns
+    how many were reset."""
+    n = 0
+    for a in (entry or {}).get("approvals") or []:
+        if had_file or a.get("state") != "pending":
+            a["state"] = "needs resend"
+            a.pop("token", None)
+            n += 1
+    return n
+
+
 def lockbox_report(track):
     box = track.get("lockbox") or {}
     docs = []
@@ -162,6 +186,8 @@ def mlc_evidence(track):
 
         source  "check"  The MLC answered about this recording
                 "typed"  only the artist's own words are on file
+                "failed" the last check was made and got no answer; it
+                         is not evidence either way
                 "none"   neither
         state   green / yellow / red, as everywhere else
         lane    the royalty-lane word for the same fact
@@ -208,6 +234,20 @@ def mlc_evidence(track):
                 "detail": ("The MLC has no work linked to this recording's "
                            "ISRC, so nobody is collecting its mechanicals."),
                 "share_total": None, "song_code": "", "iswc": "", "typed": typed}
+    if result == "error":
+        # The last check was made and failed. "Nobody has asked The MLC"
+        # printed above its own stored error row contradicted the panel
+        # (audit, 2026-09-23): it was asked, and nothing came back.
+        said = ((check or {}).get("message") or "").strip()
+        detail = ("The last check failed%s, so whether this recording is "
+                  "registered at The MLC is not known yet."
+                  % ((" (%s)" % said[:160]) if said else ""))
+        if typed:
+            detail += (" “%s” is what was typed into the passport."
+                       % typed[:120])
+        return {"source": "failed", "state": "yellow", "lane": "needs action",
+                "label": "check failed", "detail": detail,
+                "share_total": None, "song_code": "", "iswc": "", "typed": typed}
     if typed:
         state = field_state("mlc_status", typed, False)
         return {"source": "typed",
@@ -215,8 +255,7 @@ def mlc_evidence(track):
                 "lane": "needs action",
                 "label": "typed, unverified",
                 "detail": ("Nobody has asked The MLC about this recording; "
-                           "“%s” is what was typed into the passport."
-                           % typed[:120]),
+                           "“%s” is what was typed into the passport." % typed[:120]),
                 "share_total": None, "song_code": "", "iswc": "", "typed": typed}
     return {"source": "none", "state": "yellow", "lane": "missing",
             "label": "not checked",
@@ -283,9 +322,62 @@ LANES = [
 ]
 
 # Rough lane shares of a typical indie catalog's collected total — used
-# ONLY to size an estimate from the artist's OWN statement revenue.
+# ONLY to size an estimate from ONE track's own statement earnings
+# (earnings_by_track). They were applied to the whole account's total on
+# every track, so a five-track catalogue was told five times over that
+# 36% of everything it earned was missing (make-it-real, 2026-09-23).
 _LANE_SHARE = {"mechanicals": 0.06, "pro": 0.12, "soundexchange": 0.05,
                "neighboring": 0.04, "content_id": 0.05, "ugc": 0.04}
+
+
+def _isrc_key(value):
+    """An ISRC compared the way stores print it: no hyphens, no spaces,
+    upper case. US-AB1-26-00001 and usab12600001 are one recording."""
+    return "".join(ch for ch in (value or "").upper() if ch.isalnum())
+
+
+def earnings_by_track(tracks, rows):
+    """{track id: what that passport's own statement rows earned}.
+
+    A row is one track's money or nobody's, so the figures can be set side
+    by side without any of them borrowing another track's income:
+
+      * a row that carries an ISRC belongs to the passport with that ISRC;
+        if no passport has it, it may still go to a passport of the same
+        title that has no ISRC of its own - but never to one whose ISRC is
+        different, which is another recording (a remix, a live cut);
+      * a row with no ISRC belongs to the passport with its title;
+      * a title two passports share belongs to neither, and an ISRC two
+        passports share likewise: nobody can say whose money it is.
+
+    Tracks with no row of their own are simply absent. Pure, so it is
+    testable without a database.
+    """
+    by_isrc, by_title, has_isrc = {}, {}, {}
+    for t in tracks or []:
+        tid = t.get("id")
+        key = _isrc_key((t.get("passport") or {}).get("isrc"))
+        has_isrc[tid] = bool(key)
+        if key:
+            by_isrc[key] = None if key in by_isrc else tid
+        title = (t.get("title") or "").strip().lower()
+        if title:
+            by_title[title] = None if title in by_title else tid
+    out = {}
+    for r in rows or []:
+        key = _isrc_key(r.get("isrc"))
+        title = (r.get("title") or "").strip().lower()
+        tid = None
+        if key and key in by_isrc:
+            tid = by_isrc[key]
+        elif title:
+            tid = by_title.get(title)
+            if key and tid is not None and has_isrc.get(tid):
+                tid = None      # the row names a different recording
+        if tid is None:
+            continue
+        out[tid] = out.get(tid, 0.0) + float(r.get("amount") or 0)
+    return {tid: round(amount, 2) for tid, amount in out.items()}
 
 
 def lanes_from_sources(sources):
@@ -350,17 +442,30 @@ def _lane_state(lane, track, ctx):
 
 
 def lane_grid(track, ctx):
-    total = float(ctx.get("statement_total") or 0)
+    """The nine lanes for one track. A missing lane's estimate is a typical
+    lane share of what THIS track earned on the account's own statements
+    (ctx["earned_by_track"], from earnings_by_track), or None when the
+    track has no rows of its own. Never the account total: that put the
+    same whole-catalogue figure on every track (make-it-real, 2026-09-23)."""
+    earned = (ctx.get("earned_by_track") or {}).get(track.get("id"))
+    own = float(earned or 0)
     lanes = []
     for key, label in LANES:
         state = _lane_state(key, track, ctx)
         est = None
-        if state in ("missing", "needs action") and key in _LANE_SHARE and total > 0:
-            est = round(total * _LANE_SHARE[key], 2)
-        lanes.append({"key": key, "label": label, "state": state,
-                      "estimate": est,
-                      "estimate_basis": ("share of your own statement earnings"
-                                         if est is not None else None)})
+        if state in ("missing", "needs action") and key in _LANE_SHARE and own > 0:
+            est = round(own * _LANE_SHARE[key], 2)
+        lanes.append({
+            "key": key, "label": label, "state": state,
+            "estimate": est,
+            "share": _LANE_SHARE[key] if est is not None else None,
+            "track_earned": round(own, 2) if est is not None else None,
+            "estimate_basis": (
+                "a typical %d%% lane share of the $%s this track's own "
+                "statement rows have earned"
+                % (round(_LANE_SHARE[key] * 100), "{:,.2f}".format(own))
+                if est is not None else None),
+        })
     return lanes
 
 
@@ -394,7 +499,8 @@ def action_queue(tracks_with_ctx):
                     item["label"],
                     "missing" if not item["value"] else "unresolved",
                     track["title"]),
-                "impact": None, "difficulty": _DIFFICULTY.get(item["key"], "easy"),
+                "impact": None, "basis": None,
+                "difficulty": _DIFFICULTY.get(item["key"], "easy"),
                 "urgency": urgency, "fix": item["fix"] or ("/tracks/" + track["id"]),
                 "docs": _DOCS_FOR.get(item["key"], ""),
                 "status": "open", "critical": item["critical"],
@@ -407,6 +513,9 @@ def action_queue(tracks_with_ctx):
                     "problem": "“%s” has no %s collection set up." % (
                         track["title"], lane["label"].lower()),
                     "impact": lane["estimate"], "difficulty": "medium",
+                    # What the figure is, said beside it: one track's
+                    # own earnings at a typical lane share.
+                    "basis": lane["estimate_basis"],
                     "urgency": "money on the table",
                     "fix": "/tracks/" + track["id"], "docs": "",
                     "status": "open", "critical": False,
@@ -626,22 +735,31 @@ def twin_report(tracks, ctx, pulse_snaps, queue, analysis=None):
     # and `popularity` for some apps, and a line reading "Followers
     # None -> None" under the words "Real numbers" is worse than no
     # line at all.
-    _measured = [s for s in (pulse_snaps or [])
-                 if s["followers"] is not None and s["popularity"] is not None]
+    #
+    # Followers alone decide it (make-it-real, 2026-09-23). Spotify
+    # retired popularity for apps like this one on 2026-09-15, so a
+    # section that also waited for a popularity reading waited for ever,
+    # even with Soundcharts' follower counts on file. Popularity is
+    # printed only where both ends were measured.
+    _measured = [s for s in (pulse_snaps or []) if s["followers"] is not None]
     if len(_measured) >= 2:
         # Snapshots come oldest first, so the last one is the current
         # reading. The names were the wrong way round here, which made
         # the arrow in the line below run backwards through time.
         old, new = _measured[0], _measured[-1]
-        sec("Audience signal (Spotify/Deezer via Pulse)", "ready",
-            ["Followers %s \u2192 %s, popularity %s \u2192 %s over your last %d snapshots."
-             % (old["followers"], new["followers"], old["popularity"],
-                new["popularity"], len(_measured)),
-             "Real numbers from your connected profiles \u2014 not projections."])
+        if old.get("popularity") is not None and new.get("popularity") is not None:
+            line = ("Followers %s \u2192 %s, popularity %s \u2192 %s over your last %d snapshots."
+                    % (old["followers"], new["followers"], old["popularity"],
+                       new["popularity"], len(_measured)))
+        else:
+            line = ("Followers %s \u2192 %s over your last %d snapshots."
+                    % (old["followers"], new["followers"], len(_measured)))
+        sec("Audience signal (via Pulse)", "ready",
+            [line, "Real numbers from your connected profiles \u2014 not projections."])
     else:
         sec("Audience signal", "awaiting",
-            ["Connect Artist Pulse and this reads your real Spotify followers, "
-             "popularity, and Deezer fans over time."])
+            ["Pin your artist on Artist Pulse and this reads your follower "
+             "count over time, once two readings are on file."])
 
     rollout_lines = []
     if ctx.get("club_members"):

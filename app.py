@@ -2,6 +2,7 @@ import json
 import hmac
 import math
 import os
+import re
 import time
 import urllib.parse
 import uuid
@@ -110,6 +111,15 @@ _OWNER_EMAIL_HASHES = {
     "aa35acb84a0b782e5bdf902478d53127d9fc68f885493cd231fbe98b1f5ad020",
 }
 OWNER_PLAN = "label"          # top of plans.TIER_RANK
+
+
+def _day_words(iso):
+    """"2026-09-23" -> "23 Sep 2026"; "" for anything that is not a date."""
+    try:
+        d = date.fromisoformat(str(iso or "")[:10])
+    except ValueError:
+        return ""
+    return "%d %s" % (d.day, d.strftime("%b %Y"))
 
 
 def _is_owner_email(email):
@@ -248,6 +258,8 @@ import release_ready_store
 import royalty_types
 import insights_engine
 import email_provider as emailer
+import fan_mail             # the signed ?f= fan link and the way out of fan email
+import fan_segments         # contactable(): the one door every fan send list goes through
 import spotify_provider as spotify
 import artist_twin as twin
 import plans
@@ -440,6 +452,9 @@ def _internal_tools():
         # email behind a tier anyone could buy.
         out.append({"href": "/admin/review", "label": "Artist accounts"})
         out.append({"href": "/admin/readiness", "label": "Readiness"})
+        # Whether each outside service answers, checked on a button press
+        # (owner, 2026-09-23). Readiness says what is set; this asks.
+        out.append({"href": "/admin/providers", "label": "Providers"})
         # The reseller back office (/resellers) was built and linked from
         # nowhere (audit, 2026-09-19). Owner only, like its route.
         out.append({"href": "/resellers", "label": "Resellers"})
@@ -764,6 +779,9 @@ def create_app():
         # never touches an account that already has rows.
         if _plan != "fan":
             demo_seed.seed_statements(_acct["id"])
+            # The Action Center's showcase board (audit, 2026-09-23: the
+            # demo opened on "No actions yet"). Written once, keyed.
+            demo_seed.seed_actions(_acct["id"])
 
     # Owner accounts get the top plan at boot as well as at login, so an
     # existing long-lived session does not have to sign out and back in
@@ -793,6 +811,12 @@ def create_app():
         acting_as = session.get("acting_as")
         if acting_as:
             actor = partner_os.acting_context(user_id, acting_as)
+            if actor is not None and _is_owner_email(actor.get("email")):
+                # The platform owner's account is never worked from a
+                # reseller's seat, as a team seat never opens it either
+                # (_team_seat): every owner page would open to the staff
+                # (providers review, 2026-09-23).
+                actor = None
             if actor is None:
                 # No longer permitted. Drop it rather than silently falling
                 # back to the staff account mid-journey.
@@ -1224,10 +1248,15 @@ def create_app():
         _demo_access_seen[ip] = now
 
         sent = False
+        send_error = ""
         if emailer.configured():
             try:
                 pw = os.environ.get("DEMO_PASSWORD", "sweep")
-                emailer.send(
+                # "Sent" only when Resend accepted it. send() returns False
+                # on a refusal and never raises, so ignoring its answer told
+                # the visitor the password was on its way after a 403 and
+                # wrote password_sent: true for the owner (audit, 2026-09-23).
+                sent = bool(emailer.send(
                     email,
                     "Your Street Banker demo access",
                     "<p>Thanks for your interest in Street Banker.</p>"
@@ -1238,13 +1267,19 @@ def create_app():
                     "<p>The demo is illustrative sample data - no account is "
                     "created and nothing is shared.</p>"
                     % (pw, PUBLIC_BASE_URL,
-                       PUBLIC_BASE_URL.split("//", 1)[-1], workspace.title()))
-                sent = True
+                       PUBLIC_BASE_URL.split("//", 1)[-1], workspace.title())))
             except Exception:
                 sent = False
-        store.add_inbox("demo-access", {
-            "email": email, "workspace": workspace, "password_sent": sent,
-            "requested": datetime.now().isoformat(timespec="seconds")})
+            if not sent:
+                try:
+                    send_error = (emailer.last_send_error() or "")[:200]
+                except Exception:
+                    send_error = ""
+        lead = {"email": email, "workspace": workspace, "password_sent": sent,
+                "requested": datetime.now().isoformat(timespec="seconds")}
+        if send_error:
+            lead["send_error"] = send_error    # why, for the owner's follow-up
+        store.add_inbox("demo-access", lead)
         resp = redirect("/login?demo=%s#tour-rack" % ("sent" if sent else "pending"))
         resp.set_cookie("sb_demo_lead", email, max_age=90 * 24 * 3600,
                         httponly=True, samesite="Lax")
@@ -1494,16 +1529,16 @@ def create_app():
     @app.route("/privacy")
     def privacy():
         return render_template("legal.html", title="Privacy Policy",
-                               updated="July 9, 2026", sections=[
+                               updated="September 23, 2026", sections=[
             ("What we collect", "Account data (name, email, hashed password), the content you upload (statements, artwork, documents), campaign analytics (link clicks, referrers), and — when you connect them — data from services you authorize, like Spotify artist stats."),
             # The pre-save sentence is resolved against the running
             # deployment rather than asserted. With Spotify credentials
             # unset the flow falls back to notify-me and no token is ever
             # requested - claiming we encrypt one would be false.
-            ("Fan data you capture", "When a fan subscribes on your campaign pages, we store their email with a consent record, on your behalf. Artists control this data; we process it. " + (
+            ("Fan data you capture", "When a fan subscribes on your campaign pages, we store their email with a consent record, on your behalf. Artists control this data; we process it. Links in the emails we send a fan for an artist carry a code that credits their visits and button clicks on that artist's pages to their record, and the page passes it on after they sign up; nothing is stored on the fan's device for this. " + (
                 "Where a fan pre-saves, they authorize Spotify directly; that token is encrypted at rest and deleted once the release-day save completes."
                 if capability_status.is_live("spotify_presave")
-                else "Spotify pre-save is not connected on this deployment: pre-save buttons collect a notify-me address instead, and no Spotify token is requested, stored or processed.")),
+                else "Spotify pre-save is not connected on this deployment: the page offers a release-day email reminder instead, and no Spotify token is requested, stored or processed.")),
             ("What we don't do", "We don't sell personal data. We don't use your uploads to train AI models. We don't read fan tokens for anything beyond the save and the consented email."),
             ("Service providers", "We use Render (hosting), Resend (email delivery), and public music APIs (Spotify, Deezer, iTunes, Odesli, MusicBrainz, Bandsintown) to provide features you invoke. Each receives only what's needed for that feature."),
             ("Cookies", "We use a single session cookie to keep you signed in. No advertising trackers."),
@@ -1640,6 +1675,22 @@ def create_app():
             else:
                 error = _ingest_statement(user["id"], f.filename, f.read())
                 if error is None:
+                    # The desk's form has no action, so it posts to the
+                    # address it was opened at. A door's way back rides
+                    # through the save: with ?from= the trip is over and
+                    # the room says its done line (decided by the saved
+                    # statement there); without it the desk keeps its back
+                    # link. Same-site only (audit business-1, 2026-09-23).
+                    back = _safe_next(request.args.get("returnTo"), "")
+                    came = (request.args.get("from") or "").strip()[:64]
+                    if back and came:
+                        path, _hash, frag = back.partition("#")
+                        return redirect(path + ("&" if "?" in path else "?")
+                                        + "from=" + urllib.parse.quote(came, safe="")
+                                        + ("#" + frag if frag else ""))
+                    if back:
+                        return redirect(url_for("statements") + "?returnTo="
+                                        + urllib.parse.quote(back, safe="/"))
                     return redirect(url_for("statements"))
         ctx = build_dashboard_context()
         ctx["user"] = user
@@ -1737,31 +1788,96 @@ def create_app():
 
     # --- Spotify pre-save OAuth (env-gated; notify-me fallback otherwise) ------
 
+    def _owner_partner(owner):
+        """The reseller an artist's account belongs to (users.partner_id),
+        while that reseller is active; None for Street Banker's own."""
+        pid = (owner or {}).get("partner_id")
+        if not pid:
+            return None
+        try:
+            partner = partner_store.get_partner(pid)
+        except Exception:
+            return None
+        return partner if partner and partner.get("status") == "active" else None
+
+    def _fan_mail_base(owner):
+        """Where the links in an email to an artist's fan point: the
+        reseller's own domain when the artist belongs to one that has one,
+        otherwise the public address (PUBLIC_BASE_URL, always https).
+
+        Never request.url_root, the rule at the top of this file: an inbox
+        link outlives the request that made it, Host is the caller's input,
+        and the daily run's request comes from the scheduler, so its fan
+        emails carried the scheduler's internal host until 2026-09-23. A
+        mail client's one-click unsubscribe also needs an https address
+        (RFC 8058)."""
+        domain = ((_owner_partner(owner) or {}).get("domain") or "").strip().lower()
+        return ("https://" + domain) if domain else public_url()
+
+    def _fan_mail_from(owner):
+        """The sender name on an email to an artist's fan: the artist's
+        reseller, or "" for Street Banker's own. Read from the artist, not
+        from the request: the daily run has no tenant, and a fan's page
+        view on the plain address has none either."""
+        brand = partner_store.branding(_owner_partner(owner))
+        return (brand or {}).get("name") or ""
+
+    def _fan_unsubscribe_url(owner, kind, ref_id):
+        """The way out that every marketing email to a fan carries: signed,
+        no login, no expiry, naming the fan record (fan_mail.FAN_REF) or
+        the membership (MEMBER_REF) the email goes to, never the address
+        (fan_mail), at the artist's public address."""
+        return (_fan_mail_base(owner) + "/unsubscribe/"
+                + fan_mail.unsubscribe_token(app.config["SECRET_KEY"], owner["id"], kind, ref_id))
+
     def _send_release_emails(campaign):
-        """Once per campaign, on the first page view after release: email
-        every consented fan the listen link. Env-gated on RESEND_API_KEY."""
+        """Once per campaign, on the first page view after release or the
+        daily run (/reminders/run), whichever comes first: email every
+        consented fan the listen link. Env-gated on RESEND_API_KEY. Returns
+        how many messages Resend accepted."""
         if (not emailer.configured() or links_engine.is_prerelease(campaign)
                 or (campaign.get("settings") or {}).get("release_email_sent")):
-            return
-        # Claim the flag before sending so concurrent page views can't double-send.
-        settings = dict(campaign.get("settings") or {})
-        settings["release_email_sent"] = True
-        mls.update_campaign(campaign["id"], campaign["user_id"],
-                            {"settings": settings})
-        listen_url = request.url_root.rstrip("/") + "/l/" + campaign["slug"]
-        html = emailer.release_email_html(
-            campaign["title"], campaign.get("artist_name") or "",
-            listen_url, campaign.get("cover_url") or "")
+            return 0
+        # More than a week after release it is not a reminder, from either
+        # caller (links_engine.RELEASE_EMAIL_DAYS). Until 2026-09-23 only
+        # the daily run checked, so a page view mailed "out now" months
+        # late.
+        if not links_engine.release_email_window_open(campaign):
+            return 0
+        # Claim the flag in the database before sending, not on the dict
+        # this was handed: only the caller whose claim lands sends, so a
+        # page view during the daily run, or two page views at once,
+        # cannot mail a fan twice (links_store.claim_release_email).
+        if not mls.claim_release_email(campaign["id"]):
+            return 0
         # Replies go to the artist, never to the sending address.
-        owner = store.get_user(campaign["user_id"]) or {}
-        sent = sum(1 for f in mls.campaign_fans(campaign["id"])
-                   if emailer.send(f["email"], "%s is out now" % campaign["title"], html,
-                                   reply_to=owner.get("email") or None))
+        owner = store.get_user(campaign["user_id"]) or {"id": campaign["user_id"]}
+        # The artist's public address, whichever caller this is: a fan's
+        # page view, or the daily run from the scheduler's host.
+        page_url = _fan_mail_base(owner) + "/l/" + campaign["slug"]
+        sender_name = _fan_mail_from(owner)
+        sent = 0
+        # Nobody who unsubscribed or was marked do not contact: the one
+        # door every send list goes through (fan_segments.contactable).
+        for f in fan_segments.contactable(mls.campaign_fans(campaign["id"])):
+            # Each fan's listen link is their own (fan_mail.fan_token): the
+            # visit it starts, and the click after it, go on their record.
+            listen_url = page_url + "?f=" + fan_mail.fan_token(app.config["SECRET_KEY"], f["id"])
+            way_out = _fan_unsubscribe_url(owner, fan_mail.FAN_REF, f["id"])
+            html = emailer.release_email_html(
+                campaign["title"], campaign.get("artist_name") or "",
+                listen_url, campaign.get("cover_url") or "", unsubscribe_url=way_out)
+            if emailer.send(f["email"], "%s is out now" % campaign["title"], html,
+                            reply_to=owner.get("email") or None,
+                            headers=fan_mail.unsubscribe_headers(way_out),
+                            from_name=sender_name):
+                sent += 1
         if sent:
             store.notify(campaign["user_id"], "fan",
                          "Release emails sent: %s" % campaign["title"],
                          "%d fan%s notified with the listen link." % (sent, "" if sent == 1 else "s"),
                          "/links/%s/analytics" % campaign["id"])
+        return sent
 
     def _process_due_presaves(campaign):
         """Lazy release-day conversion: whenever a released campaign page is
@@ -1806,11 +1922,14 @@ def create_app():
         """Why aren't emails reaching anyone? Reports the SHAPE of the mail
         setup and, read-only, what Resend says about the account's domains -
         including the exact DNS records each still needs, so nobody has to
-        go hunting for them. Requires a signed-in account; no secret ever
-        leaves this endpoint."""
-        user = current_user()
-        if user is None:
-            return jsonify({"error": "auth required"}), 401
+        go hunting for them. No secret ever leaves this endpoint.
+
+        Owner accounts only, a 404 for everyone else (audit, 2026-09-23):
+        the domain list and its DNS records are the owner's setup, and
+        every ?domains=1 is a call on the owner's Resend key."""
+        user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
         info = {
             "configured": emailer.configured(),
             "sender": emailer.sender(),
@@ -1845,11 +1964,13 @@ def create_app():
             # names the failure exactly: InvalidAccessKeyId,
             # SignatureDoesNotMatch, NoSuchBucket, AccessDenied. Throwing
             # that away and reporting "Unauthorized" loses the answer.
+            # Only the Code and the Message are kept: the raw body can
+            # carry the AWSAccessKeyId, and this report promises the shape
+            # of each credential, never a value (audit, 2026-09-23).
             body = getattr(exc, "read", None)
             if callable(body):
                 try:
                     raw = exc.read().decode("utf-8", "replace")[:600]
-                    result["s3_error_body"] = raw
                     code = re.search(r"<Code>([^<]+)</Code>", raw)
                     msg = re.search(r"<Message>([^<]+)</Message>", raw)
                     if code:
@@ -1884,11 +2005,14 @@ def create_app():
         whether two of them are the same string) and never a value.
 
         It lived inside /presave/diag, which only a label-plan account could
-        open, so the person who owns the bucket could not see it.
+        open, so the person who owns the bucket could not see it. Now it
+        answers the owner, and only the owner (audit, 2026-09-23): any
+        signed-in account could make the server write into the owner's
+        bucket and read back the S3 error body.
         """
-        user = current_user()
-        if user is None:
-            return jsonify({"error": "auth required"}), 401
+        user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
         report = _r2_check()
         if not report.get("configured"):
             report["next"] = ("Set R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID and "
@@ -1922,10 +2046,14 @@ def create_app():
     @app.route("/presave/diag")
     def presave_diag():
         # Owner-only config check: reports WHICH credentials the running
-        # process can see (presence booleans only, never values).
-        user = current_user()
-        if user is None or (user.get("plan") or "artist") != "label":
-            abort(404)
+        # process can see (presence booleans only, never values). It said
+        # owner-only and checked the label PLAN, so any paying label
+        # customer could read platform-wide billing counts and the database
+        # path, and fire an R2 write and Spotify probes on the owner's keys
+        # (audit, 2026-09-23). The owner check is the one /admin uses.
+        user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
         return jsonify({
             "SPOTIFY_CLIENT_ID": bool(os.environ.get("SPOTIFY_CLIENT_ID")),
             "SPOTIFY_CLIENT_SECRET": bool(os.environ.get("SPOTIFY_CLIENT_SECRET")),
@@ -2100,6 +2228,29 @@ def create_app():
         variant = mls.get_variant_by_slug(vslug)
         return variant["id"] if variant and variant["campaign_id"] == campaign_id else None
 
+    def _link_fan(campaign):
+        """The fan a smart-link request comes from, when it says so: the
+        signed ?f= the app puts in the links of an email it sent that fan
+        (fan_mail.fan_token), passed on by the page to its own buttons.
+        Only a fan on this campaign's own account counts. A token naming
+        another account's fan, a tampered one, or none, is nobody."""
+        # Flask answers HEAD with the GET view, and a mail scanner's HEAD
+        # on the fan's own link is not the fan reading it (review, 2026-09-23).
+        if request.method == "HEAD":
+            return None
+        fan_id = fan_mail.read_fan_token(app.config["SECRET_KEY"], request.args.get("f"))
+        fan = mls.get_fan(fan_id) if fan_id else None
+        return fan if fan and fan["user_id"] == campaign["user_id"] else None
+
+    def _credit_fan(fan_id, counter):
+        """Add one to a fan's Visits or Clicks and re-score them, the same
+        way a capture or a pre-save re-scores them."""
+        mls.bump_fan(fan_id, counter)
+        fan = mls.get_fan(fan_id)
+        if fan:
+            score, level = links_engine.calculate_fan_intent(fan)
+            mls.set_fan_intent(fan_id, score, level)
+
     @app.route("/l/<slug>")
     def smart_link_redirect(slug):
         # Street Banker Links campaigns share the /l/ namespace with quick links.
@@ -2112,18 +2263,36 @@ def create_app():
             if campaign["status"] != "live" and not owner_preview:
                 abort(404)
             variant_id = _ml_variant_id(campaign["id"])
+            fan = None if owner_preview else _link_fan(campaign)
             if not owner_preview:
+                # A known fan's view is their visit, once per sitting: a
+                # reload inside the window is still recorded as a view, but
+                # it is not a second visit on their record.
+                new_visit = fan is not None and not mls.fan_event_since(
+                    campaign["id"], fan["id"], "page_view",
+                    (datetime.now(timezone.utc) - timedelta(
+                        minutes=fan_mail.VISIT_WINDOW_MINUTES)).isoformat(timespec="seconds"))
                 mls.track(campaign["id"], "page_view", variant_id=variant_id,
+                          fan_id=fan["id"] if fan else None,
                           referrer=request.referrer,
                           utm_source=request.args.get("utm_source"))
+                if new_visit:
+                    _credit_fan(fan["id"], "total_visits")
                 if request.args.get("src") == "qr":
                     mls.track(campaign["id"], "qr_scan", variant_id=variant_id)
                 _process_due_presaves(campaign)
             owner_epk = store.get_epk(campaign["user_id"]) or {}
             return render_template(
                 "link_campaign.html", c=campaign,
+                # Passed on to the page's own service buttons, so the click
+                # that follows a known fan's visit is theirs too.
+                fan_token=(request.args.get("f") or "") if fan else "",
                 store_url=((owner_epk.get("data") or {}).get("store_url") or ""),
                 spotify_presave=spotify.configured(),
+                # The email box stores an address for the release-day
+                # email, so it never says Pre-Save (links_engine).
+                notify_label=links_engine.notify_button_text(campaign.get("settings"),
+                                                             emailer.configured()),
                 presave_state=(request.args.get("presave") or ""),
                 destinations=mls.get_destinations(campaign["id"], active_only=True),
                 prerelease=links_engine.is_prerelease(campaign),
@@ -2158,8 +2327,12 @@ def create_app():
         if campaign["status"] != "live" and not owner_preview:
             abort(404)
         if not owner_preview:
+            fan = _link_fan(campaign)
             mls.track(campaign["id"], "service_click", variant_id=_ml_variant_id(campaign["id"]),
-                      service_key=dest["service_key"], referrer=request.referrer)
+                      service_key=dest["service_key"], referrer=request.referrer,
+                      fan_id=fan["id"] if fan else None)
+            if fan:
+                _credit_fan(fan["id"], "total_clicks")
         target = dest["url"]
         if not target.startswith(("http://", "https://")):
             abort(400)
@@ -2181,6 +2354,10 @@ def create_app():
         fan_id = mls.upsert_fan(campaign["user_id"], email, campaign["id"], name)
         consent_type = "presave_notify" if prerelease else "email_marketing"
         mls.add_consent(fan_id, campaign["id"], consent_type, consent_text)
+        # A fresh sign-up is the fan's own consent again: it lifts their
+        # own earlier unsubscribe and nothing else (fan_mail). The artist's
+        # do-not-contact mark stands, and then no email is promised below.
+        mls.unsuppress_fan(campaign["user_id"], email, only_reason=fan_mail.UNSUBSCRIBED)
         event = "presave_notify" if prerelease else "email_capture"
         mls.track(campaign["id"], event, variant_id=_ml_variant_id(campaign["id"]),
                   fan_id=fan_id)
@@ -2188,7 +2365,8 @@ def create_app():
         fan = mls.get_fan(fan_id)
         score, level = links_engine.calculate_fan_intent(fan)
         mls.set_fan_intent(fan_id, score, level)
-        message = ("You're locked in — we'll remind you the moment it drops."
+        held = bool((fan.get("suppressed") or "").strip())
+        message = (links_engine.notify_done_text(emailer.configured() and not held)
                    if prerelease else "You're on the list. Welcome to the inner circle.")
         store.notify(campaign["user_id"], "fan",
                      "%s: %s" % ("New pre-save" if prerelease else "New fan captured", email),
@@ -2205,7 +2383,91 @@ def create_app():
                 reward = {"url": v["path"],
                           "label": settings.get("gate_label")
                           or v["label"] or "Your unlock"}
+        # No fan token comes back: a typed address is not proof of who is
+        # typing, and until 2026-09-23 anyone who typed a fan's address got
+        # that fan's ?f= and could press the buttons on their record. The
+        # only ?f= is the one in an email the app sent that address.
         return jsonify({"ok": True, "message": message, "reward": reward})
+
+    # --- The way out of fan email ----------------------------------------------
+
+    def _unsubscribe_address(owner_id, kind, ref_id):
+        """The address an unsubscribe link was sent to, looked up from the
+        row its token names (fan_mail.unsubscribe_token), or None when the
+        artist has removed that row since."""
+        if kind == fan_mail.FAN_REF:
+            row = mls.get_fan(ref_id)
+            return row["email"] if row and row["user_id"] == owner_id else None
+        row = store.get_club_member(ref_id, owner_id)
+        return (row or {}).get("member_email") or None
+
+    @app.route("/unsubscribe/<token>", methods=["GET", "POST"])
+    def fan_unsubscribe(token):
+        """The link at the foot of every marketing email the app sends a fan
+        (fan_mail). No login: the signed token names the artist's account
+        and the one fan record or membership the email went to, and the
+        address is looked up here; the link itself never carries it.
+
+        GET shows one button and changes nothing, because mail scanners
+        follow links in messages. POST unsubscribes: from that button, or
+        in one click from the mail client's own button (RFC 8058: the body
+        is List-Unsubscribe=One-Click and carries no action). A fan who
+        changes their mind can subscribe again from the same page; that
+        lifts only their own unsubscribe, never the artist's do-not-contact
+        mark."""
+        named = fan_mail.read_unsubscribe_token(app.config["SECRET_KEY"], token)
+        owner = store.get_user(named[0]) if named else None
+        if owner is None:
+            return render_template("fan_unsubscribe.html", state="invalid"), 404
+        owner_id = owner["id"]
+        artist = artist_identity.display_name(owner) or owner.get("name") or "This artist"
+        email = _unsubscribe_address(owner_id, named[1], named[2])
+        if email is None:
+            # The artist removed the record this link was for: nothing is
+            # sent to it any more, and there is no address to show.
+            return render_template("fan_unsubscribe.html", state="gone", artist=artist)
+        fan = mls.fan_by_email(owner_id, email)
+        if request.method == "POST":
+            if request.form.get("action") == "resubscribe":
+                if mls.unsuppress_fan(owner_id, email, only_reason=fan_mail.UNSUBSCRIBED):
+                    store.notify(owner_id, "fan", "A fan subscribed again",
+                                 "%s turned your emails back on." % email, "/links/fans")
+                fan = mls.fan_by_email(owner_id, email)
+            elif not (fan or {}).get("suppressed"):
+                marked = mls.suppress_fan(owner_id, email, fan_mail.UNSUBSCRIBED)
+                if not marked:
+                    # No CRM record: a Fan Club member whose record was
+                    # removed still gets drop emails, so the suppression
+                    # needs a row to live on. Anyone else has no record
+                    # that anything is sent to.
+                    member = store.get_active_club_member(owner_id, email)
+                    if member:
+                        mls.add_suppressed_fan(owner_id, email, fan_mail.UNSUBSCRIBED,
+                                               created=member.get("created"))
+                        marked = True
+                if marked:
+                    store.notify(owner_id, "fan", "A fan unsubscribed",
+                                 "%s will not get your fan emails any more." % email,
+                                 "/links/fans")
+                fan = mls.fan_by_email(owner_id, email)
+        why = ((fan or {}).get("suppressed") or "").strip()
+        # Something on file that fan email is sent to: a CRM record, or an
+        # active membership. Without one the page says nothing is sent,
+        # whichever button was pressed: until 2026-09-23 "Subscribe again"
+        # told an address with no record that emails would resume.
+        on_file = fan is not None or store.get_active_club_member(owner_id, email) is not None
+        if why == fan_mail.UNSUBSCRIBED:
+            state = "out"
+        elif why:
+            state = "held"          # the artist's mark, or a bounce: not theirs to lift
+        elif not on_file:
+            state = "none"
+        elif request.method == "POST" and request.form.get("action") == "resubscribe":
+            state = "back"
+        else:
+            state = "ask"
+        return render_template("fan_unsubscribe.html", state=state, artist=artist,
+                               email=email, token=token)
 
     # --- Reports: real CSV download --------------------------------------------
 
@@ -2476,11 +2738,17 @@ def create_app():
         uid = user["id"]
         try:
             has_records = bool(mls.list_fans(uid) or store.get_statements(uid))
+            # The exact door for the Rack and capture steps: the song with
+            # no audio yet, the campaign not capturing yet (audit,
+            # 2026-09-23 - account_state.account_doors).
+            doors = account_state.account_doors(
+                store.list_os_tracks(uid), release_ready_store.masters_by_track(uid),
+                store.get_track_analyses(uid, 50), mls.list_campaigns(uid))
         except Exception as exc:                          # noqa: BLE001
             return {"state": "error", "essentials": None, "error": repr(exc)}
         return account_state.decide(uid, store, mls, release_ready_store,
                                     reachable=_reachable_essentials(user),
-                                    has_records=has_records)
+                                    has_records=has_records, doors=doors)
 
     def _firstrun_panel(user):
         """The Start-here panel: the five essentials, or None once they
@@ -2664,10 +2932,21 @@ def create_app():
         ids_rows = []
         for t in ctx["my_tracks"]:
             m = t.get("meta") or {}
+            # A code Deezer's title + artist search supplied is named as
+            # such, with the day it was read: it is a match by name, not a
+            # confirmation. A code that differs from what Deezer gave (typed
+            # on the passport, say) is the artist's own and is not marked.
+            looked = m.get("lookup_codes") or {}
+            from_lookup = [k for k in ("isrc", "upc", "label")
+                           if looked.get(k) and m.get(k) == looked.get(k)]
             ids_rows.append({"id": t["id"], "title": t["title"], "artist": t["artist"],
                              "isrc": m.get("isrc") or "", "upc": m.get("upc") or "",
                              "label": m.get("label") or "", "iswc": "",
-                             "release_date": m.get("release_date") or ""})
+                             "release_date": m.get("release_date") or "",
+                             "lookup_source": (m.get("source") or "") if from_lookup else "",
+                             "lookup_fields": [{"isrc": "ISRC", "upc": "UPC", "label": "label"}[k]
+                                               for k in from_lookup],
+                             "lookup_read_on": _day_words(m.get("read_on"))})
         ctx["ids_rows"] = ids_rows
         ctx["ids_with_isrc"] = sum(1 for r in ids_rows if r["isrc"])
         ctx["ids_with_upc"] = sum(1 for r in ids_rows if r["upc"])
@@ -3045,28 +3324,102 @@ def create_app():
 
     @app.route("/connections")
     def connections():
+        """Every source this account runs on, as it is (Analytics spec 3).
+
+        Each row says before anything is connected what the source gives,
+        what it does not, what access it asks for, how its data arrives
+        and when, and what disconnecting does (audit analytics-7,
+        2026-09-23). A row whose state could not be read says so rather
+        than "Not connected" (audit analytics-11), and every action
+        carries the page's own way back (?returnTo=), so a door opened
+        from a room still leads back to it after the pin or the upload
+        (audit analytics-1)."""
+        import signal_providers as sp
         user = current_user()
         if user is None:
             return login_required_redirect()
-        pulse_profile = store.get_pulse_profile(user["id"])
-        statements = store.get_statements(user["id"])
-        epk_dates_n = len(tour_dates_feed.upcoming(user["id"]))
+        ret = _safe_next(request.args.get("returnTo"), "")
+
+        def read(fn, *args):
+            """(value, True), or (None, False) when the store did not answer."""
+            try:
+                return fn(*args), True
+            except Exception as exc:
+                app.logger.error("connections: %s unreadable: %s",
+                                 getattr(fn, "__name__", "read"), exc)
+                return None, False
+
+        unread = "Could not be read just now. Try again in a moment."
+        pulse_profile, profile_ok = read(store.get_pulse_profile, user["id"])
+        statements, statements_ok = read(store.get_statements, user["id"])
+        upcoming, dates_ok = read(tour_dates_feed.upcoming, user["id"])
+        epk_dates_n = len(upcoming or ())
+        prov, _ = read(_metrics_provider)
+        mlc, _ = read(sp.mlc_adapter)
+        mlc_on = False
+        if mlc is not None:
+            mlc_on = bool(read(mlc.configured)[0])
+        n_statements = len(statements or ())
         integrations = [
             {"name": "Spotify", "kind": "Live API",
              "on": spotify.pulse_configured(),
-             "detail": ("Powers Artist Pulse, real pre-saves, and artist search."
+             "detail": ("Powers artist search on Artist Pulse and real pre-saves."
                         if spotify.pulse_configured() else
                         "Server credentials not configured."),
              "action": ("/pulse", "Open Artist Pulse")},
             {"name": "Your Spotify profile", "kind": "Artist link",
-             "on": bool(pulse_profile),
-             "detail": ("Linked: %s — followers and popularity track daily."
-                        % pulse_profile["artist_name"]) if pulse_profile
-             else "Pick your artist on Artist Pulse to start tracking.",
-             "action": ("/pulse", "Link on Artist Pulse")},
+             "on": bool(pulse_profile) if profile_ok else None,
+             "detail": (unread if not profile_ok else
+                        ("Linked: %s. Artist Pulse, Analytics and the metrics provider "
+                         "read this artist." % pulse_profile["artist_name"]) if pulse_profile
+                        else "Pick your artist on Artist Pulse to start tracking."),
+             "action": ("/pulse", "Link on Artist Pulse"),
+             "about": (
+                 ("Gives", "Which artist is yours, so Artist Pulse, Analytics and the "
+                           "metrics provider read the right one."),
+                 ("Does not give", "Streams, listeners or anything from your own Spotify "
+                                   "account. Spotify no longer sends follower or popularity "
+                                   "counts to apps like this one."),
+                 ("Access", "None. You pick a public artist from search; nothing signs in "
+                            "to Spotify and no permission is granted."),
+                 ("How it arrives", "Synced: a reading is stored each day Artist Pulse is "
+                                    "opened, starting the first time you open it."),
+                 ("To disconnect", "Change Artist on Artist Pulse unpins it. Readings "
+                                   "already stored stay on file."))},
+            {"name": prov.label if prov else "Metrics provider", "kind": "Metrics provider",
+             "on": bool(prov),
+             "detail": ("Monthly listeners and followers for your pinned artist, each "
+                        "dated, on Artist Pulse and in Analytics." if prov else
+                        "Not set up on this server, so monthly listeners read Not measured."),
+             "action": ("/pulse", "Open Artist Pulse"),
+             "about": (
+                 ("Gives", "Monthly listeners and followers for your pinned artist, each "
+                           "with the day it was measured."),
+                 ("Does not give", "Income, or anything from your own streaming accounts."),
+                 ("Access", "None from you: the server's own key. Your pinned artist is "
+                            "looked up by name once."),
+                 ("How it arrives", "Synced when Artist Pulse opens: the provider's dated "
+                                    "history for the last %d days is stored, and Analytics "
+                                    "reads what is stored." % _METRICS_WINDOW_DAYS),
+                 ("To disconnect", "Nothing to disconnect on your side. Unpinning your "
+                                   "artist stops new readings; stored ones stay."))},
+            {"name": "The MLC", "kind": "Rights registry",
+             "on": mlc_on,
+             "detail": ("Writers and publishers registered for a recording, looked up "
+                        "by its ISRC." if mlc_on else
+                        "Not set up on this server, so no MLC check runs."),
+             "action": ("/recovery#mlc", "Run an MLC check"),
+             "about": (
+                 ("Gives", "The writers, publishers and collection shares The MLC has "
+                           "registered for a recording, by ISRC."),
+                 ("Does not give", "Payments or statements, or ASCAP and BMI registrations."),
+                 ("Access", "None from you: the server's own MLC login."),
+                 ("How it arrives", "Asked when you run a check on Recovery, or when a song "
+                                    "with an ISRC is added to your catalog."),
+                 ("To disconnect", "Nothing to disconnect on your side."))},
             {"name": "Deezer", "kind": "Public API",
              "on": True,
-             "detail": "Fan counts and track identifiers — no key needed.",
+             "detail": "Fan counts and track identifiers, no key needed.",
              "action": ("/pulse", "See fan count")},
             {"name": "Email (Resend)", "kind": "Delivery",
              "on": emailer.configured(),
@@ -3075,30 +3428,54 @@ def create_app():
              if emailer.configured() else "RESEND_API_KEY not set on the server.",
              "action": ("/links", "Campaigns that use it")},
             {"name": "Tour dates", "kind": "Your tour (first-party)",
-             "on": bool(epk_dates_n),
-             "detail": (("Tour dates: from your tour in Street Banker (%d confirmed)."
+             "on": bool(epk_dates_n) if dates_ok else None,
+             "detail": (unread if not dates_ok else
+                        ("Tour dates: from your tour in Street Banker (%d confirmed)."
                          % epk_dates_n if epk_dates_n else
                          "Tour dates: confirm a date in TOUR and it appears here.")
                         + " Bandsintown declined this platform an app_id "
                         "(2026-09-07); that listing stays dormant."),
              "action": ("/epk", "EPK tour section")},
             {"name": "Royalty statements", "kind": "Your uploads",
-             "on": bool(statements),
-             "detail": ("%d statement%s uploaded — powering Royalties, Recovery, "
-                        "Tax, and Capital." % (len(statements),
-                                               "" if len(statements) == 1 else "s"))
-             if statements else "Upload CSVs — they power the entire money engine.",
-             "action": ("/statements", "Upload statements")},
-            {"name": "iTunes / Odesli / MusicBrainz", "kind": "Public APIs",
+             "on": bool(statements) if statements_ok else None,
+             "detail": (unread if not statements_ok else
+                        ("%d statement%s uploaded, powering Royalties, Recovery, "
+                         "Tax, and Capital." % (n_statements, "" if n_statements == 1 else "s"))
+                        if statements else "Upload CSVs. They power the entire money engine."),
+             "action": ("/statements", "Upload statements"),
+             "about": (
+                 ("Gives", "Reported income by track, store, period and territory, read "
+                           "line by line from the files you upload."),
+                 ("Does not give", "Listener or follower counts, or anything the file does "
+                                   "not contain. CSV only: PDF and spreadsheet statements "
+                                   "can't be read yet."),
+                 ("Access", "None. You upload a file; nothing signs in to your "
+                            "distributor or society."),
+                 ("How it arrives", "Imported: read the moment you upload it. The file "
+                                    "itself is not kept, only its rows."),
+                 ("To disconnect", "Remove on Statements takes an upload and every figure "
+                                   "from it back out."))},
+            {"name": "iTunes / Odesli", "kind": "Public APIs",
              "on": True,
-             "detail": "Catalog search, universal links, credits — no keys needed.",
+             "detail": "Catalog search and universal links, no keys needed.",
              "action": ("/catalog", "Search the catalog")},
         ]
-        # Not honest to pretend these connect today.
+        # The way back rides on every action, before any #fragment.
+        for i in integrations:
+            href = i["action"][0]
+            if ret:
+                path, _hash, frag = href.partition("#")
+                href = (path + ("&" if "?" in path else "?") + "returnTo="
+                        + urllib.parse.quote(ret, safe="") + ("#" + frag if frag else ""))
+            i["href"] = href
+        # Not honest to pretend these connect today. The MLC leaves this
+        # list when its login is set up: the app then asks it by ISRC
+        # (audit analytics-4).
         unavailable = [
             ("Distributor analytics (DistroKid, TuneCore, CD Baby)",
-             "Per-track stream counts and listener data need distributor feeds — no public API exists yet."),
-            ("PRO / MLC registrations (ASCAP, BMI, MLC)",
+             "Per-track stream counts and listener data need distributor feeds. No public API exists yet."),
+            ("PRO registrations (ASCAP, BMI)" if mlc_on else
+             "PRO / MLC registrations (ASCAP, BMI, MLC)",
              "Registration status requires society data access."),
         ]
         return render_template("connections.html", active_page="settings",
@@ -3111,9 +3488,12 @@ def create_app():
         case desk stays there. Never an absolute URL."""
         v = (value or "").strip()
         # "/\host" is read by browsers as "//host", another site, and a
-        # line break could smuggle a header.
+        # line break could smuggle a header. Browsers also STRIP a tab or
+        # a line break inside a URL before reading it, so "/<TAB>/host"
+        # is "//host" too (audit, 2026-09-23): any control character at
+        # all refuses the value.
         ok = (v.startswith("/") and not v.startswith(("//", "/\\"))
-              and not any(c in v for c in ("\n", "\r")))
+              and not any(ord(c) < 0x20 or ord(c) == 0x7f for c in v))
         return v if ok else default
 
     # The shell's back-link honours ?returnTo= on any page through this
@@ -3121,6 +3501,11 @@ def create_app():
     # returnTo=/command-center"). Same-site paths only; anything else is
     # ignored and the rooms rule applies.
     app.jinja_env.globals["safe_return"] = lambda v: _safe_next(v, "")
+    # A room's own name for its key ("business" -> "Business"), so the
+    # shell's returnTo back link names a room the way the sidebar does
+    # (audit business-13: it read "Back to the business room").
+    _room_names = {r[0]: r[1] for r in rooms.ROOMS}
+    app.jinja_env.globals["room_name"] = lambda key: _room_names.get(key or "", "")
 
     def _created_action(action_id):
         """The action a "Create action" button just made, when it is this
@@ -3196,6 +3581,18 @@ def create_app():
             return redirect(back + "?mlc=none#mlc")
         recovery_mlc.sweep(user["id"])
         return redirect(back + "#mlc")
+
+    @app.route("/royalty-recovery/mlc")
+    def royalty_recovery_mlc():
+        """The All Tools row "MLC / Unmatched Recovery". It rendered the
+        generic preview page ("the engine is being built") while the real
+        sweep above already ran on Recovery; it opens that sweep now
+        (make-it-real, 2026-09-23). A door's ?returnTo=&from= rides
+        through, ahead of the fragment."""
+        carry = "&".join("%s=%s" % (k, urllib.parse.quote(v, safe="/"))
+                         for k in ("returnTo", "from")
+                         for v in [request.args.get(k) or ""] if v)
+        return redirect("/recovery" + ("?" + carry if carry else "") + "#mlc")
 
     @app.route("/valuation")
     def valuation():
@@ -3601,15 +3998,30 @@ def create_app():
 
     _METRICS_WINDOW_DAYS = 30
 
-    # What /pulse?yt=... means. Anything not in here is Google's own error
-    # text, passed through as it stands rather than flattened to "failed".
+    # Everything Pulse asks the metrics provider shares this many seconds
+    # (signal_providers.time_budget), like TOUR's PHOTO/GEO/TICKETS_BUDGET_S.
+    PULSE_BUDGET_S = 25
+
+    # What /pulse?yt=... means: a code, looked up here. Google's own reason
+    # for a failed lookup travels in the session under "failed" and is
+    # shown once. Free text in the link is never printed: it used to be,
+    # so any link could put any sentence on the page in the app's own
+    # error style (audit, 2026-09-23).
     _YT_ERRORS = {
         "": "",
         "notfound": ("No YouTube channel matched that. The surest form is the "
                      "channel's own URL, copied from YouTube."),
         "unconfigured": ("This server has no YouTube key, so nothing was looked "
                          "up."),
+        "failed": "YouTube did not answer just now, so nothing was looked up.",
     }
+
+    def _yt_error_text():
+        code = request.args.get("yt") or ""
+        if code == "failed":
+            said = session.pop("yt_error", "")
+            return said or _YT_ERRORS["failed"]
+        return _YT_ERRORS.get(code, "")
 
     def _metrics_provider():
         """The registry's REAL metrics provider, or None.
@@ -3625,22 +4037,40 @@ def create_app():
         return None if prov is None or prov is reg.mock else prov
 
     def _metrics_artist_id(prov, user_id, profile):
-        """The provider's own id for this artist: read from the pulse
-        profile, or resolved once by search and stored there.
+        """(id, failure): the provider's own id for this artist, read from
+        the pulse profile or resolved once by search and stored there, and
+        the exception when that search failed (None otherwise).
 
         Searching on every page load would spend a billed call to learn
-        what the last one already established.
+        what the last one already established. A search that failed is not
+        an answer, and its reason is handed back rather than swallowed: a
+        401 on a new artist used to read exactly like no provider at all.
         """
         if profile.get("provider") == prov.key and profile.get("provider_artist_id"):
-            return profile["provider_artist_id"]
+            return profile["provider_artist_id"], None
         try:
             found = prov.search_artists(profile.get("artist_name") or "", limit=1)
-        except Exception:
-            return ""                # a provider that is down is not an answer
+        except Exception as e:                                  # noqa: BLE001
+            return "", e
         pid = (found[0].get("provider_artist_id") or "") if found else ""
         if pid:
             store.save_pulse_provider_artist(user_id, prov.key, pid)
-        return pid
+        return pid, None
+
+    def _metrics_failure_words(label, exc):
+        """One sentence for why no fresh reading came back, in words a
+        person can act on. The allowance pausing a call is not the vendor
+        failing; a call this page never sent is not a refusal; a 401 or 403
+        is the vendor refusing, not failing to answer."""
+        import signal_providers as sp
+        text = (str(exc).strip() or "%s did not answer." % label).rstrip(".")
+        if isinstance(exc, sp.SoundchartsPaused):
+            return "Fresh %s readings are paused until next month." % label
+        if isinstance(exc, (sp.ProviderNotAsked, sp.ProviderNoAnswer)):
+            return text + "."                   # already worded for a person
+        if re.search(r"\b(401|403)\b", text):
+            return "%s refused the request just now (%s)." % (label, text)
+        return "%s did not answer just now (%s)." % (label, text)
 
     # --- YouTube, as a public read ------------------------------------------
     # A second, unrelated source beside the metrics provider: the owner names
@@ -3697,8 +4127,14 @@ def create_app():
         try:
             social = prov.get_social(out["channel_id"])
         except Exception as e:                                  # noqa: BLE001
-            out["note"] = ("YouTube did not answer just now (%s), so these stay "
-                           "unmeasured." % prov.redact(e))
+            import signal_providers as sp
+            if isinstance(e, (sp.ProviderNoAnswer, sp.ProviderNotAsked)):
+                # Already a sentence for a person ("YouTube did not answer
+                # in time"), not Python's words inside a bracket.
+                out["note"] = "%s, so these stay unmeasured." % str(e).rstrip(".")
+            else:
+                out["note"] = ("YouTube did not answer just now (%s), so these stay "
+                               "unmeasured." % prov.redact(e))
             return out
         if not social:
             out["note"] = ("YouTube no longer has a channel with that id. Set it "
@@ -3740,9 +4176,12 @@ def create_app():
         start = end - timedelta(days=_METRICS_WINDOW_DAYS)
         pid = ""
         refusal = ""
+        failure = None
+        asked = False
         if fetch:
-            pid = _metrics_artist_id(prov, user_id, profile)
+            pid, failure = _metrics_artist_id(prov, user_id, profile)
             if pid:
+                asked = True
                 try:
                     rows = prov.get_artist_metrics(pid, start, end)
                 except Exception as e:
@@ -3750,7 +4189,7 @@ def create_app():
                     # right; presenting it as a fresh reading is not, and
                     # that is what the note used to do.
                     rows = []
-                    refusal = str(e).strip() or "%s did not answer." % prov.label
+                    failure = e
                 by_day = {}
                 for r in rows:
                     by_day.setdefault(r["date"], {})[r["metric"]] = r["value"]
@@ -3764,10 +4203,33 @@ def create_app():
                         vals.get("spotify_popularity"), None,
                         provider=prov.key, day=day,
                         monthly_listeners=vals.get("spotify_monthly_listeners"))
+        if failure is not None:
+            refusal = str(failure).strip() or "%s did not answer." % prov.label
         snaps = store.list_pulse_snapshots(user_id, limit=_METRICS_WINDOW_DAYS + 5,
                                            provider=prov.key)
         if not snaps:
-            return None
+            if not fetch:
+                return None      # a press kit shows nothing rather than a reason
+            # Nothing on file is still a state the page has to name. It used
+            # to return None here, which threw the refusal away and dropped
+            # the instrument, so a 401, a timeout and "no provider" all
+            # read the same.
+            if failure is not None:
+                note = (_metrics_failure_words(prov.label, failure)
+                        + " No earlier figure is on file, so monthly listeners "
+                          "are not measured.")
+            elif not pid:
+                note = ("%s found no artist matching \u201c%s\u201d, so monthly "
+                        "listeners are not measured."
+                        % (prov.label, (profile.get("artist_name") or "").strip()))
+            else:
+                note = ("%s holds no monthly listener figure for this artist yet."
+                        % prov.label)
+            return {"provider": prov.key, "label": prov.label,
+                    "monthly_listeners": None, "followers": None,
+                    "as_of": None, "cached_hours": None,
+                    "stale": bool(refusal), "refusal": refusal,
+                    "snapshots": [], "note": note, "asked": asked}
         latest = snaps[-1]
         listeners = next((s["monthly_listeners"] for s in reversed(snaps)
                           if s["monthly_listeners"] is not None), None)
@@ -3785,9 +4247,9 @@ def create_app():
         if refusal:
             # The vendor's own words, and the age of what is on screen.
             # Anything softer invites the figure to be read as current.
-            note = ("%s did not answer just now (%s). These are the last "
-                    "figures on file, from %s - not a reading taken today."
-                    % (prov.label, refusal, latest["day"]))
+            note = ("%s These are the last figures on file, from %s - not a "
+                    "reading taken today."
+                    % (_metrics_failure_words(prov.label, failure), latest["day"]))
         elif hours is None:
             note = "Measured by %s; the snapshot on file is from %s." % (
                 prov.label, latest["day"])
@@ -3801,7 +4263,7 @@ def create_app():
                 "monthly_listeners": listeners, "followers": followers,
                 "as_of": latest["day"], "cached_hours": hours,
                 "stale": bool(refusal), "refusal": refusal,
-                "snapshots": snaps, "note": note}
+                "snapshots": snaps, "note": note, "asked": asked}
 
     def _epk_real_tracks(user_id):
         """(top tracks, strongest store) from the account's own statements,
@@ -4541,7 +5003,20 @@ def create_app():
                                        **build_dashboard_context())
             cid = mls.create_campaign(user["id"], _ml_slug(fields["title"]), fields)
             mls.set_destinations(cid, _ml_form_destinations())
-            return redirect("/links/%s/edit" % cid)
+            # A door's way back rides through the save to the edit page,
+            # where the new link gets its destinations (audit 2026-09-23:
+            # Fans, Marketing, Releases and the Command Center all lost it
+            # here). A door's from= is folded INTO the returnTo, so the edit
+            # page's "Back to ..." lands on the room's done line - which the
+            # room still decides from the saved record. Same-site only.
+            back = _safe_next(request.args.get("returnTo"), "")
+            came = (request.args.get("from") or "").strip()[:60]
+            if back and came and "from=" not in back:
+                head, _, frag = back.partition("#")
+                back = (head + ("&" if "?" in head else "?") + "from="
+                        + urllib.parse.quote(came, safe="") + (("#" + frag) if frag else ""))
+            carry = ("returnTo=" + urllib.parse.quote(back, safe="/")) if back else ""
+            return redirect("/links/%s/edit" % cid + ("?" + carry if carry else ""))
         return render_template("links_builder.html", active_page="links",
                                c=None, destinations=[], engine=links_engine,
                                error=None,
@@ -4870,7 +5345,11 @@ def create_app():
                 "hubs_community": community,
                 "hubs_account": account,
                 "rooms_nav": rooms_nav,
-                "tool_suites": hub_defs.tool_suites(),
+                # A seat is shown no suite it would be bounced from: the
+                # sign-in hand-off (/suites/go/) is the account holder's
+                # alone (audit, 2026-09-23, x-1).
+                "tool_suites": [s for s in hub_defs.tool_suites()
+                                if seat is None or _door_refusal(s[1], me, seat) != "seat"],
                 "footer_links": hub_defs.footer_links(me.get("plan") if me else ""),
                 "suite_marks": hub_defs.SUITE_MARKS,
                 "suites_pending": hub_defs.suites_pending(),
@@ -4958,11 +5437,15 @@ def create_app():
             expenses = store.list_expenses(user["id"])
             cases = store.list_recovery_cases(user["id"])
             disputes = store.list_disputes(user["id"])
+            # Spec 3 names "Business actions" among the counts: an open
+            # action filed under this room is work (audit business-2).
+            actions = [a for a in cc.list_actions(user["id"])
+                       if a.get("room") == "business" and a.get("status") in cc.ACTIVE_STATUSES]
         except Exception as exc:
             app.logger.error("business room: state unreadable: %s", exc)
             return render_template("room_business_error.html", active_page="room-business",
                                    room=room, **build_dashboard_context()), 503
-        zero = business_room.new_account(uploads, rows_all, expenses, cases, disputes)
+        zero = business_room.new_account(uploads, rows_all, expenses, cases, disputes, actions)
         # _act_scope returns (roster, act, rows). Binding the tuple itself
         # to `rows` handed statements_engine a list of lists and every
         # account with a statement 500'd on r["amount"].
@@ -5055,8 +5538,10 @@ def create_app():
             open_claims, recovered if analysis else None, len(expenses or ()))
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         # Who may upload the first statement: the account holder, or an
         # edit seat.
@@ -5067,6 +5552,7 @@ def create_app():
             cards, artist_name=artist_identity.display_name(user),
             sample=_session_is_demo(), can_open=can_open, note=note,
             kept_note=kept_note, zero=zero, can_add=can_add)
+        rooms.gate_zero(bz.get("zero"), can_open)
         return render_template("room_business.html", active_page="room-business",
                                room=room, bz=bz,
                                # The sentence the statements desk carries
@@ -5105,37 +5591,35 @@ def create_app():
         # only, so they opened the onboarding page under a "Sample data"
         # lamp (audit studio-7).
         showcase = _session_is_demo()
-        if showcase:
-            fig = studio_room.showcase()
-            analysis, art_files = fig["analysis"], fig["art_files"]
-            n_tracks, masters, ready = fig["tracks"], fig["masters"], fig["ready"]
-        else:
-            analysis = store.latest_track_analysis(user["id"])
-            tracks = store.list_os_tracks(user["id"])
-            n_tracks = len(tracks)
-
-            # UPLOADS_DIR is where /artwork/upload and /artwork/save write.
-            # This called _uploads_dir(), which app.py never defined, and the
-            # NameError fell into the except below: no cover ever reached
-            # this room (audit studio-1).
-            try:
+        # Every record the room is decided on, read in ONE try: a failed
+        # read is the error page, 503, and never a fresh account, a "No
+        # master yet" or a "No art yet" (owner's spec, 2026-09-23). Covers
+        # and masters used to fall back to nothing on their own, and that
+        # silence hid a NameError that kept every cover off this page
+        # (audit studio-1, -3, -4).
+        try:
+            if showcase:
+                fig = studio_room.showcase()
+                analysis, art_files = fig["analysis"], fig["art_files"]
+                n_tracks, masters, ready = fig["tracks"], fig["masters"], fig["ready"]
+            else:
+                analysis = store.latest_track_analysis(user["id"])
+                tracks = store.list_os_tracks(user["id"])
                 art_files = artwork_config.list_uploads(user["id"], UPLOADS_DIR)
-            except Exception:
-                art_files = []
-
-            try:
                 masters = len(release_ready_store.stored_masters(user["id"]) or ())
-            except Exception:
-                masters = 0
-
-            # "Ready" is the catalogue's own Clean Release reading, and it
-            # is None when nothing has been checked - never a zero.
-            ready = None
-            if tracks:
-                osctx = _os_ctx(user["id"])
-                clean = [artist_os.clean_release(t, osctx) for t in tracks]
-                blocked = sum(1 for c in clean if c.get("blocked"))
-                ready = ("%d blocked" % blocked) if blocked else "Clear to submit"
+                n_tracks = len(tracks)
+                # "Ready" is the catalogue's own Clean Release reading, and
+                # it is None when nothing has been checked - never a zero.
+                ready = None
+                if tracks:
+                    osctx = _os_ctx(user["id"])
+                    clean = [artist_os.clean_release(t, osctx) for t in tracks]
+                    blocked = sum(1 for c in clean if c.get("blocked"))
+                    ready = ("%d blocked" % blocked) if blocked else "Clear to submit"
+        except Exception as exc:
+            app.logger.error("studio room: state unreadable: %s", exc)
+            return render_template("room_studio_error.html", active_page="room-studio",
+                                   room=room, **build_dashboard_context()), 503
 
         measured_label = None
         if showcase:
@@ -5152,8 +5636,13 @@ def create_app():
         cover = shown[0]["url"] if shown else ""
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
+        # Who may add the first song: the account holder, or an edit seat.
+        # A read-only seat is told who does (audit studio-6).
+        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         sd = studio_room.build(analysis, cover, art_files, n_tracks, masters,
                                ready, cards,
@@ -5162,10 +5651,12 @@ def create_app():
                                sample=showcase, can_open=can_open,
                                zero=(not showcase) and studio_room.new_account(
                                    analysis, n_tracks,
-                                   studio_room.covers(art_files)["total"]))
+                                   studio_room.covers(art_files)["total"], masters),
+                               can_add=can_add)
         # The sentence the song door carries back (?from=song), decided by
         # the SAVED track, not the param (studio_room.done_line). The
         # showcase saved nothing, so it never says it.
+        rooms.gate_zero(sd.get("zero"), can_open)
         return render_template("room_studio.html", active_page="room-studio",
                                room=room, sd=sd,
                                done_line=("" if showcase else studio_room.done_line(
@@ -5200,21 +5691,28 @@ def create_app():
             tours = [t for t in ts.list_tours(user["id"]) if t["id"] not in mock]
             shows = [s for s in store.list_tour_shows(user["id"])
                      if (s.get("tour_id") or "") not in mock]
+            # The version a show could be advanced against. NULL until a
+            # first publish, and that absence is drawn as "Never published"
+            # rather than as a version 0 nobody issued. Read inside the
+            # same try: a failure here was a bare 500 (audit stage-4).
+            version = None
+            for head in passports:
+                if head.get("current_version_id"):
+                    got = passport_store.current_version(head["id"], user["id"])
+                    if got:
+                        version = got.get("number")
+                        break
         except Exception as exc:
             app.logger.error("stage room: state unreadable: %s", exc)
+            # The Command Center door only for a reader who can open it: a
+            # seat without the whole account is sent from there straight
+            # back into this failing room (audit stage-9).
+            seat = current_team_seat()
             return render_template("room_stage_error.html", active_page="room-stage",
-                                   room=room, **build_dashboard_context()), 503
-
-        # The version a show could be advanced against. NULL until a first
-        # publish, and that absence is drawn as "Never published" rather
-        # than as a version 0 nobody issued.
-        version = None
-        for head in passports:
-            if head.get("current_version_id"):
-                got = passport_store.current_version(head["id"], user["id"])
-                if got:
-                    version = got.get("number")
-                    break
+                                   room=room,
+                                   back_home=(seat is None or team_areas.allows(
+                                       seat["areas"], "/command-center")),
+                                   **build_dashboard_context()), 503
 
         # The demo account is the showcase and never the page from zero
         # (owner's ruling; _marketing_room's pattern). Where it has no light
@@ -5233,8 +5731,10 @@ def create_app():
         locked = bool(_demo_locked_account())
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         # Who may add the first show: the account holder or an edit seat
         # with the Tour desk in its rooms, on a plan that includes Tour
         # (the same rule tour_os applies to POST /tours/new).
@@ -5260,7 +5760,11 @@ def create_app():
         # A locked demo gets the same read-only drawing.
         editable = not locked
         if editable and seat is not None:
-            editable = team_areas.allows(seat["areas"], "/stage-plot")
+            # A read seat's save is refused by the team gate (403), so it is
+            # drawn the plot without the controls, never handed a Save that
+            # fails (found writing the seat tests for audit stage-18).
+            editable = (seat.get("access") == "edit"
+                        and team_areas.allows(seat["areas"], "/stage-plot"))
         return render_template("room_stage.html", active_page="room-stage",
                                room=room, sg=sg,
                                saved_plot=(json.dumps(plot_state) if plot_state else "null"),
@@ -5269,7 +5773,14 @@ def create_app():
                                sg_show=(json.dumps(show) if show else "null"),
                                # The sentence the show door carries back
                                # (?from=show), decided by the SAVED show.
-                               done_line=stage_room.done_line(request.args.get("from"), len(shows)),
+                               done_line=stage_room.done_line(request.args.get("from"), shows),
+                               # A first show the Tour desk refused (a date
+                               # that is not a real day) comes back here with
+                               # what was typed, from the session, and the
+                               # reason (audit stage-11).
+                               show_error=(request.args.get("show_error") == "date"),
+                               show_draft=(session.pop(tour_os.ONE_OFF_DRAFT, None)
+                                           if request.args.get("show_error") else None) or {},
                                **build_dashboard_context())
 
     def _analytics_room(user, room):
@@ -5308,31 +5819,56 @@ def create_app():
             visits = counts.get("page_view")
             if visits is not None or counts.get("pageview") is not None:
                 visits = (counts.get("page_view") or 0) + (counts.get("pageview") or 0)
+            # A statement is a connected source (Connections says so), and an
+            # open action filed under this room is work: both are counts
+            # spec 8 names (audit analytics-5, 2026-09-23).
+            statements = store.get_statements(user["id"])
+            actions = [a for a in cc.list_actions(user["id"])
+                       if a.get("room") == "analytics" and a.get("status") in cc.ACTIVE_STATUSES]
+            # Monthly listeners and followers from the metrics provider: what
+            # is STORED, read without a call (fetch=False) - the Pulse page
+            # spends the provider's quota, this door only reads what it
+            # kept. Unconfigured is the normal case and is reported as an
+            # absence with a reason, never a zero (audit analytics-3).
+            prov = _metrics_provider()
+            metrics = _provider_metrics(user["id"], profile, fetch=False) if profile else None
         except Exception as exc:
             app.logger.error("analytics room: state unreadable: %s", exc)
             return render_template("room_analytics_error.html", active_page="room-analytics",
                                    room=room, **build_dashboard_context()), 503
-
-        # Monthly listeners come from a metrics provider. Unconfigured is
-        # the normal case, and it is reported as an absence with a reason
-        # rather than as a zero.
+        # Passed as `metrics`, so each reading is credited to its provider
+        # with its own day; nothing here is a bare number.
         listeners = None
 
+        # The observations keep their own fallback: one section's failure
+        # does not block the room - but it is said as a failure, never as
+        # "nothing to read" (audit analytics-11).
+        observations_failed = False
         try:
             observations = insights_engine.build_insights(user["id"])
-        except Exception:
-            observations = []
+        except Exception as exc:
+            app.logger.error("analytics room: observations unreadable: %s", exc)
+            observations, observations_failed = [], True
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         # Who may connect a source: the account holder, or an edit seat.
         can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
-        # Said by the account's OWN saved source, never by the example.
-        connected = bool(profile or snaps)
-        zero = (not showcase) and analytics_room.new_account(profile, snaps, visits, peers)
-        metrics = None
+        # Said by the account's OWN saved source, never by the example. An
+        # uploaded statement counts: Connections calls it Connected.
+        connected = bool(profile or snaps or statements)
+        zero = (not showcase) and analytics_room.new_account(
+            profile, snaps, visits, peers, statements, observations, actions)
+        if zero and observations_failed:
+            # "No insights" cannot be confirmed while they are unreadable,
+            # so the page from zero would be a failure mistaken for an
+            # empty account (spec 8): the error page instead.
+            return render_template("room_analytics_error.html", active_page="room-analytics",
+                                   room=room, **build_dashboard_context()), 503
         if showcase:
             sc = analytics_room.showcase(artist_name=artist_identity.display_name(user)
                                          or user.get("name") or "")
@@ -5341,7 +5877,11 @@ def create_app():
         an = analytics_room.build(profile, snaps, peers, visits, listeners,
                                   observations, cards,
                                   sample=showcase, can_open=can_open,
-                                  zero=zero, can_add=can_add, metrics=metrics)
+                                  zero=zero, can_add=can_add, metrics=metrics,
+                                  metrics_label=getattr(prov, "label", "") if prov else "",
+                                  observations_failed=observations_failed,
+                                  account_name=artist_identity.display_name(user))
+        rooms.gate_zero(an.get("zero"), can_open)
         return render_template("room_analytics.html",
                                active_page="room-analytics",
                                room=room, an=an,
@@ -5389,8 +5929,10 @@ def create_app():
         found = rights_conflicts.for_account(tracks)
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
         # Who may add a song: the account holder, or an edit seat. A shared
         # read-only demo is offered no write door either (its saves are
@@ -5404,6 +5946,7 @@ def create_app():
                                    sample=showcase, can_open=can_open,
                                    zero=(not showcase) and publishing_room.new_account(tracks),
                                    can_add=can_add)
+        rooms.gate_zero(pb.get("zero"), can_open)
         return render_template("room_publishing.html",
                                active_page="room-publishing",
                                room=room, pb=pb,
@@ -5432,7 +5975,13 @@ def create_app():
         # "none at all" on their own, which read as a fresh account.
         try:
             campaigns = _campaign_picker(user)
-            wanted = request.args.get("campaign") or (campaigns[0]["id"] if campaigns else None)
+            # A release IS a campaign row of type "release": a Fan Hub or a
+            # Pre-save alone neither ends the page from zero nor says a
+            # release was created (audit releases-3). The chooser still
+            # lists every campaign, and opens on a release when there is one.
+            releases = releases_room.releases_of(campaigns)
+            first = (releases or campaigns or [None])[0]
+            wanted = request.args.get("campaign") or (first["id"] if first else None)
             campaign = mls.get_campaign(wanted, user["id"]) if wanted else None
             rollouts = ros.list_campaigns(user["id"])
         except Exception as exc:
@@ -5444,7 +5993,7 @@ def create_app():
         # (owner's ruling; _marketing_room's pattern). With no release and
         # no rollout of its own it is shown releases_room.showcase(), marked
         # Sample data; what it really made is shown instead, unmarked.
-        sample = showcase and not campaigns and not rollouts
+        sample = showcase and not releases and not rollouts
         example = (releases_room.showcase(datetime.now(timezone.utc).date(),
                                           artist_identity.display_name(user))
                    if sample else None)
@@ -5483,16 +6032,37 @@ def create_app():
                         for t in store.list_os_tracks(user["id"])][:8]
 
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
         # rooms.build gives each card as (key, href, icon, label, desc, state).
         cards = {c[0]: c[1:] for c in (room.get("cards") or ())}
+        # Track Passports is the Publishing room's card, lent to this
+        # room's drawer from zero (spec section 4; audit releases-11) with
+        # the same owner, hidden and demo rules rooms.build applies.
+        lent = rooms.get_room("publishing", user.get("plan") or "artist",
+                              bool(_is_owner_email(user.get("email"))),
+                              bool(_demo_locked_account()))
+        for c in (lent or {}).get("cards") or ():
+            if c[0] == "track-passports":
+                cards.setdefault(c[0], c[1:])
         # Who may create the first release: the account holder, or an edit
-        # seat. An account under the read-only demo lock is offered no write
-        # door: the builder would only bounce at the lock.
-        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
+        # seat that can open the builder - /links is the Marketing room's
+        # page, so a Releases-only seat was handed a door that bounced
+        # (audit releases-1) - on a plan that includes it (a Fan plan was
+        # handed a door that answers 402, releases-20). An account under
+        # the read-only demo lock is offered no write door: the builder
+        # would only bounce at the lock.
+        can_add = True
         if _demo_locked_account():
             can_add = "locked"
+        elif seat is not None and (seat.get("access") != "edit"
+                                   or not team_areas.allows(seat["areas"], "/links/new")):
+            can_add = "seat"
+        elif not plans.allowed(user.get("plan") or "artist",
+                               plans.required_tier("/links/new") or "artist"):
+            can_add = "tier"
         rr = releases_room.build(
             campaign, checks, groups, days_left, release_date, drops, calendar,
             # the example has no record to choose between
@@ -5500,15 +6070,16 @@ def create_app():
             can_open=can_open,
             artist_name=artist_identity.display_name(user),
             show=request.args.get("show") or "all",
-            zero=(not showcase) and releases_room.new_account(campaigns, drops),
+            zero=(not showcase) and releases_room.new_account(releases, drops),
             can_add=can_add)
+        rooms.gate_zero(rr.get("zero"), can_open)
         return render_template("room_releases.html", active_page="room-releases",
                                room=room, rr=rr,
                                # The sentence the builder carries back
                                # (?from=releases-zero-state), decided by the
                                # SAVED release.
                                done_line=releases_room.done_line(
-                                   request.args.get("from"), len(campaigns or ())),
+                                   request.args.get("from"), len(releases)),
                                **build_dashboard_context())
 
     def _release_drops(user, rollouts=None):
@@ -5558,32 +6129,49 @@ def create_app():
         fan_room.py says where each figure comes from."""
         import fan_audience
         import fan_room
-        rows, audience, showcase = _fan_room_rows(user)
-        club_row = None if showcase else store.get_fan_club(user["id"])
-        members = 0
-        if club_row:
-            members = sum(1 for m in store.list_club_members(user["id"])
-                          if (m.get("status") or "active") == "active")
-        today = datetime.now(timezone.utc).date().isoformat()
-        with store.get_db() as db:
-            open_briefs = db.execute(
-                "SELECT COUNT(*) FROM collab_requests c JOIN users u ON u.id = c.user_id"
-                " WHERE c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
-                " OR substr(c.closes, 1, 10) >= ?)", (today,)).fetchone()[0]
+        # Every read the page is decided on, in ONE try: a failed read is
+        # the room's error page, 503, and never a fresh account or a bare
+        # 500 with no way out (owner's spec, 2026-09-23; the Fans audit
+        # found this the one room of eight without it).
+        try:
+            rows, audience, showcase = _fan_room_rows(user)
+            club_row = None if showcase else store.get_fan_club(user["id"])
+            members = 0
+            if club_row:
+                members = sum(1 for m in store.list_club_members(user["id"])
+                              if (m.get("status") or "active") == "active")
+            today = datetime.now(timezone.utc).date().isoformat()
+            with store.get_db() as db:
+                open_briefs = db.execute(
+                    "SELECT COUNT(*) FROM collab_requests c JOIN users u ON u.id = c.user_id"
+                    " WHERE c.status = 'open' AND (c.closes IS NULL OR c.closes = ''"
+                    " OR substr(c.closes, 1, 10) >= ?)", (today,)).fetchone()[0]
+            link_visits = 0 if showcase else fan_audience._visits(user["id"])
+        except Exception as exc:
+            app.logger.error("fans room: state unreadable: %s", exc)
+            return render_template("room_fans_error.html", active_page="room-fans",
+                                   room=room, **build_dashboard_context()), 503
         # The same two lines the other seven rooms use: a seat opens
         # only the pages its areas allow, so the room draws only those.
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
+        # One predicate for every door on the page (audit, 2026-09-23):
+        # a seat's rooms, the pages every seat is refused, and the pages
+        # the owner switched off (_room_can_open).
+        can_open = _room_can_open(user, seat)
+        # Who may add fans: the account holder, or an edit seat. A read seat
+        # is offered no door its save would bounce at, and is told who can.
+        can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         fr = fan_room.build(rows, audience, room["cards"], days=request.args.get("days"),
                             club={"on": bool(club_row), "members": members},
                             open_briefs=open_briefs,
-                            link_visits=0 if showcase else fan_audience._visits(user["id"]),
+                            link_visits=link_visits,
                             showcase=showcase, artist_name=user.get("name") or "",
                             # "or Shopify customers" only where the import
                             # exists for this account (walk, 2026-09-20).
                             shopify=_shopify_import_allowed(user),
-                            can_open=can_open)
+                            can_open=can_open, can_add=can_add)
+        rooms.gate_zero(fr.get("zero"), can_open)
+        fr["can_list"] = can_open is None or can_open("/links/fans")
         return render_template("room_fans.html", active_page="room-fans", room=room, fr=fr,
                                **build_dashboard_context())
 
@@ -5608,26 +6196,29 @@ def create_app():
                 kit_live = True
             else:
                 figures = marketing_room.for_account(user["id"], days)
+                # His "Live" pill on the press kit tile, answered by the
+                # record. The public address is not the answer:
+                # _ensure_epk_slug mints one on a plain view of /epk, and on
+                # /fan-club without /epk being opened at all, so a slug said
+                # Live about a kit nobody had written (honesty review,
+                # 2026-09-21). A saved kit is what POST /epk/save writes, the
+                # data column; a row holding only a minted slug is not one.
+                # Read inside the one try: a failed kit read was a bare 500
+                # (audit, 2026-09-23).
+                saved = store.get_epk(user["id"]) or {}
+                kit_live = bool(saved.get("slug")) and bool(saved.get("data"))
         except Exception as exc:
             app.logger.error("marketing room: state unreadable: %s", exc)
             return render_template("room_marketing_error.html", active_page="room-marketing",
                                    room=room, **build_dashboard_context()), 503
-        if not showcase:
-            # His "Live" pill on the press kit tile, answered by the record.
-            # The public address is not the answer: _ensure_epk_slug mints
-            # one on a plain view of /epk, and on /fan-club without /epk
-            # being opened at all, so a slug said Live about a kit nobody
-            # had written (honesty review, 2026-09-21). A saved kit is what
-            # POST /epk/save writes, the data column, so that is what it
-            # asks for; a row holding only a minted slug is not one.
-            saved = store.get_epk(user["id"]) or {}
-            kit_live = bool(saved.get("slug")) and bool(saved.get("data"))
-        # A team seat is shown no action it would be bounced at: the rollout
+        # A reader is shown no door it would be bounced at (honesty review,
+        # 2026-09-21; audit, 2026-09-23): a team seat's rooms (the rollout
         # row leads to the Releases room, which a Marketing-only seat is
-        # refused at (honesty review, 2026-09-21).
+        # refused at), the account holder's own pages a seat never reaches
+        # (/referrals), and a page the owner switched off, which bounces
+        # everyone but an owner to the Command Center.
+        can_open = _door_check(user)
         seat = current_team_seat()
-        can_open = None if seat is None else (
-            lambda href: team_areas.allows(seat["areas"], href.split("?")[0]))
         # Who may plan the first campaign: the account holder, or an edit seat.
         can_add = True if seat is None or seat.get("access") == "edit" else "seat"
         mk = marketing_room.build(figures, room["cards"], days=days,
@@ -5636,6 +6227,7 @@ def create_app():
                                   can_open=can_open,
                                   zero=(not showcase) and marketing_room.new_account(figures, campaigns),
                                   can_add=can_add)
+        rooms.gate_zero(mk.get("zero"), can_open)
         return render_template("room_marketing.html", active_page="room-marketing",
                                room=room, mk=mk,
                                # The sentence the builder carries back
@@ -5653,7 +6245,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        rows, _audience, _showcase = _fan_room_rows(user)
+        try:
+            rows, _audience, _showcase = _fan_room_rows(user)
+        except Exception as exc:
+            # The room's own error page, never an empty file that reads as
+            # "nobody new" (the same guard as the room itself).
+            app.logger.error("fans room csv: state unreadable: %s", exc)
+            return render_template("room_fans_error.html", active_page="room-fans",
+                                   **build_dashboard_context()), 503
         days = fan_room.days_from(request.args.get("days"))
         body = fan_room.new_fans_csv(rows, days, datetime.now(timezone.utc).date())
         return Response(body, mimetype="text/csv", headers={
@@ -5692,6 +6291,113 @@ def create_app():
             return bail
         split_home.set_band(request.form.get("band") or "rack")
         return redirect("/settings?band=saved#home-layout")
+
+    # ---- Providers (owner, 2026-09-23) --------------------------------------
+    # Is every outside service working right now? Keys by NAME only, a live
+    # check only when the owner presses a button (provider_status.py).
+
+    @app.route("/admin/providers")
+    def admin_providers():
+        """Owner only; a 404 for everyone else. Reads the environment and
+        the last remembered checks; calls nobody."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        import provider_status as ps
+        fams = ps.rows(store)
+        counts = {"good": 0, "crit": 0, "off": 0, "idle": 0}
+        for fam in fams:
+            for p in fam["providers"]:
+                counts[p["lamp"][0]] = counts.get(p["lamp"][0], 0) + 1
+        costed = sum(1 for p in ps.PROVIDERS if p.get("check") and not p.get("auto"))
+        checked = (request.args.get("checked") or "")[:40]
+        if checked not in ("all", "busy") and ps.by_key(checked) is None:
+            checked = ""
+        # Services a press did not ask again, and why: asked inside their
+        # interval ("skipped") or already being checked ("running"). Only
+        # real keys are named.
+        skipped = []
+        for arg, running in (("skipped", False), ("running", True)):
+            for key in (request.args.get(arg) or "")[:400].split(","):
+                q = ps.by_key(key.strip())
+                if q is not None:
+                    prev = ps.last(q["key"], store) or {}
+                    skipped.append({"name": q["name"], "running": running,
+                                    "at": (prev.get("at") or "")[:16].replace("T", " "),
+                                    "gap": int(q.get("min_interval_s") or 0)})
+        return render_template("admin_providers.html", active_page="providers",
+                               fams=fams, counts=counts, costed=costed,
+                               checked=checked, skipped=skipped,
+                               wait=request.args.get("wait") == "busy",
+                               checked_name=(ps.by_key(checked) or {}).get("name", ""),
+                               **build_dashboard_context())
+
+    def _same_origin_post():
+        """A check press must come from this app's own page. The session
+        cookie is SameSite=Lax, which a cross-site form cannot ride but a
+        same-site one can - the Shopify storefront on the apex domain, or
+        a script running there - and a paid check spends money on every
+        press (providers review, 2026-09-23). A request that carries no
+        Origin, Referer or Sec-Fetch-Site at all is not a browser's, so no
+        other page sent it; it still needs the owner's session."""
+        site = (request.headers.get("Sec-Fetch-Site") or "").strip().lower()
+        if site and site != "same-origin":
+            return False
+        origin = (request.headers.get("Origin") or "").strip()
+        seen = origin or (request.headers.get("Referer") or "").strip()
+        if not seen:
+            return True
+        if seen == "null":
+            return False
+        try:
+            return urllib.parse.urlsplit(seen).netloc.lower() == (request.host or "").lower()
+        except ValueError:
+            return False
+
+    def _press_base():
+        return request.url_root.rstrip("/")
+
+    @app.route("/admin/providers/check", methods=["POST"])
+    def admin_providers_check_all():
+        """Every configured service whose check is free, together. The ones
+        that cost money to check keep their own button."""
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        if not _same_origin_post():
+            abort(403)
+        import provider_status as ps
+        results = ps.check_all(store, base_url=_press_base())
+        if results and all(r.get("skipped") == "busy" for r in results.values()):
+            return redirect("/admin/providers?checked=busy")
+        soon = [k for k, r in results.items() if r.get("skipped") == "too_soon"]
+        running = [k for k, r in results.items() if r.get("skipped") == "busy"]
+        return redirect("/admin/providers?checked=all" +
+                        ("&skipped=" + ",".join(soon) if soon else "") +
+                        ("&running=" + ",".join(running) if running else ""))
+
+    @app.route("/admin/providers/check/<key>", methods=["POST"])
+    def admin_providers_check(key):
+        _user, bail = _owner_or_404()
+        if bail:
+            return bail
+        import provider_status as ps
+        if ps.by_key(key) is None:
+            abort(404)
+        if not _same_origin_post():
+            abort(403)
+        result = ps.check(key, store, base_url=_press_base()) or {}
+        why = result.get("skipped")
+        extra = ("&skipped=%s" % key) if why == "too_soon" else ("&wait=busy" if why == "busy" else "")
+        return redirect("/admin/providers?checked=%s%s#p-%s" % (key, extra, key))
+
+    @app.after_request
+    def _admin_never_framed(resp):
+        """Owner pages are never drawn inside another page's frame, so a
+        framed click cannot press one of their buttons."""
+        if request.path.startswith("/admin/"):
+            resp.headers.setdefault("X-Frame-Options", "DENY")
+        return resp
 
     @app.route("/desk/<hub_key>")
     def hub_desk(hub_key):
@@ -5816,7 +6522,12 @@ def create_app():
                         "/tour-share/",
                         # The Team-Up Board's one-click renew link from the
                         # expiry email; single-use token, renews one listing.
-                        "/board-renew/")
+                        "/board-renew/",
+                        # The way out at the foot of every fan email. The
+                        # fan has no account; the signed token is the
+                        # authorisation and names one address on one
+                        # artist's list (fan_mail).
+                        "/unsubscribe/")
     _PUBLIC_EXACT = {"/", "/login", "/signup", "/logout", "/submit", "/forgot",
                      "/catalog-sweep", "/demo-open", "/plan",
                      "/terms", "/privacy", "/sw.js", "/demo-access",
@@ -5865,8 +6576,10 @@ def create_app():
         when a token is actually configured. The route re-checks; this is
         not a way in, it is a way past the redirect."""
         token = os.environ.get("BACKUP_TOKEN") or ""
-        # The same token lets the same scheduler reach the reminders run.
-        if not token or request.path not in ("/backup/run", "/reminders/run"):
+        # /reminders/run checks its tokens itself (BACKUP_TOKEN, which the
+        # live nightly cron presents, or REMINDERS_CRON_TOKEN) and answers
+        # a refusal with a 401 of its own; see plan_gate.
+        if not token or request.path != "/backup/run":
             return False
         presented = (request.headers.get("X-Backup-Token")
                      or request.form.get("token") or "")
@@ -5934,6 +6647,12 @@ def create_app():
         user = current_user()
         if user is None:
             if _is_public_path(request.path) or _valid_backup_token():
+                return None
+            if request.path == "/reminders/run":
+                # The route checks REMINDERS_CRON_TOKEN itself and refuses
+                # with a 401 and the reason (a GET gets Flask's 405). A
+                # redirect to /login here would read as success in a cron
+                # log, which is what hid that nothing ran it.
                 return None
             if request.path == "/backup/run" and request.method == "POST":
                 # A scheduler cannot follow a redirect to /login, and the
@@ -6082,6 +6801,64 @@ def create_app():
     def _under(path, prefix):
         return path == prefix or path.startswith(prefix + "/")
 
+    def _door_refusal(href, user=None, seat=None):
+        """Why following this on-site href would bounce THIS reader, asked
+        before the door is drawn - the same two gates the request would meet:
+
+          "seat"  a team seat would be turned away: a page every seat is
+                  refused (_TEAM_BLOCKED, _team_blocked_inside - team_seat_gate's
+                  first rule) or a room the artist did not tick for it
+          "off"   the owner switched the page off and this reader is not an
+                  owner (page_switch_gate). /tracks is judged where it lands
+                  too: a plan with the Catalog is sent on to its passports view.
+          ""      it lands where it says. Off-site links and in-page anchors
+                  always do.
+
+        Audit, 2026-09-23: the rooms judged a seat by its rooms alone, so every
+        seat was offered Team, Partner Portal, Referrals and the Tool suites,
+        which all bounce with ?team=blocked (x-1); and nothing judged the pages
+        the owner switched off, so every other account was handed doors to
+        /command-center?off= (x-2)."""
+        if not href or href.startswith(("#", "http://", "https://", "mailto:")):
+            return ""
+        parts = urllib.parse.urlsplit(href)
+        path = parts.path or "/"
+        if seat is not None and path not in _TEAM_ALLOWED:
+            if any(_under(path, p) for p in _TEAM_BLOCKED) or _team_blocked_inside(path):
+                return "seat"
+            if not team_areas.allows(seat["areas"], path):
+                return "seat"
+        hidden = _page_hidden()
+        if hidden and not (user and _is_owner_email(user.get("email"))):
+            where = [(path, dict(urllib.parse.parse_qsl(parts.query)))]
+            if path == "/tracks" and user is not None:
+                home = urllib.parse.urlsplit(_passports_home(user))
+                where.append((home.path, dict(urllib.parse.parse_qsl(home.query))))
+            if any(page_switches.hidden_for_path(p, hidden, a) for p, a in where):
+                return "off"
+        return ""
+
+    class _CanOpen:
+        """The rooms' can_open: called with an href it answers whether this
+        reader can follow it (every room module's contract); .why(href) says
+        why not ("seat", "off"), for rooms.gate_zero."""
+        def __init__(self, user, seat):
+            self.user, self.seat = user, seat
+
+        def __call__(self, href):
+            return not _door_refusal(href, self.user, self.seat)
+
+        def why(self, href):
+            return _door_refusal(href, self.user, self.seat)
+
+    def _room_can_open(user, seat):
+        """can_open for a room, or None when nothing can refuse a door - no
+        seat, and no page switched off for this reader - so the rooms keep
+        their plain every-door-opens path."""
+        if seat is None and (not _page_hidden() or (user and _is_owner_email(user.get("email")))):
+            return None
+        return _CanOpen(user, seat)
+
     @app.before_request
     def team_seat_gate():
         """A team seat inside the artist's account: blocked areas stay shut,
@@ -6195,6 +6972,17 @@ def create_app():
         if user and _is_owner_email(user.get("email")):
             return None
         return redirect("/command-center?off=" + urllib.parse.quote(hit["label"]))
+
+    def _door_check(user):
+        """can_open(href) for a room's doors, or None when every door opens.
+        The same three gates the request will meet: a team seat's
+        blocked pages and rooms (team_seat_gate), and a page the owner
+        switched off (page_switch_gate, which lets an owner through).
+
+        One predicate since the 2026-09-23 audit merge: it is
+        _room_can_open, so Marketing's doors and every other room's are
+        judged by the same rules."""
+        return _room_can_open(user, current_team_seat())
 
     @app.route("/admin/pages", methods=["POST"])
     def admin_pages():
@@ -6883,47 +7671,117 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        # Only doors this reader can follow: a seat is not listed Partner
+        # Portal or Referrals, which bounce every seat, nor a room it was
+        # not given (audit, 2026-09-23, x-1).
+        seat = current_team_seat()
+        modules = cc.directory()
+        groups = cc.module_groups(modules)
+        if seat is not None:
+            groups = [(g, [m for m in items if not _door_refusal(m[0], user, seat)])
+                      for g, items in groups]
+            groups = [(g, items) for g, items in groups if items]
         return render_template("all_tools.html", active_page="all-tools",
-                               modules=cc.MODULES, module_groups=cc.module_groups(),
+                               modules=modules, module_groups=groups,
                                **build_dashboard_context())
+
+    def _command_center_error(exc):
+        """The Command Center's own error page, 503: a failed read is never
+        a fresh account and never a bare server error."""
+        app.logger.error("command center: account state unreadable: %s", exc)
+        return render_template("command_center_error.html",
+                               active_page="command-center",
+                               **build_dashboard_context()), 503
 
     @app.route("/command-center")
     def command_center_page():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        signal = store.get_artist_signal_profile(user["id"])
-        signal_ctx = None
-        if signal and isinstance(signal.get("priorities"), dict):
-            from artist_eq_config import get_artist_eq_config
-            channel_keys = [c["key"] for c in get_artist_eq_config()["channels"]]
-            vals = [signal["priorities"].get(k, 5) for k in channel_keys]
-            # simplified curve: one point per channel on a 300x60 canvas
-            span = max(len(vals) - 1, 1)
-            pts = " ".join("%d,%d" % (i * 300 // span, 60 - v * 6)
-                           for i, v in enumerate(vals))
-            updated = (signal.get("_updated") or "")[:10]
-            stale = False
-            try:
-                stale = (datetime.now() -
-                         datetime.fromisoformat(signal["_updated"])).days >= 60
-            except Exception:
-                pass
-            signal_ctx = {"profile": signal, "points": pts,
-                          "updated": updated, "stale": stale}
+
+        def unreadable(why):
+            # One answer for every failed read on this page (owner's rule:
+            # a failed read is the room's error page at 503, never a bare
+            # 500 and never a fresh account). Audit, 2026-09-23: only the
+            # reads inside the account state were caught; the signal
+            # profile, the open actions, the alerts and the summary raised
+            # Flask's "Internal Server Error".
+            app.logger.error("command center: unreadable: %s", why)
+            return render_template("command_center_error.html",
+                                   active_page="command-center",
+                                   **build_dashboard_context()), 503
+
         # The state, decided once. An error is a page that says so -
         # NEVER a page that looks like a fresh account (owner's spec,
         # 2026-09-22: "never translate a failed request into zero
         # values").
         acs = _account_state(user)
         if acs["state"] == "error":
-            app.logger.error("command center: account state unreadable: %s", acs["error"])
-            return render_template("command_center_error.html",
-                                   active_page="command-center",
-                                   **build_dashboard_context()), 503
+            return unreadable(acs["error"])
         # ?from=<key>: the door you came back through. The sentence is
         # decided by the SAVED state, not the param (account_state.done_line).
         done_line = account_state.done_line(acs["essentials"], request.args.get("from"))
+        # Who may take a setup step: the account holder or an edit seat. A
+        # read seat is told who does it instead of being handed doors that
+        # answer 403 (audit, 2026-09-23 - the rooms' can_add "seat" rule).
+        seat = current_team_seat()
+        can_edit = seat is None or seat.get("access") == "edit"
+        seat_line = "The account owner or a seat with edit access does this step."
+        # A step whose page this reader would be bounced from - switched off
+        # by the owner, or refused to a seat - is words, not a door.
+        refusal_words = {"off": rooms.OFF_WORDS,
+                         "seat": "The account owner opens this one."}
+        shut = {}
+        for step in ((acs["essentials"] or {}).get("steps") or ()):
+            why = _door_refusal(step["door"], user, seat)
+            if why:
+                shut[step["key"]] = refusal_words[why]
+        try:
+            signal = store.get_artist_signal_profile(user["id"])
+            signal_ctx = None
+            if signal and isinstance(signal.get("priorities"), dict):
+                from artist_eq_config import get_artist_eq_config
+                channel_keys = [c["key"] for c in get_artist_eq_config()["channels"]]
+                vals = [signal["priorities"].get(k, 5) for k in channel_keys]
+                # simplified curve: one point per channel on a 300x60 canvas
+                span = max(len(vals) - 1, 1)
+                pts = " ".join("%d,%d" % (i * 300 // span, 60 - v * 6)
+                               for i, v in enumerate(vals))
+                updated = (signal.get("_updated") or "")[:10]
+                stale = False
+                try:
+                    stale = (datetime.now() -
+                             datetime.fromisoformat(signal["_updated"])).days >= 60
+                except Exception:
+                    pass
+                signal_ctx = {"profile": signal, "points": pts,
+                              "updated": updated, "stale": stale}
+            if acs["state"] in ("new", "setup"):
+                # Every count the page from zero shows, read in this ONE try.
+                _campaigns = mls.list_campaigns(user["id"])
+                _tracks = store.list_os_tracks(user["id"])
+                # Open actions reach the page from zero (crawl, 2026-09-23:
+                # an open action sat on /actions while this page said
+                # "Nothing needs attention yet").
+                _open = cc.open_actions(user["id"], limit=3)
+                _inprog = account_state.in_progress(
+                    _tracks, release_ready_store.masters_by_track(user["id"]),
+                    store.get_track_analyses(user["id"], 50), _campaigns) if _tracks else []
+            else:
+                tutor_panel = _tutor_panel(user)
+                alerts = cc.build_alerts(user["id"])
+                _today = datetime.now(timezone.utc).date()
+                # Every open action, read once: the panel lists five and the
+                # sentence over it counts them all (audit actions-4).
+                _open_all = cc.open_actions(user["id"], limit=None, today=_today)
+                _open = _open_all[:5]
+                _campaigns = mls.list_campaigns(user["id"])
+                _has_statements = bool(store.get_statements(user["id"]))
+                summary = cc.get_summary(user["id"])
+                money = _front_money_context()
+        except Exception as exc:                          # noqa: BLE001
+            return unreadable(repr(exc))
+
         if acs["state"] in ("new", "setup"):
             # The page from the owner's mockup: header, static rack, the
             # first steps with lock-and-reveal, how it fits together,
@@ -6933,21 +7791,21 @@ def create_app():
             nxt = ess.get("next") if ess else None
             # Pass 5: after the first song an IN PROGRESS panel; after the
             # first link a real priority in place of "nothing yet". Both
-            # derived, both from this account's own rows.
-            _campaigns = mls.list_campaigns(user["id"])
-            _tracks = store.list_os_tracks(user["id"])
-            # Open actions reach the page from zero (crawl, 2026-09-23: an
-            # open action sat on /actions while this page said "Nothing
-            # needs attention yet").
-            _open = cc.open_actions(user["id"], limit=3)
+            # derived, both from this account's own rows. A row's door is
+            # judged like a step's.
+            for row in _inprog:
+                row["shut"] = bool(_door_refusal(row["href"], user, seat))
+            attention = account_state.attention(_campaigns, _open)
+            if attention and (_door_refusal(attention["href"], user, seat)
+                              or (not can_edit and not attention.get("action_id"))):
+                # a read seat is not handed "Publish it" / "Set up capture"
+                attention = dict(attention, href=None)
             return render_template(
                 "command_center_zero.html", active_page="command-center",
                 account_state=acs["state"], essentials=ess, done_line=done_line,
                 cz={
-                    "in_progress": account_state.in_progress(
-                        _tracks, release_ready_store.masters_by_track(user["id"]),
-                        store.get_track_analyses(user["id"], 50), _campaigns) if _tracks else [],
-                    "attention": account_state.attention(_campaigns, _open),
+                    "in_progress": _inprog,
+                    "attention": attention,
                     "account_name": artist_identity.display_name(user, default="") or "New label",
                     # START HERE names the next actual step; on a fresh
                     # account that is the profile (spec's exact words).
@@ -6956,13 +7814,11 @@ def create_app():
                                    else (nxt["title"] + "." if nxt else "")),
                     "icons": {"identity": "people", "song": "wave", "asset": "rack",
                               "link": "globe", "capture": "megaphone"},
+                    "can_edit": can_edit, "seat_line": seat_line, "shut": shut,
+                    "explore": not _door_refusal("/all-tools", user, seat),
                 },
                 **build_dashboard_context())
-        tutor_panel = _tutor_panel(user)
-        alerts = cc.build_alerts(user["id"])
         import actions_center as _acx
-        _today = datetime.now(timezone.utc).date()
-        _open = cc.open_actions(user["id"], limit=5, today=_today)
         # Today's Priorities: the ranked alerts, then the open actions that
         # need attention, three at most between them (spec). An action is
         # opened, never "fixed now": that button belongs to an alert.
@@ -6975,16 +7831,15 @@ def create_app():
             # RESUME / NEXT ACTION / BLOCKER from the ranked alerts, the
             # last campaign touched and the essentials (Pass 5).
             compass=account_state.compass(acs["essentials"], alerts,
-                                          mls.list_campaigns(user["id"]),
-                                          bool(store.get_statements(user["id"])),
-                                          _open),
-            summary=cc.get_summary(user["id"]),
+                                          _campaigns, _has_statements, _open),
+            summary=summary,
             # No more than three real priorities (spec). They are ranked,
             # so the three that matter most are the three that show.
             cc_alerts=alerts[:3],
             cc_action_prios=_action_prios,
             cc_actions=[_acx.brief(a, _today) for a in _open],
-            modules=cc.MODULES, module_groups=cc.module_groups(),
+            cc_open_total=len(_open_all),
+            modules=cc.directory(), module_groups=cc.module_groups(cc.directory()),
             signal=signal_ctx,
             tutor=tutor_panel,
             # The tutor's first stage IS the firstrun checklist, so when
@@ -6996,8 +7851,9 @@ def create_app():
             # transition"). Gone for good once all five are real.
             firstrun=(None if tutor_panel
                       else (acs["essentials"] if acs["essentials"] and not acs["essentials"]["complete"] else None)),
+            firstrun_can_edit=can_edit, firstrun_seat_line=seat_line, firstrun_shut=shut,
             # The Overview's figures, on the same page (2026-09-15).
-            **_front_money_context())
+            **money)
 
     # ---- the Action Center (owner's mockup + crawl, 2026-09-23) -----------
     # An action was a persistent title with state buttons. It is now work
@@ -7036,6 +7892,13 @@ def create_app():
         people = acx.assignees(user, team, me_id)
         return acx, me_id, people, _action_records(acx, user, tour_mockup), can_write, "Assigned to a former team member"
 
+    def _actions_error(exc, retry="/actions"):
+        """The Action Center's own error page, 503: a failed read is never
+        an empty board and never a bare server error (audit, 2026-09-23)."""
+        app.logger.error("action center: actions unreadable: %s", exc)
+        return render_template("actions_error.html", active_page="actions", retry=retry,
+                               **build_dashboard_context()), 503
+
     def _action_records(acx, user, tour_mockup):
         return acx.records(user["id"], store, mls, tour_store, tour_mockup.is_mock)
 
@@ -7064,7 +7927,16 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        acx, me_id, people, recs, can_write, others = _actions_context(user)
+        # Everything the page reads, in one try: a failed read is the
+        # Action Center's error page at 503, never "No actions yet" and
+        # never a bare 500 (audit, 2026-09-23).
+        try:
+            acx, me_id, people, recs, can_write, others = _actions_context(user)
+            all_actions = cc.list_actions(user["id"]) if request.method != "POST" else None
+            created = (cc.get_action(request.args.get("created"), user["id"])
+                       if request.method != "POST" and request.args.get("created") else None)
+        except Exception as exc:
+            return _actions_error(exc)
         if request.method == "POST":
             f = request.form
             back = _safe_next(f.get("back"), "/actions")
@@ -7092,16 +7964,26 @@ def create_app():
             # and Medium after every action).
             keep = {"created": aid, "room": fields["room"], "category": fields["category"],
                     "priority": fields["priority"], "assignee": fields["assignee_id"]}
+            # ...and in the view it was made from: the form posts
+            # back=/actions?status=...&view=board, and a person on the
+            # Board landed in the List (audit, 2026-09-23).
+            was = urllib.parse.parse_qs(urllib.parse.urlsplit(back).query)
+            if (was.get("status") or [""])[0] in acx.FILTER_KEYS:
+                keep["status"] = was["status"][0]
+            if (was.get("view") or [""])[0] == "board":
+                keep["view"] = "board"
             return redirect("/actions?" + urllib.parse.urlencode({k: v for k, v in keep.items() if v}))
 
         today = datetime.now(timezone.utc).date()
-        all_actions = cc.list_actions(user["id"])
         filt = request.args.get("status") or ""
         if filt not in acx.FILTER_KEYS:
             filt = acx.default_filter(all_actions, today)
         view = "board" if request.args.get("view") == "board" else "list"
         shown = acx.pick(all_actions, filt, today)
-        created = cc.get_action(request.args.get("created") or "", user["id"]) if request.args.get("created") else None
+        # "Action deleted" is said by the delete that happened: the title
+        # rides in the session, once, never in the address (audit,
+        # 2026-09-23: /actions?deleted=<anything> said it was gone).
+        deleted = session.pop("ac_deleted", "") if request.args.get("deleted") else ""
         # The form's choices: what the last action used, else the safe
         # defaults - no room, General, Medium, me.
         form = {
@@ -7123,7 +8005,7 @@ def create_app():
             stats=cc.board_summary(all_actions, today), counts=acx.counts(all_actions, today),
             filt=filt, view=view, form=form, created=created,
             created_row=acx.row(created, recs, people, me_id, today, others) if created else None,
-            deleted=(request.args.get("deleted") or "")[:200],
+            deleted=(deleted or "")[:200],
             rooms=acx.rooms(), categories=cc.ACTION_CATEGORIES, type_labels=cc.ACTION_TYPE_LABELS,
             priorities=cc.ACTION_PRIORITIES, people=people, related_groups=acx.related_options(recs),
             status_labels=cc.STATUS_LABELS, source_labels=cc.ACTION_SOURCES,
@@ -7141,10 +8023,14 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
-        action = cc.get_action(action_id, user["id"])
+        try:
+            action = cc.get_action(action_id, user["id"])
+            if action is not None:
+                acx, me_id, people, recs, can_write, others = _actions_context(user)
+        except Exception as exc:
+            return _actions_error(exc, retry="/actions/%s" % action_id)
         if action is None:
             abort(404)
-        acx, me_id, people, recs, can_write, others = _actions_context(user)
         if request.method == "POST":
             fields = _action_fields(request.form, recs, people)
             if not fields["title"]:
@@ -7163,7 +8049,7 @@ def create_app():
             "action_detail.html", active_page="actions", acx=acx, action=action,
             r=acx.row(action, recs, people, me_id, today, others),
             related_value=("%s:%s" % (action["entity_type"], action["entity_id"]))
-            if rel and not rel.get("gone") else "",
+            if rel and not rel.get("keep") else "",
             saved=bool(request.args.get("saved")),
             confirm_delete=request.args.get("confirm") == "delete",
             rooms=acx.rooms(), categories=cc.ACTION_CATEGORIES, type_labels=cc.ACTION_TYPE_LABELS,
@@ -7183,7 +8069,11 @@ def create_app():
             abort(404)
         if not cc.delete_action(action_id, user["id"]):
             return redirect("/actions/%s" % action_id)
-        return redirect("/actions?" + urllib.parse.urlencode({"deleted": action["title"][:120]}))
+        # The board says "Action deleted" only because this delete
+        # happened: the title goes in the session, once, and the address
+        # carries a bare flag (audit, 2026-09-23).
+        session["ac_deleted"] = action["title"][:120]
+        return redirect("/actions?deleted=1")
 
     @app.route("/actions/from-alert", methods=["POST"])
     def action_from_alert():
@@ -7206,22 +8096,36 @@ def create_app():
         # names its source when it knows it, else the page it sits on does.
         source = f.get("source") if f.get("source") in cc.ACTION_SOURCES else acx.source_for_path(back_path.path)
         category = f.get("category") or "general"
-        room = f.get("room") or team_areas.room_for_path(back_path.path) or cc.TYPE_ROOM.get(category, "")
+        # The page the work is done on, when the form names one: a Command
+        # Center alert's own Fix now link. It decides the room before the
+        # page the button sat on or the action type does, and it is the
+        # way back - the Command Center itself is not where a campaign's
+        # consent copy is fixed (audit, 2026-09-23). Same-site only.
+        fix = _safe_next(f.get("fix"), "")
+        fix_path = urllib.parse.urlsplit(fix).path if fix else ""
+        room = (f.get("room") or (team_areas.room_for_path(fix_path) if fix_path else None)
+                or team_areas.room_for_path(back_path.path) or cc.TYPE_ROOM.get(category, ""))
         # A record the form names is kept only when it is this account's,
         # and filed under what it really is: a campaign that is not a
-        # release is a campaign.
+        # release is a campaign; a song is one of this account's track
+        # passports (the Rights Conflict Center's rows).
         kind, ident = (f.get("entity_type") or "").strip(), (f.get("entity_id") or "").strip()
+        if not kind and fix_path:
+            parts = fix_path.strip("/").split("/")
+            if len(parts) == 3 and parts[0] == "links" and parts[2] == "edit":
+                kind, ident = "campaign", parts[1]
         camp = mls.get_campaign(ident, user["id"]) if kind in ("release", "campaign") and ident else None
+        song = store.get_os_track(user["id"], ident) if kind == "song" and ident else None
         if camp:
             kind = "release" if (camp.get("campaign_type") or "release") == "release" else "campaign"
-        else:
+        elif not song:
             kind, ident = "", ""
         if room not in [r[0] for r in acx.rooms()]:
             room = ""
         aid = cc.create_action(user["id"], title,
                                category=category, priority="high",
                                description=(f.get("description") or "").strip(),
-                               room=room, source=source, source_href=_safe_next(here, ""),
+                               room=room, source=source, source_href=_safe_next(fix or here, ""),
                                entity_type=kind, entity_id=ident,
                                assignee_id=session.get("user_id") or user["id"],
                                created_by=session.get("user_id") or user["id"])
@@ -7780,15 +8684,25 @@ def create_app():
         if not emailer.configured() or not club:
             return redirect("/fan-club?posted=1&email_off=1")
         import html as _html
-        notified = failed = 0
+        notified = failed = skipped = 0
         slug = _ensure_epk_slug(user)
-        base = request.url_root.rstrip("/")
+        # The artist's public address, not this request's host: an inbox
+        # link outlives the request (_fan_mail_base).
+        base = _fan_mail_base(user)
+        # A member who unsubscribed from these emails, or whom the artist
+        # marked do not contact, keeps the membership and the members
+        # area; they are just not written to (fan_mail).
+        blocked = fan_mail.suppressed_emails(mls.list_fans(user["id"]))
         for m in store.list_club_members(user["id"])[:200]:
             if m["status"] != "active":
+                continue
+            if (m["member_email"] or "").strip().lower() in blocked:
+                skipped += 1
                 continue
             token = _club_serializer().dumps(
                 {"artist_id": user["id"], "email": m["member_email"]})
             link = base + "/club/" + slug + "/members?token=" + token
+            way_out = _fan_unsubscribe_url(user, fan_mail.MEMBER_REF, m["id"])
             ok = emailer.send(
                 m["member_email"],
                 "%s: new members-only drop" % (club["name"] or "Fan club"),
@@ -7800,19 +8714,25 @@ def create_app():
                 'color:#14100A;padding:11px 20px;border-radius:10px;'
                 'text-decoration:none;font-weight:800">Open the drop</a></p>'
                 '<p style="color:#91836A;font-size:12px">This link signs you '
-                'straight in and works for 7 days.</p></div>'
+                'straight in and works for 7 days.</p>%s</div>'
                 % (_html.escape(artist_identity.display_name(user)
                                 or "Your artist"),
                    _html.escape(title),
                    ('<p style="color:#3A3226">%s</p>' % _html.escape(body[:300])
                     if body else ""),
-                   link), reply_to=user["email"])
+                   link,
+                   fan_mail.footer_html(
+                       "You get these because you are a member of %s. Unsubscribing "
+                       "stops these emails; your membership stays as it is."
+                       % (club["name"] or "this fan club"), way_out)),
+                reply_to=user["email"], headers=fan_mail.unsubscribe_headers(way_out),
+                from_name=_fan_mail_from(user))
             if ok:
                 notified += 1
             else:
                 failed += 1
-        return redirect("/fan-club?posted=1&notified=%d&failed=%d"
-                        % (notified, failed))
+        return redirect("/fan-club?posted=1&notified=%d&failed=%d&unsubscribed=%d"
+                        % (notified, failed, skipped))
 
     @app.route("/fan-club/drops/<drop_id>/delete", methods=["POST"])
     def fan_club_drop_delete(drop_id):
@@ -7825,6 +8745,7 @@ def create_app():
     # --- Label Mode: real roster seats for the Label tier -------------------------
 
     def _artist_snapshot(aid, today):
+        import tour_mockup
         rows = store.get_statement_rows(aid)
         return {
             "revenue": round(sum(r["amount"] for r in rows), 2),
@@ -7832,7 +8753,8 @@ def create_app():
             "fans": len(mls.list_fans(aid)),
             "links": [c for c in mls.list_campaigns(aid)
                       if c["status"] == "live" and not c.get("archived_at")],
-            "shows": [s for s in store.list_tour_shows(aid)
+            # A roster artist's Mock Up Tour is a sample, not their dates.
+            "shows": [s for s in tour_mockup.real_shows(aid, store.list_tour_shows(aid))
                       if s["date"] >= today and s["status"] in ("confirmed", "advanced")],
         }
 
@@ -8067,7 +8989,10 @@ def create_app():
         campaigns = [c for c in mls.list_campaigns(uid)
                      if c["status"] == "live" and not c.get("archived_at")]
         today = datetime.now(timezone.utc).date().isoformat()
-        shows = [s for s in store.list_tour_shows(uid)
+        # The Mock Up Tour is a sample; its invented dates never reach
+        # this public page.
+        import tour_mockup
+        shows = [s for s in tour_mockup.real_shows(uid, store.list_tour_shows(uid))
                  if s["date"] >= today and s["status"] in ("confirmed", "advanced")]
         return render_template("artist_hub.html", prof=prof, data=data,
                                artist_name=prof["user_name"], slug=slug,
@@ -8086,6 +9011,11 @@ def create_app():
         return {
             "statement_rows": len(rows),
             "statement_total": round(sum(r["amount"] for r in rows), 2),
+            # What each passport's OWN rows earned, a row counted for one
+            # track at most. Lane estimates are sized from this, never
+            # from statement_total (make-it-real, 2026-09-23).
+            "earned_by_track": artist_os.earnings_by_track(
+                store.list_os_tracks(user_id), rows),
             "lanes_with_data": artist_os.lanes_from_sources(
                 r.get("source") for r in rows),
             "live_links": len(campaigns),
@@ -8163,6 +9093,46 @@ def create_app():
             return "/catalog?view=passports"
         return "/tracks"
 
+    def _songs_saved_home(user, saved, song_id=None):
+        """Where the add-song and import forms go after a save.
+
+        A door that sent the artist here (Studio's "Add your first song",
+        Publishing's, the Command Center's) carries ?returnTo=&from=; the
+        form posts them back as hidden fields. A song SAVED goes back to
+        the door with ?from= on, so the room can say its done line - which
+        it decides from the saved record, never from the param. Nothing
+        saved stays on the form with the way back still carried. Until
+        2026-09-23 both forms dropped the two fields and landed on the
+        catalog, so no done line could be reached through the real form
+        (audit studio-2). Same-site only, via _safe_next.
+
+        One helper for every door (merged 2026-09-23 from the Studio,
+        Publishing and Command Center audit fixes): a from= the returnTo
+        already carries (the Command Center's doors put it inside) is not
+        added twice, and a song added from Publishing opens on that song
+        (Publishing spec section 3, audit publishing-1)."""
+        back = _safe_next(request.form.get("returnTo"), "")
+        came = (request.form.get("from") or "").strip()[:60]
+        import re as _re
+        if came and not _re.fullmatch(r"[a-z0-9_-]{1,60}", came):
+            came = ""
+        if saved and back:
+            extra = []
+            if came and "from=" not in back:
+                extra.append(("from", came))
+            if song_id and back.split("?")[0].split("#")[0] == "/room/publishing":
+                extra.append(("song", str(song_id)))
+            if extra:
+                back += ("&" if "?" in back else "?") + "&".join(
+                    "%s=%s" % (k, urllib.parse.quote(v, safe="")) for k, v in extra)
+            return back
+        home = _passports_home(user)
+        keep = [(k, v) for k, v in (("returnTo", back), ("from", came)) if v]
+        if not keep:
+            return home
+        return home + ("&" if "?" in home else "?") + "&".join(
+            "%s=%s" % (k, urllib.parse.quote(v, safe="/")) for k, v in keep)
+
     @app.route("/tracks/import", methods=["POST"])
     def os_tracks_import():
         """Bulk CSV import: title required per row; known metadata columns
@@ -8172,13 +9142,13 @@ def create_app():
             return login_required_redirect()
         f = request.files.get("csv")
         if f is None or not f.filename:
-            return redirect(_passports_home(user))
+            return redirect(_songs_saved_home(user, False))
         import csv as _csv
         import io as _io
+        made = 0
         try:
             text = f.read().decode("utf-8-sig", errors="replace")
             reader = _csv.DictReader(_io.StringIO(text))
-            made = 0
             for row in reader:
                 if made >= 200:
                     break
@@ -8197,7 +9167,7 @@ def create_app():
                 made += 1
         except (UnicodeDecodeError, _csv.Error):
             pass
-        return redirect(_passports_home(user))
+        return redirect(_songs_saved_home(user, made > 0))
 
     @app.route("/tracks/add", methods=["POST"])
     def os_tracks_add():
@@ -8205,11 +9175,38 @@ def create_app():
         if user is None:
             return login_required_redirect()
         title = (request.form.get("title") or "").strip()
+        # The first draft takes at least one writer, or "Writers not known
+        # yet" (Publishing spec, section 3): the form requires one of the
+        # two. A post with neither is read as "not known yet" - the
+        # passport then says Songwriters Not on file, which is true - so
+        # the scripted and older callers of this route keep working.
+        writers = (request.form.get("songwriters") or "").strip()[:300]
+        tid = None
         if title:
-            store.add_os_track(user["id"], title,
-                               (request.form.get("release_title") or "").strip(),
-                               (request.form.get("release_date") or "").strip())
-        return redirect(_passports_home(user))
+            tid = store.add_os_track(user["id"], title,
+                                     (request.form.get("release_title") or "").strip(),
+                                     (request.form.get("release_date") or "").strip())
+            if tid and writers:
+                # add_os_track can hand back a passport the catalog already
+                # had, so the writers go in beside what is on it, and never
+                # over a name somebody already wrote there.
+                have = store.get_os_track(user["id"], tid) or {}
+                passport = dict(have.get("passport") or {})
+                if not (passport.get("songwriters") or "").strip():
+                    passport["songwriters"] = writers
+                    store.update_os_track_passport(user["id"], tid, passport)
+        return redirect(_songs_saved_home(user, bool(tid), tid))
+
+    def _return_after_save():
+        """Where a save goes when its form carried a way back: the
+        same-site returnTo (_safe_next), with the form's from= added when
+        the returnTo does not already carry one. "" when there is none."""
+        import re as _re
+        back = _safe_next(request.form.get("returnTo") or request.args.get("returnTo"), "")
+        came = (request.form.get("from") or request.args.get("from") or "").strip()
+        if back and came and _re.fullmatch(r"[a-z0-9-]{1,60}", came) and "from=" not in back:
+            back += ("&" if "?" in back else "?") + "from=" + came
+        return back
 
     @app.route("/tracks/<track_id>")
     def os_track_detail(track_id):
@@ -8363,7 +9360,11 @@ def create_app():
         tracks = store.list_os_tracks(user["id"])
         ctx = _os_ctx(user["id"])
         queue = artist_os.action_queue([(t, ctx) for t in tracks])
-        est_total = round(sum(a["impact"] or 0 for a in queue), 2)
+        # How many gaps carry a figure, never what they add up to. The
+        # headline used to be the sum, and each figure was the account's
+        # whole total times a lane share, once per track, so it could pass
+        # everything the catalogue ever earned (make-it-real, 2026-09-23).
+        priced = len([a for a in queue if a["impact"]])
         criticals = len([a for a in queue if a["critical"]])
         # Settled tour income: money already collected, shown beside the money
         # still missing. TOUR's settlements (tour_show_ext, marked settled with
@@ -8385,7 +9386,7 @@ def create_app():
                     tour_income + touring.settlement_totals(st)["walk"], 2)
                 tour_settled += 1
         return render_template("money_queue.html", active_page="royalties",
-                               queue=queue, est_total=est_total,
+                               queue=queue, priced=priced,
                                criticals=criticals, ctx=ctx,
                                tour_income=tour_income,
                                tour_settled=tour_settled,
@@ -8582,8 +9583,12 @@ def create_app():
             if f and f.filename:
                 fname = uuid.uuid4().hex + "-" + os.path.basename(f.filename)[-60:]
                 f.save(os.path.join(UPLOADS_DIR, fname))
+                had_file = bool(entry.get("file"))
                 entry["file"] = "/uploads/" + fname
                 entry["not_applicable"] = False
+                # A new document is signed by someone who saw it: a
+                # signature, or a link, for the old one does not carry over.
+                artist_os.reset_signoffs(entry, had_file)
         elif action in ("approver", "resend"):
             email = (request.form.get("email") or "").strip().lower()
             name = (request.form.get("name") or "").strip()
@@ -8594,7 +9599,16 @@ def create_app():
                 if action == "resend" and existing:
                     existing[0]["state"] = "pending"
                     existing[0]["token"] = token
-                elif not existing:
+                elif existing:
+                    # Asked again: the link about to be emailed is the live
+                    # one, and the one shown on the page must be the same
+                    # link. It used to keep the old token, so the email
+                    # carried a link the page never showed (2026-09-23).
+                    existing[0]["token"] = token
+                    # Asking someone whose document changed is a resend.
+                    if existing[0].get("state") == "needs resend":
+                        existing[0]["state"] = "pending"
+                else:
                     approvals.append({"name": name[:80], "email": email,
                                       "state": "pending", "token": token})
                 store.add_sign_token(token, user["id"], track_id, doc_key, email)
@@ -8625,9 +9639,10 @@ def create_app():
         Scoped exactly like the upload it undoes: `get_os_track` is
         already owner-scoped, so another artist's track and an unknown
         doc_key get the same 404 and neither confirms the other exists.
-        The approvals stay - they record who was asked and what they
-        answered - and lockbox_report puts the slot back to "missing" on
-        the file's absence by itself.
+        The approvals stay as the record of who was asked, each set to
+        "needs resend" with its signing link retired (the store calls
+        artist_os.reset_signoffs), and lockbox_report puts the slot back to
+        "missing" on the file's absence by itself.
         """
         user = current_user()
         if user is None:
@@ -8642,21 +9657,47 @@ def create_app():
             blob_store.remove(path, uploads_dir=UPLOADS_DIR)
         return redirect("/tracks/" + track_id)
 
-    @app.route("/sign/<token>", methods=["GET", "POST"])
-    def sign_document(token):
+    def _sign_link(token):
+        """One rule for a signing link, read by the page AND by the
+        document behind it (make-it-real, 2026-09-23: the document route
+        checked none of this and served the contract after the link was
+        used).
+
+        "invalid": nobody minted this token, its track or lockbox slot is
+        gone, or the artist has since sent this person a newer link - the
+        approval carries the token of the newest request, and an older
+        link must not be able to flip the decision the newer one records.
+        A replaced or removed document retires every link to its slot the
+        same way (artist_os.reset_signoffs drops the approval's token), and
+        db.align_sign_tokens points approvals at links emailed before the
+        approval carried the newest token.
+        "used": a decision was recorded with it. "open": the one state that
+        shows the document and takes a decision."""
         row = store.get_sign_token(token)
         if row is None:
-            return render_template("sign.html", invalid=True, row=None,
-                                   doc_label=None, track=None, done=None)
+            return {"state": "invalid"}
         track = store.get_os_track(row["user_id"], row["track_id"])
         doc_label = dict((k, l) for k, l, _r in artist_os.LOCKBOX_DOCS).get(row["doc_key"])
         if track is None or doc_label is None:
-            return render_template("sign.html", invalid=True, row=None,
-                                   doc_label=None, track=None, done=None)
+            return {"state": "invalid"}
         entry = (track["lockbox"] or {}).get(row["doc_key"]) or {}
         approval = next((a for a in entry.get("approvals", [])
                          if a.get("email") == row["email"]), None)
-        if request.method == "POST" and not row["used"] and approval:
+        if approval is None or approval.get("token") != row["token"]:
+            return {"state": "invalid"}
+        return {"state": "used" if row["used"] else "open", "row": row,
+                "track": track, "doc_label": doc_label, "entry": entry,
+                "approval": approval}
+
+    @app.route("/sign/<token>", methods=["GET", "POST"])
+    def sign_document(token):
+        link = _sign_link(token)
+        if link["state"] == "invalid":
+            return render_template("sign.html", invalid=True, row=None,
+                                   doc_label=None, track=None, done=None)
+        row, track, doc_label = link["row"], link["track"], link["doc_label"]
+        entry, approval = link["entry"], link["approval"]
+        if request.method == "POST" and link["state"] == "open":
             decision = request.form.get("decision")
             if decision in ("signed", "declined"):
                 approval["state"] = decision
@@ -8671,9 +9712,14 @@ def create_app():
                 return render_template("sign.html", invalid=False, row=row,
                                        doc_label=doc_label, track=track,
                                        done=decision)
+        if link["state"] == "used":
+            # What was decided, not "Signed" for every used link: a
+            # declined link read Signed until 2026-09-23. No document.
+            done = "declined" if approval.get("state") == "declined" else "signed"
+            return render_template("sign.html", invalid=False, row=row,
+                                   doc_label=doc_label, track=track, done=done)
         return render_template("sign.html", invalid=False, row=row,
-                               doc_label=doc_label, track=track,
-                               done=("signed" if row["used"] else None),
+                               doc_label=doc_label, track=track, done=None,
                                # The file itself is the owner's now; the
                                # approver reads it by their token.
                                file_url=(("/sign/%s/document" % token)
@@ -8683,12 +9729,16 @@ def create_app():
     def sign_document_file(token):
         """The contract an approver was asked to sign, read by their
         token. /uploads keeps lockbox files to the account that holds
-        them (walk, 2026-09-20), and an approver is not signed in."""
+        them (walk, 2026-09-20), and an approver is not signed in.
+
+        Only while the link is open, by the same rule as the page: a used,
+        replaced or orphaned link gets the same 404 as a token nobody
+        minted (tests/test_sign_link_document.py)."""
         from flask import send_from_directory
-        row = store.get_sign_token(token)
-        track = store.get_os_track(row["user_id"], row["track_id"]) if row else None
-        entry = ((track or {}).get("lockbox") or {}).get(row["doc_key"]) if row else None
-        path = (entry or {}).get("file") or ""
+        link = _sign_link(token)
+        if link["state"] != "open":
+            abort(404)
+        path = (link["entry"] or {}).get("file") or ""
         if not path.startswith("/uploads/") or not _is_lockbox_upload(path):
             abort(404)
         return send_from_directory(UPLOADS_DIR, path[len("/uploads/"):])
@@ -8812,8 +9862,23 @@ def create_app():
         user = current_user()
         if user is None:
             return login_required_redirect()
+        show = store.get_tour_show(user["id"], show_id)
+        if show is None:
+            abort(404)
+        if not _real_hub_show(show):
+            # No /showday or /rider token for a date on the Mock Up Tour:
+            # the token would open nothing (_public_show_or_404).
+            return redirect("/tour/" + show_id + "?share_fail=sample")
         store.set_show_share_token(user["id"], show_id, uuid.uuid4().hex)
         return redirect("/tour/" + show_id)
+
+    def _real_hub_show(show):
+        """False for a date on the Mock Up Tour. The old Hub's routes are
+        posted to by nothing in the app now, but a hand-made POST still
+        reaches them, and the sample's rule (nothing public, no mail to a
+        real inbox) has to hold here as it does in tour_os."""
+        import tour_mockup
+        return bool(tour_mockup.real_shows(show["user_id"], [show]))
 
     @app.route("/tour/<show_id>/send-advance", methods=["POST"])
     def tour_send_advance(show_id):
@@ -8823,6 +9888,9 @@ def create_app():
         show = store.get_tour_show(user["id"], show_id)
         if show is None:
             abort(404)
+        if not _real_hub_show(show):
+            # An invented show is never advanced to a real inbox.
+            return redirect("/tour/" + show_id + "?email_fail=sample")
         to = (show["advance"].get("contact_email") or "").strip()
         if not (to and "@" in to and emailer.configured()):
             return redirect("/tour/" + show_id + "?email_fail=1")
@@ -8837,12 +9905,20 @@ def create_app():
                           % _html.escape(mail["body"]), reply_to=user["email"])
         return redirect("/tour/" + show_id + ("?sent=1" if ok else "?email_fail=1"))
 
+    def _public_show_or_404(token):
+        """The show a public /showday or /rider token names. A date on the
+        Mock Up Tour is a sample: its token opens nothing, even one minted
+        before the sample was kept off public pages."""
+        import tour_mockup
+        show = store.get_show_by_share_token(token)
+        if show is None or not tour_mockup.real_shows(show["user_id"], [show]):
+            abort(404)
+        return show
+
     @app.route("/showday/<token>")
     def showday(token):
         import json as _json
-        show = store.get_show_by_share_token(token)
-        if show is None:
-            abort(404)
+        show = _public_show_or_404(token)
         adv = show["advance"]
         schedule = [(label, adv.get(key)) for key, label in (
             ("load_in", "Load-in"), ("soundcheck", "Soundcheck"), ("doors", "Doors"),
@@ -8857,21 +9933,18 @@ def create_app():
         # Public tech rider for venue staff: stage plot + input list, schedule,
         # backline, and the lighting rig — everything real, nothing invented.
         import json as _json
-        show = store.get_show_by_share_token(token)
-        if show is None:
-            abort(404)
+        show = _public_show_or_404(token)
         adv = show["advance"]
         schedule = [(label, adv.get(key)) for key, label in (
             ("load_in", "Load-in"), ("soundcheck", "Soundcheck"), ("doors", "Doors"),
             ("set_time", "Set"), ("curfew", "Curfew")) if (adv.get(key) or "").strip()]
         plot = store.get_stage_plot(show["user_id"])
-        lightshow = store.get_light_show(show["user_id"])
-        lights = None
-        if lightshow:
-            lights = {"name": lightshow.get("name") or "",
-                      "bars": int(lightshow.get("bars") or 0),
-                      "chans": int(lightshow.get("chans") or 3),
-                      "cues": len(lightshow.get("cues") or [])}
+        # The light show saved to the library against THIS date, with its
+        # own patch and output - not the Light Studio's working copy,
+        # which is whatever the artist last had open. No show linked to
+        # the date, no Lighting section.
+        lights = lights_store.rider_lights(
+            lights_store.show_for_tour_date(show["user_id"], show["id"]))
         return render_template("rider.html", show=show, adv=adv,
                                schedule=schedule, lights=lights,
                                plot_json=(_json.dumps(plot) if plot else "null"))
@@ -8893,9 +9966,16 @@ def create_app():
         }
         tracks = [{"id": t["id"], "title": t["title"]} for t in store.list_os_tracks(user["id"])]
         # venue_key lets the page pick the rig bound to the room without a
-        # round trip when a show is linked to a tour date.
+        # round trip when a show is linked to a tour date. A date on the
+        # Mock Up Tour is offered too (the Studio is the member's own
+        # room) but labelled "(sample)": sample data is always labelled,
+        # and a show linked to one by mistake gives the real date's rider
+        # no Lighting section.
+        import tour_mockup
+        sample_ids = tour_mockup.mock_tour_ids(user["id"])
         tour_shows = [{"id": s["id"], "date": s["date"], "venue": s["venue"], "city": s.get("city") or "",
-                       "venue_key": lights_store.venue_key(s["venue"])}
+                       "venue_key": lights_store.venue_key(s["venue"]),
+                       "is_sample": (s.get("tour_id") or "") in sample_ids}
                       for s in store.list_tour_shows(user["id"])]
         return render_template("lights.html", active_page="lights",
                                saved_show=(_json.dumps(saved) if saved else "null"),
@@ -9377,6 +10457,29 @@ def create_app():
         if user is None:
             return login_required_redirect()
         saved = store.get_rack_preset(user["id"])
+        # Opened from a Studio session that imported a chain from the Rack
+        # library, the Rack starts from THAT chain (make-real, 2026-09-23:
+        # "Import Existing Rack Project" used to bring nothing in). The
+        # project is looked up with this account's own keys, so another
+        # account's project id loads nothing of theirs.
+        rack_start_note = ""
+        wanted_project = (request.args.get("project") or "").strip()
+        if wanted_project:
+            try:
+                import studio_config as _studio_config
+                import studio_store as _sstore
+                if _studio_config.enabled():
+                    project = _sstore.get_project(user.get("partner_id"),
+                                                  user["id"], wanted_project)
+                    imported = _sstore.project_rack_chain(project)
+                    if imported:
+                        saved = imported
+                        rack_start_note = (
+                            "Started from “%s”, the chain this Studio "
+                            "session imported." % (project.get("rack_chain_name")
+                                                   or "Saved chain"))
+            except Exception:
+                pass          # the Rack still opens with the account's own rack
         # Which song the Rack is measuring for (audit, 2026-09-23: the
         # Command Center's "Open the Rack" step counts a measurement only
         # when it names a song, and the Rack never named one, so the step
@@ -9390,6 +10493,7 @@ def create_app():
                       else (rack_tracks[0]["id"] if len(rack_tracks) == 1 else ""))
         return render_template("rack.html", active_page="rack",
                                rack_tracks=rack_tracks, rack_track=rack_track,
+                               rack_start_note=rack_start_note,
                                saved_rack=(_json.dumps(saved) if saved else "null"),
                                studio_split=stemsplit.configured(),
                                studio_modes=stemsplit.mode_list(),
@@ -9408,12 +10512,17 @@ def create_app():
         """Why isn't Studio Split showing up? Reports the SHAPE of the
         environment, never a value: which STEM-ish names exist, how long
         the key is, and whether it carries stray whitespace or quotes -
-        the three things that silently break a pasted secret. Requires a
-        signed-in account; no secret ever leaves this endpoint."""
+        the three things that silently break a pasted secret. No secret
+        ever leaves this endpoint.
+
+        Owner accounts only, a 404 for everyone else (audit, 2026-09-23):
+        ?probe=1 spends calls on the owner's StemSplit key and returns the
+        replies, the account balance among them. The Rack decides whether
+        to show Studio Split from stemsplit.configured(), not from here."""
         import json as _json
-        user = current_user()
-        if user is None:
-            return jsonify({"error": "auth required"}), 401
+        user, bounce = _owner_or_404()
+        if bounce:
+            return bounce
         raw = os.environ.get("STEMSPLIT_API_KEY")
         names = sorted(k for k in os.environ
                        if "STEM" in k.upper() or "SPLIT" in k.upper())
@@ -10923,9 +12032,23 @@ def create_app():
                 generated = {"kind": kind, "text": text, "used": used}
         os_tracks_list = store.list_os_tracks(user["id"])
         osctx = _os_ctx(user["id"])
+        # The audience section reads follower counts over time. The
+        # Spotify series is written only when Spotify app keys are set,
+        # which the live site does not have, so with fewer than two
+        # Spotify readings the metrics provider's series (Soundcharts,
+        # written when /pulse is opened) is read instead. Without this the
+        # section's "pin your artist on Artist Pulse" promise never came
+        # true on a site with Soundcharts and no Spotify (make-it-real,
+        # 2026-09-23). Stored rows only: this page spends no quota.
+        audience_snaps = store.list_pulse_snapshots(user["id"], limit=30)
+        if len([s for s in audience_snaps if s["followers"] is not None]) < 2:
+            _mprov = _metrics_provider()
+            if _mprov is not None:
+                audience_snaps = store.list_pulse_snapshots(
+                    user["id"], limit=30, provider=_mprov.key)
         strategist = artist_os.twin_report(
             os_tracks_list, osctx,
-            store.list_pulse_snapshots(user["id"], limit=30),
+            audience_snaps,
             artist_os.action_queue([(t, osctx) for t in os_tracks_list]),
             analysis=store.latest_track_analysis(user["id"]))
         # Artist Signal Profile: priorities the artist set on the homepage
@@ -11010,10 +12133,24 @@ def create_app():
             return login_required_redirect()
         profile = store.get_pulse_profile(user["id"])
         pulse, deezer = None, None
+        # Why the Spotify block is empty, when it is: a refused credential
+        # is not "usually temporary", and a timeout is not a refusal.
+        spotify_refusal = None
+        # Whether Deezer was asked at all. It is looked up by the name
+        # Spotify returns, so without Spotify it never is, and "No Deezer
+        # match found for this name" would be a claim nobody tested.
+        deezer_state = "no_spotify" if not spotify.pulse_configured() else "spotify_failed"
         if profile and spotify.pulse_configured():
+            spotify.clear_refusal()
             pulse = spotify.artist_pulse(profile["artist_id"])
+            if not pulse and spotify.last_refusal():
+                spotify_refusal = {"text": spotify.last_refusal(),
+                                   "kind": spotify.last_refusal_kind()}
             if pulse:
                 deezer = music_apis.deezer_artist_fans(pulse["name"])
+                deezer_state = ("measured" if deezer is not None else
+                                "no_match" if music_apis.deezer_artist_known_absent(pulse["name"])
+                                else "no_answer")
                 # None when Deezer was not reached. `.get("fans", 0)` wrote
                 # a nought for an unanswered call, which claims a following
                 # of nobody - the same false reading the column was made
@@ -11022,27 +12159,48 @@ def create_app():
                     user["id"], pulse["followers"], pulse["popularity"],
                     (deezer or {}).get("fans"))
         # Monthly listeners, which Spotify's own public API does not
-        # carry, from whichever provider the registry has for CAP_METRICS.
-        # None of this is required for the Spotify and Deezer blocks: with
-        # no real metrics provider the page is exactly what it was.
-        metrics = _provider_metrics(user["id"], profile) if profile else None
-        # Everything else the provider holds on the artist (owner,
-        # 2026-09-14: "as much information as we can find"): nine
-        # questions, each its own call and its own failure, cached six
-        # hours like the instruments. The provider id was resolved and
-        # stored by _provider_metrics, so this spends no search.
+        # carry, from whichever provider the registry has for CAP_METRICS,
+        # and everything else that provider holds on the artist (owner,
+        # 2026-09-14: "as much information as we can find"): each its own
+        # call and its own failure, cached six hours like the instruments.
+        # The provider id was resolved and stored by _provider_metrics, so
+        # the second part spends no search.
+        #
+        # All of it shares one time budget. Up to 21 calls go one after
+        # another, and when the vendor hangs each used to wait its full
+        # 15 s, holding one of the service's 8 request threads for over
+        # five minutes (audit, 2026-09-23). Now a slow failure stops the
+        # rest of the page's questions to that vendor, and the rest say
+        # "not asked" rather than waiting.
+        import signal_providers as _sp
+        metrics = None
         everything = None
-        if profile and metrics is not None:
-            import pulse_everything
-            _prov = _metrics_provider()
-            _pid = (profile.get("provider_artist_id") or "") if profile.get("provider") == getattr(_prov, "key", None) else ""
-            if _prov is not None and _pid:
-                everything = pulse_everything.build(_prov, _pid)
+        if profile:
+            with _sp.time_budget(PULSE_BUDGET_S):
+                metrics = _provider_metrics(user["id"], profile)
+                # Everything else only beside a reading on file, as before:
+                # a provider with nothing on this artist has nothing more.
+                if metrics is not None and metrics.get("snapshots"):
+                    import pulse_everything
+                    _prov = _metrics_provider()
+                    _pid = ((profile.get("provider_artist_id") or "")
+                            if profile.get("provider") == getattr(_prov, "key", None) else "")
+                    if _prov is not None and _pid:
+                        everything = pulse_everything.build(_prov, _pid)
+            if metrics is None and _metrics_provider() is None:
+                # No real metrics provider on this service: the instrument
+                # is still named, with the reason, rather than vanishing.
+                metrics = {"provider": "", "label": "", "monthly_listeners": None,
+                           "followers": None, "as_of": None, "cached_hours": None,
+                           "stale": False, "refusal": "", "snapshots": [],
+                           "note": ("No metrics provider is connected on this service, "
+                                    "so monthly listeners are not measured."),
+                           "asked": False}
         # YouTube: only for a channel the owner has named, and never
-        # derived from the artist name (see _youtube_pulse).
-        youtube = _youtube_pulse(user["id"], profile,
-                                 error=_YT_ERRORS.get(request.args.get("yt") or "",
-                                                      (request.args.get("yt") or "")[:200]))
+        # derived from the artist name (see _youtube_pulse). The ?yt= code
+        # is looked up, never printed: free text in a link would show in
+        # the app's own error style (audit, 2026-09-23).
+        youtube = _youtube_pulse(user["id"], profile, error=_yt_error_text())
         snaps = store.list_pulse_snapshots(user["id"], limit=30)
         # Peers: pinned artists' PUBLIC Spotify numbers, snapshotted on the
         # same cadence — a real comparison, not a modeled one.
@@ -11109,11 +12267,17 @@ def create_app():
             ps = store.count_spotify_presaves(c["id"])
             presaves += ps.get("pending", 0) + ps.get("completed", 0)
         import pulse_signals
-        instruments = pulse_signals.build(pulse, metrics, youtube, deezer, snaps) if profile else []
+        instruments = (pulse_signals.build(pulse, metrics, youtube, deezer, snaps,
+                                           deezer_state=deezer_state)
+                       if profile else [])
         return render_template("pulse.html", active_page="pulse",
                                instruments=instruments,
                                everything=everything,
+                               # A plan refusal ("Not in the plan") is the
+                               # owner's business; the template reads this.
+                               is_owner=_is_owner_email(user.get("email")),
                                pulse_configured=spotify.pulse_configured(),
+                               spotify_refusal=spotify_refusal,
                                profile=profile, pulse=pulse, deezer=deezer,
                                metrics=metrics, youtube=youtube,
                                snaps=snaps, peers=peers, my_delta7=my_delta7,
@@ -11162,7 +12326,10 @@ def create_app():
         # An empty list has two very different causes. Say which one.
         refused = spotify.last_refusal() if not results else None
         return jsonify({"ok": True, "results": results,
-                        "refused": refused or ""})
+                        "refused": refused or "",
+                        # credentials / rate / noanswer / unconfigured: the
+                        # page words each one as what it was.
+                        "refused_kind": (spotify.last_refusal_kind() or "") if refused else ""})
 
     # Every new Pulse artist costs about two dozen Soundcharts calls from the
     # owner's monthly allowance, and nothing capped how often an account
@@ -11237,9 +12404,10 @@ def create_app():
         except Exception as e:                                  # noqa: BLE001
             # Google's own reason travels to the owner: quotaExceeded means
             # wait, keyInvalid means fix the key. "Something went wrong"
-            # would tell them neither.
-            return redirect("/pulse?" + urllib.parse.urlencode(
-                {"yt": prov.redact(e)[:200]}) + "#youtube")
+            # would tell them neither. It travels in the session, not the
+            # link, so the page only ever prints what this server wrote.
+            session["yt_error"] = prov.redact(e)[:200]
+            return redirect("/pulse?yt=failed#youtube")
         if not channel_id:
             return redirect("/pulse?yt=notfound#youtube")
         store.save_pulse_youtube_channel(user["id"], channel_id)
@@ -11429,7 +12597,13 @@ def create_app():
         user = current_user()
         if user is None:
             return None, login_required_redirect()
-        if session.get("team_as") or not _is_owner_email(user.get("email")):
+        # Working as somebody else - a team seat inside an account, or a
+        # partner's staff acting on an account's behalf - is never the
+        # owner, even when the account worked in is an owner's (providers
+        # review, 2026-09-23: staff acting as an owner's account reached
+        # every owner page and could press the paid checks).
+        if (session.get("team_as") or session.get("acting_as")
+                or not _is_owner_email(user.get("email"))):
             abort(404)
         return user, None
 
@@ -11529,6 +12703,13 @@ def create_app():
                 "No account here uses %s. They have to sign up before they can "
                 "be put on a roster - an account is not invented for them."
                 % email)
+        if _is_owner_email(artist.get("email")):
+            # A reseller's staff can act as any account on its roster; an
+            # owner's account there would hand them the owner's pages.
+            return _partners_view(
+                "An owner account cannot go on a reseller's roster: the "
+                "reseller's staff could then work inside it. Use a separate "
+                "account to try the reseller side.")
         current = artist.get("partner_id")
         if current and current != pid:
             other = partner_store.get_partner(current)
@@ -11643,10 +12824,24 @@ def create_app():
                                documents_catalog_types=documents_engine.CATALOG_TYPES,
                                doc_types=_DOC_TYPES, doc_error=doc_error,
                                doc_terms=_document_terms_view(user["id"]),
+                               # Whether a scheduler really sends the
+                               # reminders the rows would otherwise promise.
+                               reminders_on=_reminders_on(),
                                terms_saved=request.args.get("terms"),
                                doc_readings=_document_readings_view(user["id"]),
                                read_result=request.args.get("read"),
                                **build_dashboard_context())
+
+    def _reminders_on():
+        """Are contract reminders going out on their own here? Measured
+        from the scheduler's last run (contract_reminders.scheduled), so a
+        page promises reminders only while something really sends them.
+        A failure to tell is a no: the honest words are the smaller ones."""
+        try:
+            import contract_reminders
+            return contract_reminders.scheduled()
+        except Exception:                  # noqa: BLE001
+            return False
 
     def _document_terms_view(user_id):
         """{document_id: {terms, status}} for the contracts section."""
@@ -11733,20 +12928,44 @@ def create_app():
     def reminders_run():
         """Fire the contract reminders that are due today.
 
-        Meant for the same scheduler that runs the nightly backup,
-        presenting BACKUP_TOKEN; an owner can also trigger it, so it is
-        testable without waiting for a schedule.
+        For a daily scheduler: the live nightly cron presents BACKUP_TOKEN
+        in X-Backup-Token straight after /backup/run, and a scheduler that
+        should not hold that secret can present REMINDERS_CRON_TOKEN in
+        X-Reminders-Token (both constant-time, headers only). Refusing the
+        backup token broke that cron (review S1, 2026-09-23). An owner
+        signed in can also trigger it, so it is testable without waiting
+        for a schedule. plan_gate lets this path through without a session
+        so that a refusal is a refusal: 401 JSON with the reason, never the
+        302 to /login a cron log reads as success. A signed-in account that
+        is not the owner still gets the 404 it always had.
         """
         import contract_reminders
-        token = os.environ.get("BACKUP_TOKEN") or ""
-        presented = (request.headers.get("X-Backup-Token")
-                     or request.form.get("token") or "")
-        by_token = bool(token) and hmac.compare_digest(presented, token)
+        by_token = (contract_reminders.token_matches(
+                        request.headers.get(contract_reminders.TOKEN_HEADER))
+                    or contract_reminders.backup_token_matches(
+                        request.headers.get(contract_reminders.BACKUP_TOKEN_HEADER)))
         user = current_user()
-        if not (by_token or (user and _is_owner_email(user.get("email")))):
-            abort(404)
-        result = contract_reminders.run(emailer=emailer, public_url=public_url)
-        store.set_kv("reminders_last_run", json.dumps(result))
+        by_owner = bool(user and _is_owner_email(user.get("email")))
+        if not (by_token or by_owner):
+            if user is not None:
+                abort(404)
+            why = ("%s is not configured on the server, and neither is %s"
+                   % (contract_reminders.TOKEN_ENV, contract_reminders.BACKUP_TOKEN_ENV)
+                   if not contract_reminders.scheduler_door_open()
+                   else "the %s or %s header did not match (%s goes in the first, %s in the second)"
+                   % (contract_reminders.TOKEN_HEADER, contract_reminders.BACKUP_TOKEN_HEADER,
+                      contract_reminders.TOKEN_ENV, contract_reminders.BACKUP_TOKEN_ENV))
+            return jsonify({"ok": False, "error": why}), 401
+        by = "scheduler" if by_token else "owner"
+        try:
+            result = contract_reminders.run(emailer=emailer, public_url=public_url)
+        except Exception as exc:           # noqa: BLE001 - reported, and recorded
+            app.logger.exception("reminders: the run failed")
+            contract_reminders.record_run(
+                {"ok": False, "error": type(exc).__name__}, by)
+            return jsonify({"ok": False, "error": "the reminders run failed: %s"
+                            % type(exc).__name__}), 500
+        result = contract_reminders.record_run(dict(result, ok=True), by)
         # The same daily run moves Release-Ready's queue: reports paused on
         # the budget when it allows again, polls that came due, and an alert
         # for a paid master not stored after 30 minutes. It never starts a
@@ -11755,7 +12974,23 @@ def create_app():
             rr = release_ready.run_due()
         except Exception as exc:           # noqa: BLE001 - reminders already ran
             rr = {"error": type(exc).__name__}
-        return jsonify({"ok": True, "run": result, "release_ready": rr})
+        # The release-day email to the fans who asked to be reminded. It
+        # also goes on the first view of the page after release; this run
+        # sends it for a page nobody has opened yet. _send_release_emails
+        # claims the campaign's once-only flag in the database itself, so a
+        # view that gets there first, even while this run is going, means
+        # nothing more is sent; it also keeps the week's window
+        # (links_engine.RELEASE_EMAIL_DAYS), which this list only narrows.
+        released = 0
+        try:
+            today = datetime.now(timezone.utc).date()
+            since = today - timedelta(days=links_engine.RELEASE_EMAIL_DAYS)
+            for camp in mls.released_unsent_campaigns(today.isoformat(), since.isoformat()):
+                released += _send_release_emails(camp)
+        except Exception as exc:           # noqa: BLE001 - reminders already ran
+            released = {"error": type(exc).__name__}
+        return jsonify({"ok": True, "run": result, "release_ready": rr,
+                        "release_emails": released})
 
     VAULT_KINDS = ("cover_art", "master", "stems", "press_photo", "video", "file")
     VAULT_EXTS = ("png", "jpg", "jpeg", "webp", "gif", "wav", "mp3", "flac",
@@ -12077,18 +13312,27 @@ def create_app():
                        if campaign.get("ml_campaign_id") else None)
         variants = ({v["id"]: v for v in mls.list_variants(campaign["ml_campaign_id"])}
                     if campaign.get("ml_campaign_id") else {})
+        # The learned line reads the history of the account that owns this
+        # rollout. It read `user["id"]` with no `user` in scope until
+        # 2026-09-23, so the page was an error the moment every post left
+        # draft (tests/test_rollout_overview_reviewed.py). _ro_owned has
+        # already scoped the campaign to the signed-in account.
+        # The engine's step comes first. The learned line, which opens
+        # "Rollout is live.", replaces it only once the rollout really went
+        # out: a post posted and none waiting (rollout_engine.rollout_live).
+        # Approved-only and rejected-only rollouts used to read "live".
+        next_step = rollout_engine.next_action(campaign, posts, assets)
+        if rollout_engine.rollout_live(posts):
+            next_step = rollout_learning.next_action_line(
+                _rollout_learning(campaign["user_id"]),
+                rollout_engine.PLATFORM_NAMES,
+                rollout_engine.PHASE_NAMES) or next_step
         return render_template("rollout_overview.html", active_page="rollout",
                                c=campaign, posts=posts, assets=assets,
                                motion=rollout_engine.MOTION,
                                ml_campaign=ml_campaign, variants=variants,
                                direction=rollout_engine.creative_direction(campaign),
-                               next_action=(
-                                   rollout_learning.next_action_line(
-                                       _rollout_learning(user["id"]))
-                                   if posts and all(
-                                       p["status"] != "draft" for p in posts)
-                                   else None)
-                               or rollout_engine.next_action(campaign, posts, assets),
+                               next_action=next_step,
                                counts=ros.post_status_counts(cid),
                                phase_names=rollout_engine.PHASE_NAMES,
                                platform_names=rollout_engine.PLATFORM_NAMES,
@@ -12361,6 +13605,10 @@ def create_app():
                                # Remove redirects here with ?removed=1; until
                                # now nothing read it back (walk, 2026-09-20).
                                removed=request.args.get("removed") == "1",
+                               marked=request.args.get("marked") == "1",
+                               lifted=request.args.get("lifted") == "1",
+                               do_not_contact=fan_mail.DO_NOT_CONTACT,
+                               unsubscribed=fan_mail.UNSUBSCRIBED,
                                fans=fans, q=q, campaign_titles=campaigns,
                                intent_tones=links_engine.INTENT_TONES,
                                shopify=(shopify_customers.status()
@@ -12593,6 +13841,34 @@ def create_app():
             shopify_customers.forget_grant()
             shopify_customers.token()
         return redirect("/links/fans?imp=reconnected#import")
+
+    @app.route("/links/fans/<fan_id>/do-not-contact", methods=["POST"])
+    def ml_fan_do_not_contact(fan_id):
+        """The artist's own mark: this fan is never in a send list or the
+        default export again until the artist lifts it. Scoped to the
+        account; a fan who already unsubscribed keeps their own reason."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        fan = mls.get_fan(fan_id)
+        if fan is None or fan["user_id"] != user["id"]:
+            abort(404)
+        if not (fan.get("suppressed") or "").strip():
+            mls.suppress_fan(user["id"], fan["email"], fan_mail.DO_NOT_CONTACT)
+        return redirect("/links/fans?marked=1")
+
+    @app.route("/links/fans/<fan_id>/contact-again", methods=["POST"])
+    def ml_fan_contact_again(fan_id):
+        """Lift the artist's own do-not-contact mark. Only that one: a fan
+        who unsubscribed themselves is theirs to undo, not the artist's."""
+        user = current_user()
+        if user is None:
+            return login_required_redirect()
+        fan = mls.get_fan(fan_id)
+        if fan is None or fan["user_id"] != user["id"]:
+            abort(404)
+        mls.unsuppress_fan(user["id"], fan["email"], only_reason=fan_mail.DO_NOT_CONTACT)
+        return redirect("/links/fans?lifted=1")
 
     @app.route("/links/fans/<fan_id>/delete", methods=["POST"])
     def ml_fan_delete(fan_id):
@@ -13842,7 +15118,8 @@ def create_app():
             if cc.open_action_for(user["id"], "document", doc_id):
                 return
             cc.create_action(
-                user["id"], "Set the renewal reminders for %s" % filename[:80],
+                user["id"], ("Set the renewal reminders for %s" if _reminders_on()
+                             else "Set the renewal dates for %s") % filename[:80],
                 category="rights", priority="medium",
                 description=contract_reader.summary(findings, status),
                 entity_type="document", entity_id=doc_id,
@@ -13888,6 +15165,15 @@ def create_app():
         # so this page's real figures are laid over it, not beside it.
         context = build_dashboard_context()
         context.update(found)
+        # "From Rights Conflict" (owner's mockup, 2026-09-23): each row can
+        # become an action about its song. Offered only to whoever can
+        # file one - /actions is a whole-account page and a write, so a
+        # seat with some rooms, or a read seat, would be bounced; it is
+        # told who can instead (audit, 2026-09-23).
+        seat = current_team_seat()
+        context["action_door"] = (True if seat is None else
+                                  ("seat" if seat.get("access") != "edit"
+                                   or not team_areas.allows(seat["areas"], "/actions") else True))
         return render_template("conflicts.html", active_page="conflicts", **context)
 
     # Milestone presets are parameterized date math over each campaign's
@@ -15852,7 +17138,11 @@ def create_app():
             return jsonify({
                 "ok": True,
                 "count": view["finding_count"],
-                "total_estimated": view["total_at_stake"],
+                # Two bases, two keys. total_estimated was total_at_stake,
+                # which counted the actual unattributed money as estimated
+                # (make-it-real, 2026-09-23).
+                "total_actual": view["actual_unattributed"],
+                "total_estimated": view["estimated_gaps"],
                 "findings": [{"id": f["id"], "source": f["source"],
                               "issue_type": f["issue_type"],
                               "estimated_value": f["amount"],

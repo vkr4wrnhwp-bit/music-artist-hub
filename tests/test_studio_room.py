@@ -437,3 +437,245 @@ def test_the_showcase_is_the_working_room_whatever_its_rows():
     assert out["idle"] is False and out["zero"] is None and out["sample"] is True
     out = sd.build(None, "", [], 0, 0, None, {}, sample=True, zero=False)
     assert out["idle"] is False, "the route's decision stands"
+
+
+def _css_code():
+    css = _io_mod.open(_os_mod.path.join(_HERE, "static", "css", "studio-room.css"),
+                       encoding="utf-8").read()
+    return _re_mod.sub(r"/\*.*?\*/", "", css, flags=_re_mod.S)
+
+
+def _stored_master(uid, track_id=None):
+    import release_ready_store as rrs
+    return rrs.add_job(user_id=uid, type="master", status="stored",
+                       master_key="masters/%s.wav" % uuid.uuid4().hex,
+                       stored_at=rrs.iso(), os_track_id=track_id)
+
+
+# studio-23: every record kind the room counts -------------------------------
+
+def test_a_reading_alone_brings_the_room_back():
+    """studio-23. A measurement with no track is a record."""
+    c, uid = _account()
+    store.save_track_analysis(uid, {"filename": "Higher Places.wav", "integrated": -9.8,
+                                    "true_peak": -1.2, "duration": 168,
+                                    "sample_rate": 44100, "channels": 2})
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    assert _populated(body)
+    assert "Higher Places" in body and "-9.8" in body and "-1.2" in body
+
+
+def test_new_account_counts_every_record_the_room_reads():
+    assert sd.new_account(None, 0, 0, 0) is True
+    assert sd.new_account({"integrated": -9.0}, 0, 0, 0) is False, "a reading"
+    assert sd.new_account(None, 1, 0, 0) is False, "a track"
+    assert sd.new_account(None, 0, 1, 0) is False, "a cover"
+    assert sd.new_account(None, 0, 0, 1) is False, "a stored master"
+
+
+# studio-5: a stored master is a record ---------------------------------------
+
+def test_a_stored_master_alone_brings_the_room_back():
+    """studio-5 / studio-23. A paid master the account owns, with no song
+    (Release-Ready's os_track_id is optional). The page from zero said
+    "Nothing to review yet ... Masters waiting for your approval will
+    appear here" over it."""
+    c, uid = _account()
+    _stored_master(uid)
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    assert _populated(body)
+    assert "1 master" in body and "No master yet" not in body
+
+
+def test_a_master_whose_song_was_deleted_keeps_the_room():
+    """studio-5. The song goes, the master it left behind stays."""
+    c, uid = _account()
+    _track(uid)
+    tid = store.list_os_tracks(uid)[0]["id"]
+    _stored_master(uid, tid)
+    c.post("/tracks/%s/delete" % tid)
+    assert store.list_os_tracks(uid) == [], "the song is gone"
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    assert _populated(body), "the master is still on file"
+    assert "1 master" in body
+
+
+# studio-3 / -4 / -19: a failed read is the error page -------------------------
+
+@pytest.mark.parametrize("target", ["analysis", "tracks", "covers", "masters", "clean"])
+def test_a_failed_read_is_the_error_page_never_a_new_account(monkeypatch, target):
+    """studio-3 / -4 / -19. Owner's ruling: a failed read of a room's state
+    is that room's error page at 503 - never the page from zero, never "No
+    master yet". Covers and masters fell back to nothing on their own, and
+    the other three were a bare Flask 500."""
+    import artwork_config
+    import release_ready_store
+    import artist_os
+
+    def boom(*_a, **_k):
+        raise RuntimeError("studio: store down")
+
+    c, uid = _account()
+    if target in ("masters", "clean"):
+        # clean_release only runs over a catalogue; with a track on file a
+        # failed masters read used to print "No master yet".
+        _track(uid)
+    where = {"analysis": (store, "latest_track_analysis"),
+             "tracks": (store, "list_os_tracks"),
+             "covers": (artwork_config, "list_uploads"),
+             "masters": (release_ready_store, "stored_masters"),
+             "clean": (artist_os, "clean_release")}[target]
+    monkeypatch.setattr(where[0], where[1], boom)
+    r = c.get("/room/studio")
+    assert r.status_code == 503
+    page = r.get_data(as_text=True)
+    assert "We could not load Studio" in page
+    assert 'href="/room/studio"' in page and 'href="/rack"' in page
+    for absent in ("Create your first Studio project", "Nothing to review yet",
+                   "No master yet", "No art yet", "room-plate", "studio-bus-plate"):
+        assert absent not in page, absent
+
+
+# studio-6 / -21: a read-only seat gets no song door ---------------------------
+
+def _seat(monkeypatch, access, areas):
+    monkeypatch.delenv("RENDER", raising=False)
+    owner, owner_id = _account("Studio Owner")
+    store.set_user_plan(owner_id, "pro")
+    member, member_id = _account("Studio Seat")
+    email = store.get_user(member_id)["email"]
+    r = owner.post("/team/invite", data={"email": email, "role": "manager", "access": access,
+                                         "areas_sent": "1", "areas": list(areas)})
+    assert r.get_json().get("ok"), r.get_json()
+    row = [m for m in store.list_team(owner_id) if m["email"] == email][0]
+    member.post("/team/join/" + row["invite_token"], data={})
+    member.post("/portal/%s/open" % owner_id)
+    return member
+
+
+def test_a_read_only_seat_with_publishing_gets_no_song_door(monkeypatch):
+    """studio-6 / studio-21. A real seat, access=read, with the Studio AND
+    Publishing rooms. It was handed the hero pill and the card button, and
+    POST /tracks/add then refused it (?team=readonly)."""
+    member = _seat(monkeypatch, "read", ("studio", "publishing"))
+    body = _room(member.get("/room/studio").get_data(as_text=True))
+    assert "Create your first Studio project" in body, "the owner's studio is empty"
+    assert "from=song" not in body, "no door that bounces"
+    assert 'class="rk-cta"' not in body and 'class="sz-btn"' not in body
+    assert sd.ZERO_PROJECT["locked"] in body, "it is told who adds songs"
+    assert "edit seat" in sd.ZERO_PROJECT["locked"]
+
+
+def test_an_edit_seat_with_publishing_keeps_the_song_door(monkeypatch):
+    member = _seat(monkeypatch, "edit", ("studio", "publishing"))
+    body = _room(member.get("/room/studio").get_data(as_text=True))
+    assert 'class="rk-cta" href="/tracks?returnTo=/room/studio&amp;from=song"' in body
+
+
+def test_zero_page_takes_the_rooms_can_add():
+    z = sd.zero_page(can_add="seat")
+    assert z["cta"] is None and z["project"]["can"] is False
+    assert z["links"], "a read seat still reads"
+
+
+# studio-2 / -22: the done line through the real form --------------------------
+
+@pytest.mark.parametrize("plan", ["artist", "pro"])
+def test_the_done_line_is_reached_through_the_real_form(plan):
+    """studio-2 / studio-22. Follow the door the page offers, post the
+    form's own fields, follow where the save goes, and the sentence is
+    there. The form had no hidden returnTo/from and the save always landed
+    on the catalog, which offered "Back to Publishing"; only a hand-typed
+    URL said the line."""
+    c, uid = _account()
+    store.set_user_plan(uid, plan)
+    zero = _room(c.get("/room/studio").get_data(as_text=True))
+    door = _re_mod.search(r'class="rk-cta" href="([^"]+)"', zero).group(1).replace("&amp;", "&")
+    assert door == sd.SONG_DOOR
+    page = c.get(door, follow_redirects=True).get_data(as_text=True)
+    form = page.split('action="/tracks/add"', 1)[1].split("</form>", 1)[0]
+    hidden = dict(_re_mod.findall(r'<input type="hidden" name="([^"]+)" value="([^"]*)"', form))
+    assert hidden == {"returnTo": "/room/studio", "from": "song"}, hidden
+    r = c.post("/tracks/add", data=dict(hidden, title="Cell 5"))
+    assert r.status_code == 302
+    where = r.headers["Location"]
+    assert where.endswith("/room/studio?from=song"), where
+    landed = c.get(where).get_data(as_text=True)
+    assert sd.DONE_LINE in landed
+    assert _populated(_room(landed))
+
+
+def test_the_save_goes_back_only_to_this_site_and_only_after_a_save():
+    c, _uid = _account()
+    r = c.post("/tracks/add", data={"title": "Elsewhere", "returnTo": "//evil.example/x",
+                                    "from": "song"})
+    assert "evil.example" not in r.headers["Location"]
+    # nothing saved: stay on the form, the way back still carried
+    r = c.post("/tracks/add", data={"title": "  ", "returnTo": "/room/studio", "from": "song"})
+    where = r.headers["Location"]
+    assert "/room/studio?" not in where
+    assert "returnTo=/room/studio" in where and "from=song" in where
+
+
+def test_the_import_carries_the_way_back_too():
+    c, uid = _account()
+    csv = b"title,release\nImported One,EP\n"
+    r = c.post("/tracks/import", data={"csv": (_io_mod.BytesIO(csv), "songs.csv"),
+                                       "returnTo": "/room/studio", "from": "song"},
+               content_type="multipart/form-data")
+    assert r.headers["Location"].endswith("/room/studio?from=song")
+    assert [t["title"] for t in store.list_os_tracks(uid)] == ["Imported One"]
+
+
+# studio-9 / -24: the keep icons are gold --------------------------------------
+
+def test_the_keep_icons_are_gold_and_no_text_rule_repaints_them():
+    """studio-9 / studio-24. `.sz-keep span` (0,1,1) also matched the
+    icon's own holder and beat `.sz-keep-ico` (0,1,0), so the icons the
+    spec rules gold rendered grey."""
+    code = _css_code()
+    ico = code.split(".sz-keep-ico {", 1)[1].split("}", 1)[0]
+    assert "var(--sb-gold-bright)" in ico
+    for sel, decl in _re_mod.findall(r"([^{}]+)\{([^}]*)\}", code):
+        for s in sel.split(","):
+            s = s.strip()
+            if s.startswith(".sz-keep") and _re_mod.search(r"\bspan\b", s) and "color" in decl:
+                assert ":not(.sz-keep-ico)" in s, s
+
+
+# studio-12: the text-link doors are 44px targets -------------------------------
+
+def test_the_zero_page_text_links_are_44px_targets():
+    code = _css_code()
+    for sel in (".sz-links a {", ".sz-more {"):
+        decl = code.split(sel, 1)[1].split("}", 1)[0]
+        assert "min-height: 44px" in decl, sel
+
+
+# studio-11: the bay names what is missing ---------------------------------------
+
+def test_the_empty_bay_asks_for_a_cover_not_a_track():
+    c, uid = _account()
+    _track(uid)
+    body = _room(c.get("/room/studio").get_data(as_text=True))
+    bay = body.split('class="sd-bay"', 1)[1].split('class="sd-display"', 1)[0]
+    assert "No artwork yet" in bay and "Make a cover below." in bay
+    assert "Add a track to begin." not in bay
+
+
+# studio-17: "How the Rack measures" lands on the explanation -------------------
+
+def test_how_the_rack_measures_lands_on_the_loudness_explanation():
+    href = dict(sd.ZERO_LINKS)["How the Rack measures"]
+    assert href == "/rack?returnTo=/room/studio#sb15"
+    c, _uid = _account()
+    zero = _room(c.get("/room/studio").get_data(as_text=True))
+    assert 'href="/rack?returnTo=/room/studio#sb15"' in zero
+    rack = c.get(href.split("#", 1)[0]).get_data(as_text=True)
+    unit = rack.split('id="sb15"', 1)[1].split("</section>", 1)[0]
+    assert "BS.1770" in unit and "Measured to the standard" in unit
+    assert '<div class="ru-explain" hidden>' in unit, "hidden until something opens it"
+    js = _io_mod.open(_os_mod.path.join(_HERE, "static", "js", "rackdsp.js"),
+                      encoding="utf-8").read()
+    opener = js.split("function openNamedUnit()", 1)[1].split("})();", 1)[0]
+    assert "location.hash" in opener and ".ru-explain" in opener and "hidden = false" in opener

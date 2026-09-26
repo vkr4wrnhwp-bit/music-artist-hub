@@ -181,6 +181,103 @@ def save_show(user_id, show_id, name, data, track_id=None, tour_show_id=None,
     return show_id
 
 
+def show_for_tour_date(user_id, tour_show_id):
+    """The library show saved against one tour date, newest save first, or
+    None. The library row is what "Save to library" wrote (autosave only
+    ever writes the working copy), so this is the show the artist
+    published for that night, never whatever is open in the studio."""
+    if not (user_id and tour_show_id):
+        return None
+    with get_db() as db:
+        row = db.execute("SELECT * FROM light_show_library WHERE user_id = ? AND tour_show_id = ? "
+                         "ORDER BY updated DESC LIMIT 1", (user_id, tour_show_id)).fetchone()
+    return _row(row) if row else None
+
+
+# How the saved show says it leaves the laptop (lights-engine.js OUTPUTS).
+# "preview" sends nothing, so it names no device; neither does a show
+# saved before the output was stored.
+RIDER_OUTPUTS = {
+    "enttec": "an ENTTEC DMX USB Pro on the act's own laptop",
+    "artnet": "Art-Net from the act's own laptop, through its local bridge",
+    "sacn": "sACN (E1.31) from the act's own laptop, through its local bridge",
+}
+
+
+def _int(v, default):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+# The Light Studio's rig presets, key -> (bars, chans), as lights-engine.js
+# RIG_PRESETS defines them (tests/test_rider_light_show.py keeps the two
+# in step). The rider names a preset only while the show still has its shape.
+RIG_PRESET_SHAPES = {"dive4": (4, 3), "club8": (8, 4), "fest6": (6, 4)}
+
+
+def _rig_still_fits(saved, data, bars, chans):
+    """True while the rig the show was built on still has the show's bar
+    count and channel width. The Studio keeps rigName when the bars or the
+    fixture mode are changed by hand, so a show made on "Club 8-bar" and cut
+    to six bars would otherwise be printed as six bars on an eight-bar rig.
+    A name with no rig behind it (an imported show) proves nothing."""
+    key = str(data.get("rigKey") or "")
+    if not key:
+        return False
+    shape = RIG_PRESET_SHAPES.get(key)
+    if shape is None and saved.get("user_id"):
+        rig = get_rig(saved["user_id"], key)
+        if rig is not None:
+            rd = rig.get("data") or {}
+            shape = (_int(rd.get("bars"), 0), 3 if _int(rd.get("chans"), 4) == 3 else 4)
+    return shape == (bars, chans)
+
+
+def rider_lights(saved):
+    """The public rider's Lighting section, from one saved library show.
+
+    Every figure is read from the show: its bar count and channel width,
+    each bar's DMX start address by the Light Studio's own rule
+    (lights-engine.js fixtureAddress: a bar's own patch wins, otherwise
+    bars run on from the first address), the universe, the output it is
+    set to and its cue count. Nothing is filled in: a show with no bars
+    gives no section, and an output of "preview" names no device. A bar
+    whose channels run past 512 is never sent by the Studio (dmxFrame and
+    dmxData skip it), so its address is None and the page says so."""
+    if not saved:
+        return None
+    data = saved.get("data") or {}
+    bars = _int(data.get("bars"), 0)
+    if bars < 1:
+        return None
+    bars = min(bars, 10)
+    chans = 3 if _int(data.get("chans"), 4) == 3 else 4
+    first = _int(data.get("dmxStart"), 1) or 1
+    own = data.get("dmxAddr") if isinstance(data.get("dmxAddr"), dict) else {}
+    patch = []
+    for bar in range(1, bars + 1):
+        addr = _int(own.get(str(bar)), 0)
+        if addr < 1:
+            addr = first + (bar - 1) * chans
+        addr = max(1, min(512, addr))
+        patch.append((bar, addr if addr + chans - 1 <= 512 else None))
+    output = data.get("output") if data.get("output") in RIDER_OUTPUTS else ""
+    return {
+        "name": (saved.get("name") or data.get("name") or "").strip(),
+        "bars": bars,
+        "chans": chans,
+        "cues": len(data.get("cues") or []),
+        "rig": (str(data.get("rigName") or "").strip()[:80]
+                if _rig_still_fits(saved, data, bars, chans) else ""),
+        "patch": patch,
+        "universe": max(1, min(64, _int(data.get("dmxUniverse"), 1) or 1)),
+        "output": output,
+        "output_words": RIDER_OUTPUTS.get(output, ""),
+    }
+
+
 def delete_show(user_id, show_id):
     with get_db() as db:
         db.execute("DELETE FROM light_show_versions WHERE show_id=? AND user_id=?", (show_id, user_id))

@@ -56,7 +56,30 @@ def _conflict(cid, kind, title, description, severity, tracks, fix=None):
         "severity": severity,
         "songs_involved": tracks,
         "fix": fix,
+        # The passport the fix opens: the song an action made from this
+        # conflict is about (the Action Center's "After Hours · Song").
+        "track_id": _track_of(fix),
+        # What the work is called when this conflict becomes an action
+        # (the owner's mockup: "Review split conflict").
+        "action_title": ("%s: %s" % (ACTION_WORDS.get(kind, "Review rights conflict"),
+                                     ", ".join(tracks)))[:200],
     }
+
+
+# The action each kind of conflict asks for, as its title's first words.
+ACTION_WORDS = {
+    "Duplicate identifier": "Fix duplicate identifier",
+    "Ownership disagreement": "Resolve ownership disagreement",
+    "Unresolved clearance": "Resolve clearance",
+    "Splits not agreed": "Review split conflict",
+}
+
+
+def _track_of(fix):
+    """The track id in a /tracks/<id>#... fix link, or ''."""
+    path = (fix or "").split("#", 1)[0]
+    parts = path.strip("/").split("/")
+    return parts[1] if len(parts) == 2 and parts[0] == "tracks" else ""
 
 
 def _identifier_clashes(tracks):

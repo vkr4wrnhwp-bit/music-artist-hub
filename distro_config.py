@@ -99,7 +99,10 @@ READINESS = ["Setup Incomplete", "Needs Information", "Ready for Review",
              "Delivery Ready"]
 
 # Only what is true. Nothing here implies a direct Street Banker
-# integration with a platform, because there is not one.
+# integration with a platform, because there is not one. The last row said
+# "Coming soon", which promised a plan that nothing in the code carries;
+# "Not offered" is what is true today, and whether direct delivery is ever
+# planned is the owner's decision (make-real brief, 2026-09-23).
 INTEGRATIONS = [
     ("Streaming platforms and digital stores", "Delivered through partner"),
     ("Physical: CD and vinyl", "Delivered through partner"),
@@ -108,7 +111,7 @@ INTEGRATIONS = [
     ("Royalty statements you upload", "Supported"),
     ("Metadata, identifiers and splits", "Supported"),
     ("Release scheduling and lead-time checks", "Supported"),
-    ("Direct platform connections from Street Banker", "Coming soon"),
+    ("Direct platform connections from Street Banker", "Not offered"),
 ]
 
 IMAGE = {

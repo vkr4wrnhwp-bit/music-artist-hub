@@ -1007,7 +1007,10 @@ def init_db():
         # it belongs to, who it is assigned to, where it came from (and the
         # address to go back to), and who typed it in. Empty means unknown:
         # rows made before this say nothing rather than a guess.
-        for _col in ("room", "assignee_id", "source", "source_href", "created_by"):
+        # assignee_name (audit, 2026-09-23): a tour task's crew member, who
+        # has no Street Banker account and so no assignee_id.
+        for _col in ("room", "assignee_id", "source", "source_href", "created_by",
+                     "assignee_name"):
             try:
                 db.execute("ALTER TABLE street_actions ADD COLUMN %s TEXT NOT NULL DEFAULT ''" % _col)
             except sqlite3.OperationalError:
@@ -1335,6 +1338,7 @@ def init_db():
         _migrate_collab_profiles(db)
     link_song_tables()
     link_document_store()
+    align_sign_tokens()
 
 
 def _migrate_collab_profiles(db):
@@ -2438,6 +2442,16 @@ def get_active_club_member(artist_id, member_email):
         row = db.execute(
             "SELECT * FROM club_members WHERE artist_id = ? AND member_email = ? "
             "AND status = 'active'", (artist_id, email)).fetchone()
+    return dict(row) if row else None
+
+
+def get_club_member(member_id, artist_id):
+    """One membership row by its id, scoped to the artist in the query.
+    The Fan Club drop email's unsubscribe link names the row, not the
+    address (fan_mail.unsubscribe_token)."""
+    with get_db() as db:
+        row = db.execute("SELECT * FROM club_members WHERE id = ? AND artist_id = ?",
+                         (member_id, artist_id)).fetchone()
     return dict(row) if row else None
 
 
@@ -4105,7 +4119,16 @@ def _attach_mlc_checks(db, user_id, tracks):
         [user_id] + ids).fetchall()
     newest = {}
     for r in rows:                       # ascending, so the last one wins
-        newest[r["track_id"]] = _mlc_check_dict(r)
+        d = _mlc_check_dict(r)
+        # ...unless it is a failed ask. The vendor being down says nothing
+        # about the registration, so an outage never replaces an earlier
+        # real answer (audit publishing-7, 2026-09-23: one later error
+        # dropped a claimed song to "Nobody has asked"). A failed ask is
+        # attached only while there is no answer at all.
+        kept = newest.get(r["track_id"])
+        if d.get("result") == "error" and kept and kept.get("result") != "error":
+            continue
+        newest[r["track_id"]] = d
     for t in tracks:
         t["mlc_check"] = newest.get(t["id"])
     return tracks
@@ -4151,12 +4174,16 @@ def delete_os_track_lockbox_file(user_id, track_id, doc_key):
     contract with a name in it that should not have been shared - could
     not be removed on its own, only overwritten by uploading another.
 
-    The approvals stay. They are a record of who was asked and what they
-    answered, and a replacement document goes to the same signers; the
+    The approvals stay as the record of who was asked, and a replacement
+    document goes to the same signers. Each is set to "needs resend" and
+    its signing link retired (artist_os.reset_signoffs, 2026-09-23 review):
+    a pending link used to keep taking a signature after its document was
+    gone, and that signature then read as signing the next file. The
     lockbox report reads the file's absence and puts the slot back to
     "missing" on its own. Returns "" for a track that is not this
     artist's too, so the caller cannot tell those two cases apart.
     """
+    import artist_os
     with get_db() as db:
         row = db.execute("SELECT lockbox FROM os_tracks WHERE id = ? AND user_id = ?",
                          (track_id, user_id)).fetchone()
@@ -4168,10 +4195,54 @@ def delete_os_track_lockbox_file(user_id, track_id, doc_key):
         if not path:
             return ""
         entry.pop("file", None)
+        artist_os.reset_signoffs(entry, had_file=True)
         box[doc_key] = entry
         db.execute("UPDATE os_tracks SET lockbox = ? WHERE id = ? AND user_id = ?",
                    (json.dumps(box), track_id, user_id))
     return path
+
+
+def align_sign_tokens():
+    """Start-up pass: each lockbox approval carries the token of the newest
+    signing link sent to that person for that slot.
+
+    Before 2026-09-23, asking the same person again minted and emailed a
+    new link but left the approval on the old token. The live-link rule
+    (app.py _sign_link) reads the approval's token, so without this the
+    link in the newest email would be refused while an older one stayed
+    live, and the page's copy-the-link box would show the old one.
+
+    Moves an approval only from an older link of the same slot and person
+    to the newest one. An approval with no token was retired on purpose
+    (artist_os.reset_signoffs) and is left alone. Runs every start; does
+    nothing once aligned. Deletes nothing."""
+    with get_db() as db:
+        rows = db.execute("SELECT rowid AS n, token, user_id, track_id, doc_key, email"
+                          " FROM sign_tokens ORDER BY rowid").fetchall()
+        groups = {}
+        for r in rows:
+            groups.setdefault((r["user_id"], r["track_id"], r["doc_key"],
+                               r["email"]), []).append(r["token"])
+        for (uid, tid, key, email), tokens in groups.items():
+            if len(tokens) < 2:
+                continue
+            row = db.execute("SELECT lockbox FROM os_tracks WHERE id = ? AND user_id = ?",
+                             (tid, uid)).fetchone()
+            if row is None:
+                continue
+            box = json.loads(row["lockbox"] or "{}")
+            entry = box.get(key) or {}
+            changed = False
+            for a in entry.get("approvals") or []:
+                if (a.get("email") or "").lower() != email:
+                    continue
+                tok = a.get("token")
+                if tok and tok != tokens[-1] and tok in tokens[:-1]:
+                    a["token"] = tokens[-1]
+                    changed = True
+            if changed:
+                db.execute("UPDATE os_tracks SET lockbox = ? WHERE id = ? AND user_id = ?",
+                           (json.dumps(box), tid, uid))
 
 
 def delete_os_track(user_id, track_id):

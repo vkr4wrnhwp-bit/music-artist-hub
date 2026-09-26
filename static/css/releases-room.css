@@ -161,6 +161,8 @@
 .rl-z-btn:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-offset: 3px; }
 .rl-z-btn svg, .rl-z-links svg, .rl-z-more svg, .rl-z-fold-sum svg, .rl-z-lens-go svg { width: 16px; height: 16px; flex: 0 0 auto; }
 .rl-z-note { grid-column: 2; margin: 0; font-size: 13px; color: var(--sb-ink-2); }
+.rl-z-note a { color: var(--sb-gold-bright); font-weight: 700; text-decoration: none; }
+.rl-z-note a:hover { text-decoration: underline; }
 .rl-z-links { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
 .rl-z-links a { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); text-decoration: none; }
 .rl-z-links a:hover { text-decoration: underline; }
@@ -221,20 +223,6 @@ a.rl-z-lens:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-of
 @media (prefers-reduced-motion: reduce) {
   .rl-z-fold-sum svg { transition: none; }
 }
-.rl-z-tools .rl-z-band { margin-top: 14px; }
-@media (max-width: 860px) {
-  .rl-z-two, .rl-z-pair { grid-template-columns: 1fr; }
-  .rl-z-empty, .rl-z-help { flex-wrap: wrap; }
-}
-@media (max-width: 560px) {
-  .rl-z-card { grid-template-columns: 1fr; grid-template-rows: auto; }
-  .rl-z-ring { grid-row: auto; }
-  .rl-z-btn, .rl-z-note, .rl-z-card .rl-z-links { grid-column: auto; }
-  .rl-z-btn { width: 100%; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .rl-z-fold-sum svg { transition: none; }
-}
 /* the drawer's category headings (this room had no band heading of its own) */
 .rl-z-band { margin: 14px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--sb-gold); }
 /* "What information do I need?" opens the first-draft list in place */
@@ -242,6 +230,7 @@ a.rl-z-lens:focus-visible { outline: 2px solid var(--sb-gold-bright); outline-of
 .rl-z-need summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 700; color: var(--sb-gold-bright); }
 .rl-z-need summary::-webkit-details-marker { display: none; }
 .rl-z-need summary:hover { text-decoration: underline; }
+.rl-z-need summary svg { width: 16px; height: 16px; flex: 0 0 auto; }
 .rl-z-need ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--sb-ink-2); }
 .rl-z-need p { margin: 6px 0 0; font-size: 13px; color: var(--sb-ink-2); }
 @media (max-width: 560px) { .rl-z-need { grid-column: auto; } }
