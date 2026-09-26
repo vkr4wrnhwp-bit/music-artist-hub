@@ -387,6 +387,35 @@ def test_the_review_step_checks_the_canvas_not_a_file():
     assert 'state.checkedSvg === buildSvg(false) && state.checkedVerdict === "pass"' in page
 
 
+def test_ticket_3_named_clears_fine_tune_fold_and_the_tray():
+    """Ticket 3. Every look row's "clear" says what it clears; the
+    positioning, spacing, colour and logo controls fold under "Fine-tune
+    placement" while title, artist, typeface, style, alignment and the two
+    sizes stay out; Preview formats is a horizontal tray, not a stack; the
+    studio leaves room under its last control for the floating Ask button.
+    Nothing is removed: the every-control test still lists every id."""
+    page = _page()
+    art = _section(page, "step-art")
+    clears = re.findall(r'<button[^>]*data-look-clear="[^"]+"[^>]*aria-label="Clear ([^"]+)"', art)
+    assert len(clears) == len(ac.LOOK_GROUPS) and "Light" in clears and "Framing" in clears, clears
+    typ = _section(page, "step-type")
+    fold = re.search(r'<details id="fine-tune" class="cs-fine[^"]*">\s*<summary>Fine-tune placement</summary>(.*?)</details>', typ, re.S)
+    assert fold, "the fold is a details with a summary"
+    inside, before = fold.group(1), typ[:fold.start()]
+    for cid in ("letter-spacing", "text-x", "text-y", "artist-x", "artist-y", "title-color", "artist-color", "logo-upload", "logo-size"):
+        assert 'id="%s"' % cid in inside and 'id="%s"' % cid not in before, cid
+    for cid in ("title-input", "artist-input", "font-select", "text-style", "upper-toggle", "text-size", "artist-size"):
+        assert 'id="%s"' % cid in before and 'id="%s"' % cid not in inside, cid
+    assert "<details" not in inside, "one fold, not nested"
+    strip = re.search(r'<div id="fmt-strip"[^>]*>', page).group(0)
+    assert "cs-tray" in strip and "grid-cols" not in strip
+    src = _source()
+    # (the variations picker has its own "grid" class; the check is the strip's)
+    assert 'strip.classList.add("grid")' not in src and 'class="cs-tray-cell"' in src
+    assert ".cs-tray:not(.hidden) { display: flex;" in page and "overflow-x: auto" in page
+    assert re.search(r"\.studio \{ padding-bottom: \d+px; \}", page)
+
+
 def test_the_inline_script_parses(tmp_path):
     """node --check on every inline script the rendered page carries. A
     syntax error in the editor's script is a page that draws no cover and
