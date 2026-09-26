@@ -4519,6 +4519,29 @@ def create_app():
         store.save_epk(user["id"], overrides)
         return jsonify({"ok": True})
 
+    @app.route("/epk/bio", methods=["POST"])
+    def epk_save_bio():
+        """Set the press kit's bio and nothing else.
+
+        /epk/save is the editor's save: it takes the whole kit and
+        replaces what is stored, so a field the editor leaves empty is
+        cleared. The Artist Twin's "Save as EPK bio" posted only a bio
+        to it, which wiped the saved tagline, genres, location, socials,
+        contacts and press quotes (audit, 2026-09-26). This door reads
+        the saved kit, changes the bio, and writes the rest back as it
+        was. The cap is the editor's own (epk_config, 1200)."""
+        user = current_user()
+        if user is None:
+            return jsonify({"ok": False, "error": "Sign in to save your EPK."}), 401
+        bio = str((_json_body() or {}).get("bio") or "").strip()
+        if not bio:
+            return jsonify({"ok": False, "error": "There is no bio to save."}), 400
+        saved = store.get_epk(user["id"]) or {}
+        data = dict(saved.get("data") or {})
+        data["bio"] = bio[:1200]
+        store.save_epk(user["id"], data)
+        return jsonify({"ok": True})
+
     def _store_epk_photo(user, f):
         """The one artist-photo uploader: /epk/photo and the collaborator
         profile's photo form both write through here, so a member has one

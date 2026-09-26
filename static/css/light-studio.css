@@ -50,6 +50,12 @@ body.lx-focus main { padding: 0.6rem 0.9rem 1rem !important; }
 .lx-draft { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; padding: 9px 12px; border: 1px solid var(--lx-line); border-left-width: 3px;
   border-radius: var(--sb-r-panel); background: rgb(201 162 74 / 0.09); font-size: 12.5px; color: var(--lx-copy); }
 .lx-draft[hidden] { display: none; }
+/* .lx-btn sets display:inline-flex, which beats the browser's own
+ * [hidden] rule, so every button the script hides still showed: "Pull
+ * the track's show" with no track, a "Held" release with nothing held,
+ * "Connect DMX" while Out is Preview, "Clear 0 auto cues" (audit,
+ * 2026-09-26). The attribute wins again. */
+.lx-btn[hidden] { display: none; }
 
 /* --- head ------------------------------------------------------------- */
 .lx-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; margin-bottom: 10px; }

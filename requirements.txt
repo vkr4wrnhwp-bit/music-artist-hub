@@ -41,3 +41,10 @@ sentry-sdk[flask]==2.69.2
 # nothing, and uploads still work, so a failed install degrades honestly
 # rather than breaking the artwork page.
 Pillow
+
+# artwork_check.py measures sharpness and "not blank" with numpy. It was
+# never installed on Render (nothing else in this file pulls it in; this
+# PC has it through other tools), so those two rows said "Not measured
+# on this server" for every artist (audit, 2026-09-26). Pinned to the
+# version the tests run against here; wheels exist for Python 3.12.
+numpy==2.5.2

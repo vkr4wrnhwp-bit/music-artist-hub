@@ -153,12 +153,14 @@
     copyGen.textContent = "Copied ✓"; setTimeout(() => { copyGen.textContent = "Copy"; }, 1500);
   });
 
-  // Real push: writes the generated bio straight into the Press Kit
+  // Real push: writes the generated bio into the Press Kit. /epk/bio
+  // changes the bio only; /epk/save replaces the whole kit and wiped
+  // everything else when it was sent a bio alone (audit, 2026-09-26).
   const pushEpk = document.getElementById("push-epk");
   if (pushEpk) pushEpk.addEventListener("click", async () => {
     const text = document.getElementById("gen-text").textContent.trim();
     try {
-      const r = await fetch("/epk/save", {method: "POST",
+      const r = await fetch("/epk/bio", {method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({bio: text})});
       const d = await r.json();
